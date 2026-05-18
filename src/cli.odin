@@ -80,5 +80,24 @@ run_build :: proc(args: []string) {
 	defer type_store_destroy(&store)
 
 	fmt.printfln("typecheck passed for {}", file_path)
-	fmt.println("TODO: implement effect lowering and code generation")
+
+	context.allocator = ctx.allocator
+	ir_mod := lower_file(canon, &store)
+	ir_mod = effect_lower(&ir_mod, &ctx)
+	ir_mod = closure_convert(&ir_mod, &ctx)
+	ir_mod = cps_transform(&ir_mod, &ctx)
+	rc_insert(&ir_mod, &ctx)
+	context.allocator = old_allocator
+
+	wasm_mod := codegen(ir_mod, &ctx)
+	context.allocator = ctx.allocator
+	wasm_bytes := wasm_serialize(wasm_mod)
+	context.allocator = old_allocator
+
+	dir := filepath.dir(file_path)
+	stem := filepath.stem(file_path)
+	output_path := fmt.tprintf("{}/{}.wasm", dir, stem)
+
+	_ = os.write_entire_file_from_bytes(output_path, wasm_bytes)
+	fmt.printfln("compiled {} -> {}", file_path, output_path)
 }

@@ -1,0 +1,150 @@
+package camp
+
+import "core:testing"
+import "core:mem"
+
+compile_source :: proc(source: string) -> ([]u8, ^Compilation_Context) {
+	ctx: ^Compilation_Context = new(Compilation_Context)
+	alloc := context_init(ctx)
+	context.allocator = alloc
+
+	file_rec := Source_File{path = "<test>", contents = source, id = 0}
+	lexer: Lexer
+	lexer_init(&lexer, file_rec, &ctx.collector, &ctx.interner)
+
+	parser: Parser
+	parser_init(&parser, &lexer, &ctx.collector, &ctx.interner)
+	surface := parser_parse_file(&parser)
+
+	canon := canonicalize(surface, ctx)
+
+	store: Type_Store
+	type_store_init(&store, &ctx.interner, &ctx.collector)
+	typecheck_file(canon, &store)
+
+	ir_mod := lower_file(canon, &store)
+	ir_mod = effect_lower(&ir_mod, ctx)
+	ir_mod = closure_convert(&ir_mod, ctx)
+	ir_mod = cps_transform(&ir_mod, ctx)
+	rc_insert(&ir_mod, ctx)
+
+	wasm_mod := codegen(ir_mod, ctx)
+	wasm_bytes := wasm_serialize(wasm_mod)
+
+	type_store_destroy(&store)
+	return wasm_bytes, ctx
+}
+
+teardown_codegen :: proc(ctx: ^Compilation_Context) {
+	context_destroy(ctx)
+	free(ctx)
+}
+
+@(test)
+test_codegen_simple :: proc(t: ^testing.T) {
+	wasm_bytes, ctx := compile_source("main! = || -> I64 { 42 }")
+	defer teardown_codegen(ctx)
+
+	testing.expect(t, len(wasm_bytes) >= 8)
+	testing.expect(t, wasm_bytes[0] == 0x00)
+	testing.expect(t, wasm_bytes[1] == 0x61)
+	testing.expect(t, wasm_bytes[2] == 0x73)
+	testing.expect(t, wasm_bytes[3] == 0x6D)
+	testing.expect(t, wasm_bytes[4] == 0x01)
+	testing.expect(t, wasm_bytes[5] == 0x00)
+	testing.expect(t, wasm_bytes[6] == 0x00)
+	testing.expect(t, wasm_bytes[7] == 0x00)
+}
+
+@(test)
+test_codegen_has_type_section :: proc(t: ^testing.T) {
+	wasm_bytes, ctx := compile_source("main! = || -> I64 { 42 }")
+	defer teardown_codegen(ctx)
+
+	testing.expect(t, len(wasm_bytes) > 9)
+	found_type := false
+	for i in 8..<len(wasm_bytes) - 1 {
+		if wasm_bytes[i] == 0x01 {
+			found_type = true
+			break
+		}
+	}
+	testing.expect(t, found_type)
+}
+
+@(test)
+test_codegen_has_export_section :: proc(t: ^testing.T) {
+	wasm_bytes, ctx := compile_source("main! = || -> I64 { 42 }")
+	defer teardown_codegen(ctx)
+
+	found_export := false
+	for i in 8..<len(wasm_bytes) - 1 {
+		if wasm_bytes[i] == 0x07 {
+			found_export = true
+			break
+		}
+	}
+	testing.expect(t, found_export)
+}
+
+@(test)
+test_codegen_leb128_u32_zero :: proc(t: ^testing.T) {
+	buf: [dynamic]u8
+	buf = make([dynamic]u8, 0, 4)
+	encode_u32_leb128(0, &buf)
+	testing.expect(t, len(buf) == 1)
+	testing.expect(t, buf[0] == 0)
+	delete(buf)
+}
+
+@(test)
+test_codegen_leb128_u32_small :: proc(t: ^testing.T) {
+	buf: [dynamic]u8
+	buf = make([dynamic]u8, 0, 4)
+	encode_u32_leb128(42, &buf)
+	testing.expect(t, len(buf) == 1)
+	testing.expect(t, buf[0] == 42)
+	delete(buf)
+}
+
+@(test)
+test_codegen_leb128_u32_large :: proc(t: ^testing.T) {
+	buf: [dynamic]u8
+	buf = make([dynamic]u8, 0, 8)
+	encode_u32_leb128(128, &buf)
+	testing.expect(t, len(buf) == 2)
+	testing.expect(t, buf[0] == 0x80)
+	testing.expect(t, buf[1] == 0x01)
+	delete(buf)
+}
+
+@(test)
+test_codegen_leb128_s32_negative :: proc(t: ^testing.T) {
+	buf: [dynamic]u8
+	buf = make([dynamic]u8, 0, 8)
+	encode_s32_leb128(-1, &buf)
+	testing.expect(t, len(buf) == 1)
+	testing.expect(t, buf[0] == 0x7F)
+	delete(buf)
+}
+
+@(test)
+test_codegen_leb128_s32_neg_42 :: proc(t: ^testing.T) {
+	buf: [dynamic]u8
+	buf = make([dynamic]u8, 0, 8)
+	encode_s32_leb128(-42, &buf)
+	testing.expect(t, len(buf) == 1)
+	testing.expect(t, buf[0] == 0x56)
+	delete(buf)
+}
+
+@(test)
+test_codegen_emit_instructions :: proc(t: ^testing.T) {
+	buf: [dynamic]u8
+	buf = make([dynamic]u8, 0, 32)
+	emit_instruction(Wasm_I64_Const{value = 42}, &buf)
+	testing.expect(t, buf[0] == 0x42)
+	emit_instruction(Wasm_End{}, &buf)
+	testing.expect(t, buf[len(buf) - 1] == 0x0B)
+	delete(buf)
+}
