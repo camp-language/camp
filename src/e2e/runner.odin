@@ -1,10 +1,12 @@
 package e2e
 
+import "core:c"
 import "core:fmt"
 import "core:mem"
 import "core:os"
 import "core:path/filepath"
 import "core:strings"
+import "core:sys/posix"
 import "core:time"
 
 E2E_Test :: struct {
@@ -290,6 +292,33 @@ capture_output :: proc(data: []byte) -> string {
 }
 
 PROCESS_TIMEOUT :: 10 * time.Second
+CHILD_MEMORY_LIMIT_KB: c.long = 524288
+CHILD_CPU_LIMIT_S: c.long = 5
+
+set_child_limits :: proc() -> (old_as: posix.rlimit, old_cpu: posix.rlimit) {
+	get_as: posix.result = posix.getrlimit(.AS, &old_as)
+	if get_as == .OK {
+		new_as: posix.rlimit
+		new_as.rlim_cur = posix.rlim_t(CHILD_MEMORY_LIMIT_KB * 1024)
+		new_as.rlim_max = posix.rlim_t(CHILD_MEMORY_LIMIT_KB * 1024)
+		posix.setrlimit(.AS, &new_as)
+	}
+	get_cpu: posix.result = posix.getrlimit(.CPU, &old_cpu)
+	if get_cpu == .OK {
+		new_cpu: posix.rlimit
+		new_cpu.rlim_cur = posix.rlim_t(CHILD_CPU_LIMIT_S)
+		new_cpu.rlim_max = posix.rlim_t(CHILD_CPU_LIMIT_S + 1)
+		posix.setrlimit(.CPU, &new_cpu)
+	}
+	return
+}
+
+restore_child_limits :: proc(old_as: posix.rlimit, old_cpu: posix.rlimit) {
+	local_as := old_as
+	local_cpu := old_cpu
+	posix.setrlimit(.AS, &local_as)
+	posix.setrlimit(.CPU, &local_cpu)
+}
 
 run_command :: proc(command: []string) -> (stdout: string, stderr: string, exit_code: int) {
 	desc := os.Process_Desc{
@@ -315,7 +344,9 @@ run_command :: proc(command: []string) -> (stdout: string, stderr: string, exit_
 		p_desc := desc
 		p_desc.stdout = stdout_w
 		p_desc.stderr = stderr_w
+		old_as, old_cpu := set_child_limits()
 		start_proc, start_err := os.process_start(p_desc)
+		restore_child_limits(old_as, old_cpu)
 		if start_err != nil {
 			return "", fmt.tprintf("process start error: {}", start_err), 1
 		}
