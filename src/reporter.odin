@@ -12,7 +12,7 @@ report_error :: proc(collector: ^Error_Collector, file_path: string, source: str
 	case .Internal: prefix = "internal error"
 	}
 
-	fmt.println("{file_path}:{line}:{col}: {prefix}: {error.message}")
+	fmt.printfln("{}:{}:{}: {}: {}", file_path, line, col, prefix, error.message)
 }
 
 span_to_line_col :: proc(source: string, span: Source_Span) -> (int, int) {
