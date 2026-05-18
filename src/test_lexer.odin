@@ -153,3 +153,45 @@ test_lexer_float_literal :: proc(t: ^testing.T) {
 	testing.expect(t, len(tokens) == 2)
 	testing.expect(t, tokens[0].kind == .Float_Literal)
 }
+
+@(test)
+test_lexer_handle :: proc(t: ^testing.T) {
+	ctx: Compilation_Context
+	context_init(&ctx)
+	defer context_destroy(&ctx)
+
+	tokens := lex_all("handle Async in { } with { }", &ctx)
+	defer delete(tokens)
+
+	testing.expect(t, len(tokens) == 9)
+	testing.expect(t, tokens[0].kind == .Kw_Handle)
+	testing.expect(t, tokens[1].kind == .Upper_Id)
+	testing.expect(t, tokens[2].kind == .Kw_In)
+	testing.expect(t, tokens[3].kind == .LBrace)
+	testing.expect(t, tokens[4].kind == .RBrace)
+	testing.expect(t, tokens[5].kind == .Kw_With)
+	testing.expect(t, tokens[6].kind == .LBrace)
+	testing.expect(t, tokens[7].kind == .RBrace)
+	testing.expect(t, tokens[8].kind == .Eof)
+}
+
+@(test)
+test_lexer_intercept :: proc(t: ^testing.T) {
+	ctx: Compilation_Context
+	context_init(&ctx)
+	defer context_destroy(&ctx)
+
+	tokens := lex_all("intercept Async in { } with { }", &ctx)
+	defer delete(tokens)
+
+	testing.expect(t, len(tokens) == 9)
+	testing.expect(t, tokens[0].kind == .Kw_Intercept)
+	testing.expect(t, tokens[1].kind == .Upper_Id)
+	testing.expect(t, tokens[2].kind == .Kw_In)
+	testing.expect(t, tokens[3].kind == .LBrace)
+	testing.expect(t, tokens[4].kind == .RBrace)
+	testing.expect(t, tokens[5].kind == .Kw_With)
+	testing.expect(t, tokens[6].kind == .LBrace)
+	testing.expect(t, tokens[7].kind == .RBrace)
+	testing.expect(t, tokens[8].kind == .Eof)
+}
