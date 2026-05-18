@@ -3,8 +3,9 @@ package camp
 import "core:fmt"
 
 Type_Env :: struct {
-	bindings: map[Intern_ID]Type_Var_ID,
-	parent:   ^Type_Env,
+	bindings:       map[Intern_ID]Type_Var_ID,
+	parent:         ^Type_Env,
+	handled_effects: [dynamic]Intern_ID,
 }
 
 Type_Result :: struct {
@@ -16,7 +17,9 @@ typecheck_file :: proc(file: CFile, store: ^Type_Store) {
 	env: Type_Env
 	env.bindings = make(map[Intern_ID]Type_Var_ID, 64)
 	env.parent = nil
+	env.handled_effects = make([dynamic]Intern_ID, 0, 8)
 	defer delete(env.bindings)
+	defer delete(env.handled_effects)
 
 	for decl in file.decls {
 		typecheck_decl(decl, &env, store)
@@ -34,6 +37,13 @@ typecheck_decl :: proc(decl: CDecl, env: ^Type_Env, store: ^Type_Store) {
 			unify(store, result.var_id, ann_var)
 		}
 
+		if !d.is_effectful && effect_row_nonempty(store, result.effects) {
+			name_str := intern_get(store.interner, d.name.name)
+			collector_add(store.collector, .Error,
+				fmt.tprintf("function with non-empty effect row must have '!' in name: '{}'", name_str),
+				d.span)
+		}
+
 		level := store.current_level
 		exit_level(store)
 		generalize_at_level(store, level)
@@ -41,6 +51,7 @@ typecheck_decl :: proc(decl: CDecl, env: ^Type_Env, store: ^Type_Store) {
 		env.bindings[d.name.name] = result.var_id
 
 	case ^CDecl_Effect:
+		append(&store.declared_effects, d.name.name)
 		for op in d.operations {
 			for p in op.params {
 				if p.type_ann != nil {
@@ -177,7 +188,9 @@ typecheck_synth :: proc(expr: CExpr, env: ^Type_Env, store: ^Type_Store) -> Type
 		return typecheck_method_call(e, env, store)
 
 	case ^CExpr_Handle:
+		append(&env.handled_effects, e.effect.name)
 		body_result := typecheck_synth(e.body, env, store)
+		_ = pop(&env.handled_effects)
 		return body_result
 	}
 	var_id := fresh_value_var(store, Source_Span_ZERO)
@@ -188,7 +201,9 @@ typecheck_lambda :: proc(e: ^CExpr_Lambda, env: ^Type_Env, store: ^Type_Store) -
 	child_env: Type_Env
 	child_env.bindings = make(map[Intern_ID]Type_Var_ID, len(e.params) + 4)
 	child_env.parent = env
+	child_env.handled_effects = make([dynamic]Intern_ID, 0, 8)
 	defer delete(child_env.bindings)
+	defer delete(child_env.handled_effects)
 
 	param_ids := store_alloc(store, Type_Var_ID, len(e.params))
 
@@ -446,6 +461,41 @@ typecheck_method_call :: proc(e: ^CExpr_Method_Call, env: ^Type_Env, store: ^Typ
 	eff := fresh_effect_row(store, e.span)
 	unify(store, eff, receiver_result.effects)
 
+	is_effect_op := false
+	effect_name: Intern_ID = NO_NAME
+	#partial switch r in e.receiver {
+	case ^CExpr_Name:
+		if is_declared_effect(store, r.name.name) {
+			is_effect_op = true
+			effect_name = r.name.name
+		}
+	case ^CExpr_Tag:
+		if len(r.payload) == 0 && is_declared_effect(store, r.name.name) {
+			is_effect_op = true
+			effect_name = r.name.name
+		}
+	}
+
+	if is_effect_op {
+		if !is_effect_handled(env, effect_name) {
+			effect_str := intern_get(store.interner, effect_name)
+			collector_add(store.collector, .Error,
+				fmt.tprintf("unhandled effect: {}", effect_str),
+				e.span)
+		}
+
+		effect_names := store_alloc(store, Intern_ID, 1)
+		effect_names[0] = effect_name
+		rest := fresh_effect_row(store, e.span)
+		row := fresh_effect_row(store, e.span)
+		link_var(store, row, Inferred_Type{
+			tag = .Effect_Row,
+			effect_names = effect_names,
+			rest_id = rest,
+		})
+		unify(store, eff, row)
+	}
+
 	for a in e.args {
 		arg_result := typecheck_synth(a, env, store)
 		unify(store, eff, arg_result.effects)
@@ -659,4 +709,45 @@ instantiate_rec :: proc(store: ^Type_Store, var_id: Type_Var_ID, subst: ^map[Typ
 	}
 
 	return resolved
+}
+
+effect_row_nonempty :: proc(store: ^Type_Store, effect_var: Type_Var_ID) -> bool {
+	resolved := resolve_var(store, effect_var)
+	v := get_var(store, resolved)
+
+	inf, is_inf := v.link.(Inferred_Type)
+	if !is_inf || inf.tag != .Effect_Row {
+		return false
+	}
+
+	if len(inf.effect_names) > 0 {
+		return true
+	}
+
+	rest_resolved := resolve_var(store, inf.rest_id)
+	rest_v := get_var(store, rest_resolved)
+	_, rest_unlinked := rest_v.link.(Type_Unlinked)
+	if rest_unlinked && !is_generic(store, rest_resolved) {
+		return true
+	}
+
+	rest_inf, rest_is_inf := rest_v.link.(Inferred_Type)
+	if rest_is_inf && rest_inf.tag == .Effect_Row {
+		return effect_row_nonempty(store, inf.rest_id)
+	}
+
+	return false
+}
+
+is_effect_handled :: proc(env: ^Type_Env, effect_id: Intern_ID) -> bool {
+	current := env
+	for current != nil {
+		for e in current.handled_effects {
+			if e == effect_id {
+				return true
+			}
+		}
+		current = current.parent
+	}
+	return false
 }
