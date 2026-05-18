@@ -1,0 +1,421 @@
+package camp
+
+import "core:fmt"
+
+Closure_Convert_Env :: struct {
+	module:   ^IR_Module,
+	interner: ^Intern_Table,
+	fresh:    int,
+}
+
+cc_fresh :: proc(env: ^Closure_Convert_Env, prefix: string) -> Intern_ID {
+	name := fmt.tprintf("{}_{}", prefix, env.fresh)
+	env.fresh += 1
+	return intern(env.interner, name)
+}
+
+cc_free_vars :: proc(expr: IR_Expr, bound: ^map[Intern_ID]bool) -> [dynamic]Intern_ID {
+	result: [dynamic]Intern_ID
+	result = make([dynamic]Intern_ID, 0, 8)
+
+	#partial switch e in expr {
+	case ^IR_Var:
+		if _, ok := bound^[e.name]; !ok {
+			already := false
+			for v in result {
+				if v == e.name {
+					already = true
+					break
+				}
+			}
+			if !already {
+				append(&result, e.name)
+			}
+		}
+	case ^IR_Let:
+		inner := cc_free_vars(e.value, bound)
+		for v in inner {
+			append(&result, v)
+		}
+		delete(inner)
+
+		bound^[e.binding] = true
+		body_free := cc_free_vars(e.body, bound)
+		for v in body_free {
+			append(&result, v)
+		}
+		delete(body_free)
+	case ^IR_Call:
+		for arg in e.args {
+			inner := cc_free_vars(arg, bound)
+			for v in inner {
+				append(&result, v)
+			}
+			delete(inner)
+		}
+	case ^IR_Tail_Call:
+		for arg in e.args {
+			inner := cc_free_vars(arg, bound)
+			for v in inner {
+				append(&result, v)
+			}
+			delete(inner)
+		}
+	case ^IR_If:
+		cond := cc_free_vars(e.condition, bound)
+		then_br := cc_free_vars(e.then_branch, bound)
+		else_br := cc_free_vars(e.else_branch, bound)
+		for v in cond { append(&result, v) }
+		for v in then_br { append(&result, v) }
+		for v in else_br { append(&result, v) }
+		delete(cond)
+		delete(then_br)
+		delete(else_br)
+	case ^IR_BinOp:
+		l := cc_free_vars(e.left, bound)
+		r := cc_free_vars(e.right, bound)
+		for v in l { append(&result, v) }
+		for v in r { append(&result, v) }
+		delete(l)
+		delete(r)
+	case ^IR_Return:
+		inner := cc_free_vars(e.value, bound)
+		for v in inner { append(&result, v) }
+		delete(inner)
+	case ^IR_Block:
+		for stmt in e.statements {
+			inner := cc_free_vars(stmt, bound)
+			for v in inner { append(&result, v) }
+			delete(inner)
+		}
+	case ^IR_Construct_Tag:
+		for p in e.payload {
+			inner := cc_free_vars(p, bound)
+			for v in inner { append(&result, v) }
+			delete(inner)
+		}
+	case ^IR_Construct_Record:
+		for f in e.fields {
+			inner := cc_free_vars(f.value, bound)
+			for v in inner { append(&result, v) }
+			delete(inner)
+		}
+		rest := cc_free_vars(e.rest, bound)
+		for v in rest { append(&result, v) }
+		delete(rest)
+	case ^IR_Field_Access:
+		inner := cc_free_vars(e.record, bound)
+		for v in inner { append(&result, v) }
+		delete(inner)
+	case ^IR_Method_Call:
+		recv := cc_free_vars(e.receiver, bound)
+		for v in recv { append(&result, v) }
+		delete(recv)
+		for arg in e.args {
+			inner := cc_free_vars(arg, bound)
+			for v in inner { append(&result, v) }
+			delete(inner)
+		}
+	case ^IR_Handle:
+		body := cc_free_vars(e.body, bound)
+		for v in body { append(&result, v) }
+		delete(body)
+		for arm in e.arms {
+			bound^[arm.resume_id] = true
+			inner := cc_free_vars(arm.body, bound)
+			for v in inner { append(&result, v) }
+			delete(inner)
+		}
+	case ^IR_Perform:
+		for arg in e.args {
+			inner := cc_free_vars(arg, bound)
+			for v in inner { append(&result, v) }
+			delete(inner)
+		}
+	case ^IR_Closure:
+		inner := cc_free_vars(e.env, bound)
+		for v in inner { append(&result, v) }
+		delete(inner)
+	case ^IR_Match:
+		scrut := cc_free_vars(e.scrutinee, bound)
+		for v in scrut { append(&result, v) }
+		delete(scrut)
+		for arm in e.arms {
+			cc_bind_pattern_vars(arm.pattern, bound)
+			inner := cc_free_vars(arm.body, bound)
+			for v in inner { append(&result, v) }
+			delete(inner)
+		}
+	case:
+	}
+
+	return result
+}
+
+cc_bind_pattern_vars :: proc(pat: IR_Pattern, bound: ^map[Intern_ID]bool) {
+	#partial switch p in pat {
+	case ^IR_Pat_Var:
+		bound^[p.name] = true
+	case ^IR_Pat_Tag:
+		for v in p.payload {
+			bound^[v] = true
+		}
+	case ^IR_Pat_Record:
+		for f in p.fields {
+			bound^[f.binding] = true
+		}
+	case:
+	}
+}
+
+closure_convert :: proc(mod: ^IR_Module, ctx: ^Compilation_Context) -> IR_Module {
+	result: IR_Module
+	result.decls = make([dynamic]IR_Decl, 0, len(mod.decls) + 16)
+	result.effect_defs = make([dynamic]IR_Effect_Def, 0, len(mod.effect_defs))
+	for eff in mod.effect_defs {
+		append(&result.effect_defs, eff)
+	}
+	result.string_table = make([dynamic]String_Table_Entry, 0, len(mod.string_table))
+	for entry in mod.string_table {
+		append(&result.string_table, entry)
+	}
+
+	env: Closure_Convert_Env
+	env.module = &result
+	env.interner = &ctx.interner
+	env.fresh = 0
+
+	for decl in mod.decls {
+		transformed := cc_convert_decl(decl, &env)
+		append(&result.decls, transformed)
+	}
+
+	return result
+}
+
+cc_convert_decl :: proc(decl: IR_Decl, env: ^Closure_Convert_Env) -> IR_Decl {
+	#partial switch d in decl {
+	case ^IR_Decl_Fn:
+		new_fn := new(IR_Decl_Fn)
+		new_fn^ = d^
+		new_fn.body = cc_convert_expr(d.body, env)
+		return IR_Decl(new_fn)
+	case ^IR_Decl_Const:
+		new_const := new(IR_Decl_Const)
+		new_const^ = d^
+		new_const.value = cc_convert_expr(d.value, env)
+		return IR_Decl(new_const)
+	case:
+		return decl
+	}
+}
+
+cc_convert_expr :: proc(expr: IR_Expr, env: ^Closure_Convert_Env) -> IR_Expr {
+	#partial switch e in expr {
+	case ^IR_Closure:
+		env_param_name := cc_fresh(env, "_cenv")
+
+		bound: map[Intern_ID]bool
+		bound = make(map[Intern_ID]bool, 8)
+		bound[env_param_name] = true
+
+		free := cc_free_vars(e.env, &bound)
+		delete(bound)
+
+		params := make([dynamic]IR_Param, 0, len(free) + 1)
+		append(&params, IR_Param{name = env_param_name, type = IR_Type{.I32, Type_Var_ID(0)}})
+
+		closed_fn_name := Canonical_Name{
+			module = NO_NAME,
+			name = cc_fresh(env, "closed"),
+			is_local = true,
+		}
+
+		closed_fn := new(IR_Decl_Fn)
+		closed_fn^ = IR_Decl_Fn{
+			name = closed_fn_name,
+			is_effectful = false,
+			params = params,
+			return_type = e.type,
+			effect_row = IR_Type{.Void, Type_Var_ID(0)},
+			body = IR_Expr(nil),
+			span = e.span,
+		}
+		append(&env.module.decls, IR_Decl(closed_fn))
+
+		fn_idx_lit := new(IR_Literal_Int)
+		fn_idx_lit^ = IR_Literal_Int{value = 0, type = IR_Type{.I32, Type_Var_ID(0)}, span = e.span}
+		env_ptr_lit := new(IR_Literal_Int)
+		env_ptr_lit^ = IR_Literal_Int{value = 0, type = IR_Type{.I32, Type_Var_ID(0)}, span = e.span}
+
+		fields := make([dynamic]IR_Record_Field, 0, 2)
+		fn_idx_id := intern(env.interner, "fn_idx")
+		env_ptr_id := intern(env.interner, "env_ptr")
+		append(&fields, IR_Record_Field{name = fn_idx_id, value = IR_Expr(fn_idx_lit)})
+		append(&fields, IR_Record_Field{name = env_ptr_id, value = IR_Expr(env_ptr_lit)})
+
+		rest_nil := new(IR_Literal_Int)
+		rest_nil^ = IR_Literal_Int{value = 0, type = IR_Type{.I32, Type_Var_ID(0)}, span = e.span}
+
+		rec := new(IR_Construct_Record)
+		rec^ = IR_Construct_Record{
+			fields = fields,
+			rest = IR_Expr(rest_nil),
+			type = IR_Type{.I32, Type_Var_ID(0)},
+			span = e.span,
+		}
+
+		delete(free)
+		return IR_Expr(rec)
+
+	case ^IR_Let:
+		new_let := new(IR_Let)
+		new_let^ = IR_Let{
+			binding = e.binding,
+			type = e.type,
+			value = cc_convert_expr(e.value, env),
+			body = cc_convert_expr(e.body, env),
+			span = e.span,
+		}
+		return IR_Expr(new_let)
+
+	case ^IR_Call:
+		new_args := make([dynamic]IR_Expr, 0, len(e.args))
+		for arg in e.args {
+			append(&new_args, cc_convert_expr(arg, env))
+		}
+		new_call := new(IR_Call)
+		new_call^ = IR_Call{callee = e.callee, args = new_args, type = e.type, span = e.span}
+		return IR_Expr(new_call)
+
+	case ^IR_Tail_Call:
+		new_args := make([dynamic]IR_Expr, 0, len(e.args))
+		for arg in e.args {
+			append(&new_args, cc_convert_expr(arg, env))
+		}
+		new_tc := new(IR_Tail_Call)
+		new_tc^ = IR_Tail_Call{callee = e.callee, args = new_args, span = e.span}
+		return IR_Expr(new_tc)
+
+	case ^IR_If:
+		new_if := new(IR_If)
+		new_if^ = IR_If{
+			condition = cc_convert_expr(e.condition, env),
+			then_branch = cc_convert_expr(e.then_branch, env),
+			else_branch = cc_convert_expr(e.else_branch, env),
+			type = e.type,
+			span = e.span,
+		}
+		return IR_Expr(new_if)
+
+	case ^IR_Match:
+		new_arms := make([dynamic]IR_Match_Arm, 0, len(e.arms))
+		for arm in e.arms {
+			append(&new_arms, IR_Match_Arm{pattern = arm.pattern, body = cc_convert_expr(arm.body, env)})
+		}
+		new_match := new(IR_Match)
+		new_match^ = IR_Match{
+			scrutinee = cc_convert_expr(e.scrutinee, env),
+			arms = new_arms,
+			type = e.type,
+			span = e.span,
+		}
+		return IR_Expr(new_match)
+
+	case ^IR_Construct_Tag:
+		new_payload := make([dynamic]IR_Expr, 0, len(e.payload))
+		for p in e.payload {
+			append(&new_payload, cc_convert_expr(p, env))
+		}
+		new_tag := new(IR_Construct_Tag)
+		new_tag^ = IR_Construct_Tag{tag_name = e.tag_name, payload = new_payload, type = e.type, span = e.span}
+		return IR_Expr(new_tag)
+
+	case ^IR_Construct_Record:
+		new_fields := make([dynamic]IR_Record_Field, 0, len(e.fields))
+		for f in e.fields {
+			append(&new_fields, IR_Record_Field{name = f.name, value = cc_convert_expr(f.value, env)})
+		}
+		new_rec := new(IR_Construct_Record)
+		new_rec^ = IR_Construct_Record{
+			fields = new_fields,
+			rest = cc_convert_expr(e.rest, env),
+			type = e.type,
+			span = e.span,
+		}
+		return IR_Expr(new_rec)
+
+	case ^IR_Field_Access:
+		new_fa := new(IR_Field_Access)
+		new_fa^ = IR_Field_Access{record = cc_convert_expr(e.record, env), field = e.field, type = e.type, span = e.span}
+		return IR_Expr(new_fa)
+
+	case ^IR_Method_Call:
+		new_args := make([dynamic]IR_Expr, 0, len(e.args))
+		for arg in e.args {
+			append(&new_args, cc_convert_expr(arg, env))
+		}
+		new_mc := new(IR_Method_Call)
+		new_mc^ = IR_Method_Call{
+			receiver = cc_convert_expr(e.receiver, env),
+			method = e.method,
+			args = new_args,
+			type = e.type,
+			span = e.span,
+		}
+		return IR_Expr(new_mc)
+
+	case ^IR_Handle:
+		body := cc_convert_expr(e.body, env)
+		new_arms := make([dynamic]IR_Handler_Arm, 0, len(e.arms))
+		for arm in e.arms {
+			append(&new_arms, IR_Handler_Arm{op = arm.op, resume_id = arm.resume_id, body = cc_convert_expr(arm.body, env)})
+		}
+		new_handle := new(IR_Handle)
+		new_handle^ = IR_Handle{
+			effect = e.effect,
+			is_shallow = e.is_shallow,
+			body = body,
+			arms = new_arms,
+			type = e.type,
+			span = e.span,
+		}
+		return IR_Expr(new_handle)
+
+	case ^IR_Perform:
+		new_args := make([dynamic]IR_Expr, 0, len(e.args))
+		for arg in e.args {
+			append(&new_args, cc_convert_expr(arg, env))
+		}
+		new_perf := new(IR_Perform)
+		new_perf^ = IR_Perform{effect = e.effect, op = e.op, args = new_args, type = e.type, span = e.span}
+		return IR_Expr(new_perf)
+
+	case ^IR_Return:
+		new_ret := new(IR_Return)
+		new_ret^ = IR_Return{value = cc_convert_expr(e.value, env), span = e.span}
+		return IR_Expr(new_ret)
+
+	case ^IR_Block:
+		new_stmts := make([dynamic]IR_Expr, 0, len(e.statements))
+		for stmt in e.statements {
+			append(&new_stmts, cc_convert_expr(stmt, env))
+		}
+		new_block := new(IR_Block)
+		new_block^ = IR_Block{statements = new_stmts, type = e.type, span = e.span}
+		return IR_Expr(new_block)
+
+	case ^IR_BinOp:
+		new_binop := new(IR_BinOp)
+		new_binop^ = IR_BinOp{
+			op = e.op,
+			left = cc_convert_expr(e.left, env),
+			right = cc_convert_expr(e.right, env),
+			type = e.type,
+			span = e.span,
+		}
+		return IR_Expr(new_binop)
+	}
+
+	return expr
+}

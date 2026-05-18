@@ -94,6 +94,10 @@ IR_Expr :: union {
 	^IR_Return,
 	^IR_Block,
 	^IR_BinOp,
+	^IR_Dup,
+	^IR_Drop,
+	^IR_Drop_Reuse,
+	^IR_Alloc_At,
 }
 
 IR_Literal_Int :: struct { value: i64, type: IR_Type, span: Source_Span }
@@ -218,3 +222,8 @@ IR_Return :: struct { value: IR_Expr, span: Source_Span }
 IR_Block :: struct { statements: [dynamic]IR_Expr, type: IR_Type, span: Source_Span }
 
 IR_BinOp :: struct { op: Token_Kind, left: IR_Expr, right: IR_Expr, type: IR_Type, span: Source_Span }
+
+IR_Dup :: struct { value: Intern_ID, span: Source_Span }
+IR_Drop :: struct { value: Intern_ID, span: Source_Span }
+IR_Drop_Reuse :: struct { value: Intern_ID, reuse_as: Intern_ID, span: Source_Span }
+IR_Alloc_At :: struct { value: Intern_ID, at: Intern_ID, span: Source_Span }
