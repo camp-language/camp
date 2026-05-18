@@ -212,3 +212,256 @@ test_typecheck_not :: proc(t: ^testing.T) {
 
 	testing.expect(t, !collector_has_errors(&ctx.collector))
 }
+
+@(test)
+test_unify_function_same_arity :: proc(t: ^testing.T) {
+	store, collector := setup_type_store()
+	defer teardown_type_store(&store, collector)
+
+	i64_name := intern(store.interner, "I64")
+	str_name := intern(store.interner, "Str")
+
+	param_a := make_primitive_type(&store, i64_name, Source_Span_ZERO)
+	ret_a := make_primitive_type(&store, str_name, Source_Span_ZERO)
+	eff_a := fresh_effect_row(&store, Source_Span_ZERO)
+	params_a := store_alloc(&store, Type_Var_ID, 1)
+	params_a[0] = param_a
+	fn_a := fresh_value_var(&store, Source_Span_ZERO)
+	link_var(&store, fn_a, Inferred_Type{
+		tag = .Function,
+		param_ids = params_a,
+		return_id = ret_a,
+		effect_id = eff_a,
+	})
+
+	param_b := make_primitive_type(&store, i64_name, Source_Span_ZERO)
+	ret_b := make_primitive_type(&store, str_name, Source_Span_ZERO)
+	eff_b := fresh_effect_row(&store, Source_Span_ZERO)
+	params_b := store_alloc(&store, Type_Var_ID, 1)
+	params_b[0] = param_b
+	fn_b := fresh_value_var(&store, Source_Span_ZERO)
+	link_var(&store, fn_b, Inferred_Type{
+		tag = .Function,
+		param_ids = params_b,
+		return_id = ret_b,
+		effect_id = eff_b,
+	})
+
+	err := unify(&store, fn_a, fn_b)
+	testing.expect(t, err == nil)
+}
+
+@(test)
+test_unify_function_arity_mismatch :: proc(t: ^testing.T) {
+	store, collector := setup_type_store()
+	defer teardown_type_store(&store, collector)
+
+	i64_name := intern(store.interner, "I64")
+	params_a := store_alloc(&store, Type_Var_ID, 1)
+	params_a[0] = make_primitive_type(&store, i64_name, Source_Span_ZERO)
+	ret_a := fresh_value_var(&store, Source_Span_ZERO)
+	eff_a := fresh_effect_row(&store, Source_Span_ZERO)
+	fn_a := fresh_value_var(&store, Source_Span_ZERO)
+	link_var(&store, fn_a, Inferred_Type{
+		tag = .Function,
+		param_ids = params_a,
+		return_id = ret_a,
+		effect_id = eff_a,
+	})
+
+	params_b := store_alloc(&store, Type_Var_ID, 2)
+	params_b[0] = make_primitive_type(&store, i64_name, Source_Span_ZERO)
+	params_b[1] = make_primitive_type(&store, i64_name, Source_Span_ZERO)
+	ret_b := fresh_value_var(&store, Source_Span_ZERO)
+	eff_b := fresh_effect_row(&store, Source_Span_ZERO)
+	fn_b := fresh_value_var(&store, Source_Span_ZERO)
+	link_var(&store, fn_b, Inferred_Type{
+		tag = .Function,
+		param_ids = params_b,
+		return_id = ret_b,
+		effect_id = eff_b,
+	})
+
+	err := unify(&store, fn_a, fn_b)
+	testing.expect(t, err != nil)
+}
+
+@(test)
+test_unify_function_param_mismatch :: proc(t: ^testing.T) {
+	store, collector := setup_type_store()
+	defer teardown_type_store(&store, collector)
+
+	i64_name := intern(store.interner, "I64")
+	str_name := intern(store.interner, "Str")
+
+	params_a := store_alloc(&store, Type_Var_ID, 1)
+	params_a[0] = make_primitive_type(&store, i64_name, Source_Span_ZERO)
+	ret_a := fresh_value_var(&store, Source_Span_ZERO)
+	eff_a := fresh_effect_row(&store, Source_Span_ZERO)
+	fn_a := fresh_value_var(&store, Source_Span_ZERO)
+	link_var(&store, fn_a, Inferred_Type{
+		tag = .Function,
+		param_ids = params_a,
+		return_id = ret_a,
+		effect_id = eff_a,
+	})
+
+	params_b := store_alloc(&store, Type_Var_ID, 1)
+	params_b[0] = make_primitive_type(&store, str_name, Source_Span_ZERO)
+	ret_b := fresh_value_var(&store, Source_Span_ZERO)
+	eff_b := fresh_effect_row(&store, Source_Span_ZERO)
+	fn_b := fresh_value_var(&store, Source_Span_ZERO)
+	link_var(&store, fn_b, Inferred_Type{
+		tag = .Function,
+		param_ids = params_b,
+		return_id = ret_b,
+		effect_id = eff_b,
+	})
+
+	err := unify(&store, fn_a, fn_b)
+	testing.expect(t, err != nil)
+	testing.expect(t, collector_has_errors(collector))
+}
+
+@(test)
+test_unify_effect_row_same_effects :: proc(t: ^testing.T) {
+	store, collector := setup_type_store()
+	defer teardown_type_store(&store, collector)
+
+	console_name := intern(store.interner, "Console")
+
+	eff_names_a := store_alloc(&store, Intern_ID, 1)
+	eff_names_a[0] = console_name
+	rest_a := fresh_effect_row(&store, Source_Span_ZERO)
+	row_a := fresh_effect_row(&store, Source_Span_ZERO)
+	link_var(&store, row_a, Inferred_Type{
+		tag = .Effect_Row,
+		effect_names = eff_names_a,
+		rest_id = rest_a,
+	})
+
+	eff_names_b := store_alloc(&store, Intern_ID, 1)
+	eff_names_b[0] = console_name
+	rest_b := fresh_effect_row(&store, Source_Span_ZERO)
+	row_b := fresh_effect_row(&store, Source_Span_ZERO)
+	link_var(&store, row_b, Inferred_Type{
+		tag = .Effect_Row,
+		effect_names = eff_names_b,
+		rest_id = rest_b,
+	})
+
+	err := unify(&store, row_a, row_b)
+	testing.expect(t, err == nil)
+}
+
+@(test)
+test_unify_effect_row_different_effects :: proc(t: ^testing.T) {
+	store, collector := setup_type_store()
+	defer teardown_type_store(&store, collector)
+
+	console_name := intern(store.interner, "Console")
+	file_name := intern(store.interner, "File")
+
+	eff_names_a := store_alloc(&store, Intern_ID, 1)
+	eff_names_a[0] = console_name
+	rest_a := fresh_effect_row(&store, Source_Span_ZERO)
+	row_a := fresh_effect_row(&store, Source_Span_ZERO)
+	link_var(&store, row_a, Inferred_Type{
+		tag = .Effect_Row,
+		effect_names = eff_names_a,
+		rest_id = rest_a,
+	})
+
+	eff_names_b := store_alloc(&store, Intern_ID, 1)
+	eff_names_b[0] = file_name
+	rest_b := fresh_effect_row(&store, Source_Span_ZERO)
+	row_b := fresh_effect_row(&store, Source_Span_ZERO)
+	link_var(&store, row_b, Inferred_Type{
+		tag = .Effect_Row,
+		effect_names = eff_names_b,
+		rest_id = rest_b,
+	})
+
+	err := unify(&store, row_a, row_b)
+	testing.expect(t, err == nil)
+}
+
+@(test)
+test_unify_record_row_same_fields :: proc(t: ^testing.T) {
+	store, collector := setup_type_store()
+	defer teardown_type_store(&store, collector)
+
+	i64_name := intern(store.interner, "I64")
+	str_name := intern(store.interner, "Str")
+	x_name := intern(store.interner, "x")
+	y_name := intern(store.interner, "y")
+
+	fields_a := store_alloc(&store, Type_Field_Entry, 2)
+	fields_a[0] = Type_Field_Entry{name = x_name, var = make_primitive_type(&store, i64_name, Source_Span_ZERO)}
+	fields_a[1] = Type_Field_Entry{name = y_name, var = make_primitive_type(&store, str_name, Source_Span_ZERO)}
+	rest_a := fresh_record_row(&store, Source_Span_ZERO)
+	rec_a := fresh_value_var(&store, Source_Span_ZERO)
+	link_var(&store, rec_a, Inferred_Type{
+		tag = .Record_Row,
+		record_fields = fields_a,
+		record_rest = rest_a,
+	})
+
+	fields_b := store_alloc(&store, Type_Field_Entry, 2)
+	fields_b[0] = Type_Field_Entry{name = x_name, var = make_primitive_type(&store, i64_name, Source_Span_ZERO)}
+	fields_b[1] = Type_Field_Entry{name = y_name, var = make_primitive_type(&store, str_name, Source_Span_ZERO)}
+	rest_b := fresh_record_row(&store, Source_Span_ZERO)
+	rec_b := fresh_value_var(&store, Source_Span_ZERO)
+	link_var(&store, rec_b, Inferred_Type{
+		tag = .Record_Row,
+		record_fields = fields_b,
+		record_rest = rest_b,
+	})
+
+	err := unify(&store, rec_a, rec_b)
+	testing.expect(t, err == nil)
+}
+
+@(test)
+test_unify_record_row_field_mismatch :: proc(t: ^testing.T) {
+	store, collector := setup_type_store()
+	defer teardown_type_store(&store, collector)
+
+	i64_name := intern(store.interner, "I64")
+	str_name := intern(store.interner, "Str")
+	x_name := intern(store.interner, "x")
+
+	fields_a := store_alloc(&store, Type_Field_Entry, 1)
+	fields_a[0] = Type_Field_Entry{name = x_name, var = make_primitive_type(&store, i64_name, Source_Span_ZERO)}
+	rest_a := fresh_record_row(&store, Source_Span_ZERO)
+	rec_a := fresh_value_var(&store, Source_Span_ZERO)
+	link_var(&store, rec_a, Inferred_Type{
+		tag = .Record_Row,
+		record_fields = fields_a,
+		record_rest = rest_a,
+	})
+
+	fields_b := store_alloc(&store, Type_Field_Entry, 1)
+	fields_b[0] = Type_Field_Entry{name = x_name, var = make_primitive_type(&store, str_name, Source_Span_ZERO)}
+	rest_b := fresh_record_row(&store, Source_Span_ZERO)
+	rec_b := fresh_value_var(&store, Source_Span_ZERO)
+	link_var(&store, rec_b, Inferred_Type{
+		tag = .Record_Row,
+		record_fields = fields_b,
+		record_rest = rest_b,
+	})
+
+	err := unify(&store, rec_a, rec_b)
+	testing.expect(t, err != nil)
+	testing.expect(t, collector_has_errors(collector))
+}
+
+@(test)
+test_typecheck_function_application :: proc(t: ^testing.T) {
+	store, ctx := typecheck_source("add = |x: I64, y: I64| -> I64 { x }\nresult = add(1, 2)")
+	defer context_destroy(ctx)
+	defer free(ctx)
+	defer type_store_destroy(&store)
+
+	testing.expect(t, !collector_has_errors(&ctx.collector))
+}

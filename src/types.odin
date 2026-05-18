@@ -38,10 +38,33 @@ Inferred_Tag :: enum {
 	Effect_Row,
 }
 
+Type_Field_Entry :: struct {
+	name: Intern_ID,
+	var:  Type_Var_ID,
+}
+
+Type_Tag_Entry :: struct {
+	name:    Intern_ID,
+	payload: []Type_Var_ID,
+}
+
 Inferred_Type :: struct {
-	tag:           Inferred_Tag,
+	tag:            Inferred_Tag,
 	primitive_name: Intern_ID,
-	arity:         int,
+	arity:          int,
+
+	param_ids:  []Type_Var_ID,
+	return_id:  Type_Var_ID,
+	effect_id:  Type_Var_ID,
+
+	effect_names: []Intern_ID,
+	rest_id:      Type_Var_ID,
+
+	record_fields: []Type_Field_Entry,
+	record_rest:   Type_Var_ID,
+
+	tag_entries: []Type_Tag_Entry,
+	tag_rest:    Type_Var_ID,
 }
 
 Type_Store :: struct {
@@ -145,4 +168,8 @@ make_primitive_type :: proc(store: ^Type_Store, name: Intern_ID, span: Source_Sp
 	v := get_var(store, var_id)
 	v.link = Inferred_Type{tag = .Primitive, primitive_name = name}
 	return var_id
+}
+
+store_alloc :: proc(store: ^Type_Store, $T: typeid, count: int) -> []T {
+	return make([]T, count)
 }
