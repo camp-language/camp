@@ -8,12 +8,12 @@ test-unit:
     odin test src
 
 test-e2e: build build-e2e
-    ./camp-e2e
+    CAMP_BIN="$(pwd)/camp" ./camp-e2e
 
 test: test-unit test-e2e
 
 update-snapshots: build build-e2e
-    ./camp-e2e --update
+    CAMP_BIN="$(pwd)/camp" ./camp-e2e --update
 
 test-filter pattern: build build-e2e
-    ./camp-e2e --filter {{pattern}}
+    CAMP_BIN="$(pwd)/camp" ./camp-e2e --filter {{pattern}}

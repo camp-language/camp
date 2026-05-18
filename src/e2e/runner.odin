@@ -377,7 +377,14 @@ run_command :: proc(command: []string) -> (stdout: string, stderr: string, exit_
 }
 
 run_camp_build :: proc(camp_path: string) -> (stdout: string, stderr: string, exit_code: int) {
-	return run_command({"./camp", "build", camp_path})
+	camp_env := os.get_env("CAMP_BIN", context.allocator)
+	camp_bin: string
+	if len(camp_env) > 0 {
+		camp_bin = camp_env
+	} else {
+		camp_bin = "./camp"
+	}
+	return run_command({camp_bin, "build", camp_path})
 }
 
 resolve_wasmtime :: proc() -> string {
