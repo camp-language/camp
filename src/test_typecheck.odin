@@ -1,5 +1,6 @@
 package camp
 
+import "core:fmt"
 import "core:testing"
 
 setup_type_store :: proc() -> (Type_Store, ^Error_Collector) {
@@ -459,6 +460,42 @@ test_unify_record_row_field_mismatch :: proc(t: ^testing.T) {
 @(test)
 test_typecheck_function_application :: proc(t: ^testing.T) {
 	store, ctx := typecheck_source("add = |x: I64, y: I64| -> I64 { x }\nresult = add(1, 2)")
+	defer context_destroy(ctx)
+	defer free(ctx)
+	defer type_store_destroy(&store)
+
+	testing.expect(t, !collector_has_errors(&ctx.collector))
+}
+
+@(test)
+test_effectful_naming_enforcement :: proc(t: ^testing.T) {
+	store, ctx := typecheck_source(
+		"effect IO { println: Str }\nresult = handle IO in { IO.println(\"hi\") } with { .println!(resume) => resume({}) }")
+	defer context_destroy(ctx)
+	defer free(ctx)
+	defer type_store_destroy(&store)
+
+	testing.expect(t, collector_has_errors(&ctx.collector))
+}
+
+@(test)
+test_unhandled_effect_error :: proc(t: ^testing.T) {
+	store, ctx := typecheck_source(
+		"effect IO { println: Str }\nval = IO.println(\"hello\")")
+	defer context_destroy(ctx)
+	defer free(ctx)
+	defer type_store_destroy(&store)
+
+	testing.expect(t, ctx.collector.error_count > 0, fmt.tprintf("error_count = {}, errors len = {}", ctx.collector.error_count, len(ctx.collector.errors)))
+	for err in ctx.collector.errors {
+		fmt.printfln("Error: {} at {}", err.message, err.span)
+	}
+}
+
+@(test)
+test_handled_effect_ok :: proc(t: ^testing.T) {
+	store, ctx := typecheck_source(
+		"effect IO { println: Str }\nmain! = handle IO in { IO.println(\"hello\") } with { .println!(resume) => resume({}) }")
 	defer context_destroy(ctx)
 	defer free(ctx)
 	defer type_store_destroy(&store)

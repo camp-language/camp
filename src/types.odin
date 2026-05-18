@@ -68,11 +68,12 @@ Inferred_Type :: struct {
 }
 
 Type_Store :: struct {
-	vars:          [dynamic]Type_Var,
-	next_id:       Type_Var_ID,
-	current_level: int,
-	interner:      ^Intern_Table,
-	collector:     ^Error_Collector,
+	vars:            [dynamic]Type_Var,
+	next_id:         Type_Var_ID,
+	current_level:   int,
+	interner:        ^Intern_Table,
+	collector:       ^Error_Collector,
+	declared_effects: [dynamic]Intern_ID,
 }
 
 type_store_init :: proc(store: ^Type_Store, interner: ^Intern_Table, collector: ^Error_Collector) {
@@ -81,10 +82,12 @@ type_store_init :: proc(store: ^Type_Store, interner: ^Intern_Table, collector: 
 	store.current_level = LEVEL_TOP
 	store.interner = interner
 	store.collector = collector
+	store.declared_effects = make([dynamic]Intern_ID, 0, 16)
 }
 
 type_store_destroy :: proc(store: ^Type_Store) {
 	delete(store.vars)
+	delete(store.declared_effects)
 }
 
 fresh_var :: proc(store: ^Type_Store, kind: Type_Var_Kind, name: Intern_ID, span: Source_Span) -> Type_Var_ID {
@@ -172,4 +175,13 @@ make_primitive_type :: proc(store: ^Type_Store, name: Intern_ID, span: Source_Sp
 
 store_alloc :: proc(store: ^Type_Store, $T: typeid, count: int) -> []T {
 	return make([]T, count)
+}
+
+is_declared_effect :: proc(store: ^Type_Store, name: Intern_ID) -> bool {
+	for ef in store.declared_effects {
+		if ef == name {
+			return true
+		}
+	}
+	return false
 }
