@@ -39,8 +39,13 @@ main :: proc() {
 		switch report.result {
 		case .Pass:
 			pass_count += 1
-			if verbose {
+			if report.updated {
+				fmt.printfln("  UPDATED  {}/{}", test.category, test.name)
+			} else if verbose {
 				fmt.printfln("  PASS  {}/{}", test.category, test.name)
+				fmt.printfln("    stdout: {}", report.actual_stdout)
+				fmt.printfln("    stderr: {}", report.actual_stderr)
+				fmt.printfln("    exit: {}", report.actual_exit)
 			}
 		case .Fail:
 			fail_count += 1

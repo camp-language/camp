@@ -20,9 +20,13 @@ Test_Result :: enum {
 }
 
 Test_Report :: struct {
-	test:   E2E_Test,
-	result: Test_Result,
-	diff:   string,
+	test:          E2E_Test,
+	result:        Test_Result,
+	diff:          string,
+	updated:       bool,
+	actual_stdout: string,
+	actual_stderr: string,
+	actual_exit:   int,
 }
 
 discover_tests :: proc(root: string, filter: string) -> []E2E_Test {
@@ -147,10 +151,15 @@ run_test :: proc(test: E2E_Test, update: bool) -> Test_Report {
 		stdout_str, stderr_str, exit_code = run_camp_build(tmp_camp)
 	}
 
+	report.actual_stdout = stdout_str
+	report.actual_stderr = stderr_str
+	report.actual_exit = exit_code
+
 	wasm_stdout: string
 	wasm_stderr: string
 	wasm_exit: int
 	has_wasm := false
+	wasm_available := true
 
 	_, has_wasm_exit := toml_get(&expected_dict, "wasm_exit")
 	if has_wasm_exit && exit_code == 0 {
@@ -161,8 +170,13 @@ run_test :: proc(test: E2E_Test, update: bool) -> Test_Report {
 			has_wasm = false
 		} else {
 			defer delete(tmp_wasm, context.allocator)
-			wasm_stdout, wasm_stderr, wasm_exit = run_wasmtime(tmp_wasm)
+			wasm_stdout, wasm_stderr, wasm_exit, wasm_available = run_wasmtime(tmp_wasm)
 		}
+	}
+
+	if !wasm_available && has_wasm_exit {
+		report.result = .Skip
+		return report
 	}
 
 	diff_builder: strings.Builder
@@ -206,7 +220,7 @@ run_test :: proc(test: E2E_Test, update: bool) -> Test_Report {
 		}
 	}
 
-	if has_wasm {
+	if has_wasm && wasm_available {
 		expected_wasm_exit_val, _ := toml_get(&expected_dict, "wasm_exit")
 		#partial switch e in expected_wasm_exit_val {
 		case int:
@@ -242,8 +256,16 @@ run_test :: proc(test: E2E_Test, update: bool) -> Test_Report {
 	}
 
 	if update {
-		write_update_file(test.expected_path, stdout_str, stderr_str, exit_code, has_wasm, wasm_stdout, wasm_stderr, wasm_exit)
+		args_str: string
+		if has_args {
+			#partial switch a in args_val {
+			case string:
+				args_str = a
+			}
+		}
+		write_update_file(test.expected_path, stdout_str, stderr_str, exit_code, has_wasm, wasm_stdout, wasm_stderr, wasm_exit, has_args, args_str)
 		passed = true
+		report.updated = true
 	}
 
 	if passed {
@@ -290,13 +312,24 @@ run_camp_build :: proc(camp_path: string) -> (stdout: string, stderr: string, ex
 	return
 }
 
-run_wasmtime :: proc(wasm_path: string) -> (stdout: string, stderr: string, exit_code: int) {
+resolve_wasmtime :: proc() -> string {
+	env_val := os.get_env_alloc("WASMTIME", context.allocator)
+	defer delete(env_val, context.allocator)
+	if len(env_val) > 0 {
+		clone, _ := strings.clone(env_val, context.allocator)
+		return clone
+	}
+	return "wasmtime"
+}
+
+run_wasmtime :: proc(wasm_path: string) -> (stdout: string, stderr: string, exit_code: int, available: bool) {
+	wasmtime_bin := resolve_wasmtime()
 	desc := os.Process_Desc{
-		command = {"/home/smores/.wasmtime/bin/wasmtime", "run", wasm_path},
+		command = {wasmtime_bin, "run", wasm_path},
 	}
 	state, stdout_data, stderr_data, err := os.process_exec(desc, context.allocator)
 	if err != nil {
-		return "", fmt.tprintf("failed to execute wasmtime: {}", err), 1
+		return "", "", 0, false
 	}
 	defer delete(stdout_data, context.allocator)
 	defer delete(stderr_data, context.allocator)
@@ -304,6 +337,7 @@ run_wasmtime :: proc(wasm_path: string) -> (stdout: string, stderr: string, exit
 	exit_code = state.exit_code
 	stdout = capture_output(stdout_data)
 	stderr = capture_output(stderr_data)
+	available = true
 	return
 }
 
@@ -396,10 +430,14 @@ write_string_diff :: proc(buf: ^strings.Builder, field: string, expected: string
 	}
 }
 
-write_update_file :: proc(path: string, stdout: string, stderr: string, exit: int, has_wasm: bool, wasm_stdout: string, wasm_stderr: string, wasm_exit: int) {
+write_update_file :: proc(path: string, stdout: string, stderr: string, exit: int, has_wasm: bool, wasm_stdout: string, wasm_stderr: string, wasm_exit: int, has_args: bool, args: string) {
 	dict: Toml_Dict
 	dict.entries = make([dynamic]Toml_Entry, 0, 8, context.allocator)
 	defer delete(dict.entries)
+
+	if has_args {
+		append(&dict.entries, Toml_Entry{key = "args", value = args})
+	}
 
 	append(&dict.entries, Toml_Entry{key = "stdout", value = stdout})
 	append(&dict.entries, Toml_Entry{key = "stderr", value = stderr})
