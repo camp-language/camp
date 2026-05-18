@@ -25,7 +25,7 @@ test_integration_hello_world :: proc(t: ^testing.T) {
 	defer context_destroy(&ctx)
 
 	file := parse_camp_source("main! = || ->{ Console } Str { \"Hello, Camp!\" }", &ctx)
-	testing.expect(t, !collector_has_errors(&ctx.collector))
+	testing.expect(t, !diag_collector_has_errors(&ctx.collector))
 	testing.expect(t, len(file.decls) == 1)
 	#partial switch d in file.decls[0] {
 	case ^Decl_Const:
@@ -42,7 +42,7 @@ test_integration_effectful_name :: proc(t: ^testing.T) {
 	defer context_destroy(&ctx)
 
 	file := parse_camp_source("print! = 42", &ctx)
-	testing.expect(t, !collector_has_errors(&ctx.collector))
+	testing.expect(t, !diag_collector_has_errors(&ctx.collector))
 	testing.expect(t, len(file.decls) == 1)
 	#partial switch d in file.decls[0] {
 	case ^Decl_Const:
@@ -59,7 +59,7 @@ test_integration_add_function :: proc(t: ^testing.T) {
 	defer context_destroy(&ctx)
 
 	file := parse_camp_source("add = |x: I64, y: I64| -> I64 { x + y }", &ctx)
-	testing.expect(t, !collector_has_errors(&ctx.collector))
+	testing.expect(t, !diag_collector_has_errors(&ctx.collector))
 	testing.expect(t, len(file.decls) == 1)
 }
 
@@ -70,7 +70,7 @@ test_integration_effect_definition :: proc(t: ^testing.T) {
 	defer context_destroy(&ctx)
 
 	file := parse_camp_source("effect Console { print!: Str }", &ctx)
-	testing.expect(t, !collector_has_errors(&ctx.collector))
+	testing.expect(t, !diag_collector_has_errors(&ctx.collector))
 	testing.expect(t, len(file.decls) == 1)
 }
 
@@ -81,7 +81,7 @@ test_integration_multiple_decls :: proc(t: ^testing.T) {
 	defer context_destroy(&ctx)
 
 	file := parse_camp_source("name = \"Camp\"\nversion = 1\nmain! = || ->{ Console } Str { \"Hello\" }", &ctx)
-	testing.expect(t, !collector_has_errors(&ctx.collector))
+	testing.expect(t, !diag_collector_has_errors(&ctx.collector))
 	testing.expect(t, len(file.decls) == 3)
 }
 
@@ -100,7 +100,7 @@ test_integration_typecheck_simple :: proc(t: ^testing.T) {
 	parser_init(&parser, &lexer, &ctx.collector, &ctx.interner)
 	surface := parser_parse_file(&parser)
 
-	testing.expect(t, !collector_has_errors(&ctx.collector))
+	testing.expect(t, !diag_collector_has_errors(&ctx.collector))
 
 	context.allocator = alloc
 	canon := canonicalize(surface, &ctx)
@@ -110,7 +110,7 @@ test_integration_typecheck_simple :: proc(t: ^testing.T) {
 	defer type_store_destroy(&store)
 
 	typecheck_file(canon, &store)
-	testing.expect(t, !collector_has_errors(&ctx.collector))
+	testing.expect(t, !diag_collector_has_errors(&ctx.collector))
 }
 
 @(test)
@@ -136,7 +136,7 @@ test_integration_typecheck_effectful :: proc(t: ^testing.T) {
 	defer type_store_destroy(&store)
 
 	typecheck_file(canon, &store)
-	testing.expect(t, !collector_has_errors(&ctx.collector))
+	testing.expect(t, !diag_collector_has_errors(&ctx.collector))
 }
 
 @(test)

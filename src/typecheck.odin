@@ -1,6 +1,6 @@
 package camp
 
-import "core:fmt"
+import "core:strings"
 
 Type_Env :: struct {
 	bindings:       map[Intern_ID]Type_Var_ID,
@@ -11,6 +11,83 @@ Type_Env :: struct {
 Type_Result :: struct {
 	var_id:  Type_Var_ID,
 	effects: Type_Var_ID,
+}
+
+levenshtein_distance :: proc(a: string, b: string) -> int {
+	if len(a) == 0 do return len(b)
+	if len(b) == 0 do return len(a)
+
+	a_len := len(a)
+	b_len := len(b)
+	dist: [dynamic][dynamic]int
+	dist = make([dynamic][dynamic]int, a_len + 1)
+	for i in 0..<a_len + 1 {
+		dist[i] = make([dynamic]int, b_len + 1)
+		dist[i][0] = i
+	}
+	for j in 0..<b_len + 1 {
+		dist[0][j] = j
+	}
+	defer {
+		for i in 0..<a_len + 1 {
+			delete(dist[i])
+		}
+		delete(dist)
+	}
+
+	for i in 1..<a_len + 1 {
+		for j in 1..<b_len + 1 {
+			cost := 1
+			if a[i-1] == b[j-1] do cost = 0
+			dist[i][j] = min(
+				dist[i-1][j] + 1,
+				dist[i][j-1] + 1,
+				dist[i-1][j-1] + cost,
+			)
+		}
+	}
+
+	return dist[a_len][b_len]
+}
+
+find_similar_names :: proc(name: string, env: ^Type_Env, interner: ^Intern_Table) -> []string {
+	best_name: string
+	best_dist := 999
+	for k, _ in env.bindings {
+		candidate := intern_get(interner, k)
+		dist := levenshtein_distance(name, candidate)
+		if dist < best_dist && dist <= 3 && dist < len(name) / 2 + 1 {
+			best_dist = dist
+			best_name = candidate
+		}
+	}
+	if best_dist < 999 {
+		result := make([]string, 1)
+		result[0] = best_name
+		return result
+	}
+	return nil
+}
+
+format_effect_row :: proc(store: ^Type_Store, effects: Type_Var_ID) -> string {
+	rid := resolve_var(store, effects)
+	rv := get_var(store, rid)
+	it, is_inferred := rv.link.(Inferred_Type)
+	if is_inferred && it.tag == .Effect_Row {
+		if len(it.effect_names) == 0 do return "{}"
+		builder: strings.Builder
+		strings.builder_init_len_cap(&builder, 0, 64)
+		strings.write_rune(&builder, '{')
+		for i, eid in it.effect_names {
+			if i > 0 do strings.write_string(&builder, ", ")
+			strings.write_string(&builder, intern_get(store.interner, Intern_ID(eid)))
+		}
+		strings.write_rune(&builder, '}')
+		result := strings.to_string(builder)
+		strings.builder_destroy(&builder)
+		return result
+	}
+	return "{}"
 }
 
 typecheck_file :: proc(file: CFile, store: ^Type_Store) {
@@ -38,10 +115,9 @@ typecheck_decl :: proc(decl: CDecl, env: ^Type_Env, store: ^Type_Store) {
 		}
 
 		if !d.is_effectful && effect_row_nonempty(store, result.effects) {
-			name_str := intern_get(store.interner, d.name.name)
-			collector_add(store.collector, .Error,
-				fmt.tprintf("function with non-empty effect row must have '!' in name: '{}'", name_str),
-				d.span)
+		name_str := intern_get(store.interner, d.name.name)
+		effects_str := format_effect_row(store, result.effects)
+		collector_add_diag(store.collector, diag_effectful_naming(name_str, effects_str, d.span))
 		}
 
 		level := store.current_level
@@ -120,9 +196,9 @@ typecheck_synth :: proc(expr: CExpr, env: ^Type_Env, store: ^Type_Store) -> Type
 			return Type_Result{var_id = inst, effects = fresh_effect_row(store, e.span)}
 		}
 		var_id := fresh_value_var(store, e.span)
-		collector_add(store.collector, .Error,
-			fmt.tprintf("undefined name: {}", e.name.name),
-			e.span)
+		name_str := intern_get(store.interner, e.name.name)
+		similar := find_similar_names(name_str, env, store.interner)
+		collector_add_diag(store.collector, diag_undefined_name(name_str, similar, e.span))
 		return Type_Result{var_id = var_id, effects = fresh_effect_row(store, e.span)}
 
 	case ^CExpr_Lambda:
@@ -479,9 +555,7 @@ typecheck_method_call :: proc(e: ^CExpr_Method_Call, env: ^Type_Env, store: ^Typ
 	if is_effect_op {
 		if !is_effect_handled(env, effect_name) {
 			effect_str := intern_get(store.interner, effect_name)
-			collector_add(store.collector, .Error,
-				fmt.tprintf("unhandled effect: {}", effect_str),
-				e.span)
+			collector_add_diag(store.collector, diag_unhandled_effect(effect_str, e.span))
 		}
 
 		effect_names := store_alloc(store, Intern_ID, 1)

@@ -27,18 +27,23 @@ run_build :: proc(args: []string) {
 		file_path = args[0]
 	}
 
-	if filepath.ext(file_path) != ".camp" {
-		fmt.printfln("error: expected .camp file, got {}", file_path)
-		os.exit(1)
-	}
-
 	ctx: Compilation_Context
 	context_init(&ctx)
 	defer context_destroy(&ctx)
 
+	if filepath.ext(file_path) != ".camp" {
+		ext := filepath.ext(file_path)
+		collector_add_diag(&ctx.collector, diag_invalid_extension(file_path, ext))
+		render_all(&ctx.collector, file_path, "")
+		os.exit(1)
+	}
+
 	data, err := os.read_entire_file(file_path, ctx.allocator)
-	if err != nil do fmt.printfln("error: could not read file {}", file_path)
-	if err != nil do os.exit(1)
+	if err != nil {
+		collector_add_diag(&ctx.collector, diag_file_not_found(file_path, fmt.tprintf("{}", err)))
+		render_all(&ctx.collector, file_path, "")
+		os.exit(1)
+	}
 	source := string(data)
 
 	file_rec := Source_File{path = file_path, contents = source, id = 0}
@@ -53,11 +58,8 @@ run_build :: proc(args: []string) {
 	ast_file := parser_parse_file(&parser)
 	context.allocator = old_allocator
 
-	if collector_has_errors(&ctx.collector) {
-		for e in ctx.collector.errors {
-			report_error(&ctx.collector, file_path, source, e)
-		}
-		fmt.printfln("compilation failed with {} error(s)", ctx.collector.error_count)
+	if diag_collector_has_errors(&ctx.collector) {
+		render_all(&ctx.collector, file_path, source)
 		os.exit(1)
 	}
 
@@ -73,8 +75,8 @@ run_build :: proc(args: []string) {
 	typecheck_file(canon, &store)
 	context.allocator = old_allocator
 
-	if collector_has_errors(&ctx.collector) {
-		fmt.println("type errors found, stopping.")
+	if diag_collector_has_errors(&ctx.collector) {
+		render_all(&ctx.collector, file_path, source)
 		os.exit(1)
 	}
 	defer type_store_destroy(&store)

@@ -1,8 +1,6 @@
 #+feature dynamic-literals
 package camp
 
-import "core:fmt"
-
 Binding_Power :: int
 
 PREFIX_BP :map[Token_Kind]Binding_Power = {
@@ -30,11 +28,11 @@ INFIX_BP :map[Token_Kind][2]Binding_Power = {
 Parser :: struct {
 	lexer:     ^Lexer,
 	current:   Token,
-	collector: ^Error_Collector,
+	collector: ^Diagnostic_Collector,
 	intern:    ^Intern_Table,
 }
 
-parser_init :: proc(p: ^Parser, lexer: ^Lexer, collector: ^Error_Collector, table: ^Intern_Table) {
+parser_init :: proc(p: ^Parser, lexer: ^Lexer, collector: ^Diagnostic_Collector, table: ^Intern_Table) {
 	p.lexer = lexer
 	p.collector = collector
 	p.intern = table
@@ -51,7 +49,7 @@ parser_expect :: proc(p: ^Parser, kind: Token_Kind) -> Token {
 	if p.current.kind == kind {
 		return parser_advance(p)
 	}
-	collector_add(p.collector, .Error, fmt.tprintf("expected {}, got {}", kind, p.current.kind), p.current.span)
+	collector_add_diag(p.collector, diag_expected_token(kind, p.current, p.current.span))
 	return Token{kind = kind, span = p.current.span}
 }
 
@@ -239,7 +237,7 @@ parser_parse_prefix :: proc(p: ^Parser) -> Expr {
 		return e
 
 	case:
-		collector_add(p.collector, .Error, fmt.tprintf("unexpected token: {}", tok.kind), tok.span)
+		collector_add_diag(p.collector, diag_unexpected_token(tok))
 		parser_advance(p)
 		e := new(Expr_Int)
 		e^ = Expr_Int{value = 0, span = tok.span}
@@ -798,7 +796,7 @@ parser_parse_type :: proc(p: ^Parser) -> ^Type {
 		t = parser_parse_tag_union_type(p)
 
 	case:
-		collector_add(p.collector, .Error, fmt.tprintf("expected type, got {}", p.current.kind), p.current.span)
+		collector_add_diag(p.collector, diag_expected_type(p.current, p.current.span))
 		v := new(Type_Variable)
 		v^ = Type_Variable{name = intern(p.intern, "_"), span = p.current.span}
 		t = v

@@ -3,21 +3,21 @@ package camp
 import "core:fmt"
 import "core:testing"
 
-setup_type_store :: proc() -> (Type_Store, ^Error_Collector) {
+setup_type_store :: proc() -> (Type_Store, ^Diagnostic_Collector) {
 	store: Type_Store
-	collector: ^Error_Collector = new(Error_Collector)
-	collector_init(collector)
+	collector: ^Diagnostic_Collector = new(Diagnostic_Collector)
+	diag_collector_init(collector)
 	intern_table: ^Intern_Table = new(Intern_Table)
 	intern_init(intern_table)
 	type_store_init(&store, intern_table, collector)
 	return store, collector
 }
 
-teardown_type_store :: proc(store: ^Type_Store, collector: ^Error_Collector) {
+teardown_type_store :: proc(store: ^Type_Store, collector: ^Diagnostic_Collector) {
 	intern_destroy(store.interner)
 	free(store.interner)
 	type_store_destroy(store)
-	collector_destroy(collector)
+	diag_collector_destroy(collector)
 	free(collector)
 }
 
@@ -29,8 +29,8 @@ test_unify_fresh_vars :: proc(t: ^testing.T) {
 	a := fresh_value_var(&store, Source_Span_ZERO)
 	b := fresh_value_var(&store, Source_Span_ZERO)
 
-	err := unify(&store, a, b)
-	testing.expect(t, err == nil)
+	ok := unify(&store, a, b)
+	testing.expect(t, ok)
 
 	resolved_a := resolve_var(&store, a)
 	resolved_b := resolve_var(&store, b)
@@ -48,8 +48,8 @@ test_unify_level_propagation :: proc(t: ^testing.T) {
 
 	b := fresh_value_var(&store, Source_Span_ZERO)
 
-	err := unify(&store, a, b)
-	testing.expect(t, err == nil)
+	ok := unify(&store, a, b)
+	testing.expect(t, ok)
 
 	va := get_var(&store, resolve_var(&store, a))
 	vb := get_var(&store, resolve_var(&store, b))
@@ -84,9 +84,9 @@ test_unify_primitive_mismatch :: proc(t: ^testing.T) {
 	a := make_primitive_type(&store, i64_name, Source_Span_ZERO)
 	b := make_primitive_type(&store, str_name, Source_Span_ZERO)
 
-	err := unify(&store, a, b)
-	testing.expect(t, err != nil)
-	testing.expect(t, collector_has_errors(collector))
+	ok := unify(&store, a, b)
+	testing.expect(t, !ok)
+	testing.expect(t, diag_collector_has_errors(collector))
 }
 
 @(test)
@@ -99,8 +99,8 @@ test_unify_same_primitive :: proc(t: ^testing.T) {
 	a := make_primitive_type(&store, i64_name, Source_Span_ZERO)
 	b := make_primitive_type(&store, i64_name, Source_Span_ZERO)
 
-	err := unify(&store, a, b)
-	testing.expect(t, err == nil)
+	ok := unify(&store, a, b)
+	testing.expect(t, ok)
 }
 
 typecheck_source :: proc(source: string) -> (Type_Store, ^Compilation_Context) {
@@ -131,7 +131,7 @@ test_typecheck_int_literal :: proc(t: ^testing.T) {
 	defer free(ctx)
 	defer type_store_destroy(&store)
 
-	testing.expect(t, !collector_has_errors(&ctx.collector))
+	testing.expect(t, !diag_collector_has_errors(&ctx.collector))
 }
 
 @(test)
@@ -141,7 +141,7 @@ test_typecheck_lambda :: proc(t: ^testing.T) {
 	defer free(ctx)
 	defer type_store_destroy(&store)
 
-	testing.expect(t, !collector_has_errors(&ctx.collector))
+	testing.expect(t, !diag_collector_has_errors(&ctx.collector))
 }
 
 @(test)
@@ -151,7 +151,7 @@ test_typecheck_if_same_type :: proc(t: ^testing.T) {
 	defer free(ctx)
 	defer type_store_destroy(&store)
 
-	testing.expect(t, !collector_has_errors(&ctx.collector))
+	testing.expect(t, !diag_collector_has_errors(&ctx.collector))
 }
 
 @(test)
@@ -161,7 +161,7 @@ test_typecheck_record :: proc(t: ^testing.T) {
 	defer free(ctx)
 	defer type_store_destroy(&store)
 
-	testing.expect(t, !collector_has_errors(&ctx.collector))
+	testing.expect(t, !diag_collector_has_errors(&ctx.collector))
 }
 
 @(test)
@@ -171,7 +171,7 @@ test_typecheck_undefined_name :: proc(t: ^testing.T) {
 	defer free(ctx)
 	defer type_store_destroy(&store)
 
-	testing.expect(t, collector_has_errors(&ctx.collector))
+	testing.expect(t, diag_collector_has_errors(&ctx.collector))
 }
 
 @(test)
@@ -181,7 +181,7 @@ test_typecheck_let_polymorphism :: proc(t: ^testing.T) {
 	defer free(ctx)
 	defer type_store_destroy(&store)
 
-	testing.expect(t, !collector_has_errors(&ctx.collector))
+	testing.expect(t, !diag_collector_has_errors(&ctx.collector))
 }
 
 @(test)
@@ -191,7 +191,7 @@ test_typecheck_annotation_check :: proc(t: ^testing.T) {
 	defer free(ctx)
 	defer type_store_destroy(&store)
 
-	testing.expect(t, !collector_has_errors(&ctx.collector))
+	testing.expect(t, !diag_collector_has_errors(&ctx.collector))
 }
 
 @(test)
@@ -201,7 +201,7 @@ test_typecheck_binop :: proc(t: ^testing.T) {
 	defer free(ctx)
 	defer type_store_destroy(&store)
 
-	testing.expect(t, !collector_has_errors(&ctx.collector))
+	testing.expect(t, !diag_collector_has_errors(&ctx.collector))
 }
 
 @(test)
@@ -211,7 +211,7 @@ test_typecheck_not :: proc(t: ^testing.T) {
 	defer free(ctx)
 	defer type_store_destroy(&store)
 
-	testing.expect(t, !collector_has_errors(&ctx.collector))
+	testing.expect(t, !diag_collector_has_errors(&ctx.collector))
 }
 
 @(test)
@@ -248,8 +248,8 @@ test_unify_function_same_arity :: proc(t: ^testing.T) {
 		effect_id = eff_b,
 	})
 
-	err := unify(&store, fn_a, fn_b)
-	testing.expect(t, err == nil)
+	ok := unify(&store, fn_a, fn_b)
+	testing.expect(t, ok)
 }
 
 @(test)
@@ -283,8 +283,8 @@ test_unify_function_arity_mismatch :: proc(t: ^testing.T) {
 		effect_id = eff_b,
 	})
 
-	err := unify(&store, fn_a, fn_b)
-	testing.expect(t, err != nil)
+	ok := unify(&store, fn_a, fn_b)
+	testing.expect(t, !ok)
 }
 
 @(test)
@@ -319,9 +319,9 @@ test_unify_function_param_mismatch :: proc(t: ^testing.T) {
 		effect_id = eff_b,
 	})
 
-	err := unify(&store, fn_a, fn_b)
-	testing.expect(t, err != nil)
-	testing.expect(t, collector_has_errors(collector))
+	ok := unify(&store, fn_a, fn_b)
+	testing.expect(t, !ok)
+	testing.expect(t, diag_collector_has_errors(collector))
 }
 
 @(test)
@@ -351,8 +351,8 @@ test_unify_effect_row_same_effects :: proc(t: ^testing.T) {
 		rest_id = rest_b,
 	})
 
-	err := unify(&store, row_a, row_b)
-	testing.expect(t, err == nil)
+	ok := unify(&store, row_a, row_b)
+	testing.expect(t, ok)
 }
 
 @(test)
@@ -383,8 +383,8 @@ test_unify_effect_row_different_effects :: proc(t: ^testing.T) {
 		rest_id = rest_b,
 	})
 
-	err := unify(&store, row_a, row_b)
-	testing.expect(t, err == nil)
+	ok := unify(&store, row_a, row_b)
+	testing.expect(t, ok)
 }
 
 @(test)
@@ -419,8 +419,8 @@ test_unify_record_row_same_fields :: proc(t: ^testing.T) {
 		record_rest = rest_b,
 	})
 
-	err := unify(&store, rec_a, rec_b)
-	testing.expect(t, err == nil)
+	ok := unify(&store, rec_a, rec_b)
+	testing.expect(t, ok)
 }
 
 @(test)
@@ -452,9 +452,9 @@ test_unify_record_row_field_mismatch :: proc(t: ^testing.T) {
 		record_rest = rest_b,
 	})
 
-	err := unify(&store, rec_a, rec_b)
-	testing.expect(t, err != nil)
-	testing.expect(t, collector_has_errors(collector))
+	ok := unify(&store, rec_a, rec_b)
+	testing.expect(t, !ok)
+	testing.expect(t, diag_collector_has_errors(collector))
 }
 
 @(test)
@@ -464,7 +464,7 @@ test_typecheck_function_application :: proc(t: ^testing.T) {
 	defer free(ctx)
 	defer type_store_destroy(&store)
 
-	testing.expect(t, !collector_has_errors(&ctx.collector))
+	testing.expect(t, !diag_collector_has_errors(&ctx.collector))
 }
 
 @(test)
@@ -475,7 +475,7 @@ test_effectful_naming_enforcement :: proc(t: ^testing.T) {
 	defer free(ctx)
 	defer type_store_destroy(&store)
 
-	testing.expect(t, collector_has_errors(&ctx.collector))
+	testing.expect(t, diag_collector_has_errors(&ctx.collector))
 }
 
 @(test)
@@ -486,9 +486,9 @@ test_unhandled_effect_error :: proc(t: ^testing.T) {
 	defer free(ctx)
 	defer type_store_destroy(&store)
 
-	testing.expect(t, ctx.collector.error_count > 0, fmt.tprintf("error_count = {}, errors len = {}", ctx.collector.error_count, len(ctx.collector.errors)))
-	for err in ctx.collector.errors {
-		fmt.printfln("Error: {} at {}", err.message, err.span)
+	testing.expect(t, ctx.collector.error_count > 0, fmt.tprintf("error_count = {}, diagnostics len = {}", ctx.collector.error_count, len(ctx.collector.diagnostics)))
+	for d in ctx.collector.diagnostics {
+		fmt.printfln("Error: {} at {}", d.message, d.span)
 	}
 }
 
@@ -500,5 +500,5 @@ test_handled_effect_ok :: proc(t: ^testing.T) {
 	defer free(ctx)
 	defer type_store_destroy(&store)
 
-	testing.expect(t, !collector_has_errors(&ctx.collector))
+	testing.expect(t, !diag_collector_has_errors(&ctx.collector))
 }

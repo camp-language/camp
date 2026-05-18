@@ -16,8 +16,11 @@ main :: proc() {
 
 	cmd, ok := parse_command(args[1])
 	if !ok {
-		fmt.printfln("error: unknown command '{}'", args[1])
-		fmt.println("Commands: build, test, fmt, check")
+		collector: Diagnostic_Collector
+		diag_collector_init(&collector)
+		collector_add_diag(&collector, diag_unknown_command(args[1]))
+		render_all(&collector, "", "")
+		diag_collector_destroy(&collector)
 		os.exit(1)
 	}
 

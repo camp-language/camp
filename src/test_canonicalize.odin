@@ -8,7 +8,7 @@ canon_file :: proc(source: string) -> (CFile, ^Compilation_Context) {
 	context.allocator = alloc
 
 	table: ^Intern_Table = &ctx.interner
-	collector: ^Error_Collector = &ctx.collector
+	collector: ^Diagnostic_Collector = &ctx.collector
 
 	file := Source_File{path = "<test>", contents = source, id = 0}
 	lexer: Lexer

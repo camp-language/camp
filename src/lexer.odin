@@ -33,12 +33,12 @@ KEYWORDS :map[string]Token_Kind = {
 Lexer :: struct {
 	source:    string,
 	pos:       int,
-	collector: ^Error_Collector,
+	collector: ^Diagnostic_Collector,
 	intern:    ^Intern_Table,
 	file_id:   int,
 }
 
-lexer_init :: proc(l: ^Lexer, file: Source_File, collector: ^Error_Collector, table: ^Intern_Table) {
+lexer_init :: proc(l: ^Lexer, file: Source_File, collector: ^Diagnostic_Collector, table: ^Intern_Table) {
 	l.source = file.contents
 	l.pos = 0
 	l.collector = collector
@@ -193,7 +193,7 @@ lexer_next :: proc(l: ^Lexer) -> Token {
 	}
 
 	l.pos += 1
-	collector_add(l.collector, .Error, "unexpected character", lexer_make_span(l, start))
+	collector_add_diag(l.collector, diag_unexpected_char(ch, lexer_make_span(l, start)))
 	return lexer_next(l)
 }
 
@@ -243,7 +243,7 @@ lexer_lex_string :: proc(l: ^Lexer, start: int) -> Token {
 	if l.pos < len(l.source) {
 		l.pos += 1
 	} else {
-		collector_add(l.collector, .Error, "unterminated string literal", lexer_make_span(l, start))
+		collector_add_diag(l.collector, diag_unterminated_string(lexer_make_span(l, start)))
 	}
 
 	text := l.source[start:l.pos]

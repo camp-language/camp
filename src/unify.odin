@@ -2,18 +2,12 @@ package camp
 
 import "core:fmt"
 
-Unify_Error :: struct {
-	message: string,
-	span_a:  Source_Span,
-	span_b:  Source_Span,
-}
-
-unify :: proc(store: ^Type_Store, a: Type_Var_ID, b: Type_Var_ID) -> ^Unify_Error {
+unify :: proc(store: ^Type_Store, a: Type_Var_ID, b: Type_Var_ID) -> bool {
 	ra := resolve_var(store, a)
 	rb := resolve_var(store, b)
 
 	if ra == rb {
-		return nil
+		return true
 	}
 
 	va := get_var(store, ra)
@@ -21,15 +15,18 @@ unify :: proc(store: ^Type_Store, a: Type_Var_ID, b: Type_Var_ID) -> ^Unify_Erro
 
 	if va.kind != vb.kind {
 		if va.kind == .Value && vb.kind != .Value {
-			return make_unify_error(store, ra, rb, "cannot unify value type with row type")
+			collector_add_diag(store.collector, diag_value_row_conflict("value", "row", va.span, vb.span))
+			return false
 		}
 		if va.kind != .Value && vb.kind == .Value {
-			return make_unify_error(store, ra, rb, "cannot unify row type with value type")
+			collector_add_diag(store.collector, diag_value_row_conflict("row", "value", va.span, vb.span))
+			return false
 		}
 	}
 
 	if occurs_check(store, ra, rb) {
-		return make_unify_error(store, ra, rb, "infinite type (occurs check failed)")
+		collector_add_diag(store.collector, diag_infinite_type("this type", va.span, vb.span))
+		return false
 	}
 
 	max_level := max(va.level, vb.level)
@@ -53,9 +50,8 @@ unify :: proc(store: ^Type_Store, a: Type_Var_ID, b: Type_Var_ID) -> ^Unify_Erro
 		a_inf, a_is_inf := va.link.(Inferred_Type)
 		b_inf, b_is_inf := vb.link.(Inferred_Type)
 		if a_is_inf && b_is_inf {
-			err := unify_inferred(store, a_inf, b_inf, ra)
-			if err != nil {
-				return err
+			if !unify_inferred(store, a_inf, b_inf, ra, rb) {
+				return false
 			}
 			if int(ra) < int(rb) {
 				link_var(store, rb, ra)
@@ -71,84 +67,70 @@ unify :: proc(store: ^Type_Store, a: Type_Var_ID, b: Type_Var_ID) -> ^Unify_Erro
 		}
 	}
 
-	return nil
+	return true
 }
 
-unify_inferred :: proc(store: ^Type_Store, a: Inferred_Type, b: Inferred_Type, context_var: Type_Var_ID) -> ^Unify_Error {
+unify_inferred :: proc(store: ^Type_Store, a: Inferred_Type, b: Inferred_Type, a_id: Type_Var_ID, b_id: Type_Var_ID) -> bool {
 	if a.tag != b.tag {
-		span := get_var(store, context_var).span
-		collector_add(store.collector, .Error,
-			fmt.tprintf("type mismatch: {} vs {}", a.tag, b.tag),
-			span)
-		err := new(Unify_Error)
-		err^ = Unify_Error{
-			message = fmt.tprintf("type mismatch: {} vs {}", a.tag, b.tag),
-			span_a = Source_Span_ZERO,
-			span_b = Source_Span_ZERO,
-		}
-		return err
+		type_a_str := format_inferred_type(store, a)
+		type_b_str := format_inferred_type(store, b)
+		va := get_var(store, resolve_var(store, a_id))
+		vb := get_var(store, resolve_var(store, b_id))
+		collector_add_diag(store.collector, diag_type_mismatch(type_a_str, type_b_str, va.span, vb.span))
+		return false
 	}
 
 	if a.tag == .Primitive && a.primitive_name != b.primitive_name {
-		span := get_var(store, context_var).span
-		collector_add(store.collector, .Error,
-			fmt.tprintf("primitive mismatch: {} vs {}", a.primitive_name, b.primitive_name),
-			span)
-		err := new(Unify_Error)
-		err^ = Unify_Error{
-			message = "primitive type mismatch",
-			span_a = Source_Span_ZERO,
-			span_b = Source_Span_ZERO,
-		}
-		return err
+		name_a := intern_get(store.interner, a.primitive_name)
+		name_b := intern_get(store.interner, b.primitive_name)
+		va := get_var(store, resolve_var(store, a_id))
+		vb := get_var(store, resolve_var(store, b_id))
+		collector_add_diag(store.collector, diag_primitive_mismatch(name_a, name_b, va.span, vb.span))
+		return false
 	}
 
 	switch a.tag {
 	case .Function:
 		if len(a.param_ids) != len(b.param_ids) {
-			return make_unify_error(store, context_var, context_var,
-				fmt.tprintf("function arity mismatch: {} vs {}", len(a.param_ids), len(b.param_ids)))
+			va := get_var(store, resolve_var(store, a_id))
+			vb := get_var(store, resolve_var(store, b_id))
+			collector_add_diag(store.collector, diag_arity_mismatch(len(a.param_ids), len(b.param_ids), va.span, vb.span))
+			return false
 		}
 		for i in 0..<len(a.param_ids) {
-			err := unify(store, a.param_ids[i], b.param_ids[i])
-			if err != nil {
-				return err
+			if !unify(store, a.param_ids[i], b.param_ids[i]) {
+				return false
 			}
 		}
-		err := unify(store, a.return_id, b.return_id)
-		if err != nil {
-			return err
+		if !unify(store, a.return_id, b.return_id) {
+			return false
 		}
-		err = unify(store, a.effect_id, b.effect_id)
-		if err != nil {
-			return err
+		if !unify(store, a.effect_id, b.effect_id) {
+			return false
 		}
 
 	case .Effect_Row:
-		err := unify_effect_rows(store, a, b, context_var)
-		if err != nil {
-			return err
+		if !unify_effect_rows(store, a, b) {
+			return false
 		}
 
 	case .Record_Row:
-		err := unify_record_rows(store, a, b, context_var)
-		if err != nil {
-			return err
+		if !unify_record_rows(store, a, b) {
+			return false
 		}
 
 	case .Tag_Union_Row:
-		err := unify_tag_union_rows(store, a, b, context_var)
-		if err != nil {
-			return err
+		if !unify_tag_union_rows(store, a, b, a_id, b_id) {
+			return false
 		}
 
 	case .Primitive, .Constructor:
 	}
 
-	return nil
+	return true
 }
 
-unify_effect_rows :: proc(store: ^Type_Store, a: Inferred_Type, b: Inferred_Type, context_var: Type_Var_ID) -> ^Unify_Error {
+unify_effect_rows :: proc(store: ^Type_Store, a: Inferred_Type, b: Inferred_Type) -> bool {
 	a_only: [dynamic]Intern_ID
 	a_only = make([dynamic]Intern_ID, 0, len(a.effect_names))
 	defer delete(a_only)
@@ -201,14 +183,12 @@ unify_effect_rows :: proc(store: ^Type_Store, a: Inferred_Type, b: Inferred_Type
 		}
 		rem_var := fresh_effect_row(store, Source_Span_ZERO)
 		link_var(store, rem_var, rem_type)
-		err := unify(store, a.rest_id, rem_var)
-		if err != nil {
-			return err
+		if !unify(store, a.rest_id, rem_var) {
+			return false
 		}
 	} else {
-		err := unify(store, a.rest_id, shared_rest)
-		if err != nil {
-			return err
+		if !unify(store, a.rest_id, shared_rest) {
+			return false
 		}
 	}
 
@@ -224,21 +204,19 @@ unify_effect_rows :: proc(store: ^Type_Store, a: Inferred_Type, b: Inferred_Type
 		}
 		rem_var := fresh_effect_row(store, Source_Span_ZERO)
 		link_var(store, rem_var, rem_type)
-		err := unify(store, b.rest_id, rem_var)
-		if err != nil {
-			return err
+		if !unify(store, b.rest_id, rem_var) {
+			return false
 		}
 	} else {
-		err := unify(store, b.rest_id, shared_rest)
-		if err != nil {
-			return err
+		if !unify(store, b.rest_id, shared_rest) {
+			return false
 		}
 	}
 
-	return nil
+	return true
 }
 
-unify_record_rows :: proc(store: ^Type_Store, a: Inferred_Type, b: Inferred_Type, context_var: Type_Var_ID) -> ^Unify_Error {
+unify_record_rows :: proc(store: ^Type_Store, a: Inferred_Type, b: Inferred_Type) -> bool {
 	a_only: [dynamic]Type_Field_Entry
 	a_only = make([dynamic]Type_Field_Entry, 0, len(a.record_fields))
 	defer delete(a_only)
@@ -252,9 +230,8 @@ unify_record_rows :: proc(store: ^Type_Store, a: Inferred_Type, b: Inferred_Type
 		for bf in b.record_fields {
 			if af.name == bf.name {
 				found = true
-				err := unify(store, af.var, bf.var)
-				if err != nil {
-					return err
+				if !unify(store, af.var, bf.var) {
+					return false
 				}
 				break
 			}
@@ -295,14 +272,12 @@ unify_record_rows :: proc(store: ^Type_Store, a: Inferred_Type, b: Inferred_Type
 		}
 		rem_var := fresh_value_var(store, Source_Span_ZERO)
 		link_var(store, rem_var, rem_type)
-		err := unify(store, a.record_rest, rem_var)
-		if err != nil {
-			return err
+		if !unify(store, a.record_rest, rem_var) {
+			return false
 		}
 	} else {
-		err := unify(store, a.record_rest, shared_rest)
-		if err != nil {
-			return err
+		if !unify(store, a.record_rest, shared_rest) {
+			return false
 		}
 	}
 
@@ -318,21 +293,19 @@ unify_record_rows :: proc(store: ^Type_Store, a: Inferred_Type, b: Inferred_Type
 		}
 		rem_var := fresh_value_var(store, Source_Span_ZERO)
 		link_var(store, rem_var, rem_type)
-		err := unify(store, b.record_rest, rem_var)
-		if err != nil {
-			return err
+		if !unify(store, b.record_rest, rem_var) {
+			return false
 		}
 	} else {
-		err := unify(store, b.record_rest, shared_rest)
-		if err != nil {
-			return err
+		if !unify(store, b.record_rest, shared_rest) {
+			return false
 		}
 	}
 
-	return nil
+	return true
 }
 
-unify_tag_union_rows :: proc(store: ^Type_Store, a: Inferred_Type, b: Inferred_Type, context_var: Type_Var_ID) -> ^Unify_Error {
+unify_tag_union_rows :: proc(store: ^Type_Store, a: Inferred_Type, b: Inferred_Type, a_id: Type_Var_ID, b_id: Type_Var_ID) -> bool {
 	a_only: [dynamic]Type_Tag_Entry
 	a_only = make([dynamic]Type_Tag_Entry, 0, len(a.tag_entries))
 	defer delete(a_only)
@@ -347,13 +320,15 @@ unify_tag_union_rows :: proc(store: ^Type_Store, a: Inferred_Type, b: Inferred_T
 			if at.name == bt.name {
 				found = true
 				if len(at.payload) != len(bt.payload) {
-					return make_unify_error(store, context_var, context_var,
-						fmt.tprintf("tag payload arity mismatch for {}: {} vs {}", at.name, len(at.payload), len(bt.payload)))
+					tag_name := intern_get(store.interner, at.name)
+					va := get_var(store, resolve_var(store, a_id))
+					vb := get_var(store, resolve_var(store, b_id))
+					collector_add_diag(store.collector, diag_tag_arity_mismatch(tag_name, len(at.payload), len(bt.payload), va.span, vb.span))
+					return false
 				}
 				for i in 0..<len(at.payload) {
-					err := unify(store, at.payload[i], bt.payload[i])
-					if err != nil {
-						return err
+					if !unify(store, at.payload[i], bt.payload[i]) {
+						return false
 					}
 				}
 				break
@@ -395,14 +370,12 @@ unify_tag_union_rows :: proc(store: ^Type_Store, a: Inferred_Type, b: Inferred_T
 		}
 		rem_var := fresh_value_var(store, Source_Span_ZERO)
 		link_var(store, rem_var, rem_type)
-		err := unify(store, a.tag_rest, rem_var)
-		if err != nil {
-			return err
+		if !unify(store, a.tag_rest, rem_var) {
+			return false
 		}
 	} else {
-		err := unify(store, a.tag_rest, shared_rest)
-		if err != nil {
-			return err
+		if !unify(store, a.tag_rest, shared_rest) {
+			return false
 		}
 	}
 
@@ -418,18 +391,16 @@ unify_tag_union_rows :: proc(store: ^Type_Store, a: Inferred_Type, b: Inferred_T
 		}
 		rem_var := fresh_value_var(store, Source_Span_ZERO)
 		link_var(store, rem_var, rem_type)
-		err := unify(store, b.tag_rest, rem_var)
-		if err != nil {
-			return err
+		if !unify(store, b.tag_rest, rem_var) {
+			return false
 		}
 	} else {
-		err := unify(store, b.tag_rest, shared_rest)
-		if err != nil {
-			return err
+		if !unify(store, b.tag_rest, shared_rest) {
+			return false
 		}
 	}
 
-	return nil
+	return true
 }
 
 occurs_check :: proc(store: ^Type_Store, target: Type_Var_ID, in_var: Type_Var_ID) -> bool {
@@ -495,11 +466,29 @@ occurs_check_inferred :: proc(store: ^Type_Store, target: Type_Var_ID, inf: Infe
 	return false
 }
 
-make_unify_error :: proc(store: ^Type_Store, a: Type_Var_ID, b: Type_Var_ID, message: string) -> ^Unify_Error {
-	va := get_var(store, a)
-	vb := get_var(store, b)
-	collector_add(store.collector, .Error, message, va.span)
-	err := new(Unify_Error)
-	err^ = Unify_Error{message = message, span_a = va.span, span_b = vb.span}
-	return err
+format_inferred_type :: proc(store: ^Type_Store, t: Inferred_Type) -> string {
+	#partial switch t.tag {
+	case .Primitive:
+		return intern_get(store.interner, t.primitive_name)
+	case .Function:
+		return fmt.tprintf("({} params) -> {}", len(t.param_ids), format_type_var(store, t.return_id))
+	case .Record_Row:
+		return "record"
+	case .Tag_Union_Row:
+		return "tag union"
+	case .Effect_Row:
+		return "effect row"
+	case:
+		return "unknown"
+	}
+}
+
+format_type_var :: proc(store: ^Type_Store, id: Type_Var_ID) -> string {
+	rid := resolve_var(store, id)
+	rv := get_var(store, rid)
+	it, is_inferred := rv.link.(Inferred_Type)
+	if rv.kind == .Value && is_inferred {
+		return format_inferred_type(store, it)
+	}
+	return "?"
 }

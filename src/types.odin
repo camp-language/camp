@@ -72,11 +72,11 @@ Type_Store :: struct {
 	next_id:         Type_Var_ID,
 	current_level:   int,
 	interner:        ^Intern_Table,
-	collector:       ^Error_Collector,
+	collector:       ^Diagnostic_Collector,
 	declared_effects: [dynamic]Intern_ID,
 }
 
-type_store_init :: proc(store: ^Type_Store, interner: ^Intern_Table, collector: ^Error_Collector) {
+type_store_init :: proc(store: ^Type_Store, interner: ^Intern_Table, collector: ^Diagnostic_Collector) {
 	store.vars = make([dynamic]Type_Var, 0, 256)
 	store.next_id = 0
 	store.current_level = LEVEL_TOP
