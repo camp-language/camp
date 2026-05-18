@@ -110,29 +110,31 @@ These are the modules I believe should be added to the stdlib, ranked by importa
 
 | Module | Category | Contents | Rationale |
 |--------|----------|----------|-----------|
-| `Crypto.Hash` | Pure | Cryptographic hashing: sha256, sha512, blake2b, blake2s, blake3, md5 (legacy), hmac | Authentication, integrity checking, and JWT signing all require crypto hashes. Go, Python, Java, Zig, and Unison include crypto hashing in stdlib. This is pure computation — no effect needed. |
 | `Crypto.Random` | Effect | Cryptographically secure random: bytes!, int!, float!, uuid! | Separate from the existing `Random` effect (which is for non-crypto random). Token generation, nonce creation, and UUID generation require cryptographic randomness. Go (crypto/rand), Python (secrets), Java (SecureRandom), and Zig (std.crypto) all provide this. |
 | `Base64` | Pure | Base64, Base64URL, Base32, Base16 (Hex) encoding/decoding | The existing `Bytes` module mentions hex and base64, but these are too important for JWT tokens, HTTP Basic auth, and binary-in-JSON to be afterthoughts. Promote to a proper module with URL-safe variants. |
-| `Gzip` | Effect | Gzip/zlib compression and decompression: compress!, decompress! | HTTP content-encoding (gzip) is standard for REST APIs. Go, Python, Java, Zig, and Unison all include compression in stdlib. The effect boundary exists because compression may allocate and do I/O-sized work. |
+| `Gzip` | Pure | Gzip/zlib compression and decompression: compress, decompress | HTTP content-encoding (gzip) is standard for REST APIs. Go, Python, Java, Zig, and Unison all include compression in stdlib. **Revised: pure, not an effect.** Compression is a pure computation on bytes — it takes Bytes in and produces Bytes out. Memory allocation is not an effect boundary in Camp's model (List.map allocates too). The only I/O is reading the input and writing the output, which the caller handles. |
 | `Uuid` | Pure | UUID generation and parsing: v4, v7, parse, from_string, to_string, Nil | Every REST API generates unique IDs. UUID v7 (time-sortable) is becoming the standard for databases. This depends on `Crypto.Random` for generation. |
 
 #### Priority 3: Important for Completeness
 
+**Revised**: Applying the "easy to add later, impossible to remove" principle conservatively. The following modules are deferred to official packages or community packages. Only modules with strong cross-language precedent and clear "every backend needs this" justification remain in stdlib P3.
+
 | Module | Category | Contents | Rationale |
 |--------|----------|----------|-----------|
-| `Queue` | Pure | FIFO queue: push, pop, peek, length, from_list, to_list, iter | Useful for task scheduling, BFS algorithms, and buffer management. Go (container/list), OCaml (Queue), and Elixir (Queue) provide this. |
-| `Stack` | Pure | LIFO stack: push, pop, peek, length, from_list, to_list, iter | Useful for parsers, DFS algorithms, and undo systems. OCaml (Stack) provides this. |
-| `SortedMap` | Pure | Ordered map (B-tree or similar): get, insert, remove, keys, values, iter, range queries | When you need ordered key traversal (leaderboards, time-series, range scans). Haskell (Data.Map), Java (TreeMap), Go (BTreeMap via third-party but often requested). |
-| `SortedSet` | Pure | Ordered set: insert, remove, contains, union, intersection, iter, range queries | Ordered set operations complement SortedMap. |
-| `Tuple` | Pure | Tuple types and helpers: first, second, swap, map_first, map_second | Camp already has tuple-like behavior via records, but lightweight 2-3-4 tuples are useful for returning multiple values without defining a record type. |
-| `Version` | Pure | Semantic version parsing and comparison: parse, compare, satisfies, to_string | Package managers, API versioning, and compatibility checks all need semver. Elixir includes this. |
 | `Html` | Pure | HTML escaping and basic parsing: escape, unescape, strip_tags, encode_entities, decode_entities | Web APIs that render any HTML need escaping. Go (html/template), Python (html), and Elixir include this. Not a template engine — just the safety primitives. |
 | `Csv` | Pure | CSV reading and writing: Reader, Writer, parse_row, write_row, with_header | Data import/export is a common backend task. Go, Python, Java, and Zig all include CSV. |
 | `Xml` | Pure | XML parsing and emission: parse, to_string, Element, Attribute, streaming parser | SOAP APIs, RSS feeds, SVG generation, and config files (Maven, Spring, Android) need XML. Go, Python, Java include XML. |
 | `Mime` | Pure | MIME type constants and detection: type_by_extension, extension_by_type, parse, format | HTTP Content-Type headers, file upload handling, and email construction need MIME types. Go and Python include this. |
 | `Net.Ip` | Pure | IP address types and parsing: Ipv4, Ipv6, parse, is_loopback, is_private, is_multicast | Network utilities need IP types. Go (net), Java (InetAddress), Python (ipaddress) include this. |
-| `Sort` | Pure | Sorting algorithms: sort, sort_by, sort_with, stable_sort, merge_sort, quick_sort | Sorting is fundamental. The existing `List.sort` may suffice, but a dedicated Sort module can provide more algorithms and in-place sorting for mutable arrays. |
-| `Bits` | Pure | Bit manipulation: count_ones, count_zeros, leading_zeros, trailing_zeros, rotate_left, rotate_right, reverse_bits | Low-level protocol work, crypto, and data packing need bit operations. Zig and Haskell provide extensive bit manipulation. |
+| `Version` | Pure | Semantic version parsing and comparison: parse, compare, satisfies, to_string | Package managers, API versioning, and compatibility checks all need semver. Elixir includes this. |
+
+**Deferred to official/community packages:**
+
+| Module | Reason for Deferral |
+|--------|-------------------|
+| `Sort` | `List.sort` and `List.sort_by` already exist. A dedicated Sort module with multiple algorithms (merge_sort, quick_sort, stable_sort) is niche — most code uses the built-in sort. Can be a community package. |
+| `Bits` | Bit manipulation (count_ones, rotate_left, reverse_bits) is needed for low-level protocol work and crypto, not for typical REST APIs. Zig and Haskell provide it, but Camp's primary audience doesn't need it in stdlib. Community package. |
+| `Tuple` | Camp records serve the same purpose as tuples. Lightweight 2-3-4 tuples are a convenience, not a necessity. If requested by users, can be added later — but removing them would be a breaking change. Community package initially. |
 
 ### 3.3 Existing Stdlib Modules That Need Expansion
 
@@ -143,7 +145,7 @@ These are the modules I believe should be added to the stdlib, ranked by importa
 | `Iter` | Add: try_map (map with early exit on Err), chunks_of, windows, intersperse, scan, group_by, partition, unique, min_by, max_by, flat_map, enumerate already specified — also add step, stride, cycle | These are the "long tail" of iterator operations that eliminate the need for `itertools`-style packages. |
 | `Map` | Add: update (update a value in-place if present), get_or_insert (entry API like Rust), map_values (transform values), filter_map | Entry API patterns are essential for caches and counters in APIs. |
 | `List` | Add: find_index, find_last, chunk, windows, intersperse, scan, group_by, partition, unique_by, min_by, max_by, flat_map, sublist, rotate | These complement Iter and provide convenient eager versions. |
-| `Serialize` | Rename/restructure to generic `Codec` framework: Codec trait with Encode and Decode as sub-traits; then Json, Xml, Csv, Binary are format instances of Codec | The current spec has `Serialize` with binary format only. A generic Codec framework lets every format (JSON, XML, CSV, TOML, MsgPack) use the same trait mechanism. This is the "one way to do things" principle applied to serialization. |
+| `Serialize` | Rename/restructure to `Encode`/`Decode` traits with `EncoderFormatting`/`DecoderFormatting` formatting traits: format-agnostic encoding/decoding; then Json, Xml, Csv, Binary are format instances providing formatting trait implementations | The current spec has `Serialize` with binary format only. The Roc-inspired formatting trait design lets every format (JSON, XML, CSV, TOML, MsgPack) use the same Encode/Decode mechanism while handling format-specific concerns (null vs absence, arrays vs rows, type tagging). See §6 for full design. |
 | `Time` | Change now! return type from U64 to DateTime; add monotonic_now! for benchmarking; add elapsed!, timeout! combinators | U64 is too low-level for timestamps. DateTime is the right return type. |
 | `Random` | Clarify: this is non-cryptographic random (for simulations, shuffling, testing). Crypto.Random is separate. Add: shuffle, sample, weighted. **Boundary**: `Random` uses a fast PRNG (xoshiro256 or similar) seeded from WASI; `Crypto.Random` uses WASI's `random_get` syscall directly. They share the same WASI entropy source at seed time but diverge afterward — `Random` trades security for speed (suitable for simulations, property-based testing, shuffling), while `Crypto.Random` is suitable for token/nonce/key generation. Operations overlap intentionally: `Random.int!` is fast but not secret; `Crypto.Random.int!` is secret but slower. | Two distinct random sources with clear API boundaries and distinct performance/security tradeoffs. |
 
@@ -162,18 +164,14 @@ effect Crypto.Random {
   int!   : Int, Int ->{ Crypto.Random } Int
   uuid!  : || ->{ Crypto.Random } Uuid
 }
-
-effect Gzip {
-  compress!     : Bytes ->{ Gzip } Bytes
-  decompress!   : Bytes ->{ Gzip } Bytes
-}
 ```
 
 ### 3.5 Proposed New Traits
 
 | Trait | Methods | Derivable? | Rationale |
 |-------|---------|------------|-----------|
-| `Codec` | `encode : Self -> Bytes`, `decode : Bytes -> Result(Self, Str)` | Yes | Generic serialization framework. Json, Xml, Csv, Binary are format instances. |
+| `Encode` | `encode : fmt -> Self -> fmt` (parameterized by `EncoderFormatting fmt`) | Yes | Format-agnostic encoding. A single implementation works for JSON, XML, CSV, Binary, etc. |
+| `Decode` | `decode : fmt -> Result((fmt, Self), DecodeError)` (parameterized by `DecoderFormatting fmt`) | Yes | Format-agnostic decoding. A single implementation works for every format. |
 | `Validate` | `validate : Self -> Result(Self, Str)` | Yes | Input validation. REST APIs validate every incoming request. A trait lets validation compose with Codec. |
 
 ### 3.6 Stdlib Module Summary
@@ -194,7 +192,7 @@ effect Gzip {
 | `Path` | Pure | Existing | Existing |
 | `Fmt` | Pure | Existing | Existing |
 | `Hash` | Pure | Existing | Existing |
-| `Serialize`/`Codec` | Pure | Existing | Existing (restructure) |
+| `Serialize`/`Encode`/`Decode` | Pure | Existing | Existing (restructure to formatting-traits design) |
 | `Eq` | Pure | Existing | Existing |
 | `Ord` | Pure | Existing | Existing |
 | `Json` | Pure | P1 | New |
@@ -203,24 +201,16 @@ effect Gzip {
 | `Duration` | Pure | P1 | New |
 | `DateTime` | Pure | P1 | New |
 | `Log` | Effect | P1 | New |
-| `Crypto.Hash` | Pure | P2 | New |
 | `Crypto.Random` | Effect | P2 | New |
 | `Base64` | Pure | P2 | New |
-| `Gzip` | Effect | P2 | New |
+| `Gzip` | Pure | P2 | New |
 | `Uuid` | Pure | P2 | New |
-| `Queue` | Pure | P3 | New |
-| `Stack` | Pure | P3 | New |
-| `SortedMap` | Pure | P3 | New |
-| `SortedSet` | Pure | P3 | New |
-| `Tuple` | Pure | P3 | New |
 | `Version` | Pure | P3 | New |
 | `Html` | Pure | P3 | New |
 | `Csv` | Pure | P3 | New |
 | `Xml` | Pure | P3 | New |
 | `Mime` | Pure | P3 | New |
 | `Net.Ip` | Pure | P3 | New |
-| `Sort` | Pure | P3 | New |
-| `Bits` | Pure | P3 | New |
 | `File` | Effect | Existing | Existing |
 | `Console` | Effect | Existing | Existing |
 | `Async` | Effect | Existing | Existing |
@@ -250,6 +240,7 @@ Official packages are maintained by the Camp team under the `camp-lang` GitHub o
 | `Database.Sqlite` | SQLite driver | SQLite-specific driver implementing Database interface | SQLite is essential for development, testing, embedded, and edge deployments. |
 | `Database.Migration` | Schema migration | Versioned migration files (up/down), migration runner, dirty state recovery, schema introspection | Every database-backed service needs migrations. Rust (refinery), Go (golang-migrate, goose), Java (Flyway) provide this. |
 | `Jwt` | JWT tokens | JWT creation, parsing, validation; HS256, RS256, ES256, EdDSA algorithms; claims extraction; expiration checking | REST APIs use JWT for authentication. Every ecosystem has a JWT library. |
+| `Crypto.Hash` | Cryptographic hashing | sha256, sha512, blake2b, blake2s, blake3, hmac | Moved from stdlib: implementation bugs (side-channel timing, padding oracles) need independent versioning for fast security patches. WASM lacks constant-time memory operations, making side-channel mitigation a continuing concern. Keeping this out of stdlib lets the package ship fixes without a compiler release. |
 
 ### 4.2 Priority 2: Important for Most Production Services
 
@@ -268,6 +259,8 @@ Official packages are maintained by the Camp team under the `camp-lang` GitHub o
 | `Template` | Template rendering | Type-safe template language, HTML auto-escaping, layout/partial composition, compile-time template checking | Server-rendered HTML, email templates, and report generation. Rust (askama, tera), Go (html/template), Python (Jinja2) provide this. |
 | `Toml` | TOML codec | TOML parser and emitter; Codec instance for TOML format | Camp's own `camp.toml` uses TOML. Config files commonly use TOML. |
 | `Yaml` | YAML codec | YAML parser and emitter; Codec instance for YAML format | CI/CD configs (GitHub Actions, GitLab CI), Kubernetes manifests, and many config files use YAML. |
+| `Collections` | Specialized collections | Queue (FIFO: push, pop, peek, length), Stack (LIFO: push, pop, peek, length) | Moved from stdlib: not every program needs Queue/Stack, and the stdlib permanence guarantee means they can never be removed once added. As official packages they can iterate independently. |
+| `Collections.Sorted` | Ordered collections | SortedMap (ordered map with range queries), SortedSet (ordered set with range queries) | Moved from stdlib: ordered maps/sets are needed for leaderboards, time-series, range scans — but not "every program needs this." Haskell (Data.Map), Java (TreeMap) provide these. |
 
 ### 4.3 Priority 3: Useful but Less Common
 
@@ -307,6 +300,7 @@ Official packages are maintained by the Camp team under the `camp-lang` GitHub o
 | `Database.Sqlite` | P1 | Database |
 | `Database.Migration` | P1 | Database |
 | `Jwt` | P1 | Auth |
+| `Crypto.Hash` | P1 | Crypto |
 | `Http.Client` | P2 | HTTP |
 | `Http.Middleware` | P2 | HTTP |
 | `Auth` | P2 | Auth |
@@ -320,6 +314,8 @@ Official packages are maintained by the Camp team under the `camp-lang` GitHub o
 | `Template` | P2 | Rendering |
 | `Toml` | P2 | Codec |
 | `Yaml` | P2 | Codec |
+| `Collections` | P2 | Data Structures |
+| `Collections.Sorted` | P2 | Data Structures |
 | `Database.Redis` | P3 | Database |
 | `Database.MySql` | P3 | Database |
 | `Task` | P3 | Background |
@@ -374,26 +370,80 @@ Community packages are third-party libraries with no stability guarantee. They l
 
 The existing `Serialize` trait in the spec handles binary serialization. This should be generalized into a `Codec` framework that all format instances share.
 
-### 6.1 Core Traits
+### 6.1 The Problem with a Simple Codec Trait
+
+A naive `Codec` trait with `encode : Self -> Bytes` and `decode : Bytes -> Result(Self, Str)` assumes all formats are interchangeable — but they aren't:
+
+| Problem | Example |
+|---------|---------|
+| **Null vs absence** | JSON has `null` (a value); XML has `xsi:nil` (an attribute); CSV has empty cells (absence). A format-agnostic `Encode` can't know whether to emit null or omit the field. |
+| **Collections vs records** | JSON encodes lists as arrays `[1,2,3]`; CSV encodes them as rows (one list element per row, same columns). A format-agnostic `Encode` can't decide between "this is an array element" and "this is a row with columns." |
+| **Type tagging** | JSON has no type tags — `{"name": "Ada"}` is just an object. MsgPack and Protobuf use field numbers. XML uses element names. The encoding of a record's structure is format-specific. |
+| **Streaming vs buffered** | JSON and XML benefit from streaming encoders (write opening tag, write fields, write closing tag). Binary formats write field-by-field with length prefixes. A single `encode : Self -> Bytes` forces all formats into the same allocation pattern. |
+
+### 6.2 Roc-Inspired Design: Formatting Traits
+
+Roc solves this with `EncoderFormatting` and `DecoderFormatting` traits that separate "what to encode" from "how to format it." Camp should adopt the same approach:
 
 ```
-trait Encode is Codec {
-  encode : Self -> Bytes
+trait EncoderFormatting fmt {
+  record_start   : fmt -> Str -> fmt
+  record_end     : fmt -> fmt
+  field          : fmt -> Str -> fmt -> fmt
+  list_start     : fmt -> fmt
+  list_end       : fmt -> fmt
+  element        : fmt -> fmt -> fmt
+  string         : fmt -> Str -> fmt
+  int            : fmt -> Int -> fmt
+  float          : fmt -> Float -> fmt
+  bool           : fmt -> Bool -> fmt
+  null           : fmt -> fmt
 }
 
-trait Decode is Codec {
-  decode : Bytes -> Result(Self, Str)
+trait DecoderFormatting fmt {
+  record_start   : fmt -> Result(fmt, DecodeError)
+  field          : fmt -> Str -> Result(fmt, DecodeError)
+  list_start     : fmt -> Result(fmt, DecodeError)
+  element        : fmt -> Result(fmt, DecodeError)
+  string         : fmt -> Result(Str, DecodeError)
+  int            : fmt -> Result(Int, DecodeError)
+  float          : fmt -> Result(Float, DecodeError)
+  bool           : fmt -> Result(Bool, DecodeError)
+  null           : fmt -> Result((), DecodeError)
 }
 ```
 
-### 6.2 Format Instances
+Each format provides an instance of these traits:
 
-Each format provides its own encode/decode functions that use the Codec trait:
+| Format | EncoderFormatting instance | DecoderFormatting instance |
+|--------|---------------------------|---------------------------|
+| JSON | `Json.Formatter` (emits `{`, `"key":`, `null`, `[`, etc.) | `Json.Parser` (reads JSON tokens) |
+| XML | `Xml.Formatter` (emits `<record>`, `<field>`, `xsi:nil`, etc.) | `Xml.Parser` (reads XML elements) |
+| CSV | `Csv.Formatter` (emits rows with comma separators) | `Csv.Parser` (reads CSV rows) |
+| Binary | `Binary.Formatter` (emits length-prefixed fields) | `Binary.Parser` (reads binary fields) |
+
+### 6.3 Encode and Decode Traits (Format-Agnostic)
+
+User types implement `Encode` and `Decode` against an abstract formatter:
+
+```
+trait Encode a is EncoderFormatting fmt => {
+  encode : fmt -> a -> fmt
+}
+
+trait Decode a is DecoderFormatting fmt => {
+  decode : fmt -> Result((fmt, a), DecodeError)
+}
+```
+
+The formatter is a parameter, not a fixed type. This means a single `Encode` implementation works for every format that provides an `EncoderFormatting` instance.
+
+### 6.4 Format Instances
 
 | Format | Module | Status |
 |--------|--------|--------|
 | JSON | `Json` | Stdlib (P1) |
-| Binary | `Serialize` (renamed to `Binary`) | Stdlib (existing) |
+| Binary | `Binary` | Stdlib (existing `Serialize`, renamed) |
 | CSV | `Csv` | Stdlib (P3) |
 | XML | `Xml` | Stdlib (P3) |
 | TOML | `Toml` | Official package (P2) |
@@ -401,14 +451,23 @@ Each format provides its own encode/decode functions that use the Codec trait:
 | MsgPack | `MsgPack` | Official package (P3) |
 | Protobuf | `Protobuf` | Official package (P3) |
 
-### 6.3 Derive Integration
+### 6.5 Derive Integration
 
 ```
-@derive [Codec]
+@derive [Encode, Decode]
 User := { name: Str, age: U64 }
 ```
 
-This generates `Encode` and `Decode` implementations for every registered format. If a format isn't registered (e.g., Protobuf not in dependencies), it's skipped silently. If a specific field needs custom encoding, the derive can be overridden per-field.
+This generates `Encode` and `Decode` implementations that call `EncoderFormatting`/`DecoderFormatting` methods. The generated code is format-agnostic — it works for every format that provides the formatting traits. If a specific field needs custom encoding, the derive can be overridden per-field.
+
+### 6.6 Convenience Functions
+
+Each format module provides convenience functions for the common case:
+
+```
+Json.encode : Encode a => a -> Str
+Json.decode : Decode a => Str -> Result(a, DecodeError)
+```
 
 ---
 
@@ -454,6 +513,12 @@ Query.select("users")
 ```
 
 This is less magical than a full ORM (no lazy loading, no N+1, no impedance mismatch) and more type-safe than raw SQL strings. The query builder lives in the `Database` package. A separate community ORM can be built on top if desired.
+
+### 7.4 Future Work: Typed Query Effects
+
+The current `Database` effect uses string queries with `List(Value)` parameters — equivalent to Go's `database/sql`. Camp's effect system opens a more ambitious possibility: **typed query effects** where the query result type is tracked in the effect signature, enabling compile-time verification that every query result is consumed and every error is handled.
+
+This is research-grade work. For v1, the Go-style string-query interface gives Camp a practical advantage over Go (effect tracking already ensures errors are handled), while leaving room for typed queries as the language and type system mature. The key challenge is making query types expressive enough to be useful without requiring a full dependent-type system.
 
 ---
 
@@ -531,7 +596,67 @@ Log messages carry structured key-value context. Handlers decide how to format t
 
 ---
 
-## 10. Package Repository Strategy
+## 10. WASI Architecture
+
+Camp compiles to WASM/WASI Preview 2. Every stdlib module and official package must work within WASI constraints. This section documents how.
+
+### 10.1 WASI Preview 2 Capabilities
+
+| WASI Interface | What It Provides | Camp Mapping |
+|----------------|-------------------|--------------|
+| `wasi:sockets/tcp` | TCP connect/listen (requires `network` capability) | `Database.Postgres`, `Database.MySql`, `Http.Client`, `Email` (SMTP) |
+| `wasi:sockets/udp` | UDP send/receive | `Dns` (future) |
+| `wasi:http/incoming-handler` | Host calls your handler with incoming HTTP requests | `Http.Server` — Camp exports a handler, host handles TLS, framing |
+| `wasi:http/outgoing-handler` | Make outgoing HTTP requests | `Http.Client` — delegated to host for TLS support |
+| `wasi:filesystem` | File read/write/directory operations | `File` effect |
+| `wasi:clocks` | Wall clock, monotonic clock | `Time.now!`, `Time.monotonic_now!` |
+| `wasi:random` | Cryptographic random bytes | `Crypto.Random` (direct), `Random` (seeded PRNG) |
+| `wasi:cli/environment` | Environment variables, CLI arguments | `Env.get_env!`, `Env.args!` |
+| `wasi:cli/stdin-stdout` | Standard input/output streams | `Console.print!`, `Console.readln!` |
+| `wasi:io/streams` | Async byte streams | `File.read!`, `File.write!`, `Http.Body.Stream` |
+
+### 10.2 Key Constraints
+
+| Constraint | Impact on Camp | Design Implications |
+|------------|----------------|---------------------|
+| **No threading** | No OS threads, no thread::spawn | Camp's `Async` effect uses stackful coroutines (cooperative scheduling within a single WASM thread). This is sufficient — async I/O handles concurrency, and CPU parallelism requires multiple WASM instances. |
+| **No fork/exec** | Cannot spawn subprocesses | No `Process` module in stdlib. Shell-out patterns require a WASI host extension. |
+| **No `wasi:crypto`** | No standard crypto primitives interface | `Crypto.Hash` must compile to pure WASM (no host calls). Algorithms implemented in Camp/WASM, verified against test vectors. Side-channel mitigation is limited — see §4.1 Crypto.Hash rationale. |
+| **TLS is Phase 1 only** | No standard TLS interface in WASI Preview 2 | `Http.Tls` must use host-provided TLS via `wasi:http/outgoing-handler` (client) or `wasi:http/incoming-handler` (server). The host terminates TLS; Camp never sees raw TLS handshake. |
+| **Capability-based security** | All socket operations require a `network` capability handle from the host | Database drivers, HTTP client, and email must accept a `network` parameter (or have one injected by the runtime). No implicit network access. |
+
+### 10.3 HTTP Server Architecture
+
+Camp's HTTP server targets the `wasi:http/incoming-handler` interface. The host (e.g., Wasmtime, Spin, Fastly) handles:
+
+- TLS termination (certificates, handshakes)
+- TCP listen/accept
+- HTTP/1.1 and HTTP/2 framing
+- Request routing to the WASM module
+
+Camp exports a handler function that receives `wasi:http/incoming-request` and returns `wasi:http/outgoing-response`. This is the same model used by Fermyon Spin, Fastly Compute, and the WASI HTTP proposal reference implementations.
+
+```
+// Camp's handler interface (conceptual)
+handle : Http.Request ->{ Http } Http.Response
+```
+
+The host calls this handler for each incoming request. Camp's `Http.Server` effect is a thin wrapper around this interface.
+
+### 10.4 Database Driver Architecture
+
+PostgreSQL and MySQL drivers use `wasi:sockets/tcp` to connect to database servers:
+
+1. Acquire a `network` capability handle from the host (capability-based security)
+2. Connect via TCP to the database host:port
+3. Implement the wire protocol (PostgreSQL v3, MySQL) in pure WASM
+4. Send/receive messages over the TCP stream
+
+SQLite uses a different approach: since there's no subprocess, SQLite's C library must be compiled to WASM and linked into the Camp module. This is standard practice — WASM-compiled SQLite is used by D1 (Cloudflare), wa-sqlite, and similar projects.
+
+---
+
+## 11. Package Repository Strategy
 
 ### 10.1 Current: Git-Based (No Registry)
 
@@ -555,7 +680,7 @@ When the community grows, add a registry (like crates.io, npm, or Hex):
 
 ---
 
-## 11. Implementation Order
+## 12. Implementation Order
 
 Building the ecosystem in the right order matters — each package depends on its prerequisites.
 
@@ -565,24 +690,24 @@ These ship as the compiler reaches each phase:
 
 1. Primitives + collections (Int, Str, List, Map, Set, Iter, Option, Result)
 2. Basic effects (Console, File, Throw, Env)
-3. Codec framework + Json (the first format instance)
+3. Codec framework (Encode/Decode with EncoderFormatting/DecoderFormatting traits) + Json (the first format instance)
 4. Uri, Regex, Duration, DateTime
 5. Log effect
-6. Crypto.Hash, Crypto.Random, Base64
-7. Gzip, Uuid
-8. Remaining P3 stdlib modules
+6. Crypto.Random, Base64
+7. Gzip (pure), Uuid
+8. Remaining P3 stdlib modules (Html, Csv, Xml, Mime, Net.Ip, Version)
 
 ### Phase 2: Official Packages (after compiler is stable)
 
 1. Http (server + client) — the foundation everything else builds on
 2. Database + Database.Postgres + Database.Sqlite
 3. Cli, Config, Validate
-4. Jwt, Auth, Auth.Password
+4. Crypto.Hash, Jwt, Auth, Auth.Password
 5. Http.Middleware, Http.Tls
 6. WebSocket, Email
 7. Database.Migration, Cache, RateLimit
 8. Log.Structured, OpenApi, Template
-9. Toml, Yaml
+9. Toml, Yaml, Collections, Collections.Sorted
 10. Remaining P3 packages
 
 ### Phase 3: Community Growth
@@ -594,7 +719,7 @@ These ship as the compiler reaches each phase:
 
 ---
 
-## 12. What Camp Explicitly Does NOT Include in Stdlib
+## 13. What Camp Explicitly Does NOT Include in Stdlib
 
 | Excluded | Reason | Where Instead |
 |----------|--------|---------------|
@@ -609,6 +734,11 @@ These ship as the compiler reaches each phase:
 | gRPC/Protobuf | Niche, large API surface | Official package: `Grpc` |
 | GraphQL | Niche, complex resolver model | Community package |
 | Full crypto suite (AES, RSA, ECDSA, TLS, X.509) | Too large, security-critical (needs rapid updates) | Official packages + community |
+| Crypto hashing | Implementation bugs need independent versioning for fast security patches; WASM side-channel risk | Official package: `Crypto.Hash` |
+| Specialized collections (Queue, Stack, SortedMap, SortedSet) | Not every program needs these; stdlib permanence means they can never be removed | Official packages: `Collections`, `Collections.Sorted` |
+| Multiple sort algorithms | `List.sort`/`List.sort_by` cover the common case | Community package |
+| Bit manipulation | Niche — protocol work and crypto, not typical REST APIs | Community package |
+| Tuple types | Camp records serve the same purpose | Community package |
 | Message queues (Kafka, RabbitMQ) | Niche, many backends | Community packages |
 | Cloud SDKs | Provider-specific, constantly changing | Community packages |
 | UI frameworks | Opinionated, many valid approaches | Community packages |
@@ -616,7 +746,7 @@ These ship as the compiler reaches each phase:
 
 ---
 
-## 13. Comparison: Camp vs Peer Languages for REST API Coverage
+## 14. Comparison: Camp vs Peer Languages for REST API Coverage
 
 | Capability | Camp Stdlib | Camp + Official | Rust | Go |
 |-----------|-------------|------------------|------|----|
@@ -627,7 +757,7 @@ These ship as the compiler reaches each phase:
 | Database | No | Yes (Database.*) | sqlx/diesel (3rd) | Yes |
 | Regex | Yes | Yes | regex (3rd) | Yes |
 | URI parsing | Yes (Uri) | Yes | url (3rd) | Yes |
-| Crypto hashing | Yes (Crypto.Hash) | Yes | sha2 (3rd) | Yes |
+| Crypto hashing | No | Yes (Crypto.Hash) | sha2 (3rd) | Yes |
 | Crypto random | Yes (Crypto.Random) | Yes | rand (3rd) | Yes |
 | UUID | Yes (Uuid) | Yes | uuid (3rd) | 3rd |
 | JWT | No | Yes (Jwt) | jsonwebtoken (3rd) | 3rd |
@@ -646,7 +776,7 @@ These ship as the compiler reaches each phase:
 | OpenAPI | No | Yes (OpenApi) | utoipa (3rd) | 3rd |
 | TOML | No | Yes (Toml) | toml (3rd) | 3rd |
 | YAML | No | Yes (Yaml) | serde_yaml (3rd) | 3rd |
-| Compression | Yes (Gzip) | Yes | flate2 (3rd) | Yes |
+| Compression | Yes (Gzip, pure) | Yes | flate2 (3rd) | Yes |
 | Date/Time | Yes (DateTime) | Yes | chrono (3rd) | Yes |
 
 Camp with its official packages matches Go's "batteries included" coverage for REST API development, while keeping the stdlib smaller and more conservative than Go's.
