@@ -172,3 +172,43 @@ test_typecheck_undefined_name :: proc(t: ^testing.T) {
 
 	testing.expect(t, collector_has_errors(&ctx.collector))
 }
+
+@(test)
+test_typecheck_let_polymorphism :: proc(t: ^testing.T) {
+	store, ctx := typecheck_source("id = |x| x\na = id(1)\nb = id(True)")
+	defer context_destroy(ctx)
+	defer free(ctx)
+	defer type_store_destroy(&store)
+
+	testing.expect(t, !collector_has_errors(&ctx.collector))
+}
+
+@(test)
+test_typecheck_annotation_check :: proc(t: ^testing.T) {
+	store, ctx := typecheck_source("x = 42")
+	defer context_destroy(ctx)
+	defer free(ctx)
+	defer type_store_destroy(&store)
+
+	testing.expect(t, !collector_has_errors(&ctx.collector))
+}
+
+@(test)
+test_typecheck_binop :: proc(t: ^testing.T) {
+	store, ctx := typecheck_source("x = 1 + 2\ny = True and False")
+	defer context_destroy(ctx)
+	defer free(ctx)
+	defer type_store_destroy(&store)
+
+	testing.expect(t, !collector_has_errors(&ctx.collector))
+}
+
+@(test)
+test_typecheck_not :: proc(t: ^testing.T) {
+	store, ctx := typecheck_source("x = not True")
+	defer context_destroy(ctx)
+	defer free(ctx)
+	defer type_store_destroy(&store)
+
+	testing.expect(t, !collector_has_errors(&ctx.collector))
+}
