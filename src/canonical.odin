@@ -113,6 +113,7 @@ CExpr :: union {
 	^CExpr_Return,
 	^CExpr_Crash,
 	^CExpr_Interpolate,
+	^CExpr_Handle,
 }
 
 CExpr_Int :: struct {
@@ -254,6 +255,21 @@ CExpr_Crash :: struct {
 CExpr_Interpolate :: struct {
 	parts: [dynamic]CExpr,
 	span:  Source_Span,
+}
+
+CExpr_Handle :: struct {
+	effect:     Canonical_Name,
+	is_shallow: bool,
+	body:       CExpr,
+	arms:       [dynamic]CHandler_Arm,
+	span:       Source_Span,
+}
+
+CHandler_Arm :: struct {
+	op:        Intern_ID,
+	resume_id: Intern_ID,
+	body:      CExpr,
+	span:      Source_Span,
 }
 
 CMatch_Arm :: struct {

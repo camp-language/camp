@@ -160,3 +160,37 @@ test_parser_record_update :: proc(t: ^testing.T) {
 		testing.expect(t, false)
 	}
 }
+
+@(test)
+test_parser_handle :: proc(t: ^testing.T) {
+	ctx: Compilation_Context
+	context_init(&ctx)
+	defer context_destroy(&ctx)
+
+	expr := parse_expr("handle IO in { 42 } with { .println!(resume) => resume({}) }", &ctx)
+	testing.expect(t, !collector_has_errors(&ctx.collector))
+	#partial switch e in expr {
+	case ^Expr_Handle:
+		testing.expect(t, e.is_shallow == false)
+		testing.expect(t, len(e.arms) == 1)
+	case:
+		testing.expect(t, false)
+	}
+}
+
+@(test)
+test_parser_intercept :: proc(t: ^testing.T) {
+	ctx: Compilation_Context
+	context_init(&ctx)
+	defer context_destroy(&ctx)
+
+	expr := parse_expr("intercept IO in { 42 } with { .println!(resume) => resume({}) }", &ctx)
+	testing.expect(t, !collector_has_errors(&ctx.collector))
+	#partial switch e in expr {
+	case ^Expr_Handle:
+		testing.expect(t, e.is_shallow == true)
+		testing.expect(t, len(e.arms) == 1)
+	case:
+		testing.expect(t, false)
+	}
+}

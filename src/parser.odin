@@ -222,6 +222,9 @@ parser_parse_prefix :: proc(p: ^Parser) -> Expr {
 	case .Kw_Match:
 		return parser_parse_match(p)
 
+	case .Kw_Handle, .Kw_Intercept:
+		return parser_parse_handle(p)
+
 	case .LParen:
 		parser_advance(p)
 		expr := parser_parse_expr(p)
@@ -592,6 +595,44 @@ parser_parse_match :: proc(p: ^Parser) -> Expr {
 
 	e := new(Expr_Match)
 	e^ = Expr_Match{scrutinee = scrutinee, arms = arms, span = start}
+	return e
+}
+
+parser_parse_handle :: proc(p: ^Parser) -> Expr {
+	start := p.current.span
+	is_shallow := p.current.kind == .Kw_Intercept
+	parser_advance(p)
+
+	effect_tok := parser_expect(p, .Upper_Id)
+	effect_id := intern(p.intern, effect_tok.text)
+
+	parser_expect(p, .Kw_In)
+	body := parser_parse_expr(p)
+
+	parser_expect(p, .Kw_With)
+	parser_expect(p, .LBrace)
+
+	arms := make([dynamic]Handler_Arm, 0, 8)
+	for p.current.kind != .RBrace && p.current.kind != .Eof {
+		parser_expect(p, .Dot)
+		op_tok := parser_expect(p, .Identifier)
+		op_id := intern(p.intern, op_tok.text)
+		parser_expect(p, .Bang)
+		parser_expect(p, .LParen)
+		resume_tok := parser_expect(p, .Identifier)
+		resume_id := intern(p.intern, resume_tok.text)
+		parser_expect(p, .RParen)
+		parser_expect(p, .Fat_Arrow)
+		arm_body := parser_parse_expr(p)
+		append(&arms, Handler_Arm{op = op_id, resume_id = resume_id, body = arm_body, span = op_tok.span})
+		if p.current.kind == .Comma {
+			parser_advance(p)
+		}
+	}
+	parser_expect(p, .RBrace)
+
+	e := new(Expr_Handle)
+	e^ = Expr_Handle{effect = effect_id, is_shallow = is_shallow, body = body, arms = arms, span = start}
 	return e
 }
 

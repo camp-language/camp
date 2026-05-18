@@ -423,6 +423,25 @@ canonicalize_expr :: proc(expr: Expr, scope: ^Canonicalize_Scope, ctx: ^Compilat
 		c := new(CExpr_Interpolate)
 		c^ = CExpr_Interpolate{parts = parts, span = e.span}
 		return c
+
+	case ^Expr_Handle:
+		effect_name := Canonical_Name{module = NO_NAME, name = e.effect, is_local = true}
+		if existing, ok := scope.local_names[e.effect]; ok {
+			effect_name = existing
+		}
+		cbody := canonicalize_expr(e.body, scope, ctx)
+		arms := make([dynamic]CHandler_Arm, 0, len(e.arms))
+		for a in e.arms {
+			append(&arms, CHandler_Arm{
+				op = a.op,
+				resume_id = a.resume_id,
+				body = canonicalize_expr(a.body, scope, ctx),
+				span = a.span,
+			})
+		}
+		c := new(CExpr_Handle)
+		c^ = CExpr_Handle{effect = effect_name, is_shallow = e.is_shallow, body = cbody, arms = arms, span = e.span}
+		return c
 	}
 	c := new(CExpr_Int)
 	c^ = CExpr_Int{span = Source_Span_ZERO}

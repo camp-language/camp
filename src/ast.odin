@@ -100,6 +100,7 @@ Expr :: union {
 	^Expr_Return,
 	^Expr_Crash,
 	^Expr_Interpolate,
+	^Expr_Handle,
 }
 
 Expr_Int :: struct {
@@ -317,6 +318,21 @@ Expr_Crash :: struct {
 Expr_Interpolate :: struct {
 	parts: [dynamic]Expr,
 	span:  Source_Span,
+}
+
+Expr_Handle :: struct {
+	effect:     Intern_ID,
+	is_shallow: bool,
+	body:       Expr,
+	arms:       [dynamic]Handler_Arm,
+	span:       Source_Span,
+}
+
+Handler_Arm :: struct {
+	op:        Intern_ID,
+	resume_id: Intern_ID,
+	body:      Expr,
+	span:      Source_Span,
 }
 
 Type :: union {

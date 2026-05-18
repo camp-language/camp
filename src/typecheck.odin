@@ -175,6 +175,10 @@ typecheck_synth :: proc(expr: CExpr, env: ^Type_Env, store: ^Type_Store) -> Type
 
 	case ^CExpr_Method_Call:
 		return typecheck_method_call(e, env, store)
+
+	case ^CExpr_Handle:
+		body_result := typecheck_synth(e.body, env, store)
+		return body_result
 	}
 	var_id := fresh_value_var(store, Source_Span_ZERO)
 	return Type_Result{var_id = var_id, effects = fresh_effect_row(store, Source_Span_ZERO)}
