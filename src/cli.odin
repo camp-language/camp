@@ -66,5 +66,19 @@ run_build :: proc(args: []string) {
 	context.allocator = old_allocator
 
 	fmt.printfln("canonicalized {}: {} declaration(s), {} import(s)", file_path, len(canon.decls), len(canon.imports))
-	fmt.println("TODO: implement type checking and code generation")
+
+	context.allocator = ctx.allocator
+	store: Type_Store
+	type_store_init(&store, &ctx.interner, &ctx.collector)
+	typecheck_file(canon, &store)
+	context.allocator = old_allocator
+
+	if collector_has_errors(&ctx.collector) {
+		fmt.println("type errors found, stopping.")
+		os.exit(1)
+	}
+	defer type_store_destroy(&store)
+
+	fmt.printfln("typecheck passed for {}", file_path)
+	fmt.println("TODO: implement effect lowering and code generation")
 }
