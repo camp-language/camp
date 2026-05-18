@@ -1,0 +1,6 @@
+stdout = """
+/tmp/camp-e2e/errors/syntax-error-bad-token/syntax-error-bad-token.camp:1:5: error: unexpected token: At
+compilation failed with 1 error(s)
+"""
+stderr = ""
+exit = 1

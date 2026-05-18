@@ -1,0 +1,7 @@
+args = "unknown"
+stdout = """
+error: unknown command 'foo'
+Commands: build, test, fmt, check
+"""
+stderr = ""
+exit = 1

@@ -1,0 +1,6 @@
+args = "build-missing"
+stdout = """
+error: could not read file /nonexistent.camp
+"""
+stderr = ""
+exit = 1

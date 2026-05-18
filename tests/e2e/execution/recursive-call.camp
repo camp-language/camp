@@ -1,0 +1,2 @@
+loop! = (n) -> I64 { if n == 0 0 else loop!(n - 1) }
+main! = || -> I64 { loop!(5) }

@@ -1,0 +1,6 @@
+stdout = """
+canonicalized /tmp/camp-e2e/errors/if-non-bool-condition/if-non-bool-condition.camp: 1 declaration(s), 0 import(s)
+type errors found, stopping.
+"""
+stderr = ""
+exit = 1

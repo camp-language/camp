@@ -1,0 +1,8 @@
+stdout = """
+/tmp/camp-e2e/errors/recursive-type-error/recursive-type-error.camp:1:11: error: expected Eq, got Identifier
+/tmp/camp-e2e/errors/recursive-type-error/recursive-type-error.camp:2:1: error: expected Eq, got Eof
+/tmp/camp-e2e/errors/recursive-type-error/recursive-type-error.camp:2:1: error: unexpected token: Eof
+compilation failed with 3 error(s)
+"""
+stderr = ""
+exit = 1

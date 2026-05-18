@@ -1,0 +1,7 @@
+stdout = """
+canonicalized /tmp/camp-e2e/errors/missing-else/missing-else.camp: 1 declaration(s), 0 import(s)
+typecheck passed for /tmp/camp-e2e/errors/missing-else/missing-else.camp
+compiled /tmp/camp-e2e/errors/missing-else/missing-else.camp -> /tmp/camp-e2e/errors/missing-else/missing-else.wasm
+"""
+stderr = ""
+exit = 0

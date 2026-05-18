@@ -1,0 +1,6 @@
+args = "build-non-camp"
+stdout = """
+error: expected .camp file, got /tmp/camp-e2e/command-line/non-camp-file/test.txt
+"""
+stderr = ""
+exit = 1

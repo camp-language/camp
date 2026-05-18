@@ -1,0 +1,8 @@
+stdout = """
+/tmp/camp-e2e/errors/arity-mismatch/arity-mismatch.camp:1:12: error: expected Eq, got Upper_Id
+/tmp/camp-e2e/errors/arity-mismatch/arity-mismatch.camp:1:18: error: expected Eq, got Identifier
+/tmp/camp-e2e/errors/arity-mismatch/arity-mismatch.camp:2:1: error: expected Eq, got Identifier
+compilation failed with 3 error(s)
+"""
+stderr = ""
+exit = 1

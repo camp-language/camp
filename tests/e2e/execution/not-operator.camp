@@ -1,0 +1,1 @@
+main! = || -> I64 { if not false 1 else 0 }

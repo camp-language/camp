@@ -1,0 +1,7 @@
+stdout = """
+/tmp/camp-e2e/typechecking/effectful-function/effectful-function.camp:1:20: error: expected Eq, got LBrace
+/tmp/camp-e2e/typechecking/effectful-function/effectful-function.camp:1:32: error: expected Eq, got LBrace
+compilation failed with 2 error(s)
+"""
+stderr = ""
+exit = 1

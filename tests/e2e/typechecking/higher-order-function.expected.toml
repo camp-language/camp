@@ -1,0 +1,8 @@
+stdout = """
+/tmp/camp-e2e/typechecking/higher-order-function/higher-order-function.camp:1:11: error: expected RParen, got Comma
+/tmp/camp-e2e/typechecking/higher-order-function/higher-order-function.camp:1:13: error: expected Eq, got Identifier
+/tmp/camp-e2e/typechecking/higher-order-function/higher-order-function.camp:1:16: error: expected Eq, got LBrace
+compilation failed with 3 error(s)
+"""
+stderr = ""
+exit = 1

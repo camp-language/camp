@@ -1,0 +1,7 @@
+stdout = """
+/tmp/camp-e2e/typechecking/effect-declaration/effect-declaration.camp:1:21: error: expected Colon, got RBrace
+/tmp/camp-e2e/typechecking/effect-declaration/effect-declaration.camp:1:21: error: expected type, got RBrace
+compilation failed with 2 error(s)
+"""
+stderr = ""
+exit = 1

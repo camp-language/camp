@@ -1,0 +1,6 @@
+stdout = """
+/tmp/camp-e2e/errors/apply-non-function/apply-non-function.camp:2:2: error: expected Eq, got LParen
+compilation failed with 1 error(s)
+"""
+stderr = ""
+exit = 1

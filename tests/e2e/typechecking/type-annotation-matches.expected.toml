@@ -1,0 +1,7 @@
+stdout = """
+canonicalized /tmp/camp-e2e/typechecking/type-annotation-matches/type-annotation-matches.camp: 1 declaration(s), 0 import(s)
+typecheck passed for /tmp/camp-e2e/typechecking/type-annotation-matches/type-annotation-matches.camp
+compiled /tmp/camp-e2e/typechecking/type-annotation-matches/type-annotation-matches.camp -> /tmp/camp-e2e/typechecking/type-annotation-matches/type-annotation-matches.wasm
+"""
+stderr = ""
+exit = 0

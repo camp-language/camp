@@ -1,0 +1,10 @@
+stdout = """
+/tmp/camp-e2e/typechecking/function-type-annotation/function-type-annotation.camp:1:7: error: expected RParen, got Colon
+/tmp/camp-e2e/typechecking/function-type-annotation/function-type-annotation.camp:1:9: error: expected Eq, got Upper_Id
+/tmp/camp-e2e/typechecking/function-type-annotation/function-type-annotation.camp:1:14: error: expected Eq, got Arrow
+/tmp/camp-e2e/typechecking/function-type-annotation/function-type-annotation.camp:1:14: error: unexpected token: Arrow
+/tmp/camp-e2e/typechecking/function-type-annotation/function-type-annotation.camp:1:21: error: expected Eq, got LBrace
+compilation failed with 5 error(s)
+"""
+stderr = ""
+exit = 1

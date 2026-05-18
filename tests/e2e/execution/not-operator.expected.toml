@@ -1,0 +1,17 @@
+stdout = """
+canonicalized /tmp/camp-e2e/execution/not-operator/not-operator.camp: 1 declaration(s), 0 import(s)
+typecheck passed for /tmp/camp-e2e/execution/not-operator/not-operator.camp
+compiled /tmp/camp-e2e/execution/not-operator/not-operator.camp -> /tmp/camp-e2e/execution/not-operator/not-operator.wasm
+"""
+stderr = ""
+exit = 0
+wasm_exit = 1
+wasm_stdout = ""
+wasm_stderr = """
+Error: failed to compile: wasm[0]::function[10]
+
+Caused by:
+    0: WebAssembly translation error
+    1: Invalid input WebAssembly code at offset 336: type mismatch: expected i64, found i32
+
+"""

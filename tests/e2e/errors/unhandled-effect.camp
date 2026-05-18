@@ -1,0 +1,2 @@
+effect IO { println }
+main! = || -> I64 { IO.println("hi") 0 }

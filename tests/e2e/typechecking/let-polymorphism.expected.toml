@@ -1,0 +1,8 @@
+stdout = """
+/tmp/camp-e2e/typechecking/let-polymorphism/let-polymorphism.camp:1:12: error: expected Eq, got Identifier
+/tmp/camp-e2e/typechecking/let-polymorphism/let-polymorphism.camp:2:1: error: expected Eq, got Identifier
+/tmp/camp-e2e/typechecking/let-polymorphism/let-polymorphism.camp:2:5: error: expected Eq, got Identifier
+compilation failed with 3 error(s)
+"""
+stderr = ""
+exit = 1

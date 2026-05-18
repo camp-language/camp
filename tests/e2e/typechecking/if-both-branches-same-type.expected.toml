@@ -1,0 +1,7 @@
+stdout = """
+canonicalized /tmp/camp-e2e/typechecking/if-both-branches-same-type/if-both-branches-same-type.camp: 1 declaration(s), 0 import(s)
+typecheck passed for /tmp/camp-e2e/typechecking/if-both-branches-same-type/if-both-branches-same-type.camp
+compiled /tmp/camp-e2e/typechecking/if-both-branches-same-type/if-both-branches-same-type.camp -> /tmp/camp-e2e/typechecking/if-both-branches-same-type/if-both-branches-same-type.wasm
+"""
+stderr = ""
+exit = 0

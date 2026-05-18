@@ -1,0 +1,10 @@
+stdout = """
+/tmp/camp-e2e/execution/recursive-call/recursive-call.camp:1:16: error: expected Eq, got Upper_Id
+/tmp/camp-e2e/execution/recursive-call/recursive-call.camp:1:22: error: expected Eq, got Kw_If
+/tmp/camp-e2e/execution/recursive-call/recursive-call.camp:1:44: error: expected Eq, got LParen
+/tmp/camp-e2e/execution/recursive-call/recursive-call.camp:2:1: error: expected Eq, got Identifier
+/tmp/camp-e2e/execution/recursive-call/recursive-call.camp:2:25: error: unexpected token: Bang
+compilation failed with 5 error(s)
+"""
+stderr = ""
+exit = 1
