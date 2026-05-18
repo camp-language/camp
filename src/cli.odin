@@ -32,15 +32,11 @@ run_build :: proc(args: []string) {
 		os.exit(1)
 	}
 
-	collector: Error_Collector
-	collector_init(&collector)
-	defer collector_destroy(&collector)
+	ctx: Compilation_Context
+	context_init(&ctx)
+	defer context_destroy(&ctx)
 
-	table: Intern_Table
-	intern_init(&table)
-	defer intern_destroy(&table)
-
-	data, err := os.read_entire_file(file_path, context.allocator)
+	data, err := os.read_entire_file(file_path, ctx.allocator)
 	if err != nil do fmt.printfln("error: could not read file {}", file_path)
 	if err != nil do os.exit(1)
 	source := string(data)
@@ -48,17 +44,20 @@ run_build :: proc(args: []string) {
 	file_rec := Source_File{path = file_path, contents = source, id = 0}
 
 	lexer: Lexer
-	lexer_init(&lexer, file_rec, &collector, &table)
+	lexer_init(&lexer, file_rec, &ctx.collector, &ctx.interner)
 
+	old_allocator := context.allocator
+	context.allocator = ctx.allocator
 	parser: Parser
-	parser_init(&parser, &lexer, &collector, &table)
+	parser_init(&parser, &lexer, &ctx.collector, &ctx.interner)
 	ast_file := parser_parse_file(&parser)
+	context.allocator = old_allocator
 
-	if collector_has_errors(&collector) {
-		for err in collector.errors {
-			report_error(&collector, file_path, source, err)
+	if collector_has_errors(&ctx.collector) {
+		for e in ctx.collector.errors {
+			report_error(&ctx.collector, file_path, source, e)
 		}
-		fmt.printfln("compilation failed with {} error(s)", collector.error_count)
+		fmt.printfln("compilation failed with {} error(s)", ctx.collector.error_count)
 		os.exit(1)
 	}
 
