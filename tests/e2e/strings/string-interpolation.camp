@@ -1,0 +1,1 @@
+main! = || -> I64 { x = 42 "{x} is the answer" 0 }

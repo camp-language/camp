@@ -1,0 +1,2 @@
+x : Ok(I64) | Error(I64) = Ok(42)
+y = match x { Ok(v) -> v | Error(e) -> e + 1 }

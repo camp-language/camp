@@ -1,0 +1,7 @@
+stdout = """
+canonicalized /tmp/camp-e2e/generics/identity-function/identity-function.camp: 3 declaration(s), 0 import(s)
+typecheck passed for /tmp/camp-e2e/generics/identity-function/identity-function.camp
+compiled /tmp/camp-e2e/generics/identity-function/identity-function.camp -> /tmp/camp-e2e/generics/identity-function/identity-function.wasm
+"""
+stderr = ""
+exit = 0

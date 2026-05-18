@@ -1,0 +1,2 @@
+effect IO { println }
+main! = || -> {IO} I64 { intercept IO.println("hi") with { IO.println(s) -> resume(()) } 0 }

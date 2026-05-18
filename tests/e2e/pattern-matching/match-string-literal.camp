@@ -1,0 +1,1 @@
+main! = || -> I64 { match "hello" { "hello" -> 1 | _ -> 0 } }

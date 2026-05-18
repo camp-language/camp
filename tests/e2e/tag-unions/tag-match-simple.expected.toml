@@ -1,0 +1,10 @@
+stdout = """
+canonicalized /tmp/camp-e2e/tag-unions/tag-match-simple/tag-match-simple.camp: 1 declaration(s), 0 import(s)
+typecheck passed for /tmp/camp-e2e/tag-unions/tag-match-simple/tag-match-simple.camp
+compiled /tmp/camp-e2e/tag-unions/tag-match-simple/tag-match-simple.camp -> /tmp/camp-e2e/tag-unions/tag-match-simple/tag-match-simple.wasm
+"""
+stderr = ""
+exit = 0
+wasm_exit = 42
+wasm_stdout = ""
+wasm_stderr = ""

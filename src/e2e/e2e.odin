@@ -1,6 +1,8 @@
 package e2e
 
 import "core:fmt"
+import "core:mem"
+import "core:mem/virtual"
 import "core:os"
 
 main :: proc() {
@@ -22,18 +24,29 @@ main :: proc() {
 		i += 1
 	}
 
-	tests := discover_tests("tests/e2e", filter)
+	tests := discover_tests("tests/e2e", filter, context.allocator)
 
 	if len(tests) == 0 {
 		fmt.println("no e2e tests found")
 		os.exit(1)
 	}
+	defer delete(tests)
 
 	pass_count: int = 0
 	fail_count: int = 0
 	skip_count: int = 0
 
 	for test in tests {
+		test_arena: virtual.Arena
+		arena_err := virtual.arena_init_growing(&test_arena)
+		if arena_err != nil {
+			fmt.printfln("  ERROR  {}/{}: failed to init arena", test.category, test.name)
+			continue
+		}
+
+		old_alloc := context.allocator
+		context.allocator = virtual.arena_allocator(&test_arena)
+
 		report := run_test(test, update)
 
 		switch report.result {
@@ -57,6 +70,9 @@ main :: proc() {
 			skip_count += 1
 			fmt.printfln("  SKIP  {}/{}", test.category, test.name)
 		}
+
+		context.allocator = old_alloc
+		virtual.arena_destroy(&test_arena)
 	}
 
 	fmt.printfln("\n{} passed, {} failed, {} skipped ({} total)", pass_count, fail_count, skip_count, len(tests))

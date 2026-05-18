@@ -1,0 +1,10 @@
+stdout = """
+canonicalized /tmp/camp-e2e/pattern-matching/match-variable-bind/match-variable-bind.camp: 1 declaration(s), 0 import(s)
+typecheck passed for /tmp/camp-e2e/pattern-matching/match-variable-bind/match-variable-bind.camp
+compiled /tmp/camp-e2e/pattern-matching/match-variable-bind/match-variable-bind.camp -> /tmp/camp-e2e/pattern-matching/match-variable-bind/match-variable-bind.wasm
+"""
+stderr = ""
+exit = 0
+wasm_exit = 42
+wasm_stdout = ""
+wasm_stderr = ""

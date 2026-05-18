@@ -1,0 +1,7 @@
+stdout = """
+canonicalized /tmp/camp-e2e/effects/effect-multiple-effects/effect-multiple-effects.camp: 2 declaration(s), 0 import(s)
+typecheck passed for /tmp/camp-e2e/effects/effect-multiple-effects/effect-multiple-effects.camp
+compiled /tmp/camp-e2e/effects/effect-multiple-effects/effect-multiple-effects.camp -> /tmp/camp-e2e/effects/effect-multiple-effects/effect-multiple-effects.wasm
+"""
+stderr = ""
+exit = 0

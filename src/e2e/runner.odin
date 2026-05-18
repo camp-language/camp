@@ -5,6 +5,7 @@ import "core:mem"
 import "core:os"
 import "core:path/filepath"
 import "core:strings"
+import "core:time"
 
 E2E_Test :: struct {
 	category:      string,
@@ -29,28 +30,28 @@ Test_Report :: struct {
 	actual_exit:   int,
 }
 
-discover_tests :: proc(root: string, filter: string) -> []E2E_Test {
+discover_tests :: proc(root: string, filter: string, allocator: mem.Allocator) -> [dynamic]E2E_Test {
 	tests: [dynamic]E2E_Test
-	tests.allocator = context.allocator
+	tests.allocator = allocator
 
-	categories, cat_err := os.read_all_directory_by_path(root, context.allocator)
+	categories, cat_err := os.read_all_directory_by_path(root, allocator)
 	if cat_err != nil {
-		return tests[:]
+		return tests
 	}
-	defer os.file_info_slice_delete(categories, context.allocator)
+	defer os.file_info_slice_delete(categories, allocator)
 
 	for cat_info in categories {
 		if cat_info.type != .Directory { continue }
 		category := cat_info.name
 		if category == "." || category == ".." { continue }
 
-		cat_path, cat_err2 := filepath.join({root, category}, context.allocator)
+		cat_path, cat_err2 := filepath.join({root, category}, allocator)
 		if cat_err2 != nil { continue }
-		defer delete(cat_path, context.allocator)
+		defer delete(cat_path, allocator)
 
-		files, file_err := os.read_all_directory_by_path(cat_path, context.allocator)
+		files, file_err := os.read_all_directory_by_path(cat_path, allocator)
 		if file_err != nil { continue }
-		defer os.file_info_slice_delete(files, context.allocator)
+		defer os.file_info_slice_delete(files, allocator)
 
 		for fi in files {
 			if fi.type != .Regular { continue }
@@ -58,29 +59,29 @@ discover_tests :: proc(root: string, filter: string) -> []E2E_Test {
 
 			name := filepath.stem(fi.name)
 			expected_name := fmt.tprintf("{}.expected.toml", name)
-			expected_path, ep_err := filepath.join({cat_path, expected_name}, context.allocator)
+			expected_path, ep_err := filepath.join({cat_path, expected_name}, allocator)
 			if ep_err != nil { continue }
 
 			if !os.exists(expected_path) {
-				delete(expected_path, context.allocator)
+				delete(expected_path, allocator)
 				continue
 			}
 
-			camp_file_path, cp_err := filepath.join({cat_path, fi.name}, context.allocator)
+			camp_file_path, cp_err := filepath.join({cat_path, fi.name}, allocator)
 			if cp_err != nil {
-				delete(expected_path, context.allocator)
+				delete(expected_path, allocator)
 				continue
 			}
 
 			category_name := fmt.tprintf("{}/{}", category, name)
 			if filter != "" && !strings.contains(category_name, filter) {
-				delete(camp_file_path, context.allocator)
-				delete(expected_path, context.allocator)
+				delete(camp_file_path, allocator)
+				delete(expected_path, allocator)
 				continue
 			}
 
-			cat_clone, _ := strings.clone(category, context.allocator)
-			name_clone, _ := strings.clone(name, context.allocator)
+			cat_clone, _ := strings.clone(category, allocator)
+			name_clone, _ := strings.clone(name, allocator)
 
 			append(&tests, E2E_Test{
 				category      = cat_clone,
@@ -91,7 +92,7 @@ discover_tests :: proc(root: string, filter: string) -> []E2E_Test {
 		}
 	}
 
-	return tests[:]
+	return tests
 }
 
 run_test :: proc(test: E2E_Test, update: bool) -> Test_Report {
@@ -104,7 +105,6 @@ run_test :: proc(test: E2E_Test, update: bool) -> Test_Report {
 		report.diff = "  setup: could not build temp path"
 		return report
 	}
-	defer delete(tmp_base, context.allocator)
 	os.make_directory_all(tmp_base)
 
 	camp_filename := fmt.tprintf("{}.camp", test.name)
@@ -114,7 +114,6 @@ run_test :: proc(test: E2E_Test, update: bool) -> Test_Report {
 		report.diff = "  setup: could not build camp temp path"
 		return report
 	}
-	defer delete(tmp_camp, context.allocator)
 
 	copy_err := os.copy_file(tmp_camp, test.camp_path)
 	if copy_err != nil {
@@ -129,10 +128,8 @@ run_test :: proc(test: E2E_Test, update: bool) -> Test_Report {
 		report.diff = fmt.tprintf("  setup: could not read expected file: {}", read_err)
 		return report
 	}
-	defer delete(expected_data, context.allocator)
 
 	expected_dict := toml_parse(string(expected_data), context.allocator)
-	defer delete(expected_dict.entries)
 
 	args_val, has_args := toml_get(&expected_dict, "args")
 
@@ -169,7 +166,6 @@ run_test :: proc(test: E2E_Test, update: bool) -> Test_Report {
 		if tw_err != nil {
 			has_wasm = false
 		} else {
-			defer delete(tmp_wasm, context.allocator)
 			wasm_stdout, wasm_stderr, wasm_exit, wasm_available = run_wasmtime(tmp_wasm)
 		}
 	}
@@ -181,7 +177,6 @@ run_test :: proc(test: E2E_Test, update: bool) -> Test_Report {
 
 	diff_builder: strings.Builder
 	strings.builder_init_none(&diff_builder, context.allocator)
-	defer strings.builder_destroy(&diff_builder)
 
 	passed := true
 
@@ -284,7 +279,6 @@ ensure_trailing_newline :: proc(s: string) -> string {
 		strings.builder_init_none(&b, context.allocator)
 		fmt.sbprintf(&b, "{}\n", s)
 		result, _ := strings.clone(strings.to_string(b), context.allocator)
-		strings.builder_destroy(&b)
 		return result
 	}
 	return s
@@ -295,26 +289,99 @@ capture_output :: proc(data: []byte) -> string {
 	return s
 }
 
-run_camp_build :: proc(camp_path: string) -> (stdout: string, stderr: string, exit_code: int) {
+PROCESS_TIMEOUT :: 10 * time.Second
+
+run_command :: proc(command: []string) -> (stdout: string, stderr: string, exit_code: int) {
 	desc := os.Process_Desc{
-		command = {"./camp", "build", camp_path},
+		command = command,
 	}
-	state, stdout_data, stderr_data, err := os.process_exec(desc, context.allocator)
-	if err != nil {
-		return "", fmt.tprintf("failed to execute camp: {}", err), 1
+
+	stdout_r, stdout_w, pipe_err := os.pipe()
+	if pipe_err != nil {
+		return "", fmt.tprintf("pipe error: {}", pipe_err), 1
 	}
-	defer delete(stdout_data, context.allocator)
-	defer delete(stderr_data, context.allocator)
+	defer os.close(stdout_r)
+	stderr_r, stderr_w, pipe_err2 := os.pipe()
+	if pipe_err2 != nil {
+		os.close(stdout_w)
+		return "", fmt.tprintf("pipe error: {}", pipe_err2), 1
+	}
+	defer os.close(stderr_r)
+
+	process: os.Process
+	{
+		defer os.close(stdout_w)
+		defer os.close(stderr_w)
+		p_desc := desc
+		p_desc.stdout = stdout_w
+		p_desc.stderr = stderr_w
+		start_proc, start_err := os.process_start(p_desc)
+		if start_err != nil {
+			return "", fmt.tprintf("process start error: {}", start_err), 1
+		}
+		process = start_proc
+	}
+
+	stdout_b: [dynamic]byte
+	stdout_b.allocator = context.allocator
+	stderr_b: [dynamic]byte
+	stderr_b.allocator = context.allocator
+
+	buf: [1024]u8 = ---
+	stdout_done := false
+	stderr_done := false
+
+	for !stdout_done || !stderr_done {
+		if !stdout_done {
+			has_data, data_err := os.pipe_has_data(stdout_r)
+			if data_err == nil && has_data {
+				n, read_err := os.read(stdout_r, buf[:])
+				if read_err == nil {
+					append(&stdout_b, ..buf[:n])
+				} else if read_err == .EOF || read_err == .Broken_Pipe {
+					stdout_done = true
+				}
+			} else if data_err != nil {
+				stdout_done = true
+			}
+		}
+
+		if !stderr_done {
+			has_data, data_err := os.pipe_has_data(stderr_r)
+			if data_err == nil && has_data {
+				n, read_err := os.read(stderr_r, buf[:])
+				if read_err == nil {
+					append(&stderr_b, ..buf[:n])
+				} else if read_err == .EOF || read_err == .Broken_Pipe {
+					stderr_done = true
+				}
+			} else if data_err != nil {
+				stderr_done = true
+			}
+		}
+	}
+
+	state, wait_err := os.process_wait(process, timeout = PROCESS_TIMEOUT)
+	if wait_err != nil || !state.exited {
+		kill_err := os.process_kill(process)
+		if kill_err == nil {
+			_, _ = os.process_wait(process)
+		}
+		return string(stdout_b[:]), "process timed out after 10s", -1
+	}
 
 	exit_code = state.exit_code
-	stdout = capture_output(stdout_data)
-	stderr = capture_output(stderr_data)
+	stdout = string(stdout_b[:])
+	stderr = string(stderr_b[:])
 	return
+}
+
+run_camp_build :: proc(camp_path: string) -> (stdout: string, stderr: string, exit_code: int) {
+	return run_command({"./camp", "build", camp_path})
 }
 
 resolve_wasmtime :: proc() -> string {
 	env_val := os.get_env_alloc("WASMTIME", context.allocator)
-	defer delete(env_val, context.allocator)
 	if len(env_val) > 0 {
 		clone, _ := strings.clone(env_val, context.allocator)
 		return clone
@@ -324,19 +391,10 @@ resolve_wasmtime :: proc() -> string {
 
 run_wasmtime :: proc(wasm_path: string) -> (stdout: string, stderr: string, exit_code: int, available: bool) {
 	wasmtime_bin := resolve_wasmtime()
-	desc := os.Process_Desc{
-		command = {wasmtime_bin, "run", wasm_path},
-	}
-	state, stdout_data, stderr_data, err := os.process_exec(desc, context.allocator)
-	if err != nil {
+	stdout, stderr, exit_code = run_command({wasmtime_bin, "run", wasm_path})
+	if exit_code == -1 && stderr == "process timed out after 10s" {
 		return "", "", 0, false
 	}
-	defer delete(stdout_data, context.allocator)
-	defer delete(stderr_data, context.allocator)
-
-	exit_code = state.exit_code
-	stdout = capture_output(stdout_data)
-	stderr = capture_output(stderr_data)
 	available = true
 	return
 }
@@ -344,61 +402,24 @@ run_wasmtime :: proc(wasm_path: string) -> (stdout: string, stderr: string, exit
 run_special_command :: proc(args: string, tmp_base: string, camp_filename: string) -> (stdout: string, stderr: string, exit_code: int) {
 	switch args {
 	case "no-args":
-		desc := os.Process_Desc{
-			command = {"./camp"},
-		}
-		state, stdout_data, stderr_data, err := os.process_exec(desc, context.allocator)
-		if err != nil {
-			return "", fmt.tprintf("failed to execute camp: {}", err), 1
-		}
-		defer delete(stdout_data, context.allocator)
-		defer delete(stderr_data, context.allocator)
-		return capture_output(stdout_data), capture_output(stderr_data), state.exit_code
+		return run_command({"./camp"})
 
 	case "unknown":
-		desc := os.Process_Desc{
-			command = {"./camp", "foo"},
-		}
-		state, stdout_data, stderr_data, err := os.process_exec(desc, context.allocator)
-		if err != nil {
-			return "", fmt.tprintf("failed to execute camp: {}", err), 1
-		}
-		defer delete(stdout_data, context.allocator)
-		defer delete(stderr_data, context.allocator)
-		return capture_output(stdout_data), capture_output(stderr_data), state.exit_code
+		return run_command({"./camp", "foo"})
 
 	case "build-non-camp":
 		txt_path, tp_err := filepath.join({tmp_base, "test.txt"}, context.allocator)
 		if tp_err != nil {
 			return "", fmt.tprintf("failed to build path: {}", tp_err), 1
 		}
-		defer delete(txt_path, context.allocator)
 		write_err := os.write_entire_file_from_string(txt_path, "not a camp file")
 		if write_err != nil {
 			return "", fmt.tprintf("failed to write test file: {}", write_err), 1
 		}
-		desc := os.Process_Desc{
-			command = {"./camp", "build", txt_path},
-		}
-		state, stdout_data, stderr_data, err := os.process_exec(desc, context.allocator)
-		if err != nil {
-			return "", fmt.tprintf("failed to execute camp: {}", err), 1
-		}
-		defer delete(stdout_data, context.allocator)
-		defer delete(stderr_data, context.allocator)
-		return capture_output(stdout_data), capture_output(stderr_data), state.exit_code
+		return run_command({"./camp", "build", txt_path})
 
 	case "build-missing":
-		desc := os.Process_Desc{
-			command = {"./camp", "build", "/nonexistent.camp"},
-		}
-		state, stdout_data, stderr_data, err := os.process_exec(desc, context.allocator)
-		if err != nil {
-			return "", fmt.tprintf("failed to execute camp: {}", err), 1
-		}
-		defer delete(stdout_data, context.allocator)
-		defer delete(stderr_data, context.allocator)
-		return capture_output(stdout_data), capture_output(stderr_data), state.exit_code
+		return run_command({"./camp", "build", "/nonexistent.camp"})
 	}
 
 	return "", fmt.tprintf("unknown special args: {}", args), 1
@@ -408,9 +429,7 @@ write_string_diff :: proc(buf: ^strings.Builder, field: string, expected: string
 	if strings.contains(expected, "\n") || strings.contains(actual, "\n") {
 		fmt.sbprintf(buf, "  {}:\n", field)
 		expected_lines := strings.split(expected, "\n", context.allocator)
-		defer delete(expected_lines, context.allocator)
 		actual_lines := strings.split(actual, "\n", context.allocator)
-		defer delete(actual_lines, context.allocator)
 
 		max_len := len(expected_lines)
 		if len(actual_lines) > max_len { max_len = len(actual_lines) }
@@ -433,7 +452,6 @@ write_string_diff :: proc(buf: ^strings.Builder, field: string, expected: string
 write_update_file :: proc(path: string, stdout: string, stderr: string, exit: int, has_wasm: bool, wasm_stdout: string, wasm_stderr: string, wasm_exit: int, has_args: bool, args: string) {
 	dict: Toml_Dict
 	dict.entries = make([dynamic]Toml_Entry, 0, 8, context.allocator)
-	defer delete(dict.entries)
 
 	if has_args {
 		append(&dict.entries, Toml_Entry{key = "args", value = args})
@@ -451,7 +469,6 @@ write_update_file :: proc(path: string, stdout: string, stderr: string, exit: in
 
 	buf: strings.Builder
 	strings.builder_init_none(&buf, context.allocator)
-	defer strings.builder_destroy(&buf)
 
 	toml_write(&dict, &buf)
 

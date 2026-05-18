@@ -1,0 +1,2 @@
+effect Ask { read }
+result = handle Ask.read() with { Ask.read() -> resume(42) }

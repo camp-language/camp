@@ -1,0 +1,7 @@
+stdout = """
+canonicalized /tmp/camp-e2e/tag-unions/tag-match-non-exhaustive/tag-match-non-exhaustive.camp: 2 declaration(s), 0 import(s)
+/tmp/camp-e2e/tag-unions/tag-match-non-exhaustive/tag-match-non-exhaustive.camp:2:5: error: non-exhaustive match: missing branch for Error
+compilation failed with 1 error(s)
+"""
+stderr = ""
+exit = 1

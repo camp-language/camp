@@ -1,0 +1,10 @@
+stdout = """
+canonicalized /tmp/camp-e2e/records/record-as-function-return/record-as-function-return.camp: 2 declaration(s), 0 import(s)
+typecheck passed for /tmp/camp-e2e/records/record-as-function-return/record-as-function-return.camp
+compiled /tmp/camp-e2e/records/record-as-function-return/record-as-function-return.camp -> /tmp/camp-e2e/records/record-as-function-return/record-as-function-return.wasm
+"""
+stderr = ""
+exit = 0
+wasm_exit = 42
+wasm_stdout = ""
+wasm_stderr = ""

@@ -1,0 +1,10 @@
+stdout = """
+canonicalized /tmp/camp-e2e/records/record-construct/record-construct.camp: 1 declaration(s), 0 import(s)
+typecheck passed for /tmp/camp-e2e/records/record-construct/record-construct.camp
+compiled /tmp/camp-e2e/records/record-construct/record-construct.camp -> /tmp/camp-e2e/records/record-construct/record-construct.wasm
+"""
+stderr = ""
+exit = 0
+wasm_exit = 0
+wasm_stdout = ""
+wasm_stderr = ""

@@ -1,0 +1,10 @@
+stdout = """
+canonicalized /tmp/camp-e2e/strings/string-print/string-print.camp: 2 declaration(s), 0 import(s)
+typecheck passed for /tmp/camp-e2e/strings/string-print/string-print.camp
+compiled /tmp/camp-e2e/strings/string-print/string-print.camp -> /tmp/camp-e2e/strings/string-print/string-print.wasm
+"""
+stderr = ""
+exit = 0
+wasm_exit = 0
+wasm_stdout = "hello\n"
+wasm_stderr = ""

@@ -1,0 +1,10 @@
+stdout = """
+canonicalized /tmp/camp-e2e/strings/string-interpolation/string-interpolation.camp: 1 declaration(s), 0 import(s)
+typecheck passed for /tmp/camp-e2e/strings/string-interpolation/string-interpolation.camp
+compiled /tmp/camp-e2e/strings/string-interpolation/string-interpolation.camp -> /tmp/camp-e2e/strings/string-interpolation/string-interpolation.wasm
+"""
+stderr = ""
+exit = 0
+wasm_exit = 0
+wasm_stdout = ""
+wasm_stderr = ""

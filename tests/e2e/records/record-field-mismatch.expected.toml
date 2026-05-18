@@ -1,0 +1,7 @@
+stdout = """
+canonicalized /tmp/camp-e2e/records/record-field-mismatch/record-field-mismatch.camp: 2 declaration(s), 0 import(s)
+/tmp/camp-e2e/records/record-field-mismatch/record-field-mismatch.camp:2:5: error: record type { x: I64 } has no field y
+compilation failed with 1 error(s)
+"""
+stderr = ""
+exit = 1

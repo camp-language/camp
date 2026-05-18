@@ -1,0 +1,10 @@
+stdout = """
+canonicalized /tmp/camp-e2e/records/record-nested-access/record-nested-access.camp: 1 declaration(s), 0 import(s)
+typecheck passed for /tmp/camp-e2e/records/record-nested-access/record-nested-access.camp
+compiled /tmp/camp-e2e/records/record-nested-access/record-nested-access.camp -> /tmp/camp-e2e/records/record-nested-access/record-nested-access.wasm
+"""
+stderr = ""
+exit = 0
+wasm_exit = 99
+wasm_stdout = ""
+wasm_stderr = ""

@@ -1,0 +1,2 @@
+add = (a, b) -> I64 { a + b }
+inc = add(1, _)

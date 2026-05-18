@@ -1,0 +1,7 @@
+stdout = """
+canonicalized /tmp/camp-e2e/closures/recursive-closure/recursive-closure.camp: 1 declaration(s), 0 import(s)
+typecheck passed for /tmp/camp-e2e/closures/recursive-closure/recursive-closure.camp
+compiled /tmp/camp-e2e/closures/recursive-closure/recursive-closure.camp -> /tmp/camp-e2e/closures/recursive-closure/recursive-closure.wasm
+"""
+stderr = ""
+exit = 0

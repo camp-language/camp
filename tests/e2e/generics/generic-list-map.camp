@@ -1,0 +1,1 @@
+map = (f, xs) { match xs { Nil -> Nil | Cons(h, t) -> Cons(f(h), map(f, t)) } }

@@ -1,0 +1,7 @@
+stdout = """
+canonicalized /tmp/camp-e2e/closures/partial-application/partial-application.camp: 2 declaration(s), 0 import(s)
+typecheck passed for /tmp/camp-e2e/closures/partial-application/partial-application.camp
+compiled /tmp/camp-e2e/closures/partial-application/partial-application.camp -> /tmp/camp-e2e/closures/partial-application/partial-application.wasm
+"""
+stderr = ""
+exit = 0

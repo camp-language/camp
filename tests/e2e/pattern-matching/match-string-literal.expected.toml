@@ -1,0 +1,10 @@
+stdout = """
+canonicalized /tmp/camp-e2e/pattern-matching/match-string-literal/match-string-literal.camp: 1 declaration(s), 0 import(s)
+typecheck passed for /tmp/camp-e2e/pattern-matching/match-string-literal/match-string-literal.camp
+compiled /tmp/camp-e2e/pattern-matching/match-string-literal/match-string-literal.camp -> /tmp/camp-e2e/pattern-matching/match-string-literal/match-string-literal.wasm
+"""
+stderr = ""
+exit = 0
+wasm_exit = 1
+wasm_stdout = ""
+wasm_stderr = ""

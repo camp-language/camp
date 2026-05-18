@@ -1,0 +1,10 @@
+stdout = """
+canonicalized /tmp/camp-e2e/tag-unions/tag-construct-ok/tag-construct-ok.camp: 1 declaration(s), 0 import(s)
+typecheck passed for /tmp/camp-e2e/tag-unions/tag-construct-ok/tag-construct-ok.camp
+compiled /tmp/camp-e2e/tag-unions/tag-construct-ok/tag-construct-ok.camp -> /tmp/camp-e2e/tag-unions/tag-construct-ok/tag-construct-ok.wasm
+"""
+stderr = ""
+exit = 0
+wasm_exit = 0
+wasm_stdout = ""
+wasm_stderr = ""

@@ -1,0 +1,7 @@
+stdout = """
+canonicalized /tmp/camp-e2e/tag-unions/tag-type-mismatch/tag-type-mismatch.camp: 2 declaration(s), 0 import(s)
+typecheck passed for /tmp/camp-e2e/tag-unions/tag-type-mismatch/tag-type-mismatch.camp
+compiled /tmp/camp-e2e/tag-unions/tag-type-mismatch/tag-type-mismatch.camp -> /tmp/camp-e2e/tag-unions/tag-type-mismatch/tag-type-mismatch.wasm
+"""
+stderr = ""
+exit = 0

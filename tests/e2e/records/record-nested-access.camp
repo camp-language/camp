@@ -1,0 +1,1 @@
+main! = || -> I64 { r = { inner: { val: 99 } } r.inner.val }

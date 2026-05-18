@@ -1,0 +1,7 @@
+stdout = """
+canonicalized /tmp/camp-e2e/closures/higher-order-filter/higher-order-filter.camp: 1 declaration(s), 0 import(s)
+typecheck passed for /tmp/camp-e2e/closures/higher-order-filter/higher-order-filter.camp
+compiled /tmp/camp-e2e/closures/higher-order-filter/higher-order-filter.camp -> /tmp/camp-e2e/closures/higher-order-filter/higher-order-filter.wasm
+"""
+stderr = ""
+exit = 0
