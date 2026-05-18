@@ -61,6 +61,10 @@ run_build :: proc(args: []string) {
 		os.exit(1)
 	}
 
-	fmt.printfln("parsed {}: {} declaration(s)", file_path, len(ast_file.decls))
+	context.allocator = ctx.allocator
+	canon := canonicalize(ast_file, &ctx)
+	context.allocator = old_allocator
+
+	fmt.printfln("canonicalized {}: {} declaration(s), {} import(s)", file_path, len(canon.decls), len(canon.imports))
 	fmt.println("TODO: implement type checking and code generation")
 }
