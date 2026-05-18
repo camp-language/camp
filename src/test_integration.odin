@@ -30,6 +30,29 @@ test_integration_hello_world :: proc(t: ^testing.T) {
 
 	testing.expect(t, !collector_has_errors(collector))
 	testing.expect(t, len(file.decls) == 1)
+	#partial switch d in file.decls[0] {
+	case ^Decl_Const:
+		testing.expect(t, d.is_effectful == true)
+	case:
+		testing.expect(t, false)
+	}
+}
+
+@(test)
+test_integration_effectful_name :: proc(t: ^testing.T) {
+	source := "print! = 42"
+	file, collector := parse_camp_source(source)
+	defer collector_destroy(collector)
+	defer free(collector)
+
+	testing.expect(t, !collector_has_errors(collector))
+	testing.expect(t, len(file.decls) == 1)
+	#partial switch d in file.decls[0] {
+	case ^Decl_Const:
+		testing.expect(t, d.is_effectful == true)
+	case:
+		testing.expect(t, false)
+	}
 }
 
 @(test)

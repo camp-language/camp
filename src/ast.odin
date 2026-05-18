@@ -11,11 +11,12 @@ Decl :: union {
 }
 
 Decl_Const :: struct {
-	name:     Intern_ID,
-	is_pub:   bool,
-	body:     Expr,
-	type_ann: ^Type,
-	span:     Source_Span,
+	name:          Intern_ID,
+	is_pub:        bool,
+	is_effectful:  bool,
+	body:          Expr,
+	type_ann:      ^Type,
+	span:          Source_Span,
 }
 
 Decl_Effect :: struct {

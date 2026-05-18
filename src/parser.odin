@@ -7,7 +7,7 @@ Binding_Power :: int
 
 PREFIX_BP :map[Token_Kind]Binding_Power = {
 	.Minus  = 7,
-	.Bang   = 7,
+	.Kw_Not = 7,
 }
 
 INFIX_BP :map[Token_Kind][2]Binding_Power = {
@@ -99,6 +99,12 @@ parser_parse_const_decl :: proc(p: ^Parser, is_pub: bool) -> Decl {
 	name := parser_advance(p)
 	name_id := intern(p.intern, name.text)
 
+	is_effectful := false
+	if p.current.kind == .Bang {
+		is_effectful = true
+		parser_advance(p)
+	}
+
 	type_ann: ^Type = nil
 	if p.current.kind == .Colon {
 		parser_advance(p)
@@ -112,6 +118,7 @@ parser_parse_const_decl :: proc(p: ^Parser, is_pub: bool) -> Decl {
 	decl^ = Decl_Const{
 		name = name_id,
 		is_pub = is_pub,
+		is_effectful = is_effectful,
 		body = body,
 		type_ann = type_ann,
 		span = Source_Span{file_id = start_span.file_id, start = start_span.start, end = p.current.span.end},
@@ -221,7 +228,7 @@ parser_parse_prefix :: proc(p: ^Parser) -> Expr {
 		parser_expect(p, .RParen)
 		return expr
 
-	case .Minus, .Bang:
+	case .Minus, .Kw_Not:
 		parser_advance(p)
 		rhs := parser_parse_expr_bp(p, 7)
 		e := new(Expr_PrefixOp)
