@@ -10,7 +10,10 @@
         "camp"
       ],
       "injection-regex": "^camp$",
-      "class-name": "TreeSitterCamp"
+      "class-name": "TreeSitterCamp",
+      "highlights": "queries/highlights.scm",
+      "locals": "queries/locals.scm",
+      "tags": "queries/tags.scm"
     }
   ],
   "metadata": {
