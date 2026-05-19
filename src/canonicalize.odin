@@ -1,12 +1,19 @@
 package camp
 
+import "core:fmt"
 import "core:slice"
+
+DOT_RECEIVER_NAME :: "__dot_receiver__"
+DOT_RECEIVER_INTERN_ID : Intern_ID = 0
+dot_lambda_counter : int = 0
 
 Canonicalize_Scope :: struct {
 	local_names: map[Intern_ID]Canonical_Name,
 }
 
 canonicalize :: proc(surface: File, ctx: ^Compilation_Context) -> CFile {
+	DOT_RECEIVER_INTERN_ID = intern(&ctx.interner, DOT_RECEIVER_NAME)
+
 	scope: Canonicalize_Scope
 	scope.local_names = make(map[Intern_ID]Canonical_Name, 64)
 	defer delete(scope.local_names)
@@ -173,6 +180,43 @@ canonicalize_func_param :: proc(p: Func_Param, scope: ^Canonicalize_Scope, ctx: 
 		ct = canonicalize_type(p.type_ann^, scope, ctx)
 	}
 	return CFunc_Param{name = p.name, type_ann = ct, span = p.span}
+}
+
+replace_dot_receiver :: proc(expr: Expr, replacement: Intern_ID) -> Expr {
+	#partial switch e in expr {
+	case ^Expr_Identifier:
+		if e.name == DOT_RECEIVER_INTERN_ID {
+			c := new(Expr_Identifier)
+			c^ = Expr_Identifier{name = replacement, span = e.span}
+			return c
+		}
+		return expr
+	case ^Expr_Method_Call:
+		creceiver := replace_dot_receiver(e.receiver, replacement)
+		args := make([dynamic]Expr, 0, len(e.args))
+		for a in e.args {
+			append(&args, replace_dot_receiver(a, replacement))
+		}
+		c := new(Expr_Method_Call)
+		c^ = Expr_Method_Call{receiver = creceiver, method = e.method, args = args, span = e.span}
+		return c
+	case ^Expr_Field_Access:
+		crecord := replace_dot_receiver(e.record, replacement)
+		c := new(Expr_Field_Access)
+		c^ = Expr_Field_Access{record = crecord, field = e.field, span = e.span}
+		return c
+	case ^Expr_Call:
+		ccallee := replace_dot_receiver(e.callee, replacement)
+		args := make([dynamic]Expr, 0, len(e.args))
+		for a in e.args {
+			append(&args, replace_dot_receiver(a, replacement))
+		}
+		c := new(Expr_Call)
+		c^ = Expr_Call{callee = ccallee, args = args, span = e.span}
+		return c
+	case:
+		return expr
+	}
 }
 
 canonicalize_expr :: proc(expr: Expr, scope: ^Canonicalize_Scope, ctx: ^Compilation_Context) -> CExpr {
@@ -444,14 +488,16 @@ canonicalize_expr :: proc(expr: Expr, scope: ^Canonicalize_Scope, ctx: ^Compilat
 		return c
 
 	case ^Expr_Dot_Lambda:
-		cbody := canonicalize_expr(e.body, scope, ctx)
-		param := CFunc_Param{
-			name = intern(&ctx.interner, DOT_RECEIVER_SENTINEL),
-			type_ann = nil,
-			span = e.span,
-		}
-		params := make([dynamic]CFunc_Param, 0, 1)
-		append(&params, param)
+		dot_lambda_counter += 1
+		param_name := fmt.tprintf("_dot_{}", dot_lambda_counter)
+		param_id := intern(&ctx.interner, param_name)
+
+		resolved_body := replace_dot_receiver(e.body, param_id)
+		cbody := canonicalize_expr(resolved_body, scope, ctx)
+
+		params := make([dynamic]CFunc_Param, 1)
+		params[0] = CFunc_Param{name = param_id, span = e.span}
+
 		cl := new(CExpr_Lambda)
 		cl^ = CExpr_Lambda{
 			type_params = make([dynamic]Intern_ID, 0),
