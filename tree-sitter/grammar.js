@@ -90,15 +90,19 @@ export default grammar({
     ),
 
     import_declaration: ($) => seq(
+      optional("unsafe"),
       "import",
-      field("module", $.string),
-      optional(seq("exposing", "(", optional(field("exposed", $.exposed_names)), ")")),
-      optional(seq("as", field("alias", $.identifier))),
+      field("module", $.type_identifier),
+      optional(seq("exposing", "[", optional(field("exposed", $.exposed_names)), "]")),
+      optional(seq("as", field("alias", $.type_identifier))),
     ),
 
-    exposed_names: ($) => seq(
-      $.identifier,
-      repeat(seq(",", $.identifier)),
+    exposed_names: ($) => choice(
+      seq(
+        $.identifier,
+        repeat(seq(",", $.identifier)),
+      ),
+      "..",
     ),
 
     test_declaration: ($) => seq(

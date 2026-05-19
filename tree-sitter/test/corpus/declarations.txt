@@ -75,16 +75,16 @@ alias UserId = I64
 ========
 Import declaration
 ========
-import "std/io" exposing (println, read) as io
+import Std exposing [println, read] as IO
 ---
 
 (source_file
   (import_declaration
-    (string)
+    (type_identifier)
     (exposed_names
       (identifier)
       (identifier))
-    (identifier)))
+    (type_identifier)))
 
 ========
 Test declaration

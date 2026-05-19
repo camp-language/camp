@@ -1178,7 +1178,7 @@
     "fields": {},
     "children": {
       "multiple": true,
-      "required": true,
+      "required": false,
       "types": [
         {
           "type": "identifier",
@@ -1916,7 +1916,7 @@
         "required": false,
         "types": [
           {
-            "type": "identifier",
+            "type": "type_identifier",
             "named": true
           }
         ]
@@ -1936,7 +1936,7 @@
         "required": true,
         "types": [
           {
-            "type": "string",
+            "type": "type_identifier",
             "named": true
           }
         ]
@@ -4456,6 +4456,10 @@
   {
     "type": "type_identifier",
     "named": true
+  },
+  {
+    "type": "unsafe",
+    "named": false
   },
   {
     "type": "with",
