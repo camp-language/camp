@@ -10,6 +10,10 @@ export default grammar({
 
   conflicts: ($) => [
     [$._primary_expression, $.tag_expression],
+    [$.block, $.record_expression],
+    [$._primary_expression, $.lambda_parameter],
+    [$.block, $._statement],
+    [$.or_pattern],
   ],
 
   rules: {
@@ -40,6 +44,14 @@ export default grammar({
       $.tag_expression,
       $.list_expression,
       $.parenthesized_expression,
+      $.lambda_expression,
+      $.block,
+      $.record_expression,
+      $.if_expression,
+      $.match_expression,
+      $.handle_expression,
+      $.return_expression,
+      $.crash_expression,
     ),
 
     // --- Literals ---
@@ -87,6 +99,176 @@ export default grammar({
       "(",
       $._expression,
       ")",
+    ),
+
+    // --- Lambda ---
+    lambda_expression: ($) => choice(
+      $.pipe_lambda,
+      $.paren_lambda,
+    ),
+
+    pipe_lambda: ($) => seq(
+      "|",
+      optional(seq(
+        optional($.type_parameters),
+        optional(field("parameters", $.lambda_parameters)),
+      )),
+      "|",
+      optional(seq("->", optional($.effect_annotation), field("return_type", $._type))),
+      field("body", $._expression),
+    ),
+
+    lambda_parameters: ($) => seq(
+      $.lambda_parameter,
+      repeat(seq(",", $.lambda_parameter)),
+    ),
+
+    lambda_parameter: ($) => seq(
+      field("name", $.identifier),
+      optional(seq(":", field("type", $._type))),
+    ),
+
+    type_parameters: ($) => seq(
+      "<",
+      $.identifier,
+      repeat(seq(",", $.identifier)),
+      ">",
+    ),
+
+    paren_lambda: ($) => seq(
+      "(",
+      optional(field("parameters", $.lambda_parameters)),
+      ")",
+      optional(seq(
+        "->",
+        optional($.effect_annotation),
+        field("return_type", $._type),
+      )),
+      field("body", $._expression),
+    ),
+
+    effect_annotation: ($) => seq(
+      "{",
+      optional(seq($.type_identifier, repeat(seq(",", $.type_identifier)))),
+      "}",
+    ),
+
+    // --- Block ---
+    block: ($) => seq(
+      "{",
+      repeat($._statement),
+      optional($._expression),
+      "}",
+    ),
+
+    _statement: ($) => $._expression,
+
+    // --- Record ---
+    record_expression: ($) => seq(
+      "{",
+      optional(field("fields", $.record_fields)),
+      optional(seq("..", field("spread", $._expression))),
+      "}",
+    ),
+
+    record_fields: ($) => seq(
+      $.record_field,
+      repeat(seq(",", $.record_field)),
+      optional(","),
+    ),
+
+    record_field: ($) => seq(
+      field("name", $.identifier),
+      ":",
+      field("value", $._expression),
+    ),
+
+    // --- If ---
+    if_expression: ($) => prec.right(seq(
+      "if",
+      field("condition", $._expression),
+      field("consequence", $._expression),
+      optional(seq("else", field("alternative", $._expression))),
+    )),
+
+    // --- Match ---
+    match_expression: ($) => seq(
+      "match",
+      field("scrutinee", $._expression),
+      "{",
+      optional(field("arms", $.match_arms)),
+      "}",
+    ),
+
+    match_arms: ($) => seq(
+      $.match_arm,
+      repeat(seq("|", $.match_arm)),
+      optional("|"),
+    ),
+
+    match_arm: ($) => seq(
+      field("pattern", $._pattern),
+      "->",
+      field("body", $._expression),
+    ),
+
+    // --- Handle ---
+    handle_expression: ($) => seq(
+      choice("handle", "intercept"),
+      field("body", $._expression),
+      "with",
+      "{",
+      field("arms", $.handler_arms),
+      "}",
+    ),
+
+    handler_arms: ($) => repeat1($.handler_arm),
+
+    handler_arm: ($) => seq(
+      field("operation", $.type_identifier),
+      ".",
+      field("name", $.identifier),
+      "(",
+      field("resume_param", $.identifier),
+      ")",
+      "->",
+      field("body", $._expression),
+    ),
+
+    // --- Return/Crash ---
+    return_expression: ($) => seq("return", $._expression),
+
+    crash_expression: ($) => seq("crash", $._expression),
+
+    // --- Patterns (placeholder) ---
+    _pattern: ($) => choice(
+      $.identifier,
+      $.type_identifier,
+      $.integer,
+      $.string,
+      $.boolean,
+      $.wildcard_pattern,
+      $.or_pattern,
+    ),
+
+    wildcard_pattern: ($) => "_",
+
+    or_pattern: ($) => seq(
+      $._pattern,
+      "|",
+      $._pattern,
+    ),
+
+    // --- Types (placeholder) ---
+    _type: ($) => choice(
+      $.type_identifier,
+      $.function_type,
+    ),
+
+    function_type: ($) => seq(
+      optional(seq("(", optional(seq($._type, repeat(seq(",", $._type)))), ")")),
+      "->",
+      $._type,
     ),
 
     // --- Keywords ---

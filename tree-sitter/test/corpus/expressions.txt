@@ -1,0 +1,187 @@
+========
+Pipe lambda no params
+========
+x = || 42
+---
+(source_file
+  (const_declaration
+    (identifier)
+    (lambda_expression
+      (pipe_lambda
+        (integer)))))
+
+========
+Pipe lambda with params
+========
+x = |x| x
+---
+(source_file
+  (const_declaration
+    (identifier)
+    (lambda_expression
+      (pipe_lambda
+        (lambda_parameters
+          (lambda_parameter
+            (identifier)))
+        (identifier)))))
+
+========
+Pipe lambda with return type
+========
+x = || -> I64 { 42 }
+---
+(source_file
+  (const_declaration
+    (identifier)
+    (lambda_expression
+      (pipe_lambda
+        (type_identifier)
+        (block
+          (integer))))))
+
+========
+Paren lambda with effect
+========
+x = (n) -> {IO} String { n }
+---
+(source_file
+  (const_declaration
+    (identifier)
+    (lambda_expression
+      (paren_lambda
+        (lambda_parameters
+          (lambda_parameter
+            (identifier)))
+        (effect_annotation
+          (type_identifier))
+        (type_identifier)
+        (block
+          (identifier))))))
+
+========
+Block expression
+========
+x = { 1 2 3 }
+---
+(source_file
+  (const_declaration
+    (identifier)
+    (block
+      (integer)
+      (integer)
+      (integer))))
+
+========
+Record expression
+========
+x = { x: 1, y: 2 }
+---
+(source_file
+  (const_declaration
+    (identifier)
+    (record_expression
+      (record_fields
+        (record_field
+          (identifier)
+          (integer))
+        (record_field
+          (identifier)
+          (integer))))))
+
+========
+Record spread
+========
+x = { x: 10 ..p }
+---
+(source_file
+  (const_declaration
+    (identifier)
+    (record_expression
+      (record_fields
+        (record_field
+          (identifier)
+          (integer)))
+      (identifier))))
+
+========
+If expression
+========
+x = if true 1 else 0
+---
+(source_file
+  (const_declaration
+    (identifier)
+    (if_expression
+      (boolean)
+      (integer)
+      (integer))))
+
+========
+If without else
+========
+x = if true { 1 }
+---
+(source_file
+  (const_declaration
+    (identifier)
+    (if_expression
+      (boolean)
+      (block
+        (integer)))))
+
+========
+Match expression
+========
+x = match x { 1 -> 0 | _ -> 1 }
+---
+(source_file
+  (const_declaration
+    (identifier)
+    (match_expression
+      (identifier)
+      (match_arms
+        (match_arm
+          (integer)
+          (integer))
+        (match_arm
+          (wildcard_pattern)
+          (integer))))))
+
+========
+Handle expression
+========
+x = handle body with { E.op(r) -> r }
+---
+(source_file
+  (const_declaration
+    (identifier)
+    (handle_expression
+      (identifier)
+      (handler_arms
+        (handler_arm
+          (type_identifier)
+          (identifier)
+          (identifier)
+          (identifier))))))
+
+========
+Return expression
+========
+x = return 42
+---
+(source_file
+  (const_declaration
+    (identifier)
+    (return_expression
+      (integer))))
+
+========
+Crash expression
+========
+x = crash "oops"
+---
+(source_file
+  (const_declaration
+    (identifier)
+    (crash_expression
+      (string))))
