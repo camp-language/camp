@@ -267,7 +267,8 @@ typecheck_synth :: proc(expr: CExpr, env: ^Type_Env, store: ^Type_Store) -> Type
 		append(&env.handled_effects, e.effect.name)
 		body_result := typecheck_synth(e.body, env, store)
 		_ = pop(&env.handled_effects)
-		return body_result
+		result_eff := fresh_effect_row(store, e.span)
+		return Type_Result{var_id = body_result.var_id, effects = result_eff}
 	}
 	var_id := fresh_value_var(store, Source_Span_ZERO)
 	return Type_Result{var_id = var_id, effects = fresh_effect_row(store, Source_Span_ZERO)}
@@ -297,11 +298,10 @@ typecheck_lambda :: proc(e: ^CExpr_Lambda, env: ^Type_Env, store: ^Type_Store) -
 	body_result := typecheck_synth(e.body, &child_env, store)
 
 	effect_id := fresh_effect_row(store, e.span)
+	unify(store, effect_id, body_result.effects)
 	if e.effects != nil {
 		ann_effects := convert_type_to_var(e.effects, store)
 		unify(store, effect_id, ann_effects)
-	} else {
-		unify(store, effect_id, body_result.effects)
 	}
 
 	return_id := fresh_value_var(store, e.span)
@@ -438,12 +438,23 @@ typecheck_prefixop :: proc(e: ^CExpr_PrefixOp, env: ^Type_Env, store: ^Type_Stor
 typecheck_tag :: proc(e: ^CExpr_Tag, env: ^Type_Env, store: ^Type_Store) -> Type_Result {
 	eff := fresh_effect_row(store, e.span)
 
-	for p in e.payload {
+	payload_ids := store_alloc(store, Type_Var_ID, len(e.payload))
+	for p, i in e.payload {
 		p_result := typecheck_synth(p, env, store)
 		unify(store, eff, p_result.effects)
+		payload_ids[i] = resolve_var(store, p_result.var_id)
 	}
 
 	tag_var := fresh_value_var(store, e.span)
+	rest_var := fresh_value_var(store, e.span)
+	tag_entries := store_alloc(store, Type_Tag_Entry, 1)
+	tag_entries[0] = Type_Tag_Entry{name = e.name.name, payload = payload_ids}
+	inf := Inferred_Type{
+		tag = .Tag_Union_Row,
+		tag_entries = tag_entries,
+		rest_id = resolve_var(store, rest_var),
+	}
+	link_var(store, tag_var, inf)
 	return Type_Result{var_id = tag_var, effects = eff}
 }
 
@@ -478,8 +489,17 @@ typecheck_record :: proc(e: ^CExpr_Record, env: ^Type_Env, store: ^Type_Store) -
 
 typecheck_field_access :: proc(e: ^CExpr_Field_Access, env: ^Type_Env, store: ^Type_Store) -> Type_Result {
 	record_result := typecheck_synth(e.record, env, store)
-	var_id := fresh_value_var(store, e.span)
-	return Type_Result{var_id = var_id, effects = record_result.effects}
+	field_var := fresh_value_var(store, e.span)
+	rest_var := fresh_value_var(store, e.span)
+	record_fields := store_alloc(store, Type_Field_Entry, 1)
+	record_fields[0] = Type_Field_Entry{name = e.field, var = resolve_var(store, field_var)}
+	inf := Inferred_Type{
+		tag = .Record_Row,
+		record_fields = record_fields,
+		record_rest = resolve_var(store, rest_var),
+	}
+	link_var(store, record_result.var_id, inf)
+	return Type_Result{var_id = field_var, effects = record_result.effects}
 }
 
 typecheck_match :: proc(e: ^CExpr_Match, env: ^Type_Env, store: ^Type_Store) -> Type_Result {
@@ -615,10 +635,17 @@ convert_type_to_var_val :: proc(t: CType, store: ^Type_Store) -> Type_Var_ID {
 		return vid
 
 	case ^CType_Applied:
-		for &a in ty.args {
-			convert_type_to_var_val(a, store)
+		arg_ids := store_alloc(store, Type_Var_ID, len(ty.args))
+		for &a, i in ty.args {
+			arg_ids[i] = convert_type_to_var_val(a, store)
 		}
-		return fresh_value_var(store, ty.span)
+		vid := fresh_value_var(store, ty.span)
+		link_var(store, vid, Inferred_Type{
+			tag = .Constructor,
+			primitive_name = ty.name,
+			arity = len(ty.args),
+		})
+		return vid
 
 	case ^CType_Record:
 		rt := ty

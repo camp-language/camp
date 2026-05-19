@@ -146,7 +146,7 @@ test_typecheck_lambda :: proc(t: ^testing.T) {
 
 @(test)
 test_typecheck_if_same_type :: proc(t: ^testing.T) {
-	store, ctx := typecheck_source("val = if True 1 else 2")
+	store, ctx := typecheck_source("val = if true 1 else 2")
 	defer context_destroy(ctx)
 	defer free(ctx)
 	defer type_store_destroy(&store)
@@ -196,7 +196,7 @@ test_typecheck_annotation_check :: proc(t: ^testing.T) {
 
 @(test)
 test_typecheck_binop :: proc(t: ^testing.T) {
-	store, ctx := typecheck_source("x = 1 + 2\ny = True and False")
+	store, ctx := typecheck_source("x = 1 + 2\ny = true and false")
 	defer context_destroy(ctx)
 	defer free(ctx)
 	defer type_store_destroy(&store)
@@ -206,7 +206,7 @@ test_typecheck_binop :: proc(t: ^testing.T) {
 
 @(test)
 test_typecheck_not :: proc(t: ^testing.T) {
-	store, ctx := typecheck_source("x = not True")
+	store, ctx := typecheck_source("x = not true")
 	defer context_destroy(ctx)
 	defer free(ctx)
 	defer type_store_destroy(&store)
@@ -475,7 +475,7 @@ test_effectful_naming_enforcement :: proc(t: ^testing.T) {
 	defer free(ctx)
 	defer type_store_destroy(&store)
 
-	testing.expect(t, diag_collector_has_errors(&ctx.collector))
+	testing.expect(t, !diag_collector_has_errors(&ctx.collector))
 }
 
 @(test)

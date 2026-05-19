@@ -24,8 +24,8 @@ unify :: proc(store: ^Type_Store, a: Type_Var_ID, b: Type_Var_ID) -> bool {
 		}
 	}
 
-	if occurs_check(store, ra, rb) {
-		collector_add_diag(store.collector, diag_infinite_type("this type", va.span, vb.span))
+	if occurs_check(store, ra, rb) || occurs_check(store, rb, ra) {
+		collector_add_diag(store.collector, diag_infinite_type("infinite type", va.span, vb.span))
 		return false
 	}
 
