@@ -1,5 +1,6 @@
 package camp
 
+import "core:strings"
 
 Symbol_Kind :: enum {
 	Function,
@@ -78,7 +79,12 @@ build_symbol_index :: proc(idx: ^Symbol_Index, file: CFile, uri: string, source:
 		case ^CDecl_Const:
 			name_str := intern_get(store.interner, d.name.name)
 			range := span_to_lsp_range(source, d.span)
-			type_str := format_type_ann(d.type_ann, store)
+			type_str := "?"
+			if var_id, ok := store.bindings[d.name.name]; ok {
+				type_str = format_resolved_type(store, var_id)
+			} else if d.type_ann != nil {
+				type_str = format_type_ann(d.type_ann, store)
+			}
 			symbol_index_add(idx, name_str, uri, range, .Function, type_str)
 		case ^CDecl_Effect:
 			name_str := intern_get(store.interner, d.name.name)
@@ -92,11 +98,23 @@ build_symbol_index :: proc(idx: ^Symbol_Index, file: CFile, uri: string, source:
 		case ^CDecl_Trait:
 			name_str := intern_get(store.interner, d.name.name)
 			range := span_to_lsp_range(source, d.span)
-			symbol_index_add(idx, name_str, uri, range, .Type, "trait")
+			type_str := "?"
+			if var_id, ok := store.bindings[d.name.name]; ok {
+				type_str = format_resolved_type(store, var_id)
+			} else {
+				type_str = "trait"
+			}
+			symbol_index_add(idx, name_str, uri, range, .Type, type_str)
 		case ^CDecl_Alias:
 			name_str := intern_get(store.interner, d.name.name)
 			range := span_to_lsp_range(source, d.span)
-			symbol_index_add(idx, name_str, uri, range, .Type, "type alias")
+			type_str := "?"
+			if var_id, ok := store.bindings[d.name.name]; ok {
+				type_str = format_resolved_type(store, var_id)
+			} else if d.target != nil {
+				type_str = format_type_ann(d.target, store)
+			}
+			symbol_index_add(idx, name_str, uri, range, .Type, type_str)
 		case:
 		}
 	}
@@ -123,6 +141,41 @@ format_type_ann :: proc(type_ann: ^CType, store: ^Type_Store) -> string {
 		return intern_get(store.interner, t.name)
 	case ^CType_Wildcard:
 		return "_"
+	case:
+		return "?"
+	}
+}
+
+format_resolved_type :: proc(store: ^Type_Store, var_id: Type_Var_ID) -> string {
+	resolved := resolve_var(store, var_id)
+	v := get_var(store, resolved)
+	inf, is_inf := v.link.(Inferred_Type)
+	if !is_inf {
+		return "?"
+	}
+	switch inf.tag {
+	case .Primitive:
+		return intern_get(store.interner, inf.primitive_name)
+	case .Function:
+		b: strings.Builder
+		strings.builder_init_len_cap(&b, 0, 64)
+		for i in 0 ..< len(inf.param_ids) {
+			if i > 0 do strings.write_string(&b, ", ")
+			strings.write_string(&b, format_resolved_type(store, inf.param_ids[i]))
+		}
+		strings.write_string(&b, " -> ")
+		strings.write_string(&b, format_resolved_type(store, inf.return_id))
+		result := strings.to_string(b)
+		strings.builder_destroy(&b)
+		return result
+	case .Constructor:
+		return intern_get(store.interner, inf.primitive_name)
+	case .Record_Row:
+		return "{ ... }"
+	case .Tag_Union_Row:
+		return "[ ... ]"
+	case .Effect_Row:
+		return "{}"
 	case:
 		return "?"
 	}
