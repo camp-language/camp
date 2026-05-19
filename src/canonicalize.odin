@@ -442,6 +442,26 @@ canonicalize_expr :: proc(expr: Expr, scope: ^Canonicalize_Scope, ctx: ^Compilat
 		c := new(CExpr_Handle)
 		c^ = CExpr_Handle{effect = effect_name, is_shallow = e.is_shallow, body = cbody, arms = arms, span = e.span}
 		return c
+
+	case ^Expr_Dot_Lambda:
+		cbody := canonicalize_expr(e.body, scope, ctx)
+		param := CFunc_Param{
+			name = intern(&ctx.interner, DOT_RECEIVER_SENTINEL),
+			type_ann = nil,
+			span = e.span,
+		}
+		params := make([dynamic]CFunc_Param, 0, 1)
+		append(&params, param)
+		cl := new(CExpr_Lambda)
+		cl^ = CExpr_Lambda{
+			type_params = make([dynamic]Intern_ID, 0),
+			params = params,
+			return_type = nil,
+			effects = nil,
+			body = cbody,
+			span = e.span,
+		}
+		return cl
 	}
 	c := new(CExpr_Int)
 	c^ = CExpr_Int{span = Source_Span_ZERO}
