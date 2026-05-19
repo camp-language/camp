@@ -443,7 +443,26 @@ sum = |numbers: List(Int)| -> Int {
 
 **Alternative considered**: Local refs that don't escape (like Swift's `inout` but scoped). Rejected because it adds escape analysis complexity for marginal benefit. Stack-local vars with `for` loops cover the common use cases.
 
-### 3.10 Traits
+### 3.10 Dot Lambdas
+
+A dot lambda is a leading `.` followed by a method/field chain, creating an anonymous function that applies the chain to its argument.
+
+| Syntax | Desugars to |
+|--------|-------------|
+| `.foo(x)` | `\|a\| a.foo(x)` |
+| `.name` | `\|a\| a.name` |
+| `.foo().bar(x)` | `\|a\| a.foo().bar(x)` |
+| `.record.field.method(x)` | `\|a\| a.record.field.method(x)` |
+
+**Rules**:
+- Valid in any expression position
+- Effect rows propagate naturally — `.read!()` desugars to an effectful lambda
+- Mixes field access and method calls freely
+- `..` is spread syntax, not a double dot lambda — no ambiguity
+
+**Design decision**: Dot lambdas are desugared at canonicalization. The surface AST preserves the dot lambda structure for tooling (formatter, LSP, error messages), but the typechecker and later stages see a plain lambda.
+
+### 3.11 Traits
 
 Traits are structurally verified but nominally declared. A type must explicitly declare `is Trait` to satisfy the trait, and the compiler verifies that the required methods exist and have the correct signatures.
 
@@ -494,7 +513,7 @@ lookup = <a is Hash, b>|key: a, map: Map(a, b)| -> Some(b) | None { ... }
 - Method resolution by name only — less precise than trait dispatch
 - No derivation target — `@derive` needs a named trait to implement
 
-### 3.11 Effect Rows
+### 3.12 Effect Rows
 
 Every function type includes an effect row — a set of effects that the function may perform. This is the core of Camp's effect tracking system, following Koka's design.
 
@@ -524,7 +543,7 @@ echo! : Str ->{ Console } {}
 map = <a, b, e>|f: |a| ->{ e } b, list: List(a)| ->{ e } List(b) { ... }
 ```
 
-### 3.12 Inline Type Annotations
+### 3.13 Inline Type Annotations
 
 Types are annotated inline with `:`, never as a separate declaration above the binding.
 
@@ -541,7 +560,7 @@ handler: Handle(Int) = Async.spawn!(|| { 42 })
 - Consistent with Rust's `let x: i32 = 3` convention
 - Works naturally with function signatures embedded in the arg block
 
-### 3.13 No Shadowing
+### 3.14 No Shadowing
 
 All shadowing is forbidden. A binding name cannot be reused in the same scope or any nested scope.
 
@@ -558,7 +577,7 @@ All shadowing is forbidden. A binding name cannot be reused in the same scope or
 
 **Alternative considered**: Nested-scope shadowing only (like F#). This would allow `let x = 1; let x = 2` in nested scopes but forbid same-scope rebinding. Rejected because the marginal ergonomics gain doesn't justify the complexity and refactoring risk.
 
-### 3.14 Unified Namespace
+### 3.15 Unified Namespace
 
 One namespace per module for functions, values, types, traits, effects, and aliases. No separate type/value namespaces.
 
@@ -566,13 +585,13 @@ One namespace per module for functions, values, types, traits, effects, and alia
 
 **Consequence**: A module cannot export both a type `Result` and a function `Result`. This is rarely a problem in practice — types and their companion functions typically share the same name and are accessed via the module (e.g., `Result.is_ok`).
 
-### 3.15 Visibility
+### 3.16 Visibility
 
 `pub` keyword marks exports. Everything else is private to the module.
 
 **Rationale**: Rust-style `pub` is simple, well-understood, and doesn't require a separate interface file. The alternative — explicit export lists like Roc's `app [main!] { ... }` — requires maintaining a separate list that can drift out of sync with the implementation.
 
-### 3.16 Raw Identifiers
+### 3.17 Raw Identifiers
 
 Backtick-wrapped identifiers escape keyword conflicts: `` `do` ``, `` `is` ``, `` `type` ``.
 
@@ -581,7 +600,7 @@ Backtick-wrapped identifiers escape keyword conflicts: `` `do` ``, `` `is` ``, `
 - Scala and Haskell use backtick identifiers, providing precedent
 - `r#` is Rust-specific and visually jarring in a non-Rust language
 
-### 3.17 Destructive Read Guarantee
+### 3.18 Destructive Read Guarantee
 
 Perceus destructive-read / last-use optimization is a guaranteed language semantic, not an optional optimization. The compiler proves last-use and reuses allocations in-place. `var` bindings participate in reuse analysis.
 

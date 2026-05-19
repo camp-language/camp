@@ -65,6 +65,7 @@ _expression
     -> list_expression     # [1, 2, 3]
     -> tag_expression      # UpperId(args)
     -> handle_expression   # handle body with { op(resume) => body }
+    -> anonymous_method_expression  # .foo(x) or .name — dot lambda
     -> return_expression   # return expr
     -> crash_expression    # crash expr
     -> interpolate         # future: string interpolation
@@ -97,6 +98,7 @@ and                             prec.left(2)
 *, /, %                         prec.left(6)
 prefix (-, not)                 prec.left(7)
 call, method_call, field_access prec.left(8)
+anonymous_method_expression       prec.left(9)
 ```
 
 ### Disambiguation

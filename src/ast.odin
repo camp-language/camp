@@ -101,6 +101,7 @@ Expr :: union {
 	^Expr_Crash,
 	^Expr_Interpolate,
 	^Expr_Handle,
+	^Expr_Dot_Lambda,
 }
 
 Expr_Int :: struct {
@@ -326,6 +327,11 @@ Expr_Handle :: struct {
 	body:       Expr,
 	arms:       [dynamic]Handler_Arm,
 	span:       Source_Span,
+}
+
+Expr_Dot_Lambda :: struct {
+	body: Expr,
+	span: Source_Span,
 }
 
 Handler_Arm :: struct {

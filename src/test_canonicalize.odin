@@ -110,6 +110,58 @@ test_canonicalize_lambda :: proc(t: ^testing.T) {
 }
 
 @(test)
+test_canonicalize_dot_lambda_method :: proc(t: ^testing.T) {
+	file, ctx := canon_file("f = .foo(x)")
+	defer context_destroy(ctx)
+	defer free(ctx)
+
+	testing.expect(t, len(file.decls) == 1)
+	#partial switch decl in file.decls[0] {
+	case ^CDecl_Const:
+		#partial switch expr in decl.body {
+		case ^CExpr_Lambda:
+			testing.expect(t, len(expr.params) == 1)
+			#partial switch body in expr.body {
+			case ^CExpr_Method_Call:
+				testing.expect(t, true)
+			case:
+				testing.expect(t, false)
+			}
+		case:
+			testing.expect(t, false)
+		}
+	case:
+		testing.expect(t, false)
+	}
+}
+
+@(test)
+test_canonicalize_dot_lambda_field :: proc(t: ^testing.T) {
+	file, ctx := canon_file("f = .name")
+	defer context_destroy(ctx)
+	defer free(ctx)
+
+	testing.expect(t, len(file.decls) == 1)
+	#partial switch decl in file.decls[0] {
+	case ^CDecl_Const:
+		#partial switch expr in decl.body {
+		case ^CExpr_Lambda:
+			testing.expect(t, len(expr.params) == 1)
+			#partial switch body in expr.body {
+			case ^CExpr_Field_Access:
+				testing.expect(t, true)
+			case:
+				testing.expect(t, false)
+			}
+		case:
+			testing.expect(t, false)
+		}
+	case:
+		testing.expect(t, false)
+	}
+}
+
+@(test)
 test_canonicalize_handle :: proc(t: ^testing.T) {
 	file, ctx := canon_file("main! = handle IO in { 42 } with { .println!(resume) => resume({}) }")
 	defer context_destroy(ctx)

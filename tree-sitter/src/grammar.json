@@ -1255,6 +1255,10 @@
         },
         {
           "type": "SYMBOL",
+          "name": "anonymous_method_expression"
+        },
+        {
+          "type": "SYMBOL",
           "name": "return_expression"
         },
         {
@@ -2253,6 +2257,43 @@
         }
       ]
     },
+    "anonymous_method_expression": {
+      "type": "PREC",
+      "value": 9,
+      "content": {
+        "type": "SEQ",
+        "members": [
+          {
+            "type": "STRING",
+            "value": "."
+          },
+          {
+            "type": "FIELD",
+            "name": "name",
+            "content": {
+              "type": "SYMBOL",
+              "name": "identifier"
+            }
+          },
+          {
+            "type": "CHOICE",
+            "members": [
+              {
+                "type": "FIELD",
+                "name": "arguments",
+                "content": {
+                  "type": "SYMBOL",
+                  "name": "arguments"
+                }
+              },
+              {
+                "type": "BLANK"
+              }
+            ]
+          }
+        ]
+      }
+    },
     "_pattern": {
       "type": "CHOICE",
       "members": [
@@ -3045,6 +3086,18 @@
     [
       "effect_annotation",
       "record_type"
+    ],
+    [
+      "anonymous_method_expression",
+      "field_access_expression",
+      "method_call_expression"
+    ],
+    [
+      "anonymous_method_expression"
+    ],
+    [
+      "anonymous_method_expression",
+      "method_call_expression"
     ],
     [
       "record_pattern_fields"

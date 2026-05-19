@@ -27,6 +27,8 @@ INFIX_BP :map[Token_Kind][2]Binding_Power = {
 	.Caret        = {13, 14},
 }
 
+DOT_RECEIVER_SENTINEL :: "__dot_receiver__"
+
 Parser :: struct {
 	lexer:     ^Lexer,
 	current:   Token,
@@ -82,6 +84,7 @@ expr_span_start :: proc(expr: Expr) -> int {
 	case ^Expr_Crash:             return e.span.start
 	case ^Expr_Interpolate:       return e.span.start
 	case ^Expr_Handle:            return e.span.start
+	case ^Expr_Dot_Lambda:        return e.span.start
 	case:                         return 0
 	}
 }
@@ -112,6 +115,7 @@ right_span_end :: proc(expr: Expr) -> int {
 	case ^Expr_Crash:             return e.span.end
 	case ^Expr_Interpolate:       return e.span.end
 	case ^Expr_Handle:            return e.span.end
+	case ^Expr_Dot_Lambda:        return e.span.end
 	case:                         return 0
 	}
 }
@@ -302,6 +306,9 @@ parser_parse_prefix :: proc(p: ^Parser) -> Expr {
 		e^ = Expr_PrefixOp{op = tok.kind, operand = rhs, span = tok.span}
 		return e
 
+	case .Dot:
+		return parser_parse_dot_lambda(p)
+
 	case:
 		collector_add_diag(p.collector, diag_unexpected_token(tok))
 		parser_advance(p)
@@ -408,6 +415,53 @@ parser_parse_method_chain :: proc(p: ^Parser, initial: Expr) -> Expr {
 		result = mc
 	}
 	return result
+}
+
+parser_parse_dot_lambda :: proc(p: ^Parser) -> Expr {
+	start := p.current.span
+	parser_advance(p)
+
+	placeholder_id := intern(p.intern, DOT_RECEIVER_SENTINEL)
+	placeholder := new(Expr_Identifier)
+	placeholder^ = Expr_Identifier{name = placeholder_id, span = start}
+
+	name_tok := parser_expect(p, .Identifier)
+	name_id := intern(p.intern, name_tok.text)
+
+	initial: Expr
+
+	if p.current.kind == .LParen {
+		mc := new(Expr_Method_Call)
+		mc^ = Expr_Method_Call{
+			receiver = placeholder,
+			method = name_id,
+			args = make([dynamic]Expr, 0, 4),
+			span = name_tok.span,
+		}
+		parser_advance(p)
+		for p.current.kind != .RParen && p.current.kind != .Eof {
+			arg := parser_parse_expr(p)
+			append(&mc.args, arg)
+			if p.current.kind == .Comma {
+				parser_advance(p)
+			}
+		}
+		parser_expect(p, .RParen)
+		initial = mc
+	} else {
+		fa := new(Expr_Field_Access)
+		fa^ = Expr_Field_Access{record = placeholder, field = name_id, span = name_tok.span}
+		initial = fa
+	}
+
+	result := initial
+	if p.current.kind == .Dot {
+		result = parser_parse_method_chain(p, result)
+	}
+
+	dl := new(Expr_Dot_Lambda)
+	dl^ = Expr_Dot_Lambda{body = result, span = start}
+	return dl
 }
 
 parser_parse_lambda :: proc(p: ^Parser) -> Expr {

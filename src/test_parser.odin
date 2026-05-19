@@ -194,3 +194,82 @@ test_parser_intercept :: proc(t: ^testing.T) {
 		testing.expect(t, false)
 	}
 }
+
+@(test)
+test_parser_dot_lambda_method :: proc(t: ^testing.T) {
+	ctx: Compilation_Context
+	context_init(&ctx)
+	defer context_destroy(&ctx)
+
+	expr := parse_expr(".foo(x)", &ctx)
+	testing.expect(t, !diag_collector_has_errors(&ctx.collector))
+	#partial switch e in expr {
+	case ^Expr_Dot_Lambda:
+		#partial switch body in e.body {
+		case ^Expr_Method_Call:
+			testing.expect(t, len(body.args) == 1)
+		case:
+			testing.expect(t, false)
+		}
+	case:
+		testing.expect(t, false)
+	}
+}
+
+@(test)
+test_parser_dot_lambda_field :: proc(t: ^testing.T) {
+	ctx: Compilation_Context
+	context_init(&ctx)
+	defer context_destroy(&ctx)
+
+	expr := parse_expr(".name", &ctx)
+	testing.expect(t, !diag_collector_has_errors(&ctx.collector))
+	#partial switch e in expr {
+	case ^Expr_Dot_Lambda:
+		#partial switch body in e.body {
+		case ^Expr_Field_Access:
+			testing.expect(t, true)
+		case:
+			testing.expect(t, false)
+		}
+	case:
+		testing.expect(t, false)
+	}
+}
+
+@(test)
+test_parser_dot_lambda_chained :: proc(t: ^testing.T) {
+	ctx: Compilation_Context
+	context_init(&ctx)
+	defer context_destroy(&ctx)
+
+	expr := parse_expr(".foo().bar(x)", &ctx)
+	testing.expect(t, !diag_collector_has_errors(&ctx.collector))
+	#partial switch e in expr {
+	case ^Expr_Dot_Lambda:
+		#partial switch body in e.body {
+		case ^Expr_Method_Call:
+			testing.expect(t, true)
+		case:
+			testing.expect(t, false)
+		}
+	case:
+		testing.expect(t, false)
+	}
+}
+
+@(test)
+test_parser_dot_lambda_mixed :: proc(t: ^testing.T) {
+	ctx: Compilation_Context
+	context_init(&ctx)
+	defer context_destroy(&ctx)
+
+	expr := parse_expr(".record.field.method(x)", &ctx)
+	testing.expect(t, !diag_collector_has_errors(&ctx.collector))
+	#partial switch e in expr {
+	case ^Expr_Dot_Lambda:
+		testing.expect(t, true)
+	case:
+		testing.expect(t, false)
+	}
+}

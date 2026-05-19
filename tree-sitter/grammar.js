@@ -17,6 +17,9 @@ export default grammar({
     [$._type, $.applied_type],
     [$._pattern, $.tag_pattern],
     [$.effect_annotation, $.record_type],
+    [$.anonymous_method_expression, $.field_access_expression, $.method_call_expression],
+    [$.anonymous_method_expression],
+    [$.anonymous_method_expression, $.method_call_expression],
     [$.record_pattern_fields],
   ],
 
@@ -181,6 +184,7 @@ export default grammar({
       $.if_expression,
       $.match_expression,
       $.handle_expression,
+      $.anonymous_method_expression,
       $.return_expression,
       $.crash_expression,
     ),
@@ -370,6 +374,12 @@ export default grammar({
     return_expression: ($) => seq("return", $._expression),
 
     crash_expression: ($) => seq("crash", $._expression),
+
+    anonymous_method_expression: ($) => prec(9, seq(
+      ".",
+      field("name", $.identifier),
+      optional(field("arguments", $.arguments)),
+    )),
 
     // --- Patterns ---
     _pattern: ($) => choice(
