@@ -133,7 +133,7 @@ cc_free_vars :: proc(expr: IR_Expr, bound: ^map[Intern_ID]bool) -> [dynamic]Inte
 			delete(inner)
 		}
 	case ^IR_Closure:
-		inner := cc_free_vars(e.env, bound)
+		inner := cc_free_vars(e.body, bound)
 		for v in inner { append(&result, v) }
 		delete(inner)
 	case ^IR_Match:
@@ -219,7 +219,7 @@ cc_convert_expr :: proc(expr: IR_Expr, env: ^Closure_Convert_Env) -> IR_Expr {
 		bound = make(map[Intern_ID]bool, 8)
 		bound[env_param_name] = true
 
-		free := cc_free_vars(e.env, &bound)
+		free := cc_free_vars(e.body, &bound)
 		delete(bound)
 
 		params := make([dynamic]IR_Param, 0, len(free) + 1)
@@ -238,13 +238,14 @@ cc_convert_expr :: proc(expr: IR_Expr, env: ^Closure_Convert_Env) -> IR_Expr {
 			params = params,
 			return_type = e.type,
 			effect_row = IR_Type{.Void, Type_Var_ID(0)},
-			body = IR_Expr(nil),
+			body = cc_convert_expr(e.body, env),
 			span = e.span,
 		}
 		append(&env.module.decls, IR_Decl(closed_fn))
+		fn_idx_val := len(env.module.decls) - 1
 
 		fn_idx_lit := new(IR_Literal_Int)
-		fn_idx_lit^ = IR_Literal_Int{value = 0, type = IR_Type{.I32, Type_Var_ID(0)}, span = e.span}
+		fn_idx_lit^ = IR_Literal_Int{value = i64(fn_idx_val), type = IR_Type{.I32, Type_Var_ID(0)}, span = e.span}
 		env_ptr_lit := new(IR_Literal_Int)
 		env_ptr_lit^ = IR_Literal_Int{value = 0, type = IR_Type{.I32, Type_Var_ID(0)}, span = e.span}
 

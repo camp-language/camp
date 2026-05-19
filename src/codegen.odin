@@ -400,6 +400,7 @@ collect_locals :: proc(expr: IR_Expr, locals: ^map[Intern_ID]IR_Type) {
 		}
 	case ^IR_Closure:
 		collect_locals(e.env, locals)
+		collect_locals(e.body, locals)
 	case:
 	}
 }

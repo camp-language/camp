@@ -402,6 +402,7 @@ lower_lambda :: proc(e: ^CExpr_Lambda, env: ^Lower_Env) -> IR_Expr {
 	closure^ = IR_Closure{
 		fn_name = fn_name,
 		env = IR_Expr(nil),
+		body = body,
 		type = ir_fn_type,
 		span = e.span,
 	}

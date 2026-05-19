@@ -213,6 +213,7 @@ IR_Perform :: struct {
 IR_Closure :: struct {
 	fn_name: Canonical_Name,
 	env:     IR_Expr,
+	body:    IR_Expr,
 	type:    IR_Type,
 	span:    Source_Span,
 }
