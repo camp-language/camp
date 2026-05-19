@@ -607,11 +607,9 @@ typecheck_match :: proc(e: ^CExpr_Match, env: ^Type_Env, store: ^Type_Store) -> 
 	}
 	defer delete(saved_bindings)
 
-	first_result := typecheck_synth(e.arms[0].body, env, store)
-	result_var := first_result.var_id
+	result_var := fresh_value_var(store, e.span)
 	effect_row := fresh_effect_row(store, e.span)
 	unify(store, effect_row, scrutinee_result.effects)
-	unify(store, effect_row, first_result.effects)
 
 	covered_tags: map[Intern_ID]bool
 	covered_tags = make(map[Intern_ID]bool, len(e.arms))
