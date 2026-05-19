@@ -68,12 +68,13 @@ Inferred_Type :: struct {
 }
 
 Type_Store :: struct {
-	vars:            [dynamic]Type_Var,
-	next_id:         Type_Var_ID,
-	current_level:   int,
-	interner:        ^Intern_Table,
-	collector:       ^Diagnostic_Collector,
+	vars:             [dynamic]Type_Var,
+	next_id:          Type_Var_ID,
+	current_level:    int,
+	interner:         ^Intern_Table,
+	collector:        ^Diagnostic_Collector,
 	declared_effects: [dynamic]Intern_ID,
+	bindings:         map[Intern_ID]Type_Var_ID,
 }
 
 type_store_init :: proc(store: ^Type_Store, interner: ^Intern_Table, collector: ^Diagnostic_Collector) {
@@ -83,11 +84,13 @@ type_store_init :: proc(store: ^Type_Store, interner: ^Intern_Table, collector: 
 	store.interner = interner
 	store.collector = collector
 	store.declared_effects = make([dynamic]Intern_ID, 0, 16)
+	store.bindings = make(map[Intern_ID]Type_Var_ID, 64)
 }
 
 type_store_destroy :: proc(store: ^Type_Store) {
 	delete(store.vars)
 	delete(store.declared_effects)
+	delete(store.bindings)
 }
 
 fresh_var :: proc(store: ^Type_Store, kind: Type_Var_Kind, name: Intern_ID, span: Source_Span) -> Type_Var_ID {

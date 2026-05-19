@@ -101,6 +101,10 @@ typecheck_file :: proc(file: CFile, store: ^Type_Store) {
 	for decl in file.decls {
 		typecheck_decl(decl, &env, store)
 	}
+
+	for name_id, var_id in env.bindings {
+		store.bindings[name_id] = var_id
+	}
 }
 
 typecheck_decl :: proc(decl: CDecl, env: ^Type_Env, store: ^Type_Store) {
