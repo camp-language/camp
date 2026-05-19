@@ -137,15 +137,17 @@ run_test :: proc(test: E2E_Test, update: bool) -> Test_Report {
 	stderr_str: string
 	exit_code: int
 
+	unique_prefix := fmt.tprintf("{}-{}", test.category, test.name)
+
 	if has_args {
 		#partial switch a in args_val {
 		case string:
-			stdout_str, stderr_str, exit_code = run_special_command(a, tmp_base, camp_filename)
+			stdout_str, stderr_str, exit_code = run_special_command(a, tmp_base, camp_filename, unique_prefix)
 		}
 	}
 
 	if !has_args {
-		stdout_str, stderr_str, exit_code = run_camp_build(tmp_camp)
+		stdout_str, stderr_str, exit_code = run_camp_build(tmp_camp, unique_prefix)
 	}
 
 	report.actual_stdout = stdout_str
@@ -166,7 +168,7 @@ run_test :: proc(test: E2E_Test, update: bool) -> Test_Report {
 		if tw_err != nil {
 			has_wasm = false
 		} else {
-			wasm_stdout, wasm_stderr, wasm_exit, wasm_available = run_wasmtime(tmp_wasm)
+			wasm_stdout, wasm_stderr, wasm_exit, wasm_available = run_wasmtime(tmp_wasm, unique_prefix)
 		}
 	}
 
@@ -275,30 +277,43 @@ capture_output :: proc(data: []byte) -> string {
 }
 
 PROCESS_TIMEOUT :: 10 * time.Second
-CHILD_MEMORY_LIMIT_KB: int = 16777216
-CHILD_CPU_LIMIT_S: int = 10
 
 run_command :: proc(command: []string) -> (stdout: string, stderr: string, exit_code: int) {
+	return run_command_prefixed(command, "")
+}
+
+run_command_prefixed :: proc(command: []string, prefix: string) -> (stdout: string, stderr: string, exit_code: int) {
 	pid := os.get_pid()
-	stdout_path := fmt.tprintf("/tmp/camp-e2e-stdout-{}", pid)
-	stderr_path := fmt.tprintf("/tmp/camp-e2e-stderr-{}", pid)
-
-	shell_builder: strings.Builder
-	strings.builder_init_len_cap(&shell_builder, 0, 256)
-	fmt.sbprintf(&shell_builder, "ulimit -v {} && ulimit -t {} && ", CHILD_MEMORY_LIMIT_KB, CHILD_CPU_LIMIT_S)
-	first := true
-	for arg in command {
-		if !first { fmt.sbprintf(&shell_builder, "{}", " ") }
-		first = false
-		fmt.sbprintf(&shell_builder, "{:q}", arg)
+	stdout_path: string
+	stderr_path: string
+	if len(prefix) > 0 {
+		stdout_path = fmt.tprintf("/tmp/camp-e2e-stdout-{}-{}", pid, prefix)
+		stderr_path = fmt.tprintf("/tmp/camp-e2e-stderr-{}-{}", pid, prefix)
+	} else {
+		stdout_path = fmt.tprintf("/tmp/camp-e2e-stdout-{}", pid)
+		stderr_path = fmt.tprintf("/tmp/camp-e2e-stderr-{}", pid)
 	}
-	fmt.sbprintf(&shell_builder, " >{} 2>{}", stdout_path, stderr_path)
-	shell_cmd := strings.to_string(shell_builder)
 
-	full_cmd := []string{"bash", "-c", shell_cmd}
+	stdout_f, open_err := os.open(stdout_path, os.O_CREATE | os.O_WRONLY | os.O_TRUNC)
+	if open_err != nil {
+		return "", fmt.tprintf("open stdout file: {}", open_err), 1
+	}
+	defer os.close(stdout_f)
+	stderr_f, open_err2 := os.open(stderr_path, os.O_CREATE | os.O_WRONLY | os.O_TRUNC)
+	if open_err2 != nil {
+		os.remove(stdout_path)
+		return "", fmt.tprintf("open stderr file: {}", open_err2), 1
+	}
+	defer os.close(stderr_f)
 
-	start_proc, start_err := os.process_start(os.Process_Desc{command = full_cmd})
+	start_proc, start_err := os.process_start(os.Process_Desc{
+		command = command,
+		stdout = stdout_f,
+		stderr = stderr_f,
+	})
 	if start_err != nil {
+		os.remove(stdout_path)
+		os.remove(stderr_path)
 		return "", fmt.tprintf("process start error: {}", start_err), 1
 	}
 
@@ -330,7 +345,7 @@ run_command :: proc(command: []string) -> (stdout: string, stderr: string, exit_
 	return
 }
 
-run_camp_build :: proc(camp_path: string) -> (stdout: string, stderr: string, exit_code: int) {
+run_camp_build :: proc(camp_path: string, unique_prefix: string) -> (stdout: string, stderr: string, exit_code: int) {
 	camp_env := os.get_env("CAMP_BIN", context.allocator)
 	camp_bin: string
 	if len(camp_env) > 0 {
@@ -338,7 +353,7 @@ run_camp_build :: proc(camp_path: string) -> (stdout: string, stderr: string, ex
 	} else {
 		camp_bin = "./camp"
 	}
-	return run_command({camp_bin, "build", camp_path})
+	return run_command_prefixed({camp_bin, "build", camp_path}, unique_prefix)
 }
 
 resolve_wasmtime :: proc() -> string {
@@ -350,9 +365,9 @@ resolve_wasmtime :: proc() -> string {
 	return "wasmtime"
 }
 
-run_wasmtime :: proc(wasm_path: string) -> (stdout: string, stderr: string, exit_code: int, available: bool) {
+run_wasmtime :: proc(wasm_path: string, unique_prefix: string) -> (stdout: string, stderr: string, exit_code: int, available: bool) {
 	wasmtime_bin := resolve_wasmtime()
-	stdout, stderr, exit_code = run_command({wasmtime_bin, "run", wasm_path})
+	stdout, stderr, exit_code = run_command_prefixed({wasmtime_bin, "run", wasm_path}, unique_prefix)
 	if exit_code == -1 && stderr == "process timed out after 10s" {
 		return "", "", 0, false
 	}
@@ -360,13 +375,13 @@ run_wasmtime :: proc(wasm_path: string) -> (stdout: string, stderr: string, exit
 	return
 }
 
-run_special_command :: proc(args: string, tmp_base: string, camp_filename: string) -> (stdout: string, stderr: string, exit_code: int) {
+run_special_command :: proc(args: string, tmp_base: string, camp_filename: string, unique_prefix: string) -> (stdout: string, stderr: string, exit_code: int) {
 	switch args {
 	case "no-args":
-		return run_command({"./camp"})
+		return run_command_prefixed({"./camp"}, fmt.tprintf("{}-noargs", unique_prefix))
 
 	case "unknown":
-		return run_command({"./camp", "foo"})
+		return run_command_prefixed({"./camp", "foo"}, fmt.tprintf("{}-unknown", unique_prefix))
 
 	case "build-non-camp":
 		txt_path, tp_err := filepath.join({tmp_base, "test.txt"}, context.allocator)
@@ -377,10 +392,10 @@ run_special_command :: proc(args: string, tmp_base: string, camp_filename: strin
 		if write_err != nil {
 			return "", fmt.tprintf("failed to write test file: {}", write_err), 1
 		}
-		return run_command({"./camp", "build", txt_path})
+		return run_command_prefixed({"./camp", "build", txt_path}, fmt.tprintf("{}-non-camp", unique_prefix))
 
 	case "build-missing":
-		return run_command({"./camp", "build", "/nonexistent.camp"})
+		return run_command_prefixed({"./camp", "build", "/nonexistent.camp"}, fmt.tprintf("{}-missing", unique_prefix))
 	}
 
 	return "", fmt.tprintf("unknown special args: {}", args), 1
