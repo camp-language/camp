@@ -64,6 +64,8 @@ The `body` is the receiver-less chain. For `.foo(x).bar`, the body is an `Expr_M
 
 The parser creates a special `Expr_Identifier` with the reserved name `__dot_receiver__`. This name is never valid in user code. The canonicalizer recognizes it and replaces it with the fresh lambda parameter.
 
+> **TODO**: Replace the sentinel-name approach with a proper `Expr_Synthetic_Identifier` variant (an identifier with no backing source text). Sentinel values are fragile — they rely on a name that could theoretically collide, and they require every consumer to know about the convention. A dedicated variant makes the intent explicit and eliminates the collision risk.
+
 ### 3.4 Canonicalization
 
 Desugar `Expr_Dot_Lambda` to `CExpr_Lambda`:
