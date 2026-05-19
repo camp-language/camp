@@ -1,6 +1,7 @@
 package camp
 
 import "core:testing"
+import "core:strings"
 
 @(test)
 test_doc_text :: proc(t: ^testing.T) {

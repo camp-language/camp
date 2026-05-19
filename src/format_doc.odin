@@ -1,5 +1,6 @@
 package camp
 
+import "core:strings"
 
 Doc_Kind :: enum {
 	Empty,
