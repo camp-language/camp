@@ -69,9 +69,10 @@ The parser creates a special `Expr_Identifier` with the reserved name `__dot_rec
 Desugar `Expr_Dot_Lambda` to `CExpr_Lambda`:
 
 1. Generate a fresh parameter name (e.g., `_dot_0`, `_dot_1` per desugaring, using the intern table)
-2. Walk the body tree, replacing the `__dot_receiver__` placeholder with an `Expr_Identifier` for that parameter
-3. Construct a `CExpr_Lambda` with that single parameter and the desugared body
-4. No `CExpr_Dot_Lambda` in the canonical AST — it's gone after this phase
+2. Walk the body tree, finding the leftmost deepest `Expr_Identifier` whose name is `__dot_receiver__` — this is the placeholder inserted by the parser at the innermost receiver position. Replace it with an `Expr_Identifier` for the fresh parameter.
+3. Canonicalize the desugared body normally
+4. Construct a `CExpr_Lambda` with that single parameter and the canonicalized body
+5. No `CExpr_Dot_Lambda` in the canonical AST — it's gone after this phase
 
 ### 3.5 Downstream Stages
 
