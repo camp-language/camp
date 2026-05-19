@@ -251,6 +251,11 @@ typecheck_synth :: proc(expr: CExpr, env: ^Type_Env, store: ^Type_Store) -> Type
 
 	case ^CExpr_Assign:
 		result := typecheck_synth(e.value, env, store)
+		#partial switch target in e.target {
+		case ^CExpr_Name:
+			env.bindings[target.name.name] = result.var_id
+		case:
+		}
 		return Type_Result{var_id = result.var_id, effects = result.effects}
 
 	case ^CExpr_Return:
