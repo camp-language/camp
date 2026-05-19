@@ -27,12 +27,89 @@ export default grammar({
 
     _declaration: ($) => choice(
       $.const_declaration,
+      $.effect_declaration,
+      $.trait_declaration,
+      $.alias_declaration,
+      $.import_declaration,
+      $.test_declaration,
+      $.expect_declaration,
     ),
 
     const_declaration: ($) => seq(
-      $.identifier,
+      field("name", $.identifier),
+      optional("!"),
+      optional(seq(":", field("type_annotation", $.type_annotation))),
       "=",
-      $._expression,
+      field("body", $._expression),
+    ),
+
+    effect_declaration: ($) => seq(
+      "effect",
+      field("name", $.type_identifier),
+      "{",
+      field("operations", repeat($.effect_operation)),
+      "}",
+    ),
+
+    effect_operation: ($) => seq(
+      field("name", $.identifier),
+      optional(seq("(", optional(field("parameters", $.effect_parameters)), ")")),
+      optional(seq("->", field("return_type", $._type))),
+    ),
+
+    effect_parameters: ($) => seq(
+      $.effect_parameter,
+      repeat(seq(",", $.effect_parameter)),
+    ),
+
+    effect_parameter: ($) => seq(
+      field("name", $.identifier),
+      optional(seq(":", field("type", $._type))),
+    ),
+
+    trait_declaration: ($) => seq(
+      "trait",
+      field("name", $.type_identifier),
+      optional(seq("is", field("parent", $.type_identifier))),
+      "{",
+      repeat($.trait_method),
+      "}",
+    ),
+
+    trait_method: ($) => seq(
+      field("name", $.identifier),
+      ":",
+      field("type", $._type),
+    ),
+
+    alias_declaration: ($) => seq(
+      "alias",
+      field("name", $.type_identifier),
+      "=",
+      field("target", $._type),
+    ),
+
+    import_declaration: ($) => seq(
+      "import",
+      field("module", $.string),
+      optional(seq("exposing", "(", optional(field("exposed", $.exposed_names)), ")")),
+      optional(seq("as", field("alias", $.identifier))),
+    ),
+
+    exposed_names: ($) => seq(
+      $.identifier,
+      repeat(seq(",", $.identifier)),
+    ),
+
+    test_declaration: ($) => seq(
+      "test",
+      field("name", $.string),
+      field("body", $._expression),
+    ),
+
+    expect_declaration: ($) => seq(
+      "expect",
+      field("condition", $._expression),
     ),
 
     _expression: ($) => choice(
@@ -402,6 +479,8 @@ export default grammar({
     wildcard_type: ($) => "_",
 
     type_variable: ($) => $.identifier,
+
+    type_annotation: ($) => $._type,
 
     // --- Keywords ---
     _if: ($) => "if",

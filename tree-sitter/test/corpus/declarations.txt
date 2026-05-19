@@ -1,0 +1,113 @@
+========
+Const declaration
+========
+x = 42
+---
+
+(source_file
+  (const_declaration
+    (identifier)
+    (integer)))
+
+========
+Const with type annotation
+========
+x: I64 = 42
+---
+
+(source_file
+  (const_declaration
+    (identifier)
+    (type_annotation
+      (type_identifier))
+    (integer)))
+
+========
+Effectful const
+========
+main! = || 42
+---
+
+(source_file
+  (const_declaration
+    (identifier)
+    (lambda_expression
+      (pipe_lambda
+        (integer)))))
+
+========
+Effect declaration
+========
+effect IO { println }
+---
+
+(source_file
+  (effect_declaration
+    (type_identifier)
+    (effect_operation
+      (identifier))))
+
+========
+Trait declaration
+========
+trait Display { display: (Self) -> String }
+---
+(source_file
+  (trait_declaration
+    (type_identifier)
+    (trait_method
+      (identifier)
+      (function_type
+        (type_identifier)
+        (type_identifier)))))
+
+========
+Alias declaration
+========
+alias UserId = I64
+---
+
+(source_file
+  (alias_declaration
+    (type_identifier)
+    (type_identifier)))
+
+========
+Import declaration
+========
+import "std/io" exposing (println, read) as io
+---
+
+(source_file
+  (import_declaration
+    (string)
+    (exposed_names
+      (identifier)
+      (identifier))
+    (identifier)))
+
+========
+Test declaration
+========
+test "it works" { 42 }
+---
+
+(source_file
+  (test_declaration
+    (string)
+    (block
+      (integer))))
+
+========
+Expect declaration
+========
+expect 1 + 1 == 2
+---
+
+(source_file
+  (expect_declaration
+    (binary_expression
+      (binary_expression
+        (integer)
+        (integer))
+      (integer))))
