@@ -1,5 +1,6 @@
 package camp
 
+import "core:fmt"
 import "core:strings"
 
 Type_Env :: struct {
@@ -502,6 +503,85 @@ typecheck_field_access :: proc(e: ^CExpr_Field_Access, env: ^Type_Env, store: ^T
 	return Type_Result{var_id = field_var, effects = record_result.effects}
 }
 
+typecheck_pattern :: proc(pattern: CPattern, scrutinee_var: Type_Var_ID, env: ^Type_Env, store: ^Type_Store) -> Type_Result {
+	eff := fresh_effect_row(store, Source_Span_ZERO)
+
+	#partial switch p in pattern {
+	case ^CPattern_Identifier:
+		env.bindings[p.name] = scrutinee_var
+		return Type_Result{var_id = scrutinee_var, effects = eff}
+
+	case ^CPattern_Wildcard:
+		return Type_Result{var_id = scrutinee_var, effects = eff}
+
+	case ^CPattern_Bool:
+		bool_name := intern(store.interner, "Bool")
+		bool_var := make_primitive_type(store, bool_name, p.span)
+		unify(store, scrutinee_var, bool_var)
+		return Type_Result{var_id = bool_var, effects = eff}
+
+	case ^CPattern_Int:
+		i64_name := intern(store.interner, "I64")
+		i64_var := make_primitive_type(store, i64_name, p.span)
+		unify(store, scrutinee_var, i64_var)
+		return Type_Result{var_id = i64_var, effects = eff}
+
+	case ^CPattern_String:
+		str_name := intern(store.interner, "Str")
+		str_var := make_primitive_type(store, str_name, p.span)
+		unify(store, scrutinee_var, str_var)
+		return Type_Result{var_id = str_var, effects = eff}
+
+	case ^CPattern_Tag:
+		payload_ids := store_alloc(store, Type_Var_ID, len(p.payload))
+		for sp, i in p.payload {
+			payload_ids[i] = fresh_value_var(store, p.span)
+			pat_result := typecheck_pattern(sp, payload_ids[i], env, store)
+			unify(store, eff, pat_result.effects)
+		}
+		rest_var := fresh_value_var(store, p.span)
+		tag_entries := store_alloc(store, Type_Tag_Entry, 1)
+		tag_entries[0] = Type_Tag_Entry{name = p.name.name, payload = payload_ids}
+		tag_var := fresh_value_var(store, p.span)
+		link_var(store, tag_var, Inferred_Type{
+			tag = .Tag_Union_Row,
+			tag_entries = tag_entries,
+			rest_id = resolve_var(store, rest_var),
+		})
+		unify(store, scrutinee_var, tag_var)
+		return Type_Result{var_id = tag_var, effects = eff}
+
+	case ^CPattern_Record:
+		field_entries := store_alloc(store, Type_Field_Entry, len(p.fields))
+		for sf, i in p.fields {
+			field_entries[i].name = sf.name
+			field_entries[i].var = fresh_value_var(store, p.span)
+			env.bindings[sf.binding] = field_entries[i].var
+		}
+		rest_var := fresh_record_row(store, p.span)
+		rec_var := fresh_value_var(store, p.span)
+		link_var(store, rec_var, Inferred_Type{
+			tag = .Record_Row,
+			record_fields = field_entries,
+			record_rest = resolve_var(store, rest_var),
+		})
+		unify(store, scrutinee_var, rec_var)
+		return Type_Result{var_id = rec_var, effects = eff}
+	}
+
+	return Type_Result{var_id = scrutinee_var, effects = eff}
+}
+
+collect_covered_tags :: proc(pattern: CPattern, tags: ^map[Intern_ID]bool, saturated: ^bool) {
+	#partial switch p in pattern {
+	case ^CPattern_Wildcard, ^CPattern_Identifier:
+		saturated^ = true
+	case ^CPattern_Tag:
+		tags^[p.name.name] = true
+	case:
+	}
+}
+
 typecheck_match :: proc(e: ^CExpr_Match, env: ^Type_Env, store: ^Type_Store) -> Type_Result {
 	scrutinee_result := typecheck_synth(e.scrutinee, env, store)
 
@@ -510,16 +590,65 @@ typecheck_match :: proc(e: ^CExpr_Match, env: ^Type_Env, store: ^Type_Store) -> 
 		return Type_Result{var_id = var_id, effects = scrutinee_result.effects}
 	}
 
+	saved_bindings := make(map[Intern_ID]Type_Var_ID, len(env.bindings))
+	for k, v in env.bindings {
+		saved_bindings[k] = v
+	}
+	defer delete(saved_bindings)
+
 	first_result := typecheck_synth(e.arms[0].body, env, store)
 	result_var := first_result.var_id
 	effect_row := fresh_effect_row(store, e.span)
 	unify(store, effect_row, scrutinee_result.effects)
 	unify(store, effect_row, first_result.effects)
 
-	for i := 1; i < len(e.arms); i += 1 {
-		arm_result := typecheck_synth(e.arms[i].body, env, store)
+	covered_tags: map[Intern_ID]bool
+	covered_tags = make(map[Intern_ID]bool, len(e.arms))
+	defer delete(covered_tags)
+	saturated := false
+
+	for i := 0; i < len(e.arms); i += 1 {
+		arm := e.arms[i]
+
+		for k in env.bindings {
+			delete_key(&env.bindings, k)
+		}
+		for k, v in saved_bindings {
+			env.bindings[k] = v
+		}
+
+		pat_result := typecheck_pattern(arm.pattern, scrutinee_result.var_id, env, store)
+		unify(store, effect_row, pat_result.effects)
+		collect_covered_tags(arm.pattern, &covered_tags, &saturated)
+
+		arm_result := typecheck_synth(arm.body, env, store)
 		unify(store, result_var, arm_result.var_id)
 		unify(store, effect_row, arm_result.effects)
+	}
+
+	resolved_scrut := get_var(store, resolve_var(store, scrutinee_result.var_id))
+	#partial switch inf in resolved_scrut.link {
+	case Inferred_Type:
+		if inf.tag == .Tag_Union_Row && len(inf.tag_entries) > 0 && !saturated {
+			missing_list: [dynamic]string
+			missing_list = make([dynamic]string, 0, len(inf.tag_entries))
+			defer delete(missing_list)
+			for te in inf.tag_entries {
+				if !covered_tags[te.name] {
+					append(&missing_list, intern_get(store.interner, te.name))
+				}
+			}
+			if len(missing_list) > 0 {
+				missing := missing_list[0]
+				for j := 1; j < len(missing_list); j += 1 {
+					missing = fmt.tprintf("{}, {}", missing, missing_list[j])
+				}
+				collector_add_diag(store.collector, diag_internal(
+					fmt.tprintf("non-exhaustive match: missing branch for {}", missing),
+					e.span))
+			}
+		}
+	case:
 	}
 
 	return Type_Result{var_id = result_var, effects = effect_row}
