@@ -84,6 +84,8 @@ dispatch_notification :: proc(server: ^LSP_Server, method: string, params: json.
 		handle_did_change(server, params)
 	case "textDocument/didClose":
 		handle_did_close(server, params)
+	case "textDocument/didSave":
+		handle_did_save(server, params)
 	case "exit":
 		server.running = false
 		if server.shutdown {
@@ -176,6 +178,22 @@ handle_did_close :: proc(server: ^LSP_Server, params: json.Value) {
 
 	publish_diagnostics(server, uri, make([dynamic]LSP_Diagnostic, 0))
 	store_close(&server.doc_store, uri)
+}
+
+handle_did_save :: proc(server: ^LSP_Server, params: json.Value) {
+	text_doc, td_ok := json_get_object(params, "textDocument")
+	if !td_ok {
+		return
+	}
+	uri, uri_ok := json_get_string(text_doc, "uri")
+	if !uri_ok {
+		return
+	}
+
+	text, has_text := json_get_string(params, "text")
+	if has_text {
+		store_update(&server.doc_store, uri, text, 0)
+	}
 }
 
 analyze_dirty_documents :: proc(server: ^LSP_Server) {
