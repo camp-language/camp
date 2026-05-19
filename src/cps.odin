@@ -3,14 +3,40 @@ package camp
 import "core:fmt"
 
 CPS_Env :: struct {
-	interner: ^Intern_Table,
-	fresh:    int,
+	interner:      ^Intern_Table,
+	module:        ^IR_Module,
+	effectful_fns: map[Canonical_Name]bool,
+	fresh:         int,
 }
 
 cps_fresh :: proc(env: ^CPS_Env, prefix: string) -> Intern_ID {
 	name := fmt.tprintf("{}_{}", prefix, env.fresh)
 	env.fresh += 1
 	return intern(env.interner, name)
+}
+
+cps_make_continuation :: proc(body: IR_Expr, param_name: Intern_ID, return_type: IR_Type, k_name: Intern_ID, env: ^CPS_Env) -> Canonical_Name {
+	cont_name := Canonical_Name{
+		module = NO_NAME,
+		name = cps_fresh(env, "_kc"),
+		is_local = true,
+	}
+
+	cont_params := make([dynamic]IR_Param, 0, 1)
+	append(&cont_params, IR_Param{name = param_name, type = return_type})
+
+	cont_fn := new(IR_Decl_Fn)
+	cont_fn^ = IR_Decl_Fn{
+		name = cont_name,
+		is_effectful = false,
+		params = cont_params,
+		return_type = return_type,
+		effect_row = IR_Type{.Void, Type_Var_ID(0)},
+		body = cps_transform_expr(body, k_name, env),
+		span = Source_Span_ZERO,
+	}
+	append(&env.module.decls, IR_Decl(cont_fn))
+	return cont_name
 }
 
 cps_transform :: proc(mod: ^IR_Module, ctx: ^Compilation_Context) -> IR_Module {
@@ -27,7 +53,18 @@ cps_transform :: proc(mod: ^IR_Module, ctx: ^Compilation_Context) -> IR_Module {
 
 	env: CPS_Env
 	env.interner = &ctx.interner
+	env.module = &result
 	env.fresh = 0
+
+	for decl in mod.decls {
+		#partial switch d in decl {
+		case ^IR_Decl_Fn:
+			if d.is_effectful {
+				env.effectful_fns[d.name] = true
+			}
+		case:
+		}
+	}
 
 	for decl in mod.decls {
 		transformed := cps_transform_decl(decl, &env)
@@ -98,6 +135,36 @@ cps_transform_expr :: proc(expr: IR_Expr, k_name: Intern_ID, env: ^CPS_Env) -> I
 		return IR_Expr(tc)
 
 	case ^IR_Let:
+		#partial switch v in e.value {
+		case ^IR_Call:
+			if v.callee in env.effectful_fns {
+				result_name := cps_fresh(env, "_r")
+				result_type := v.type
+
+				cont_name := cps_make_continuation(
+					e.body,
+					result_name,
+					result_type,
+					k_name,
+					env,
+				)
+
+				new_args := make([dynamic]IR_Expr, 0, len(v.args) + 1)
+				for arg in v.args {
+					append(&new_args, cps_transform_expr(arg, k_name, env))
+				}
+				cont_var := new(IR_Var)
+				cont_var^ = IR_Var{name = cont_name.name, type = IR_Type{.Funcref, Type_Var_ID(0)}, span = e.span}
+				append(&new_args, IR_Expr(cont_var))
+
+				tc := new(IR_Tail_Call)
+				tc^ = IR_Tail_Call{callee = v.callee, args = new_args, span = e.span}
+				return IR_Expr(tc)
+			}
+		case:
+
+		}
+
 		new_let := new(IR_Let)
 		new_let^ = IR_Let{
 			binding = e.binding,
