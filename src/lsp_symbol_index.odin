@@ -166,8 +166,9 @@ format_resolved_type :: proc(store: ^Type_Store, var_id: Type_Var_ID) -> string 
 		strings.write_string(&b, " -> ")
 		strings.write_string(&b, format_resolved_type(store, inf.return_id))
 		result := strings.to_string(b)
+		cloned := strings.clone(result, context.allocator)
 		strings.builder_destroy(&b)
-		return result
+		return cloned
 	case .Constructor:
 		return intern_get(store.interner, inf.primitive_name)
 	case .Record_Row:
