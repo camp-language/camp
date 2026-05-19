@@ -58,6 +58,7 @@ Token_Kind :: enum {
 	Amp,
 	Caret,
 	Tilde,
+	Backslash,
 
 	LParen,
 	RParen,
