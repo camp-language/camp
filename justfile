@@ -10,7 +10,24 @@ test-unit:
 test-e2e: build build-e2e
     CAMP_BIN="$(pwd)/camp" ./camp-e2e
 
-test: test-unit test-e2e
+tree-sitter-generate:
+    cd tree-sitter && tree-sitter generate
+
+tree-sitter-test: tree-sitter-generate
+    cd tree-sitter && tree-sitter test
+
+tree-sitter-validate: tree-sitter-generate
+    #!/usr/bin/env sh
+    for f in tests/e2e/**/*.camp; do
+      if tree-sitter parse "$$f" 2>&1 | grep -q 'ERROR'; then
+        echo "FAIL: $$f has parse errors" && exit 1
+      fi
+    done
+    echo "All .camp files parse successfully"
+
+lint-tree-sitter: tree-sitter-test tree-sitter-validate
+
+test: test-unit test-e2e lint-tree-sitter
 
 update-snapshots: build build-e2e
     CAMP_BIN="$(pwd)/camp" ./camp-e2e --update
