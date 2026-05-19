@@ -343,6 +343,16 @@ codegen :: proc(ir_mod: IR_Module, ctx: ^Compilation_Context) -> Wasm_Module {
 		code_buf = make([dynamic]u8, 0, 256)
 
 		main_body := extract_effectful_body(main_decl.body)
+
+		collected_locals: map[Intern_ID]IR_Type
+		collected_locals = make(map[Intern_ID]IR_Type, 32)
+		collect_locals(main_body, &collected_locals)
+		env.local_map = make(map[Intern_ID]u32, 32)
+		for name, typ in collected_locals {
+			env.local_map[name] = env.next_local
+			env.next_local += 1
+		}
+
 		emit_expr(main_body, &code_buf, &env, runtime_func_indices[:])
 
 		main_ret_type := get_main_return_type(ir_mod, &ctx.interner)
@@ -355,10 +365,15 @@ codegen :: proc(ir_mod: IR_Module, ctx: ^Compilation_Context) -> Wasm_Module {
 		emit_instruction(Wasm_Call{index = 0}, &code_buf)
 		emit_instruction(Wasm_End{}, &code_buf)
 
-		start_locals := make([]Wasm_Local_Decl, 1)
-		start_locals[0] = Wasm_Local_Decl{count = 4, type = .I32}
-		append(&mod.codes, Wasm_Code{locals = start_locals, body = copy_dynamic_bytes(code_buf)})
+		start_locals := make([dynamic]Wasm_Local_Decl, 0, 8)
+		append(&start_locals, Wasm_Local_Decl{count = 4, type = .I32})
+		for _, typ in collected_locals {
+			append(&start_locals, Wasm_Local_Decl{count = 1, type = ir_wasm_type_to_value_type(typ.wasm_type)})
+		}
+		append(&mod.codes, Wasm_Code{locals = start_locals[:], body = copy_dynamic_bytes(code_buf)})
+		delete(collected_locals)
 		delete(code_buf)
+		delete(env.local_map)
 
 		append(&mod.exports, Wasm_Export{name = "_start", kind = .Func, index = start_func_idx})
 	}
@@ -484,10 +499,12 @@ RUNTIME_EXIT :: 4
 extract_effectful_body :: proc(expr: IR_Expr) -> IR_Expr {
 	#partial switch e in expr {
 	case ^IR_Let:
-		if inner := extract_effectful_body(e.body); inner != nil {
+		#partial switch b in e.body {
+		case ^IR_Tail_Call:
 			return e.value
+		case:
+			return expr
 		}
-		return expr
 	case:
 		return expr
 	}
