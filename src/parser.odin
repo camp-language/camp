@@ -1,6 +1,8 @@
 #+feature dynamic-literals
 package camp
 
+import "core:strings"
+
 Binding_Power :: int
 
 PREFIX_BP :map[Token_Kind]Binding_Power = {
@@ -95,13 +97,16 @@ parser_parse_const_decl :: proc(p: ^Parser, is_pub: bool) -> Decl {
 	start_span := p.current.span
 
 	name := parser_advance(p)
-	name_id := intern(p.intern, name.text)
+	name_text := name.text
 
 	is_effectful := false
 	if p.current.kind == .Bang {
 		is_effectful = true
 		parser_advance(p)
+		name_text = strings.concatenate({name.text, "!"}, context.temp_allocator)
 	}
+
+	name_id := intern(p.intern, name_text)
 
 	type_ann: ^Type = nil
 	if p.current.kind == .Colon {
@@ -950,9 +955,13 @@ parser_parse_effect_decl :: proc(p: ^Parser, is_pub: bool) -> Decl {
 	parser_expect(p, .LBrace)
 	for p.current.kind != .RBrace && p.current.kind != .Eof {
 		op_name_tok := parser_advance(p)
-		op_name_id := intern(p.intern, op_name_tok.text)
+		op_name_text := op_name_tok.text
 		is_effectful := p.current.kind == .Bang
-		if is_effectful { parser_advance(p) }
+		if is_effectful {
+			parser_advance(p)
+			op_name_text = strings.concatenate({op_name_tok.text, "!"}, context.temp_allocator)
+		}
+		op_name_id := intern(p.intern, op_name_text)
 
 		parser_expect(p, .Colon)
 		return_type := parser_parse_type(p)
