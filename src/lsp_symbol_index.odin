@@ -29,11 +29,6 @@ symbol_index_init :: proc(idx: ^Symbol_Index) {
 }
 
 destroy_symbol_index :: proc(idx: ^Symbol_Index) {
-	for entry in idx.entries {
-		delete(entry.name)
-		delete(entry.uri)
-		delete(entry.type_str)
-	}
 	delete(idx.entries)
 	for _, indices in idx.by_name {
 		delete(indices)
@@ -50,18 +45,23 @@ symbol_index_add :: proc(idx: ^Symbol_Index, name: string, uri: string, range: L
 		kind = kind,
 		type_str = clone_string(type_str, context.allocator),
 	})
-	indices, ok := idx.by_name[name]
+
+	// Clone the name for the map key — the original is a borrowed reference
+	// (e.g., from an interner) that may be freed before the map is destroyed.
+	key_name := clone_string(name, context.allocator)
+
+	indices, ok := idx.by_name[key_name]
 	if !ok {
 		v := make([]int, 1)
 		v[0] = entry_index
-		idx.by_name[name] = v
+		idx.by_name[key_name] = v
 	} else {
 		old_len := len(indices)
 		appended := make([]int, old_len + 1)
 		copy(appended, indices)
 		appended[old_len] = entry_index
 		delete(indices)
-		idx.by_name[name] = appended
+		idx.by_name[key_name] = appended
 	}
 }
 
