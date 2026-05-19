@@ -119,6 +119,14 @@ rc_insert_expr :: proc(expr: IR_Expr, interner: ^Intern_Table) -> IR_Expr {
 	return result
 }
 
+copy_remaining :: proc(src: ^map[Intern_ID]int) -> map[Intern_ID]int {
+	dst := make(map[Intern_ID]int, len(src^))
+	for k, v in src^ {
+		dst[k] = v
+	}
+	return dst
+}
+
 rc_insert_expr_inner :: proc(expr: IR_Expr, remaining: ^map[Intern_ID]int, interner: ^Intern_Table) -> IR_Expr {
 	#partial switch e in expr {
 	case ^IR_Var:
@@ -168,20 +176,26 @@ rc_insert_expr_inner :: proc(expr: IR_Expr, remaining: ^map[Intern_ID]int, inter
 		return IR_Expr(new_tc)
 
 	case ^IR_If:
+		then_rem := copy_remaining(remaining)
+		else_rem := copy_remaining(remaining)
 		new_if := new(IR_If)
 		new_if^ = IR_If{
 			condition = rc_insert_expr_inner(e.condition, remaining, interner),
-			then_branch = rc_insert_expr_inner(e.then_branch, remaining, interner),
-			else_branch = rc_insert_expr_inner(e.else_branch, remaining, interner),
+			then_branch = rc_insert_expr_inner(e.then_branch, &then_rem, interner),
+			else_branch = rc_insert_expr_inner(e.else_branch, &else_rem, interner),
 			type = e.type,
 			span = e.span,
 		}
+		delete(then_rem)
+		delete(else_rem)
 		return IR_Expr(new_if)
 
 	case ^IR_Match:
 		new_arms := make([dynamic]IR_Match_Arm, 0, len(e.arms))
 		for arm in e.arms {
-			append(&new_arms, IR_Match_Arm{pattern = arm.pattern, body = rc_insert_expr_inner(arm.body, remaining, interner)})
+			arm_rem := copy_remaining(remaining)
+			append(&new_arms, IR_Match_Arm{pattern = arm.pattern, body = rc_insert_expr_inner(arm.body, &arm_rem, interner)})
+			delete(arm_rem)
 		}
 		new_match := new(IR_Match)
 		new_match^ = IR_Match{
