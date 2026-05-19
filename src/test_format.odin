@@ -907,3 +907,400 @@ test_format_expr_if_braceless :: proc(t: ^testing.T) {
 
 	testing.expectf(t, result == "if x > 0 x else 0", "expected %q, got %q", "if x > 0 x else 0", result)
 }
+
+// --- Declaration Formatting Tests ---
+
+@(test)
+test_format_decl_const_simple :: proc(t: ^testing.T) {
+	ctx: Compilation_Context
+	context_init(&ctx)
+	defer context_destroy(&ctx)
+
+	name_id := intern(&ctx.interner, "greet")
+	x_id := intern(&ctx.interner, "x")
+
+	x_expr := new(Expr_Identifier)
+	x_expr.name = x_id
+	x_expr.span = Source_Span_ZERO
+
+	lam := new(Expr_Lambda)
+	lam.params = make([dynamic]Func_Param)
+	append(&lam.params, Func_Param{name = x_id, span = Source_Span_ZERO})
+	lam.body = Expr(x_expr)
+	lam.span = Source_Span_ZERO
+
+	dc := new(Decl_Const)
+	dc.name = name_id
+	dc.body = Expr(lam)
+	dc.span = Source_Span_ZERO
+
+	info := Format_Source_Info{}
+	result := doc_resolve(format_decl(Decl(dc), &info, &ctx.interner), 0)
+	defer delete(result)
+
+	testing.expectf(t, result == "greet = |x| x", "expected %q, got %q", "greet = |x| x", result)
+}
+
+@(test)
+test_format_decl_const_with_type :: proc(t: ^testing.T) {
+	ctx: Compilation_Context
+	context_init(&ctx)
+	defer context_destroy(&ctx)
+
+	name_id := intern(&ctx.interner, "x")
+	int_id := intern(&ctx.interner, "Int")
+
+	prim := new(Type_Primitive)
+	prim.name = int_id
+	prim.span = Source_Span_ZERO
+	type_val := Type(prim)
+
+	body_val := new(Expr_Int)
+	body_val.value = 42
+	body_val.span = Source_Span_ZERO
+
+	dc := new(Decl_Const)
+	dc.name = name_id
+	dc.type_ann = &type_val
+	dc.body = Expr(body_val)
+	dc.span = Source_Span_ZERO
+
+	info := Format_Source_Info{}
+	result := doc_resolve(format_decl(Decl(dc), &info, &ctx.interner), 0)
+	defer delete(result)
+
+	testing.expectf(t, result == "x: Int = 42", "expected %q, got %q", "x: Int = 42", result)
+}
+
+@(test)
+test_format_decl_const_effectful :: proc(t: ^testing.T) {
+	ctx: Compilation_Context
+	context_init(&ctx)
+	defer context_destroy(&ctx)
+
+	name_id := intern(&ctx.interner, "x")
+
+	body_val := new(Expr_Int)
+	body_val.value = 42
+	body_val.span = Source_Span_ZERO
+
+	dc := new(Decl_Const)
+	dc.name = name_id
+	dc.is_effectful = true
+	dc.body = Expr(body_val)
+	dc.span = Source_Span_ZERO
+
+	info := Format_Source_Info{}
+	result := doc_resolve(format_decl(Decl(dc), &info, &ctx.interner), 0)
+	defer delete(result)
+
+	testing.expectf(t, result == "x! = 42", "expected %q, got %q", "x! = 42", result)
+}
+
+@(test)
+test_format_decl_const_pub :: proc(t: ^testing.T) {
+	ctx: Compilation_Context
+	context_init(&ctx)
+	defer context_destroy(&ctx)
+
+	name_id := intern(&ctx.interner, "greet")
+	x_id := intern(&ctx.interner, "x")
+
+	x_expr := new(Expr_Identifier)
+	x_expr.name = x_id
+	x_expr.span = Source_Span_ZERO
+
+	lam := new(Expr_Lambda)
+	lam.params = make([dynamic]Func_Param)
+	append(&lam.params, Func_Param{name = x_id, span = Source_Span_ZERO})
+	lam.body = Expr(x_expr)
+	lam.span = Source_Span_ZERO
+
+	dc := new(Decl_Const)
+	dc.is_pub = true
+	dc.name = name_id
+	dc.body = Expr(lam)
+	dc.span = Source_Span_ZERO
+
+	info := Format_Source_Info{}
+	result := doc_resolve(format_decl(Decl(dc), &info, &ctx.interner), 0)
+	defer delete(result)
+
+	testing.expectf(t, result == "pub greet = |x| x", "expected %q, got %q", "pub greet = |x| x", result)
+}
+
+@(test)
+test_format_decl_effect_empty :: proc(t: ^testing.T) {
+	ctx: Compilation_Context
+	context_init(&ctx)
+	defer context_destroy(&ctx)
+
+	name_id := intern(&ctx.interner, "Empty")
+
+	de := new(Decl_Effect)
+	de.name = name_id
+	de.operations = make([dynamic]Effect_Op)
+	de.span = Source_Span_ZERO
+
+	info := Format_Source_Info{}
+	result := doc_resolve(format_decl(Decl(de), &info, &ctx.interner), 0)
+	defer delete(result)
+
+	testing.expectf(t, result == "effect Empty {}", "expected %q, got %q", "effect Empty {}", result)
+}
+
+@(test)
+test_format_decl_effect_with_ops :: proc(t: ^testing.T) {
+	ctx: Compilation_Context
+	context_init(&ctx)
+	defer context_destroy(&ctx)
+
+	io_id := intern(&ctx.interner, "IO")
+	println_id := intern(&ctx.interner, "println")
+	readln_id := intern(&ctx.interner, "readln")
+
+	op1 := Effect_Op{name = println_id, is_effectful = true, span = Source_Span_ZERO}
+	op2 := Effect_Op{name = readln_id, is_effectful = true, span = Source_Span_ZERO}
+
+	de := new(Decl_Effect)
+	de.name = io_id
+	de.operations = make([dynamic]Effect_Op)
+	append(&de.operations, op1)
+	append(&de.operations, op2)
+	de.span = Source_Span_ZERO
+
+	info := Format_Source_Info{}
+	result := doc_resolve(format_decl(Decl(de), &info, &ctx.interner), 0)
+	defer delete(result)
+
+	expected := "effect IO {\n    println!\n    readln!\n}"
+	testing.expectf(t, result == expected, "expected %q, got %q", expected, result)
+}
+
+@(test)
+test_format_decl_import_simple :: proc(t: ^testing.T) {
+	ctx: Compilation_Context
+	context_init(&ctx)
+	defer context_destroy(&ctx)
+
+	di := new(Decl_Import)
+	di.module = "List"
+	di.span = Source_Span_ZERO
+
+	info := Format_Source_Info{}
+	result := doc_resolve(format_decl(Decl(di), &info, &ctx.interner), 0)
+	defer delete(result)
+
+	testing.expectf(t, result == "import List", "expected %q, got %q", "import List", result)
+}
+
+@(test)
+test_format_decl_import_exposing :: proc(t: ^testing.T) {
+	ctx: Compilation_Context
+	context_init(&ctx)
+	defer context_destroy(&ctx)
+
+	map_id := intern(&ctx.interner, "map")
+	filter_id := intern(&ctx.interner, "filter")
+
+	di := new(Decl_Import)
+	di.module = "List"
+	di.exposing = make([dynamic]Intern_ID)
+	append(&di.exposing, map_id)
+	append(&di.exposing, filter_id)
+	di.span = Source_Span_ZERO
+
+	info := Format_Source_Info{}
+	result := doc_resolve(format_decl(Decl(di), &info, &ctx.interner), 0)
+	defer delete(result)
+
+	testing.expectf(t, result == "import List exposing [map, filter]", "expected %q, got %q", "import List exposing [map, filter]", result)
+}
+
+@(test)
+test_format_decl_alias :: proc(t: ^testing.T) {
+	ctx: Compilation_Context
+	context_init(&ctx)
+	defer context_destroy(&ctx)
+
+	myint_id := intern(&ctx.interner, "MyInt")
+	int_id := intern(&ctx.interner, "Int")
+
+	prim := new(Type_Primitive)
+	prim.name = int_id
+	prim.span = Source_Span_ZERO
+	type_val := Type(prim)
+
+	da := new(Decl_Alias)
+	da.name = myint_id
+	da.target = &type_val
+	da.span = Source_Span_ZERO
+
+	info := Format_Source_Info{}
+	result := doc_resolve(format_decl(Decl(da), &info, &ctx.interner), 0)
+	defer delete(result)
+
+	testing.expectf(t, result == "alias MyInt = Int", "expected %q, got %q", "alias MyInt = Int", result)
+}
+
+@(test)
+test_format_decl_test :: proc(t: ^testing.T) {
+	ctx: Compilation_Context
+	context_init(&ctx)
+	defer context_destroy(&ctx)
+
+	body_val := new(Expr_Int)
+	body_val.value = 1
+
+	dt := new(Decl_Test)
+	dt.name = "\"addition works\""
+	dt.body = Expr(body_val)
+	dt.span = Source_Span_ZERO
+
+	info := Format_Source_Info{}
+	result := doc_resolve(format_decl(Decl(dt), &info, &ctx.interner), 0)
+	defer delete(result)
+
+	testing.expectf(t, result == "test \"addition works\" = 1", "expected %q, got %q", "test \"addition works\" = 1", result)
+}
+
+@(test)
+test_format_decl_expect :: proc(t: ^testing.T) {
+	ctx: Compilation_Context
+	context_init(&ctx)
+	defer context_destroy(&ctx)
+
+	x_id := intern(&ctx.interner, "x")
+	one_id := intern(&ctx.interner, "1")
+
+	x_expr := new(Expr_Identifier)
+	x_expr.name = x_id
+	x_expr.span = Source_Span_ZERO
+
+	one_expr := new(Expr_Int)
+	one_expr.value = 1
+	one_expr.span = Source_Span_ZERO
+
+	b := new(Expr_BinOp)
+	b.op = .Eq_Eq
+	b.left = Expr(x_expr)
+	b.right = Expr(one_expr)
+	b.span = Source_Span_ZERO
+
+	de := new(Decl_Expect)
+	de.condition = Expr(b)
+	de.span = Source_Span_ZERO
+
+	info := Format_Source_Info{}
+	result := doc_resolve(format_decl(Decl(de), &info, &ctx.interner), 0)
+	defer delete(result)
+
+	testing.expectf(t, result == "expect x == 1", "expected %q, got %q", "expect x == 1", result)
+}
+
+@(test)
+test_format_file_empty :: proc(t: ^testing.T) {
+	ctx: Compilation_Context
+	context_init(&ctx)
+	defer context_destroy(&ctx)
+
+	file := File{
+		path = "test.camp",
+		decls = make([dynamic]Decl),
+		span = Source_Span_ZERO,
+	}
+
+	info := Format_Source_Info{}
+	result := doc_resolve(format_file(file, &info, &ctx.interner), 0)
+	defer delete(result)
+
+	testing.expectf(t, result == "", "expected empty string, got %q", result)
+}
+
+@(test)
+test_format_file_with_blank_line :: proc(t: ^testing.T) {
+	ctx: Compilation_Context
+	context_init(&ctx)
+	defer context_destroy(&ctx)
+
+	a_id := intern(&ctx.interner, "a")
+	b_id := intern(&ctx.interner, "b")
+
+	one := new(Expr_Int)
+	one.value = 1
+	one.span = Source_Span_ZERO
+
+	d1 := new(Decl_Const)
+	d1.name = a_id
+	d1.body = Expr(one)
+	d1.span = Source_Span_ZERO
+
+	two := new(Expr_Int)
+	two.value = 2
+	two.span = Source_Span_ZERO
+
+	d2 := new(Decl_Const)
+	d2.name = b_id
+	d2.body = Expr(two)
+	d2.span = Source_Span_ZERO
+
+	file := File{
+		path = "test.camp",
+		decls = make([dynamic]Decl),
+		span = Source_Span_ZERO,
+	}
+	append(&file.decls, Decl(d1))
+	append(&file.decls, Decl(d2))
+
+	info := Format_Source_Info{
+		blank_line_after = make(map[int]bool),
+	}
+	info.blank_line_after[d1.span.start] = true
+
+	result := doc_resolve(format_file(file, &info, &ctx.interner), 0)
+	defer delete(result)
+
+	testing.expectf(t, result == "a = 1\n\nb = 2", "expected %q, got %q", "a = 1\n\nb = 2", result)
+}
+
+@(test)
+test_format_file_no_blank_line :: proc(t: ^testing.T) {
+	ctx: Compilation_Context
+	context_init(&ctx)
+	defer context_destroy(&ctx)
+
+	a_id := intern(&ctx.interner, "a")
+	b_id := intern(&ctx.interner, "b")
+
+	one := new(Expr_Int)
+	one.value = 1
+	one.span = Source_Span_ZERO
+
+	d1 := new(Decl_Const)
+	d1.name = a_id
+	d1.body = Expr(one)
+	d1.span = Source_Span_ZERO
+
+	two := new(Expr_Int)
+	two.value = 2
+	two.span = Source_Span_ZERO
+
+	d2 := new(Decl_Const)
+	d2.name = b_id
+	d2.body = Expr(two)
+	d2.span = Source_Span_ZERO
+
+	file := File{
+		path = "test.camp",
+		decls = make([dynamic]Decl),
+		span = Source_Span_ZERO,
+	}
+	append(&file.decls, Decl(d1))
+	append(&file.decls, Decl(d2))
+
+	info := Format_Source_Info{}
+	result := doc_resolve(format_file(file, &info, &ctx.interner), 0)
+	defer delete(result)
+
+	testing.expectf(t, result == "a = 1\nb = 2", "expected %q, got %q", "a = 1\nb = 2", result)
+}
