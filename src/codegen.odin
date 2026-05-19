@@ -306,6 +306,8 @@ codegen :: proc(ir_mod: IR_Module, ctx: ^Compilation_Context) -> Wasm_Module {
 		main_ret_type := get_main_return_type(ir_mod, &ctx.interner)
 		if main_ret_type == .I64 {
 			emit_instruction(Wasm_I32_Wrap_I64{}, &code_buf)
+			emit_instruction(Wasm_I32_Const{value = 127}, &code_buf)
+			emit_instruction(Wasm_I32_And{}, &code_buf)
 		}
 
 		emit_instruction(Wasm_Call{index = 0}, &code_buf)
