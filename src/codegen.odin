@@ -670,7 +670,7 @@ emit_expr :: proc(expr: IR_Expr, buf: ^[dynamic]u8, env: ^Codegen_Env, runtime_i
 		emit_instruction(Wasm_Unreachable{}, buf)
 	case ^IR_Closure:
 		num_fields := len(e.params) + 2
-		total_size := CAMP_TAG_HEADER_SIZE + num_fields * 4
+		total_size := CAMP_TAG_HEADER_SIZE + num_fields * 8
 
 		emit_instruction(Wasm_I32_Const{value = i32(total_size)}, buf)
 		emit_instruction(Wasm_Call{index = u32(runtime_indices[RUNTIME_ALLOC])}, buf)
@@ -701,7 +701,7 @@ emit_expr :: proc(expr: IR_Expr, buf: ^[dynamic]u8, env: ^Codegen_Env, runtime_i
 		emit_instruction(Wasm_I32_Store{align = 2, offset = 0}, buf)
 
 		emit_instruction(Wasm_Local_Get{index = tmp_local_idx}, buf)
-		emit_instruction(Wasm_I32_Const{value = i32(CAMP_TAG_FIELDS_OFFSET + 4)}, buf)
+		emit_instruction(Wasm_I32_Const{value = i32(CAMP_TAG_FIELDS_OFFSET + 8)}, buf)
 		emit_instruction(Wasm_I32_Add{}, buf)
 		emit_expr(e.env, buf, env, runtime_indices)
 		emit_instruction(Wasm_I32_Store{align = 2, offset = 0}, buf)
@@ -715,7 +715,7 @@ emit_expr :: proc(expr: IR_Expr, buf: ^[dynamic]u8, env: ^Codegen_Env, runtime_i
 		emit_instruction(Wasm_Local_Set{index = callee_local}, buf)
 
 		emit_instruction(Wasm_Local_Get{index = callee_local}, buf)
-		emit_instruction(Wasm_I32_Load{align = 2, offset = u32(CAMP_TAG_FIELDS_OFFSET + 4)}, buf)
+		emit_instruction(Wasm_I32_Load{align = 2, offset = u32(CAMP_TAG_FIELDS_OFFSET + 8)}, buf)
 
 		for arg in e.args {
 			emit_expr(arg, buf, env, runtime_indices)
