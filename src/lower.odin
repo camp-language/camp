@@ -291,7 +291,10 @@ lower_expr :: proc(expr: CExpr, env: ^Lower_Env) -> IR_Expr {
 		return IR_Expr(ret)
 
 	case ^CExpr_Crash:
-		return lower_expr(e.message, env)
+		msg_expr := lower_expr(e.message, env)
+		crash := new(IR_Crash)
+		crash^ = IR_Crash{message = msg_expr, span = e.span}
+		return IR_Expr(crash)
 
 	case ^CExpr_Interpolate:
 		return lower_interpolate(e, env)

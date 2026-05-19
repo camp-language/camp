@@ -406,6 +406,8 @@ collect_locals :: proc(expr: IR_Expr, locals: ^map[Intern_ID]IR_Type) {
 	case ^IR_Closure:
 		collect_locals(e.env, locals)
 		collect_locals(e.body, locals)
+	case ^IR_Crash:
+		collect_locals(e.message, locals)
 	case:
 	}
 }
@@ -534,6 +536,10 @@ emit_expr :: proc(expr: IR_Expr, buf: ^[dynamic]u8, env: ^Codegen_Env, runtime_i
 	case ^IR_Drop_Reuse:
 		emit_instruction(Wasm_Unreachable{}, buf)
 	case ^IR_Alloc_At:
+		emit_instruction(Wasm_Unreachable{}, buf)
+	case ^IR_Crash:
+		emit_expr(e.message, buf, env, runtime_indices)
+		emit_instruction(Wasm_Drop{}, buf)
 		emit_instruction(Wasm_Unreachable{}, buf)
 	case:
 		emit_instruction(Wasm_Unreachable{}, buf)

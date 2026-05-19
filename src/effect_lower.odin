@@ -298,6 +298,11 @@ el_lower_expr :: proc(expr: IR_Expr, env: ^Effect_Lower_Env) -> IR_Expr {
 			span = e.span,
 		}
 		return IR_Expr(new_binop)
+
+	case ^IR_Crash:
+		new_crash := new(IR_Crash)
+		new_crash^ = IR_Crash{message = el_lower_expr(e.message, env), span = e.span}
+		return IR_Expr(new_crash)
 	}
 
 	return expr

@@ -87,6 +87,10 @@ cc_free_vars :: proc(expr: IR_Expr, bound: ^map[Intern_ID]bool) -> [dynamic]Inte
 		for v in r { append(&result, v) }
 		delete(l)
 		delete(r)
+	case ^IR_Crash:
+		inner := cc_free_vars(e.message, bound)
+		for v in inner { append(&result, v) }
+		delete(inner)
 	case ^IR_Return:
 		inner := cc_free_vars(e.value, bound)
 		for v in inner { append(&result, v) }
@@ -439,6 +443,11 @@ cc_convert_expr :: proc(expr: IR_Expr, env: ^Closure_Convert_Env) -> IR_Expr {
 			span = e.span,
 		}
 		return IR_Expr(new_binop)
+
+	case ^IR_Crash:
+		new_crash := new(IR_Crash)
+		new_crash^ = IR_Crash{message = cc_convert_expr(e.message, env), span = e.span}
+		return IR_Expr(new_crash)
 	}
 
 	return expr

@@ -102,6 +102,8 @@ rc_collect_uses :: proc(expr: IR_Expr, uses: ^map[Intern_ID]int) {
 		} else {
 			(uses^)[e.value] = 1
 		}
+	case ^IR_Crash:
+		rc_collect_uses(e.message, uses)
 	case:
 	}
 }
@@ -326,6 +328,12 @@ rc_insert_expr_inner :: proc(expr: IR_Expr, remaining: ^map[Intern_ID]int, inter
 			span = e.span,
 		}
 		return IR_Expr(new_binop)
+
+	case ^IR_Crash:
+		new_msg := rc_insert_expr_inner(e.message, remaining, interner)
+		new_crash := new(IR_Crash)
+		new_crash^ = IR_Crash{message = new_msg, span = e.span}
+		return IR_Expr(new_crash)
 	}
 
 	return expr

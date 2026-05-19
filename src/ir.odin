@@ -99,6 +99,7 @@ IR_Expr :: union {
 	^IR_Drop,
 	^IR_Drop_Reuse,
 	^IR_Alloc_At,
+	^IR_Crash,
 }
 
 IR_Literal_Int :: struct { value: i64, type: IR_Type, span: Source_Span }
@@ -236,3 +237,7 @@ IR_Dup :: struct { value: Intern_ID, span: Source_Span }
 IR_Drop :: struct { value: Intern_ID, span: Source_Span }
 IR_Drop_Reuse :: struct { value: Intern_ID, reuse_as: Intern_ID, span: Source_Span }
 IR_Alloc_At :: struct { value: Intern_ID, at: Intern_ID, span: Source_Span }
+IR_Crash :: struct {
+	message: IR_Expr,
+	span:    Source_Span,
+}

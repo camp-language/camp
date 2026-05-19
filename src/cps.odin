@@ -328,6 +328,11 @@ cps_transform_expr :: proc(expr: IR_Expr, k_name: Intern_ID, env: ^CPS_Env) -> I
 			span = e.span,
 		}
 		return IR_Expr(new_binop)
+
+	case ^IR_Crash:
+		new_crash := new(IR_Crash)
+		new_crash^ = IR_Crash{message = cps_transform_expr(e.message, k_name, env), span = e.span}
+		return IR_Expr(new_crash)
 	}
 
 	return expr
