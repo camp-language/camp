@@ -10,6 +10,7 @@ Effect_Evidence :: struct {
 Effect_Lower_Env :: struct {
 	module:         ^IR_Module,
 	interner:       ^Intern_Table,
+	collector:      ^Diagnostic_Collector,
 	fresh:          int,
 	evidence_stack: [dynamic]Effect_Evidence,
 }
@@ -37,6 +38,7 @@ effect_lower :: proc(mod: ^IR_Module, ctx: ^Compilation_Context) -> IR_Module {
 	env.interner = &ctx.interner
 	env.fresh = 0
 	env.evidence_stack = make([dynamic]Effect_Evidence, 0, 8)
+	env.collector = &ctx.collector
 
 	for decl in mod.decls {
 		transformed := el_lower_decl(decl, &env)
@@ -137,12 +139,17 @@ el_lower_expr :: proc(expr: IR_Expr, env: ^Effect_Lower_Env) -> IR_Expr {
 			}
 		}
 
-		args := make([dynamic]IR_Expr, 0, len(e.args) + 1)
-		if ev_var != NO_NAME {
-			ev_ref := new(IR_Var)
-			ev_ref^ = IR_Var{name = ev_var, type = IR_Type{.I64, Type_Var_ID(0)}, span = e.span}
-			append(&args, IR_Expr(ev_ref))
+		if ev_var == NO_NAME {
+			collector_add_diag(env.collector, diag_internal("perform without handler evidence", e.span))
+			lit := new(IR_Literal_Int)
+			lit^ = IR_Literal_Int{value = 0, type = e.type, span = e.span}
+			return IR_Expr(lit)
 		}
+
+		args := make([dynamic]IR_Expr, 0, len(e.args) + 1)
+		ev_ref := new(IR_Var)
+		ev_ref^ = IR_Var{name = ev_var, type = IR_Type{.I64, Type_Var_ID(0)}, span = e.span}
+		append(&args, IR_Expr(ev_ref))
 		for arg in e.args {
 			append(&args, el_lower_expr(arg, env))
 		}
