@@ -129,10 +129,58 @@ exit_level :: proc(store: ^Type_Store) {
 	store.current_level -= 1
 }
 
+all_children_at_or_below :: proc(store: ^Type_Store, link: Type_Link, max_level: int) -> bool {
+	_, is_unlinked := link.(Type_Unlinked)
+	if is_unlinked do return true
+
+	inf, is_inferred := link.(Inferred_Type)
+	if !is_inferred do return true
+
+	#partial switch inf.tag {
+	case .Function:
+		for pid in inf.param_ids {
+			child := get_var(store, resolve_var(store, pid))
+			if child.level > max_level do return false
+		}
+		child_ret := get_var(store, resolve_var(store, inf.return_id))
+		if child_ret.level > max_level do return false
+		child_eff := get_var(store, resolve_var(store, inf.effect_id))
+		if child_eff.level > max_level do return false
+
+	case .Record_Row:
+		for f in inf.record_fields {
+			child := get_var(store, resolve_var(store, f.var))
+			if child.level > max_level do return false
+		}
+		child_rest := get_var(store, resolve_var(store, inf.record_rest))
+		if child_rest.level > max_level do return false
+
+	case .Tag_Union_Row:
+		for te in inf.tag_entries {
+			for pid in te.payload {
+				child := get_var(store, resolve_var(store, pid))
+				if child.level > max_level do return false
+			}
+		}
+		child_rest := get_var(store, resolve_var(store, inf.rest_id))
+		if child_rest.level > max_level do return false
+
+	case .Effect_Row:
+		child_rest := get_var(store, resolve_var(store, inf.rest_id))
+		if child_rest.level > max_level do return false
+
+	case .Primitive, .Constructor:
+	}
+	return true
+}
+
 generalize_at_level :: proc(store: ^Type_Store, level: int) {
 	for i := 0; i < len(store.vars); i += 1 {
-		if store.vars[i].level == level && store.vars[i].level != LEVEL_GENERIC {
-			store.vars[i].level = LEVEL_GENERIC
+		v := &store.vars[i]
+		if v.level == level && v.level != LEVEL_GENERIC {
+			if all_children_at_or_below(store, v.link, level) {
+				v.level = LEVEL_GENERIC
+			}
 		}
 	}
 }
