@@ -1,0 +1,9 @@
+========
+Integer literal
+========
+x = 42
+---
+(source_file
+  (const_declaration
+    (identifier)
+    (integer)))
