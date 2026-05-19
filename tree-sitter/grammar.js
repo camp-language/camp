@@ -9,11 +9,12 @@ export default grammar({
   word: ($) => $.identifier,
 
   conflicts: ($) => [
-    [$._primary_expression, $.tag_expression],
     [$.block, $.record_expression],
     [$._primary_expression, $.lambda_parameter],
     [$.block, $._statement],
     [$.or_pattern],
+    [$.arguments, $.paren_lambda],
+    [$.arguments, $.parenthesized_expression],
   ],
 
   rules: {
@@ -34,8 +35,29 @@ export default grammar({
     _expression: ($) => choice(
       $.binary_expression,
       $.unary_expression,
+      $.call_expression,
+      $.method_call_expression,
+      $.field_access_expression,
       $._primary_expression,
     ),
+
+    call_expression: ($) => prec.left(8, seq(
+      field("function", $._expression),
+      field("arguments", $.arguments),
+    )),
+
+    method_call_expression: ($) => prec.left(9, seq(
+      field("receiver", $._expression),
+      ".",
+      field("method", $.identifier),
+      field("arguments", $.arguments),
+    )),
+
+    field_access_expression: ($) => prec.left(8, seq(
+      field("record", $._expression),
+      ".",
+      field("field", $.identifier),
+    )),
 
     binary_expression: ($) => choice(
       prec.left(1, seq(field("left", $._expression), field("operator", "or"), field("right", $._expression))),
@@ -103,10 +125,10 @@ export default grammar({
     dollar_identifier: ($) => seq("$", $.identifier),
 
     // --- Expressions ---
-    tag_expression: ($) => seq(
+    tag_expression: ($) => prec(9, seq(
       field("name", $.type_identifier),
-      optional(field("arguments", $.arguments)),
-    ),
+      field("arguments", $.arguments),
+    )),
 
     arguments: ($) => seq(
       "(",

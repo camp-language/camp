@@ -57,3 +57,41 @@ x = not true
     (identifier)
     (unary_expression
       (boolean))))
+
+========
+Function call
+========
+x = f(y)
+---
+(source_file
+  (const_declaration
+    (identifier)
+    (call_expression
+      (identifier)
+      (arguments
+        (identifier)))))
+
+========
+Method call
+========
+x = a.foo()
+---
+(source_file
+  (const_declaration
+    (identifier)
+    (method_call_expression
+      (identifier)
+      (identifier)
+      (arguments))))
+
+========
+Field access
+========
+x = r.y
+---
+(source_file
+  (const_declaration
+    (identifier)
+    (field_access_expression
+      (identifier)
+      (identifier))))
