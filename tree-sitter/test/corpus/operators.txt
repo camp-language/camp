@@ -1,0 +1,59 @@
+========
+Binary arithmetic
+========
+x = 1 + 2
+---
+(source_file
+  (const_declaration
+    (identifier)
+    (binary_expression
+      (integer)
+      (integer))))
+
+========
+Binary precedence
+========
+x = 1 + 2 * 3
+---
+(source_file
+  (const_declaration
+    (identifier)
+    (binary_expression
+      (integer)
+      (binary_expression
+        (integer)
+        (integer)))))
+
+========
+Binary comparison
+========
+x = a == b
+---
+(source_file
+  (const_declaration
+    (identifier)
+    (binary_expression
+      (identifier)
+      (identifier))))
+
+========
+Unary negation
+========
+x = -42
+---
+(source_file
+  (const_declaration
+    (identifier)
+    (unary_expression
+      (integer))))
+
+========
+Unary not
+========
+x = not true
+---
+(source_file
+  (const_declaration
+    (identifier)
+    (unary_expression
+      (boolean))))

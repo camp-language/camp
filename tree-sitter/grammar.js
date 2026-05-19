@@ -31,7 +31,32 @@ export default grammar({
       $._expression,
     ),
 
-    _expression: ($) => $._primary_expression,
+    _expression: ($) => choice(
+      $.binary_expression,
+      $.unary_expression,
+      $._primary_expression,
+    ),
+
+    binary_expression: ($) => choice(
+      prec.left(1, seq(field("left", $._expression), field("operator", "or"), field("right", $._expression))),
+      prec.left(2, seq(field("left", $._expression), field("operator", "and"), field("right", $._expression))),
+      prec.left(3, seq(field("left", $._expression), field("operator", "=="), field("right", $._expression))),
+      prec.left(3, seq(field("left", $._expression), field("operator", "!="), field("right", $._expression))),
+      prec.left(4, seq(field("left", $._expression), field("operator", "<"), field("right", $._expression))),
+      prec.left(4, seq(field("left", $._expression), field("operator", ">"), field("right", $._expression))),
+      prec.left(4, seq(field("left", $._expression), field("operator", "<="), field("right", $._expression))),
+      prec.left(4, seq(field("left", $._expression), field("operator", ">="), field("right", $._expression))),
+      prec.left(5, seq(field("left", $._expression), field("operator", "+"), field("right", $._expression))),
+      prec.left(5, seq(field("left", $._expression), field("operator", "-"), field("right", $._expression))),
+      prec.left(6, seq(field("left", $._expression), field("operator", "*"), field("right", $._expression))),
+      prec.left(6, seq(field("left", $._expression), field("operator", "/"), field("right", $._expression))),
+      prec.left(6, seq(field("left", $._expression), field("operator", "%"), field("right", $._expression))),
+    ),
+
+    unary_expression: ($) => choice(
+      prec.left(7, seq(field("operator", "-"), field("argument", $._expression))),
+      prec.left(7, seq(field("operator", "not"), field("argument", $._expression))),
+    ),
 
     _primary_expression: ($) => choice(
       $.integer,
