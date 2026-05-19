@@ -7,3 +7,100 @@ x = 42
   (const_declaration
     (identifier)
     (integer)))
+
+========
+Float literal
+========
+x = 3.14
+---
+(source_file
+  (const_declaration
+    (identifier)
+    (float)))
+
+========
+String literal
+========
+x = "hello world"
+---
+(source_file
+  (const_declaration
+    (identifier)
+    (string)))
+
+========
+Boolean literal
+========
+x = true
+---
+(source_file
+  (const_declaration
+    (identifier)
+    (boolean)))
+
+========
+Identifier
+========
+x = y
+---
+(source_file
+  (const_declaration
+    (identifier)
+    (identifier)))
+
+========
+Dollar identifier
+========
+x = $x
+---
+(source_file
+  (const_declaration
+    (identifier)
+    (dollar_identifier
+      (identifier))))
+
+========
+Type identifier
+========
+x = Ok
+---
+(source_file
+  (const_declaration
+    (identifier)
+    (type_identifier)))
+
+========
+Tag expression
+========
+x = Ok(42)
+---
+(source_file
+  (const_declaration
+    (identifier)
+    (tag_expression
+      (type_identifier)
+      (arguments
+        (integer)))))
+
+========
+List expression empty
+========
+x = []
+---
+(source_file
+  (const_declaration
+    (identifier)
+    (list_expression)))
+
+========
+List expression
+========
+x = [1, 2, 3]
+---
+(source_file
+  (const_declaration
+    (identifier)
+    (list_expression
+      (integer)
+      (integer)
+      (integer))))

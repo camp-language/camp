@@ -8,6 +8,10 @@ export default grammar({
 
   word: ($) => $.identifier,
 
+  conflicts: ($) => [
+    [$._primary_expression, $.tag_expression],
+  ],
+
   rules: {
     source_file: ($) => repeat($._declaration),
 
@@ -30,7 +34,12 @@ export default grammar({
       $.float,
       $.string,
       $.boolean,
+      $.dollar_identifier,
       $.identifier,
+      $.type_identifier,
+      $.tag_expression,
+      $.list_expression,
+      $.parenthesized_expression,
     ),
 
     // --- Literals ---
@@ -50,6 +59,35 @@ export default grammar({
 
     // --- Identifiers ---
     identifier: ($) => /[_a-z][_a-zA-Z0-9]*/,
+
+    // --- Identifiers (continued) ---
+    type_identifier: ($) => /[A-Z][a-zA-Z0-9]*/,
+
+    dollar_identifier: ($) => seq("$", $.identifier),
+
+    // --- Expressions ---
+    tag_expression: ($) => seq(
+      field("name", $.type_identifier),
+      optional(field("arguments", $.arguments)),
+    ),
+
+    arguments: ($) => seq(
+      "(",
+      optional(seq($._expression, repeat(seq(",", $._expression)))),
+      ")",
+    ),
+
+    list_expression: ($) => seq(
+      "[",
+      optional(seq($._expression, repeat(seq(",", $._expression)))),
+      "]",
+    ),
+
+    parenthesized_expression: ($) => seq(
+      "(",
+      $._expression,
+      ")",
+    ),
 
     // --- Keywords ---
     _if: ($) => "if",
