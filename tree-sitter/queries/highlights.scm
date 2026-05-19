@@ -15,6 +15,10 @@
 ;; Variables
 (identifier) @variable
 
+;; Dot lambda method names
+(anonymous_method_expression
+  name: (identifier) @function.method)
+
 ;; String
 (string) @string
 

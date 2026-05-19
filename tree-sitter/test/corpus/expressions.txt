@@ -185,3 +185,64 @@ x = crash "oops"
     (identifier)
     (crash_expression
       (string))))
+
+========
+Dot lambda method call
+========
+x = .foo(y)
+---
+(source_file
+  (const_declaration
+    (identifier)
+    (call_expression
+      (anonymous_method_expression
+        (identifier))
+      (arguments
+        (identifier)))))
+
+========
+Dot lambda field access
+========
+x = .name
+---
+(source_file
+  (const_declaration
+    (identifier)
+    (anonymous_method_expression
+      (identifier))))
+
+========
+Dot lambda chained method
+========
+x = .foo().bar(y)
+---
+(source_file
+  (const_declaration
+    (identifier)
+    (method_call_expression
+      (call_expression
+        (anonymous_method_expression
+          (identifier))
+        (arguments))
+      (identifier)
+      (arguments
+        (identifier)))))
+
+========
+Dot lambda mixed field and method
+========
+x = .record.field.method(y).name
+---
+(source_file
+  (const_declaration
+    (identifier)
+    (field_access_expression
+      (method_call_expression
+        (field_access_expression
+          (anonymous_method_expression
+            (identifier))
+          (identifier))
+        (identifier)
+        (arguments
+          (identifier)))
+      (identifier))))
