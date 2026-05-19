@@ -281,6 +281,7 @@ lower_expr :: proc(expr: CExpr, env: ^Lower_Env) -> IR_Expr {
 		return lower_record_update(e, env)
 
 	case ^CExpr_Assign:
+		_ = lower_expr(e.target, env)
 		return lower_expr(e.value, env)
 
 	case ^CExpr_Return:
@@ -535,7 +536,7 @@ lower_prefixop :: proc(e: ^CExpr_PrefixOp, env: ^Lower_Env) -> IR_Expr {
 		bool_type := lower_type(env.store, make_primitive_type(env.store, intern(env.interner, "Bool"), e.span))
 		false_lit := make_ir_lit_bool(false, bool_type, e.span)
 		binop := new(IR_BinOp)
-		binop^ = IR_BinOp{op = .Kw_And, left = operand, right = false_lit, type = bool_type, span = e.span}
+		binop^ = IR_BinOp{op = .Eq_Eq, left = operand, right = false_lit, type = bool_type, span = e.span}
 		return IR_Expr(binop)
 	case .Minus:
 		type_var := fresh_value_var(env.store, e.span)
