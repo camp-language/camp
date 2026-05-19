@@ -2,6 +2,7 @@ package camp
 
 import "core:testing"
 import "core:mem"
+import "core:strings"
 
 lower_source :: proc(source: string) -> (IR_Module, ^Compilation_Context, Type_Store) {
 	ctx: ^Compilation_Context = new(Compilation_Context)
@@ -661,4 +662,87 @@ test_rc_insert_dup_drop :: proc(t: ^testing.T) {
 	fn_decl := find_decl_fn(mod, false)
 	testing.expect(t, fn_decl != nil)
 	testing.expect(t, has_dup_or_drop(fn_decl.body))
+}
+
+contains_ir_field_access :: proc(expr: IR_Expr) -> bool {
+	#partial switch e in expr {
+	case ^IR_Field_Access:
+		return true
+	case ^IR_Let:
+		if contains_ir_field_access(e.value) do return true
+		return contains_ir_field_access(e.body)
+	case ^IR_Call:
+		for arg in e.args {
+			if contains_ir_field_access(arg) do return true
+		}
+	case ^IR_Closure_Call:
+		if contains_ir_field_access(e.callee) do return true
+		for arg in e.args {
+			if contains_ir_field_access(arg) do return true
+		}
+	case ^IR_BinOp:
+		return contains_ir_field_access(e.left) || contains_ir_field_access(e.right)
+	case ^IR_If:
+		return contains_ir_field_access(e.condition) || contains_ir_field_access(e.then_branch) || contains_ir_field_access(e.else_branch)
+	case ^IR_Block:
+		for stmt in e.statements {
+			if contains_ir_field_access(stmt) do return true
+		}
+	case ^IR_Return:
+		return contains_ir_field_access(e.value)
+	case ^IR_Construct_Record:
+		for f in e.fields {
+			if contains_ir_field_access(f.value) do return true
+		}
+		return contains_ir_field_access(e.rest)
+	case:
+	}
+	return false
+}
+
+@(test)
+test_closure_capture_free_var :: proc(t: ^testing.T) {
+	mod, ctx, store := lower_source("f = |x| |y| x")
+	defer teardown_lower(ctx, &store)
+
+	result := closure_convert(&mod, ctx)
+
+	has_env_access := false
+	for decl in result.decls {
+		#partial switch d in decl {
+		case ^IR_Decl_Fn:
+			if contains_ir_field_access(d.body) {
+				has_env_access = true
+			}
+		case:
+		}
+	}
+	testing.expect(t, has_env_access)
+}
+
+@(test)
+test_closure_closed_fn_has_params :: proc(t: ^testing.T) {
+	mod, ctx, store := lower_source("f = |x| |y| x")
+	defer teardown_lower(ctx, &store)
+
+	result := closure_convert(&mod, ctx)
+
+	found := false
+	for decl in result.decls {
+		#partial switch d in decl {
+		case ^IR_Decl_Fn:
+			has_cenv := false
+			has_y := false
+			for p in d.params {
+				name_str := intern_get(&ctx.interner, p.name)
+				if strings.contains(name_str, "_cenv") { has_cenv = true }
+				if strings.contains(name_str, "y") { has_y = true }
+			}
+			if has_cenv && has_y {
+				found = true
+			}
+		case:
+		}
+	}
+	testing.expect(t, found)
 }

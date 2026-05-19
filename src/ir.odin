@@ -164,10 +164,11 @@ IR_Pat_Var :: struct { name: Intern_ID }
 IR_Pat_Wildcard :: struct {}
 
 IR_Construct_Tag :: struct {
-	tag_name: Intern_ID,
-	payload:  [dynamic]IR_Expr,
-	type:     IR_Type,
-	span:     Source_Span,
+	tag_name:  Intern_ID,
+	tag_index: int,
+	payload:   [dynamic]IR_Expr,
+	type:      IR_Type,
+	span:      Source_Span,
 }
 
 IR_Construct_Record :: struct {
@@ -179,7 +180,7 @@ IR_Construct_Record :: struct {
 
 IR_Record_Field :: struct { name: Intern_ID, value: IR_Expr }
 
-IR_Field_Access :: struct { record: IR_Expr, field: Intern_ID, type: IR_Type, span: Source_Span }
+IR_Field_Access :: struct { record: IR_Expr, field: Intern_ID, field_index: int, type: IR_Type, span: Source_Span }
 
 IR_Method_Call :: struct {
 	receiver: IR_Expr,
@@ -214,6 +215,7 @@ IR_Perform :: struct {
 
 IR_Closure :: struct {
 	fn_name: Canonical_Name,
+	params:  [dynamic]IR_Param,
 	env:     IR_Expr,
 	body:    IR_Expr,
 	type:    IR_Type,

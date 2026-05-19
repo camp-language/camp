@@ -412,9 +412,15 @@ lower_lambda :: proc(e: ^CExpr_Lambda, env: ^Lower_Env) -> IR_Expr {
 	}
 	append(&env.pending_decls, IR_Decl(fn_decl))
 
+	closure_params := make([dynamic]IR_Param, len(param_types))
+	for p, i in param_types {
+		closure_params[i] = p
+	}
+
 	closure := new(IR_Closure)
 	closure^ = IR_Closure{
 		fn_name = fn_name,
+		params = closure_params,
 		env = IR_Expr(nil),
 		body = body,
 		type = ir_fn_type,
@@ -575,6 +581,7 @@ lower_tag :: proc(e: ^CExpr_Tag, env: ^Lower_Env) -> IR_Expr {
 	tag := new(IR_Construct_Tag)
 	tag^ = IR_Construct_Tag{
 		tag_name = e.name.name,
+		tag_index = 0,
 		payload = payload,
 		type = lower_type(env.store, type_var),
 		span = e.span,
@@ -609,6 +616,7 @@ lower_field_access :: proc(e: ^CExpr_Field_Access, env: ^Lower_Env) -> IR_Expr {
 	access^ = IR_Field_Access{
 		record = record,
 		field = e.field,
+		field_index = 0,
 		type = lower_type(env.store, type_var),
 		span = e.span,
 	}
@@ -690,6 +698,7 @@ lower_list :: proc(e: ^CExpr_List, env: ^Lower_Env) -> IR_Expr {
 	nil_tag := new(IR_Construct_Tag)
 	nil_tag^ = IR_Construct_Tag{
 		tag_name = intern(env.interner, "Nil"),
+		tag_index = 0,
 		payload = make([dynamic]IR_Expr, 0),
 		type = ir_type,
 		span = e.span,
@@ -704,6 +713,7 @@ lower_list :: proc(e: ^CExpr_List, env: ^Lower_Env) -> IR_Expr {
 		cons_tag := new(IR_Construct_Tag)
 		cons_tag^ = IR_Construct_Tag{
 			tag_name = intern(env.interner, "Cons"),
+			tag_index = 0,
 			payload = cons_payload,
 			type = ir_type,
 			span = e.span,

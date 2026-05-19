@@ -125,13 +125,18 @@ Wasm_Return_Call :: struct { index: u32 }
 Wasm_Return_Call_Indirect :: struct { type_idx: u32, table_idx: u32 }
 Wasm_Br :: struct { label: u32 }
 Wasm_Br_If :: struct { label: u32 }
+Wasm_BrTable :: struct { targets: []u32, default_idx: u32 }
 Wasm_Return :: struct {}
 Wasm_Drop :: struct {}
 Wasm_Select :: struct {}
 Wasm_I32_Load :: struct { align: u32, offset: u32 }
+Wasm_I32_Load8U :: struct { align: u32, offset: u32 }
 Wasm_I64_Load :: struct { align: u32, offset: u32 }
 Wasm_I32_Store :: struct { align: u32, offset: u32 }
+Wasm_I32_Store8 :: struct { align: u32, offset: u32 }
 Wasm_I64_Store :: struct { align: u32, offset: u32 }
+Wasm_F64_Store :: struct { align: u32, offset: u32 }
+Wasm_F64_Load :: struct { align: u32, offset: u32 }
 Wasm_Memory_Size :: struct {}
 Wasm_Memory_Grow :: struct {}
 Wasm_Block :: struct { block_type: Wasm_Block_Type }
@@ -168,13 +173,18 @@ Wasm_Instruction :: union {
 	Wasm_Return_Call_Indirect,
 	Wasm_Br,
 	Wasm_Br_If,
+	Wasm_BrTable,
 	Wasm_Return,
 	Wasm_Drop,
 	Wasm_Select,
 	Wasm_I32_Load,
+	Wasm_I32_Load8U,
 	Wasm_I64_Load,
 	Wasm_I32_Store,
+	Wasm_I32_Store8,
 	Wasm_I64_Store,
+	Wasm_F64_Store,
+	Wasm_F64_Load,
 	Wasm_Memory_Size,
 	Wasm_Memory_Grow,
 	Wasm_Block,
@@ -263,6 +273,13 @@ emit_instruction :: proc(instr: Wasm_Instruction, buf: ^[dynamic]u8) {
 	case Wasm_Br_If:
 		append(buf, 0x0D)
 		encode_u32_leb128(i.label, buf)
+	case Wasm_BrTable:
+		append(buf, 0x0E)
+		encode_u32_leb128(u32(len(i.targets)), buf)
+		for t in i.targets {
+			encode_u32_leb128(t, buf)
+		}
+		encode_u32_leb128(i.default_idx, buf)
 	case Wasm_Return:
 		append(buf, 0x0F)
 	case Wasm_Drop:
@@ -273,6 +290,10 @@ emit_instruction :: proc(instr: Wasm_Instruction, buf: ^[dynamic]u8) {
 		append(buf, 0x28)
 		encode_u32_leb128(i.align, buf)
 		encode_u32_leb128(i.offset, buf)
+	case Wasm_I32_Load8U:
+		append(buf, 0x2C)
+		encode_u32_leb128(i.align, buf)
+		encode_u32_leb128(i.offset, buf)
 	case Wasm_I64_Load:
 		append(buf, 0x29)
 		encode_u32_leb128(i.align, buf)
@@ -281,7 +302,22 @@ emit_instruction :: proc(instr: Wasm_Instruction, buf: ^[dynamic]u8) {
 		append(buf, 0x36)
 		encode_u32_leb128(i.align, buf)
 		encode_u32_leb128(i.offset, buf)
+	case Wasm_I32_Store8:
+		append(buf, 0x3A)
+		encode_u32_leb128(i.align, buf)
+		encode_u32_leb128(i.offset, buf)
 	case Wasm_I64_Store:
+		append(buf, 0x37)
+		encode_u32_leb128(i.align, buf)
+		encode_u32_leb128(i.offset, buf)
+	case Wasm_F64_Store:
+		append(buf, 0x39)
+		encode_u32_leb128(i.align, buf)
+		encode_u32_leb128(i.offset, buf)
+	case Wasm_F64_Load:
+		append(buf, 0x2B)
+		encode_u32_leb128(i.align, buf)
+		encode_u32_leb128(i.offset, buf)
 		append(buf, 0x37)
 		encode_u32_leb128(i.align, buf)
 		encode_u32_leb128(i.offset, buf)

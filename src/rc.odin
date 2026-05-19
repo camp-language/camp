@@ -328,7 +328,7 @@ rc_insert_expr_inner :: proc(expr: IR_Expr, remaining: ^map[Intern_ID]int, inter
 			append(&new_payload, rc_insert_expr_inner(p, remaining, interner))
 		}
 		new_tag := new(IR_Construct_Tag)
-		new_tag^ = IR_Construct_Tag{tag_name = e.tag_name, payload = new_payload, type = e.type, span = e.span}
+		new_tag^ = IR_Construct_Tag{tag_name = e.tag_name, tag_index = e.tag_index, payload = new_payload, type = e.type, span = e.span}
 		return IR_Expr(new_tag)
 
 	case ^IR_Construct_Record:
@@ -350,6 +350,7 @@ rc_insert_expr_inner :: proc(expr: IR_Expr, remaining: ^map[Intern_ID]int, inter
 		new_fa^ = IR_Field_Access{
 			record = rc_insert_expr_inner(e.record, remaining, interner),
 			field = e.field,
+			field_index = e.field_index,
 			type = e.type,
 			span = e.span,
 		}

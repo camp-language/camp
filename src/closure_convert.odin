@@ -231,18 +231,33 @@ cc_convert_expr :: proc(expr: IR_Expr, env: ^Closure_Convert_Env) -> IR_Expr {
 		bound: map[Intern_ID]bool
 		bound = make(map[Intern_ID]bool, 8)
 		bound[env_param_name] = true
+		for p in e.params {
+			bound[p.name] = true
+		}
 
 		free := cc_free_vars(e.body, &bound)
-		delete(bound)
 
-		params := make([dynamic]IR_Param, 0, len(free) + 1)
+		params := make([dynamic]IR_Param, 0, len(e.params) + 1)
 		append(&params, IR_Param{name = env_param_name, type = IR_Type{.I32, Type_Var_ID(0)}})
+		for p in e.params {
+			append(&params, p)
+		}
 
 		closed_fn_name := Canonical_Name{
 			module = NO_NAME,
 			name = cc_fresh(env, "closed"),
 			is_local = true,
 		}
+
+		env_access_map: map[Intern_ID]IR_Expr
+		env_access_map = make(map[Intern_ID]IR_Expr, len(free))
+		field_offset: u32 = 8
+		for fv in free {
+			env_access_map[fv] = make_env_field_access(env_param_name, field_offset, e.span, env.interner)
+			field_offset += 4
+		}
+
+		converted_body := cc_convert_expr(e.body, env)
 
 		closed_fn := new(IR_Decl_Fn)
 		closed_fn^ = IR_Decl_Fn{
@@ -251,7 +266,7 @@ cc_convert_expr :: proc(expr: IR_Expr, env: ^Closure_Convert_Env) -> IR_Expr {
 			params = params,
 			return_type = e.type,
 			effect_row = IR_Type{.Void, Type_Var_ID(0)},
-			body = cc_convert_expr(e.body, env),
+			body = rewrite_free_var_access(converted_body, &env_access_map),
 			span = e.span,
 		}
 		append(&env.module.decls, IR_Decl(closed_fn))
@@ -259,14 +274,16 @@ cc_convert_expr :: proc(expr: IR_Expr, env: ^Closure_Convert_Env) -> IR_Expr {
 
 		fn_idx_lit := new(IR_Literal_Int)
 		fn_idx_lit^ = IR_Literal_Int{value = i64(fn_idx_val), type = IR_Type{.I32, Type_Var_ID(0)}, span = e.span}
-		env_ptr_lit := new(IR_Literal_Int)
-		env_ptr_lit^ = IR_Literal_Int{value = 0, type = IR_Type{.I32, Type_Var_ID(0)}, span = e.span}
 
-		fields := make([dynamic]IR_Record_Field, 0, 2)
+		fields := make([dynamic]IR_Record_Field, 0, len(free) + 1)
 		fn_idx_id := intern(env.interner, "fn_idx")
-		env_ptr_id := intern(env.interner, "env_ptr")
 		append(&fields, IR_Record_Field{name = fn_idx_id, value = IR_Expr(fn_idx_lit)})
-		append(&fields, IR_Record_Field{name = env_ptr_id, value = IR_Expr(env_ptr_lit)})
+
+		for fv in free {
+			fv_var := new(IR_Var)
+			fv_var^ = IR_Var{name = fv, type = IR_Type{.I32, Type_Var_ID(0)}, span = e.span}
+			append(&fields, IR_Record_Field{name = fv, value = IR_Expr(fv_var)})
+		}
 
 		rest_nil := new(IR_Literal_Int)
 		rest_nil^ = IR_Literal_Int{value = 0, type = IR_Type{.I32, Type_Var_ID(0)}, span = e.span}
@@ -279,6 +296,8 @@ cc_convert_expr :: proc(expr: IR_Expr, env: ^Closure_Convert_Env) -> IR_Expr {
 			span = e.span,
 		}
 
+		delete(env_access_map)
+		delete(bound)
 		delete(free)
 		return IR_Expr(rec)
 
@@ -356,7 +375,7 @@ cc_convert_expr :: proc(expr: IR_Expr, env: ^Closure_Convert_Env) -> IR_Expr {
 			append(&new_payload, cc_convert_expr(p, env))
 		}
 		new_tag := new(IR_Construct_Tag)
-		new_tag^ = IR_Construct_Tag{tag_name = e.tag_name, payload = new_payload, type = e.type, span = e.span}
+		new_tag^ = IR_Construct_Tag{tag_name = e.tag_name, tag_index = e.tag_index, payload = new_payload, type = e.type, span = e.span}
 		return IR_Expr(new_tag)
 
 	case ^IR_Construct_Record:
@@ -375,7 +394,7 @@ cc_convert_expr :: proc(expr: IR_Expr, env: ^Closure_Convert_Env) -> IR_Expr {
 
 	case ^IR_Field_Access:
 		new_fa := new(IR_Field_Access)
-		new_fa^ = IR_Field_Access{record = cc_convert_expr(e.record, env), field = e.field, type = e.type, span = e.span}
+		new_fa^ = IR_Field_Access{record = cc_convert_expr(e.record, env), field = e.field, field_index = e.field_index, type = e.type, span = e.span}
 		return IR_Expr(new_fa)
 
 	case ^IR_Method_Call:
@@ -450,5 +469,142 @@ cc_convert_expr :: proc(expr: IR_Expr, env: ^Closure_Convert_Env) -> IR_Expr {
 		return IR_Expr(new_crash)
 	}
 
+	return expr
+}
+
+make_env_field_access :: proc(env_name: Intern_ID, offset: u32, span: Source_Span, interner: ^Intern_Table) -> IR_Expr {
+	env_var := new(IR_Var)
+	env_var^ = IR_Var{name = env_name, type = IR_Type{.I32, Type_Var_ID(0)}, span = span}
+
+	field_access := new(IR_Field_Access)
+	field_access^ = IR_Field_Access{
+		record = IR_Expr(env_var),
+		field = intern(interner, fmt.tprintf("env_{}", offset)),
+		field_index = int((offset - 8) / 4),
+		type = IR_Type{.I32, Type_Var_ID(0)},
+		span = span,
+	}
+	return IR_Expr(field_access)
+}
+
+rewrite_free_var_access :: proc(expr: IR_Expr, env_map: ^map[Intern_ID]IR_Expr) -> IR_Expr {
+	if expr == nil do return expr
+
+	#partial switch e in expr {
+	case ^IR_Var:
+		if replacement, ok := env_map^[e.name]; ok {
+			return replacement
+		}
+		return expr
+	case ^IR_Let:
+		new_let := new(IR_Let)
+		new_let^ = IR_Let{
+			binding = e.binding,
+			type = e.type,
+			value = rewrite_free_var_access(e.value, env_map),
+			body = rewrite_free_var_access(e.body, env_map),
+			span = e.span,
+		}
+		return IR_Expr(new_let)
+	case ^IR_Call:
+		new_args := make([dynamic]IR_Expr, 0, len(e.args))
+		for arg in e.args {
+			append(&new_args, rewrite_free_var_access(arg, env_map))
+		}
+		new_call := new(IR_Call)
+		new_call^ = IR_Call{callee = e.callee, args = new_args, type = e.type, span = e.span}
+		return IR_Expr(new_call)
+	case ^IR_Closure_Call:
+		new_args := make([dynamic]IR_Expr, 0, len(e.args))
+		for arg in e.args {
+			append(&new_args, rewrite_free_var_access(arg, env_map))
+		}
+		new_cc := new(IR_Closure_Call)
+		new_cc^ = IR_Closure_Call{
+			callee = rewrite_free_var_access(e.callee, env_map),
+			args = new_args,
+			type = e.type,
+			span = e.span,
+		}
+		return IR_Expr(new_cc)
+	case ^IR_BinOp:
+		new_binop := new(IR_BinOp)
+		new_binop^ = IR_BinOp{
+			op = e.op,
+			left = rewrite_free_var_access(e.left, env_map),
+			right = rewrite_free_var_access(e.right, env_map),
+			type = e.type,
+			span = e.span,
+		}
+		return IR_Expr(new_binop)
+	case ^IR_If:
+		new_if := new(IR_If)
+		new_if^ = IR_If{
+			condition = rewrite_free_var_access(e.condition, env_map),
+			then_branch = rewrite_free_var_access(e.then_branch, env_map),
+			else_branch = rewrite_free_var_access(e.else_branch, env_map),
+			type = e.type,
+			span = e.span,
+		}
+		return IR_Expr(new_if)
+	case ^IR_Return:
+		new_ret := new(IR_Return)
+		new_ret^ = IR_Return{value = rewrite_free_var_access(e.value, env_map), span = e.span}
+		return IR_Expr(new_ret)
+	case ^IR_Block:
+		new_stmts := make([dynamic]IR_Expr, 0, len(e.statements))
+		for stmt in e.statements {
+			append(&new_stmts, rewrite_free_var_access(stmt, env_map))
+		}
+		new_block := new(IR_Block)
+		new_block^ = IR_Block{statements = new_stmts, type = e.type, span = e.span}
+		return IR_Expr(new_block)
+	case ^IR_Match:
+		new_arms := make([dynamic]IR_Match_Arm, 0, len(e.arms))
+		for arm in e.arms {
+			append(&new_arms, IR_Match_Arm{pattern = arm.pattern, body = rewrite_free_var_access(arm.body, env_map)})
+		}
+		new_match := new(IR_Match)
+		new_match^ = IR_Match{
+			scrutinee = rewrite_free_var_access(e.scrutinee, env_map),
+			arms = new_arms,
+			type = e.type,
+			span = e.span,
+		}
+		return IR_Expr(new_match)
+	case ^IR_Construct_Tag:
+		new_payload := make([dynamic]IR_Expr, 0, len(e.payload))
+		for p in e.payload {
+			append(&new_payload, rewrite_free_var_access(p, env_map))
+		}
+		new_tag := new(IR_Construct_Tag)
+		new_tag^ = IR_Construct_Tag{tag_name = e.tag_name, tag_index = e.tag_index, payload = new_payload, type = e.type, span = e.span}
+		return IR_Expr(new_tag)
+	case ^IR_Construct_Record:
+		new_fields := make([dynamic]IR_Record_Field, 0, len(e.fields))
+		for f in e.fields {
+			append(&new_fields, IR_Record_Field{name = f.name, value = rewrite_free_var_access(f.value, env_map)})
+		}
+		new_rec := new(IR_Construct_Record)
+		new_rec^ = IR_Construct_Record{
+			fields = new_fields,
+			rest = rewrite_free_var_access(e.rest, env_map),
+			type = e.type,
+			span = e.span,
+		}
+		return IR_Expr(new_rec)
+	case ^IR_Field_Access:
+		new_fa := new(IR_Field_Access)
+		new_fa^ = IR_Field_Access{
+			record = rewrite_free_var_access(e.record, env_map),
+			field = e.field,
+			field_index = e.field_index,
+			type = e.type,
+			span = e.span,
+		}
+		return IR_Expr(new_fa)
+	case:
+		return expr
+	}
 	return expr
 }

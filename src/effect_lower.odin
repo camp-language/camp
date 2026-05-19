@@ -243,7 +243,7 @@ el_lower_expr :: proc(expr: IR_Expr, env: ^Effect_Lower_Env) -> IR_Expr {
 			append(&new_payload, el_lower_expr(p, env))
 		}
 		new_tag := new(IR_Construct_Tag)
-		new_tag^ = IR_Construct_Tag{tag_name = e.tag_name, payload = new_payload, type = e.type, span = e.span}
+		new_tag^ = IR_Construct_Tag{tag_name = e.tag_name, tag_index = e.tag_index, payload = new_payload, type = e.type, span = e.span}
 		return IR_Expr(new_tag)
 
 	case ^IR_Construct_Record:
@@ -262,7 +262,7 @@ el_lower_expr :: proc(expr: IR_Expr, env: ^Effect_Lower_Env) -> IR_Expr {
 
 	case ^IR_Field_Access:
 		new_fa := new(IR_Field_Access)
-		new_fa^ = IR_Field_Access{record = el_lower_expr(e.record, env), field = e.field, type = e.type, span = e.span}
+		new_fa^ = IR_Field_Access{record = el_lower_expr(e.record, env), field = e.field, field_index = e.field_index, type = e.type, span = e.span}
 		return IR_Expr(new_fa)
 
 	case ^IR_Method_Call:

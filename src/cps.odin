@@ -85,7 +85,7 @@ cps_transform_decl :: proc(decl: IR_Decl, env: ^CPS_Env) -> IR_Decl {
 		new_fn^ = d^
 
 		k_name := cps_fresh(env, "_k")
-		append(&new_fn.params, IR_Param{name = k_name, type = IR_Type{.Funcref, Type_Var_ID(0)}})
+		append(&new_fn.params, IR_Param{name = k_name, type = IR_Type{.I32, Type_Var_ID(0)}})
 
 		transformed_body := cps_transform_expr(d.body, k_name, env)
 
@@ -238,7 +238,7 @@ cps_transform_expr :: proc(expr: IR_Expr, k_name: Intern_ID, env: ^CPS_Env) -> I
 			append(&new_payload, cps_transform_expr(p, k_name, env))
 		}
 		new_tag := new(IR_Construct_Tag)
-		new_tag^ = IR_Construct_Tag{tag_name = e.tag_name, payload = new_payload, type = e.type, span = e.span}
+		new_tag^ = IR_Construct_Tag{tag_name = e.tag_name, tag_index = e.tag_index, payload = new_payload, type = e.type, span = e.span}
 		return IR_Expr(new_tag)
 
 	case ^IR_Construct_Record:
@@ -260,6 +260,7 @@ cps_transform_expr :: proc(expr: IR_Expr, k_name: Intern_ID, env: ^CPS_Env) -> I
 		new_fa^ = IR_Field_Access{
 			record = cps_transform_expr(e.record, k_name, env),
 			field = e.field,
+			field_index = e.field_index,
 			type = e.type,
 			span = e.span,
 		}
