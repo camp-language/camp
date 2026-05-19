@@ -12,9 +12,12 @@ export default grammar({
     [$.block, $.record_expression],
     [$._primary_expression, $.lambda_parameter],
     [$.block, $._statement],
-    [$.or_pattern],
     [$.arguments, $.paren_lambda],
     [$.arguments, $.parenthesized_expression],
+    [$._type, $.applied_type],
+    [$._pattern, $.tag_pattern],
+    [$.effect_annotation, $.record_type],
+    [$.record_pattern_fields],
   ],
 
   rules: {
@@ -287,36 +290,118 @@ export default grammar({
 
     crash_expression: ($) => seq("crash", $._expression),
 
-    // --- Patterns (placeholder) ---
+    // --- Patterns ---
     _pattern: ($) => choice(
-      $.identifier,
-      $.type_identifier,
+      $.wildcard_pattern,
+      $.or_pattern,
+      $.tag_pattern,
+      $.record_pattern,
+      $.list_pattern,
       $.integer,
       $.string,
       $.boolean,
-      $.wildcard_pattern,
-      $.or_pattern,
+      $.type_identifier,
+      $.identifier,
     ),
 
     wildcard_pattern: ($) => "_",
 
-    or_pattern: ($) => seq(
-      $._pattern,
+    or_pattern: ($) => prec.right(seq(
+      field("left", $._pattern),
       "|",
-      $._pattern,
+      field("right", $._pattern),
+    )),
+
+    tag_pattern: ($) => seq(
+      field("name", $.type_identifier),
+      optional(field("arguments", $.pattern_arguments)),
     ),
 
-    // --- Types (placeholder) ---
+    pattern_arguments: ($) => seq(
+      "(",
+      optional(seq($._pattern, repeat(seq(",", $._pattern)))),
+      ")",
+    ),
+
+    record_pattern: ($) => seq(
+      "{",
+      optional(seq(field("fields", $.record_pattern_fields), optional(","))),
+      "}",
+    ),
+
+    record_pattern_fields: ($) => seq(
+      $.record_pattern_field,
+      repeat(seq(",", $.record_pattern_field)),
+    ),
+
+    record_pattern_field: ($) => seq(
+      field("name", $.identifier),
+      optional(seq(":", field("pattern", $._pattern))),
+    ),
+
+    list_pattern: ($) => seq(
+      "[",
+      optional(seq($._pattern, repeat(seq(",", $._pattern)))),
+      "]",
+    ),
+
+    // --- Types ---
     _type: ($) => choice(
       $.type_identifier,
       $.function_type,
+      $.tag_union_type,
+      $.record_type,
+      $.applied_type,
+      $.wildcard_type,
+      $.type_variable,
     ),
 
     function_type: ($) => seq(
       optional(seq("(", optional(seq($._type, repeat(seq(",", $._type)))), ")")),
       "->",
+      optional($.effect_annotation),
       $._type,
     ),
+
+    tag_union_type: ($) => seq(
+      "[",
+      $.tag_union_variant,
+      repeat(seq("|", $.tag_union_variant)),
+      optional(seq("|", $.wildcard_type)),
+      "]",
+    ),
+
+    tag_union_variant: ($) => seq(
+      field("name", $.type_identifier),
+      optional(field("arguments", $.type_arguments)),
+    ),
+
+    record_type: ($) => seq(
+      "{",
+      optional(seq($.record_type_field, repeat(seq(",", $.record_type_field)), optional(","))),
+      "}",
+    ),
+
+    record_type_field: ($) => seq(
+      field("name", $.identifier),
+      ":",
+      field("type", $._type),
+    ),
+
+    applied_type: ($) => seq(
+      field("name", $.type_identifier),
+      field("arguments", $.type_arguments),
+    ),
+
+    type_arguments: ($) => seq(
+      "(",
+      optional(seq($._type, repeat(seq(",", $._type)))),
+      ")",
+    ),
+
+    wildcard_type: ($) => "_",
+
+    type_variable: ($) => $.identifier,
 
     // --- Keywords ---
     _if: ($) => "if",

@@ -1,0 +1,95 @@
+========
+Wildcard pattern
+========
+x = match y {
+  _ -> 0
+}
+---
+(source_file
+  (const_declaration
+    (identifier)
+    (match_expression
+      (identifier)
+      (match_arms
+        (match_arm
+          (wildcard_pattern)
+          (integer))))))
+
+========
+Or pattern
+========
+x = match y {
+  1 | 2 -> 0
+}
+---
+(source_file
+  (const_declaration
+    (identifier)
+    (match_expression
+      (identifier)
+      (match_arms
+        (match_arm
+          (or_pattern
+            (integer)
+            (integer))
+          (integer))))))
+
+========
+Tag pattern
+========
+x = match y {
+  Ok(v) -> v
+}
+---
+(source_file
+  (const_declaration
+    (identifier)
+    (match_expression
+      (identifier)
+      (match_arms
+        (match_arm
+          (tag_pattern
+            (type_identifier)
+            (pattern_arguments
+              (identifier)))
+          (identifier))))))
+
+========
+Record pattern
+========
+x = match y {
+  { x: 1 } -> 0
+}
+---
+(source_file
+  (const_declaration
+    (identifier)
+    (match_expression
+      (identifier)
+      (match_arms
+        (match_arm
+          (record_pattern
+            (record_pattern_fields
+              (record_pattern_field
+                (identifier)
+                (integer))))
+          (integer))))))
+
+========
+List pattern
+========
+x = match y {
+  [1, 2] -> 0
+}
+---
+(source_file
+  (const_declaration
+    (identifier)
+    (match_expression
+      (identifier)
+      (match_arms
+        (match_arm
+          (list_pattern
+            (integer)
+            (integer))
+          (integer))))))

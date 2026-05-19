@@ -1,0 +1,70 @@
+========
+Primitive type
+========
+x = |a: I64| a
+---
+(source_file
+  (const_declaration
+    (identifier)
+    (lambda_expression
+      (pipe_lambda
+        (lambda_parameters
+          (lambda_parameter
+            (identifier)
+            (type_identifier)))
+        (identifier)))))
+
+========
+Function type
+========
+x = |a| -> I64 a
+---
+(source_file
+  (const_declaration
+    (identifier)
+    (lambda_expression
+      (pipe_lambda
+        (lambda_parameters
+          (lambda_parameter
+            (identifier)))
+        (type_identifier)
+        (identifier)))))
+
+========
+Tag union type
+========
+x = |a: [Ok | Err]| a
+---
+(source_file
+  (const_declaration
+    (identifier)
+    (lambda_expression
+      (pipe_lambda
+        (lambda_parameters
+          (lambda_parameter
+            (identifier)
+            (tag_union_type
+              (tag_union_variant
+                (type_identifier))
+              (tag_union_variant
+                (type_identifier)))))
+        (identifier)))))
+
+========
+Applied type
+========
+x = |a: List(I64)| a
+---
+(source_file
+  (const_declaration
+    (identifier)
+    (lambda_expression
+      (pipe_lambda
+        (lambda_parameters
+          (lambda_parameter
+            (identifier)
+            (applied_type
+              (type_identifier)
+              (type_arguments
+                (type_identifier)))))
+        (identifier)))))
