@@ -119,6 +119,22 @@ Wasm_I32_Sub :: struct {}
 Wasm_I64_Sub :: struct {}
 Wasm_I32_Mul :: struct {}
 Wasm_I64_Mul :: struct {}
+Wasm_I32_Eq :: struct {}
+Wasm_I32_Ne :: struct {}
+Wasm_I32_Lt_S :: struct {}
+Wasm_I32_Gt_S :: struct {}
+Wasm_I32_Le_S :: struct {}
+Wasm_I32_Ge_S :: struct {}
+Wasm_I64_Eq :: struct {}
+Wasm_I64_Ne :: struct {}
+Wasm_I64_Lt_S :: struct {}
+Wasm_I64_Gt_S :: struct {}
+Wasm_I64_Le_S :: struct {}
+Wasm_I64_Ge_S :: struct {}
+Wasm_I32_And :: struct {}
+Wasm_I32_Or :: struct {}
+Wasm_I64_And :: struct {}
+Wasm_I64_Or :: struct {}
 Wasm_Call :: struct { index: u32 }
 Wasm_Call_Indirect :: struct { type_idx: u32, table_idx: u32 }
 Wasm_Return_Call :: struct { index: u32 }
@@ -167,6 +183,22 @@ Wasm_Instruction :: union {
 	Wasm_I64_Sub,
 	Wasm_I32_Mul,
 	Wasm_I64_Mul,
+	Wasm_I32_Eq,
+	Wasm_I32_Ne,
+	Wasm_I32_Lt_S,
+	Wasm_I32_Gt_S,
+	Wasm_I32_Le_S,
+	Wasm_I32_Ge_S,
+	Wasm_I64_Eq,
+	Wasm_I64_Ne,
+	Wasm_I64_Lt_S,
+	Wasm_I64_Gt_S,
+	Wasm_I64_Le_S,
+	Wasm_I64_Ge_S,
+	Wasm_I32_And,
+	Wasm_I32_Or,
+	Wasm_I64_And,
+	Wasm_I64_Or,
 	Wasm_Call,
 	Wasm_Call_Indirect,
 	Wasm_Return_Call,
@@ -253,6 +285,38 @@ emit_instruction :: proc(instr: Wasm_Instruction, buf: ^[dynamic]u8) {
 		append(buf, 0x6C)
 	case Wasm_I64_Mul:
 		append(buf, 0x7E)
+	case Wasm_I32_Eq:
+		append(buf, 0x46)
+	case Wasm_I32_Ne:
+		append(buf, 0x47)
+	case Wasm_I32_Lt_S:
+		append(buf, 0x48)
+	case Wasm_I32_Gt_S:
+		append(buf, 0x49)
+	case Wasm_I32_Le_S:
+		append(buf, 0x4A)
+	case Wasm_I32_Ge_S:
+		append(buf, 0x4B)
+	case Wasm_I64_Eq:
+		append(buf, 0x51)
+	case Wasm_I64_Ne:
+		append(buf, 0x52)
+	case Wasm_I64_Lt_S:
+		append(buf, 0x53)
+	case Wasm_I64_Gt_S:
+		append(buf, 0x54)
+	case Wasm_I64_Le_S:
+		append(buf, 0x55)
+	case Wasm_I64_Ge_S:
+		append(buf, 0x56)
+	case Wasm_I32_And:
+		append(buf, 0x71)
+	case Wasm_I32_Or:
+		append(buf, 0x72)
+	case Wasm_I64_And:
+		append(buf, 0x7B)
+	case Wasm_I64_Or:
+		append(buf, 0x7C)
 	case Wasm_Call:
 		append(buf, 0x10)
 		encode_u32_leb128(i.index, buf)

@@ -511,7 +511,8 @@ emit_expr :: proc(expr: IR_Expr, buf: ^[dynamic]u8, env: ^Codegen_Env, runtime_i
 	case ^IR_BinOp:
 		emit_expr(e.left, buf, env, runtime_indices)
 		emit_expr(e.right, buf, env, runtime_indices)
-		emit_binop(e.op, e.type.wasm_type, buf)
+		operand_type := ir_operand_wasm_type(e.left)
+		emit_binop(e.op, operand_type, buf)
 	case ^IR_Dup:
 		if idx, ok := env.local_map[e.value]; ok {
 			emit_instruction(Wasm_Local_Get{index = idx}, buf)
@@ -738,29 +739,99 @@ emit_expr :: proc(expr: IR_Expr, buf: ^[dynamic]u8, env: ^Codegen_Env, runtime_i
 	}
 }
 
-emit_binop :: proc(op: Token_Kind, wasm_type: IR_Wasm_Type, buf: ^[dynamic]u8) {
+emit_binop :: proc(op: Token_Kind, operand_type: IR_Wasm_Type, buf: ^[dynamic]u8) {
 	#partial switch op {
 	case .Plus:
-		if wasm_type == .I32 {
+		if operand_type == .I32 {
 			emit_instruction(Wasm_I32_Add{}, buf)
 		} else {
 			emit_instruction(Wasm_I64_Add{}, buf)
 		}
 	case .Minus:
-		if wasm_type == .I32 {
+		if operand_type == .I32 {
 			emit_instruction(Wasm_I32_Sub{}, buf)
 		} else {
 			emit_instruction(Wasm_I64_Sub{}, buf)
 		}
 	case .Star:
-		if wasm_type == .I32 {
+		if operand_type == .I32 {
 			emit_instruction(Wasm_I32_Mul{}, buf)
 		} else {
 			emit_instruction(Wasm_I64_Mul{}, buf)
 		}
+	case .Eq_Eq:
+		if operand_type == .I64 {
+			emit_instruction(Wasm_I64_Eq{}, buf)
+		} else {
+			emit_instruction(Wasm_I32_Eq{}, buf)
+		}
+	case .Bang_Eq:
+		if operand_type == .I64 {
+			emit_instruction(Wasm_I64_Ne{}, buf)
+		} else {
+			emit_instruction(Wasm_I32_Ne{}, buf)
+		}
+	case .Lt:
+		if operand_type == .I64 {
+			emit_instruction(Wasm_I64_Lt_S{}, buf)
+		} else {
+			emit_instruction(Wasm_I32_Lt_S{}, buf)
+		}
+	case .Gt:
+		if operand_type == .I64 {
+			emit_instruction(Wasm_I64_Gt_S{}, buf)
+		} else {
+			emit_instruction(Wasm_I32_Gt_S{}, buf)
+		}
+	case .Lt_Eq:
+		if operand_type == .I64 {
+			emit_instruction(Wasm_I64_Le_S{}, buf)
+		} else {
+			emit_instruction(Wasm_I32_Le_S{}, buf)
+		}
+	case .Gt_Eq:
+		if operand_type == .I64 {
+			emit_instruction(Wasm_I64_Ge_S{}, buf)
+		} else {
+			emit_instruction(Wasm_I32_Ge_S{}, buf)
+		}
+	case .Kw_And:
+		if operand_type == .I64 {
+			emit_instruction(Wasm_I64_And{}, buf)
+		} else {
+			emit_instruction(Wasm_I32_And{}, buf)
+		}
+	case .Kw_Or:
+		if operand_type == .I64 {
+			emit_instruction(Wasm_I64_Or{}, buf)
+		} else {
+			emit_instruction(Wasm_I32_Or{}, buf)
+		}
 	case:
 		emit_instruction(Wasm_I64_Add{}, buf)
 	}
+}
+
+ir_operand_wasm_type :: proc(expr: IR_Expr) -> IR_Wasm_Type {
+	if expr == nil do return .I32
+	#partial switch e in expr {
+	case ^IR_Literal_Int: return e.type.wasm_type
+	case ^IR_Literal_Float: return e.type.wasm_type
+	case ^IR_Literal_Bool: return .I32
+	case ^IR_Literal_String: return .I32
+	case ^IR_Var: return e.type.wasm_type
+	case ^IR_BinOp: return e.type.wasm_type
+	case ^IR_Call: return e.type.wasm_type
+	case ^IR_If: return e.type.wasm_type
+	case ^IR_Closure_Call: return e.type.wasm_type
+	case ^IR_Field_Access: return e.type.wasm_type
+	case ^IR_Construct_Tag: return .I32
+	case ^IR_Construct_Record: return .I32
+	case ^IR_Closure: return .I32
+	case:
+		return .I32
+	}
+	return .I32
 }
 
 ir_expr_wasm_type :: proc(expr: IR_Expr) -> IR_Wasm_Type {
