@@ -1,10 +1,22 @@
 stdout = """
-canonicalized /tmp/camp-e2e/pattern-matching/match-or-pattern/match-or-pattern.camp: 1 declaration(s), 0 import(s)
-typecheck passed for /tmp/camp-e2e/pattern-matching/match-or-pattern/match-or-pattern.camp
-compiled /tmp/camp-e2e/pattern-matching/match-or-pattern/match-or-pattern.camp -> /tmp/camp-e2e/pattern-matching/match-or-pattern/match-or-pattern.wasm
+-- SYNTAX ERROR --- /tmp/camp-e2e/pattern-matching/match-or-pattern/match-or-pattern.camp
+
+I expected `=>` here, but I got `|` instead.
+   1 | main! = || -> I64 { x = 2 match x { 1 | 2 | 3 -> 1 | _ -> 0 } }
+                                             ^
+
+-- SYNTAX ERROR --- /tmp/camp-e2e/pattern-matching/match-or-pattern/match-or-pattern.camp
+
+I expected `=>` here, but I got `->` instead.
+   1 | main! = || -> I64 { x = 2 match x { 1 | 2 | 3 -> 1 | _ -> 0 } }
+                                                     ^^
+
+-- SYNTAX ERROR --- /tmp/camp-e2e/pattern-matching/match-or-pattern/match-or-pattern.camp
+
+I expected `=>` here, but I got `->` instead.
+   1 | main! = || -> I64 { x = 2 match x { 1 | 2 | 3 -> 1 | _ -> 0 } }
+                                                              ^^
+compilation failed with 3 error(s)
 """
 stderr = ""
-exit = 0
-wasm_exit = 1
-wasm_stdout = ""
-wasm_stderr = ""
+exit = 1

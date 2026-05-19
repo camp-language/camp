@@ -1,10 +1,3 @@
-stdout = """
-/tmp/camp-e2e/execution/function-call/function-call.camp:1:9: error: expected RParen, got Comma
-/tmp/camp-e2e/execution/function-call/function-call.camp:1:11: error: expected Eq, got Identifier
-/tmp/camp-e2e/execution/function-call/function-call.camp:1:14: error: expected Eq, got Arrow
-/tmp/camp-e2e/execution/function-call/function-call.camp:1:14: error: unexpected token: Arrow
-/tmp/camp-e2e/execution/function-call/function-call.camp:1:21: error: expected Eq, got LBrace
-compilation failed with 5 error(s)
-"""
-stderr = ""
-exit = 1
+stdout = ""
+stderr = "process timed out after 10s"
+exit = -1

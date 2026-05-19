@@ -1,7 +1,34 @@
 stdout = """
-canonicalized /tmp/camp-e2e/effects/effect-multiple-effects/effect-multiple-effects.camp: 2 declaration(s), 0 import(s)
-typecheck passed for /tmp/camp-e2e/effects/effect-multiple-effects/effect-multiple-effects.camp
-compiled /tmp/camp-e2e/effects/effect-multiple-effects/effect-multiple-effects.camp -> /tmp/camp-e2e/effects/effect-multiple-effects/effect-multiple-effects.wasm
+-- SYNTAX ERROR --- /tmp/camp-e2e/effects/effect-multiple-effects/effect-multiple-effects.camp
+
+I expected `:` here, but I got `}` instead.
+   1 | effect IO { println }
+                           ^
+
+-- SYNTAX ERROR --- /tmp/camp-e2e/effects/effect-multiple-effects/effect-multiple-effects.camp
+
+I was expecting a type here, but I found `effect` instead.
+   2 | effect State { get, put }
+       ^^^^^^
+
+-- SYNTAX ERROR --- /tmp/camp-e2e/effects/effect-multiple-effects/effect-multiple-effects.camp
+
+I expected `:` here, but I got `State` instead.
+   2 | effect State { get, put }
+              ^^^^^
+
+-- SYNTAX ERROR --- /tmp/camp-e2e/effects/effect-multiple-effects/effect-multiple-effects.camp
+
+I expected `:` here, but I got `,` instead.
+   2 | effect State { get, put }
+                         ^
+
+-- SYNTAX ERROR --- /tmp/camp-e2e/effects/effect-multiple-effects/effect-multiple-effects.camp
+
+I expected `}` here, but I got `` instead.
+   3 | 
+       ^
+compilation failed with 5 error(s)
 """
 stderr = ""
-exit = 0
+exit = 1

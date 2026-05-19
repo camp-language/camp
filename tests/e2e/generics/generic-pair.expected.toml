@@ -1,7 +1,16 @@
 stdout = """
-canonicalized /tmp/camp-e2e/generics/generic-pair/generic-pair.camp: 1 declaration(s), 0 import(s)
-typecheck passed for /tmp/camp-e2e/generics/generic-pair/generic-pair.camp
-compiled /tmp/camp-e2e/generics/generic-pair/generic-pair.camp -> /tmp/camp-e2e/generics/generic-pair/generic-pair.wasm
+-- SYNTAX ERROR --- /tmp/camp-e2e/generics/generic-pair/generic-pair.camp
+
+I expected `)` here, but I got `,` instead.
+   1 | pair = (a, b) { { fst: a, snd: b } }
+                ^
+
+-- SYNTAX ERROR --- /tmp/camp-e2e/generics/generic-pair/generic-pair.camp
+
+I expected `=` here, but I got `)` instead.
+   1 | pair = (a, b) { { fst: a, snd: b } }
+                   ^
+compilation failed with 2 error(s)
 """
 stderr = ""
-exit = 0
+exit = 1

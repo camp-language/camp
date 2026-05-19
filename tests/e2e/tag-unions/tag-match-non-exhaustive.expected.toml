@@ -1,7 +1,22 @@
 stdout = """
-canonicalized /tmp/camp-e2e/tag-unions/tag-match-non-exhaustive/tag-match-non-exhaustive.camp: 2 declaration(s), 0 import(s)
-/tmp/camp-e2e/tag-unions/tag-match-non-exhaustive/tag-match-non-exhaustive.camp:2:5: error: non-exhaustive match: missing branch for Error
-compilation failed with 1 error(s)
+-- SYNTAX ERROR --- /tmp/camp-e2e/tag-unions/tag-match-non-exhaustive/tag-match-non-exhaustive.camp
+
+I expected `=` here, but I got `|` instead.
+   1 | x : Ok(I64) | Error(I64) = Ok(1)
+                   ^
+
+-- SYNTAX ERROR --- /tmp/camp-e2e/tag-unions/tag-match-non-exhaustive/tag-match-non-exhaustive.camp
+
+I expected `=` here, but I got `Ok` instead.
+   1 | x : Ok(I64) | Error(I64) = Ok(1)
+                                  ^^
+
+-- SYNTAX ERROR --- /tmp/camp-e2e/tag-unions/tag-match-non-exhaustive/tag-match-non-exhaustive.camp
+
+I expected `=>` here, but I got `->` instead.
+   2 | y = match x { Ok(v) -> v }
+                           ^^
+compilation failed with 3 error(s)
 """
 stderr = ""
 exit = 1

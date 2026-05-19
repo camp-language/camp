@@ -1,12 +1,10 @@
 package e2e
 
-import "core:c"
 import "core:fmt"
 import "core:mem"
 import "core:os"
 import "core:path/filepath"
 import "core:strings"
-import "core:sys/posix"
 import "core:time"
 
 E2E_Test :: struct {
@@ -186,10 +184,9 @@ run_test :: proc(test: E2E_Test, update: bool) -> Test_Report {
 	if has_stdout {
 		#partial switch s in expected_stdout_val {
 		case string:
-			actual_stdout := ensure_trailing_newline(stdout_str)
-			if actual_stdout != s {
+			if stdout_str != s {
 				passed = false
-				write_string_diff(&diff_builder, "stdout", s, actual_stdout)
+				write_string_diff(&diff_builder, "stdout", s, stdout_str)
 			}
 		}
 	}
@@ -198,10 +195,9 @@ run_test :: proc(test: E2E_Test, update: bool) -> Test_Report {
 	if has_stderr {
 		#partial switch s in expected_stderr_val {
 		case string:
-			actual_stderr := ensure_trailing_newline(stderr_str)
-			if actual_stderr != s {
+			if stderr_str != s {
 				passed = false
-				write_string_diff(&diff_builder, "stderr", s, actual_stderr)
+				write_string_diff(&diff_builder, "stderr", s, stderr_str)
 			}
 		}
 	}
@@ -231,10 +227,9 @@ run_test :: proc(test: E2E_Test, update: bool) -> Test_Report {
 		if has_ws {
 			#partial switch s in expected_wasm_stdout_val {
 			case string:
-				actual_ws := ensure_trailing_newline(wasm_stdout)
-				if actual_ws != s {
+				if wasm_stdout != s {
 					passed = false
-					write_string_diff(&diff_builder, "wasm_stdout", s, actual_ws)
+					write_string_diff(&diff_builder, "wasm_stdout", s, wasm_stdout)
 				}
 			}
 		}
@@ -243,10 +238,9 @@ run_test :: proc(test: E2E_Test, update: bool) -> Test_Report {
 		if has_we {
 			#partial switch s in expected_wasm_stderr_val {
 			case string:
-				actual_we := ensure_trailing_newline(wasm_stderr)
-				if actual_we != s {
+				if wasm_stderr != s {
 					passed = false
-					write_string_diff(&diff_builder, "wasm_stderr", s, actual_we)
+					write_string_diff(&diff_builder, "wasm_stderr", s, wasm_stderr)
 				}
 			}
 		}
@@ -275,135 +269,64 @@ run_test :: proc(test: E2E_Test, update: bool) -> Test_Report {
 	return report
 }
 
-ensure_trailing_newline :: proc(s: string) -> string {
-	if len(s) > 0 && !strings.has_suffix(s, "\n") {
-		b: strings.Builder
-		strings.builder_init_none(&b, context.allocator)
-		fmt.sbprintf(&b, "{}\n", s)
-		result, _ := strings.clone(strings.to_string(b), context.allocator)
-		return result
-	}
-	return s
-}
-
 capture_output :: proc(data: []byte) -> string {
 	s, _ := strings.clone(string(data), context.allocator)
 	return s
 }
 
 PROCESS_TIMEOUT :: 10 * time.Second
-CHILD_MEMORY_LIMIT_KB: c.long = 524288
-CHILD_CPU_LIMIT_S: c.long = 5
-
-set_child_limits :: proc() -> (old_as: posix.rlimit, old_cpu: posix.rlimit) {
-	get_as: posix.result = posix.getrlimit(.AS, &old_as)
-	if get_as == .OK {
-		new_as: posix.rlimit
-		new_as.rlim_cur = posix.rlim_t(CHILD_MEMORY_LIMIT_KB * 1024)
-		new_as.rlim_max = posix.rlim_t(CHILD_MEMORY_LIMIT_KB * 1024)
-		posix.setrlimit(.AS, &new_as)
-	}
-	get_cpu: posix.result = posix.getrlimit(.CPU, &old_cpu)
-	if get_cpu == .OK {
-		new_cpu: posix.rlimit
-		new_cpu.rlim_cur = posix.rlim_t(CHILD_CPU_LIMIT_S)
-		new_cpu.rlim_max = posix.rlim_t(CHILD_CPU_LIMIT_S + 1)
-		posix.setrlimit(.CPU, &new_cpu)
-	}
-	return
-}
-
-restore_child_limits :: proc(old_as: posix.rlimit, old_cpu: posix.rlimit) {
-	local_as := old_as
-	local_cpu := old_cpu
-	posix.setrlimit(.AS, &local_as)
-	posix.setrlimit(.CPU, &local_cpu)
-}
+CHILD_MEMORY_LIMIT_KB: int = 16777216
+CHILD_CPU_LIMIT_S: int = 10
 
 run_command :: proc(command: []string) -> (stdout: string, stderr: string, exit_code: int) {
-	desc := os.Process_Desc{
-		command = command,
+	pid := os.get_pid()
+	stdout_path := fmt.tprintf("/tmp/camp-e2e-stdout-{}", pid)
+	stderr_path := fmt.tprintf("/tmp/camp-e2e-stderr-{}", pid)
+
+	shell_builder: strings.Builder
+	strings.builder_init_len_cap(&shell_builder, 0, 256)
+	fmt.sbprintf(&shell_builder, "ulimit -v {} && ulimit -t {} && ", CHILD_MEMORY_LIMIT_KB, CHILD_CPU_LIMIT_S)
+	first := true
+	for arg in command {
+		if !first { fmt.sbprintf(&shell_builder, "{}", " ") }
+		first = false
+		fmt.sbprintf(&shell_builder, "{:q}", arg)
+	}
+	fmt.sbprintf(&shell_builder, " >{} 2>{}", stdout_path, stderr_path)
+	shell_cmd := strings.to_string(shell_builder)
+
+	full_cmd := []string{"bash", "-c", shell_cmd}
+
+	start_proc, start_err := os.process_start(os.Process_Desc{command = full_cmd})
+	if start_err != nil {
+		return "", fmt.tprintf("process start error: {}", start_err), 1
 	}
 
-	stdout_r, stdout_w, pipe_err := os.pipe()
-	if pipe_err != nil {
-		return "", fmt.tprintf("pipe error: {}", pipe_err), 1
-	}
-	defer os.close(stdout_r)
-	stderr_r, stderr_w, pipe_err2 := os.pipe()
-	if pipe_err2 != nil {
-		os.close(stdout_w)
-		return "", fmt.tprintf("pipe error: {}", pipe_err2), 1
-	}
-	defer os.close(stderr_r)
-
-	process: os.Process
-	{
-		defer os.close(stdout_w)
-		defer os.close(stderr_w)
-		p_desc := desc
-		p_desc.stdout = stdout_w
-		p_desc.stderr = stderr_w
-		old_as, old_cpu := set_child_limits()
-		start_proc, start_err := os.process_start(p_desc)
-		restore_child_limits(old_as, old_cpu)
-		if start_err != nil {
-			return "", fmt.tprintf("process start error: {}", start_err), 1
-		}
-		process = start_proc
-	}
-
-	stdout_b: [dynamic]byte
-	stdout_b.allocator = context.allocator
-	stderr_b: [dynamic]byte
-	stderr_b.allocator = context.allocator
-
-	buf: [1024]u8 = ---
-	stdout_done := false
-	stderr_done := false
-
-	for !stdout_done || !stderr_done {
-		if !stdout_done {
-			has_data, data_err := os.pipe_has_data(stdout_r)
-			if data_err == nil && has_data {
-				n, read_err := os.read(stdout_r, buf[:])
-				if read_err == nil {
-					append(&stdout_b, ..buf[:n])
-				} else if read_err == .EOF || read_err == .Broken_Pipe {
-					stdout_done = true
-				}
-			} else if data_err != nil {
-				stdout_done = true
-			}
-		}
-
-		if !stderr_done {
-			has_data, data_err := os.pipe_has_data(stderr_r)
-			if data_err == nil && has_data {
-				n, read_err := os.read(stderr_r, buf[:])
-				if read_err == nil {
-					append(&stderr_b, ..buf[:n])
-				} else if read_err == .EOF || read_err == .Broken_Pipe {
-					stderr_done = true
-				}
-			} else if data_err != nil {
-				stderr_done = true
-			}
-		}
-	}
-
-	state, wait_err := os.process_wait(process, timeout = PROCESS_TIMEOUT)
+	state, wait_err := os.process_wait(start_proc, timeout = PROCESS_TIMEOUT)
 	if wait_err != nil || !state.exited {
-		kill_err := os.process_kill(process)
+		kill_err := os.process_kill(start_proc)
 		if kill_err == nil {
-			_, _ = os.process_wait(process)
+			_, _ = os.process_wait(start_proc)
 		}
-		return string(stdout_b[:]), "process timed out after 10s", -1
+		os.remove(stdout_path)
+		os.remove(stderr_path)
+		return "", "process timed out after 10s", -1
 	}
 
 	exit_code = state.exit_code
-	stdout = string(stdout_b[:])
-	stderr = string(stderr_b[:])
+
+	stdout_data, stdout_err := os.read_entire_file(stdout_path, context.allocator)
+	if stdout_err == nil {
+		stdout = string(stdout_data[:])
+	}
+
+	stderr_data, stderr_err := os.read_entire_file(stderr_path, context.allocator)
+	if stderr_err == nil {
+		stderr = string(stderr_data[:])
+	}
+
+	os.remove(stdout_path)
+	os.remove(stderr_path)
 	return
 }
 

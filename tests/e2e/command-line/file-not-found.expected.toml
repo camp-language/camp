@@ -1,6 +1,9 @@
 args = "build-missing"
 stdout = """
-error: could not read file /nonexistent.camp
+-- FILE NOT FOUND ------------------------- /nonexistent.camp
+
+I could not read `/nonexistent.camp` (Not_Exist).
+compilation failed with 1 error(s)
 """
 stderr = ""
 exit = 1

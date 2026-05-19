@@ -1,7 +1,28 @@
 stdout = """
-canonicalized /tmp/camp-e2e/tag-unions/tag-type-mismatch/tag-type-mismatch.camp: 2 declaration(s), 0 import(s)
-typecheck passed for /tmp/camp-e2e/tag-unions/tag-type-mismatch/tag-type-mismatch.camp
-compiled /tmp/camp-e2e/tag-unions/tag-type-mismatch/tag-type-mismatch.camp -> /tmp/camp-e2e/tag-unions/tag-type-mismatch/tag-type-mismatch.wasm
+-- SYNTAX ERROR --- /tmp/camp-e2e/tag-unions/tag-type-mismatch/tag-type-mismatch.camp
+
+I expected `=` here, but I got `|` instead.
+   1 | x : Ok(I64) | Error(I64) = Ok(42)
+                   ^
+
+-- SYNTAX ERROR --- /tmp/camp-e2e/tag-unions/tag-type-mismatch/tag-type-mismatch.camp
+
+I expected `=` here, but I got `Ok` instead.
+   1 | x : Ok(I64) | Error(I64) = Ok(42)
+                                  ^^
+
+-- SYNTAX ERROR --- /tmp/camp-e2e/tag-unions/tag-type-mismatch/tag-type-mismatch.camp
+
+I expected `=>` here, but I got `->` instead.
+   2 | y = match x { Ok(v) -> v | Error(e) -> e + 1 }
+                           ^^
+
+-- SYNTAX ERROR --- /tmp/camp-e2e/tag-unions/tag-type-mismatch/tag-type-mismatch.camp
+
+I expected `=>` here, but I got `->` instead.
+   2 | y = match x { Ok(v) -> v | Error(e) -> e + 1 }
+                                           ^^
+compilation failed with 4 error(s)
 """
 stderr = ""
-exit = 0
+exit = 1

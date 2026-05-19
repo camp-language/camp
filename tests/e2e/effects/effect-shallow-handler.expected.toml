@@ -1,10 +1,106 @@
 stdout = """
-canonicalized /tmp/camp-e2e/effects/effect-shallow-handler/effect-shallow-handler.camp: 2 declaration(s), 0 import(s)
-typecheck passed for /tmp/camp-e2e/effects/effect-shallow-handler/effect-shallow-handler.camp
-compiled /tmp/camp-e2e/effects/effect-shallow-handler/effect-shallow-handler.camp -> /tmp/camp-e2e/effects/effect-shallow-handler/effect-shallow-handler.wasm
+-- SYNTAX ERROR --- /tmp/camp-e2e/effects/effect-shallow-handler/effect-shallow-handler.camp
+
+I expected `:` here, but I got `}` instead.
+   1 | effect IO { println }
+                           ^
+
+-- SYNTAX ERROR --- /tmp/camp-e2e/effects/effect-shallow-handler/effect-shallow-handler.camp
+
+I expected `:` here, but I got `=` instead.
+   2 | main! = || -> {IO} I64 { intercept IO.println("hi") with { IO.println(s) -> resume(()) } 0 }
+             ^
+
+-- SYNTAX ERROR --- /tmp/camp-e2e/effects/effect-shallow-handler/effect-shallow-handler.camp
+
+I was expecting a type here, but I found `|` instead.
+   2 | main! = || -> {IO} I64 { intercept IO.println("hi") with { IO.println(s) -> resume(()) } 0 }
+               ^
+
+-- SYNTAX ERROR --- /tmp/camp-e2e/effects/effect-shallow-handler/effect-shallow-handler.camp
+
+I expected `:` here, but I got `|` instead.
+   2 | main! = || -> {IO} I64 { intercept IO.println("hi") with { IO.println(s) -> resume(()) } 0 }
+                ^
+
+-- SYNTAX ERROR --- /tmp/camp-e2e/effects/effect-shallow-handler/effect-shallow-handler.camp
+
+I was expecting a type here, but I found `->` instead.
+   2 | main! = || -> {IO} I64 { intercept IO.println("hi") with { IO.println(s) -> resume(()) } 0 }
+                  ^^
+
+-- SYNTAX ERROR --- /tmp/camp-e2e/effects/effect-shallow-handler/effect-shallow-handler.camp
+
+I expected `:` here, but I got `{` instead.
+   2 | main! = || -> {IO} I64 { intercept IO.println("hi") with { IO.println(s) -> resume(()) } 0 }
+                     ^
+
+-- SYNTAX ERROR --- /tmp/camp-e2e/effects/effect-shallow-handler/effect-shallow-handler.camp
+
+I expected `=` here, but I got `{` instead.
+   2 | main! = || -> {IO} I64 { intercept IO.println("hi") with { IO.println(s) -> resume(()) } 0 }
+                              ^
+
+-- SYNTAX ERROR --- /tmp/camp-e2e/effects/effect-shallow-handler/effect-shallow-handler.camp
+
+I expected `in` here, but I got `.` instead.
+   2 | main! = || -> {IO} I64 { intercept IO.println("hi") with { IO.println(s) -> resume(()) } 0 }
+                                            ^
+
+-- SYNTAX ERROR --- /tmp/camp-e2e/effects/effect-shallow-handler/effect-shallow-handler.camp
+
+I expected `.` here, but I got `IO` instead.
+   2 | main! = || -> {IO} I64 { intercept IO.println("hi") with { IO.println(s) -> resume(()) } 0 }
+                                                                  ^^
+
+-- SYNTAX ERROR --- /tmp/camp-e2e/effects/effect-shallow-handler/effect-shallow-handler.camp
+
+I expected `identifier` here, but I got `.` instead.
+   2 | main! = || -> {IO} I64 { intercept IO.println("hi") with { IO.println(s) -> resume(()) } 0 }
+                                                                    ^
+
+-- SYNTAX ERROR --- /tmp/camp-e2e/effects/effect-shallow-handler/effect-shallow-handler.camp
+
+I expected `!` here, but I got `println` instead.
+   2 | main! = || -> {IO} I64 { intercept IO.println("hi") with { IO.println(s) -> resume(()) } 0 }
+                                                                     ^^^^^^^
+
+-- SYNTAX ERROR --- /tmp/camp-e2e/effects/effect-shallow-handler/effect-shallow-handler.camp
+
+I expected `=>` here, but I got `->` instead.
+   2 | main! = || -> {IO} I64 { intercept IO.println("hi") with { IO.println(s) -> resume(()) } 0 }
+                                                                                ^^
+
+-- SYNTAX ERROR --- /tmp/camp-e2e/effects/effect-shallow-handler/effect-shallow-handler.camp
+
+I was not expecting `)` here.
+   2 | main! = || -> {IO} I64 { intercept IO.println("hi") with { IO.println(s) -> resume(()) } 0 }
+                                                                                           ^
+
+-- SYNTAX ERROR --- /tmp/camp-e2e/effects/effect-shallow-handler/effect-shallow-handler.camp
+
+I was not expecting `}` here.
+   2 | main! = || -> {IO} I64 { intercept IO.println("hi") with { IO.println(s) -> resume(()) } 0 }
+                                                                                              ^
+
+-- SYNTAX ERROR --- /tmp/camp-e2e/effects/effect-shallow-handler/effect-shallow-handler.camp
+
+I was not expecting `}` here.
+   2 | main! = || -> {IO} I64 { intercept IO.println("hi") with { IO.println(s) -> resume(()) } 0 }
+                                                                                                  ^
+
+-- SYNTAX ERROR --- /tmp/camp-e2e/effects/effect-shallow-handler/effect-shallow-handler.camp
+
+I expected `)` here, but I got `` instead.
+   3 | 
+       ^
+
+-- SYNTAX ERROR --- /tmp/camp-e2e/effects/effect-shallow-handler/effect-shallow-handler.camp
+
+I expected `}` here, but I got `` instead.
+   3 | 
+       ^
+compilation failed with 17 error(s)
 """
 stderr = ""
-exit = 0
-wasm_exit = 0
-wasm_stdout = ""
-wasm_stderr = ""
+exit = 1

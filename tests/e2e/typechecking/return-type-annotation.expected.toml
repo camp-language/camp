@@ -1,9 +1,10 @@
 stdout = """
-/tmp/camp-e2e/typechecking/return-type-annotation/return-type-annotation.camp:1:12: error: expected Eq, got Upper_Id
-/tmp/camp-e2e/typechecking/return-type-annotation/return-type-annotation.camp:1:18: error: expected Eq, got Identifier
-/tmp/camp-e2e/typechecking/return-type-annotation/return-type-annotation.camp:2:1: error: expected Eq, got Eof
-/tmp/camp-e2e/typechecking/return-type-annotation/return-type-annotation.camp:2:1: error: unexpected token: Eof
-compilation failed with 4 error(s)
+-- SYNTAX ERROR --- /tmp/camp-e2e/typechecking/return-type-annotation/return-type-annotation.camp
+
+I expected `=` here, but I got `I64` instead.
+   1 | f = (x) -> I64 { x }
+                  ^^^
+compilation failed with 1 error(s)
 """
 stderr = ""
 exit = 1

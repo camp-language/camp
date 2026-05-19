@@ -1,6 +1,7 @@
 package camp
 
 import "core:fmt"
+import "core:mem"
 import "core:os"
 import "core:strings"
 
@@ -223,7 +224,6 @@ word_wrap :: proc(text: string, width: int) -> string {
 	if len(text) <= width do return text
 	builder: strings.Builder
 	strings.builder_init_len_cap(&builder, 0, len(text) + 32)
-	defer strings.builder_destroy(&builder)
 
 	line_len := 0
 	word_start := 0

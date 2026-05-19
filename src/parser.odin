@@ -50,6 +50,7 @@ parser_expect :: proc(p: ^Parser, kind: Token_Kind) -> Token {
 		return parser_advance(p)
 	}
 	collector_add_diag(p.collector, diag_expected_token(kind, p.current, p.current.span))
+	parser_advance(p)
 	return Token{kind = kind, span = p.current.span}
 }
 

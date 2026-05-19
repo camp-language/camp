@@ -5,6 +5,12 @@ compiled /tmp/camp-e2e/strings/string-interpolation/string-interpolation.camp ->
 """
 stderr = ""
 exit = 0
-wasm_exit = 0
+wasm_exit = 1
 wasm_stdout = ""
-wasm_stderr = ""
+wasm_stderr = """
+Error: failed to parse WebAssembly module
+
+Caused by:
+    section size mismatch: unexpected data at the end of the section (at offset 0x16b)
+
+"""

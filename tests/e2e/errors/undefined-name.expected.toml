@@ -1,6 +1,11 @@
 stdout = """
 canonicalized /tmp/camp-e2e/errors/undefined-name/undefined-name.camp: 1 declaration(s), 0 import(s)
-type errors found, stopping.
+-- UNDEFINED NAME --- /tmp/camp-e2e/errors/undefined-name/undefined-name.camp
+
+I cannot find `y`.
+   1 | x = y
+           ^
+compilation failed with 1 error(s)
 """
 stderr = ""
 exit = 1

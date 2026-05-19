@@ -1,10 +1,3 @@
-stdout = """
-canonicalized /tmp/camp-e2e/pattern-matching/match-with-guard/match-with-guard.camp: 1 declaration(s), 0 import(s)
-typecheck passed for /tmp/camp-e2e/pattern-matching/match-with-guard/match-with-guard.camp
-compiled /tmp/camp-e2e/pattern-matching/match-with-guard/match-with-guard.camp -> /tmp/camp-e2e/pattern-matching/match-with-guard/match-with-guard.wasm
-"""
-stderr = ""
-exit = 0
-wasm_exit = 1
-wasm_stdout = ""
-wasm_stderr = ""
+stdout = ""
+stderr = "process timed out after 10s"
+exit = -1

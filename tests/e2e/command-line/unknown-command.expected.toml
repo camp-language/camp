@@ -1,7 +1,10 @@
 args = "unknown"
 stdout = """
-error: unknown command 'foo'
-Commands: build, test, fmt, check
+-- UNKNOWN COMMAND ----------------------------------------- 
+
+I don't know the command `foo`.
+  Try `build`, `check`, `test`, or `fmt`.
+compilation failed with 1 error(s)
 """
 stderr = ""
 exit = 1

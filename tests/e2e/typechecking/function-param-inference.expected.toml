@@ -1,8 +1,28 @@
 stdout = """
-/tmp/camp-e2e/typechecking/function-param-inference/function-param-inference.camp:1:11: error: expected Eq, got Identifier
-/tmp/camp-e2e/typechecking/function-param-inference/function-param-inference.camp:2:1: error: expected Eq, got Eof
-/tmp/camp-e2e/typechecking/function-param-inference/function-param-inference.camp:2:1: error: unexpected token: Eof
-compilation failed with 3 error(s)
+-- SYNTAX ERROR --- /tmp/camp-e2e/typechecking/function-param-inference/function-param-inference.camp
+
+I expected `=` here, but I got `x` instead.
+   1 | f = (x) { x + 1 }
+                 ^
+
+-- SYNTAX ERROR --- /tmp/camp-e2e/typechecking/function-param-inference/function-param-inference.camp
+
+I was not expecting `+` here.
+   1 | f = (x) { x + 1 }
+                   ^
+
+-- SYNTAX ERROR --- /tmp/camp-e2e/typechecking/function-param-inference/function-param-inference.camp
+
+I expected `=` here, but I got `}` instead.
+   1 | f = (x) { x + 1 }
+                       ^
+
+-- SYNTAX ERROR --- /tmp/camp-e2e/typechecking/function-param-inference/function-param-inference.camp
+
+I was not expecting `` here.
+   2 | 
+       ^
+compilation failed with 4 error(s)
 """
 stderr = ""
 exit = 1

@@ -1,7 +1,52 @@
 stdout = """
-canonicalized /tmp/camp-e2e/effects/effect-unhandled/effect-unhandled.camp: 2 declaration(s), 0 import(s)
-/tmp/camp-e2e/effects/effect-unhandled/effect-unhandled.camp:2:1: error: unhandled effect IO at top level
-compilation failed with 1 error(s)
+-- SYNTAX ERROR --- /tmp/camp-e2e/effects/effect-unhandled/effect-unhandled.camp
+
+I expected `:` here, but I got `}` instead.
+   1 | effect IO { println }
+                           ^
+
+-- SYNTAX ERROR --- /tmp/camp-e2e/effects/effect-unhandled/effect-unhandled.camp
+
+I expected `:` here, but I got `println` instead.
+   2 | IO.println("hi")
+          ^^^^^^^
+
+-- SYNTAX ERROR --- /tmp/camp-e2e/effects/effect-unhandled/effect-unhandled.camp
+
+I was expecting a type here, but I found `(` instead.
+   2 | IO.println("hi")
+                 ^
+
+-- SYNTAX ERROR --- /tmp/camp-e2e/effects/effect-unhandled/effect-unhandled.camp
+
+I expected `:` here, but I got `"hi"` instead.
+   2 | IO.println("hi")
+                  ^^^^
+
+-- SYNTAX ERROR --- /tmp/camp-e2e/effects/effect-unhandled/effect-unhandled.camp
+
+I was expecting a type here, but I found `)` instead.
+   2 | IO.println("hi")
+                      ^
+
+-- SYNTAX ERROR --- /tmp/camp-e2e/effects/effect-unhandled/effect-unhandled.camp
+
+I expected `:` here, but I got `` instead.
+   3 | 
+       ^
+
+-- SYNTAX ERROR --- /tmp/camp-e2e/effects/effect-unhandled/effect-unhandled.camp
+
+I was expecting a type here, but I found `` instead.
+   3 | 
+       ^
+
+-- SYNTAX ERROR --- /tmp/camp-e2e/effects/effect-unhandled/effect-unhandled.camp
+
+I expected `}` here, but I got `` instead.
+   3 | 
+       ^
+compilation failed with 8 error(s)
 """
 stderr = ""
 exit = 1

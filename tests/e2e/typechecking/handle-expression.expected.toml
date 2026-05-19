@@ -1,36 +1,130 @@
 stdout = """
-/tmp/camp-e2e/typechecking/handle-expression/handle-expression.camp:1:21: error: expected Colon, got RBrace
-/tmp/camp-e2e/typechecking/handle-expression/handle-expression.camp:1:21: error: expected type, got RBrace
-/tmp/camp-e2e/typechecking/handle-expression/handle-expression.camp:2:19: error: expected Kw_In, got Dot
-/tmp/camp-e2e/typechecking/handle-expression/handle-expression.camp:2:19: error: unexpected token: Dot
-/tmp/camp-e2e/typechecking/handle-expression/handle-expression.camp:2:20: error: expected Kw_With, got Identifier
-/tmp/camp-e2e/typechecking/handle-expression/handle-expression.camp:2:20: error: expected LBrace, got Identifier
-/tmp/camp-e2e/typechecking/handle-expression/handle-expression.camp:2:20: error: expected Dot, got Identifier
-/tmp/camp-e2e/typechecking/handle-expression/handle-expression.camp:2:27: error: expected Bang, got LParen
-/tmp/camp-e2e/typechecking/handle-expression/handle-expression.camp:2:28: error: expected Identifier, got String_Literal
-/tmp/camp-e2e/typechecking/handle-expression/handle-expression.camp:2:28: error: expected RParen, got String_Literal
-/tmp/camp-e2e/typechecking/handle-expression/handle-expression.camp:2:28: error: expected Fat_Arrow, got String_Literal
-/tmp/camp-e2e/typechecking/handle-expression/handle-expression.camp:2:32: error: expected Dot, got RParen
-/tmp/camp-e2e/typechecking/handle-expression/handle-expression.camp:2:32: error: expected Identifier, got RParen
-/tmp/camp-e2e/typechecking/handle-expression/handle-expression.camp:2:32: error: expected Bang, got RParen
-/tmp/camp-e2e/typechecking/handle-expression/handle-expression.camp:2:32: error: expected LParen, got RParen
-/tmp/camp-e2e/typechecking/handle-expression/handle-expression.camp:2:32: error: expected Identifier, got RParen
-/tmp/camp-e2e/typechecking/handle-expression/handle-expression.camp:2:34: error: expected Fat_Arrow, got Kw_With
-/tmp/camp-e2e/typechecking/handle-expression/handle-expression.camp:2:34: error: unexpected token: Kw_With
-/tmp/camp-e2e/typechecking/handle-expression/handle-expression.camp:2:39: error: expected Dot, got LBrace
-/tmp/camp-e2e/typechecking/handle-expression/handle-expression.camp:2:39: error: expected Identifier, got LBrace
-/tmp/camp-e2e/typechecking/handle-expression/handle-expression.camp:2:39: error: expected Bang, got LBrace
-/tmp/camp-e2e/typechecking/handle-expression/handle-expression.camp:2:39: error: expected LParen, got LBrace
-/tmp/camp-e2e/typechecking/handle-expression/handle-expression.camp:2:39: error: expected Identifier, got LBrace
-/tmp/camp-e2e/typechecking/handle-expression/handle-expression.camp:2:39: error: expected RParen, got LBrace
-/tmp/camp-e2e/typechecking/handle-expression/handle-expression.camp:2:39: error: expected Fat_Arrow, got LBrace
-/tmp/camp-e2e/typechecking/handle-expression/handle-expression.camp:2:55: error: unexpected token: Arrow
-/tmp/camp-e2e/typechecking/handle-expression/handle-expression.camp:2:66: error: unexpected token: RParen
-/tmp/camp-e2e/typechecking/handle-expression/handle-expression.camp:2:69: error: unexpected token: RBrace
-/tmp/camp-e2e/typechecking/handle-expression/handle-expression.camp:3:1: error: expected RParen, got Eof
-/tmp/camp-e2e/typechecking/handle-expression/handle-expression.camp:3:1: error: expected RBrace, got Eof
-/tmp/camp-e2e/typechecking/handle-expression/handle-expression.camp:3:1: error: expected RBrace, got Eof
-compilation failed with 31 error(s)
+-- SYNTAX ERROR --- /tmp/camp-e2e/typechecking/handle-expression/handle-expression.camp
+
+I expected `:` here, but I got `}` instead.
+   1 | effect IO { println }
+                           ^
+
+-- SYNTAX ERROR --- /tmp/camp-e2e/typechecking/handle-expression/handle-expression.camp
+
+I expected `:` here, but I got `handle` instead.
+   2 | result = handle IO.println("hi") with { IO.println(s) -> resume(()) }
+                ^^^^^^
+
+-- SYNTAX ERROR --- /tmp/camp-e2e/typechecking/handle-expression/handle-expression.camp
+
+I expected `:` here, but I got `println` instead.
+   2 | result = handle IO.println("hi") with { IO.println(s) -> resume(()) }
+                          ^^^^^^^
+
+-- SYNTAX ERROR --- /tmp/camp-e2e/typechecking/handle-expression/handle-expression.camp
+
+I was expecting a type here, but I found `(` instead.
+   2 | result = handle IO.println("hi") with { IO.println(s) -> resume(()) }
+                                 ^
+
+-- SYNTAX ERROR --- /tmp/camp-e2e/typechecking/handle-expression/handle-expression.camp
+
+I expected `:` here, but I got `"hi"` instead.
+   2 | result = handle IO.println("hi") with { IO.println(s) -> resume(()) }
+                                  ^^^^
+
+-- SYNTAX ERROR --- /tmp/camp-e2e/typechecking/handle-expression/handle-expression.camp
+
+I was expecting a type here, but I found `)` instead.
+   2 | result = handle IO.println("hi") with { IO.println(s) -> resume(()) }
+                                      ^
+
+-- SYNTAX ERROR --- /tmp/camp-e2e/typechecking/handle-expression/handle-expression.camp
+
+I expected `:` here, but I got `with` instead.
+   2 | result = handle IO.println("hi") with { IO.println(s) -> resume(()) }
+                                        ^^^^
+
+-- SYNTAX ERROR --- /tmp/camp-e2e/typechecking/handle-expression/handle-expression.camp
+
+I expected `identifier` here, but I got `IO` instead.
+   2 | result = handle IO.println("hi") with { IO.println(s) -> resume(()) }
+                                               ^^
+
+-- SYNTAX ERROR --- /tmp/camp-e2e/typechecking/handle-expression/handle-expression.camp
+
+I expected `:` here, but I got `.` instead.
+   2 | result = handle IO.println("hi") with { IO.println(s) -> resume(()) }
+                                                 ^
+
+-- SYNTAX ERROR --- /tmp/camp-e2e/typechecking/handle-expression/handle-expression.camp
+
+I expected `identifier` here, but I got `(` instead.
+   2 | result = handle IO.println("hi") with { IO.println(s) -> resume(()) }
+                                                         ^
+
+-- SYNTAX ERROR --- /tmp/camp-e2e/typechecking/handle-expression/handle-expression.camp
+
+I expected `:` here, but I got `s` instead.
+   2 | result = handle IO.println("hi") with { IO.println(s) -> resume(()) }
+                                                          ^
+
+-- SYNTAX ERROR --- /tmp/camp-e2e/typechecking/handle-expression/handle-expression.camp
+
+I was expecting a type here, but I found `)` instead.
+   2 | result = handle IO.println("hi") with { IO.println(s) -> resume(()) }
+                                                           ^
+
+-- SYNTAX ERROR --- /tmp/camp-e2e/typechecking/handle-expression/handle-expression.camp
+
+I expected `identifier` here, but I got `)` instead.
+   2 | result = handle IO.println("hi") with { IO.println(s) -> resume(()) }
+                                                           ^
+
+-- SYNTAX ERROR --- /tmp/camp-e2e/typechecking/handle-expression/handle-expression.camp
+
+I expected `:` here, but I got `->` instead.
+   2 | result = handle IO.println("hi") with { IO.println(s) -> resume(()) }
+                                                             ^^
+
+-- SYNTAX ERROR --- /tmp/camp-e2e/typechecking/handle-expression/handle-expression.camp
+
+I expected `identifier` here, but I got `(` instead.
+   2 | result = handle IO.println("hi") with { IO.println(s) -> resume(()) }
+                                                                      ^
+
+-- SYNTAX ERROR --- /tmp/camp-e2e/typechecking/handle-expression/handle-expression.camp
+
+I expected `:` here, but I got `(` instead.
+   2 | result = handle IO.println("hi") with { IO.println(s) -> resume(()) }
+                                                                       ^
+
+-- SYNTAX ERROR --- /tmp/camp-e2e/typechecking/handle-expression/handle-expression.camp
+
+I was expecting a type here, but I found `)` instead.
+   2 | result = handle IO.println("hi") with { IO.println(s) -> resume(()) }
+                                                                        ^
+
+-- SYNTAX ERROR --- /tmp/camp-e2e/typechecking/handle-expression/handle-expression.camp
+
+I expected `identifier` here, but I got `)` instead.
+   2 | result = handle IO.println("hi") with { IO.println(s) -> resume(()) }
+                                                                        ^
+
+-- SYNTAX ERROR --- /tmp/camp-e2e/typechecking/handle-expression/handle-expression.camp
+
+I expected `:` here, but I got `)` instead.
+   2 | result = handle IO.println("hi") with { IO.println(s) -> resume(()) }
+                                                                         ^
+
+-- SYNTAX ERROR --- /tmp/camp-e2e/typechecking/handle-expression/handle-expression.camp
+
+I was expecting a type here, but I found `}` instead.
+   2 | result = handle IO.println("hi") with { IO.println(s) -> resume(()) }
+                                                                           ^
+
+-- SYNTAX ERROR --- /tmp/camp-e2e/typechecking/handle-expression/handle-expression.camp
+
+I expected `}` here, but I got `` instead.
+   3 | 
+       ^
+compilation failed with 21 error(s)
 """
 stderr = ""
 exit = 1

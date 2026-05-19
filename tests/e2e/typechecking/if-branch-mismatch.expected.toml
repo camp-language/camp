@@ -1,6 +1,13 @@
 stdout = """
 canonicalized /tmp/camp-e2e/typechecking/if-branch-mismatch/if-branch-mismatch.camp: 1 declaration(s), 0 import(s)
-type errors found, stopping.
+-- TYPE MISMATCH --- /tmp/camp-e2e/typechecking/if-branch-mismatch/if-branch-mismatch.camp
+
+`I64` does not match `Str`.
+   1 | x = if true 1 else "no"
+                   ^
+   1 | x = if true 1 else "no"
+                          ~~~~ this has type `Str`
+compilation failed with 1 error(s)
 """
 stderr = ""
 exit = 1

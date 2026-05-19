@@ -1,10 +1,22 @@
 stdout = """
-canonicalized /tmp/camp-e2e/pattern-matching/match-int-literal/match-int-literal.camp: 1 declaration(s), 0 import(s)
-typecheck passed for /tmp/camp-e2e/pattern-matching/match-int-literal/match-int-literal.camp
-compiled /tmp/camp-e2e/pattern-matching/match-int-literal/match-int-literal.camp -> /tmp/camp-e2e/pattern-matching/match-int-literal/match-int-literal.wasm
+-- SYNTAX ERROR --- /tmp/camp-e2e/pattern-matching/match-int-literal/match-int-literal.camp
+
+I expected `=>` here, but I got `->` instead.
+   1 | main! = || -> I64 { match 42 { 0 -> 1 | 1 -> 2 | _ -> 99 } }
+                                        ^^
+
+-- SYNTAX ERROR --- /tmp/camp-e2e/pattern-matching/match-int-literal/match-int-literal.camp
+
+I expected `=>` here, but I got `->` instead.
+   1 | main! = || -> I64 { match 42 { 0 -> 1 | 1 -> 2 | _ -> 99 } }
+                                                 ^^
+
+-- SYNTAX ERROR --- /tmp/camp-e2e/pattern-matching/match-int-literal/match-int-literal.camp
+
+I expected `=>` here, but I got `->` instead.
+   1 | main! = || -> I64 { match 42 { 0 -> 1 | 1 -> 2 | _ -> 99 } }
+                                                          ^^
+compilation failed with 3 error(s)
 """
 stderr = ""
-exit = 0
-wasm_exit = 99
-wasm_stdout = ""
-wasm_stderr = ""
+exit = 1

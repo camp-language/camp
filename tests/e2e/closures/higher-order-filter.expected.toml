@@ -1,7 +1,28 @@
 stdout = """
-canonicalized /tmp/camp-e2e/closures/higher-order-filter/higher-order-filter.camp: 1 declaration(s), 0 import(s)
-typecheck passed for /tmp/camp-e2e/closures/higher-order-filter/higher-order-filter.camp
-compiled /tmp/camp-e2e/closures/higher-order-filter/higher-order-filter.camp -> /tmp/camp-e2e/closures/higher-order-filter/higher-order-filter.wasm
+-- SYNTAX ERROR --- /tmp/camp-e2e/closures/higher-order-filter/higher-order-filter.camp
+
+I expected `)` here, but I got `,` instead.
+   1 | filter = (pred, xs) { match xs { Nil -> Nil | Cons(h, t) -> if pred(h) Cons(h, filter(pred, t)) else filter(pred, t) } }
+                     ^
+
+-- SYNTAX ERROR --- /tmp/camp-e2e/closures/higher-order-filter/higher-order-filter.camp
+
+I expected `=` here, but I got `)` instead.
+   1 | filter = (pred, xs) { match xs { Nil -> Nil | Cons(h, t) -> if pred(h) Cons(h, filter(pred, t)) else filter(pred, t) } }
+                         ^
+
+-- SYNTAX ERROR --- /tmp/camp-e2e/closures/higher-order-filter/higher-order-filter.camp
+
+I expected `=>` here, but I got `->` instead.
+   1 | filter = (pred, xs) { match xs { Nil -> Nil | Cons(h, t) -> if pred(h) Cons(h, filter(pred, t)) else filter(pred, t) } }
+                                            ^^
+
+-- SYNTAX ERROR --- /tmp/camp-e2e/closures/higher-order-filter/higher-order-filter.camp
+
+I expected `=>` here, but I got `->` instead.
+   1 | filter = (pred, xs) { match xs { Nil -> Nil | Cons(h, t) -> if pred(h) Cons(h, filter(pred, t)) else filter(pred, t) } }
+                                                                ^^
+compilation failed with 4 error(s)
 """
 stderr = ""
-exit = 0
+exit = 1

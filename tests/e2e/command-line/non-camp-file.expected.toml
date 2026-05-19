@@ -1,6 +1,10 @@
 args = "build-non-camp"
 stdout = """
-error: expected .camp file, got /tmp/camp-e2e/command-line/non-camp-file/test.txt
+-- INVALID FILE EXTENSION --- /tmp/camp-e2e/command-line/non-camp-file/test.txt
+
+I expected a `.camp` file, but you gave me
+`/tmp/camp-e2e/command-line/non-camp-file/test.txt`.
+compilation failed with 1 error(s)
 """
 stderr = ""
 exit = 1

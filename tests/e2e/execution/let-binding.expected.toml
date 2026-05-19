@@ -1,6 +1,17 @@
 stdout = """
 canonicalized /tmp/camp-e2e/execution/let-binding/let-binding.camp: 1 declaration(s), 0 import(s)
-type errors found, stopping.
+-- UNDEFINED NAME --- /tmp/camp-e2e/execution/let-binding/let-binding.camp
+
+I cannot find `x`.
+   1 | main! = || -> I64 { x = 42 y = x + 1 y }
+                                      ^
+
+-- UNDEFINED NAME --- /tmp/camp-e2e/execution/let-binding/let-binding.camp
+
+I cannot find `y`.
+   1 | main! = || -> I64 { x = 42 y = x + 1 y }
+                                            ^
+compilation failed with 2 error(s)
 """
 stderr = ""
 exit = 1

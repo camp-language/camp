@@ -1,10 +1,16 @@
 stdout = """
-canonicalized /tmp/camp-e2e/closures/closure-free-var/closure-free-var.camp: 1 declaration(s), 0 import(s)
-typecheck passed for /tmp/camp-e2e/closures/closure-free-var/closure-free-var.camp
-compiled /tmp/camp-e2e/closures/closure-free-var/closure-free-var.camp -> /tmp/camp-e2e/closures/closure-free-var/closure-free-var.wasm
+-- SYNTAX ERROR --- /tmp/camp-e2e/closures/closure-free-var/closure-free-var.camp
+
+I was not expecting `)` here.
+   1 | main! = || -> I64 { x = 10 f = () -> I64 { x } f() }
+                                       ^
+
+-- SYNTAX ERROR --- /tmp/camp-e2e/closures/closure-free-var/closure-free-var.camp
+
+I expected `)` here, but I got `->` instead.
+   1 | main! = || -> I64 { x = 10 f = () -> I64 { x } f() }
+                                         ^^
+compilation failed with 2 error(s)
 """
 stderr = ""
-exit = 0
-wasm_exit = 10
-wasm_stdout = ""
-wasm_stderr = ""
+exit = 1

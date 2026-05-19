@@ -1,10 +1,52 @@
 stdout = """
-/tmp/camp-e2e/typechecking/perform-call/perform-call.camp:1:21: error: expected Colon, got RBrace
-/tmp/camp-e2e/typechecking/perform-call/perform-call.camp:1:21: error: expected type, got RBrace
-/tmp/camp-e2e/typechecking/perform-call/perform-call.camp:2:3: error: expected Eq, got Dot
-/tmp/camp-e2e/typechecking/perform-call/perform-call.camp:2:3: error: unexpected token: Dot
-/tmp/camp-e2e/typechecking/perform-call/perform-call.camp:2:11: error: expected Eq, got LParen
-compilation failed with 5 error(s)
+-- SYNTAX ERROR --- /tmp/camp-e2e/typechecking/perform-call/perform-call.camp
+
+I expected `:` here, but I got `}` instead.
+   1 | effect IO { println }
+                           ^
+
+-- SYNTAX ERROR --- /tmp/camp-e2e/typechecking/perform-call/perform-call.camp
+
+I expected `:` here, but I got `println` instead.
+   2 | IO.println("hi")
+          ^^^^^^^
+
+-- SYNTAX ERROR --- /tmp/camp-e2e/typechecking/perform-call/perform-call.camp
+
+I was expecting a type here, but I found `(` instead.
+   2 | IO.println("hi")
+                 ^
+
+-- SYNTAX ERROR --- /tmp/camp-e2e/typechecking/perform-call/perform-call.camp
+
+I expected `:` here, but I got `"hi"` instead.
+   2 | IO.println("hi")
+                  ^^^^
+
+-- SYNTAX ERROR --- /tmp/camp-e2e/typechecking/perform-call/perform-call.camp
+
+I was expecting a type here, but I found `)` instead.
+   2 | IO.println("hi")
+                      ^
+
+-- SYNTAX ERROR --- /tmp/camp-e2e/typechecking/perform-call/perform-call.camp
+
+I expected `:` here, but I got `` instead.
+   3 | 
+       ^
+
+-- SYNTAX ERROR --- /tmp/camp-e2e/typechecking/perform-call/perform-call.camp
+
+I was expecting a type here, but I found `` instead.
+   3 | 
+       ^
+
+-- SYNTAX ERROR --- /tmp/camp-e2e/typechecking/perform-call/perform-call.camp
+
+I expected `}` here, but I got `` instead.
+   3 | 
+       ^
+compilation failed with 8 error(s)
 """
 stderr = ""
 exit = 1

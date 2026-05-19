@@ -1,5 +1,9 @@
 stdout = """
-/tmp/camp-e2e/errors/syntax-error-incomplete/syntax-error-incomplete.camp:2:1: error: unexpected token: Eof
+-- SYNTAX ERROR --- /tmp/camp-e2e/errors/syntax-error-incomplete/syntax-error-incomplete.camp
+
+I was not expecting `` here.
+   2 | 
+       ^
 compilation failed with 1 error(s)
 """
 stderr = ""

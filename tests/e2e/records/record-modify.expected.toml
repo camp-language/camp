@@ -1,10 +1,11 @@
 stdout = """
 canonicalized /tmp/camp-e2e/records/record-modify/record-modify.camp: 1 declaration(s), 0 import(s)
-typecheck passed for /tmp/camp-e2e/records/record-modify/record-modify.camp
-compiled /tmp/camp-e2e/records/record-modify/record-modify.camp -> /tmp/camp-e2e/records/record-modify/record-modify.wasm
+-- UNDEFINED NAME --- /tmp/camp-e2e/records/record-modify/record-modify.camp
+
+I cannot find `p2`.
+   1 | main! = || -> I64 { p = { x: 1, y: 2 } p2 = { x: 10 ..p } p2.x }
+                                                                 ^^
+compilation failed with 1 error(s)
 """
 stderr = ""
-exit = 0
-wasm_exit = 10
-wasm_stdout = ""
-wasm_stderr = ""
+exit = 1

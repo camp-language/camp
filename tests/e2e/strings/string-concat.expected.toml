@@ -5,6 +5,12 @@ compiled /tmp/camp-e2e/strings/string-concat/string-concat.camp -> /tmp/camp-e2e
 """
 stderr = ""
 exit = 0
-wasm_exit = 0
+wasm_exit = 1
 wasm_stdout = ""
-wasm_stderr = ""
+wasm_stderr = """
+Error: failed to parse WebAssembly module
+
+Caused by:
+    invalid flags byte in data segment (at offset 0x16b)
+
+"""

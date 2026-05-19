@@ -5,6 +5,12 @@ compiled /tmp/camp-e2e/tag-unions/tag-construct-error/tag-construct-error.camp -
 """
 stderr = ""
 exit = 0
-wasm_exit = 0
+wasm_exit = 1
 wasm_stdout = ""
-wasm_stderr = ""
+wasm_stderr = """
+Error: failed to parse WebAssembly module
+
+Caused by:
+    unexpected end-of-file (at offset 0x15c)
+
+"""

@@ -1,7 +1,28 @@
 stdout = """
-canonicalized /tmp/camp-e2e/closures/higher-order-map/higher-order-map.camp: 1 declaration(s), 0 import(s)
-typecheck passed for /tmp/camp-e2e/closures/higher-order-map/higher-order-map.camp
-compiled /tmp/camp-e2e/closures/higher-order-map/higher-order-map.camp -> /tmp/camp-e2e/closures/higher-order-map/higher-order-map.wasm
+-- SYNTAX ERROR --- /tmp/camp-e2e/closures/higher-order-map/higher-order-map.camp
+
+I expected `)` here, but I got `,` instead.
+   1 | map = (f, xs) { match xs { Nil -> Nil | Cons(h, t) -> Cons(f(h), map(f, t)) } }
+               ^
+
+-- SYNTAX ERROR --- /tmp/camp-e2e/closures/higher-order-map/higher-order-map.camp
+
+I expected `=` here, but I got `)` instead.
+   1 | map = (f, xs) { match xs { Nil -> Nil | Cons(h, t) -> Cons(f(h), map(f, t)) } }
+                   ^
+
+-- SYNTAX ERROR --- /tmp/camp-e2e/closures/higher-order-map/higher-order-map.camp
+
+I expected `=>` here, but I got `->` instead.
+   1 | map = (f, xs) { match xs { Nil -> Nil | Cons(h, t) -> Cons(f(h), map(f, t)) } }
+                                      ^^
+
+-- SYNTAX ERROR --- /tmp/camp-e2e/closures/higher-order-map/higher-order-map.camp
+
+I expected `=>` here, but I got `->` instead.
+   1 | map = (f, xs) { match xs { Nil -> Nil | Cons(h, t) -> Cons(f(h), map(f, t)) } }
+                                                          ^^
+compilation failed with 4 error(s)
 """
 stderr = ""
-exit = 0
+exit = 1

@@ -1,10 +1,58 @@
 stdout = """
-canonicalized /tmp/camp-e2e/strings/string-print/string-print.camp: 2 declaration(s), 0 import(s)
-typecheck passed for /tmp/camp-e2e/strings/string-print/string-print.camp
-compiled /tmp/camp-e2e/strings/string-print/string-print.camp -> /tmp/camp-e2e/strings/string-print/string-print.wasm
+-- SYNTAX ERROR --- /tmp/camp-e2e/strings/string-print/string-print.camp
+
+I expected `:` here, but I got `}` instead.
+   1 | effect IO { println }
+                           ^
+
+-- SYNTAX ERROR --- /tmp/camp-e2e/strings/string-print/string-print.camp
+
+I expected `:` here, but I got `=` instead.
+   2 | main! = || -> {IO} I64 { IO.println("hello") 0 }
+             ^
+
+-- SYNTAX ERROR --- /tmp/camp-e2e/strings/string-print/string-print.camp
+
+I was expecting a type here, but I found `|` instead.
+   2 | main! = || -> {IO} I64 { IO.println("hello") 0 }
+               ^
+
+-- SYNTAX ERROR --- /tmp/camp-e2e/strings/string-print/string-print.camp
+
+I expected `:` here, but I got `|` instead.
+   2 | main! = || -> {IO} I64 { IO.println("hello") 0 }
+                ^
+
+-- SYNTAX ERROR --- /tmp/camp-e2e/strings/string-print/string-print.camp
+
+I was expecting a type here, but I found `->` instead.
+   2 | main! = || -> {IO} I64 { IO.println("hello") 0 }
+                  ^^
+
+-- SYNTAX ERROR --- /tmp/camp-e2e/strings/string-print/string-print.camp
+
+I expected `:` here, but I got `{` instead.
+   2 | main! = || -> {IO} I64 { IO.println("hello") 0 }
+                     ^
+
+-- SYNTAX ERROR --- /tmp/camp-e2e/strings/string-print/string-print.camp
+
+I expected `=` here, but I got `{` instead.
+   2 | main! = || -> {IO} I64 { IO.println("hello") 0 }
+                              ^
+
+-- SYNTAX ERROR --- /tmp/camp-e2e/strings/string-print/string-print.camp
+
+I expected `=` here, but I got `}` instead.
+   2 | main! = || -> {IO} I64 { IO.println("hello") 0 }
+                                                      ^
+
+-- SYNTAX ERROR --- /tmp/camp-e2e/strings/string-print/string-print.camp
+
+I was not expecting `` here.
+   3 | 
+       ^
+compilation failed with 9 error(s)
 """
 stderr = ""
-exit = 0
-wasm_exit = 0
-wasm_stdout = "hello\n"
-wasm_stderr = ""
+exit = 1

@@ -1,10 +1,16 @@
 stdout = """
-canonicalized /tmp/camp-e2e/closures/closure-mutation-simulated/closure-mutation-simulated.camp: 1 declaration(s), 0 import(s)
-typecheck passed for /tmp/camp-e2e/closures/closure-mutation-simulated/closure-mutation-simulated.camp
-compiled /tmp/camp-e2e/closures/closure-mutation-simulated/closure-mutation-simulated.camp -> /tmp/camp-e2e/closures/closure-mutation-simulated/closure-mutation-simulated.wasm
+-- SYNTAX ERROR --- /tmp/camp-e2e/closures/closure-mutation-simulated/closure-mutation-simulated.camp
+
+I was not expecting `)` here.
+   1 | main! = || -> I64 { x = { val: 0 } f = () -> I64 { x.val } f() }
+                                               ^
+
+-- SYNTAX ERROR --- /tmp/camp-e2e/closures/closure-mutation-simulated/closure-mutation-simulated.camp
+
+I expected `)` here, but I got `->` instead.
+   1 | main! = || -> I64 { x = { val: 0 } f = () -> I64 { x.val } f() }
+                                                 ^^
+compilation failed with 2 error(s)
 """
 stderr = ""
-exit = 0
-wasm_exit = 0
-wasm_stdout = ""
-wasm_stderr = ""
+exit = 1
