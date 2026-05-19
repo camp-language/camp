@@ -307,28 +307,39 @@ lower_expr :: proc(expr: CExpr, env: ^Lower_Env) -> IR_Expr {
 }
 
 lower_call :: proc(e: ^CExpr_Call, env: ^Lower_Env) -> IR_Expr {
-	callee_name: Canonical_Name
 	#partial switch c in e.callee {
 	case ^CExpr_Name:
-		callee_name = c.name
+		callee_name := c.name
+		ir_args := make([dynamic]IR_Expr, 0, len(e.args))
+		for arg in e.args {
+			append(&ir_args, lower_expr(arg, env))
+		}
+		type_var := fresh_value_var(env.store, e.span)
+		call := new(IR_Call)
+		call^ = IR_Call{
+			callee = callee_name,
+			args = ir_args,
+			type = lower_type(env.store, type_var),
+			span = e.span,
+		}
+		return IR_Expr(call)
+
 	case:
-		callee_name = Canonical_Name{module = NO_NAME, name = fresh_ir_name(env), is_local = true}
+		callee_expr := lower_expr(c, env)
+		ir_args := make([dynamic]IR_Expr, 0, len(e.args))
+		for arg in e.args {
+			append(&ir_args, lower_expr(arg, env))
+		}
+		type_var := fresh_value_var(env.store, e.span)
+		ccall := new(IR_Closure_Call)
+		ccall^ = IR_Closure_Call{
+			callee = callee_expr,
+			args = ir_args,
+			type = lower_type(env.store, type_var),
+			span = e.span,
+		}
+		return IR_Expr(ccall)
 	}
-
-	ir_args := make([dynamic]IR_Expr, 0, len(e.args))
-	for arg in e.args {
-		append(&ir_args, lower_expr(arg, env))
-	}
-
-	type_var := fresh_value_var(env.store, e.span)
-	call := new(IR_Call)
-	call^ = IR_Call{
-		callee = callee_name,
-		args = ir_args,
-		type = lower_type(env.store, type_var),
-		span = e.span,
-	}
-	return IR_Expr(call)
 }
 
 lower_method_call :: proc(e: ^CExpr_Method_Call, env: ^Lower_Env) -> IR_Expr {

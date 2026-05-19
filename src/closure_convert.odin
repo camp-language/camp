@@ -53,6 +53,15 @@ cc_free_vars :: proc(expr: IR_Expr, bound: ^map[Intern_ID]bool) -> [dynamic]Inte
 			}
 			delete(inner)
 		}
+	case ^IR_Closure_Call:
+		callee := cc_free_vars(e.callee, bound)
+		for v in callee { append(&result, v) }
+		delete(callee)
+		for arg in e.args {
+			inner := cc_free_vars(arg, bound)
+			for v in inner { append(&result, v) }
+			delete(inner)
+		}
 	case ^IR_Tail_Call:
 		for arg in e.args {
 			inner := cc_free_vars(arg, bound)
@@ -288,6 +297,20 @@ cc_convert_expr :: proc(expr: IR_Expr, env: ^Closure_Convert_Env) -> IR_Expr {
 		new_call := new(IR_Call)
 		new_call^ = IR_Call{callee = e.callee, args = new_args, type = e.type, span = e.span}
 		return IR_Expr(new_call)
+
+	case ^IR_Closure_Call:
+		new_args := make([dynamic]IR_Expr, 0, len(e.args))
+		for arg in e.args {
+			append(&new_args, cc_convert_expr(arg, env))
+		}
+		new_cc := new(IR_Closure_Call)
+		new_cc^ = IR_Closure_Call{
+			callee = cc_convert_expr(e.callee, env),
+			args = new_args,
+			type = e.type,
+			span = e.span,
+		}
+		return IR_Expr(new_cc)
 
 	case ^IR_Tail_Call:
 		new_args := make([dynamic]IR_Expr, 0, len(e.args))

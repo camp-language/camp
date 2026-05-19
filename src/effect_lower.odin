@@ -189,6 +189,20 @@ el_lower_expr :: proc(expr: IR_Expr, env: ^Effect_Lower_Env) -> IR_Expr {
 		new_call^ = IR_Call{callee = e.callee, args = new_args, type = e.type, span = e.span}
 		return IR_Expr(new_call)
 
+	case ^IR_Closure_Call:
+		new_args := make([dynamic]IR_Expr, 0, len(e.args))
+		for arg in e.args {
+			append(&new_args, el_lower_expr(arg, env))
+		}
+		new_cc := new(IR_Closure_Call)
+		new_cc^ = IR_Closure_Call{
+			callee = el_lower_expr(e.callee, env),
+			args = new_args,
+			type = e.type,
+			span = e.span,
+		}
+		return IR_Expr(new_cc)
+
 	case ^IR_Tail_Call:
 		new_args := make([dynamic]IR_Expr, 0, len(e.args))
 		for arg in e.args {

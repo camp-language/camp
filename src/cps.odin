@@ -117,6 +117,20 @@ cps_transform_expr :: proc(expr: IR_Expr, k_name: Intern_ID, env: ^CPS_Env) -> I
 		new_call^ = IR_Call{callee = e.callee, args = new_args, type = e.type, span = e.span}
 		return IR_Expr(new_call)
 
+	case ^IR_Closure_Call:
+		new_args := make([dynamic]IR_Expr, 0, len(e.args))
+		for arg in e.args {
+			append(&new_args, cps_transform_expr(arg, k_name, env))
+		}
+		new_cc := new(IR_Closure_Call)
+		new_cc^ = IR_Closure_Call{
+			callee = cps_transform_expr(e.callee, k_name, env),
+			args = new_args,
+			type = e.type,
+			span = e.span,
+		}
+		return IR_Expr(new_cc)
+
 	case ^IR_Tail_Call:
 		new_args := make([dynamic]IR_Expr, 0, len(e.args))
 		for arg in e.args {

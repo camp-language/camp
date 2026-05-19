@@ -36,6 +36,11 @@ rc_collect_uses :: proc(expr: IR_Expr, uses: ^map[Intern_ID]int) {
 		for arg in e.args {
 			rc_collect_uses(arg, uses)
 		}
+	case ^IR_Closure_Call:
+		rc_collect_uses(e.callee, uses)
+		for arg in e.args {
+			rc_collect_uses(arg, uses)
+		}
 	case ^IR_Tail_Call:
 		for arg in e.args {
 			rc_collect_uses(arg, uses)
@@ -165,6 +170,20 @@ rc_insert_expr_inner :: proc(expr: IR_Expr, remaining: ^map[Intern_ID]int, inter
 		new_call := new(IR_Call)
 		new_call^ = IR_Call{callee = e.callee, args = new_args, type = e.type, span = e.span}
 		return IR_Expr(new_call)
+
+	case ^IR_Closure_Call:
+		new_args := make([dynamic]IR_Expr, 0, len(e.args))
+		for arg in e.args {
+			append(&new_args, rc_insert_expr_inner(arg, remaining, interner))
+		}
+		new_cc := new(IR_Closure_Call)
+		new_cc^ = IR_Closure_Call{
+			callee = rc_insert_expr_inner(e.callee, remaining, interner),
+			args = new_args,
+			type = e.type,
+			span = e.span,
+		}
+		return IR_Expr(new_cc)
 
 	case ^IR_Tail_Call:
 		new_args := make([dynamic]IR_Expr, 0, len(e.args))

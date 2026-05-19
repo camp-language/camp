@@ -91,6 +91,7 @@ IR_Expr :: union {
 	^IR_Handle,
 	^IR_Perform,
 	^IR_Closure,
+	^IR_Closure_Call,
 	^IR_Return,
 	^IR_Block,
 	^IR_BinOp,
@@ -216,6 +217,13 @@ IR_Closure :: struct {
 	body:    IR_Expr,
 	type:    IR_Type,
 	span:    Source_Span,
+}
+
+IR_Closure_Call :: struct {
+	callee: IR_Expr,
+	args:   [dynamic]IR_Expr,
+	type:   IR_Type,
+	span:   Source_Span,
 }
 
 IR_Return :: struct { value: IR_Expr, span: Source_Span }
