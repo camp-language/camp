@@ -9,6 +9,7 @@ CLI_Command :: enum {
 	Test,
 	Fmt,
 	Check,
+	Lsp,
 }
 
 parse_command :: proc(cmd: string) -> (CLI_Command, bool) {
@@ -17,6 +18,7 @@ parse_command :: proc(cmd: string) -> (CLI_Command, bool) {
 	case "test":  return .Test, true
 	case "fmt":   return .Fmt, true
 	case "check": return .Check, true
+	case "lsp":   return .Lsp, true
 	case:         return .Build, false
 	}
 }

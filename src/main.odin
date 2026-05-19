@@ -10,7 +10,7 @@ main :: proc() {
 	if len(args) < 2 {
 		fmt.printfln("Camp compiler v{}", VERSION)
 		fmt.println("Usage: camp <command> [options] <file>")
-		fmt.println("Commands: build, test, fmt, check")
+		fmt.println("Commands: build, test, fmt, check, lsp")
 		os.exit(1)
 	}
 
@@ -30,5 +30,6 @@ main :: proc() {
 	case .Test:  fmt.println("TODO: camp test")
 	case .Fmt:   fmt.println("TODO: camp fmt")
 	case .Check: fmt.println("TODO: camp check")
+	case .Lsp:   lsp_main()
 	}
 }
