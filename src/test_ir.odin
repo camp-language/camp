@@ -653,7 +653,7 @@ has_dup_or_drop :: proc(expr: IR_Expr) -> bool {
 
 @(test)
 test_rc_insert_dup_drop :: proc(t: ^testing.T) {
-	mod, ctx, store := lower_source("add = |x, y| x")
+	mod, ctx, store := lower_source("f = || { a = 42; a + a }")
 	defer teardown_lower(ctx, &store)
 
 	rc_insert(&mod, ctx)
