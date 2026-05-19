@@ -1,0 +1,38 @@
+{
+  "$schema": "https://tree-sitter.github.io/tree-sitter/assets/schemas/config.schema.json",
+  "grammars": [
+    {
+      "name": "camp",
+      "camelcase": "Camp",
+      "title": "Camp",
+      "scope": "source.camp",
+      "file-types": [
+        "camp"
+      ],
+      "injection-regex": "^camp$",
+      "class-name": "TreeSitterCamp"
+    }
+  ],
+  "metadata": {
+    "version": "0.1.0",
+    "license": "MIT",
+    "description": "Camp grammar for tree-sitter",
+    "authors": [
+      {
+        "name": "smores"
+      }
+    ],
+    "links": {
+      "repository": "https://github.com/camp-language/camp"
+    }
+  },
+  "bindings": {
+    "c": true,
+    "go": true,
+    "node": true,
+    "python": true,
+    "rust": true,
+    "swift": false,
+    "zig": false
+  }
+}
