@@ -54,6 +54,66 @@ parser_expect :: proc(p: ^Parser, kind: Token_Kind) -> Token {
 	return Token{kind = kind, span = p.current.span}
 }
 
+expr_span_start :: proc(expr: Expr) -> int {
+	switch e in expr {
+	case ^Expr_Int:               return e.span.start
+	case ^Expr_Float:             return e.span.start
+	case ^Expr_String:            return e.span.start
+	case ^Expr_Bool:              return e.span.start
+	case ^Expr_Identifier:        return e.span.start
+	case ^Expr_Dollar_Identifier: return e.span.start
+	case ^Expr_PrefixOp:          return e.span.start
+	case ^Expr_BinOp:             return e.span.start
+	case ^Expr_Lambda:            return e.span.start
+	case ^Expr_Block:             return e.span.start
+	case ^Expr_If:                return e.span.start
+	case ^Expr_Match:             return e.span.start
+	case ^Expr_Tag:               return e.span.start
+	case ^Expr_Call:              return e.span.start
+	case ^Expr_Field_Access:      return e.span.start
+	case ^Expr_Method_Call:       return e.span.start
+	case ^Expr_Record:            return e.span.start
+	case ^Expr_Record_Update:     return e.span.start
+	case ^Expr_List:              return e.span.start
+	case ^Expr_Assign:            return e.span.start
+	case ^Expr_Return:            return e.span.start
+	case ^Expr_Crash:             return e.span.start
+	case ^Expr_Interpolate:       return e.span.start
+	case ^Expr_Handle:            return e.span.start
+	case:                         return 0
+	}
+}
+
+right_span_end :: proc(expr: Expr) -> int {
+	switch e in expr {
+	case ^Expr_Int:               return e.span.end
+	case ^Expr_Float:             return e.span.end
+	case ^Expr_String:            return e.span.end
+	case ^Expr_Bool:              return e.span.end
+	case ^Expr_Identifier:        return e.span.end
+	case ^Expr_Dollar_Identifier: return e.span.end
+	case ^Expr_PrefixOp:          return e.span.end
+	case ^Expr_BinOp:             return e.span.end
+	case ^Expr_Lambda:            return e.span.end
+	case ^Expr_Block:             return e.span.end
+	case ^Expr_If:                return e.span.end
+	case ^Expr_Match:             return e.span.end
+	case ^Expr_Tag:               return e.span.end
+	case ^Expr_Call:              return e.span.end
+	case ^Expr_Field_Access:      return e.span.end
+	case ^Expr_Method_Call:       return e.span.end
+	case ^Expr_Record:            return e.span.end
+	case ^Expr_Record_Update:     return e.span.end
+	case ^Expr_List:              return e.span.end
+	case ^Expr_Assign:            return e.span.end
+	case ^Expr_Return:            return e.span.end
+	case ^Expr_Crash:             return e.span.end
+	case ^Expr_Interpolate:       return e.span.end
+	case ^Expr_Handle:            return e.span.end
+	case:                         return 0
+	}
+}
+
 parser_parse_file :: proc(p: ^Parser) -> File {
 	file: File
 	file.path = ""
@@ -81,7 +141,7 @@ parser_parse_decl :: proc(p: ^Parser) -> Decl {
 		return parser_parse_trait_decl(p, is_pub)
 	case .Kw_Alias:
 		return parser_parse_alias_decl(p, is_pub)
-	case .Kw_Import:
+	case .Kw_Import, .Kw_Unsafe:
 		return parser_parse_import_decl(p, is_pub)
 	case .Kw_Test:
 		return parser_parse_test_decl(p)
@@ -151,7 +211,7 @@ parser_parse_expr_bp :: proc(p: ^Parser, min_bp: Binding_Power) -> Expr {
 			op = op.kind,
 			left = left,
 			right = right,
-			span = Source_Span{file_id = op.span.file_id, start = 0, end = op.span.end},
+			span = Source_Span{file_id = op.span.file_id, start = expr_span_start(left), end = right_span_end(right)},
 		}
 		left = binop
 	}
@@ -354,17 +414,24 @@ parser_parse_lambda :: proc(p: ^Parser) -> Expr {
 
 	for p.current.kind != .Pipe && p.current.kind != .Eof {
 		param := Func_Param{span = p.current.span}
-	if p.current.kind == .Dot_Dot {
-		return parser_parse_record_expr(p, start)
-	}
+		if p.current.kind == .Dot_Dot {
+			parser_advance(p)
+			if p.current.kind == .Comma {
+				parser_advance(p)
+			}
+			continue
+		}
 
-	if p.current.kind == .Identifier || p.current.kind == .Upper_Id {
+		if p.current.kind == .Identifier || p.current.kind == .Upper_Id {
 			name_tok := parser_advance(p)
 			param.name = intern(p.intern, name_tok.text)
 			if p.current.kind == .Colon {
 				parser_advance(p)
 				param.type_ann = parser_parse_type(p)
 			}
+		} else {
+			collector_add_diag(p.collector, diag_expected_token(.Identifier, p.current, p.current.span))
+			parser_advance(p)
 		}
 		append(&params, param)
 		if p.current.kind == .Comma {
@@ -796,8 +863,12 @@ parser_parse_type :: proc(p: ^Parser) -> ^Type {
 	case .LBrack:
 		t = parser_parse_tag_union_type(p)
 
+	case .LParen, .Pipe:
+		t = parser_parse_function_type(p)
+
 	case:
 		collector_add_diag(p.collector, diag_expected_type(p.current, p.current.span))
+		parser_advance(p)
 		v := new(Type_Variable)
 		v^ = Type_Variable{name = intern(p.intern, "_"), span = p.current.span}
 		t = v
@@ -806,6 +877,40 @@ parser_parse_type :: proc(p: ^Parser) -> ^Type {
 	result := new(Type)
 	result^ = t
 	return result
+}
+
+parser_parse_function_type :: proc(p: ^Parser) -> Type {
+	start := p.current.span
+	params := make([dynamic]Type, 0, 4)
+
+	if p.current.kind == .LParen {
+		parser_advance(p)
+		for p.current.kind != .RParen && p.current.kind != .Eof {
+			param := parser_parse_type(p)
+			append(&params, param^)
+			if p.current.kind == .Comma {
+				parser_advance(p)
+			}
+		}
+		parser_expect(p, .RParen)
+	} else {
+		parser_expect(p, .Pipe)
+		parser_expect(p, .Pipe)
+	}
+
+	effects: ^Type = nil
+	if p.current.kind == .Arrow {
+		parser_advance(p)
+		if p.current.kind == .LBrace {
+			effects = parser_parse_effect_row_type(p)
+		}
+		return_type := parser_parse_type(p)
+		ft := new(Type_Function)
+		ft^ = Type_Function{params = params, effects = effects, return_ = return_type^, span = start}
+		return ft
+	}
+
+	return nil
 }
 
 parser_parse_record_type :: proc(p: ^Parser) -> Type {
