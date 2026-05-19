@@ -103,7 +103,7 @@ parser_parse_const_decl :: proc(p: ^Parser, is_pub: bool) -> Decl {
 	if p.current.kind == .Bang {
 		is_effectful = true
 		parser_advance(p)
-		name_text = strings.concatenate({name.text, "!"}, context.temp_allocator)
+		name_text = strings.concatenate({name.text, "!"}, context.allocator)
 	}
 
 	name_id := intern(p.intern, name_text)
@@ -959,7 +959,7 @@ parser_parse_effect_decl :: proc(p: ^Parser, is_pub: bool) -> Decl {
 		is_effectful := p.current.kind == .Bang
 		if is_effectful {
 			parser_advance(p)
-			op_name_text = strings.concatenate({op_name_tok.text, "!"}, context.temp_allocator)
+			op_name_text = strings.concatenate({op_name_tok.text, "!"}, context.allocator)
 		}
 		op_name_id := intern(p.intern, op_name_text)
 
