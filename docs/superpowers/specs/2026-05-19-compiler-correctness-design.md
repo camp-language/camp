@@ -5,9 +5,12 @@
 This document covers the design for 8 deferred bugs discovered during a
 comprehensive correctness audit of the Camp compiler. Each bug represents a
 missing or broken compiler feature that is blocking correct compilation of
-non-trivial programs. The bugs span five compiler phases: IR lowering,
-typechecking, effect lowering, closure conversion, CPS transformation, and
-reference counting.
+non-trivial programs. The bugs span six compiler phases: IR lowering,
+typechecking, effect lowering, closure conversion, CPS transformation,
+reference counting, and types.
+
+All designs follow a "most correct" approach — no shortcuts, proper compiler
+engineering.
 
 ---
 
@@ -18,29 +21,24 @@ crash semantics are discarded. No `IR_Crash` variant exists in the IR union.
 
 ### Design
 
-Add a minimal `IR_Crash` variant to `IR_Expr` union and `ir.odin` structs:
+Add `IR_Crash` to the IR_Expr union:
 
 ```odin
 IR_Crash :: struct {
-    message: IR_Expr,  // the message expression (string)
+    message: IR_Expr,
     span:    Source_Span,
 }
 ```
 
-**Lowering** (`lower.odin`):
-Lower `CExpr_Crash` to `IR_Crash{message = lower_expr(e.message, env)}`.
+**Lowering:** Lower `CExpr_Crash` to `IR_Crash{message = lower_expr(e.message, env)}`.
 
-**Codegen** (`codegen.odin`):
-Add `case ^IR_Crash: emit_instruction(Wasm_Unreachable{}, buf)` to
-`emit_expr`. If we later want the message to appear before crashing, emit the
-message expression first, then unreachable.
+**Codegen:** Emit `Wasm_Unreachable` (after optionally emitting the message
+expression). Add case to `emit_expr`.
 
-**RC** (`rc.odin`): Add case to `rc_collect_uses` and `rc_insert_expr_inner`
-to traverse `e.message`.
+**All mid-end passes:** Add traversal cases (closure_convert, effect_lower,
+cps, rc) to recurse into the message expression.
 
-**Closure convert / CPS / Effect lower**: Add pass-through cases.
-
-**Estimated scope:** ~15 lines across 4 files.
+**Estimated scope:** ~15 lines across 6 files.
 
 ---
 
@@ -52,36 +50,35 @@ calls like `(f x) y` call non-existent functions.
 
 ### Design
 
-**Option A — Diagnostic and stub:**
-Emit a compiler diagnostic ("higher-order calls are not yet supported") and
-lower the call to an unreachable. This is correct for error reporting but
-doesn't implement the feature.
+Use closure records and WASM `call_indirect` — the proper fix.
 
-**Option B — Function references:**
-Add `IR_Funcref` to the IR union representing a closable function reference.
-Lower the callee expression normally, then use `call_indirect` in WASM
-codegen. This requires:
-- A `Funcref` IR type variant (exists as `IR_Wasm_Type.Funcref`)
-- A WASM table for indirect calls
-- `call_indirect` instruction support
+**New IR node:**
+```odin
+IR_Closure_Call :: struct {
+    callee: IR_Expr,
+    args:   [dynamic]IR_Expr,
+    type:   IR_Type,
+    span:   Source_Span,
+}
+```
 
-**Option C — Lambda lifting (recommended):**
-For `lam = (x) -> x + 1; lam(5)`, lift the lambda to a named top-level
-function during lowering. `lam(5)` becomes a direct call to the lifted
-function. This avoids function pointers entirely for statically-known calls.
+**Lowering:** When `CExpr_Call` has a non-name callee, lower the callee
+expression normally. Create
+`IR_Closure_Call{callee = lowered_callee, args = lowered_args}`.
 
-For unknown callees (function parameters), combine with Option B.
+**Closure convert:** The callee expression passes through closure conversion.
+If it's a lambda, it becomes a closure record with `fn_idx` and `env_ptr`.
+Add traversal case for `IR_Closure_Call`.
 
-**Socratic questions:**
-1. What Camp programs require higher-order calls today?
-2. Is it better to error clearly or silently produce wrong code?
-3. Should we implement this incrementally (Option A now, Option C later)?
+**Codegen:** Lower the callee (closure record), extract `fn_idx` and
+`env_ptr`, push args, emit `call_indirect`. Each closed function gets an
+element entry in the WASM table. Add `Wasm_Call_Indirect` instruction.
 
-**Recommendation:** Option A as immediate fix (clear error instead of silent
-wrong behavior). Option C deferred as a full feature.
+**All mid-end passes:** Add passthrough traversal for `IR_Closure_Call`.
 
-**Estimated scope (Option A):** ~8 lines in `lower.odin` (add diagnostic
-collector to `Lower_Env` and emit diagnostic).
+**Estimated scope:** ~30 lines in `lower.odin`, ~10 lines in
+`closure_convert.odin`, ~15 lines for struct, ~20 lines in `rc.odin`, ~35
+lines codegen (table + call_indirect), ~1 line in `wasm.odin`.
 
 ---
 
@@ -89,22 +86,18 @@ collector to `Lower_Env` and emit diagnostic).
 
 **Current state** (`effect_lower.odin:131-163`): When `IR_Perform` finds no
 matching handler on the evidence stack (`ev_var == NO_NAME`), the evidence
-argument is simply not prepended to the call arguments. The handler function
-expects an evidence parameter but the call site doesn't provide one — causing
-a calling convention mismatch.
+argument is silently omitted. The handler function expects an evidence
+parameter but the call site doesn't provide one — calling convention mismatch.
 
 ### Design
 
-When `ev_var == NO_NAME`, emit a diagnostic and skip the perform (lower to
-`IR_Literal_Int{0}` or unreachable). The evidence argument should always be
-present for handled performs; for unhandled performs, the typechecker should
-have caught this before effect_lower runs.
+When `ev_var == NO_NAME`, emit a diagnostic and lower the perform to
+`IR_Literal_Int{0}` with the perform's type. The evidence argument should
+always be present for handled performs. Unhandled performs are caught by the
+typechecker before effect_lower runs, so this case indicates a compiler bug.
 
-More robustly: add an evidence parameter to the handler function call at the
-perform site unconditionally. When no evidence exists, pass a null/zero
-literal with a diagnostic.
-
-**Estimated scope:** ~5 lines in `effect_lower.odin`.
+**Estimated scope:** ~5 lines in `effect_lower.odin`. Requires adding
+`collector` to `Effect_Lower_Env`.
 
 ---
 
@@ -112,411 +105,198 @@ literal with a diagnostic.
 
 **Current state** (`typecheck.odin:485-506`): `typecheck_match` typechecks
 the scrutinee and arm bodies but never processes patterns. Pattern variables
-are never bound into the environment, so arm bodies can't use bindings.
-Pattern structure is never checked against the scrutinee type.
+are never bound into the environment. Pattern structure is never checked
+against the scrutinee type.
 
 ### Design
 
-Add `typecheck_pattern :: proc(pattern: CPattern, scrutinee_var: Type_Var_ID, env: ^Type_Env, store: ^Type_Store) -> Type_Result`.
+Add `typecheck_pattern :: proc(pattern: CPattern, scrutinee_var: Type_Var_ID,
+env: ^Type_Env, store: ^Type_Store) -> Type_Result`.
 
-This function dispatches on pattern kind and:
+**Pattern dispatch:**
 
-```
-CPat_Var(name):
-    env.bindings[name] = scrutinee_var
-    return {var_id = scrutinee_var, effects = fresh_effect_row}
-
-CPat_Wildcard:
-    return {var_id = scrutinee_var, effects = fresh_effect_row}
-
-CPat_Bool(value):
-    bool_var = make_primitive_type("Bool")
-    unify(store, scrutinee_var, bool_var)
-    return {var_id = bool_var, effects = fresh_effect_row}
-
-CPat_Int(value):
-    int_var = make_primitive_type("I64")
-    unify(store, scrutinee_var, int_var)
-    return {var_id = int_var, effects = fresh_effect_row}
-
-CPat_Tag(name, payload_patterns):
-    // Create a tag union type constraining the scrutinee
-    payload_vars = [fresh_value_var() for each payload pattern]
-    for each payload_pattern, payload_var:
-        typecheck_pattern(payload_pattern, payload_var, env, store)
-    rest_var = fresh_value_var()
-    tag_var = fresh_value_var()
-    link(tag_var, Tag_Union_Row{[Tag_Entry{name, payload_vars}], rest_var})
-    unify(store, scrutinee_var, tag_var)
-    return tag_var
-
-CPat_Record(field_patterns, is_open):
-    // Create a record row type constraining the scrutinee
-    field_entries = [Field_Entry{field.name, fresh_value_var()} for each field]
-    for each field pattern:
-        typecheck_pattern(field.pattern, field_entries[i].var, env, store)
-    rest = fresh_record_row()
-    rec_var = fresh_value_var()
-    link(rec_var, Record_Row{field_entries, rest})
-    unify(store, scrutinee_var, rec_var)
-    return rec_var
-```
+| Pattern kind | Action |
+|---|---|
+| `CPat_Var(name)` | `env.bindings[name] = scrutinee_var`; return scrutinee |
+| `CPat_Wildcard` | Return scrutinee (matches everything; covers all tags for exhaustiveness) |
+| `CPat_Bool(v)` | Unify scrutinee with `Bool` |
+| `CPat_Int(v)` | Unify scrutinee with `I64` |
+| `CPat_String(v)` | Unify scrutinee with `String` |
+| `CPat_Tag(name, payloads)` | Create tag union row `{Tag_Entry{name, payload_vars}, rest}`; unify scrutinee with it; recurse into payload patterns |
+| `CPat_Record(fields, is_open)` | Create record row `{field_entries, rest}`; unify scrutinee with it; recurse into field patterns |
+| `CPat_Or(patterns)` | Typecheck each sub-pattern against the same scrutinee_var |
 
 **Modifications to `typecheck_match`:**
 For each arm:
-1. Save the current `env.bindings`
+1. Save current `env.bindings` state
 2. Call `typecheck_pattern(arm.pattern, scrutinee_result.var_id, arm_env, store)`
-3. The pattern typechecking adds bindings to `arm_env.bindings`
-4. Typecheck the arm body with `arm_env`
-5. Restore `env.bindings` (patterns are scoped to their arm)
+3. Typecheck the arm body with `arm_env`
+4. Restore `env.bindings` (patterns are scoped per arm)
 
-**Estimated scope:** ~80 lines in `typecheck.odin`.
+**Exhaustiveness checking:**
+After all arms are typechecked, resolve the scrutinee type:
+- If it's a closed tag union (`tag_entries` with no open rest):
+  - Collect covered tags from arm patterns
+  - `CPat_Wildcard` and `CPat_Or` containing `CPat_Wildcard` saturate coverage
+  - Any uncovered tag produces a "non-exhaustive match" diagnostic
+  - Include hints listing missing tags
+- If the scrutinee type is not a closed tag union, skip exhaustiveness
+
+**Estimated scope:** ~90 lines in `typecheck.odin`.
 
 ---
 
 ## Bug 5 (C8): Closure Body Nil
 
 **Current state** (`closure_convert.odin:241`): The closure conversion creates
-an `IR_Decl_Fn` with `body = IR_Expr(nil)`. The original lambda body is not
-transferred. Additionally, `e.env` is always nil (set in `lower_lambda:403`),
-so `cc_free_vars` returns zero free variables. The fn_idx and env_ptr in the
-closure record are literal 0.
+an `IR_Decl_Fn` with `body = IR_Expr(nil)`. The original lambda body is never
+transferred. `lower_lambda:403` sets `env = nil`, so `cc_free_vars` returns
+zero free variables. The fn_idx and env_ptr in the closure record are literal 0.
 
 ### Design
 
-**Step 1 — Transfer the body:**
-The `IR_Closure` node currently has `env: IR_Expr` (the body) and `type:
-IR_Type`. The closure conversion must:
-1. Extract the lambda body from `e.env` (currently nil — see Step 2)
-2. Set `closed_fn.body = cc_convert_expr(extracted_body, env)`
-
-**Step 2 — Fix `lower_lambda` to preserve the body:**
-In `lower.odin`, `lower_lambda` sets `env = nil` and `body = the_lambda_body`.
-We need to change this so the IR_Closure carries the lambda body. Two options:
-
-*Option A — Dual-purpose `env` field:*
-Change `lower_lambda` to store the body in the `env` field:
-```odin
-IR_Closure{env = lower_expr(lambda_body), type = ...}
-```
-Then in closure_convert, extract it: `closed_fn.body = cc_convert_expr(e.env, env)`.
-
-*Option B — Add a `body` field to IR_Closure:*
+**Step 1 — Add `body` field to `IR_Closure`:**
 ```odin
 IR_Closure :: struct {
-    fn_idx: IR_Expr,
-    env_ptr: IR_Expr,
-    body:    IR_Expr,  // the lambda body
+    env:     IR_Expr,
+    body:    IR_Expr,    // NEW: the lambda body
     type:    IR_Type,
     span:    Source_Span,
 }
 ```
-This is cleaner but requires adding the field to the IR struct and updating
-all traversals (collect_locals, cc_free_vars, rc_collect_uses, etc.).
+Update all mid-end traversals to recurse into `.body`.
 
-**Recommendation:** Option B. We're fixing closures properly, so we should
-have the right data structures.
+**Step 2 — Fix `lower_lambda`:**
+Store the lambda body in the `IR_Closure.body` field. The `env` field
+remains nil (free variables are computed by closure_convert from the body).
 
-**Step 3 — Track function index:**
-The `fn_idx_lit` is hardcoded to 0. After creating `closed_fn`, its index in
-`env.module.decls` is known. Store this in a map from closure name to index,
-and use it when generating the closure record.
-
-Alternatively: store the name and let a later pass (codegen) resolve it.
-
-**Step 4 — Handle free variables:**
-The `cc_free_vars` function correctly finds free variables. The env parameter
-(`_cenv`) is added to params. The env is captured as:
+**Step 3 — Transfer body in closure_convert:**
 ```odin
-let _cenv = alloc(sizeof(free_vars))
-_cenv[0] = free_var_1
-_cenv[1] = free_var_2
-...
+case ^IR_Closure:
+    // ... compute free vars from e.body ...
+    closed_fn.body = cc_convert_expr(e.body, env)
 ```
 
-**Step 5 — Closure calling convention:**
-When a closure is called, extract `fn_idx` and `env_ptr`, then do an indirect
-call with the env as the first argument:
-```odin
-// At the call site:
-let fn_idx = closure_record.fn_idx
-let env_ptr = closure_record.env_ptr
-call_indirect(fn_idx, env_ptr, arg1, arg2, ...)
-```
+**Step 4 — Track function index:**
+After adding `closed_fn` to `env.module.decls`, store its index in a
+`map[Intern_ID]int` mapping closure name → function index. Use this when
+generating the closure record's `fn_idx` literal instead of hardcoding 0.
 
-This requires WASM tables and `call_indirect` — significant codegen work
-deferred to a future task.
+**Step 5 — Capture free variables as env:**
+Generate env allocation and field stores for each free variable. The env
+becomes `let _cenv = alloc(N); _cenv[0] = free_var_1; ...`. The env_ptr in
+the closure record references `_cenv`.
 
-**Minimum viable fix (recommended for now):**
-1. Add `body` field to `IR_Closure`
-2. Store the lambda body in `lower_lambda`
-3. In closure_convert, set `closed_fn.body` from `e.body`
-4. Leave fn_idx/env_ptr as literal 0 (closures still don't "capture" but
-   at least the closed function has the right body)
-5. Codegen for closure calls uses direct call (only works for non-capturing)
-
-**Estimated scope:** ~50 lines across `ir.odin`, `lower.odin`,
-`closure_convert.odin`.
+**Estimated scope:** ~10 lines in `ir.odin`, ~5 lines in `lower.odin`, ~45
+lines in `closure_convert.odin`, ~30 lines across mid-end traversal updates.
 
 ---
 
 ## Bug 6 (C9): Perceus RC — Var Replaced by Dup/Drop
 
 **Current state** (`rc.odin:124-139`): Every `IR_Var` is replaced by
-`IR_Dup` (if uses remain > 0) or `IR_Drop` (if last use). The original
-`IR_Var` is never preserved. Result: no variable is ever actually *used* —
-it's only duplicated or dropped.
+`IR_Dup` (if uses remain) or `IR_Drop` (if last use). The original `IR_Var`
+is never preserved. No variable is ever actually used.
 
 ### Design
 
-The correct Perceus semantics for a variable used N times:
+Rewrite `IR_Let` nodes rather than `IR_Var` nodes. The `IR_Var` nodes stay
+unchanged.
 
-| Use # | IR Node | Meaning |
-|-------|---------|---------|
-| 1st | `IR_Var(name)` | Read the variable (first use = borrowed, not consumed) |
-| 2nd..N-1th | `Dup(Var(name))` | Increment refcount, read the variable |
-| Nth (last) | `Var(name)` | Read the variable (last use = consumed, refcount stays) |
+**Correct Perceus algorithm for `let x = value in body`:**
 
-Wait — that's wrong. Let me reconsider the Perceus paper.
+1. `rc_collect_uses` counts uses of `x` in `body`
+2. For uses = 0: `drop(x); body` (x is never read)
+3. For uses = 1: `body` unchanged (single use, unique reference)
+4. For uses >= 2: wrap body with `dup(x)` before non-last uses and `drop(x)` at scope end
 
-**Correct Perceus semantics:**
+**Implementation in `rc_insert_expr_inner` for `IR_Let`:**
 
-Perceus uses reference counting with guaranteed destructive-read semantics. A
-variable binding is "consumed" at its last use. For a variable used N times:
-
-| Use # | Action |
-|-------|--------|
-| 1 | Read normally (borrowed) |
-| 2..N | Depends on whether context needs ownership |
-| Last | Read normally (consumed), no drop needed |
-
-Actually, the Koka/Perceus paper describes it differently. The key insight:
-
-- **Borrowed (`Var`):** The use doesn't take ownership. Refcount unchanged.
-- **Shared (`Dup`):** Increments refcount, returns a shared reference.
-- **Unique (last use):** Doesn't change refcount, passes ownership.
-
-For a variable used N times in sequence:
-1. Uses 1..N-1: Share (`Dup`) — increment refcount, return copy
-2. Use N (last): Consume (just `Var`) — pass ownership, decrement happens
-   when the binding goes out of scope (via `Drop`)
-
-But `Drop` is handled separately — every `let` binding gets a deferred drop.
-
-What the current code does wrong:
-1. It replaces EVERY `Var` with `Dup` or `Drop` — should KEEP the `Var` and
-   ADD `Dup` before it (not replace it)
-2. It doesn't handle ordering — `Dup` should come BEFORE the use
-3. The `Drop` is inserted at the wrong place — it should be at the end of
-   the binding's scope, not at the use site
-
-**Correct algorithm:**
-
-```
-For each let binding x = expr in body:
-    uses = count uses of x in body
-    if uses == 0:
-        // x is never used, drop the expr result immediately
-        replace with: { drop x0; body }
-        // where x0 is a temp holding expr's result
-    
-    elif uses == 1:
-        // single use, pass unique reference (no dup needed)
-        // let x = expr in body[x]
-        // unchanged — the single Var use is correct
-    
-    else: // uses >= 2
-        // multiple uses, dup before each use except the last
-        // let x = expr in body[dup(x), dup(x), ..., x]
-        for each use of x except the last:
-            insert Dup before the Var
-```
-
-**Implementation approach:**
-
-Change `rc_insert_expr_inner` for `IR_Var`:
 ```odin
-case ^IR_Var:
-    count := remaining^[e.name]
-    if count <= 0 { return expr }  // shouldn't happen
-    remaining^[e.name] = count - 1
+case ^IR_Let:
+    let_uses := count_uses_in_body(e.binding, e.body)
     
-    if count == 1:
-        // Last use — keep the Var, add Drop after this scope
-        return expr  // the Var stays as-is
+    if let_uses == 0 {
+        // Never used: drop immediately
+        drop := new(IR_Drop){value = e.binding}
+        return IR_Expr(IR_Block{
+            statements = [IR_Expr(drop), e.body],
+            type = e.type, span = e.span,
+        })
+    }
     
-    else:
-        // Non-last use — prepend Dup
-        dup := new(IR_Dup)
-        dup^ = IR_Dup{value = e.name, span = e.span}
-        
-        block := new(IR_Block)
-        block^ = IR_Block{
-            statements = [IR_Expr(dup), expr],
-            type = e.type,
-            span = e.span,
-        }
-        return IR_Expr(block)
+    // Process the body, inserting dup before each non-last Var
+    transformed_body := insert_dups_and_drop(e.body, e.binding, let_uses)
+    
+    new_let := new(IR_Let){
+        binding = e.binding,
+        type = e.type,
+        value = rc_insert_expr_inner(e.value, remaining, interner),
+        body = transformed_body,
+    }
+    return IR_Expr(new_let)
 ```
 
-Wait — the above changes `IR_Var` (which is just a leaf expression) into a
-block expression containing `[Dup, Var]`. This changes the semantic meaning
-of the expression tree and would break call argument lists, if conditions,
-etc. A `Dup` + `Var` inside a block changes the value on the stack.
+**Helper `insert_dups_and_drop`:** traverses the expression tree. When it
+finds `IR_Var{name == binding}`, if not the last use, wraps it in
+`Block{[Dup(binding), Var(binding)]}`. At the end of the body, appends
+`Drop(binding)`.
 
-**Better approach — rewrite the LET node instead:**
-
-Don't touch `IR_Var` at all. Instead, rewrite `IR_Let` nodes:
-
-```
-For a let x = value in body:
-    1. Count uses of x in body
-    2. If uses > 1, add Dup calls in body
-    3. Add Drop at the end of x's scope
-```
-
-Koka's approach wraps the let-body with:
-```
-let x = value in
-    dup(x);  // if needed
-    ... body with Var(x) references unchanged ...
-    drop(x)  // at scope end
-```
-
-The `IR_Block` already provides this framing. Rewrite:
-```
-let x = value in body
-```
-becomes:
-```
-let x = value in
-    { dup(x); transform(body); drop(x) }
-```
-
-**Estimated scope:** ~30 lines rewriting `IR_Let` handling in
-`rc_insert_expr_inner`, ~15 lines to handle final drop insertion.
+**Estimated scope:** ~50 lines rewriting the `IR_Let` case in
+`rc_insert_expr_inner`, ~40 lines for `insert_dups_and_drop`.
 
 ---
 
 ## Bug 7 (M5): CPS Transformation — No Continuations Generated
 
 **Current state** (`cps.odin`): The CPS transform threads `k_name` through
-the tree but never creates new continuation functions for sub-expressions.
-`IR_Return` becomes `IR_Tail_Call{k, val}`, but `IR_Call`, `IR_BinOp`,
-`IR_If` just recursively transform sub-expressions without introducing
-continuation-passing.
+the tree but never creates new continuation functions. Only `IR_Return`
+becomes a tail-call.
 
 ### Design
 
-**What true CPS does for effectful functions:**
+Generate continuation functions for each effectful sub-expression.
 
-An effectful function like:
+**Key CPS rule — effectful calls:**
 ```
-f(x) = let y = print(x) in g(y + 1)
-```
-
-In CPS, every effectful sub-expression gets its own continuation:
-
-```
-f(x, k) =
-    let k1(y) = let r = y + 1 in g(r, k) in
-    print(x, k1)
+Before: let y = f(x) in g(y + 1)    (where f is effectful)
+After:  f(x, fun(y) { g(y + 1) })
 ```
 
-Each step after an effectful call becomes a new top-level function.
+**Implementation for `IR_Let` with effectful value:**
+1. Create a fresh continuation name `kc`
+2. Compute the continuation body: `cps_transform_expr(e.body, kc, env)`
+3. If the value is an `IR_Call` to an effectful function:
+   - Add `kc` as an extra parameter to the call's `args`
+   - Create a continuation function `IR_Decl_Fn{name=kc, params=[y: result_type], body=cont_body}`
+   - Add it to `env.module.decls`
+   - Return the transformed call
+4. If the value is pure, recurse normally
 
-**Minimal working CPS (effects → tail calls only):**
-
-The current approach — converting returns to tail-calls of the effect
-continuation — is actually sufficient for basic effect handling. The missing
-piece is generating continuation functions for:
-1. Sub-calls: `let y = f(x) in body` → `f(x, fun(y) { body })`
-2. If branches: both branches must call the same continuation
-3. Binary ops with effectful operands
-
-Step-by-step algorithm:
-
+**Implementation for `IR_If`:**
+Both branches must call the same continuation:
 ```
-cps_transform_expr(expr, k_name, env):
-    switch expr:
-        IR_Return{value}:
-            // Tail-call continuation with the value
-            return IR_Tail_Call{k, [value]}
-        
-        IR_Call{callee, args}:
-            if callee is effectful:
-                // Create a new continuation for the call
-                new_k = fresh("kc")
-                let_name = fresh("_r")
-                cont_body = cps_transform_expr(body_using_result, k_name, env)
-                cont_fn = IR_Decl_Fn{name=new_k, body=cont_body, params=[let_name]}
-                add cont_fn to module
-                
-                // Transform the call to pass new continuation
-                return IR_Tail_Call{callee, args=[...args, new_k]}
-            else:
-                return IR_Call{callee, cps_transform_args(args)}
-        
-        IR_If{cond, then, else}:
-            return IR_If{
-                cond = cps_transform_expr(cond, k_name, env),
-                then = cps_transform_expr(then, k_name, env),
-                else = cps_transform_expr(else, k_name, env),
-            }
-        
-        IR_Let{binding, value, body}:
-            return IR_Let{
-                binding = binding,
-                value = cps_transform_expr(value, k_name, env),
-                body = cps_transform_expr(body, k_name, env),
-            }
+Before: if cond then a else b; k(result)
+After:  if cond then { a; k(a_result) } else { b; k(b_result) }
 ```
 
-**When to create continuations:**
+**When to generate continuations:**
+Only for effectful sub-expressions. Determine effectfulness from the function
+type's `effect_row` field (non-void = effectful).
 
-Only create continuations for effectful sub-expressions. Pure expressions
-(arithmetic, constructor, field access) can stay direct-style. The
-`effect_row` field on function types tells us whether a call is effectful.
-
-**Socratic questions:**
-1. Do we need true CPS, or is tail-call conversion sufficient?
-2. What Camp programs today exercise the effect system?
-3. How does Koka's selective CPS work? (Only effectful parts get CPS)
-
-**Recommendation:** The current "mark tail-calls" approach works for the
-single-function case. For multi-function effects with resumes, we need
-continuation generation. Implement the `IR_Call` case (most common) and
-defer `IR_If`/`IR_BinOp` continuation generation until needed.
-
-**Estimated scope:** ~40 lines modifying `cps_transform_expr`, ~15 lines for
-continuation function generation.
+**Estimated scope:** ~60 lines in `cps.odin`.
 
 ---
 
 ## Bug 8 (M9): Generalization at Level — Unsound Child Levels
 
-**Current state** (`types.odin:132-138`): `generalize_at_level` sets all
-variables at level L to `LEVEL_GENERIC` without verifying that children of
-`Inferred_Type` structures are also at level ≤ L.
-
-**Example of the bug:**
-```
-let f = (x) -> {             // level 1
-    let g = (y) -> x + y     // level 2
-    g
-}
-```
-When generalizing at level 1, `f`'s return type `int -> int` is generalized.
-But `x` inside `g` is at level 1 (it's bound in f's scope, at level 1). When
-`f` is instantiated multiple times, `x` should be freshened each time. But if
-`x`'s level wasn't properly tracked through `g`'s type, it might not get the
-correct level for generalization.
+**Current state** (`types.odin:132-138`): `generalize_at_level` marks all
+variables at level L as `LEVEL_GENERIC` without checking that children of
+`Inferred_Type` structures are also at level <= L.
 
 ### Design
 
-The fix: when generalizing a variable at level L, recursively check that all
-children of its `Inferred_Type` are at level ≤ L. If any child is at level >
-L, produce the existing diagnostic or mark the variable as non-generalizable.
+Add a recursive check before generalizing:
 
 ```
 generalize_at_level(store, level):
@@ -529,57 +309,46 @@ all_children_at_or_below_level(store, link, max_level):
     switch link:
         Type_Unlinked: return true
         Inferred_Type:
-            for each child_var_id in the inferred type:
-                child = get_var(store, child_var_id)
-                if child.level > max_level:
-                    return false
+            extract all child Type_Var_IDs from the inferred type
+            for each child_id:
+                child = get_var(store, child_id)
+                if child.level > max_level: return false
             return true
-        Type_Var_ID:
+        Type_Var_ID: (delegated variant)
             child = get_var(store, link)
             return child.level <= max_level
 ```
 
-The `Inferred_Type` traversal extracts child `Type_Var_ID`s from:
-- `.Function`: param_ids, return_id, effect_id
-- `.Record_Row`: record_fields[*].var, record_rest
-- `.Tag_Union_Row`: tag_entries[*].payload[*], rest_id
-- `.Effect_Row`: effect_names (names, not vars), rest_id
+**Child extraction per Inferred_Tag:**
+| Tag | Children to check |
+|---|---|
+| .Function | param_ids[], return_id, effect_id |
+| .Record_Row | record_fields[].var, record_rest |
+| .Tag_Union_Row | tag_entries[].payload[], rest_id |
+| .Effect_Row | effect_names (names, not vars), rest_id |
 
-**Estimated scope:** ~35 lines in `types.odin`.
+**Estimated scope:** ~45 lines in `types.odin`.
 
 ---
 
 ## Implementation Order
 
-The bugs are listed below in recommended implementation order, accounting for
-dependencies:
-
-1. **H2 (IR_Crash)** — simplest, standalone
-2. **C7 (non-name callee)** — standalone diagnostic
-3. **M4 (handler evidence)** — standalone, small
-4. **C5 (match patterns)** — standalone, typecheck only
-5. **M9 (generalization levels)** — standalone, types only
-6. **C8 (closure body)** — affects ir/odin, lower, closure_convert
-7. **C9 (Perceus RC)** — affects rc, codegen
-8. **M5 (CPS continuations)** — affects cps, codegen; depends on C8
+1. **H2 (IR_Crash)** — standalone, simplest
+2. **M4 (handler evidence)** — standalone, small
+3. **M9 (generalization levels)** — standalone, types only
+4. **C5 (match patterns + exhaustiveness)** — standalone, typecheck only
+5. **C8 (closure body)** — adds IR field, affects lower + closure_convert
+6. **C7 (non-name callee)** — depends on C8 for closure record structure
+7. **C9 (Perceus RC)** — affects rc code; benefits from C8's closure IR
+8. **M5 (CPS continuations)** — affects cps; last because it's the most
+   complex; builds on correct closures and RC
 
 ---
 
 ## Testing Strategy
 
-Each fix should include:
-1. A unit test in the existing test file for that compiler phase
+Each fix includes:
+1. Unit tests in the existing test file for that compiler phase
 2. One or more e2e snapshot tests exercising the fixed behavior
-3. Verification that all 117 existing unit tests continue to pass
-4. Verification that all 101 existing e2e tests continue to pass
-
-## Success Criteria
-
-After all fixes:
-- The compiler compiles simple programs with closures
-- Reference counting inserts correct dup/drop
-- Effectful programs with handles produce working WASM
-- Match expressions with patterns compile and run correctly
-- CPS generates continuations for effectful call chains
-- No type soundness regressions
-- All existing tests pass
+3. All 117 existing unit tests must continue to pass
+4. All 101 existing e2e snapshot tests must continue to pass
