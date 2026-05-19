@@ -43,6 +43,9 @@ read_message :: proc(t: ^Transport) -> ([]u8, bool) {
 	prefix := "Content-Length: "
 	prefix_len := len(prefix)
 	for i in 0..<(header_len - prefix_len) {
+		if i != 0 && header[i-1] != '\n' {
+			continue
+		}
 		if header[i:i+prefix_len] == prefix {
 			digit_start := i + prefix_len
 			j := digit_start
@@ -80,7 +83,8 @@ read_message :: proc(t: ^Transport) -> ([]u8, bool) {
 }
 
 write_message :: proc(t: ^Transport, message: string) -> bool {
-	header := fmt.tprintf("Content-Length: {}\r\n\r\n", len(message))
+	header_buf: [64]u8
+	header := fmt.bprintf(header_buf[:], "Content-Length: {}\r\n\r\n", len(message))
 	_, err := os.write(os.stdout, transmute([]byte)header)
 	if err != nil {
 		return false

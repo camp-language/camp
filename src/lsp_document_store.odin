@@ -82,6 +82,13 @@ store_get :: proc(store: ^Document_Store, uri: string) -> ^Open_Document {
 }
 
 destroy_analysis :: proc(a: ^Document_Analysis) {
+	for d in a.diagnostics {
+		delete(d.message)
+		for ri in d.related {
+			delete(ri.message)
+		}
+		delete(d.related)
+	}
 	delete(a.diagnostics)
 	destroy_symbol_index(&a.symbols)
 }

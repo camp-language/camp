@@ -28,6 +28,11 @@ symbol_index_init :: proc(idx: ^Symbol_Index) {
 }
 
 destroy_symbol_index :: proc(idx: ^Symbol_Index) {
+	for entry in idx.entries {
+		delete(entry.name)
+		delete(entry.uri)
+		delete(entry.type_str)
+	}
 	delete(idx.entries)
 	for _, indices in idx.by_name {
 		delete(indices)
@@ -38,11 +43,11 @@ destroy_symbol_index :: proc(idx: ^Symbol_Index) {
 symbol_index_add :: proc(idx: ^Symbol_Index, name: string, uri: string, range: LSP_Range, kind: Symbol_Kind, type_str: string) {
 	entry_index := len(idx.entries)
 	append(&idx.entries, Symbol_Entry{
-		name = name,
-		uri = uri,
+		name = clone_string(name, context.allocator),
+		uri = clone_string(uri, context.allocator),
 		range = range,
 		kind = kind,
-		type_str = type_str,
+		type_str = clone_string(type_str, context.allocator),
 	})
 	indices, ok := idx.by_name[name]
 	if !ok {

@@ -29,6 +29,10 @@ analyze_document :: proc(text: string, file_path: string, uri: string, allocator
 	if diag_collector_has_errors(&ctx.collector) {
 		for d in ctx.collector.diagnostics {
 			lsp_diag := lsp_from_diagnostic(d, source)
+			lsp_diag.message = clone_string(lsp_diag.message, allocator)
+			for i in 0..<len(lsp_diag.related) {
+				lsp_diag.related[i].message = clone_string(lsp_diag.related[i].message, allocator)
+			}
 			append(&result.diagnostics, lsp_diag)
 		}
 		return result
@@ -48,6 +52,10 @@ analyze_document :: proc(text: string, file_path: string, uri: string, allocator
 
 	for d in ctx.collector.diagnostics {
 		lsp_diag := lsp_from_diagnostic(d, source)
+		lsp_diag.message = clone_string(lsp_diag.message, allocator)
+		for i in 0..<len(lsp_diag.related) {
+			lsp_diag.related[i].message = clone_string(lsp_diag.related[i].message, allocator)
+		}
 		append(&result.diagnostics, lsp_diag)
 	}
 

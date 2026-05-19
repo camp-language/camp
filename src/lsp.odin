@@ -63,7 +63,7 @@ dispatch_request :: proc(server: ^LSP_Server, id: int, method: string, params: j
 		handle_initialize(server, id, params)
 	case "shutdown":
 		server.shutdown = true
-		send_result(server, id, make(json.Object, 0))
+		send_result(server, id, json.Null{})
 	case "textDocument/definition":
 		handle_definition(server, id, params)
 	case "textDocument/hover":
