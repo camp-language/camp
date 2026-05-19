@@ -24,6 +24,8 @@ CAMP_TAG_FIELDS_OFFSET :: 8
 	next_local:    u32,
 	tmp_local_base: u32,
 	tmp_count:     u32,
+	table_idx:     int,
+	func_type_indices: [dynamic]u32,
 }
 
 hash_func_type :: proc(params: []Wasm_Value_Type, results: []Wasm_Value_Type) -> int {
@@ -125,11 +127,21 @@ codegen :: proc(ir_mod: IR_Module, ctx: ^Compilation_Context) -> Wasm_Module {
 	env.data_offset = 0
 	env.locals = make([dynamic]Wasm_Local_Decl, 0, 32)
 	env.local_map = make(map[Intern_ID]u32, 32)
+	env.table_idx = -1
+	env.func_type_indices = make([dynamic]u32, 0, 64)
 
 	emit_wasi_imports(&env)
 	emit_runtime_types(&env)
 
 	append(&mod.memories, Wasm_Memory{min = 1})
+
+	env.table_idx = len(mod.tables)
+	append(&mod.tables, Wasm_Table{
+		elem_type = .Funcref,
+		min = 1,
+		max = 1,
+		has_max = true,
+	})
 
 	for entry in ir_mod.string_table {
 		bytes := transmute([]u8)entry.value
@@ -200,6 +212,11 @@ codegen :: proc(ir_mod: IR_Module, ctx: ^Compilation_Context) -> Wasm_Module {
 			type_idx := get_or_create_type(&env, params, results)
 			func_idx := add_function(&env, type_idx)
 			env.func_map[int(d.name.name)] = func_idx
+
+			for len(env.func_type_indices) <= func_idx {
+				append(&env.func_type_indices, 0)
+			}
+			env.func_type_indices[func_idx] = u32(type_idx)
 
 			if name_str == "main" || name_str == "main!" {
 				main_fn_idx = func_idx
@@ -293,6 +310,31 @@ codegen :: proc(ir_mod: IR_Module, ctx: ^Compilation_Context) -> Wasm_Module {
 		}
 	}
 
+	if env.table_idx >= 0 && len(env.func_type_indices) > 0 {
+		total_funcs := len(env.func_type_indices)
+
+		mod.tables[env.table_idx].min = u32(total_funcs)
+		mod.tables[env.table_idx].max = u32(total_funcs)
+
+		elem_offset_buf: [dynamic]u8
+		elem_offset_buf = make([dynamic]u8, 0, 8)
+		emit_instruction(Wasm_I32_Const{value = 0}, &elem_offset_buf)
+
+		elem_func_indices: [dynamic]int
+		elem_func_indices = make([dynamic]int, 0, total_funcs)
+		for i in 0..<total_funcs {
+			append(&elem_func_indices, i)
+		}
+
+		append(&mod.elements, Wasm_Element{
+			table_idx = env.table_idx,
+			offset = copy_dynamic_bytes(elem_offset_buf),
+			func_idxs = elem_func_indices[:],
+		})
+		delete(elem_offset_buf)
+		delete(elem_func_indices)
+	}
+
 	if start_func_idx >= 0 && main_decl != nil {
 		env.tmp_local_base = 0
 		env.next_local = 4
@@ -301,20 +343,37 @@ codegen :: proc(ir_mod: IR_Module, ctx: ^Compilation_Context) -> Wasm_Module {
 		code_buf = make([dynamic]u8, 0, 256)
 
 		main_body := extract_effectful_body(main_decl.body)
+
+		collected_locals: map[Intern_ID]IR_Type
+		collected_locals = make(map[Intern_ID]IR_Type, 32)
+		collect_locals(main_body, &collected_locals)
+		env.local_map = make(map[Intern_ID]u32, 32)
+		for name, typ in collected_locals {
+			env.local_map[name] = env.next_local
+			env.next_local += 1
+		}
+
 		emit_expr(main_body, &code_buf, &env, runtime_func_indices[:])
 
 		main_ret_type := get_main_return_type(ir_mod, &ctx.interner)
 		if main_ret_type == .I64 {
 			emit_instruction(Wasm_I32_Wrap_I64{}, &code_buf)
+			emit_instruction(Wasm_I32_Const{value = 127}, &code_buf)
+			emit_instruction(Wasm_I32_And{}, &code_buf)
 		}
 
 		emit_instruction(Wasm_Call{index = 0}, &code_buf)
 		emit_instruction(Wasm_End{}, &code_buf)
 
-		start_locals := make([]Wasm_Local_Decl, 1)
-		start_locals[0] = Wasm_Local_Decl{count = 4, type = .I32}
-		append(&mod.codes, Wasm_Code{locals = start_locals, body = copy_dynamic_bytes(code_buf)})
+		start_locals := make([dynamic]Wasm_Local_Decl, 0, 8)
+		append(&start_locals, Wasm_Local_Decl{count = 4, type = .I32})
+		for _, typ in collected_locals {
+			append(&start_locals, Wasm_Local_Decl{count = 1, type = ir_wasm_type_to_value_type(typ.wasm_type)})
+		}
+		append(&mod.codes, Wasm_Code{locals = start_locals[:], body = copy_dynamic_bytes(code_buf)})
+		delete(collected_locals)
 		delete(code_buf)
+		delete(env.local_map)
 
 		append(&mod.exports, Wasm_Export{name = "_start", kind = .Func, index = start_func_idx})
 	}
@@ -340,6 +399,7 @@ codegen :: proc(ir_mod: IR_Module, ctx: ^Compilation_Context) -> Wasm_Module {
 
 	delete(env.type_map)
 	delete(env.func_map)
+	delete(env.func_type_indices)
 	return mod
 }
 
@@ -439,10 +499,12 @@ RUNTIME_EXIT :: 4
 extract_effectful_body :: proc(expr: IR_Expr) -> IR_Expr {
 	#partial switch e in expr {
 	case ^IR_Let:
-		if inner := extract_effectful_body(e.body); inner != nil {
+		#partial switch b in e.body {
+		case ^IR_Tail_Call:
 			return e.value
+		case:
+			return expr
 		}
-		return expr
 	case:
 		return expr
 	}
@@ -511,7 +573,8 @@ emit_expr :: proc(expr: IR_Expr, buf: ^[dynamic]u8, env: ^Codegen_Env, runtime_i
 	case ^IR_BinOp:
 		emit_expr(e.left, buf, env, runtime_indices)
 		emit_expr(e.right, buf, env, runtime_indices)
-		emit_binop(e.op, e.type.wasm_type, buf)
+		operand_type := ir_operand_wasm_type(e.left)
+		emit_binop(e.op, operand_type, buf)
 	case ^IR_Dup:
 		if idx, ok := env.local_map[e.value]; ok {
 			emit_instruction(Wasm_Local_Get{index = idx}, buf)
@@ -667,7 +730,7 @@ emit_expr :: proc(expr: IR_Expr, buf: ^[dynamic]u8, env: ^Codegen_Env, runtime_i
 		emit_instruction(Wasm_Unreachable{}, buf)
 	case ^IR_Closure:
 		num_fields := len(e.params) + 2
-		total_size := CAMP_TAG_HEADER_SIZE + num_fields * 4
+		total_size := CAMP_TAG_HEADER_SIZE + num_fields * 8
 
 		emit_instruction(Wasm_I32_Const{value = i32(total_size)}, buf)
 		emit_instruction(Wasm_Call{index = u32(runtime_indices[RUNTIME_ALLOC])}, buf)
@@ -698,7 +761,7 @@ emit_expr :: proc(expr: IR_Expr, buf: ^[dynamic]u8, env: ^Codegen_Env, runtime_i
 		emit_instruction(Wasm_I32_Store{align = 2, offset = 0}, buf)
 
 		emit_instruction(Wasm_Local_Get{index = tmp_local_idx}, buf)
-		emit_instruction(Wasm_I32_Const{value = i32(CAMP_TAG_FIELDS_OFFSET + 4)}, buf)
+		emit_instruction(Wasm_I32_Const{value = i32(CAMP_TAG_FIELDS_OFFSET + 8)}, buf)
 		emit_instruction(Wasm_I32_Add{}, buf)
 		emit_expr(e.env, buf, env, runtime_indices)
 		emit_instruction(Wasm_I32_Store{align = 2, offset = 0}, buf)
@@ -712,13 +775,27 @@ emit_expr :: proc(expr: IR_Expr, buf: ^[dynamic]u8, env: ^Codegen_Env, runtime_i
 		emit_instruction(Wasm_Local_Set{index = callee_local}, buf)
 
 		emit_instruction(Wasm_Local_Get{index = callee_local}, buf)
-		emit_instruction(Wasm_I32_Load{align = 2, offset = u32(CAMP_TAG_FIELDS_OFFSET + 4)}, buf)
+		emit_instruction(Wasm_I32_Load{align = 2, offset = u32(CAMP_TAG_FIELDS_OFFSET + 8)}, buf)
 
 		for arg in e.args {
 			emit_expr(arg, buf, env, runtime_indices)
 		}
 
-		emit_instruction(Wasm_Call{index = 0}, buf)
+		emit_instruction(Wasm_Local_Get{index = callee_local}, buf)
+		emit_instruction(Wasm_I32_Load{align = 2, offset = u32(CAMP_TAG_FIELDS_OFFSET)}, buf)
+
+		closure_params := make([]Wasm_Value_Type, len(e.args) + 1)
+		closure_params[0] = .I32
+		for idx := 0; idx < len(e.args); idx += 1 {
+			closure_params[idx + 1] = ir_wasm_type_to_value_type(ir_expr_wasm_type(e.args[idx]))
+		}
+		closure_results := make([]Wasm_Value_Type, 1)
+		closure_results[0] = ir_wasm_type_to_value_type(e.type.wasm_type)
+		closure_type_idx := get_or_create_type(env, closure_params, closure_results)
+		delete(closure_params)
+		delete(closure_results)
+
+		emit_instruction(Wasm_Call_Indirect{type_idx = u32(closure_type_idx), table_idx = u32(env.table_idx)}, buf)
 
 	case ^IR_Drop_Reuse:
 		if idx, ok := env.local_map[e.value]; ok {
@@ -738,29 +815,99 @@ emit_expr :: proc(expr: IR_Expr, buf: ^[dynamic]u8, env: ^Codegen_Env, runtime_i
 	}
 }
 
-emit_binop :: proc(op: Token_Kind, wasm_type: IR_Wasm_Type, buf: ^[dynamic]u8) {
+emit_binop :: proc(op: Token_Kind, operand_type: IR_Wasm_Type, buf: ^[dynamic]u8) {
 	#partial switch op {
 	case .Plus:
-		if wasm_type == .I32 {
+		if operand_type == .I32 {
 			emit_instruction(Wasm_I32_Add{}, buf)
 		} else {
 			emit_instruction(Wasm_I64_Add{}, buf)
 		}
 	case .Minus:
-		if wasm_type == .I32 {
+		if operand_type == .I32 {
 			emit_instruction(Wasm_I32_Sub{}, buf)
 		} else {
 			emit_instruction(Wasm_I64_Sub{}, buf)
 		}
 	case .Star:
-		if wasm_type == .I32 {
+		if operand_type == .I32 {
 			emit_instruction(Wasm_I32_Mul{}, buf)
 		} else {
 			emit_instruction(Wasm_I64_Mul{}, buf)
 		}
+	case .Eq_Eq:
+		if operand_type == .I64 {
+			emit_instruction(Wasm_I64_Eq{}, buf)
+		} else {
+			emit_instruction(Wasm_I32_Eq{}, buf)
+		}
+	case .Bang_Eq:
+		if operand_type == .I64 {
+			emit_instruction(Wasm_I64_Ne{}, buf)
+		} else {
+			emit_instruction(Wasm_I32_Ne{}, buf)
+		}
+	case .Lt:
+		if operand_type == .I64 {
+			emit_instruction(Wasm_I64_Lt_S{}, buf)
+		} else {
+			emit_instruction(Wasm_I32_Lt_S{}, buf)
+		}
+	case .Gt:
+		if operand_type == .I64 {
+			emit_instruction(Wasm_I64_Gt_S{}, buf)
+		} else {
+			emit_instruction(Wasm_I32_Gt_S{}, buf)
+		}
+	case .Lt_Eq:
+		if operand_type == .I64 {
+			emit_instruction(Wasm_I64_Le_S{}, buf)
+		} else {
+			emit_instruction(Wasm_I32_Le_S{}, buf)
+		}
+	case .Gt_Eq:
+		if operand_type == .I64 {
+			emit_instruction(Wasm_I64_Ge_S{}, buf)
+		} else {
+			emit_instruction(Wasm_I32_Ge_S{}, buf)
+		}
+	case .Kw_And:
+		if operand_type == .I64 {
+			emit_instruction(Wasm_I64_And{}, buf)
+		} else {
+			emit_instruction(Wasm_I32_And{}, buf)
+		}
+	case .Kw_Or:
+		if operand_type == .I64 {
+			emit_instruction(Wasm_I64_Or{}, buf)
+		} else {
+			emit_instruction(Wasm_I32_Or{}, buf)
+		}
 	case:
 		emit_instruction(Wasm_I64_Add{}, buf)
 	}
+}
+
+ir_operand_wasm_type :: proc(expr: IR_Expr) -> IR_Wasm_Type {
+	if expr == nil do return .I32
+	#partial switch e in expr {
+	case ^IR_Literal_Int: return e.type.wasm_type
+	case ^IR_Literal_Float: return e.type.wasm_type
+	case ^IR_Literal_Bool: return .I32
+	case ^IR_Literal_String: return .I32
+	case ^IR_Var: return e.type.wasm_type
+	case ^IR_BinOp: return e.type.wasm_type
+	case ^IR_Call: return e.type.wasm_type
+	case ^IR_If: return e.type.wasm_type
+	case ^IR_Closure_Call: return e.type.wasm_type
+	case ^IR_Field_Access: return e.type.wasm_type
+	case ^IR_Construct_Tag: return .I32
+	case ^IR_Construct_Record: return .I32
+	case ^IR_Closure: return .I32
+	case:
+		return .I32
+	}
+	return .I32
 }
 
 ir_expr_wasm_type :: proc(expr: IR_Expr) -> IR_Wasm_Type {

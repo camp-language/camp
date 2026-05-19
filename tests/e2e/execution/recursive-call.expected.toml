@@ -1,22 +1,10 @@
 stdout = """
--- SYNTAX ERROR --- /tmp/camp-e2e/execution/recursive-call/recursive-call.camp
-
-I expected `=` here, but I got `I64` instead.
-   1 | loop! = (n) -> I64 { if n == 0 0 else loop!(n - 1) }
-                      ^^^
-
--- SYNTAX ERROR --- /tmp/camp-e2e/execution/recursive-call/recursive-call.camp
-
-I was not expecting `!` here.
-   1 | loop! = (n) -> I64 { if n == 0 0 else loop!(n - 1) }
-                                                 ^
-
--- SYNTAX ERROR --- /tmp/camp-e2e/execution/recursive-call/recursive-call.camp
-
-I was not expecting `!` here.
-   2 | main! = || -> I64 { loop!(5) }
-                               ^
-compilation failed with 3 error(s)
+canonicalized /tmp/camp-e2e/execution/recursive-call/recursive-call.camp: 2 declaration(s), 0 import(s)
+typecheck passed for /tmp/camp-e2e/execution/recursive-call/recursive-call.camp
+compiled /tmp/camp-e2e/execution/recursive-call/recursive-call.camp -> /tmp/camp-e2e/execution/recursive-call/recursive-call.wasm
 """
 stderr = ""
-exit = 1
+exit = 0
+wasm_exit = 0
+wasm_stdout = ""
+wasm_stderr = ""

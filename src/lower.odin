@@ -437,15 +437,39 @@ lower_block :: proc(e: ^CExpr_Block, env: ^Lower_Env) -> IR_Expr {
 		return IR_Expr(block)
 	}
 
-	stmts := make([dynamic]IR_Expr, 0, len(e.statements))
-	for stmt in e.statements {
-		append(&stmts, lower_expr(stmt, env))
+	type_var := fresh_value_var(env.store, e.span)
+	result := lower_expr(e.statements[len(e.statements)-1], env)
+
+	for i := len(e.statements) - 2; i >= 0; i -= 1 {
+		is_assign_or_skip := false
+		#partial switch s in e.statements[i] {
+		case ^CExpr_Assign:
+			#partial switch target in s.target {
+			case ^CExpr_Name:
+				let_expr := new(IR_Let)
+				let_expr^ = IR_Let{
+					binding = target.name.name,
+					type    = lower_type(env.store, type_var),
+					value   = lower_expr(s.value, env),
+					body    = result,
+					span    = e.span,
+				}
+				result = IR_Expr(let_expr)
+				is_assign_or_skip = true
+			}
+		}
+		if is_assign_or_skip {
+			continue
+		}
+		stmts := make([dynamic]IR_Expr, 2)
+		stmts[0] = lower_expr(e.statements[i], env)
+		stmts[1] = result
+		block := new(IR_Block)
+		block^ = IR_Block{statements = stmts, type = lower_type(env.store, type_var), span = e.span}
+		result = IR_Expr(block)
 	}
 
-	type_var := fresh_value_var(env.store, e.span)
-	block := new(IR_Block)
-	block^ = IR_Block{statements = stmts, type = lower_type(env.store, type_var), span = e.span}
-	return IR_Expr(block)
+	return result
 }
 
 lower_if :: proc(e: ^CExpr_If, env: ^Lower_Env) -> IR_Expr {

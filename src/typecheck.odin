@@ -14,6 +14,17 @@ Type_Result :: struct {
 	effects: Type_Var_ID,
 }
 
+env_lookup :: proc(env: ^Type_Env, name: Intern_ID) -> (Type_Var_ID, bool) {
+	current := env
+	for current != nil {
+		if existing, ok := current.bindings[name]; ok {
+			return existing, true
+		}
+		current = current.parent
+	}
+	return Type_Var_ID(-1), false
+}
+
 levenshtein_distance :: proc(a: string, b: string) -> int {
 	if len(a) == 0 do return len(b)
 	if len(b) == 0 do return len(a)
@@ -52,22 +63,18 @@ levenshtein_distance :: proc(a: string, b: string) -> int {
 }
 
 find_similar_names :: proc(name: string, env: ^Type_Env, interner: ^Intern_Table) -> []string {
-	best_name: string
-	best_dist := 999
-	for k, _ in env.bindings {
-		candidate := intern_get(interner, k)
-		dist := levenshtein_distance(name, candidate)
-		if dist < best_dist && dist <= 3 && dist < len(name) / 2 + 1 {
-			best_dist = dist
-			best_name = candidate
+	names: [dynamic]string
+	current := env
+	for current != nil {
+		for k, _ in current.bindings {
+			k_str := intern_get(interner, k)
+			if levenshtein_distance(name, k_str) <= 2 {
+				append(&names, k_str)
+			}
 		}
+		current = current.parent
 	}
-	if best_dist < 999 {
-		result := make([]string, 1)
-		result[0] = best_name
-		return result
-	}
-	return nil
+	return names[:]
 }
 
 format_effect_row :: proc(store: ^Type_Store, effects: Type_Var_ID) -> string {
@@ -196,7 +203,7 @@ typecheck_synth :: proc(expr: CExpr, env: ^Type_Env, store: ^Type_Store) -> Type
 		return Type_Result{var_id = var_id, effects = fresh_effect_row(store, e.span)}
 
 	case ^CExpr_Name:
-		if existing, ok := env.bindings[e.name.name]; ok {
+		if existing, ok := env_lookup(env, e.name.name); ok {
 			inst := instantiate(store, existing)
 			return Type_Result{var_id = inst, effects = fresh_effect_row(store, e.span)}
 		}
@@ -244,6 +251,11 @@ typecheck_synth :: proc(expr: CExpr, env: ^Type_Env, store: ^Type_Store) -> Type
 
 	case ^CExpr_Assign:
 		result := typecheck_synth(e.value, env, store)
+		#partial switch target in e.target {
+		case ^CExpr_Name:
+			env.bindings[target.name.name] = result.var_id
+		case:
+		}
 		return Type_Result{var_id = result.var_id, effects = result.effects}
 
 	case ^CExpr_Return:
@@ -600,11 +612,9 @@ typecheck_match :: proc(e: ^CExpr_Match, env: ^Type_Env, store: ^Type_Store) -> 
 	}
 	defer delete(saved_bindings)
 
-	first_result := typecheck_synth(e.arms[0].body, env, store)
-	result_var := first_result.var_id
+	result_var := fresh_value_var(store, e.span)
 	effect_row := fresh_effect_row(store, e.span)
 	unify(store, effect_row, scrutinee_result.effects)
-	unify(store, effect_row, first_result.effects)
 
 	covered_tags: map[Intern_ID]bool
 	covered_tags = make(map[Intern_ID]bool, len(e.arms))
