@@ -376,3 +376,154 @@ test_analyze_empty_source :: proc(t: ^testing.T) {
 	testing.expectf(t, len(info.comments_before) == 0, "expected no comments before in empty source")
 	testing.expectf(t, len(info.trailing_comments) == 0, "expected no trailing comments in empty source")
 }
+
+// --- Type Formatting Tests ---
+
+@(test)
+test_format_type_primitive :: proc(t: ^testing.T) {
+	ctx: Compilation_Context
+	context_init(&ctx)
+	defer context_destroy(&ctx)
+
+	name := intern(&ctx.interner, "Int")
+
+	prim := new(Type_Primitive)
+	prim.name = name
+	prim.span = Source_Span_ZERO
+
+	type_val := Type(prim)
+
+	info := Format_Source_Info{}
+	result := doc_resolve(format_type(&type_val, &info, &ctx.interner), 0)
+	defer delete(result)
+
+	testing.expectf(t, result == "Int", "expected %q, got %q", "Int", result)
+}
+
+@(test)
+test_format_type_applied_single_line :: proc(t: ^testing.T) {
+	ctx: Compilation_Context
+	context_init(&ctx)
+	defer context_destroy(&ctx)
+
+	list_name := intern(&ctx.interner, "List")
+	a_name := intern(&ctx.interner, "a")
+
+	a_prim := new(Type_Primitive)
+	a_prim.name = a_name
+	a_prim.span = Source_Span_ZERO
+
+	applied := new(Type_Applied)
+	applied.name = list_name
+	applied.args = make([dynamic]Type)
+	append(&applied.args, Type(a_prim))
+	applied.span = Source_Span_ZERO
+
+	type_val := Type(applied)
+
+	info := Format_Source_Info{}
+	result := doc_resolve(format_type(&type_val, &info, &ctx.interner), 0)
+	defer delete(result)
+
+	testing.expectf(t, result == "List(a)", "expected %q, got %q", "List(a)", result)
+}
+
+@(test)
+test_format_type_tag_union_single_line :: proc(t: ^testing.T) {
+	ctx: Compilation_Context
+	context_init(&ctx)
+	defer context_destroy(&ctx)
+
+	ok_name := intern(&ctx.interner, "Ok")
+	err_name := intern(&ctx.interner, "Err")
+	a_name := intern(&ctx.interner, "a")
+	e_name := intern(&ctx.interner, "e")
+
+	a_prim := new(Type_Primitive)
+	a_prim.name = a_name
+	a_prim.span = Source_Span_ZERO
+
+	e_prim := new(Type_Primitive)
+	e_prim.name = e_name
+	e_prim.span = Source_Span_ZERO
+
+	ok_payload := make([dynamic]Type)
+	append(&ok_payload, Type(a_prim))
+
+	err_payload := make([dynamic]Type)
+	append(&err_payload, Type(e_prim))
+
+	ok_tag := new(Type_Tag)
+	ok_tag.name = ok_name
+	ok_tag.payload = ok_payload
+	ok_tag.span = Source_Span_ZERO
+
+	err_tag := new(Type_Tag)
+	err_tag.name = err_name
+	err_tag.payload = err_payload
+	err_tag.span = Source_Span_ZERO
+
+	tags := make([dynamic]Type_Tag)
+	append(&tags, ok_tag^)
+	append(&tags, err_tag^)
+
+	tag_union := new(Type_Tag_Union)
+	tag_union.tags = tags
+	tag_union.span = Source_Span_ZERO
+
+	type_val := Type(tag_union)
+
+	info := Format_Source_Info{}
+	result := doc_resolve(format_type(&type_val, &info, &ctx.interner), 0)
+	defer delete(result)
+
+	testing.expectf(t, result == "[Ok(a) | Err(e)]", "expected %q, got %q", "[Ok(a) | Err(e)]", result)
+}
+
+@(test)
+test_format_type_record_single_line :: proc(t: ^testing.T) {
+	ctx: Compilation_Context
+	context_init(&ctx)
+	defer context_destroy(&ctx)
+
+	name_id := intern(&ctx.interner, "name")
+	age_id := intern(&ctx.interner, "age")
+	str_id := intern(&ctx.interner, "Str")
+	u64_id := intern(&ctx.interner, "U64")
+
+	str_prim := new(Type_Primitive)
+	str_prim.name = str_id
+	str_prim.span = Source_Span_ZERO
+
+	u64_prim := new(Type_Primitive)
+	u64_prim.name = u64_id
+	u64_prim.span = Source_Span_ZERO
+
+	field1 := Type_Field{
+		name = name_id,
+		type = Type(str_prim),
+		span = Source_Span_ZERO,
+	}
+
+	field2 := Type_Field{
+		name = age_id,
+		type = Type(u64_prim),
+		span = Source_Span_ZERO,
+	}
+
+	fields := make([dynamic]Type_Field)
+	append(&fields, field1)
+	append(&fields, field2)
+
+	rec := new(Type_Record)
+	rec.fields = fields
+	rec.span = Source_Span_ZERO
+
+	type_val := Type(rec)
+
+	info := Format_Source_Info{}
+	result := doc_resolve(format_type(&type_val, &info, &ctx.interner), 0)
+	defer delete(result)
+
+	testing.expectf(t, result == "{ name: Str, age: U64 }", "expected %q, got %q", "{ name: Str, age: U64 }", result)
+}
