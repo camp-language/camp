@@ -527,3 +527,383 @@ test_format_type_record_single_line :: proc(t: ^testing.T) {
 
 	testing.expectf(t, result == "{ name: Str, age: U64 }", "expected %q, got %q", "{ name: Str, age: U64 }", result)
 }
+
+// --- Expression Formatting Tests ---
+
+@(test)
+test_format_expr_int :: proc(t: ^testing.T) {
+	ctx: Compilation_Context
+	context_init(&ctx)
+	defer context_destroy(&ctx)
+
+	e := new(Expr_Int)
+	e.value = 42
+	e.span = Source_Span_ZERO
+
+	info := Format_Source_Info{}
+	result := doc_resolve(format_expr(Expr(e), &info, &ctx.interner), 0)
+	defer delete(result)
+
+	testing.expectf(t, result == "42", "expected %q, got %q", "42", result)
+}
+
+@(test)
+test_format_expr_string :: proc(t: ^testing.T) {
+	ctx: Compilation_Context
+	context_init(&ctx)
+	defer context_destroy(&ctx)
+
+	e := new(Expr_String)
+	e.value = "hello"
+	e.span = Source_Span_ZERO
+
+	info := Format_Source_Info{}
+	result := doc_resolve(format_expr(Expr(e), &info, &ctx.interner), 0)
+	defer delete(result)
+
+	testing.expectf(t, result == "hello", "expected %q, got %q", "hello", result)
+}
+
+@(test)
+test_format_expr_bool :: proc(t: ^testing.T) {
+	ctx: Compilation_Context
+	context_init(&ctx)
+	defer context_destroy(&ctx)
+
+	e := new(Expr_Bool)
+	e.value = true
+	e.span = Source_Span_ZERO
+
+	info := Format_Source_Info{}
+	result := doc_resolve(format_expr(Expr(e), &info, &ctx.interner), 0)
+	defer delete(result)
+
+	testing.expectf(t, result == "True", "expected %q, got %q", "True", result)
+
+	e2 := new(Expr_Bool)
+	e2.value = false
+	e2.span = Source_Span_ZERO
+
+	result2 := doc_resolve(format_expr(Expr(e2), &info, &ctx.interner), 0)
+	defer delete(result2)
+
+	testing.expectf(t, result2 == "False", "expected %q, got %q", "False", result2)
+}
+
+@(test)
+test_format_expr_identifier :: proc(t: ^testing.T) {
+	ctx: Compilation_Context
+	context_init(&ctx)
+	defer context_destroy(&ctx)
+
+	name_id := intern(&ctx.interner, "myVar")
+
+	e := new(Expr_Identifier)
+	e.name = name_id
+	e.span = Source_Span_ZERO
+
+	info := Format_Source_Info{}
+	result := doc_resolve(format_expr(Expr(e), &info, &ctx.interner), 0)
+	defer delete(result)
+
+	testing.expectf(t, result == "myVar", "expected %q, got %q", "myVar", result)
+}
+
+@(test)
+test_format_expr_call_single_line :: proc(t: ^testing.T) {
+	ctx: Compilation_Context
+	context_init(&ctx)
+	defer context_destroy(&ctx)
+
+	f_id := intern(&ctx.interner, "f")
+	a_id := intern(&ctx.interner, "a")
+	b_id := intern(&ctx.interner, "b")
+
+	f_expr := new(Expr_Identifier)
+	f_expr.name = f_id
+	f_expr.span = Source_Span_ZERO
+
+	a_expr := new(Expr_Identifier)
+	a_expr.name = a_id
+	a_expr.span = Source_Span_ZERO
+
+	b_expr := new(Expr_Identifier)
+	b_expr.name = b_id
+	b_expr.span = Source_Span_ZERO
+
+	call := new(Expr_Call)
+	call.callee = Expr(f_expr)
+	call.args = make([dynamic]Expr)
+	append(&call.args, Expr(a_expr))
+	append(&call.args, Expr(b_expr))
+	call.span = Source_Span_ZERO
+
+	info := Format_Source_Info{}
+	result := doc_resolve(format_expr(Expr(call), &info, &ctx.interner), 0)
+	defer delete(result)
+
+	testing.expectf(t, result == "f(a, b)", "expected %q, got %q", "f(a, b)", result)
+}
+
+@(test)
+test_format_expr_record_single_line :: proc(t: ^testing.T) {
+	ctx: Compilation_Context
+	context_init(&ctx)
+	defer context_destroy(&ctx)
+
+	name_id := intern(&ctx.interner, "name")
+	age_id := intern(&ctx.interner, "age")
+
+	name_val := new(Expr_String)
+	name_val.value = "\"Camp\""
+	name_val.span = Source_Span_ZERO
+
+	age_val := new(Expr_Int)
+	age_val.value = 1
+	age_val.span = Source_Span_ZERO
+
+	field1 := Record_Field{
+		name = name_id,
+		value = Expr(name_val),
+		span = Source_Span_ZERO,
+	}
+	field2 := Record_Field{
+		name = age_id,
+		value = Expr(age_val),
+		span = Source_Span_ZERO,
+	}
+
+	rec := new(Expr_Record)
+	rec.fields = make([dynamic]Record_Field)
+	append(&rec.fields, field1)
+	append(&rec.fields, field2)
+	rec.span = Source_Span_ZERO
+
+	info := Format_Source_Info{}
+	result := doc_resolve(format_expr(Expr(rec), &info, &ctx.interner), 0)
+	defer delete(result)
+
+	testing.expectf(t, result == "{ name: \"Camp\", age: 1 }", "expected %q, got %q", "{ name: \"Camp\", age: 1 }", result)
+}
+
+@(test)
+test_format_expr_list_single_line :: proc(t: ^testing.T) {
+	ctx: Compilation_Context
+	context_init(&ctx)
+	defer context_destroy(&ctx)
+
+	one := new(Expr_Int)
+	one.value = 1
+	one.span = Source_Span_ZERO
+
+	two := new(Expr_Int)
+	two.value = 2
+	two.span = Source_Span_ZERO
+
+	three := new(Expr_Int)
+	three.value = 3
+	three.span = Source_Span_ZERO
+
+	list := new(Expr_List)
+	list.elements = make([dynamic]Expr)
+	append(&list.elements, Expr(one))
+	append(&list.elements, Expr(two))
+	append(&list.elements, Expr(three))
+	list.span = Source_Span_ZERO
+
+	info := Format_Source_Info{}
+	result := doc_resolve(format_expr(Expr(list), &info, &ctx.interner), 0)
+	defer delete(result)
+
+	testing.expectf(t, result == "[1, 2, 3]", "expected %q, got %q", "[1, 2, 3]", result)
+}
+
+@(test)
+test_format_expr_lambda_simple :: proc(t: ^testing.T) {
+	ctx: Compilation_Context
+	context_init(&ctx)
+	defer context_destroy(&ctx)
+
+	x_id := intern(&ctx.interner, "x")
+
+	// Param: x
+	param := Func_Param{
+		name = x_id,
+		span = Source_Span_ZERO,
+	}
+
+	// Body: x + 1
+	x_expr := new(Expr_Identifier)
+	x_expr.name = x_id
+	x_expr.span = Source_Span_ZERO
+
+	one := new(Expr_Int)
+	one.value = 1
+	one.span = Source_Span_ZERO
+
+	body := new(Expr_BinOp)
+	body.op = .Plus
+	body.left = Expr(x_expr)
+	body.right = Expr(one)
+	body.span = Source_Span_ZERO
+
+	lam := new(Expr_Lambda)
+	lam.params = make([dynamic]Func_Param)
+	append(&lam.params, param)
+	lam.body = Expr(body)
+	lam.span = Source_Span_ZERO
+
+	info := Format_Source_Info{}
+	result := doc_resolve(format_expr(Expr(lam), &info, &ctx.interner), 0)
+	defer delete(result)
+
+	testing.expectf(t, result == "|x| x + 1", "expected %q, got %q", "|x| x + 1", result)
+}
+
+@(test)
+test_format_expr_block :: proc(t: ^testing.T) {
+	ctx: Compilation_Context
+	context_init(&ctx)
+	defer context_destroy(&ctx)
+
+	x_id := intern(&ctx.interner, "x")
+	y_id := intern(&ctx.interner, "y")
+
+	// x = 1
+	x_expr := new(Expr_Identifier)
+	x_expr.name = x_id
+	x_expr.span = Source_Span_ZERO
+
+	one := new(Expr_Int)
+	one.value = 1
+	one.span = Source_Span_ZERO
+
+	assign1 := new(Expr_Assign)
+	assign1.target = Expr(x_expr)
+	assign1.value = Expr(one)
+	assign1.span = Source_Span_ZERO
+
+	// y = 2
+	y_expr := new(Expr_Identifier)
+	y_expr.name = y_id
+	y_expr.span = Source_Span_ZERO
+
+	two := new(Expr_Int)
+	two.value = 2
+	two.span = Source_Span_ZERO
+
+	assign2 := new(Expr_Assign)
+	assign2.target = Expr(y_expr)
+	assign2.value = Expr(two)
+	assign2.span = Source_Span_ZERO
+
+	// x + y
+	x_expr2 := new(Expr_Identifier)
+	x_expr2.name = x_id
+	x_expr2.span = Source_Span_ZERO
+
+	y_expr2 := new(Expr_Identifier)
+	y_expr2.name = y_id
+	y_expr2.span = Source_Span_ZERO
+
+	add_expr := new(Expr_BinOp)
+	add_expr.op = .Plus
+	add_expr.left = Expr(x_expr2)
+	add_expr.right = Expr(y_expr2)
+	add_expr.span = Source_Span_ZERO
+
+	block := new(Expr_Block)
+	block.statements = make([dynamic]Expr)
+	append(&block.statements, Expr(assign1))
+	append(&block.statements, Expr(assign2))
+	append(&block.statements, Expr(add_expr))
+	block.span = Source_Span_ZERO
+
+	info := Format_Source_Info{}
+	result := doc_resolve(format_expr(Expr(block), &info, &ctx.interner), 0)
+	defer delete(result)
+
+	expected := "{\n    x = 1\n    y = 2\n    x + y\n}"
+	testing.expectf(t, result == expected, "expected %q, got %q", expected, result)
+}
+
+@(test)
+test_format_expr_binop :: proc(t: ^testing.T) {
+	ctx: Compilation_Context
+	context_init(&ctx)
+	defer context_destroy(&ctx)
+
+	x_id := intern(&ctx.interner, "x")
+	y_id := intern(&ctx.interner, "y")
+
+	x_expr := new(Expr_Identifier)
+	x_expr.name = x_id
+	x_expr.span = Source_Span_ZERO
+
+	y_expr := new(Expr_Identifier)
+	y_expr.name = y_id
+	y_expr.span = Source_Span_ZERO
+
+	binop := new(Expr_BinOp)
+	binop.op = .Plus
+	binop.left = Expr(x_expr)
+	binop.right = Expr(y_expr)
+	binop.span = Source_Span_ZERO
+
+	info := Format_Source_Info{}
+	result := doc_resolve(format_expr(Expr(binop), &info, &ctx.interner), 0)
+	defer delete(result)
+
+	testing.expectf(t, result == "x + y", "expected %q, got %q", "x + y", result)
+}
+
+@(test)
+test_format_expr_if_braceless :: proc(t: ^testing.T) {
+	ctx: Compilation_Context
+	context_init(&ctx)
+	defer context_destroy(&ctx)
+
+	x_id := intern(&ctx.interner, "x")
+	zero_id := intern(&ctx.interner, "0")
+
+	x_expr := new(Expr_Identifier)
+	x_expr.name = x_id
+	x_expr.span = Source_Span_ZERO
+
+	zero_expr := new(Expr_Int)
+	zero_expr.value = 0
+	zero_expr.span = Source_Span_ZERO
+
+	// condition: x > 0
+	zero_val := new(Expr_Int)
+	zero_val.value = 0
+	zero_val.span = Source_Span_ZERO
+
+	cond := new(Expr_BinOp)
+	cond.op = .Gt
+	cond.left = Expr(x_expr)
+	cond.right = Expr(zero_val)
+	cond.span = Source_Span_ZERO
+
+	// then: x
+	then_expr := new(Expr_Identifier)
+	then_expr.name = x_id
+	then_expr.span = Source_Span_ZERO
+
+	// else: 0
+	else_expr := new(Expr_Int)
+	else_expr.value = 0
+	else_expr.span = Source_Span_ZERO
+
+	if_expr := new(Expr_If)
+	if_expr.condition = Expr(cond)
+	if_expr.then_branch = Expr(then_expr)
+	if_expr.else_branch = Expr(else_expr)
+	if_expr.span = Source_Span_ZERO
+
+	info := Format_Source_Info{}
+	result := doc_resolve(format_expr(Expr(if_expr), &info, &ctx.interner), 0)
+	defer delete(result)
+
+	testing.expectf(t, result == "if x > 0 x else 0", "expected %q, got %q", "if x > 0 x else 0", result)
+}
