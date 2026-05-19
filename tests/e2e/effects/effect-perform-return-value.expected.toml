@@ -19,24 +19,6 @@ I expected `:` here, but I got `read` instead.
 
 -- SYNTAX ERROR --- /tmp/camp-e2e/effects/effect-perform-return-value/effect-perform-return-value.camp
 
-I was expecting a type here, but I found `(` instead.
-   2 | result = handle Ask.read() with { Ask.read() -> resume(42) }
-                               ^
-
--- SYNTAX ERROR --- /tmp/camp-e2e/effects/effect-perform-return-value/effect-perform-return-value.camp
-
-I expected `:` here, but I got `)` instead.
-   2 | result = handle Ask.read() with { Ask.read() -> resume(42) }
-                                ^
-
--- SYNTAX ERROR --- /tmp/camp-e2e/effects/effect-perform-return-value/effect-perform-return-value.camp
-
-I was expecting a type here, but I found `with` instead.
-   2 | result = handle Ask.read() with { Ask.read() -> resume(42) }
-                                  ^^^^
-
--- SYNTAX ERROR --- /tmp/camp-e2e/effects/effect-perform-return-value/effect-perform-return-value.camp
-
 I expected `:` here, but I got `{` instead.
    2 | result = handle Ask.read() with { Ask.read() -> resume(42) }
                                        ^
@@ -49,36 +31,6 @@ I expected `:` here, but I got `read` instead.
 
 -- SYNTAX ERROR --- /tmp/camp-e2e/effects/effect-perform-return-value/effect-perform-return-value.camp
 
-I was expecting a type here, but I found `(` instead.
-   2 | result = handle Ask.read() with { Ask.read() -> resume(42) }
-                                                 ^
-
--- SYNTAX ERROR --- /tmp/camp-e2e/effects/effect-perform-return-value/effect-perform-return-value.camp
-
-I expected `:` here, but I got `)` instead.
-   2 | result = handle Ask.read() with { Ask.read() -> resume(42) }
-                                                  ^
-
--- SYNTAX ERROR --- /tmp/camp-e2e/effects/effect-perform-return-value/effect-perform-return-value.camp
-
-I was expecting a type here, but I found `->` instead.
-   2 | result = handle Ask.read() with { Ask.read() -> resume(42) }
-                                                    ^^
-
--- SYNTAX ERROR --- /tmp/camp-e2e/effects/effect-perform-return-value/effect-perform-return-value.camp
-
-I expected `:` here, but I got `resume` instead.
-   2 | result = handle Ask.read() with { Ask.read() -> resume(42) }
-                                                       ^^^^^^
-
--- SYNTAX ERROR --- /tmp/camp-e2e/effects/effect-perform-return-value/effect-perform-return-value.camp
-
-I was expecting a type here, but I found `(` instead.
-   2 | result = handle Ask.read() with { Ask.read() -> resume(42) }
-                                                             ^
-
--- SYNTAX ERROR --- /tmp/camp-e2e/effects/effect-perform-return-value/effect-perform-return-value.camp
-
 I expected `:` here, but I got `42` instead.
    2 | result = handle Ask.read() with { Ask.read() -> resume(42) }
                                                               ^^
@@ -88,25 +40,7 @@ I expected `:` here, but I got `42` instead.
 I was expecting a type here, but I found `)` instead.
    2 | result = handle Ask.read() with { Ask.read() -> resume(42) }
                                                                 ^
-
--- SYNTAX ERROR --- /tmp/camp-e2e/effects/effect-perform-return-value/effect-perform-return-value.camp
-
-I expected `:` here, but I got `}` instead.
-   2 | result = handle Ask.read() with { Ask.read() -> resume(42) }
-                                                                  ^
-
--- SYNTAX ERROR --- /tmp/camp-e2e/effects/effect-perform-return-value/effect-perform-return-value.camp
-
-I was expecting a type here, but I found `` instead.
-   3 | 
-       ^
-
--- SYNTAX ERROR --- /tmp/camp-e2e/effects/effect-perform-return-value/effect-perform-return-value.camp
-
-I expected `}` here, but I got `` instead.
-   3 | 
-       ^
-compilation failed with 18 error(s)
+compilation failed with 7 error(s)
 """
 stderr = ""
 exit = 1

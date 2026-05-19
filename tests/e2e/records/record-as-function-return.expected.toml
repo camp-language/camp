@@ -1,3 +1,112 @@
-stdout = ""
-stderr = "process timed out after 10s"
-exit = -1
+stdout = """
+-- SYNTAX ERROR --- /tmp/camp-e2e/records/record-as-function-return/record-as-function-return.camp
+
+I expected `=` here, but I got `{` instead.
+   1 | mk = (a) -> { x: I64 } { { x: a } }
+                   ^
+
+-- SYNTAX ERROR --- /tmp/camp-e2e/records/record-as-function-return/record-as-function-return.camp
+
+I expected `=` here, but I got `I64` instead.
+   1 | mk = (a) -> { x: I64 } { { x: a } }
+                        ^^^
+
+-- SYNTAX ERROR --- /tmp/camp-e2e/records/record-as-function-return/record-as-function-return.camp
+
+I was not expecting `}` here.
+   1 | mk = (a) -> { x: I64 } { { x: a } }
+                            ^
+
+-- SYNTAX ERROR --- /tmp/camp-e2e/records/record-as-function-return/record-as-function-return.camp
+
+I expected `=` here, but I got `{` instead.
+   1 | mk = (a) -> { x: I64 } { { x: a } }
+                                ^
+
+-- SYNTAX ERROR --- /tmp/camp-e2e/records/record-as-function-return/record-as-function-return.camp
+
+I expected `=` here, but I got `a` instead.
+   1 | mk = (a) -> { x: I64 } { { x: a } }
+                                     ^
+
+-- SYNTAX ERROR --- /tmp/camp-e2e/records/record-as-function-return/record-as-function-return.camp
+
+I was not expecting `}` here.
+   1 | mk = (a) -> { x: I64 } { { x: a } }
+                                       ^
+
+-- SYNTAX ERROR --- /tmp/camp-e2e/records/record-as-function-return/record-as-function-return.camp
+
+I expected `=` here, but I got `main` instead.
+   2 | main! = || -> I64 { mk(42).x }
+       ^^^^
+
+-- SYNTAX ERROR --- /tmp/camp-e2e/records/record-as-function-return/record-as-function-return.camp
+
+I was not expecting `!` here.
+   2 | main! = || -> I64 { mk(42).x }
+           ^
+
+-- SYNTAX ERROR --- /tmp/camp-e2e/records/record-as-function-return/record-as-function-return.camp
+
+I expected `=` here, but I got `|` instead.
+   2 | main! = || -> I64 { mk(42).x }
+               ^
+
+-- SYNTAX ERROR --- /tmp/camp-e2e/records/record-as-function-return/record-as-function-return.camp
+
+I expected `identifier` here, but I got `->` instead.
+   2 | main! = || -> I64 { mk(42).x }
+                  ^^
+
+-- SYNTAX ERROR --- /tmp/camp-e2e/records/record-as-function-return/record-as-function-return.camp
+
+I expected `identifier` here, but I got `{` instead.
+   2 | main! = || -> I64 { mk(42).x }
+                         ^
+
+-- SYNTAX ERROR --- /tmp/camp-e2e/records/record-as-function-return/record-as-function-return.camp
+
+I expected `identifier` here, but I got `(` instead.
+   2 | main! = || -> I64 { mk(42).x }
+                             ^
+
+-- SYNTAX ERROR --- /tmp/camp-e2e/records/record-as-function-return/record-as-function-return.camp
+
+I expected `identifier` here, but I got `42` instead.
+   2 | main! = || -> I64 { mk(42).x }
+                              ^^
+
+-- SYNTAX ERROR --- /tmp/camp-e2e/records/record-as-function-return/record-as-function-return.camp
+
+I expected `identifier` here, but I got `)` instead.
+   2 | main! = || -> I64 { mk(42).x }
+                                ^
+
+-- SYNTAX ERROR --- /tmp/camp-e2e/records/record-as-function-return/record-as-function-return.camp
+
+I expected `identifier` here, but I got `.` instead.
+   2 | main! = || -> I64 { mk(42).x }
+                                 ^
+
+-- SYNTAX ERROR --- /tmp/camp-e2e/records/record-as-function-return/record-as-function-return.camp
+
+I expected `identifier` here, but I got `}` instead.
+   2 | main! = || -> I64 { mk(42).x }
+                                    ^
+
+-- SYNTAX ERROR --- /tmp/camp-e2e/records/record-as-function-return/record-as-function-return.camp
+
+I expected `|` here, but I got `` instead.
+   3 | 
+       ^
+
+-- SYNTAX ERROR --- /tmp/camp-e2e/records/record-as-function-return/record-as-function-return.camp
+
+I was not expecting `` here.
+   3 | 
+       ^
+compilation failed with 18 error(s)
+"""
+stderr = ""
+exit = 1

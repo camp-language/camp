@@ -13,43 +13,43 @@ I expected `:` here, but I got `=` instead.
 
 -- SYNTAX ERROR --- /tmp/camp-e2e/strings/string-print/string-print.camp
 
-I was expecting a type here, but I found `|` instead.
+I expected `:` here, but I got `IO` instead.
    2 | main! = || -> {IO} I64 { IO.println("hello") 0 }
-               ^
+                                ^^
 
 -- SYNTAX ERROR --- /tmp/camp-e2e/strings/string-print/string-print.camp
 
-I expected `:` here, but I got `|` instead.
+I was expecting a type here, but I found `.` instead.
    2 | main! = || -> {IO} I64 { IO.println("hello") 0 }
-                ^
+                                  ^
 
 -- SYNTAX ERROR --- /tmp/camp-e2e/strings/string-print/string-print.camp
 
-I was expecting a type here, but I found `->` instead.
+I expected `:` here, but I got `(` instead.
    2 | main! = || -> {IO} I64 { IO.println("hello") 0 }
-                  ^^
+                                          ^
 
 -- SYNTAX ERROR --- /tmp/camp-e2e/strings/string-print/string-print.camp
 
-I expected `:` here, but I got `{` instead.
+I was expecting a type here, but I found `"hello"` instead.
    2 | main! = || -> {IO} I64 { IO.println("hello") 0 }
-                     ^
+                                           ^^^^^^^
 
 -- SYNTAX ERROR --- /tmp/camp-e2e/strings/string-print/string-print.camp
 
-I expected `=` here, but I got `{` instead.
+I expected `:` here, but I got `0` instead.
    2 | main! = || -> {IO} I64 { IO.println("hello") 0 }
-                              ^
+                                                    ^
 
 -- SYNTAX ERROR --- /tmp/camp-e2e/strings/string-print/string-print.camp
 
-I expected `=` here, but I got `}` instead.
+I was expecting a type here, but I found `}` instead.
    2 | main! = || -> {IO} I64 { IO.println("hello") 0 }
                                                       ^
 
 -- SYNTAX ERROR --- /tmp/camp-e2e/strings/string-print/string-print.camp
 
-I was not expecting `` here.
+I expected `}` here, but I got `` instead.
    3 | 
        ^
 compilation failed with 9 error(s)

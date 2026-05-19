@@ -11,7 +11,7 @@ wasm_stderr = """
 Error: failed to run main module `/tmp/camp-e2e/execution/negation/negation.wasm`
 
 Caused by:
-    0: failed to instantiate "/tmp/camp-e2e/execution/negation/negation.wasm"
+    0: failed to invoke command default
     1: error while executing at wasm backtrace:
     0:    0x152 - <unknown>!<wasm function 10>
     2: exit with invalid exit status outside of [0..126)

@@ -121,17 +121,23 @@ codegen :: proc(ir_mod: IR_Module, ctx: ^Compilation_Context) -> Wasm_Module {
 	emit_wasi_imports(&env)
 	emit_runtime_types(&env)
 
+	append(&mod.memories, Wasm_Memory{min = 1})
+
+	for entry in ir_mod.string_table {
+		bytes := transmute([]u8)entry.value
+		env.data_offset += u32(len(bytes))
+	}
+
 	heap_ptr_global_idx := len(mod.globals)
-	init_bytes := make([]u8, 2)
-	init_bytes[0] = 0x41
-	init_bytes[1] = 0x00
+	heap_ptr_init: [dynamic]u8
+	heap_ptr_init = make([dynamic]u8, 0, 8)
+	emit_instruction(Wasm_I32_Const{value = i32(env.data_offset)}, &heap_ptr_init)
 	append(&mod.globals, Wasm_Global{
 		type = .I32,
 		mutable = true,
-		init = init_bytes,
+		init = copy_dynamic_bytes(heap_ptr_init),
 	})
-
-	append(&mod.memories, Wasm_Memory{min = 1})
+	delete(heap_ptr_init)
 
 	alloc_type_idx := get_or_create_type(&env, []Wasm_Value_Type{.I32}, []Wasm_Value_Type{.I32})
 	dup_type_idx := get_or_create_type(&env, []Wasm_Value_Type{.I32}, []Wasm_Value_Type{})
@@ -292,11 +298,10 @@ codegen :: proc(ir_mod: IR_Module, ctx: ^Compilation_Context) -> Wasm_Module {
 		append(&mod.codes, Wasm_Code{locals = []Wasm_Local_Decl{}, body = copy_dynamic_bytes(code_buf)})
 		delete(code_buf)
 
-		mod.start = start_func_idx
-
 		append(&mod.exports, Wasm_Export{name = "_start", kind = .Func, index = start_func_idx})
 	}
 
+	env.data_offset = 0
 	for entry in ir_mod.string_table {
 		offset := env.data_offset
 		bytes := transmute([]u8)entry.value
@@ -484,10 +489,12 @@ emit_expr :: proc(expr: IR_Expr, buf: ^[dynamic]u8, env: ^Codegen_Env, runtime_i
 	case ^IR_Dup:
 		if idx, ok := env.local_map[e.value]; ok {
 			emit_instruction(Wasm_Local_Get{index = idx}, buf)
+			emit_instruction(Wasm_Call{index = u32(runtime_indices[RUNTIME_DUP])}, buf)
 		}
 	case ^IR_Drop:
 		if idx, ok := env.local_map[e.value]; ok {
 			emit_instruction(Wasm_Local_Get{index = idx}, buf)
+			emit_instruction(Wasm_Call{index = u32(runtime_indices[RUNTIME_DROP])}, buf)
 		}
 	case ^IR_Block:
 		for stmt, idx in e.statements {
@@ -496,6 +503,26 @@ emit_expr :: proc(expr: IR_Expr, buf: ^[dynamic]u8, env: ^Codegen_Env, runtime_i
 				emit_instruction(Wasm_Drop{}, buf)
 			}
 		}
+	case ^IR_Match:
+		emit_instruction(Wasm_Unreachable{}, buf)
+	case ^IR_Construct_Tag:
+		emit_instruction(Wasm_Unreachable{}, buf)
+	case ^IR_Construct_Record:
+		emit_instruction(Wasm_Unreachable{}, buf)
+	case ^IR_Field_Access:
+		emit_instruction(Wasm_Unreachable{}, buf)
+	case ^IR_Method_Call:
+		emit_instruction(Wasm_Unreachable{}, buf)
+	case ^IR_Handle:
+		emit_instruction(Wasm_Unreachable{}, buf)
+	case ^IR_Perform:
+		emit_instruction(Wasm_Unreachable{}, buf)
+	case ^IR_Closure:
+		emit_instruction(Wasm_Unreachable{}, buf)
+	case ^IR_Drop_Reuse:
+		emit_instruction(Wasm_Unreachable{}, buf)
+	case ^IR_Alloc_At:
+		emit_instruction(Wasm_Unreachable{}, buf)
 	case:
 		emit_instruction(Wasm_Unreachable{}, buf)
 	}

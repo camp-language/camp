@@ -11,7 +11,7 @@ wasm_stderr = """
 Error: failed to run main module `/tmp/camp-e2e/records/record-construct/record-construct.wasm`
 
 Caused by:
-    0: failed to instantiate "/tmp/camp-e2e/records/record-construct/record-construct.wasm"
+    0: failed to invoke command default
     1: error while executing at wasm backtrace:
     0:    0x14c - <unknown>!<wasm function 10>
     2: wasm trap: wasm `unreachable` instruction executed

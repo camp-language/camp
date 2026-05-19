@@ -13,22 +13,28 @@ I was expecting a type here, but I found `effect` instead.
 
 -- SYNTAX ERROR --- /tmp/camp-e2e/effects/effect-multiple-effects/effect-multiple-effects.camp
 
-I expected `:` here, but I got `State` instead.
+I expected `:` here, but I got `{` instead.
    2 | effect State { get, put }
-              ^^^^^
+                    ^
 
 -- SYNTAX ERROR --- /tmp/camp-e2e/effects/effect-multiple-effects/effect-multiple-effects.camp
 
-I expected `:` here, but I got `,` instead.
+I expected `:` here, but I got `}` instead.
    2 | effect State { get, put }
-                         ^
+                               ^
+
+-- SYNTAX ERROR --- /tmp/camp-e2e/effects/effect-multiple-effects/effect-multiple-effects.camp
+
+I was expecting a type here, but I found `` instead.
+   3 | 
+       ^
 
 -- SYNTAX ERROR --- /tmp/camp-e2e/effects/effect-multiple-effects/effect-multiple-effects.camp
 
 I expected `}` here, but I got `` instead.
    3 | 
        ^
-compilation failed with 5 error(s)
+compilation failed with 6 error(s)
 """
 stderr = ""
 exit = 1

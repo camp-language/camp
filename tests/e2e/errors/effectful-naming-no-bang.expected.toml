@@ -13,52 +13,34 @@ I expected `:` here, but I got `|` instead.
 
 -- SYNTAX ERROR --- /tmp/camp-e2e/errors/effectful-naming-no-bang/effectful-naming-no-bang.camp
 
-I was expecting a type here, but I found `|` instead.
-   2 | main = || -> {IO} I64 { 0 }
-               ^
-
--- SYNTAX ERROR --- /tmp/camp-e2e/errors/effectful-naming-no-bang/effectful-naming-no-bang.camp
-
-I expected `:` here, but I got `->` instead.
+I expected `|` here, but I got `->` instead.
    2 | main = || -> {IO} I64 { 0 }
                  ^^
 
 -- SYNTAX ERROR --- /tmp/camp-e2e/errors/effectful-naming-no-bang/effectful-naming-no-bang.camp
 
-I expected `identifier` here, but I got `IO` instead.
+I expected `:` here, but I got `IO` instead.
    2 | main = || -> {IO} I64 { 0 }
                      ^^
 
 -- SYNTAX ERROR --- /tmp/camp-e2e/errors/effectful-naming-no-bang/effectful-naming-no-bang.camp
 
-I expected `:` here, but I got `}` instead.
+I was expecting a type here, but I found `}` instead.
    2 | main = || -> {IO} I64 { 0 }
                        ^
 
 -- SYNTAX ERROR --- /tmp/camp-e2e/errors/effectful-naming-no-bang/effectful-naming-no-bang.camp
 
-I expected `identifier` here, but I got `{` instead.
+I expected `:` here, but I got `{` instead.
    2 | main = || -> {IO} I64 { 0 }
                              ^
 
 -- SYNTAX ERROR --- /tmp/camp-e2e/errors/effectful-naming-no-bang/effectful-naming-no-bang.camp
 
-I expected `:` here, but I got `0` instead.
+I was expecting a type here, but I found `0` instead.
    2 | main = || -> {IO} I64 { 0 }
                                ^
-
--- SYNTAX ERROR --- /tmp/camp-e2e/errors/effectful-naming-no-bang/effectful-naming-no-bang.camp
-
-I was expecting a type here, but I found `}` instead.
-   2 | main = || -> {IO} I64 { 0 }
-                                 ^
-
--- SYNTAX ERROR --- /tmp/camp-e2e/errors/effectful-naming-no-bang/effectful-naming-no-bang.camp
-
-I expected `}` here, but I got `` instead.
-   3 | 
-       ^
-compilation failed with 10 error(s)
+compilation failed with 7 error(s)
 """
 stderr = ""
 exit = 1

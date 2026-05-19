@@ -91,8 +91,8 @@ run_build :: proc(args: []string) {
 	rc_insert(&ir_mod, &ctx)
 	context.allocator = old_allocator
 
-	wasm_mod := codegen(ir_mod, &ctx)
 	context.allocator = ctx.allocator
+	wasm_mod := codegen(ir_mod, &ctx)
 	wasm_bytes := wasm_serialize(wasm_mod)
 	context.allocator = old_allocator
 

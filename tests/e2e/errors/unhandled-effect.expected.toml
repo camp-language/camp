@@ -13,63 +13,27 @@ I expected `:` here, but I got `=` instead.
 
 -- SYNTAX ERROR --- /tmp/camp-e2e/errors/unhandled-effect/unhandled-effect.camp
 
-I was expecting a type here, but I found `|` instead.
-   2 | main! = || -> I64 { IO.println("hi") 0 }
-               ^
-
--- SYNTAX ERROR --- /tmp/camp-e2e/errors/unhandled-effect/unhandled-effect.camp
-
-I expected `:` here, but I got `|` instead.
-   2 | main! = || -> I64 { IO.println("hi") 0 }
-                ^
-
--- SYNTAX ERROR --- /tmp/camp-e2e/errors/unhandled-effect/unhandled-effect.camp
-
-I was expecting a type here, but I found `->` instead.
-   2 | main! = || -> I64 { IO.println("hi") 0 }
-                  ^^
-
--- SYNTAX ERROR --- /tmp/camp-e2e/errors/unhandled-effect/unhandled-effect.camp
-
-I expected `:` here, but I got `I64` instead.
-   2 | main! = || -> I64 { IO.println("hi") 0 }
-                     ^^^
-
--- SYNTAX ERROR --- /tmp/camp-e2e/errors/unhandled-effect/unhandled-effect.camp
-
-I expected `identifier` here, but I got `IO` instead.
+I expected `:` here, but I got `IO` instead.
    2 | main! = || -> I64 { IO.println("hi") 0 }
                            ^^
 
 -- SYNTAX ERROR --- /tmp/camp-e2e/errors/unhandled-effect/unhandled-effect.camp
 
-I expected `:` here, but I got `.` instead.
+I was expecting a type here, but I found `.` instead.
    2 | main! = || -> I64 { IO.println("hi") 0 }
                              ^
 
 -- SYNTAX ERROR --- /tmp/camp-e2e/errors/unhandled-effect/unhandled-effect.camp
 
-I expected `identifier` here, but I got `(` instead.
+I expected `:` here, but I got `(` instead.
    2 | main! = || -> I64 { IO.println("hi") 0 }
                                      ^
 
 -- SYNTAX ERROR --- /tmp/camp-e2e/errors/unhandled-effect/unhandled-effect.camp
 
-I expected `:` here, but I got `"hi"` instead.
+I was expecting a type here, but I found `"hi"` instead.
    2 | main! = || -> I64 { IO.println("hi") 0 }
                                       ^^^^
-
--- SYNTAX ERROR --- /tmp/camp-e2e/errors/unhandled-effect/unhandled-effect.camp
-
-I was expecting a type here, but I found `)` instead.
-   2 | main! = || -> I64 { IO.println("hi") 0 }
-                                          ^
-
--- SYNTAX ERROR --- /tmp/camp-e2e/errors/unhandled-effect/unhandled-effect.camp
-
-I expected `identifier` here, but I got `)` instead.
-   2 | main! = || -> I64 { IO.println("hi") 0 }
-                                          ^
 
 -- SYNTAX ERROR --- /tmp/camp-e2e/errors/unhandled-effect/unhandled-effect.camp
 
@@ -88,7 +52,7 @@ I was expecting a type here, but I found `}` instead.
 I expected `}` here, but I got `` instead.
    3 | 
        ^
-compilation failed with 15 error(s)
+compilation failed with 9 error(s)
 """
 stderr = ""
 exit = 1

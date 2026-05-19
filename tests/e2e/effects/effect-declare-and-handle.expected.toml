@@ -19,75 +19,21 @@ I expected `:` here, but I got `println` instead.
 
 -- SYNTAX ERROR --- /tmp/camp-e2e/effects/effect-declare-and-handle/effect-declare-and-handle.camp
 
-I was expecting a type here, but I found `(` instead.
-   2 | result = handle IO.println("hi") with { IO.println(s) -> resume(()) }
-                                 ^
-
--- SYNTAX ERROR --- /tmp/camp-e2e/effects/effect-declare-and-handle/effect-declare-and-handle.camp
-
-I expected `:` here, but I got `"hi"` instead.
+I was expecting a type here, but I found `"hi"` instead.
    2 | result = handle IO.println("hi") with { IO.println(s) -> resume(()) }
                                   ^^^^
 
 -- SYNTAX ERROR --- /tmp/camp-e2e/effects/effect-declare-and-handle/effect-declare-and-handle.camp
 
-I was expecting a type here, but I found `)` instead.
+I expected `:` here, but I got `{` instead.
    2 | result = handle IO.println("hi") with { IO.println(s) -> resume(()) }
-                                      ^
+                                             ^
 
 -- SYNTAX ERROR --- /tmp/camp-e2e/effects/effect-declare-and-handle/effect-declare-and-handle.camp
 
-I expected `:` here, but I got `with` instead.
+I expected `:` here, but I got `println` instead.
    2 | result = handle IO.println("hi") with { IO.println(s) -> resume(()) }
-                                        ^^^^
-
--- SYNTAX ERROR --- /tmp/camp-e2e/effects/effect-declare-and-handle/effect-declare-and-handle.camp
-
-I expected `identifier` here, but I got `IO` instead.
-   2 | result = handle IO.println("hi") with { IO.println(s) -> resume(()) }
-                                               ^^
-
--- SYNTAX ERROR --- /tmp/camp-e2e/effects/effect-declare-and-handle/effect-declare-and-handle.camp
-
-I expected `:` here, but I got `.` instead.
-   2 | result = handle IO.println("hi") with { IO.println(s) -> resume(()) }
-                                                 ^
-
--- SYNTAX ERROR --- /tmp/camp-e2e/effects/effect-declare-and-handle/effect-declare-and-handle.camp
-
-I expected `identifier` here, but I got `(` instead.
-   2 | result = handle IO.println("hi") with { IO.println(s) -> resume(()) }
-                                                         ^
-
--- SYNTAX ERROR --- /tmp/camp-e2e/effects/effect-declare-and-handle/effect-declare-and-handle.camp
-
-I expected `:` here, but I got `s` instead.
-   2 | result = handle IO.println("hi") with { IO.println(s) -> resume(()) }
-                                                          ^
-
--- SYNTAX ERROR --- /tmp/camp-e2e/effects/effect-declare-and-handle/effect-declare-and-handle.camp
-
-I was expecting a type here, but I found `)` instead.
-   2 | result = handle IO.println("hi") with { IO.println(s) -> resume(()) }
-                                                           ^
-
--- SYNTAX ERROR --- /tmp/camp-e2e/effects/effect-declare-and-handle/effect-declare-and-handle.camp
-
-I expected `identifier` here, but I got `)` instead.
-   2 | result = handle IO.println("hi") with { IO.println(s) -> resume(()) }
-                                                           ^
-
--- SYNTAX ERROR --- /tmp/camp-e2e/effects/effect-declare-and-handle/effect-declare-and-handle.camp
-
-I expected `:` here, but I got `->` instead.
-   2 | result = handle IO.println("hi") with { IO.println(s) -> resume(()) }
-                                                             ^^
-
--- SYNTAX ERROR --- /tmp/camp-e2e/effects/effect-declare-and-handle/effect-declare-and-handle.camp
-
-I expected `identifier` here, but I got `(` instead.
-   2 | result = handle IO.println("hi") with { IO.println(s) -> resume(()) }
-                                                                      ^
+                                                  ^^^^^^^
 
 -- SYNTAX ERROR --- /tmp/camp-e2e/effects/effect-declare-and-handle/effect-declare-and-handle.camp
 
@@ -103,28 +49,22 @@ I was expecting a type here, but I found `)` instead.
 
 -- SYNTAX ERROR --- /tmp/camp-e2e/effects/effect-declare-and-handle/effect-declare-and-handle.camp
 
-I expected `identifier` here, but I got `)` instead.
-   2 | result = handle IO.println("hi") with { IO.println(s) -> resume(()) }
-                                                                        ^
-
--- SYNTAX ERROR --- /tmp/camp-e2e/effects/effect-declare-and-handle/effect-declare-and-handle.camp
-
-I expected `:` here, but I got `)` instead.
-   2 | result = handle IO.println("hi") with { IO.println(s) -> resume(()) }
-                                                                         ^
-
--- SYNTAX ERROR --- /tmp/camp-e2e/effects/effect-declare-and-handle/effect-declare-and-handle.camp
-
-I was expecting a type here, but I found `}` instead.
+I expected `:` here, but I got `}` instead.
    2 | result = handle IO.println("hi") with { IO.println(s) -> resume(()) }
                                                                            ^
+
+-- SYNTAX ERROR --- /tmp/camp-e2e/effects/effect-declare-and-handle/effect-declare-and-handle.camp
+
+I was expecting a type here, but I found `` instead.
+   3 | 
+       ^
 
 -- SYNTAX ERROR --- /tmp/camp-e2e/effects/effect-declare-and-handle/effect-declare-and-handle.camp
 
 I expected `}` here, but I got `` instead.
    3 | 
        ^
-compilation failed with 21 error(s)
+compilation failed with 11 error(s)
 """
 stderr = ""
 exit = 1

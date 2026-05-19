@@ -13,94 +13,58 @@ I expected `:` here, but I got `=` instead.
 
 -- SYNTAX ERROR --- /tmp/camp-e2e/effects/effect-deep-handler/effect-deep-handler.camp
 
-I was expecting a type here, but I found `|` instead.
+I expected `:` here, but I got `handle` instead.
    2 | main! = || -> {IO} I64 { handle IO.println("hi") with { IO.println(s) -> resume(()) } 0 }
-               ^
+                                ^^^^^^
 
 -- SYNTAX ERROR --- /tmp/camp-e2e/effects/effect-deep-handler/effect-deep-handler.camp
 
-I expected `:` here, but I got `|` instead.
+I expected `:` here, but I got `println` instead.
    2 | main! = || -> {IO} I64 { handle IO.println("hi") with { IO.println(s) -> resume(()) } 0 }
-                ^
+                                          ^^^^^^^
 
 -- SYNTAX ERROR --- /tmp/camp-e2e/effects/effect-deep-handler/effect-deep-handler.camp
 
-I was expecting a type here, but I found `->` instead.
+I was expecting a type here, but I found `"hi"` instead.
    2 | main! = || -> {IO} I64 { handle IO.println("hi") with { IO.println(s) -> resume(()) } 0 }
-                  ^^
+                                                  ^^^^
 
 -- SYNTAX ERROR --- /tmp/camp-e2e/effects/effect-deep-handler/effect-deep-handler.camp
 
 I expected `:` here, but I got `{` instead.
    2 | main! = || -> {IO} I64 { handle IO.println("hi") with { IO.println(s) -> resume(()) } 0 }
-                     ^
+                                                             ^
 
 -- SYNTAX ERROR --- /tmp/camp-e2e/effects/effect-deep-handler/effect-deep-handler.camp
 
-I expected `=` here, but I got `{` instead.
-   2 | main! = || -> {IO} I64 { handle IO.println("hi") with { IO.println(s) -> resume(()) } 0 }
-                              ^
-
--- SYNTAX ERROR --- /tmp/camp-e2e/effects/effect-deep-handler/effect-deep-handler.camp
-
-I expected `in` here, but I got `.` instead.
-   2 | main! = || -> {IO} I64 { handle IO.println("hi") with { IO.println(s) -> resume(()) } 0 }
-                                         ^
-
--- SYNTAX ERROR --- /tmp/camp-e2e/effects/effect-deep-handler/effect-deep-handler.camp
-
-I expected `.` here, but I got `IO` instead.
-   2 | main! = || -> {IO} I64 { handle IO.println("hi") with { IO.println(s) -> resume(()) } 0 }
-                                                               ^^
-
--- SYNTAX ERROR --- /tmp/camp-e2e/effects/effect-deep-handler/effect-deep-handler.camp
-
-I expected `identifier` here, but I got `.` instead.
-   2 | main! = || -> {IO} I64 { handle IO.println("hi") with { IO.println(s) -> resume(()) } 0 }
-                                                                 ^
-
--- SYNTAX ERROR --- /tmp/camp-e2e/effects/effect-deep-handler/effect-deep-handler.camp
-
-I expected `!` here, but I got `println` instead.
+I expected `:` here, but I got `println` instead.
    2 | main! = || -> {IO} I64 { handle IO.println("hi") with { IO.println(s) -> resume(()) } 0 }
                                                                   ^^^^^^^
 
 -- SYNTAX ERROR --- /tmp/camp-e2e/effects/effect-deep-handler/effect-deep-handler.camp
 
-I expected `=>` here, but I got `->` instead.
+I expected `:` here, but I got `(` instead.
    2 | main! = || -> {IO} I64 { handle IO.println("hi") with { IO.println(s) -> resume(()) } 0 }
-                                                                             ^^
+                                                                                       ^
 
 -- SYNTAX ERROR --- /tmp/camp-e2e/effects/effect-deep-handler/effect-deep-handler.camp
 
-I was not expecting `)` here.
+I was expecting a type here, but I found `)` instead.
    2 | main! = || -> {IO} I64 { handle IO.println("hi") with { IO.println(s) -> resume(()) } 0 }
                                                                                         ^
 
 -- SYNTAX ERROR --- /tmp/camp-e2e/effects/effect-deep-handler/effect-deep-handler.camp
 
-I was not expecting `}` here.
+I expected `:` here, but I got `}` instead.
    2 | main! = || -> {IO} I64 { handle IO.println("hi") with { IO.println(s) -> resume(()) } 0 }
                                                                                            ^
 
 -- SYNTAX ERROR --- /tmp/camp-e2e/effects/effect-deep-handler/effect-deep-handler.camp
 
-I was not expecting `}` here.
+I was expecting a type here, but I found `0` instead.
    2 | main! = || -> {IO} I64 { handle IO.println("hi") with { IO.println(s) -> resume(()) } 0 }
-                                                                                               ^
-
--- SYNTAX ERROR --- /tmp/camp-e2e/effects/effect-deep-handler/effect-deep-handler.camp
-
-I expected `)` here, but I got `` instead.
-   3 | 
-       ^
-
--- SYNTAX ERROR --- /tmp/camp-e2e/effects/effect-deep-handler/effect-deep-handler.camp
-
-I expected `}` here, but I got `` instead.
-   3 | 
-       ^
-compilation failed with 17 error(s)
+                                                                                             ^
+compilation failed with 11 error(s)
 """
 stderr = ""
 exit = 1
