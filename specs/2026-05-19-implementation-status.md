@@ -95,7 +95,7 @@ Most IR expression types emit `Wasm_Unreachable` — they compile to a trap at r
 | Traits (constraint solving, UFCS, `is` enforcement) | §3.10 | Parsed but no constraint solving, no method dispatch, no `is` verification |
 | `@derive` expansion | §3.10, §10.2 | Recorded on decls but never expanded into trait impls |
 | `$` mutable variables | §3.9 | Parsed as `$` + identifier but no mutation semantics, no enforcement |
-| `Throw` built-in effect | §4.6 | `Throw.throw!` and `Throw([..])` defined in spec but not implemented |
+| `Throw` built-in effect | §4.6, [effects impl](2026-05-20-algebraic-effects-implementation.md) | `Throw.throw!` and `Throw([..])` defined in spec but not implemented |
 | Comptime evaluation | §5.7, §10.3 | Not started |
 | Module system (import resolution, multi-file) | §8.1-8.2 | `Deferred_Import` recorded but never resolved; single-file compilation only |
 | `camp.toml` parsing | §8.3 | Not started |

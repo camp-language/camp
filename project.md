@@ -11,6 +11,7 @@ Camp is a general-purpose, strictly-typed functional programming language with a
 - [Language Design Specification](specs/2026-05-18-camp-language-design.md)
 - [Implementation Status](specs/2026-05-19-implementation-status.md)
 - [Package Ecosystem](specs/2026-05-18-camp-package-ecosystem.md)
+- [Algebraic Effects Implementation](specs/2026-05-20-algebraic-effects-implementation.md)
 
 ## Building
 
