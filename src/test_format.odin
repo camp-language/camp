@@ -1358,6 +1358,102 @@ test_format_idempotent_simple :: proc(t: ^testing.T) {
 }
 
 @(test)
+test_format_idempotent_lambda :: proc(t: ^testing.T) {
+	source := "add = |x, y| x + y"
+	result1 := format(source, "test.camp", context.allocator)
+	defer cleanup_format_result(&result1)
+
+	testing.expectf(t, len(result1.diagnostics) == 0,
+		"first format had errors: %d", len(result1.diagnostics))
+
+	result2 := format(result1.output, "test.camp", context.allocator)
+	defer cleanup_format_result(&result2)
+
+	testing.expectf(t, len(result2.diagnostics) == 0,
+		"second format had errors: %d", len(result2.diagnostics))
+	testing.expectf(t, result2.output == result1.output,
+		"not idempotent: first=%q second=%q", result1.output, result2.output)
+}
+
+@(test)
+test_format_idempotent_list :: proc(t: ^testing.T) {
+	source := "items = [1, 2, 3]"
+	result1 := format(source, "test.camp", context.allocator)
+	defer cleanup_format_result(&result1)
+
+	testing.expectf(t, len(result1.diagnostics) == 0,
+		"first format had errors: %d", len(result1.diagnostics))
+
+	result2 := format(result1.output, "test.camp", context.allocator)
+	defer cleanup_format_result(&result2)
+
+	testing.expectf(t, len(result2.diagnostics) == 0,
+		"second format had errors: %d", len(result2.diagnostics))
+	testing.expectf(t, result2.output == result1.output,
+		"not idempotent: first=%q second=%q", result1.output, result2.output)
+}
+
+@(test)
+test_format_idempotent_record :: proc(t: ^testing.T) {
+	source := "record = { name: \"Camp\" }"
+	result1 := format(source, "test.camp", context.allocator)
+	defer cleanup_format_result(&result1)
+
+	testing.expectf(t, len(result1.diagnostics) == 0,
+		"first format had errors: %d", len(result1.diagnostics))
+
+	result2 := format(result1.output, "test.camp", context.allocator)
+	defer cleanup_format_result(&result2)
+
+	testing.expectf(t, len(result2.diagnostics) == 0,
+		"second format had errors: %d", len(result2.diagnostics))
+	testing.expectf(t, result2.output == result1.output,
+		"not idempotent: first=%q second=%q", result1.output, result2.output)
+}
+
+@(test)
+test_format_idempotent_blank_line :: proc(t: ^testing.T) {
+	source := "x = 1\n\ny = 2"
+	result1 := format(source, "test.camp", context.allocator)
+	defer cleanup_format_result(&result1)
+
+	testing.expectf(t, len(result1.diagnostics) == 0,
+		"first format had errors: %d", len(result1.diagnostics))
+
+	result2 := format(result1.output, "test.camp", context.allocator)
+	defer cleanup_format_result(&result2)
+
+	testing.expectf(t, len(result2.diagnostics) == 0,
+		"second format had errors: %d", len(result2.diagnostics))
+	testing.expectf(t, result2.output == result1.output,
+		"not idempotent: first=%q second=%q", result1.output, result2.output)
+}
+
+@(test)
+test_format_edge_empty :: proc(t: ^testing.T) {
+	source := ""
+	result := format(source, "test.camp", context.allocator)
+	defer cleanup_format_result(&result)
+
+	testing.expectf(t, len(result.diagnostics) == 0,
+		"expected no diagnostics for empty source, got %d", len(result.diagnostics))
+	testing.expectf(t, result.output == "",
+		"expected empty output for empty source, got %q", result.output)
+}
+
+@(test)
+test_format_edge_single_decl :: proc(t: ^testing.T) {
+	source := "y = 42"
+	result := format(source, "test.camp", context.allocator)
+	defer cleanup_format_result(&result)
+
+	testing.expectf(t, len(result.diagnostics) == 0,
+		"expected no diagnostics, got %d", len(result.diagnostics))
+	testing.expectf(t, result.output == "y = 42",
+		"expected %q, got %q", "y = 42", result.output)
+}
+
+@(test)
 test_format_multiline_list :: proc(t: ^testing.T) {
 	source := "items = [\n    1,\n    2,\n]"
 	result := format(source, "test.camp", context.allocator)
