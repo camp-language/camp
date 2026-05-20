@@ -197,6 +197,12 @@ diag_project_no_source :: proc() -> Diagnostic {
 	return d
 }
 
+diag_duplicate_module_name :: proc(name: string, span: Source_Span) -> Diagnostic {
+	d := diag_init(.Error, "DUPLICATE NAME", span,
+		fmt.tprintf("name '{}' is already defined in this module.", name))
+	return d
+}
+
 diag_internal :: proc(message: string, span: Source_Span) -> Diagnostic {
 	d := diag_init(.Internal, "INTERNAL ERROR", span,
 		fmt.tprintf("Something went wrong inside the compiler: {}", message))

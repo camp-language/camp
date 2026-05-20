@@ -115,6 +115,9 @@ Import_Ambiguous :: struct {
 Entry_Point_Not_Found :: struct {}
 Entry_Point_No_Main :: struct {}
 Project_No_Source :: struct {}
+Module_Duplicate_Name :: struct {
+	name: string,
+}
 
 Diagnostic_Collector :: struct {
 	diagnostics:    [dynamic]Diagnostic,

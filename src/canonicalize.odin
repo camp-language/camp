@@ -8,7 +8,18 @@ DOT_RECEIVER_INTERN_ID : Intern_ID = 0
 dot_lambda_counter : int = 0
 
 Canonicalize_Scope :: struct {
-	local_names: map[Intern_ID]Canonical_Name,
+	local_names:    map[Intern_ID]Canonical_Name,
+	local_kinds:    map[Intern_ID]Decl_Kind,
+}
+
+Decl_Kind :: enum {
+	Const,
+	Effect,
+	Trait,
+	Alias,
+	Import,
+	Test,
+	Expect,
 }
 
 canonicalize :: proc(surface: File, ctx: ^Compilation_Context) -> CFile {
@@ -16,7 +27,9 @@ canonicalize :: proc(surface: File, ctx: ^Compilation_Context) -> CFile {
 
 	scope: Canonicalize_Scope
 	scope.local_names = make(map[Intern_ID]Canonical_Name, 64)
+	scope.local_kinds = make(map[Intern_ID]Decl_Kind, 64)
 	defer delete(scope.local_names)
+	defer delete(scope.local_kinds)
 
 	cfile: CFile
 	cfile.path = surface.path
@@ -34,7 +47,7 @@ canonicalize :: proc(surface: File, ctx: ^Compilation_Context) -> CFile {
 canonicalize_decl :: proc(decl: Decl, scope: ^Canonicalize_Scope, imports: ^[dynamic]Deferred_Import, ctx: ^Compilation_Context) -> CDecl {
 	#partial switch d in decl {
 	case ^Decl_Const:
-		name := canonicalize_local_name(d.name, scope)
+		name := canonicalize_local_name(d.name, .Const, scope, ctx)
 		cbody := canonicalize_expr(d.body, scope, ctx)
 		ctype_ann: ^CType = nil
 		if d.type_ann != nil {
@@ -53,7 +66,7 @@ canonicalize_decl :: proc(decl: Decl, scope: ^Canonicalize_Scope, imports: ^[dyn
 		return cdecl
 
 	case ^Decl_Effect:
-		name := canonicalize_local_name(d.name, scope)
+		name := canonicalize_local_name(d.name, .Effect, scope, ctx)
 		ops := make([dynamic]CEffect_Op, 0, len(d.operations))
 		for op in d.operations {
 			append(&ops, canonicalize_effect_op(op, scope, ctx))
@@ -68,7 +81,7 @@ canonicalize_decl :: proc(decl: Decl, scope: ^Canonicalize_Scope, imports: ^[dyn
 		return cdecl
 
 	case ^Decl_Trait:
-		name := canonicalize_local_name(d.name, scope)
+		name := canonicalize_local_name(d.name, .Trait, scope, ctx)
 		methods := make([dynamic]CTrait_Method, 0, len(d.methods))
 		for m in d.methods {
 			append(&methods, canonicalize_trait_method(m, scope, ctx))
@@ -84,7 +97,7 @@ canonicalize_decl :: proc(decl: Decl, scope: ^Canonicalize_Scope, imports: ^[dyn
 		return cdecl
 
 	case ^Decl_Alias:
-		name := canonicalize_local_name(d.name, scope)
+		name := canonicalize_local_name(d.name, .Alias, scope, ctx)
 		ctarget := canonicalize_type(d.target^, scope, ctx)
 		cdecl := new(CDecl_Alias)
 		cdecl^ = CDecl_Alias{
@@ -128,9 +141,16 @@ canonicalize_decl :: proc(decl: Decl, scope: ^Canonicalize_Scope, imports: ^[dyn
 	return cdecl
 }
 
-canonicalize_local_name :: proc(id: Intern_ID, scope: ^Canonicalize_Scope) -> Canonical_Name {
+canonicalize_local_name :: proc(id: Intern_ID, kind: Decl_Kind, scope: ^Canonicalize_Scope, ctx: ^Compilation_Context) -> Canonical_Name {
+	if existing_kind, ok := scope.local_kinds[id]; ok {
+		if existing_kind != kind {
+			name_str := intern_get(&ctx.interner, id)
+			collector_add_diag(&ctx.collector, diag_duplicate_module_name(name_str, Source_Span_ZERO))
+		}
+	}
 	name := Canonical_Name{module = NO_NAME, name = id, is_local = true}
 	scope.local_names[id] = name
+	scope.local_kinds[id] = kind
 	return name
 }
 

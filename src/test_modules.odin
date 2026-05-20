@@ -310,3 +310,41 @@ test_module_graph_three_node_cycle :: proc(t: ^testing.T) {
 	testing.expect(t, !ok)
 	testing.expect(t, diag_collector_has_errors(&ctx.collector))
 }
+
+@(test)
+test_duplicate_name_const_and_effect :: proc(t: ^testing.T) {
+	ctx: Compilation_Context
+	context_init(&ctx)
+	defer context_destroy(&ctx)
+
+	scope: Canonicalize_Scope
+	scope.local_names = make(map[Intern_ID]Canonical_Name, 8)
+	scope.local_kinds = make(map[Intern_ID]Decl_Kind, 8)
+	defer delete(scope.local_names)
+	defer delete(scope.local_kinds)
+
+	x_name := intern(&ctx.interner, "Result")
+	_ = canonicalize_local_name(x_name, .Const, &scope, &ctx)
+	_ = canonicalize_local_name(x_name, .Effect, &scope, &ctx)
+
+	testing.expect(t, diag_collector_has_errors(&ctx.collector))
+}
+
+@(test)
+test_duplicate_name_same_kind_ok :: proc(t: ^testing.T) {
+	ctx: Compilation_Context
+	context_init(&ctx)
+	defer context_destroy(&ctx)
+
+	scope: Canonicalize_Scope
+	scope.local_names = make(map[Intern_ID]Canonical_Name, 8)
+	scope.local_kinds = make(map[Intern_ID]Decl_Kind, 8)
+	defer delete(scope.local_names)
+	defer delete(scope.local_kinds)
+
+	x_name := intern(&ctx.interner, "map")
+	_ = canonicalize_local_name(x_name, .Const, &scope, &ctx)
+	_ = canonicalize_local_name(x_name, .Const, &scope, &ctx)
+
+	testing.expect(t, !diag_collector_has_errors(&ctx.collector))
+}
