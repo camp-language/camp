@@ -115,6 +115,57 @@ typecheck_file :: proc(file: CFile, store: ^Type_Store) {
 	}
 }
 
+inject_prelude :: proc(store: ^Type_Store) {
+	builtin_types := []struct{name: string, kind: Inferred_Tag}{
+		{"Bool", .Constructor},
+		{"I64", .Primitive},
+		{"I32", .Primitive},
+		{"U64", .Primitive},
+		{"F64", .Primitive},
+		{"F32", .Primitive},
+		{"Str", .Primitive},
+		{"Unit", .Primitive},
+	}
+
+	for bt in builtin_types {
+		name_id := intern(store.interner, bt.name)
+		var_id := fresh_value_var(store, Source_Span_ZERO)
+		inf := Inferred_Type{tag = bt.kind, primitive_name = name_id}
+		if bt.kind == .Constructor {
+			inf = Inferred_Type{tag = .Constructor, primitive_name = name_id, arity = 0}
+		}
+		link_var(store, var_id, inf)
+		store.bindings[name_id] = var_id
+	}
+
+	bool_name := intern(store.interner, "Bool")
+	bool_var, _ := store.bindings[bool_name]
+
+	true_name := intern(store.interner, "True")
+	true_var := fresh_value_var(store, Source_Span_ZERO)
+	true_tag_entries := store_alloc(store, Type_Tag_Entry, 1)
+	true_tag_entries[0] = Type_Tag_Entry{name = true_name, payload = nil}
+	true_rest := fresh_tag_row(store, Source_Span_ZERO)
+	link_var(store, true_var, Inferred_Type{
+		tag = .Tag_Union_Row,
+		tag_entries = true_tag_entries,
+		tag_rest = true_rest,
+	})
+	store.bindings[true_name] = true_var
+
+	false_name := intern(store.interner, "False")
+	false_var := fresh_value_var(store, Source_Span_ZERO)
+	false_tag_entries := store_alloc(store, Type_Tag_Entry, 1)
+	false_tag_entries[0] = Type_Tag_Entry{name = false_name, payload = nil}
+	false_rest := fresh_tag_row(store, Source_Span_ZERO)
+	link_var(store, false_var, Inferred_Type{
+		tag = .Tag_Union_Row,
+		tag_entries = false_tag_entries,
+		tag_rest = false_rest,
+	})
+	store.bindings[false_name] = false_var
+}
+
 typecheck_decl :: proc(decl: CDecl, env: ^Type_Env, store: ^Type_Store) {
 	switch d in decl {
 	case ^CDecl_Const:
