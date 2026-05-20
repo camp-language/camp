@@ -1,2 +1,2 @@
 x = 42
-y = x + true
+y = x + True

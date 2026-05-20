@@ -1,1 +1,1 @@
-x = if true 1 else "no"
+x = if True 1 else "no"
