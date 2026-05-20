@@ -141,7 +141,7 @@ parser_parse_file :: proc(p: ^Parser) -> File {
 
 parser_parse_decl :: proc(p: ^Parser) -> Decl {
 	is_pub := false
-	if p.current.kind == .Upper_Id && p.current.text == "pub" {
+	if p.current.kind == .Kw_Pub {
 		parser_advance(p)
 		is_pub = true
 	}

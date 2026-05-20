@@ -31,6 +31,7 @@ Token_Kind :: enum {
 	Kw_Expect,
 	Kw_Test,
 	Kw_Not,
+	Kw_Pub,
 
 	Pipe,
 	Arrow,
