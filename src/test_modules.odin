@@ -1,0 +1,312 @@
+package camp
+
+import "core:fmt"
+import "core:testing"
+
+@(test)
+test_path_to_module_name_top :: proc(t: ^testing.T) {
+	ctx: Compilation_Context
+	context_init(&ctx)
+	defer context_destroy(&ctx)
+
+	id := path_to_module_name("src/List.camp", "src", &ctx.interner)
+	name := intern_get(&ctx.interner, id)
+	testing.expect(t, name == "List")
+}
+
+@(test)
+test_path_to_module_name_nested :: proc(t: ^testing.T) {
+	ctx: Compilation_Context
+	context_init(&ctx)
+	defer context_destroy(&ctx)
+
+	id := path_to_module_name("src/Http/Server.camp", "src", &ctx.interner)
+	name := intern_get(&ctx.interner, id)
+	testing.expect(t, name == "Http.Server")
+}
+
+@(test)
+test_path_to_module_name_deep :: proc(t: ^testing.T) {
+	ctx: Compilation_Context
+	context_init(&ctx)
+	defer context_destroy(&ctx)
+
+	id := path_to_module_name("src/A/B/C.camp", "src", &ctx.interner)
+	name := intern_get(&ctx.interner, id)
+	testing.expect(t, name == "A.B.C")
+}
+
+@(test)
+test_simple_hash_deterministic :: proc(t: ^testing.T) {
+	a := simple_hash("hello")
+	b := simple_hash("hello")
+	testing.expect(t, a == b)
+}
+
+@(test)
+test_simple_hash_different_inputs :: proc(t: ^testing.T) {
+	a := simple_hash("hello")
+	b := simple_hash("world")
+	testing.expect(t, a != b)
+}
+
+@(test)
+test_mangle_name_simple :: proc(t: ^testing.T) {
+	ctx: Compilation_Context
+	context_init(&ctx)
+	defer context_destroy(&ctx)
+
+	mod := intern(&ctx.interner, "List")
+	name := intern(&ctx.interner, "map")
+	result := mangle_name(mod, name, &ctx.interner)
+	testing.expect(t, result == "List__map")
+}
+
+@(test)
+test_mangle_name_nested :: proc(t: ^testing.T) {
+	ctx: Compilation_Context
+	context_init(&ctx)
+	defer context_destroy(&ctx)
+
+	mod := intern(&ctx.interner, "Http.Server")
+	name := intern(&ctx.interner, "handle")
+	result := mangle_name(mod, name, &ctx.interner)
+	testing.expect(t, result == "Http_Server__handle")
+}
+
+@(test)
+test_export_table_manual :: proc(t: ^testing.T) {
+	ctx: Compilation_Context
+	context_init(&ctx)
+	defer context_destroy(&ctx)
+
+	et: Export_Table
+	export_table_init(&et)
+	defer export_table_destroy(&et)
+
+	x_name := intern(&ctx.interner, "x")
+	et.exports[x_name] = Export_Info{
+		name = x_name,
+		kind = .Const,
+		is_pub = true,
+		type_var = Type_Var_ID(-1),
+	}
+
+	ei, ok := export_lookup(&et, x_name)
+	testing.expect(t, ok)
+	testing.expect(t, ei.is_pub)
+
+	y_name := intern(&ctx.interner, "y")
+	_, y_ok := export_lookup(&et, y_name)
+	testing.expect(t, !y_ok)
+}
+
+@(test)
+test_module_graph_topo_sort :: proc(t: ^testing.T) {
+	ctx: Compilation_Context
+	context_init(&ctx)
+	defer context_destroy(&ctx)
+
+	graph: Module_Graph
+	module_graph_init(&graph)
+	defer module_graph_destroy(&graph)
+
+	a := intern(&ctx.interner, "A")
+	b := intern(&ctx.interner, "B")
+	c := intern(&ctx.interner, "C")
+
+	module_graph_add_node(&graph, a)
+	module_graph_add_node(&graph, b)
+	module_graph_add_node(&graph, c)
+	module_graph_add_edge(&graph, a, b)
+	module_graph_add_edge(&graph, b, c)
+
+	sorted, ok := topological_sort(&graph, &ctx.interner, &ctx.collector)
+	testing.expect(t, ok)
+
+	if ok && len(sorted) == 3 {
+		a_idx := -1
+		b_idx := -1
+		c_idx := -1
+		for i: int = 0; i < len(sorted); i += 1 {
+			id := sorted[i]
+			if id == a do a_idx = i
+			if id == b do b_idx = i
+			if id == c do c_idx = i
+		}
+		testing.expect(t, a_idx < b_idx)
+		testing.expect(t, b_idx < c_idx)
+	}
+}
+
+@(test)
+test_module_graph_cycle_detection :: proc(t: ^testing.T) {
+	ctx: Compilation_Context
+	context_init(&ctx)
+	defer context_destroy(&ctx)
+
+	graph: Module_Graph
+	module_graph_init(&graph)
+	defer module_graph_destroy(&graph)
+
+	a := intern(&ctx.interner, "A")
+	b := intern(&ctx.interner, "B")
+
+	module_graph_add_node(&graph, a)
+	module_graph_add_node(&graph, b)
+	module_graph_add_edge(&graph, a, b)
+	module_graph_add_edge(&graph, b, a)
+
+	_, ok := topological_sort(&graph, &ctx.interner, &ctx.collector)
+	testing.expect(t, !ok)
+	testing.expect(t, diag_collector_has_errors(&ctx.collector))
+}
+
+@(test)
+test_module_graph_independent :: proc(t: ^testing.T) {
+	ctx: Compilation_Context
+	context_init(&ctx)
+	defer context_destroy(&ctx)
+
+	graph: Module_Graph
+	module_graph_init(&graph)
+	defer module_graph_destroy(&graph)
+
+	a := intern(&ctx.interner, "A")
+	b := intern(&ctx.interner, "B")
+
+	module_graph_add_node(&graph, a)
+	module_graph_add_node(&graph, b)
+
+	sorted, ok := topological_sort(&graph, &ctx.interner, &ctx.collector)
+	testing.expect(t, ok)
+	testing.expect(t, len(sorted) == 2)
+}
+
+@(test)
+test_inject_prelude_types :: proc(t: ^testing.T) {
+	ctx: Compilation_Context
+	context_init(&ctx)
+	defer context_destroy(&ctx)
+
+	store: Type_Store
+	type_store_init(&store, &ctx.interner, &ctx.collector)
+	inject_prelude(&store)
+
+	bool_name := intern(&ctx.interner, "Bool")
+	_, bool_ok := store.bindings[bool_name]
+	testing.expect(t, bool_ok)
+
+	i64_name := intern(&ctx.interner, "I64")
+	_, i64_ok := store.bindings[i64_name]
+	testing.expect(t, i64_ok)
+
+	str_name := intern(&ctx.interner, "Str")
+	_, str_ok := store.bindings[str_name]
+	testing.expect(t, str_ok)
+
+	true_name := intern(&ctx.interner, "True")
+	_, true_ok := store.bindings[true_name]
+	testing.expect(t, true_ok)
+
+	false_name := intern(&ctx.interner, "False")
+	_, false_ok := store.bindings[false_name]
+	testing.expect(t, false_ok)
+}
+
+@(test)
+test_import_scope_local_names :: proc(t: ^testing.T) {
+	ctx: Compilation_Context
+	context_init(&ctx)
+	defer context_destroy(&ctx)
+
+	scope: Import_Scope
+	import_scope_init(&scope)
+	defer import_scope_destroy(&scope)
+
+	x_name := intern(&ctx.interner, "x")
+	scope.unqualified[x_name] = Canonical_Name{module = NO_NAME, name = x_name, is_local = true}
+
+	resolved, ok := resolve_name(x_name, &scope, &ctx.interner)
+	testing.expect(t, ok)
+	testing.expect(t, resolved.is_local == true)
+}
+
+@(test)
+test_import_scope_missing :: proc(t: ^testing.T) {
+	ctx: Compilation_Context
+	context_init(&ctx)
+	defer context_destroy(&ctx)
+
+	scope: Import_Scope
+	import_scope_init(&scope)
+	defer import_scope_destroy(&scope)
+
+	x_name := intern(&ctx.interner, "x")
+	_, ok := resolve_name(x_name, &scope, &ctx.interner)
+	testing.expect(t, !ok)
+}
+
+@(test)
+test_cache_key_for_typecheck :: proc(t: ^testing.T) {
+	ctx: Compilation_Context
+	context_init(&ctx)
+	defer context_destroy(&ctx)
+
+	project: Project_Discovery
+	project.modules = make(map[Intern_ID]Module_Info, 4)
+	project.module_names = make([dynamic]Intern_ID, 0, 4)
+
+	a_name := intern(&ctx.interner, "A")
+	b_name := intern(&ctx.interner, "B")
+
+	project.modules[a_name] = Module_Info{
+		name = a_name,
+		content_hash = "hash_a",
+		imports = make([dynamic]Deferred_Import, 0, 4),
+		exports = make([dynamic]Export_Info, 0, 4),
+	}
+	project.modules[b_name] = Module_Info{
+		name = b_name,
+		content_hash = "hash_b",
+		imports = make([dynamic]Deferred_Import, 0, 4),
+		exports = make([dynamic]Export_Info, 0, 4),
+	}
+
+	mi := project.modules[a_name]
+	imp: Deferred_Import
+	imp.module = b_name
+	append(&mi.imports, imp)
+	project.modules[a_name] = mi
+
+	key := cache_key_for_typecheck(&project.modules[a_name], &project, &ctx.interner)
+	testing.expect(t, len(key) > 0)
+
+	project_discovery_destroy(&project)
+}
+
+@(test)
+test_module_graph_three_node_cycle :: proc(t: ^testing.T) {
+	ctx: Compilation_Context
+	context_init(&ctx)
+	defer context_destroy(&ctx)
+
+	graph: Module_Graph
+	module_graph_init(&graph)
+	defer module_graph_destroy(&graph)
+
+	a := intern(&ctx.interner, "A")
+	b := intern(&ctx.interner, "B")
+	c := intern(&ctx.interner, "C")
+
+	module_graph_add_node(&graph, a)
+	module_graph_add_node(&graph, b)
+	module_graph_add_node(&graph, c)
+	module_graph_add_edge(&graph, a, b)
+	module_graph_add_edge(&graph, b, c)
+	module_graph_add_edge(&graph, c, a)
+
+	_, ok := topological_sort(&graph, &ctx.interner, &ctx.collector)
+	testing.expect(t, !ok)
+	testing.expect(t, diag_collector_has_errors(&ctx.collector))
+}
