@@ -10,6 +10,14 @@ Type_Var_Kind :: enum {
 	Row_Record,
 	Row_Tag,
 	Row_Effect,
+	// Error_Sentinel: this var was created because some decl failed to
+	// typecheck. Unification short-circuits on these (treats them as top-type)
+	// so downstream typing never generates cascade errors directly. The
+	// `name` field carries the broken decl's name, which downstream lookups
+	// use to tag any diagnostics they emit as Cascade rather than Root.
+	// Rationale: this is the rustc TyKind::Error / Roslyn ErrorTypeSymbol
+	// pattern. See research notes in PR description.
+	Error_Sentinel,
 }
 
 Type_Var :: struct {
@@ -76,6 +84,18 @@ Type_Store :: struct {
 	declared_effects: [dynamic]Intern_ID,
 	bindings:         map[Intern_ID]Type_Var_ID,
 	spans:            Span_Table,
+
+	// --- per-decl error isolation (Phase 2) ---
+	// While typechecking a decl, all diagnostics route through `pen` instead
+	// of going straight to `collector`. At end of decl, the pen is drained
+	// into the collector (with owning_decl set) and the decl is marked broken
+	// if non-empty. Lookups against broken decls during sibling typecheck
+	// mark `current_decl_depends_on_broken` so any pen diagnostics get
+	// re-tagged as Cascade on flush.
+	current_decl:                         Intern_ID,
+	pen:                                  [dynamic]Diagnostic,
+	current_decl_depends_on_broken:       Intern_ID,
+	broken_decls:                         map[Intern_ID]bool,
 }
 
 type_store_init :: proc(store: ^Type_Store, interner: ^Intern_Table, collector: ^Diagnostic_Collector) {
@@ -86,12 +106,36 @@ type_store_init :: proc(store: ^Type_Store, interner: ^Intern_Table, collector: 
 	store.collector = collector
 	store.declared_effects = make([dynamic]Intern_ID, 0, 16)
 	store.bindings = make(map[Intern_ID]Type_Var_ID, 64)
+	store.current_decl = NO_NAME
+	store.pen = make([dynamic]Diagnostic, 0, 8)
+	store.current_decl_depends_on_broken = NO_NAME
+	store.broken_decls = make(map[Intern_ID]bool, 8)
 }
 
 type_store_destroy :: proc(store: ^Type_Store) {
 	delete(store.vars)
 	delete(store.declared_effects)
 	delete(store.bindings)
+	delete(store.pen)
+	delete(store.broken_decls)
+}
+
+// fresh_error_sentinel creates a Type_Var of kind Error_Sentinel tagged with
+// the broken decl's name. Used when typecheck of a decl fails so that
+// downstream uses of that name get a "this unifies with anything" type.
+fresh_error_sentinel :: proc(store: ^Type_Store, origin: Intern_ID, span: Source_Span) -> Type_Var_ID {
+	return fresh_var(store, .Error_Sentinel, origin, span)
+}
+
+// resolved_is_error returns the origin decl name if the resolved type var is
+// (or links through to) an Error_Sentinel; NO_NAME otherwise.
+resolved_is_error :: proc(store: ^Type_Store, id: Type_Var_ID) -> Intern_ID {
+	rid := resolve_var(store, id)
+	v := get_var(store, rid)
+	if v.kind == .Error_Sentinel {
+		return v.name
+	}
+	return NO_NAME
 }
 
 fresh_var :: proc(store: ^Type_Store, kind: Type_Var_Kind, name: Intern_ID, span: Source_Span) -> Type_Var_ID {

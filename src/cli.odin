@@ -36,14 +36,14 @@ run_build :: proc(args: []string) {
 	if filepath.ext(file_path) != ".camp" {
 		ext := filepath.ext(file_path)
 		collector_add_diag(&ctx.collector, diag_invalid_extension(file_path, ext))
-		render_all(&ctx.collector, file_path, "")
+		render_all(&ctx.collector, file_path, "", &ctx.interner)
 		os.exit(1)
 	}
 
 	data, err := os.read_entire_file(file_path, ctx.allocator)
 	if err != nil {
 		collector_add_diag(&ctx.collector, diag_file_not_found(file_path, fmt.tprintf("{}", err)))
-		render_all(&ctx.collector, file_path, "")
+		render_all(&ctx.collector, file_path, "", &ctx.interner)
 		os.exit(1)
 	}
 	source := string(data)
@@ -61,7 +61,7 @@ run_build :: proc(args: []string) {
 	context.allocator = old_allocator
 
 	if diag_collector_has_errors(&ctx.collector) {
-		render_all(&ctx.collector, file_path, source)
+		render_all(&ctx.collector, file_path, source, &ctx.interner)
 		os.exit(1)
 	}
 
@@ -78,7 +78,7 @@ run_build :: proc(args: []string) {
 	context.allocator = old_allocator
 
 	if diag_collector_has_errors(&ctx.collector) {
-		render_all(&ctx.collector, file_path, source)
+		render_all(&ctx.collector, file_path, source, &ctx.interner)
 		os.exit(1)
 	}
 	defer type_store_destroy(&store)

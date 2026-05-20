@@ -117,7 +117,39 @@ typecheck_file :: proc(file: CFile, store: ^Type_Store) {
 	}
 }
 
+// decl_name returns the name we tag this decl's diagnostics with. Tests,
+// expects, and imports don't bind a name; they use NO_NAME (still flushed,
+// just can't be a cascade root for anyone else).
+decl_name :: proc(decl: CDecl) -> Intern_ID {
+	switch d in decl {
+	case ^CDecl_Const:  return d.name.name
+	case ^CDecl_Effect: return d.name.name
+	case ^CDecl_Trait:  return d.name.name
+	case ^CDecl_Alias:  return d.name.name
+	case ^CDecl_Test:   return NO_NAME
+	case ^CDecl_Expect: return NO_NAME
+	case ^CDecl_Import: return NO_NAME
+	}
+	return NO_NAME
+}
+
 typecheck_decl :: proc(decl: CDecl, env: ^Type_Env, store: ^Type_Store) {
+	store.current_decl = decl_name(decl)
+	store.current_decl_depends_on_broken = NO_NAME
+	defer {
+		dn := store.current_decl
+		typecheck_flush_decl(store)
+		// If this decl broke, swap its binding for an Error_Sentinel so any
+		// downstream use of its name short-circuits in unify and tags the
+		// using decl as cascade.
+		if dn != NO_NAME && dn in store.broken_decls {
+			sentinel := fresh_error_sentinel(store, dn, Source_Span_ZERO)
+			env.bindings[dn] = sentinel
+		}
+		store.current_decl = NO_NAME
+		store.current_decl_depends_on_broken = NO_NAME
+	}
+
 	switch d in decl {
 	case ^CDecl_Const:
 		enter_level(store)
@@ -131,7 +163,7 @@ typecheck_decl :: proc(decl: CDecl, env: ^Type_Env, store: ^Type_Store) {
 		if !d.is_effectful && effect_row_nonempty(store, result.effects) {
 		name_str := intern_get(store.interner, d.name.name)
 		effects_str := format_effect_row(store, result.effects)
-		collector_add_diag(store.collector, diag_effectful_naming(name_str, effects_str, span_of(store.spans, d)))
+		typecheck_emit(store, diag_effectful_naming(name_str, effects_str, span_of(store.spans, d)))
 		}
 
 		level := store.current_level
@@ -206,13 +238,21 @@ typecheck_synth :: proc(expr: CExpr, env: ^Type_Env, store: ^Type_Store) -> Type
 
 	case ^CExpr_Name:
 		if existing, ok := env_lookup(env, e.name.name); ok {
+			// Cascade detection: if the looked-up binding is an Error_Sentinel
+			// (or links to one), record the broken origin on this decl so its
+			// diagnostics get tagged Cascade instead of Root.
+			if origin := resolved_is_error(store, existing); origin != NO_NAME {
+				if store.current_decl_depends_on_broken == NO_NAME {
+					store.current_decl_depends_on_broken = origin
+				}
+			}
 			inst := instantiate(store, existing)
 			return Type_Result{var_id = inst, effects = fresh_effect_row(store, span_of(store.spans, e))}
 		}
 		var_id := fresh_value_var(store, span_of(store.spans, e))
 		name_str := intern_get(store.interner, e.name.name)
 		similar := find_similar_names(name_str, env, store.interner)
-		collector_add_diag(store.collector, diag_undefined_name(name_str, similar, span_of(store.spans, e)))
+		typecheck_emit(store, diag_undefined_name(name_str, similar, span_of(store.spans, e)))
 		return Type_Result{var_id = var_id, effects = fresh_effect_row(store, span_of(store.spans, e))}
 
 	case ^CExpr_Lambda:
@@ -664,7 +704,7 @@ typecheck_match :: proc(e: ^CExpr_Match, env: ^Type_Env, store: ^Type_Store) -> 
 				for j := 1; j < len(missing_list); j += 1 {
 					missing = fmt.tprintf("{}, {}", missing, missing_list[j])
 				}
-				collector_add_diag(store.collector, diag_internal(
+				typecheck_emit(store, diag_internal(
 					fmt.tprintf("non-exhaustive match: missing branch for {}", missing),
 					span_of(store.spans, e)))
 			}
@@ -725,7 +765,7 @@ typecheck_method_call :: proc(e: ^CExpr_Method_Call, env: ^Type_Env, store: ^Typ
 	if is_effect_op {
 		if !is_effect_handled(env, effect_name) {
 			effect_str := intern_get(store.interner, effect_name)
-			collector_add_diag(store.collector, diag_unhandled_effect(effect_str, span_of(store.spans, e)))
+			typecheck_emit(store, diag_unhandled_effect(effect_str, span_of(store.spans, e)))
 		}
 
 		effect_names := store_alloc(store, Intern_ID, 1)

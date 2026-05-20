@@ -502,3 +502,92 @@ test_handled_effect_ok :: proc(t: ^testing.T) {
 
 	testing.expect(t, !diag_collector_has_errors(&ctx.collector))
 }
+
+// ---------------------------------------------------------------------------
+// Phase 2: per-decl error isolation + cascade tagging
+// ---------------------------------------------------------------------------
+
+count_origin :: proc(c: ^Diagnostic_Collector) -> (roots, cascades: int) {
+	for d in c.diagnostics {
+		if d.category != .Error { continue }
+		switch _ in d.origin {
+		case Origin_Root:    roots += 1
+		case Origin_Cascade: cascades += 1
+		}
+	}
+	return
+}
+
+@(test)
+test_phase2_single_broken_decl_is_root :: proc(t: ^testing.T) {
+	store, ctx := typecheck_source("a = 1 + true")
+	defer context_destroy(ctx)
+	defer free(ctx)
+	defer type_store_destroy(&store)
+
+	roots, cascades := count_origin(&ctx.collector)
+	testing.expect(t, roots >= 1, fmt.tprintf("expected >=1 root, got roots=%d cascades=%d", roots, cascades))
+	testing.expect(t, cascades == 0, fmt.tprintf("expected 0 cascades, got %d", cascades))
+}
+
+@(test)
+test_phase2_independent_decls_both_root :: proc(t: ^testing.T) {
+	store, ctx := typecheck_source("a = 1 + true\nb = 2 + false")
+	defer context_destroy(ctx)
+	defer free(ctx)
+	defer type_store_destroy(&store)
+
+	roots, cascades := count_origin(&ctx.collector)
+	testing.expect(t, roots >= 2, fmt.tprintf("expected >=2 roots, got roots=%d cascades=%d", roots, cascades))
+	testing.expect(t, cascades == 0, fmt.tprintf("expected 0 cascades, got %d", cascades))
+}
+
+@(test)
+test_phase2_downstream_use_tagged_cascade :: proc(t: ^testing.T) {
+	// `a` has a type error (Root). `b` references `a` AND has its own
+	// independent error. Touching `a` (now bound to Error_Sentinel) marks
+	// `b` as cascade-source, so b's independent error gets tagged Cascade.
+	store, ctx := typecheck_source("a = 1 + true\nb = a + (1 + false)")
+	defer context_destroy(ctx)
+	defer free(ctx)
+	defer type_store_destroy(&store)
+
+	roots, cascades := count_origin(&ctx.collector)
+	testing.expect(t, roots >= 1, fmt.tprintf("expected >=1 root (from a), got roots=%d cascades=%d", roots, cascades))
+	testing.expect(t, cascades >= 1, fmt.tprintf("expected >=1 cascade (from b), got roots=%d cascades=%d", roots, cascades))
+}
+
+@(test)
+test_phase2_sentinel_suppresses_pointless_unify_errors :: proc(t: ^testing.T) {
+	// `b = a + 1` would emit a primitive_mismatch (Int vs. unknown a) without
+	// the Error_Sentinel short-circuit. With it, b has 0 errors (the unify
+	// short-circuits) and only `a`'s root error remains.
+	store, ctx := typecheck_source("a = 1 + true\nb = a + 1")
+	defer context_destroy(ctx)
+	defer free(ctx)
+	defer type_store_destroy(&store)
+
+	roots, cascades := count_origin(&ctx.collector)
+	testing.expect(t, roots == 1, fmt.tprintf("expected exactly 1 root, got %d", roots))
+	testing.expect(t, cascades == 0, fmt.tprintf("expected 0 cascades, got %d", cascades))
+}
+
+@(test)
+test_phase2_diagnostics_carry_owning_decl :: proc(t: ^testing.T) {
+	// After flush, error diagnostics should know which decl produced them.
+	store, ctx := typecheck_source("a = 1 + true\nb = 2 + false")
+	defer context_destroy(ctx)
+	defer free(ctx)
+	defer type_store_destroy(&store)
+
+	a_id := intern(&ctx.interner, "a")
+	b_id := intern(&ctx.interner, "b")
+	saw_a, saw_b := false, false
+	for d in ctx.collector.diagnostics {
+		if d.category != .Error { continue }
+		if d.owning_decl == a_id { saw_a = true }
+		if d.owning_decl == b_id { saw_b = true }
+	}
+	testing.expect(t, saw_a, "a should own at least one diagnostic")
+	testing.expect(t, saw_b, "b should own at least one diagnostic")
+}

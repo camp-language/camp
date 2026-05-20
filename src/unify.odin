@@ -13,19 +13,29 @@ unify :: proc(store: ^Type_Store, a: Type_Var_ID, b: Type_Var_ID) -> bool {
 	va := get_var(store, ra)
 	vb := get_var(store, rb)
 
+	// Error_Sentinel short-circuit. Either side being a sentinel means a
+	// prior decl already failed; pretend unification succeeded so no cascade
+	// errors get emitted from this site. The sentinel's `name` field carries
+	// the broken decl's origin — already recorded on the current decl via
+	// `current_decl_depends_on_broken` at the name-lookup site, so we don't
+	// need to do anything further here.
+	if va.kind == .Error_Sentinel || vb.kind == .Error_Sentinel {
+		return true
+	}
+
 	if va.kind != vb.kind {
 		if va.kind == .Value && vb.kind != .Value {
-			collector_add_diag(store.collector, diag_value_row_conflict("value", "row", va.span, vb.span))
+			typecheck_emit(store, diag_value_row_conflict("value", "row", va.span, vb.span))
 			return false
 		}
 		if va.kind != .Value && vb.kind == .Value {
-			collector_add_diag(store.collector, diag_value_row_conflict("row", "value", va.span, vb.span))
+			typecheck_emit(store, diag_value_row_conflict("row", "value", va.span, vb.span))
 			return false
 		}
 	}
 
 	if occurs_check(store, ra, rb) || occurs_check(store, rb, ra) {
-		collector_add_diag(store.collector, diag_infinite_type("infinite type", va.span, vb.span))
+		typecheck_emit(store, diag_infinite_type("infinite type", va.span, vb.span))
 		return false
 	}
 
@@ -76,7 +86,7 @@ unify_inferred :: proc(store: ^Type_Store, a: Inferred_Type, b: Inferred_Type, a
 		type_b_str := format_inferred_type(store, b)
 		va := get_var(store, resolve_var(store, a_id))
 		vb := get_var(store, resolve_var(store, b_id))
-		collector_add_diag(store.collector, diag_type_mismatch(type_a_str, type_b_str, va.span, vb.span))
+		typecheck_emit(store, diag_type_mismatch(type_a_str, type_b_str, va.span, vb.span))
 		return false
 	}
 
@@ -85,7 +95,7 @@ unify_inferred :: proc(store: ^Type_Store, a: Inferred_Type, b: Inferred_Type, a
 		name_b := intern_get(store.interner, b.primitive_name)
 		va := get_var(store, resolve_var(store, a_id))
 		vb := get_var(store, resolve_var(store, b_id))
-		collector_add_diag(store.collector, diag_primitive_mismatch(name_a, name_b, va.span, vb.span))
+		typecheck_emit(store, diag_primitive_mismatch(name_a, name_b, va.span, vb.span))
 		return false
 	}
 
@@ -94,7 +104,7 @@ unify_inferred :: proc(store: ^Type_Store, a: Inferred_Type, b: Inferred_Type, a
 		if len(a.param_ids) != len(b.param_ids) {
 			va := get_var(store, resolve_var(store, a_id))
 			vb := get_var(store, resolve_var(store, b_id))
-			collector_add_diag(store.collector, diag_arity_mismatch(len(a.param_ids), len(b.param_ids), va.span, vb.span))
+			typecheck_emit(store, diag_arity_mismatch(len(a.param_ids), len(b.param_ids), va.span, vb.span))
 			return false
 		}
 		for i in 0..<len(a.param_ids) {
@@ -323,7 +333,7 @@ unify_tag_union_rows :: proc(store: ^Type_Store, a: Inferred_Type, b: Inferred_T
 					tag_name := intern_get(store.interner, at.name)
 					va := get_var(store, resolve_var(store, a_id))
 					vb := get_var(store, resolve_var(store, b_id))
-					collector_add_diag(store.collector, diag_tag_arity_mismatch(tag_name, len(at.payload), len(bt.payload), va.span, vb.span))
+					typecheck_emit(store, diag_tag_arity_mismatch(tag_name, len(at.payload), len(bt.payload), va.span, vb.span))
 					return false
 				}
 				for i in 0..<len(at.payload) {

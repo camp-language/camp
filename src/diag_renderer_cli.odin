@@ -73,12 +73,38 @@ color_scheme_for :: proc(category: Diagnostic_Category, use_color: bool) -> Colo
 	return no_color_scheme
 }
 
-render_all :: proc(collector: ^Diagnostic_Collector, file_path: string, source: string) {
+render_all :: proc(collector: ^Diagnostic_Collector, file_path: string, source: string, interner: ^Intern_Table = nil) {
 	use_color := is_color_tty()
-	for d, i in collector.diagnostics {
-		if i > 0 do fmt.println()
+
+	// Phase 2: print roots in full; cascades collapsed into a per-root summary
+	// at the bottom. Cascades from the same broken decl get grouped.
+	cascade_counts: map[Intern_ID]int
+	defer delete(cascade_counts)
+
+	printed := 0
+	for d in collector.diagnostics {
+		_, is_cascade := d.origin.(Origin_Cascade)
+		if is_cascade {
+			root := d.origin.(Origin_Cascade).root
+			cascade_counts[root] = cascade_counts[root] + 1
+			continue
+		}
+		if printed > 0 do fmt.println()
 		render_diagnostic(d, file_path, source, use_color)
+		printed += 1
 	}
+
+	if len(cascade_counts) > 0 {
+		if printed > 0 do fmt.println()
+		for root, n in cascade_counts {
+			root_str := "?"
+			if interner != nil && root != NO_NAME {
+				root_str = intern_get(interner, root)
+			}
+			fmt.printfln("  ... %d cascading error(s) from `%s` (fix it first)", n, root_str)
+		}
+	}
+
 	if diag_collector_has_errors(collector) {
 		total := collector.error_count + collector.internal_count
 		fmt.printfln("compilation failed with {} error(s)", total)

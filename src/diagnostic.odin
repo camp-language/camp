@@ -13,13 +13,31 @@ Span_Label :: struct {
 	label: string,
 }
 
+// Diagnostic_Origin: was this error caused by something in this decl directly,
+// or did it cascade from a prior broken decl? The renderer collapses Cascades
+// so error storms from one bad decl don't drown out the root cause.
+Diagnostic_Origin :: union {
+	Origin_Root,
+	Origin_Cascade,
+}
+Origin_Root :: struct {}
+Origin_Cascade :: struct {
+	// Name of the broken decl this cascade depends on; renderer groups by this.
+	root: Intern_ID,
+}
+
 Diagnostic :: struct {
-	category: Diagnostic_Category,
-	span:     Source_Span,
-	message:  string,
-	title:    string,
-	labels:   [dynamic]Span_Label,
-	hints:    [dynamic]string,
+	category:     Diagnostic_Category,
+	span:         Source_Span,
+	message:      string,
+	title:        string,
+	labels:       [dynamic]Span_Label,
+	hints:        [dynamic]string,
+	origin:       Diagnostic_Origin,
+	// Which decl produced this diagnostic. NO_NAME if not produced inside a decl
+	// (lex/parse errors, CLI errors, etc.). Populated when diagnostics are
+	// flushed at end of typecheck_decl.
+	owning_decl:  Intern_ID,
 }
 
 Lex_Unexpected_Char :: struct {
@@ -116,12 +134,66 @@ diag_collector_destroy :: proc(collector: ^Diagnostic_Collector) {
 }
 
 collector_add_diag :: proc(collector: ^Diagnostic_Collector, d: Diagnostic) {
+	d := d
+	if d.owning_decl == 0 && d.origin == nil {
+		// Default for diagnostics that bypass the per-decl pen
+		// (lex/parse/CLI). NO_NAME is -1; the zero value 0 means "unset".
+		d.owning_decl = NO_NAME
+		d.origin = Origin_Root{}
+	}
 	append(&collector.diagnostics, d)
 	switch d.category {
 	case .Warning:  collector.warning_count += 1
 	case .Error:    collector.error_count += 1
 	case .Internal: collector.internal_count += 1
 	}
+}
+
+// During typecheck of a decl, diagnostics route through this so they pick up
+// the owning_decl tag and inherit the cascade status of the surrounding decl.
+typecheck_emit :: proc(store: ^Type_Store, d: Diagnostic) {
+	if store.current_decl == NO_NAME {
+		// Outside a decl context (shouldn't happen in well-formed typecheck,
+		// but doesn't break correctness). Pass through.
+		collector_add_diag(store.collector, d)
+		return
+	}
+	d := d
+	append(&store.pen, d)
+}
+
+// Called at end of typecheck_decl. Decides root-vs-cascade for the whole
+// batch, marks the decl broken if any errors landed, and flushes to collector.
+typecheck_flush_decl :: proc(store: ^Type_Store) {
+	had_errors := false
+	for d in store.pen {
+		if d.category == .Error || d.category == .Internal {
+			had_errors = true
+			break
+		}
+	}
+	if had_errors {
+		store.broken_decls[store.current_decl] = true
+	}
+
+	cascade_root := store.current_decl_depends_on_broken
+
+	for d in store.pen {
+		flushed := d
+		flushed.owning_decl = store.current_decl
+		if cascade_root != NO_NAME {
+			flushed.origin = Origin_Cascade{root = cascade_root}
+		} else {
+			flushed.origin = Origin_Root{}
+		}
+		append(&store.collector.diagnostics, flushed)
+		switch flushed.category {
+		case .Warning:  store.collector.warning_count += 1
+		case .Error:    store.collector.error_count += 1
+		case .Internal: store.collector.internal_count += 1
+		}
+	}
+	clear(&store.pen)
 }
 
 diag_collector_has_errors :: proc(collector: ^Diagnostic_Collector) -> bool {
