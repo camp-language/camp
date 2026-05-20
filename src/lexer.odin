@@ -179,6 +179,7 @@ lexer_next :: proc(l: ^Lexer) -> Token {
 		'&'  = .Amp,
 		'^'  = .Caret,
 		'~'  = .Tilde,
+		'\\' = .Backslash,
 		'('  = .LParen,
 		')'  = .RParen,
 		'['  = .LBrack,

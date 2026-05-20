@@ -58,6 +58,12 @@ parser_expect :: proc(p: ^Parser, kind: Token_Kind) -> Token {
 	return Token{kind = kind, span = p.current.span}
 }
 
+parser_skip_backslashes :: proc(p: ^Parser) {
+	for p.current.kind == .Backslash {
+		parser_advance(p)
+	}
+}
+
 expr_span_start :: proc(expr: Expr) -> int {
 	switch e in expr {
 	case ^Expr_Int:               return e.span.start
@@ -204,6 +210,8 @@ parser_parse_expr_bp :: proc(p: ^Parser, min_bp: Binding_Power) -> Expr {
 	for {
 		if p.current.kind == .Eof { break }
 
+		parser_skip_backslashes(p)
+
 		right_bp: Binding_Power
 		if bps, ok := INFIX_BP[p.current.kind]; ok {
 			right_bp = bps[1]
@@ -229,6 +237,7 @@ parser_parse_expr_bp :: proc(p: ^Parser, min_bp: Binding_Power) -> Expr {
 }
 
 parser_parse_prefix :: proc(p: ^Parser) -> Expr {
+	parser_skip_backslashes(p)
 	tok := p.current
 
 	#partial switch tok.kind {
@@ -333,6 +342,7 @@ parser_parse_tag_or_call :: proc(p: ^Parser) -> Expr {
 			append(&tag.payload, arg)
 			if p.current.kind == .Comma {
 				parser_advance(p)
+				parser_skip_backslashes(p)
 			}
 		}
 		parser_expect(p, .RParen)
@@ -363,6 +373,7 @@ parser_parse_identifier_expr :: proc(p: ^Parser) -> Expr {
 			append(&call.args, arg)
 			if p.current.kind == .Comma {
 				parser_advance(p)
+				parser_skip_backslashes(p)
 			}
 		}
 		parser_expect(p, .RParen)
@@ -407,6 +418,7 @@ parser_parse_method_chain :: proc(p: ^Parser, initial: Expr) -> Expr {
 				append(&mc.args, arg)
 				if p.current.kind == .Comma {
 					parser_advance(p)
+					parser_skip_backslashes(p)
 				}
 			}
 			parser_expect(p, .RParen)
@@ -477,6 +489,7 @@ parser_parse_lambda :: proc(p: ^Parser) -> Expr {
 			parser_advance(p)
 			if p.current.kind == .Comma {
 				parser_advance(p)
+				parser_skip_backslashes(p)
 			}
 			continue
 		}
@@ -495,6 +508,7 @@ parser_parse_lambda :: proc(p: ^Parser) -> Expr {
 		append(&params, param)
 		if p.current.kind == .Comma {
 			parser_advance(p)
+			parser_skip_backslashes(p)
 		}
 	}
 	parser_expect(p, .Pipe)
@@ -618,6 +632,7 @@ parser_parse_record_expr :: proc(p: ^Parser, start: Source_Span) -> Expr {
 		rest_expr = parser_parse_expr(p)
 		if p.current.kind == .Comma {
 			parser_advance(p)
+			parser_skip_backslashes(p)
 		}
 	}
 
@@ -630,6 +645,7 @@ parser_parse_record_expr :: proc(p: ^Parser, start: Source_Span) -> Expr {
 			}
 			if p.current.kind == .Comma {
 				parser_advance(p)
+				parser_skip_backslashes(p)
 			}
 			continue
 		}
@@ -651,6 +667,7 @@ parser_parse_record_expr :: proc(p: ^Parser, start: Source_Span) -> Expr {
 
 		if p.current.kind == .Comma {
 			parser_advance(p)
+			parser_skip_backslashes(p)
 		}
 	}
 	parser_expect(p, .RBrace)
@@ -671,6 +688,7 @@ parser_parse_list :: proc(p: ^Parser) -> Expr {
 		append(&elements, elem)
 		if p.current.kind == .Comma {
 			parser_advance(p)
+			parser_skip_backslashes(p)
 		}
 	}
 	parser_expect(p, .RBrack)
@@ -899,6 +917,7 @@ parser_parse_type :: proc(p: ^Parser) -> ^Type {
 				append(&applied.args, arg^)
 				if p.current.kind == .Comma {
 					parser_advance(p)
+					parser_skip_backslashes(p)
 				}
 			}
 			parser_expect(p, .RParen)
@@ -949,6 +968,7 @@ parser_parse_function_type :: proc(p: ^Parser) -> Type {
 			append(&params, param^)
 			if p.current.kind == .Comma {
 				parser_advance(p)
+				parser_skip_backslashes(p)
 			}
 		}
 		parser_expect(p, .RParen)
@@ -990,6 +1010,7 @@ parser_parse_record_type :: proc(p: ^Parser) -> Type {
 			}
 			if p.current.kind == .Comma {
 				parser_advance(p)
+				parser_skip_backslashes(p)
 			}
 			continue
 		}
@@ -1003,6 +1024,7 @@ parser_parse_record_type :: proc(p: ^Parser) -> Type {
 
 		if p.current.kind == .Comma {
 			parser_advance(p)
+			parser_skip_backslashes(p)
 		}
 	}
 	parser_expect(p, .RBrace)
@@ -1046,6 +1068,7 @@ parser_parse_tag_union_type :: proc(p: ^Parser) -> Type {
 				append(&payload, arg^)
 				if p.current.kind == .Comma {
 					parser_advance(p)
+					parser_skip_backslashes(p)
 				}
 			}
 			parser_expect(p, .RParen)

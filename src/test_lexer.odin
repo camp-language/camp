@@ -195,3 +195,46 @@ test_lexer_intercept :: proc(t: ^testing.T) {
 	testing.expect(t, tokens[7].kind == .RBrace)
 	testing.expect(t, tokens[8].kind == .Eof)
 }
+
+@(test)
+test_lexer_backslash :: proc(t: ^testing.T) {
+	ctx: Compilation_Context
+	context_init(&ctx)
+	defer context_destroy(&ctx)
+
+	tokens := lex_all("\\", &ctx)
+	defer delete(tokens)
+
+	testing.expect(t, len(tokens) == 2)
+	testing.expect(t, tokens[0].kind == .Backslash)
+}
+
+@(test)
+test_lexer_backslash_in_string :: proc(t: ^testing.T) {
+	ctx: Compilation_Context
+	context_init(&ctx)
+	defer context_destroy(&ctx)
+
+	tokens := lex_all("\"hello\\nworld\"", &ctx)
+	defer delete(tokens)
+
+	testing.expect(t, len(tokens) == 2)
+	testing.expect(t, tokens[0].kind == .String_Literal)
+}
+
+@(test)
+test_lexer_backslash_after_comma :: proc(t: ^testing.T) {
+	ctx: Compilation_Context
+	context_init(&ctx)
+	defer context_destroy(&ctx)
+
+	tokens := lex_all("1,\\ 2", &ctx)
+	defer delete(tokens)
+
+	testing.expect(t, len(tokens) == 5)
+	testing.expect(t, tokens[0].kind == .Int_Literal)
+	testing.expect(t, tokens[1].kind == .Comma)
+	testing.expect(t, tokens[2].kind == .Backslash)
+	testing.expect(t, tokens[3].kind == .Int_Literal)
+	testing.expect(t, tokens[4].kind == .Eof)
+}

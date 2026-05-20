@@ -57,6 +57,7 @@ token_kind_display :: proc(kind: Token_Kind) -> string {
 	case .Amp:          return "&"
 	case .Caret:        return "^"
 	case .Tilde:        return "~"
+	case .Backslash:    return "\\"
 	case .LParen:       return "("
 	case .RParen:       return ")"
 	case .LBrack:       return "["
