@@ -148,6 +148,55 @@ diag_unknown_command :: proc(command: string) -> Diagnostic {
 	return d
 }
 
+diag_module_not_found :: proc(module_name: string, span: Source_Span) -> Diagnostic {
+	d := diag_init(.Error, "MODULE NOT FOUND", span,
+		fmt.tprintf("module '{}' not found.", module_name))
+	return d
+}
+
+diag_cyclic_dependency :: proc(cycle_path: string, span: Source_Span) -> Diagnostic {
+	d := diag_init(.Error, "CYCLIC DEPENDENCY", span,
+		fmt.tprintf("cyclic dependency: {}", cycle_path))
+	return d
+}
+
+diag_import_not_exported :: proc(name: string, module_name: string, span: Source_Span) -> Diagnostic {
+	d := diag_init(.Error, "NOT EXPORTED", span,
+		fmt.tprintf("'{}' is not exported from module '{}'.", name, module_name))
+	append(&d.hints, fmt.tprintf("Use qualified access {}.{} or make it pub.", module_name, name))
+	return d
+}
+
+diag_import_conflicts_binding :: proc(name: string, module_name: string, span: Source_Span) -> Diagnostic {
+	d := diag_init(.Error, "IMPORT CONFLICT", span,
+		fmt.tprintf("'{}' imported from {} conflicts with existing binding — use qualified access {}.{}", name, module_name, module_name, name))
+	return d
+}
+
+diag_import_ambiguous :: proc(name: string, mod_a: string, mod_b: string, span: Source_Span) -> Diagnostic {
+	d := diag_init(.Error, "AMBIGUOUS IMPORT", span,
+		fmt.tprintf("'{}' is ambiguous — imported from both {} and {}; use qualified access.", name, mod_a, mod_b))
+	return d
+}
+
+diag_entry_point_not_found :: proc() -> Diagnostic {
+	d := diag_init(.Error, "ENTRY POINT NOT FOUND", Source_Span_ZERO,
+		"entry point not found — expected src/Main.camp with pub main!")
+	return d
+}
+
+diag_entry_point_no_main :: proc() -> Diagnostic {
+	d := diag_init(.Error, "NO MAIN FUNCTION", Source_Span_ZERO,
+		"entry point module Main does not define pub main!")
+	return d
+}
+
+diag_project_no_source :: proc() -> Diagnostic {
+	d := diag_init(.Error, "NO SOURCE FILES", Source_Span_ZERO,
+		"no Camp source files found — expected a src/ directory")
+	return d
+}
+
 diag_internal :: proc(message: string, span: Source_Span) -> Diagnostic {
 	d := diag_init(.Internal, "INTERNAL ERROR", span,
 		fmt.tprintf("Something went wrong inside the compiler: {}", message))

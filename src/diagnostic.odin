@@ -93,6 +93,29 @@ CLI_Unknown_Command :: struct {
 	command: string,
 }
 
+Module_Not_Found :: struct {
+	module_name: string,
+}
+Module_Cyclic_Dep :: struct {
+	cycle_path: string,
+}
+Import_Not_Exported :: struct {
+	name:         string,
+	module_name:  string,
+}
+Import_Conflicts_Binding :: struct {
+	name:        string,
+	module_name: string,
+}
+Import_Ambiguous :: struct {
+	name:  string,
+	mod_a: string,
+	mod_b: string,
+}
+Entry_Point_Not_Found :: struct {}
+Entry_Point_No_Main :: struct {}
+Project_No_Source :: struct {}
+
 Diagnostic_Collector :: struct {
 	diagnostics:    [dynamic]Diagnostic,
 	warning_count:  int,
