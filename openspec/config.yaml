@@ -1,0 +1,29 @@
+schema: spec-driven
+
+context: |
+  Language: Camp — a strictly-typed functional language with algebraic effects
+  Compiler: Written in Odin, compiles to WASM/WASI
+  Memory: Perceus reference counting (deterministic, no GC)
+  Effects: Koka-style algebraic effects with evidence passing, one-shot continuations
+  Types: Structural typing with row polymorphism, tag unions, records
+  Naming: UpperCamelCase for types/tags, lowercase for functions/variables, ! suffix for effectful functions, $ prefix for mutable variables
+  Testing: odin test src for unit tests, e2e snapshot tests in tests/e2e/
+  Build: odin build src -out:camp
+
+rules:
+  proposal:
+    - Identify which spec domains are affected
+    - List current implementation status from compiler/spec
+  specs:
+    - Use Given/When/Then format for scenarios
+    - Use SHALL/MUST/SHOULD per RFC 2119
+    - Keep behavioral requirements separate from implementation details (put those in design.md)
+  design:
+    - Reference relevant spec requirements
+    - Include Odin code for compiler changes
+    - Include Camp code examples for language features
+    - Cite research papers where applicable
+  tasks:
+    - Group related tasks under headings
+    - Use hierarchical numbering (1.1, 1.2, etc.)
+    - Keep tasks small enough to complete in one session

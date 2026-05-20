@@ -1,0 +1,585 @@
+# Language Specification
+
+## Purpose
+
+Camp is a strictly-typed functional programming language that compiles to
+WASM/WASI. This specification defines the behavioral requirements of the Camp
+language — what programs SHALL do and what the compiler SHALL enforce — without
+prescribing implementation strategy.
+
+## Requirements
+
+### Requirement: Primitive Types
+The language SHALL provide fixed-size numeric types I8, I16, I32, I64, U8, U16, U32, U64, F32, F64, and Bool.
+
+#### Scenario: Integer literal default type
+- GIVEN an unannotated integer literal in source code
+- WHEN the compiler infers its type
+- THEN the literal SHALL have type I64
+
+#### Scenario: Float literal default type
+- GIVEN an unannotated float literal in source code
+- WHEN the compiler infers its type
+- THEN the literal SHALL have type F64
+
+#### Scenario: Explicit type override on literal
+- GIVEN a binding with an explicit type annotation and a literal value
+- WHEN the annotation specifies a different numeric type than the default
+- THEN the literal SHALL have the annotated type
+
+### Requirement: Tag Union Construction
+Tags SHALL be structural discriminated unions constructed with bare UpperCamelCase names, with no prefix symbol.
+
+#### Scenario: Tag with payload
+- GIVEN a tag name starting with an uppercase letter followed by a parenthesized payload
+- WHEN the expression is evaluated
+- THEN the result SHALL be a value of a tag union type containing that tag variant
+
+#### Scenario: Tag without payload
+- GIVEN a bare UpperCamelCase identifier with no parentheses
+- WHEN the expression is evaluated
+- THEN the result SHALL be a tag union value with no payload for that variant
+
+#### Scenario: Case-based disambiguation of tags and functions
+- GIVEN an identifier `Ok` (uppercase first letter) and an identifier `ok` (lowercase first letter)
+- WHEN the compiler resolves each identifier
+- THEN `Ok` SHALL be resolved as a tag and `ok` SHALL be resolved as a function or variable
+
+### Requirement: Tag Union Types
+Tag union types SHALL support closed, open, and fully open forms with consistent syntax.
+
+#### Scenario: Closed tag union type
+- GIVEN a type annotation `[Ok(a) | Err(e)]` with no `..`
+- WHEN the compiler type-checks values of that type
+- THEN the type SHALL accept exactly the listed tags and no others
+
+#### Scenario: Open tag union type with rest variable
+- GIVEN a type annotation `[Ok(a) | Err(e) | ..rest]`
+- WHEN the compiler type-checks values of that type
+- THEN the type SHALL accept at least the listed tags, with remaining tags captured as the row variable `rest`
+
+#### Scenario: Fully open tag union type
+- GIVEN a type annotation `[..]`
+- WHEN the compiler type-checks values of that type
+- THEN the type SHALL accept zero or more tags
+
+### Requirement: Variant Set Inference
+The type of a tag union SHALL be inferred from the tags that appear in a scope.
+
+#### Scenario: Branches returning different tags
+- GIVEN a function that returns `Ok(42)` in one branch and `Err("fail")` in another
+- WHEN the compiler infers the return type
+- THEN the inferred type SHALL be `[Ok(I64) | Err(Str)]`
+
+#### Scenario: Adding a new tag variant widens the type
+- GIVEN a function whose return type was inferred as `[Ok(I64) | Err(Str)]`
+- WHEN a new branch returning `Timeout` is added
+- THEN the inferred type SHALL widen to `[Ok(I64) | Err(Str) | Timeout]`
+
+### Requirement: Nominal Tag Qualification
+Tags belonging to a nominal type SHALL be qualified by the type name at construction.
+
+#### Scenario: Qualified tag construction
+- GIVEN a newtype `Result` and a tag `Ok` belonging to it
+- WHEN constructing a value
+- THEN the construction SHALL use `Result.Ok(42)` unless the tag is imported unqualified
+
+#### Scenario: Unqualified import of nominal tags
+- GIVEN an import statement `import Result exposing [Ok, Err]`
+- WHEN constructing a value using `Ok`
+- THEN `Ok(42)` SHALL be valid without the `Result.` qualifier
+
+### Requirement: Record Types
+Records SHALL be structural products with insignificant field order, supporting closed, open, and row-variable forms.
+
+#### Scenario: Closed record type
+- GIVEN a type annotation `{ name: Str, age: U64 }` with no `..`
+- WHEN the compiler type-checks values
+- THEN the type SHALL accept exactly those fields and no others
+
+#### Scenario: Open record type with row variable
+- GIVEN a type annotation `{ name: Str, ..rest }`
+- WHEN the compiler type-checks values
+- THEN the type SHALL accept any record with at least a `name: Str` field
+
+#### Scenario: Field order insignificance
+- GIVEN two record types `{ name: Str, age: U64 }` and `{ age: U64, name: Str }`
+- WHEN the compiler compares them
+- THEN they SHALL be considered the same type
+
+#### Scenario: Record functional update
+- GIVEN an expression `{ ..record, name: "new" }`
+- WHEN evaluated
+- THEN the result SHALL be a new record with all fields from `record` except `name`, which SHALL have the value `"new"`
+
+### Requirement: Row Polymorphism
+Functions SHALL accept any record that has the required fields, regardless of additional fields.
+
+#### Scenario: Function accepting open record
+- GIVEN a function with parameter type `{ name: Str, .. }`
+- WHEN called with `{ name: "Alice", age: 30 }`
+- THEN the call SHALL type-check successfully
+
+### Requirement: Newtypes
+Newtypes SHALL create a distinct nominal type wrapping an existing type, using `:=` syntax.
+
+#### Scenario: Newtype construction
+- GIVEN a newtype `UserId := U64`
+- WHEN constructing a value
+- THEN `UserId(42)` SHALL produce a value of type `UserId`, distinct from `U64`
+
+#### Scenario: Newtype inner value access
+- GIVEN a value `uid` of newtype `UserId := U64`
+- WHEN accessing the inner value
+- THEN `uid.inner()` SHALL return the wrapped `U64` value
+
+#### Scenario: Newtype with trait conformance
+- GIVEN a declaration `UserId is Hash := U64`
+- THEN `UserId` SHALL satisfy the `Hash` trait
+
+### Requirement: Type Inference
+The compiler SHALL perform principal type inference using bidirectional checking with effect row unification.
+
+#### Scenario: Inferred types for local bindings
+- GIVEN a binding `add = |x, y| x + y` with no type annotations
+- WHEN the compiler infers the type
+- THEN it SHALL produce a principal type including generic type variables and any constraints
+
+### Requirement: Function Syntax
+All functions SHALL use `|args| body` syntax as the sole function form.
+
+#### Scenario: Named function definition
+- GIVEN a binding `add = |x: Int, y: Int| -> Int { x + y }`
+- WHEN compiled
+- THEN it SHALL define a function named `add` with the specified parameter and return types
+
+#### Scenario: Anonymous lambda
+- GIVEN an expression `|x| x + 1`
+- WHEN evaluated
+- THEN it SHALL produce a function that adds 1 to its argument
+
+#### Scenario: No fn or def keyword
+- GIVEN source code using `fn` or `def` to declare a function
+- WHEN the compiler parses it
+- THEN it SHALL produce a syntax error
+
+#### Scenario: Block body required for typed definitions
+- GIVEN a function definition with a return type annotation
+- WHEN the body is provided
+- THEN the body SHALL be wrapped in `{ }` braces
+
+### Requirement: Effectful Function Naming
+A function with a non-empty effect row SHALL be named with a `!` suffix; a function named without `!` SHALL have an empty effect row.
+
+#### Scenario: Effectful function name enforcement
+- GIVEN a function whose effect row is non-empty
+- WHEN the function is named without a `!` suffix
+- THEN the compiler SHALL produce an error
+
+#### Scenario: Pure function name enforcement
+- GIVEN a function whose effect row is empty
+- WHEN the function is named with a `!` suffix
+- THEN the compiler SHALL produce an error
+
+### Requirement: Naming Conventions
+Types and tags SHALL use UpperCamelCase; functions and variables SHALL use lowercase identifiers; type and effect variables SHALL use lowercase.
+
+#### Scenario: Type name casing
+- GIVEN a type definition `UserId`
+- WHEN the compiler checks the identifier
+- THEN it SHALL accept UpperCamelCase and reject lowercase type names
+
+#### Scenario: Function name casing
+- GIVEN a function definition `map`
+- WHEN the compiler checks the identifier
+- THEN it SHALL accept lowercase and reject UpperCamelCase function names
+
+### Requirement: Mutable Variable Syntax
+Mutable bindings SHALL use a `$` prefix at declaration and at every use site, and SHALL be stack-local only.
+
+#### Scenario: Mutable variable declaration
+- GIVEN a statement `$total = 0` where `$total` does not exist in scope
+- WHEN compiled
+- THEN it SHALL declare a mutable binding named `$total`
+
+#### Scenario: Mutable variable reassignment
+- GIVEN an existing mutable binding `$total` in the same function scope
+- WHEN `$total = $total + 1` is evaluated
+- THEN the value of `$total` SHALL be updated
+
+#### Scenario: Dollar prefix on immutable binding rejected
+- GIVEN a statement `$x = 42` followed by no reassignment of `$x`
+- WHEN the compiler checks the binding
+- THEN it SHALL accept `$` as valid since the binding is declared mutable
+
+#### Scenario: Mutable variable cannot escape function
+- GIVEN a mutable binding `$x` defined inside a function
+- WHEN a closure captures `$x` and escapes the function
+- THEN the compiler SHALL produce an error
+
+#### Scenario: Mutable variable shadowing across scopes rejected
+- GIVEN a mutable binding `$x` in an enclosing scope
+- WHEN a new `$x` is declared in a nested scope
+- THEN the compiler SHALL produce an error because shadowing is forbidden
+
+### Requirement: Logic Operators
+Boolean logic SHALL use `and` and `or` keywords; the operators `&&` and `||` SHALL NOT be valid.
+
+#### Scenario: And keyword
+- GIVEN an expression `True and False`
+- WHEN evaluated
+- THEN the result SHALL be `False`
+
+#### Scenario: Symbol operator rejection
+- GIVEN an expression using `&&` or `||`
+- WHEN the compiler parses it
+- THEN it SHALL produce a syntax error
+
+### Requirement: Dot Lambda
+A leading `.` followed by a method/field chain SHALL create an anonymous function that applies the chain to its argument.
+
+#### Scenario: Dot lambda with method call
+- GIVEN an expression `.foo(x)`
+- WHEN the compiler desugars it
+- THEN it SHALL be equivalent to `|a| a.foo(x)`
+
+#### Scenario: Dot lambda with field access
+- GIVEN an expression `.name`
+- WHEN the compiler desugars it
+- THEN it SHALL be equivalent to `|a| a.name`
+
+#### Scenario: Dot lambda with chained access
+- GIVEN an expression `.foo().bar(x)`
+- WHEN the compiler desugars it
+- THEN it SHALL be equivalent to `|a| a.foo().bar(x)`
+
+#### Scenario: Dot lambda in expression position
+- GIVEN a call `list.map(.name)`
+- WHEN compiled
+- THEN `.name` SHALL desugar to a lambda that extracts the `name` field
+
+#### Scenario: Effect row propagation through dot lambda
+- GIVEN a dot lambda `.read!()`
+- WHEN the compiler determines its effect row
+- THEN the desugared lambda SHALL carry the same effect row as `read!`
+
+#### Scenario: Disambiguation from spread syntax
+- GIVEN a token `..`
+- WHEN the compiler parses it
+- THEN it SHALL be interpreted as the spread operator, never as two dot lambdas
+
+### Requirement: Trait Structural Verification
+Traits SHALL be structurally verified — the compiler checks that a type's methods match the trait's required signatures by shape — but types MUST explicitly declare `is Trait` to satisfy the trait.
+
+#### Scenario: Nominal opt-in required
+- GIVEN a type whose methods match trait `Display` by shape but without an `is Display` declaration
+- WHEN the type is used where `Display` is required
+- THEN the compiler SHALL produce an error
+
+#### Scenario: Structural verification upon opt-in
+- GIVEN a type declared `is Display`
+- WHEN the compiler verifies the declaration
+- THEN it SHALL check that the type's methods match `Display`'s required signatures by shape
+
+### Requirement: Trait Orphan Rule
+An `is` declaration SHALL appear only in the module that defines the type or the module that defines the trait.
+
+#### Scenario: Orphan implementation in third module
+- GIVEN module A defines type `T`, module B defines trait `Foo`, and module C declares `T is Foo`
+- WHEN the compiler processes module C
+- THEN it SHALL produce an error
+
+### Requirement: UFCS Dispatch
+Method calls SHALL use Uniform Function Call Syntax: `x.display()` SHALL desugar to `Display.display(x)`.
+
+#### Scenario: Trait method call via dot syntax
+- GIVEN a value `x` of type `UserId is Display`
+- WHEN `x.display()` is called
+- THEN it SHALL desugar to `Display.display(x)`
+
+### Requirement: Effect Row Syntax
+Function types SHALL include an effect row after `->`; an empty effect row SHALL be elided.
+
+#### Scenario: Pure function type
+- GIVEN a type `Int -> Int` with no effect row
+- WHEN the compiler interprets it
+- THEN the effect row SHALL be the empty set
+
+#### Scenario: Effectful function type
+- GIVEN a type `Str ->{ Console } {}`
+- WHEN the compiler interprets it
+- THEN the effect row SHALL contain `Console`
+
+#### Scenario: Parameterized effect
+- GIVEN a type `Str ->{ Throw(NotFound) } Int`
+- WHEN the compiler interprets it
+- THEN the effect row SHALL contain `Throw` parameterized by `NotFound`
+
+### Requirement: Effect Row Properties
+Effect rows SHALL be sets with insignificant order and deduplication; row variables SHALL enable effect polymorphism.
+
+#### Scenario: Row order insignificance
+- GIVEN two effect rows `{ Console, File }` and `{ File, Console }`
+- WHEN the compiler compares them
+- THEN they SHALL be considered identical
+
+#### Scenario: Effect row composition
+- GIVEN a function `f : a ->{ E1 } b` and `g : b ->{ E2 } c`
+- WHEN composing `g(f(x))`
+- THEN the composed effect row SHALL be `{ E1, E2 }`
+
+#### Scenario: Effect polymorphism via row variable
+- GIVEN a function `map = <a, b, e>|f: |a| ->{ e } b, list: List(a)| ->{ e } List(b)`
+- WHEN `f` is pure
+- THEN `map` SHALL be pure; when `f` is effectful, `map` SHALL propagate the same effects
+
+### Requirement: Effect Safety
+Unhandled effects SHALL be compile-time errors; a function's effect row MUST be a subset of the effects handled by its caller's context.
+
+#### Scenario: Unhandled effect
+- GIVEN a function that calls `Console.println!` without a handler in scope
+- WHEN the compiler type-checks the function
+- THEN it SHALL produce an error for the unhandled `Console` effect
+
+#### Scenario: Main effect row as handler declaration
+- GIVEN `main! = || ->{ Console, Throw([..]) } { ... }`
+- WHEN the program runs
+- THEN the runtime SHALL provide handlers for `Console` and `Throw([..])`
+
+### Requirement: Inline Type Annotations
+Type annotations SHALL be written inline with `:` on the binding, never as a separate declaration above it.
+
+#### Scenario: Inline binding annotation
+- GIVEN a statement `x: Int = 3`
+- WHEN compiled
+- THEN `x` SHALL have type `Int`
+
+#### Scenario: Separate type declaration rejected
+- GIVEN a type annotation `x : Int` on a separate line from the binding `x = 3`
+- WHEN the compiler parses it
+- THEN it SHALL produce a syntax error
+
+### Requirement: No Shadowing
+All shadowing SHALL be forbidden — a binding name SHALL NOT be reused in the same scope or any nested scope.
+
+#### Scenario: Same-scope rebinding
+- GIVEN two bindings `x = 1` then `x = 2` in the same scope
+- WHEN the compiler checks the second binding
+- THEN it SHALL produce an error
+
+#### Scenario: Nested-scope shadowing
+- GIVEN a binding `x = 1` in an outer scope and `x = 2` in a nested scope
+- WHEN the compiler checks the nested binding
+- THEN it SHALL produce an error
+
+#### Scenario: Destructuring with conflicting name
+- GIVEN a binding `name = "old"` in scope and a destructuring `{ name, age } = record`
+- WHEN the compiler checks the destructuring
+- THEN it SHALL produce an error because `name` already exists in scope
+
+#### Scenario: Import name conflict
+- GIVEN an existing binding `map` in scope and an import that exposes `map`
+- WHEN the compiler resolves the import
+- THEN it SHALL produce an error
+
+### Requirement: Unified Namespace
+Each module SHALL have one namespace for functions, values, types, traits, effects, and aliases.
+
+#### Scenario: Type and function name conflict
+- GIVEN a module that defines both a type `Result` and a function `Result`
+- WHEN the compiler processes the module
+- THEN it SHALL produce an error
+
+#### Scenario: UFCS disambiguation via unified namespace
+- GIVEN a unified namespace containing function `method` and a record field also named `method`
+- WHEN `x.method()` is called
+- THEN it SHALL be resolved as a function call because the function and the field share one namespace
+
+### Requirement: Visibility
+The `pub` keyword SHALL mark module exports; all other definitions SHALL be private to the module.
+
+#### Scenario: Public export
+- GIVEN a definition `pub greet = |name| "Hello, ${name}!"`
+- WHEN another module imports this module
+- THEN `greet` SHALL be accessible
+
+#### Scenario: Private definition inaccessible
+- GIVEN a definition `helper = |x| x + 1` without `pub`
+- WHEN another module attempts to import `helper`
+- THEN the compiler SHALL produce an error
+
+### Requirement: Raw Identifiers
+Identifiers wrapped in backticks SHALL escape keyword conflicts and be usable as ordinary names.
+
+#### Scenario: Keyword as identifier
+- GIVEN a binding `` `do` = 42 ``
+- WHEN compiled
+- THEN `do` SHALL be usable as a variable name despite being a keyword
+
+#### Scenario: Backtick style over r# prefix
+- GIVEN source code using `r#type` as a raw identifier
+- WHEN the compiler parses it
+- THEN it SHALL produce a syntax error; only backtick-wrapped raw identifiers are valid
+
+### Requirement: Destructive Read Guarantee
+Perceus last-use optimization SHALL be a semantic guarantee: the compiler SHALL prove last-use and reuse allocations in-place, and programmers SHALL be able to reason about when reuse occurs.
+
+#### Scenario: Last-use in-place reuse
+- GIVEN a value that is consumed for the last time before being overwritten
+- WHEN the compiler performs reuse analysis
+- THEN it SHALL mutate the existing allocation in-place rather than allocating a new copy
+
+#### Scenario: Mutable variable reuse
+- GIVEN a mutable binding `$x` and a reassignment `$x = $x + 1` where `$x` is last-used on the right side
+- WHEN the compiler determines reuse is safe
+- THEN the allocation SHALL be updated in-place
+
+### Requirement: Pattern Matching Exhaustiveness
+Pattern matching SHALL require exhaustive coverage; the wildcard `_` SHALL match any remaining variants.
+
+#### Scenario: Exhaustive match on closed union
+- GIVEN a closed tag union `[Ok(a) | Err(e)]` and a match with cases for `Ok` and `Err`
+- WHEN the compiler checks exhaustiveness
+- THEN the match SHALL be accepted
+
+#### Scenario: Non-exhaustive match rejected
+- GIVEN a closed tag union `[Ok(a) | Err(e)]` and a match with only an `Ok` case
+- WHEN the compiler checks exhaustiveness
+- THEN it SHALL produce an error
+
+#### Scenario: Wildcard catch-all
+- GIVEN a match with explicit cases for some variants and `_ =>` as a final case
+- WHEN the compiler checks exhaustiveness
+- THEN the match SHALL be accepted
+
+#### Scenario: Redundant wildcard warning
+- GIVEN a match on a closed union where all variants are already covered explicitly and `_ =>` is present
+- WHEN the compiler checks exhaustiveness
+- THEN it SHALL produce a warning that the wildcard is unreachable
+
+#### Scenario: Open union requires at least one handler
+- GIVEN an open tag union type and a match expression
+- WHEN the match has at least one case or `_ =>`
+- THEN the match SHALL be accepted
+
+### Requirement: Dual Error Model
+The language SHALL provide two error mechanisms: the `Throw` effect for exceptional errors and tag union returns for structural absence; there SHALL be no `?` operator.
+
+#### Scenario: Throw effect for exceptional errors
+- GIVEN a function that calls `Throw.throw!(NotFound)`
+- WHEN the compiler infers the effect row
+- THEN the function's effect row SHALL include `Throw(NotFound)`
+
+#### Scenario: Tag union return for structural absence
+- GIVEN a function `List.first` returning `Some(a) | None`
+- WHEN the caller uses the result
+- THEN the caller SHALL handle absence via pattern matching, not via `Throw`
+
+#### Scenario: No question mark operator
+- GIVEN source code using `?` for error propagation
+- WHEN the compiler parses it
+- THEN it SHALL produce a syntax error
+
+#### Scenario: Handler bridging Throw to tag union
+- GIVEN a handler `handle Throw in { Ok(action()) } with { .throw!(resume, err) => Err(err) }`
+- WHEN the handler executes
+- THEN a thrown error SHALL be caught and returned as `Err(err)`
+
+### Requirement: Throw Variant Widening
+The `Throw` effect's parameter SHALL be a tag union that widens as more tag types are thrown.
+
+#### Scenario: Multiple throw sites widen the union
+- GIVEN a function that throws `NotFound` in one path and `PermissionDenied` in another
+- WHEN the compiler infers the Throw parameter
+- THEN it SHALL be `Throw(NotFound | PermissionDenied)`
+
+#### Scenario: Open throw type
+- GIVEN `Throw([NotFound | ..])` in a function type
+- WHEN the compiler type-checks it
+- THEN the function SHALL be permitted to throw `NotFound` and possibly other tags
+
+### Requirement: One-Shot Continuations
+Each `resume` in an effect handler SHALL be callable at most once; a second invocation SHALL be a runtime error.
+
+#### Scenario: Resume called once
+- GIVEN a handler that calls `resume({})` once
+- WHEN the handler executes
+- THEN execution SHALL continue after the effect operation call
+
+#### Scenario: Resume called twice
+- GIVEN a handler that calls `resume({})` twice
+- WHEN the second call executes
+- THEN a runtime error SHALL occur
+
+### Requirement: Deep and Shallow Handlers
+Handlers SHALL default to deep semantics (re-installed after each resume); `intercept` SHALL provide shallow semantics (handles one operation without re-installing).
+
+#### Scenario: Deep handler handles all operations
+- GIVEN a deep handler for `Async` containing three `Async.yield!()` calls
+- WHEN the handler executes
+- THEN all three `yield!` calls SHALL be caught by the handler
+
+#### Scenario: Shallow handler handles first operation only
+- GIVEN an `intercept Async` handler containing two `Async.yield!()` calls
+- WHEN the handler executes
+- THEN only the first `yield!` SHALL be caught; the second SHALL propagate to an outer handler
+
+### Requirement: Effect Composition via Aliases
+Effects SHALL compose by set union using aliases, not by inheritance; the `is` keyword SHALL NOT apply to effects.
+
+#### Scenario: Effect alias
+- GIVEN `alias Io = File | Console`
+- WHEN a function declares `->{ Io }` in its effect row
+- THEN it SHALL be equivalent to `->{ File, Console }`
+
+#### Scenario: Effect inheritance rejected
+- GIVEN a declaration `effect File is Io`
+- WHEN the compiler processes it
+- THEN it SHALL produce an error
+
+### Requirement: Generic Type Parameters
+Generic type parameters SHALL be declared in angle brackets before the parameter list; trait constraints SHALL use `is` syntax.
+
+#### Scenario: Generic function
+- GIVEN a definition `add = <a>|x: a, y: a| -> a { x + y }`
+- WHEN compiled
+- THEN `add` SHALL be a generic function with type parameter `a`
+
+#### Scenario: Trait constraint on type parameter
+- GIVEN a definition `format = <a is Display>|x: a| -> Str { x.display() }`
+- WHEN compiled
+- THEN `a` SHALL be constrained to types that satisfy `Display`
+
+### Requirement: Trait Tree Inheritance
+Traits SHALL support single inheritance via `is`; a type that `is Ord is Eq` MUST also implement `Eq`.
+
+#### Scenario: Trait inheritance requirement
+- GIVEN a trait `Ord is Eq` and a type declared `is Ord`
+- WHEN the compiler verifies conformance
+- THEN the type SHALL also be required to implement `Eq`
+
+### Requirement: No Higher-Kinded Types
+Type parameters SHALL always be kind `*`; type constructor parameters SHALL NOT be supported.
+
+#### Scenario: Higher-kinded type parameter rejected
+- GIVEN a function signature using a type constructor parameter like `<f: * -> *>`
+- WHEN the compiler processes it
+- THEN it SHALL produce an error
+
+### Requirement: Consistent Dot-Dot Syntax
+The `..` operator SHALL mean "and possibly more" consistently across type annotations, destructuring, and record update.
+
+#### Scenario: Dot-dot in record type
+- GIVEN `{ name: Str, .. }`
+- WHEN the compiler interprets it
+- THEN it SHALL mean a record with at least `name: Str`, possibly more fields
+
+#### Scenario: Dot-dot in tag union type
+- GIVEN `[Ok(a) | ..]`
+- WHEN the compiler interprets it
+- THEN it SHALL mean a tag union with at least `Ok(a)`, possibly more variants
+
+#### Scenario: Dot-dot in destructuring
+- GIVEN `{ name, .. } = record`
+- WHEN the compiler interprets it
+- THEN it SHALL extract `name` and ignore any additional fields
