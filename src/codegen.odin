@@ -211,6 +211,10 @@ codegen :: proc(ir_mod: IR_Module, ctx: ^Compilation_Context) -> Wasm_Module {
 
 			type_idx := get_or_create_type(&env, params, results)
 			func_idx := add_function(&env, type_idx)
+			if d.name.module != NO_NAME {
+				mangled := mangle_name(d.name.module, d.name.name, &ctx.interner)
+				env.func_map[hash_string(mangled)] = func_idx
+			}
 			env.func_map[int(d.name.name)] = func_idx
 
 			for len(env.func_type_indices) <= func_idx {
@@ -545,20 +549,34 @@ emit_expr :: proc(expr: IR_Expr, buf: ^[dynamic]u8, env: ^Codegen_Env, runtime_i
 		for arg in e.args {
 			emit_expr(arg, buf, env, runtime_indices)
 		}
-		if idx, ok := env.func_map[int(e.callee.name)]; ok {
-			emit_instruction(Wasm_Call{index = u32(idx)}, buf)
-		} else {
-			emit_instruction(Wasm_Call{index = 0}, buf)
+		call_idx: int = 0
+		if e.callee.module != NO_NAME {
+			mangled := mangle_name(e.callee.module, e.callee.name, env.interner)
+			if idx, ok := env.func_map[hash_string(mangled)]; ok {
+				call_idx = idx
+			} else if idx, ok := env.func_map[int(e.callee.name)]; ok {
+				call_idx = idx
+			}
+		} else if idx, ok := env.func_map[int(e.callee.name)]; ok {
+			call_idx = idx
 		}
+		emit_instruction(Wasm_Call{index = u32(call_idx)}, buf)
 	case ^IR_Tail_Call:
 		for arg in e.args {
 			emit_expr(arg, buf, env, runtime_indices)
 		}
-		if idx, ok := env.func_map[int(e.callee.name)]; ok {
-			emit_instruction(Wasm_Return_Call{index = u32(idx)}, buf)
-		} else {
-			emit_instruction(Wasm_Return_Call{index = 0}, buf)
+		tail_idx: int = 0
+		if e.callee.module != NO_NAME {
+			mangled := mangle_name(e.callee.module, e.callee.name, env.interner)
+			if idx, ok := env.func_map[hash_string(mangled)]; ok {
+				tail_idx = idx
+			} else if idx, ok := env.func_map[int(e.callee.name)]; ok {
+				tail_idx = idx
+			}
+		} else if idx, ok := env.func_map[int(e.callee.name)]; ok {
+			tail_idx = idx
 		}
+		emit_instruction(Wasm_Return_Call{index = u32(tail_idx)}, buf)
 	case ^IR_If:
 		emit_expr(e.condition, buf, env, runtime_indices)
 		block_type := ir_wasm_type_to_block_type(e.type.wasm_type)
@@ -753,7 +771,8 @@ emit_expr :: proc(expr: IR_Expr, buf: ^[dynamic]u8, env: ^Codegen_Env, runtime_i
 		emit_instruction(Wasm_Local_Get{index = tmp_local_idx}, buf)
 		emit_instruction(Wasm_I32_Const{value = i32(CAMP_TAG_FIELDS_OFFSET)}, buf)
 		emit_instruction(Wasm_I32_Add{}, buf)
-		if fn_idx, ok := env.func_map[int(e.fn_name.name)]; ok {
+		fn_idx := resolve_call_idx(e.fn_name, env)
+		if fn_idx > 0 {
 			emit_instruction(Wasm_I32_Const{value = i32(fn_idx)}, buf)
 		} else {
 			emit_instruction(Wasm_I32_Const{value = 0}, buf)
@@ -949,4 +968,25 @@ emit_load_for_type :: proc(wasm_type: IR_Wasm_Type, buf: ^[dynamic]u8) {
 	case .F64: emit_instruction(Wasm_F64_Load{align = 3, offset = 0}, buf)
 	case: emit_instruction(Wasm_I32_Load{align = 2, offset = 0}, buf)
 	}
+}
+
+hash_string :: proc(s: string) -> int {
+	h: int = 5381
+	for i := 0; i < len(s); i += 1 {
+		h = ((h << 5) + h) + int(s[i])
+	}
+	return h
+}
+
+resolve_call_idx :: proc(callee: Canonical_Name, env: ^Codegen_Env) -> int {
+	if callee.module != NO_NAME {
+		mangled := mangle_name(callee.module, callee.name, env.interner)
+		if idx, ok := env.func_map[hash_string(mangled)]; ok {
+			return idx
+		}
+	}
+	if idx, ok := env.func_map[int(callee.name)]; ok {
+		return idx
+	}
+	return 0
 }
