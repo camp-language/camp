@@ -3,3 +3,7 @@ camp-e2e
 tree-sitter/node_modules/
 tree-sitter/build/
 *.wasm
+
+# OpenSpec
+.openspec/
+

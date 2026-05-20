@@ -31,10 +31,27 @@ wasmtime run hello.wasm   # Exits with code 42
 
 ## Design
 
-See [docs/superpowers/specs/2026-05-18-camp-language-design.md](docs/superpowers/specs/2026-05-18-camp-language-design.md) for the full language design specification.
+See [project.md](project.md) for the project overview and [specs/](specs/) for detailed design specifications.
+
+Key specifications:
+- [Language Design](specs/2026-05-18-camp-language-design.md)
+- [Implementation Status](specs/2026-05-19-implementation-status.md)
+- [Package Ecosystem](specs/2026-05-18-camp-package-ecosystem.md)
 
 ## Testing
 
 ```bash
 odin test src
 ```
+
+## AI Development
+
+This project uses [OpenSpec](https://github.com/Octane0411/opencode-plugin-openspec) for AI-assisted development. The `openspec-plan` agent mode provides:
+
+- Read-only access to implementation files (prevents premature coding)
+- Write access to `project.md`, `AGENTS.md`, and `specs/**`
+- Structured planning before implementation
+
+To use: Open the project in OpenCode and select the `openspec-plan` agent mode.
+
+See [AGENTS.md](AGENTS.md) for AI assistant guidelines.
