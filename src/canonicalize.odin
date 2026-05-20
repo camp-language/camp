@@ -22,6 +22,8 @@ canonicalize :: proc(surface: File, ctx: ^Compilation_Context) -> CFile {
 	cfile.path = surface.path
 	cfile.decls = make([dynamic]CDecl, 0, len(surface.decls))
 	cfile.imports = make([dynamic]Deferred_Import, 0, 8)
+	cfile.spans = make(Span_Table, 64)
+	ctx.spans = cfile.spans
 
 	for decl in surface.decls {
 		cdecl := canonicalize_decl(decl, &scope, &cfile.imports, ctx)
@@ -48,8 +50,8 @@ canonicalize_decl :: proc(decl: Decl, scope: ^Canonicalize_Scope, imports: ^[dyn
 			type_ann = ctype_ann,
 			body = cbody,
 			derive_targets = make([dynamic]Intern_ID, 0, 4),
-			span = d.span,
 		}
+		span_set(ctx.spans, cdecl, d.span)
 		return cdecl
 
 	case ^Decl_Effect:
@@ -63,8 +65,8 @@ canonicalize_decl :: proc(decl: Decl, scope: ^Canonicalize_Scope, imports: ^[dyn
 			name = name,
 			is_pub = d.is_pub,
 			operations = ops,
-			span = d.span,
 		}
+		span_set(ctx.spans, cdecl, d.span)
 		return cdecl
 
 	case ^Decl_Trait:
@@ -79,8 +81,8 @@ canonicalize_decl :: proc(decl: Decl, scope: ^Canonicalize_Scope, imports: ^[dyn
 			is_pub = d.is_pub,
 			parent = d.parent,
 			methods = methods,
-			span = d.span,
 		}
+		span_set(ctx.spans, cdecl, d.span)
 		return cdecl
 
 	case ^Decl_Alias:
@@ -91,8 +93,8 @@ canonicalize_decl :: proc(decl: Decl, scope: ^Canonicalize_Scope, imports: ^[dyn
 			name = name,
 			is_pub = d.is_pub,
 			target = ctarget,
-			span = d.span,
 		}
+		span_set(ctx.spans, cdecl, d.span)
 		return cdecl
 
 	case ^Decl_Import:
@@ -108,23 +110,26 @@ canonicalize_decl :: proc(decl: Decl, scope: ^Canonicalize_Scope, imports: ^[dyn
 		}
 		append(imports, di)
 		cdecl := new(CDecl_Import)
-		cdecl^ = CDecl_Import{deferred = di, span = d.span}
+		cdecl^ = CDecl_Import{deferred = di}
+		span_set(ctx.spans, cdecl, d.span)
 		return cdecl
 
 	case ^Decl_Test:
 		cbody := canonicalize_expr(d.body, scope, ctx)
 		cdecl := new(CDecl_Test)
-		cdecl^ = CDecl_Test{name = d.name, body = cbody, span = d.span}
+		cdecl^ = CDecl_Test{name = d.name, body = cbody}
+		span_set(ctx.spans, cdecl, d.span)
 		return cdecl
 
 	case ^Decl_Expect:
 		ccond := canonicalize_expr(d.condition, scope, ctx)
 		cdecl := new(CDecl_Expect)
-		cdecl^ = CDecl_Expect{condition = ccond, span = d.span}
+		cdecl^ = CDecl_Expect{condition = ccond}
+		span_set(ctx.spans, cdecl, d.span)
 		return cdecl
 	}
 	cdecl := new(CDecl_Const)
-	cdecl^ = CDecl_Const{span = Source_Span_ZERO}
+	cdecl^ = CDecl_Const{}
 	return cdecl
 }
 
@@ -223,22 +228,26 @@ canonicalize_expr :: proc(expr: Expr, scope: ^Canonicalize_Scope, ctx: ^Compilat
 	switch e in expr {
 	case ^Expr_Int:
 		c := new(CExpr_Int)
-		c^ = CExpr_Int{value = e.value, span = e.span}
+		c^ = CExpr_Int{value = e.value}
+		span_set(ctx.spans, c, e.span)
 		return c
 
 	case ^Expr_Float:
 		c := new(CExpr_Float)
-		c^ = CExpr_Float{value = e.value, span = e.span}
+		c^ = CExpr_Float{value = e.value}
+		span_set(ctx.spans, c, e.span)
 		return c
 
 	case ^Expr_String:
 		c := new(CExpr_String)
-		c^ = CExpr_String{value = e.value, span = e.span}
+		c^ = CExpr_String{value = e.value}
+		span_set(ctx.spans, c, e.span)
 		return c
 
 	case ^Expr_Bool:
 		c := new(CExpr_Bool)
-		c^ = CExpr_Bool{value = e.value, span = e.span}
+		c^ = CExpr_Bool{value = e.value}
+		span_set(ctx.spans, c, e.span)
 		return c
 
 	case ^Expr_Tag:
@@ -251,7 +260,8 @@ canonicalize_expr :: proc(expr: Expr, scope: ^Canonicalize_Scope, ctx: ^Compilat
 			append(&payload, canonicalize_expr(p, scope, ctx))
 		}
 		c := new(CExpr_Tag)
-		c^ = CExpr_Tag{name = name, payload = payload, span = e.span}
+		c^ = CExpr_Tag{name = name, payload = payload}
+		span_set(ctx.spans, c, e.span)
 		return c
 
 	case ^Expr_Record:
@@ -269,7 +279,8 @@ canonicalize_expr :: proc(expr: Expr, scope: ^Canonicalize_Scope, ctx: ^Compilat
 			crest = canonicalize_expr(e.rest, scope, ctx)
 		}
 		c := new(CExpr_Record)
-		c^ = CExpr_Record{fields = fields, rest = crest, is_open = e.is_open, span = e.span}
+		c^ = CExpr_Record{fields = fields, rest = crest, is_open = e.is_open}
+		span_set(ctx.spans, c, e.span)
 		return c
 
 	case ^Expr_List:
@@ -278,7 +289,8 @@ canonicalize_expr :: proc(expr: Expr, scope: ^Canonicalize_Scope, ctx: ^Compilat
 			append(&elements, canonicalize_expr(el, scope, ctx))
 		}
 		c := new(CExpr_List)
-		c^ = CExpr_List{elements = elements, span = e.span}
+		c^ = CExpr_List{elements = elements}
+		span_set(ctx.spans, c, e.span)
 		return c
 
 	case ^Expr_Identifier:
@@ -287,7 +299,8 @@ canonicalize_expr :: proc(expr: Expr, scope: ^Canonicalize_Scope, ctx: ^Compilat
 			name = existing
 		}
 		c := new(CExpr_Name)
-		c^ = CExpr_Name{name = name, span = e.span}
+		c^ = CExpr_Name{name = name}
+		span_set(ctx.spans, c, e.span)
 		return c
 
 	case ^Expr_Dollar_Identifier:
@@ -296,7 +309,8 @@ canonicalize_expr :: proc(expr: Expr, scope: ^Canonicalize_Scope, ctx: ^Compilat
 			name = existing
 		}
 		c := new(CExpr_Name)
-		c^ = CExpr_Name{name = name, span = e.span}
+		c^ = CExpr_Name{name = name}
+		span_set(ctx.spans, c, e.span)
 		return c
 
 	case ^Expr_Call:
@@ -306,7 +320,8 @@ canonicalize_expr :: proc(expr: Expr, scope: ^Canonicalize_Scope, ctx: ^Compilat
 			append(&args, canonicalize_expr(a, scope, ctx))
 		}
 		c := new(CExpr_Call)
-		c^ = CExpr_Call{callee = ccallee, args = args, span = e.span}
+		c^ = CExpr_Call{callee = ccallee, args = args}
+		span_set(ctx.spans, c, e.span)
 		return c
 
 	case ^Expr_Method_Call:
@@ -320,7 +335,8 @@ canonicalize_expr :: proc(expr: Expr, scope: ^Canonicalize_Scope, ctx: ^Compilat
 			append(&args, canonicalize_expr(a, scope, ctx))
 		}
 		c := new(CExpr_Method_Call)
-		c^ = CExpr_Method_Call{receiver = creceiver, method = name, args = args, span = e.span}
+		c^ = CExpr_Method_Call{receiver = creceiver, method = name, args = args}
+		span_set(ctx.spans, c, e.span)
 		return c
 
 	case ^Expr_Lambda:
@@ -348,8 +364,8 @@ canonicalize_expr :: proc(expr: Expr, scope: ^Canonicalize_Scope, ctx: ^Compilat
 			return_type = creturn_type,
 			effects = ceffects,
 			body = cbody,
-			span = e.span,
 		}
+		span_set(ctx.spans, c, e.span)
 		return c
 
 	case ^Expr_Block:
@@ -358,7 +374,8 @@ canonicalize_expr :: proc(expr: Expr, scope: ^Canonicalize_Scope, ctx: ^Compilat
 			append(&stmts, canonicalize_expr(s, scope, ctx))
 		}
 		c := new(CExpr_Block)
-		c^ = CExpr_Block{statements = stmts, span = e.span}
+		c^ = CExpr_Block{statements = stmts}
+		span_set(ctx.spans, c, e.span)
 		return c
 
 	case ^Expr_If:
@@ -367,8 +384,8 @@ canonicalize_expr :: proc(expr: Expr, scope: ^Canonicalize_Scope, ctx: ^Compilat
 			condition = canonicalize_expr(e.condition, scope, ctx),
 			then_branch = canonicalize_expr(e.then_branch, scope, ctx),
 			else_branch = canonicalize_expr(e.else_branch, scope, ctx),
-			span = e.span,
 		}
+		span_set(ctx.spans, c, e.span)
 		return c
 
 	case ^Expr_Match:
@@ -384,8 +401,8 @@ canonicalize_expr :: proc(expr: Expr, scope: ^Canonicalize_Scope, ctx: ^Compilat
 		c^ = CExpr_Match{
 			scrutinee = canonicalize_expr(e.scrutinee, scope, ctx),
 			arms = arms,
-			span = e.span,
 		}
+		span_set(ctx.spans, c, e.span)
 		return c
 
 	case ^Expr_BinOp:
@@ -394,8 +411,8 @@ canonicalize_expr :: proc(expr: Expr, scope: ^Canonicalize_Scope, ctx: ^Compilat
 			op = e.op,
 			left = canonicalize_expr(e.left, scope, ctx),
 			right = canonicalize_expr(e.right, scope, ctx),
-			span = e.span,
 		}
+		span_set(ctx.spans, c, e.span)
 		return c
 
 	case ^Expr_PrefixOp:
@@ -403,8 +420,8 @@ canonicalize_expr :: proc(expr: Expr, scope: ^Canonicalize_Scope, ctx: ^Compilat
 		c^ = CExpr_PrefixOp{
 			op = e.op,
 			operand = canonicalize_expr(e.operand, scope, ctx),
-			span = e.span,
 		}
+		span_set(ctx.spans, c, e.span)
 		return c
 
 	case ^Expr_Field_Access:
@@ -412,8 +429,8 @@ canonicalize_expr :: proc(expr: Expr, scope: ^Canonicalize_Scope, ctx: ^Compilat
 		c^ = CExpr_Field_Access{
 			record = canonicalize_expr(e.record, scope, ctx),
 			field = e.field,
-			span = e.span,
 		}
+		span_set(ctx.spans, c, e.span)
 		return c
 
 	case ^Expr_Record_Update:
@@ -430,8 +447,8 @@ canonicalize_expr :: proc(expr: Expr, scope: ^Canonicalize_Scope, ctx: ^Compilat
 		c^ = CExpr_Record_Update{
 			rest = canonicalize_expr(e.rest, scope, ctx),
 			updates = updates,
-			span = e.span,
 		}
+		span_set(ctx.spans, c, e.span)
 		return c
 
 	case ^Expr_Assign:
@@ -439,24 +456,24 @@ canonicalize_expr :: proc(expr: Expr, scope: ^Canonicalize_Scope, ctx: ^Compilat
 		c^ = CExpr_Assign{
 			target = canonicalize_expr(e.target, scope, ctx),
 			value = canonicalize_expr(e.value, scope, ctx),
-			span = e.span,
 		}
+		span_set(ctx.spans, c, e.span)
 		return c
 
 	case ^Expr_Return:
 		c := new(CExpr_Return)
 		c^ = CExpr_Return{
 			value = canonicalize_expr(e.value, scope, ctx),
-			span = e.span,
 		}
+		span_set(ctx.spans, c, e.span)
 		return c
 
 	case ^Expr_Crash:
 		c := new(CExpr_Crash)
 		c^ = CExpr_Crash{
 			message = canonicalize_expr(e.message, scope, ctx),
-			span = e.span,
 		}
+		span_set(ctx.spans, c, e.span)
 		return c
 
 	case ^Expr_Interpolate:
@@ -465,7 +482,8 @@ canonicalize_expr :: proc(expr: Expr, scope: ^Canonicalize_Scope, ctx: ^Compilat
 			append(&parts, canonicalize_expr(p, scope, ctx))
 		}
 		c := new(CExpr_Interpolate)
-		c^ = CExpr_Interpolate{parts = parts, span = e.span}
+		c^ = CExpr_Interpolate{parts = parts}
+		span_set(ctx.spans, c, e.span)
 		return c
 
 	case ^Expr_Handle:
@@ -484,7 +502,8 @@ canonicalize_expr :: proc(expr: Expr, scope: ^Canonicalize_Scope, ctx: ^Compilat
 			})
 		}
 		c := new(CExpr_Handle)
-		c^ = CExpr_Handle{effect = effect_name, is_shallow = e.is_shallow, body = cbody, arms = arms, span = e.span}
+		c^ = CExpr_Handle{effect = effect_name, is_shallow = e.is_shallow, body = cbody, arms = arms}
+		span_set(ctx.spans, c, e.span)
 		return c
 
 	case ^Expr_Dot_Lambda:
@@ -505,12 +524,12 @@ canonicalize_expr :: proc(expr: Expr, scope: ^Canonicalize_Scope, ctx: ^Compilat
 			return_type = nil,
 			effects = nil,
 			body = cbody,
-			span = e.span,
 		}
+		span_set(ctx.spans, cl, e.span)
 		return cl
 	}
 	c := new(CExpr_Int)
-	c^ = CExpr_Int{span = Source_Span_ZERO}
+	c^ = CExpr_Int{}
 	return c
 }
 
@@ -523,17 +542,19 @@ canonicalize_pattern :: proc(pat: Pattern, scope: ^Canonicalize_Scope, ctx: ^Com
 			append(&payload, canonicalize_pattern(pp, scope, ctx))
 		}
 		c := new(CPattern_Tag)
-		c^ = CPattern_Tag{name = name, payload = payload, span = p.span}
+		c^ = CPattern_Tag{name = name, payload = payload}
+		span_set(ctx.spans, c, p.span)
 		return c
 
 	case ^Pattern_Record:
 		fields := make([dynamic]CPattern_Field, 0, len(p.fields))
 		for f in p.fields {
-			append(&fields, CPattern_Field{name = f.name, binding = f.binding, span = f.span})
+			append(&fields, CPattern_Field{name = f.name, binding = f.binding})
 		}
 		sort_pattern_fields_by_name(&fields)
 		c := new(CPattern_Record)
-		c^ = CPattern_Record{fields = fields, is_open = p.is_open, span = p.span}
+		c^ = CPattern_Record{fields = fields, is_open = p.is_open}
+		span_set(ctx.spans, c, p.span)
 		return c
 
 	case ^Pattern_List:
@@ -542,32 +563,38 @@ canonicalize_pattern :: proc(pat: Pattern, scope: ^Canonicalize_Scope, ctx: ^Com
 			append(&elements, canonicalize_pattern(el, scope, ctx))
 		}
 		c := new(CPattern_List)
-		c^ = CPattern_List{elements = elements, span = p.span}
+		c^ = CPattern_List{elements = elements}
+		span_set(ctx.spans, c, p.span)
 		return c
 
 	case ^Pattern_Int:
 		c := new(CPattern_Int)
-		c^ = CPattern_Int{value = p.value, span = p.span}
+		c^ = CPattern_Int{value = p.value}
+		span_set(ctx.spans, c, p.span)
 		return c
 
 	case ^Pattern_String:
 		c := new(CPattern_String)
-		c^ = CPattern_String{value = p.value, span = p.span}
+		c^ = CPattern_String{value = p.value}
+		span_set(ctx.spans, c, p.span)
 		return c
 
 	case ^Pattern_Bool:
 		c := new(CPattern_Bool)
-		c^ = CPattern_Bool{value = p.value, span = p.span}
+		c^ = CPattern_Bool{value = p.value}
+		span_set(ctx.spans, c, p.span)
 		return c
 
 	case ^Pattern_Identifier:
 		c := new(CPattern_Identifier)
-		c^ = CPattern_Identifier{name = p.name, span = p.span}
+		c^ = CPattern_Identifier{name = p.name}
+		span_set(ctx.spans, c, p.span)
 		return c
 
 	case ^Pattern_Wildcard:
 		c := new(CPattern_Wildcard)
-		c^ = CPattern_Wildcard{span = p.span}
+		c^ = CPattern_Wildcard{}
+		span_set(ctx.spans, c, p.span)
 		return c
 
 	case ^Pattern_Destructure:
@@ -576,12 +603,12 @@ canonicalize_pattern :: proc(pat: Pattern, scope: ^Canonicalize_Scope, ctx: ^Com
 		c^ = CPattern_Destructure{
 			type_name = name,
 			inner = canonicalize_pattern(p.inner, scope, ctx),
-			span = p.span,
 		}
+		span_set(ctx.spans, c, p.span)
 		return c
 	}
 	c := new(CPattern_Wildcard)
-	c^ = CPattern_Wildcard{span = Source_Span_ZERO}
+	c^ = CPattern_Wildcard{}
 	return c
 }
 
@@ -590,7 +617,8 @@ canonicalize_type :: proc(t: Type, scope: ^Canonicalize_Scope, ctx: ^Compilation
 	switch ty in t {
 	case ^Type_Primitive:
 		c := new(CType_Primitive)
-		c^ = CType_Primitive{name = ty.name, span = ty.span}
+		c^ = CType_Primitive{name = ty.name}
+		span_set(ctx.spans, c, ty.span)
 		result = CType(c)
 
 	case ^Type_Applied:
@@ -599,7 +627,8 @@ canonicalize_type :: proc(t: Type, scope: ^Canonicalize_Scope, ctx: ^Compilation
 			append(&args, canonicalize_type(a, scope, ctx)^)
 		}
 		c := new(CType_Applied)
-		c^ = CType_Applied{name = ty.name, args = args, span = ty.span}
+		c^ = CType_Applied{name = ty.name, args = args}
+		span_set(ctx.spans, c, ty.span)
 		result = CType(c)
 
 	case ^Type_Function:
@@ -613,18 +642,20 @@ canonicalize_type :: proc(t: Type, scope: ^Canonicalize_Scope, ctx: ^Compilation
 		}
 		creturn := canonicalize_type(ty.return_, scope, ctx)
 		c := new(CType_Function)
-		c^ = CType_Function{params = params, effects = ceffects, return_ = creturn^, span = ty.span}
+		c^ = CType_Function{params = params, effects = ceffects, return_ = creturn^}
+		span_set(ctx.spans, c, ty.span)
 		result = CType(c)
 
 	case ^Type_Record:
 		fields := make([dynamic]CType_Field, 0, len(ty.fields))
 		for f in ty.fields {
 			cf := canonicalize_type(f.type, scope, ctx)
-			append(&fields, CType_Field{name = f.name, type = cf^, span = f.span})
+			append(&fields, CType_Field{name = f.name, type = cf^})
 		}
 		sort_type_fields_by_name(&fields)
 		c := new(CType_Record)
-		c^ = CType_Record{fields = fields, rest = ty.rest, is_open = ty.is_open, span = ty.span}
+		c^ = CType_Record{fields = fields, rest = ty.rest, is_open = ty.is_open}
+		span_set(ctx.spans, c, ty.span)
 		result = CType(c)
 
 	case ^Type_Tag_Union:
@@ -635,10 +666,11 @@ canonicalize_type :: proc(t: Type, scope: ^Canonicalize_Scope, ctx: ^Compilation
 				cp := canonicalize_type(p, scope, ctx)
 				append(&payload, cp^)
 			}
-			append(&tags, CType_Tag{name = tg.name, payload = payload, span = tg.span})
+			append(&tags, CType_Tag{name = tg.name, payload = payload})
 		}
 		c := new(CType_Tag_Union)
-		c^ = CType_Tag_Union{tags = tags, rest = ty.rest, is_open = ty.is_open, span = ty.span}
+		c^ = CType_Tag_Union{tags = tags, rest = ty.rest, is_open = ty.is_open}
+		span_set(ctx.spans, c, ty.span)
 		result = CType(c)
 
 	case ^Type_Effect_Row:
@@ -647,17 +679,20 @@ canonicalize_type :: proc(t: Type, scope: ^Canonicalize_Scope, ctx: ^Compilation
 			append(&effects, e)
 		}
 		c := new(CType_Effect_Row)
-		c^ = CType_Effect_Row{effects = effects, rest = ty.rest, is_open = ty.is_open, span = ty.span}
+		c^ = CType_Effect_Row{effects = effects, rest = ty.rest, is_open = ty.is_open}
+		span_set(ctx.spans, c, ty.span)
 		result = CType(c)
 
 	case ^Type_Variable:
 		c := new(CType_Variable)
-		c^ = CType_Variable{name = ty.name, span = ty.span}
+		c^ = CType_Variable{name = ty.name}
+		span_set(ctx.spans, c, ty.span)
 		result = CType(c)
 
 	case ^Type_Wildcard:
 		c := new(CType_Wildcard)
-		c^ = CType_Wildcard{span = ty.span}
+		c^ = CType_Wildcard{}
+		span_set(ctx.spans, c, ty.span)
 		result = CType(c)
 	}
 	ptr := new(CType)

@@ -8,6 +8,7 @@ Compilation_Context :: struct {
 	allocator: mem.Allocator,
 	interner:   Intern_Table,
 	collector:  Diagnostic_Collector,
+	spans:      Span_Table,
 }
 
 context_init :: proc(ctx: ^Compilation_Context) -> mem.Allocator {

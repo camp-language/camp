@@ -3,6 +3,8 @@ package camp
 import "core:fmt"
 
 lower_file :: proc(cfile: CFile, store: ^Type_Store) -> IR_Module {
+	cfile := cfile
+	store.spans = cfile.spans
 	mod: IR_Module
 	mod.decls = make([dynamic]IR_Decl, 0, len(cfile.decls))
 	mod.effect_defs = make([dynamic]IR_Effect_Def, 0, 8)
@@ -14,12 +16,12 @@ lower_file :: proc(cfile: CFile, store: ^Type_Store) -> IR_Module {
 	for &decl in cfile.decls {
 		#partial switch d in decl {
 		case ^CDecl_Const:
-			ir_decl := lower_decl_const(d^, &env)
+			ir_decl := lower_decl_const(d, &env)
 			append(&mod.decls, ir_decl)
 		case ^CDecl_Effect:
-			ir_decl := lower_decl_effect(d^, &env)
+			ir_decl := lower_decl_effect(d, &env)
 			append(&mod.decls, ir_decl)
-			eff_def := lower_effect_def(d^, &env)
+			eff_def := lower_effect_def(d, &env)
 			append(&mod.effect_defs, eff_def)
 		case:
 		}
@@ -96,10 +98,11 @@ make_ir_lit_bool :: proc(value: bool, type_: IR_Type, span: Source_Span) -> IR_E
 	return IR_Expr(lit)
 }
 
-lower_decl_const :: proc(d: CDecl_Const, env: ^Lower_Env) -> IR_Decl {
+lower_decl_const :: proc(d: ^CDecl_Const, env: ^Lower_Env) -> IR_Decl {
+	sp := span_of(env.store.spans, d)
 	#partial switch body_expr in d.body {
 	case ^CExpr_Lambda:
-		return lower_lambda_as_decl(body_expr, d.name, d.is_effectful, d.span, env)
+		return lower_lambda_as_decl(body_expr, d.name, d.is_effectful, sp, env)
 	case:
 	}
 
@@ -107,7 +110,7 @@ lower_decl_const :: proc(d: CDecl_Const, env: ^Lower_Env) -> IR_Decl {
 	if d.type_ann != nil {
 		type_var = convert_type_to_var(d.type_ann, env.store)
 	} else {
-		type_var = fresh_value_var(env.store, d.span)
+		type_var = fresh_value_var(env.store, sp)
 	}
 	ir_type := lower_type(env.store, type_var)
 
@@ -122,7 +125,7 @@ lower_decl_const :: proc(d: CDecl_Const, env: ^Lower_Env) -> IR_Decl {
 			return_type = ir_type,
 			effect_row = IR_Type{.Void, type_var},
 			body = body,
-			span = d.span,
+			span = sp,
 		}
 		return IR_Decl(fn_decl)
 	}
@@ -132,7 +135,7 @@ lower_decl_const :: proc(d: CDecl_Const, env: ^Lower_Env) -> IR_Decl {
 		name = d.name,
 		type = ir_type,
 		value = body,
-		span = d.span,
+		span = sp,
 	}
 	return IR_Decl(decl)
 }
@@ -168,7 +171,7 @@ lower_lambda_as_decl :: proc(e: ^CExpr_Lambda, name: Canonical_Name, is_effectfu
 	return IR_Decl(fn_decl)
 }
 
-lower_decl_effect :: proc(d: CDecl_Effect, env: ^Lower_Env) -> IR_Decl {
+lower_decl_effect :: proc(d: ^CDecl_Effect, env: ^Lower_Env) -> IR_Decl {
 	ops := make([dynamic]IR_Effect_Op, 0, len(d.operations))
 	for op in d.operations {
 		ir_op := lower_effect_op(op, env)
@@ -179,12 +182,12 @@ lower_decl_effect :: proc(d: CDecl_Effect, env: ^Lower_Env) -> IR_Decl {
 	decl^ = IR_Decl_Effect{
 		name = d.name,
 		operations = ops,
-		span = d.span,
+		span = span_of(env.store.spans, d),
 	}
 	return IR_Decl(decl)
 }
 
-lower_effect_def :: proc(d: CDecl_Effect, env: ^Lower_Env) -> IR_Effect_Def {
+lower_effect_def :: proc(d: ^CDecl_Effect, env: ^Lower_Env) -> IR_Effect_Def {
 	ops := make([dynamic]IR_Effect_Op, 0, len(d.operations))
 	for op in d.operations {
 		ir_op := lower_effect_op(op, env)
@@ -218,30 +221,30 @@ lower_effect_op :: proc(op: CEffect_Op, env: ^Lower_Env) -> IR_Effect_Op {
 lower_expr :: proc(expr: CExpr, env: ^Lower_Env) -> IR_Expr {
 	switch e in expr {
 	case ^CExpr_Int:
-		type_var := make_primitive_type(env.store, intern(env.interner, "I64"), e.span)
-		return make_ir_lit_int(e.value, lower_type(env.store, type_var), e.span)
+		type_var := make_primitive_type(env.store, intern(env.interner, "I64"), span_of(env.store.spans, e))
+		return make_ir_lit_int(e.value, lower_type(env.store, type_var), span_of(env.store.spans, e))
 
 	case ^CExpr_Float:
-		type_var := make_primitive_type(env.store, intern(env.interner, "F64"), e.span)
+		type_var := make_primitive_type(env.store, intern(env.interner, "F64"), span_of(env.store.spans, e))
 		lit := new(IR_Literal_Float)
-		lit^ = IR_Literal_Float{value = e.value, type = lower_type(env.store, type_var), span = e.span}
+		lit^ = IR_Literal_Float{value = e.value, type = lower_type(env.store, type_var), span = span_of(env.store.spans, e)}
 		return IR_Expr(lit)
 
 	case ^CExpr_String:
-		type_var := make_primitive_type(env.store, intern(env.interner, "Str"), e.span)
+		type_var := make_primitive_type(env.store, intern(env.interner, "Str"), span_of(env.store.spans, e))
 		lit := new(IR_Literal_String)
-		lit^ = IR_Literal_String{value = e.value, type = lower_type(env.store, type_var), span = e.span}
+		lit^ = IR_Literal_String{value = e.value, type = lower_type(env.store, type_var), span = span_of(env.store.spans, e)}
 		append(&env.module.string_table, String_Table_Entry{id = fresh_ir_name(env), value = e.value})
 		return IR_Expr(lit)
 
 	case ^CExpr_Bool:
-		type_var := make_primitive_type(env.store, intern(env.interner, "Bool"), e.span)
-		return make_ir_lit_bool(e.value, lower_type(env.store, type_var), e.span)
+		type_var := make_primitive_type(env.store, intern(env.interner, "Bool"), span_of(env.store.spans, e))
+		return make_ir_lit_bool(e.value, lower_type(env.store, type_var), span_of(env.store.spans, e))
 
 	case ^CExpr_Name:
-		type_var := fresh_value_var(env.store, e.span)
+		type_var := fresh_value_var(env.store, span_of(env.store.spans, e))
 		v := new(IR_Var)
-		v^ = IR_Var{name = e.name.name, type = lower_type(env.store, type_var), span = e.span}
+		v^ = IR_Var{name = e.name.name, type = lower_type(env.store, type_var), span = span_of(env.store.spans, e)}
 		return IR_Expr(v)
 
 	case ^CExpr_Call:
@@ -287,13 +290,13 @@ lower_expr :: proc(expr: CExpr, env: ^Lower_Env) -> IR_Expr {
 	case ^CExpr_Return:
 		inner := lower_expr(e.value, env)
 		ret := new(IR_Return)
-		ret^ = IR_Return{value = inner, span = e.span}
+		ret^ = IR_Return{value = inner, span = span_of(env.store.spans, e)}
 		return IR_Expr(ret)
 
 	case ^CExpr_Crash:
 		msg_expr := lower_expr(e.message, env)
 		crash := new(IR_Crash)
-		crash^ = IR_Crash{message = msg_expr, span = e.span}
+		crash^ = IR_Crash{message = msg_expr, span = span_of(env.store.spans, e)}
 		return IR_Expr(crash)
 
 	case ^CExpr_Interpolate:
@@ -317,13 +320,13 @@ lower_call :: proc(e: ^CExpr_Call, env: ^Lower_Env) -> IR_Expr {
 		for arg in e.args {
 			append(&ir_args, lower_expr(arg, env))
 		}
-		type_var := fresh_value_var(env.store, e.span)
+		type_var := fresh_value_var(env.store, span_of(env.store.spans, e))
 		call := new(IR_Call)
 		call^ = IR_Call{
 			callee = callee_name,
 			args = ir_args,
 			type = lower_type(env.store, type_var),
-			span = e.span,
+			span = span_of(env.store.spans, e),
 		}
 		return IR_Expr(call)
 
@@ -333,13 +336,13 @@ lower_call :: proc(e: ^CExpr_Call, env: ^Lower_Env) -> IR_Expr {
 		for arg in e.args {
 			append(&ir_args, lower_expr(arg, env))
 		}
-		type_var := fresh_value_var(env.store, e.span)
+		type_var := fresh_value_var(env.store, span_of(env.store.spans, e))
 		ccall := new(IR_Closure_Call)
 		ccall^ = IR_Closure_Call{
 			callee = callee_expr,
 			args = ir_args,
 			type = lower_type(env.store, type_var),
-			span = e.span,
+			span = span_of(env.store.spans, e),
 		}
 		return IR_Expr(ccall)
 	}
@@ -359,20 +362,20 @@ lower_method_call :: proc(e: ^CExpr_Method_Call, env: ^Lower_Env) -> IR_Expr {
 			effect = e.method,
 			op = e.method.name,
 			args = ir_args,
-			type = IR_Type{.I32, fresh_value_var(env.store, e.span)},
-			span = e.span,
+			type = IR_Type{.I32, fresh_value_var(env.store, span_of(env.store.spans, e))},
+			span = span_of(env.store.spans, e),
 		}
 		return IR_Expr(perf)
 	}
 
-	type_var := fresh_value_var(env.store, e.span)
+	type_var := fresh_value_var(env.store, span_of(env.store.spans, e))
 	mc := new(IR_Method_Call)
 	mc^ = IR_Method_Call{
 		receiver = receiver,
 		method = e.method.name,
 		args = ir_args,
 		type = lower_type(env.store, type_var),
-		span = e.span,
+		span = span_of(env.store.spans, e),
 	}
 	return IR_Expr(mc)
 }
@@ -391,13 +394,13 @@ lower_lambda :: proc(e: ^CExpr_Lambda, env: ^Lower_Env) -> IR_Expr {
 
 	body := lower_expr(e.body, env)
 
-	ret_type_var := fresh_value_var(env.store, e.span)
+	ret_type_var := fresh_value_var(env.store, span_of(env.store.spans, e))
 	if e.return_type != nil {
 		ret_type_var = convert_type_to_var(e.return_type, env.store)
 	}
 	ir_ret_type := lower_type(env.store, ret_type_var)
 
-	fn_type_var := fresh_value_var(env.store, e.span)
+	fn_type_var := fresh_value_var(env.store, span_of(env.store.spans, e))
 	ir_fn_type := lower_type(env.store, fn_type_var)
 
 	fn_decl := new(IR_Decl_Fn)
@@ -406,9 +409,9 @@ lower_lambda :: proc(e: ^CExpr_Lambda, env: ^Lower_Env) -> IR_Expr {
 		is_effectful = false,
 		params = param_types,
 		return_type = ir_ret_type,
-		effect_row = IR_Type{.Void, fresh_effect_row(env.store, e.span)},
+		effect_row = IR_Type{.Void, fresh_effect_row(env.store, span_of(env.store.spans, e))},
 		body = body,
-		span = e.span,
+		span = span_of(env.store.spans, e),
 	}
 	append(&env.pending_decls, IR_Decl(fn_decl))
 
@@ -424,20 +427,20 @@ lower_lambda :: proc(e: ^CExpr_Lambda, env: ^Lower_Env) -> IR_Expr {
 		env = IR_Expr(nil),
 		body = body,
 		type = ir_fn_type,
-		span = e.span,
+		span = span_of(env.store.spans, e),
 	}
 	return IR_Expr(closure)
 }
 
 lower_block :: proc(e: ^CExpr_Block, env: ^Lower_Env) -> IR_Expr {
 	if len(e.statements) == 0 {
-		unit_type := lower_type(env.store, make_primitive_type(env.store, intern(env.interner, "Unit"), e.span))
+		unit_type := lower_type(env.store, make_primitive_type(env.store, intern(env.interner, "Unit"), span_of(env.store.spans, e)))
 		block := new(IR_Block)
-		block^ = IR_Block{statements = make([dynamic]IR_Expr, 0), type = unit_type, span = e.span}
+		block^ = IR_Block{statements = make([dynamic]IR_Expr, 0), type = unit_type, span = span_of(env.store.spans, e)}
 		return IR_Expr(block)
 	}
 
-	type_var := fresh_value_var(env.store, e.span)
+	type_var := fresh_value_var(env.store, span_of(env.store.spans, e))
 	result := lower_expr(e.statements[len(e.statements)-1], env)
 
 	for i := len(e.statements) - 2; i >= 0; i -= 1 {
@@ -452,7 +455,7 @@ lower_block :: proc(e: ^CExpr_Block, env: ^Lower_Env) -> IR_Expr {
 					type    = lower_type(env.store, type_var),
 					value   = lower_expr(s.value, env),
 					body    = result,
-					span    = e.span,
+					span    = span_of(env.store.spans, e),
 				}
 				result = IR_Expr(let_expr)
 				is_assign_or_skip = true
@@ -465,7 +468,7 @@ lower_block :: proc(e: ^CExpr_Block, env: ^Lower_Env) -> IR_Expr {
 		stmts[0] = lower_expr(e.statements[i], env)
 		stmts[1] = result
 		block := new(IR_Block)
-		block^ = IR_Block{statements = stmts, type = lower_type(env.store, type_var), span = e.span}
+		block^ = IR_Block{statements = stmts, type = lower_type(env.store, type_var), span = span_of(env.store.spans, e)}
 		result = IR_Expr(block)
 	}
 
@@ -477,14 +480,14 @@ lower_if :: proc(e: ^CExpr_If, env: ^Lower_Env) -> IR_Expr {
 	then_br := lower_expr(e.then_branch, env)
 	else_br := lower_expr(e.else_branch, env)
 
-	type_var := fresh_value_var(env.store, e.span)
+	type_var := fresh_value_var(env.store, span_of(env.store.spans, e))
 	ir_if := new(IR_If)
 	ir_if^ = IR_If{
 		condition = cond,
 		then_branch = then_br,
 		else_branch = else_br,
 		type = lower_type(env.store, type_var),
-		span = e.span,
+		span = span_of(env.store.spans, e),
 	}
 	return IR_Expr(ir_if)
 }
@@ -500,13 +503,13 @@ lower_match :: proc(e: ^CExpr_Match, env: ^Lower_Env) -> IR_Expr {
 		})
 	}
 
-	type_var := fresh_value_var(env.store, e.span)
+	type_var := fresh_value_var(env.store, span_of(env.store.spans, e))
 	m := new(IR_Match)
 	m^ = IR_Match{
 		scrutinee = scrutinee,
 		arms = arms,
 		type = lower_type(env.store, type_var),
-		span = e.span,
+		span = span_of(env.store.spans, e),
 	}
 	return IR_Expr(m)
 }
@@ -561,14 +564,14 @@ lower_binop :: proc(e: ^CExpr_BinOp, env: ^Lower_Env) -> IR_Expr {
 	left := lower_expr(e.left, env)
 	right := lower_expr(e.right, env)
 
-	type_var := fresh_value_var(env.store, e.span)
+	type_var := fresh_value_var(env.store, span_of(env.store.spans, e))
 	binop := new(IR_BinOp)
 	binop^ = IR_BinOp{
 		op = e.op,
 		left = left,
 		right = right,
 		type = lower_type(env.store, type_var),
-		span = e.span,
+		span = span_of(env.store.spans, e),
 	}
 	return IR_Expr(binop)
 }
@@ -578,17 +581,17 @@ lower_prefixop :: proc(e: ^CExpr_PrefixOp, env: ^Lower_Env) -> IR_Expr {
 
 	#partial switch e.op {
 	case .Kw_Not:
-		bool_type := lower_type(env.store, make_primitive_type(env.store, intern(env.interner, "Bool"), e.span))
-		false_lit := make_ir_lit_bool(false, bool_type, e.span)
+		bool_type := lower_type(env.store, make_primitive_type(env.store, intern(env.interner, "Bool"), span_of(env.store.spans, e)))
+		false_lit := make_ir_lit_bool(false, bool_type, span_of(env.store.spans, e))
 		binop := new(IR_BinOp)
-		binop^ = IR_BinOp{op = .Eq_Eq, left = operand, right = false_lit, type = bool_type, span = e.span}
+		binop^ = IR_BinOp{op = .Eq_Eq, left = operand, right = false_lit, type = bool_type, span = span_of(env.store.spans, e)}
 		return IR_Expr(binop)
 	case .Minus:
-		type_var := fresh_value_var(env.store, e.span)
+		type_var := fresh_value_var(env.store, span_of(env.store.spans, e))
 		ir_type := lower_type(env.store, type_var)
-		zero_lit := make_ir_lit_int(0, ir_type, e.span)
+		zero_lit := make_ir_lit_int(0, ir_type, span_of(env.store.spans, e))
 		binop := new(IR_BinOp)
-		binop^ = IR_BinOp{op = .Minus, left = zero_lit, right = operand, type = ir_type, span = e.span}
+		binop^ = IR_BinOp{op = .Minus, left = zero_lit, right = operand, type = ir_type, span = span_of(env.store.spans, e)}
 		return IR_Expr(binop)
 	case:
 		return operand
@@ -601,14 +604,14 @@ lower_tag :: proc(e: ^CExpr_Tag, env: ^Lower_Env) -> IR_Expr {
 		append(&payload, lower_expr(p, env))
 	}
 
-	type_var := fresh_value_var(env.store, e.span)
+	type_var := fresh_value_var(env.store, span_of(env.store.spans, e))
 	tag := new(IR_Construct_Tag)
 	tag^ = IR_Construct_Tag{
 		tag_name = e.name.name,
 		tag_index = 0,
 		payload = payload,
 		type = lower_type(env.store, type_var),
-		span = e.span,
+		span = span_of(env.store.spans, e),
 	}
 	return IR_Expr(tag)
 }
@@ -621,13 +624,13 @@ lower_record :: proc(e: ^CExpr_Record, env: ^Lower_Env) -> IR_Expr {
 
 	rest := lower_expr(e.rest, env)
 
-	type_var := fresh_value_var(env.store, e.span)
+	type_var := fresh_value_var(env.store, span_of(env.store.spans, e))
 	rec := new(IR_Construct_Record)
 	rec^ = IR_Construct_Record{
 		fields = fields,
 		rest = rest,
 		type = lower_type(env.store, type_var),
-		span = e.span,
+		span = span_of(env.store.spans, e),
 	}
 	return IR_Expr(rec)
 }
@@ -635,14 +638,14 @@ lower_record :: proc(e: ^CExpr_Record, env: ^Lower_Env) -> IR_Expr {
 lower_field_access :: proc(e: ^CExpr_Field_Access, env: ^Lower_Env) -> IR_Expr {
 	record := lower_expr(e.record, env)
 
-	type_var := fresh_value_var(env.store, e.span)
+	type_var := fresh_value_var(env.store, span_of(env.store.spans, e))
 	access := new(IR_Field_Access)
 	access^ = IR_Field_Access{
 		record = record,
 		field = e.field,
 		field_index = 0,
 		type = lower_type(env.store, type_var),
-		span = e.span,
+		span = span_of(env.store.spans, e),
 	}
 	return IR_Expr(access)
 }
@@ -655,22 +658,22 @@ lower_record_update :: proc(e: ^CExpr_Record_Update, env: ^Lower_Env) -> IR_Expr
 		append(&fields, IR_Record_Field{name = u.name, value = lower_expr(u.value, env)})
 	}
 
-	type_var := fresh_value_var(env.store, e.span)
+	type_var := fresh_value_var(env.store, span_of(env.store.spans, e))
 	rec := new(IR_Construct_Record)
 	rec^ = IR_Construct_Record{
 		fields = fields,
 		rest = rest,
 		type = lower_type(env.store, type_var),
-		span = e.span,
+		span = span_of(env.store.spans, e),
 	}
 	return IR_Expr(rec)
 }
 
 lower_interpolate :: proc(e: ^CExpr_Interpolate, env: ^Lower_Env) -> IR_Expr {
 	if len(e.parts) == 0 {
-		str_type := lower_type(env.store, make_primitive_type(env.store, intern(env.interner, "Str"), e.span))
+		str_type := lower_type(env.store, make_primitive_type(env.store, intern(env.interner, "Str"), span_of(env.store.spans, e)))
 		lit := new(IR_Literal_String)
-		lit^ = IR_Literal_String{value = "", type = str_type, span = e.span}
+		lit^ = IR_Literal_String{value = "", type = str_type, span = span_of(env.store.spans, e)}
 		return IR_Expr(lit)
 	}
 
@@ -683,7 +686,7 @@ lower_interpolate :: proc(e: ^CExpr_Interpolate, env: ^Lower_Env) -> IR_Expr {
 			left = result,
 			right = right,
 			type = IR_Type{.I32, Type_Var_ID(-1)},
-			span = e.span,
+			span = span_of(env.store.spans, e),
 		}
 		result = IR_Expr(binop)
 	}
@@ -702,7 +705,7 @@ lower_handle :: proc(e: ^CExpr_Handle, env: ^Lower_Env) -> IR_Expr {
 		})
 	}
 
-	type_var := fresh_value_var(env.store, e.span)
+	type_var := fresh_value_var(env.store, span_of(env.store.spans, e))
 	h := new(IR_Handle)
 	h^ = IR_Handle{
 		effect = e.effect,
@@ -710,13 +713,13 @@ lower_handle :: proc(e: ^CExpr_Handle, env: ^Lower_Env) -> IR_Expr {
 		body = body,
 		arms = arms,
 		type = lower_type(env.store, type_var),
-		span = e.span,
+		span = span_of(env.store.spans, e),
 	}
 	return IR_Expr(h)
 }
 
 lower_list :: proc(e: ^CExpr_List, env: ^Lower_Env) -> IR_Expr {
-	type_var := fresh_value_var(env.store, e.span)
+	type_var := fresh_value_var(env.store, span_of(env.store.spans, e))
 	ir_type := lower_type(env.store, type_var)
 
 	nil_tag := new(IR_Construct_Tag)
@@ -725,7 +728,7 @@ lower_list :: proc(e: ^CExpr_List, env: ^Lower_Env) -> IR_Expr {
 		tag_index = 0,
 		payload = make([dynamic]IR_Expr, 0),
 		type = ir_type,
-		span = e.span,
+		span = span_of(env.store.spans, e),
 	}
 
 	result: IR_Expr = IR_Expr(nil_tag)
@@ -740,7 +743,7 @@ lower_list :: proc(e: ^CExpr_List, env: ^Lower_Env) -> IR_Expr {
 			tag_index = 0,
 			payload = cons_payload,
 			type = ir_type,
-			span = e.span,
+			span = span_of(env.store.spans, e),
 		}
 		result = IR_Expr(cons_tag)
 	}

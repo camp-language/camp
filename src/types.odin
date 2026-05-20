@@ -75,6 +75,7 @@ Type_Store :: struct {
 	collector:        ^Diagnostic_Collector,
 	declared_effects: [dynamic]Intern_ID,
 	bindings:         map[Intern_ID]Type_Var_ID,
+	spans:            Span_Table,
 }
 
 type_store_init :: proc(store: ^Type_Store, interner: ^Intern_Table, collector: ^Diagnostic_Collector) {

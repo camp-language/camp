@@ -78,7 +78,7 @@ build_symbol_index :: proc(idx: ^Symbol_Index, file: CFile, uri: string, source:
 		#partial switch d in decl {
 		case ^CDecl_Const:
 			name_str := intern_get(store.interner, d.name.name)
-			range := span_to_lsp_range(source, d.span)
+			range := span_to_lsp_range(source, span_of(store.spans, d))
 			type_str := "?"
 			if var_id, ok := store.bindings[d.name.name]; ok {
 				type_str = format_resolved_type(store, var_id)
@@ -88,7 +88,7 @@ build_symbol_index :: proc(idx: ^Symbol_Index, file: CFile, uri: string, source:
 			symbol_index_add(idx, name_str, uri, range, .Function, type_str)
 		case ^CDecl_Effect:
 			name_str := intern_get(store.interner, d.name.name)
-			range := span_to_lsp_range(source, d.span)
+			range := span_to_lsp_range(source, span_of(store.spans, d))
 			symbol_index_add(idx, name_str, uri, range, .Effect, "effect")
 			for op in d.operations {
 				op_name := intern_get(store.interner, op.name)
@@ -97,7 +97,7 @@ build_symbol_index :: proc(idx: ^Symbol_Index, file: CFile, uri: string, source:
 			}
 		case ^CDecl_Trait:
 			name_str := intern_get(store.interner, d.name.name)
-			range := span_to_lsp_range(source, d.span)
+			range := span_to_lsp_range(source, span_of(store.spans, d))
 			type_str := "?"
 			if var_id, ok := store.bindings[d.name.name]; ok {
 				type_str = format_resolved_type(store, var_id)
@@ -107,7 +107,7 @@ build_symbol_index :: proc(idx: ^Symbol_Index, file: CFile, uri: string, source:
 			symbol_index_add(idx, name_str, uri, range, .Type, type_str)
 		case ^CDecl_Alias:
 			name_str := intern_get(store.interner, d.name.name)
-			range := span_to_lsp_range(source, d.span)
+			range := span_to_lsp_range(source, span_of(store.spans, d))
 			type_str := "?"
 			if var_id, ok := store.bindings[d.name.name]; ok {
 				type_str = format_resolved_type(store, var_id)
