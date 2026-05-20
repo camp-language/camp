@@ -217,14 +217,30 @@ format_file :: proc(f: File, info: ^Format_Source_Info, interner: ^Intern_Table)
 	for decl, i in f.decls {
 		if i > 0 {
 			append(&parts, doc_line())
-			prev_start := decl_span_start(f.decls[i - 1])
-			if info.blank_line_after[prev_start] {
+			if has_blank_line_between_decls(f.decls[i - 1], decl, info) {
 				append(&parts, doc_line())
 			}
 		}
 		append(&parts, format_decl(decl, info, interner))
 	}
 	return doc_concat(parts[:])
+}
+
+has_blank_line_between_decls :: proc(prev: Decl, next: Decl, info: ^Format_Source_Info) -> bool {
+	prev_start := decl_span_start(prev)
+	next_start := decl_span_start(next)
+	if info.blank_line_after[prev_start] {
+		return true
+	}
+	if prev_start >= next_start || next_start > len(info.source) {
+		return false
+	}
+	for pos, val in info.blank_line_after {
+		if pos > prev_start && pos < next_start && val {
+			return true
+		}
+	}
+	return false
 }
 
 decl_span_start :: proc(d: Decl) -> int {

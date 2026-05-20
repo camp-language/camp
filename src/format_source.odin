@@ -64,6 +64,8 @@ separator_analysis :: proc(source: string, tokens: []Token, info: ^Format_Source
 	depth := 0
 	first_sep_at_depth: map[int]bool
 	defer delete(first_sep_at_depth)
+	open_delim_pos: map[int]int
+	defer delete(open_delim_pos)
 
 	for token, i in tokens {
 		if token.kind == .Eof {
@@ -73,6 +75,7 @@ separator_analysis :: proc(source: string, tokens: []Token, info: ^Format_Source
 		if is_open_delim(token.kind) {
 			depth += 1
 			first_sep_at_depth[depth] = false
+			open_delim_pos[depth] = token.span.start
 		} else if is_close_delim(token.kind) {
 			depth -= 1
 		}
@@ -85,7 +88,10 @@ separator_analysis :: proc(source: string, tokens: []Token, info: ^Format_Source
 					next := tokens[i + 1]
 					if next.kind != .Eof {
 						gap := source[token.span.end:next.span.start]
-						info.first_separator_break[token.span.start] = strings.contains(gap, "\n")
+						has_break := strings.contains(gap, "\n")
+						if pos, ok := open_delim_pos[depth]; ok {
+							info.first_separator_break[pos] = has_break
+						}
 					}
 				}
 			}

@@ -1304,3 +1304,84 @@ test_format_file_no_blank_line :: proc(t: ^testing.T) {
 
 	testing.expectf(t, result == "a = 1\nb = 2", "expected %q, got %q", "a = 1\nb = 2", result)
 }
+
+// --- Integration tests for format() function ---
+
+cleanup_format_result :: proc(result: ^Format_Result) {
+	delete(result.output)
+	for &d in result.diagnostics {
+		delete(d.labels)
+		delete(d.hints)
+	}
+	delete(result.diagnostics)
+}
+
+@(test)
+test_format_simple_decl :: proc(t: ^testing.T) {
+	result := format("x = 1", "test.camp", context.allocator)
+	defer cleanup_format_result(&result)
+
+	testing.expectf(t, len(result.diagnostics) == 0,
+		"expected no diagnostics, got %d", len(result.diagnostics))
+	testing.expectf(t, result.output == "x = 1",
+		"expected %q, got %q", "x = 1", result.output)
+}
+
+@(test)
+test_format_refuse_syntax_error :: proc(t: ^testing.T) {
+	// Incomplete declaration: missing expression after =
+	result := format("x = ", "test.camp", context.allocator)
+	defer cleanup_format_result(&result)
+
+	testing.expectf(t, result.output == "",
+		"expected empty output for syntax error, got %q", result.output)
+	testing.expectf(t, len(result.diagnostics) > 0,
+		"expected diagnostics for syntax error")
+}
+
+@(test)
+test_format_idempotent_simple :: proc(t: ^testing.T) {
+	source := "x = 1"
+	result1 := format(source, "test.camp", context.allocator)
+	defer cleanup_format_result(&result1)
+
+	testing.expectf(t, len(result1.diagnostics) == 0,
+		"expected no diagnostics on first format, got %d", len(result1.diagnostics))
+
+	result2 := format(result1.output, "test.camp", context.allocator)
+	defer cleanup_format_result(&result2)
+
+	testing.expectf(t, len(result2.diagnostics) == 0,
+		"expected no diagnostics on second format, got %d", len(result2.diagnostics))
+	testing.expectf(t, result2.output == result1.output,
+		"expected idempotent format: first=%q second=%q", result1.output, result2.output)
+}
+
+@(test)
+test_format_multiline_list :: proc(t: ^testing.T) {
+	source := "items = [\n    1,\n    2,\n]"
+	result := format(source, "test.camp", context.allocator)
+	defer cleanup_format_result(&result)
+
+	diag_titles := ""
+	for d in result.diagnostics {
+		diag_titles = strings.concatenate({diag_titles, d.title, ", "}, context.allocator)
+	}
+	testing.expectf(t, len(result.diagnostics) == 0,
+		"expected no diagnostics, got %d: %s", len(result.diagnostics), diag_titles)
+
+	testing.expectf(t, strings.contains(result.output, "\n"),
+		"expected multiline output, got %q", result.output)
+}
+
+@(test)
+test_format_preserves_blank_line :: proc(t: ^testing.T) {
+	source := "x = 1\n\ny = 2"
+	result := format(source, "test.camp", context.allocator)
+	defer cleanup_format_result(&result)
+
+	testing.expectf(t, len(result.diagnostics) == 0,
+		"expected no diagnostics, got %d", len(result.diagnostics))
+	testing.expectf(t, strings.contains(result.output, "\n\n"),
+		"expected blank line in output, got %q", result.output)
+}
