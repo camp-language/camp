@@ -1,6 +1,7 @@
 package camp
 
 import "core:fmt"
+import "core:strings"
 import "core:testing"
 
 setup_type_store :: proc() -> (Type_Store, ^Diagnostic_Collector) {
@@ -120,6 +121,28 @@ typecheck_source :: proc(source: string) -> (Type_Store, ^Compilation_Context) {
 
 	store: Type_Store
 	type_store_init(&store, &ctx.interner, &ctx.collector)
+	typecheck_file(canon, &store)
+	return store, ctx
+}
+
+typecheck_source_with_prelude :: proc(source: string) -> (Type_Store, ^Compilation_Context) {
+	ctx: ^Compilation_Context = new(Compilation_Context)
+	alloc := context_init(ctx)
+	context.allocator = alloc
+
+	file := Source_File{path = "<tc-test>", contents = source, id = 0}
+	lexer: Lexer
+	lexer_init(&lexer, file, &ctx.collector, &ctx.interner)
+
+	parser: Parser
+	parser_init(&parser, &lexer, &ctx.collector, &ctx.interner)
+	surface := parser_parse_file(&parser)
+
+	canon := canonicalize(surface, ctx)
+
+	store: Type_Store
+	type_store_init(&store, &ctx.interner, &ctx.collector)
+	inject_prelude(&store)
 	typecheck_file(canon, &store)
 	return store, ctx
 }
@@ -749,4 +772,230 @@ test_newtype_opaque_inner_cross_module :: proc(t: ^testing.T) {
 	mod_b := intern(&ctx.interner, "ModuleB")
 	typecheck_source_with_module("n = uid.inner()", mod_b, &store, ctx)
 	testing.expect(t, diag_collector_has_errors(&ctx.collector))
+}
+
+@(test)
+test_trait_method_signature_match :: proc(t: ^testing.T) {
+	store, ctx := typecheck_source_with_prelude(
+		"Eq : { eq: (Self, Self) -> Bool }\n@UserId is Eq : U64\nUserId_eq = |x, y| true")
+	defer context_destroy(ctx)
+	defer free(ctx)
+	defer type_store_destroy(&store)
+
+	testing.expect(t, !diag_collector_has_errors(&ctx.collector))
+	eq_name := intern(&ctx.interner, "Eq")
+	_, found := store.trait_registry[eq_name]
+	testing.expect(t, found)
+}
+
+@(test)
+test_trait_method_signature_mismatch :: proc(t: ^testing.T) {
+	store, ctx := typecheck_source_with_prelude(
+		"Eq : { eq: (Self, Self) -> Bool }\n@UserId is Eq : U64\nUserId_eq = |x, y| 42")
+	defer context_destroy(ctx)
+	defer free(ctx)
+	defer type_store_destroy(&store)
+
+	testing.expect(t, diag_collector_has_errors(&ctx.collector))
+}
+
+@(test)
+test_trait_method_param_mismatch :: proc(t: ^testing.T) {
+	store, ctx := typecheck_source_with_prelude(
+		"Eq : { eq: (Self, Self) -> Bool }\n@UserId is Eq : U64\nUserId_eq = |x| true")
+	defer context_destroy(ctx)
+	defer free(ctx)
+	defer type_store_destroy(&store)
+
+	testing.expect(t, diag_collector_has_errors(&ctx.collector))
+}
+
+@(test)
+test_trait_orphan_rule :: proc(t: ^testing.T) {
+	ctx: ^Compilation_Context = new(Compilation_Context)
+	alloc := context_init(ctx)
+	defer context_destroy(ctx)
+	defer free(ctx)
+	context.allocator = alloc
+
+	store: Type_Store
+	type_store_init(&store, &ctx.interner, &ctx.collector)
+	inject_prelude(&store)
+	defer type_store_destroy(&store)
+
+	mod_a := intern(&ctx.interner, "ModuleA")
+	typecheck_source_with_module("Eq : { eq: (Self, Self) -> Bool }", mod_a, &store, ctx)
+	testing.expect(t, !diag_collector_has_errors(&ctx.collector))
+
+	mod_b := intern(&ctx.interner, "ModuleB")
+	typecheck_source_with_module("@UserId is Eq : U64\nUserId_eq = |x, y| true", mod_b, &store, ctx)
+	testing.expect(t, diag_collector_has_errors(&ctx.collector))
+}
+
+@(test)
+test_trait_overlapping_instance :: proc(t: ^testing.T) {
+	store, ctx := typecheck_source_with_prelude(
+		"Eq : { eq: (Self, Self) -> Bool }\n@UserId is Eq : U64\nUserId_eq = |x, y| true\n@UserId is Eq : U64\nUserId_eq2 = |x, y| true")
+	defer context_destroy(ctx)
+	defer free(ctx)
+	defer type_store_destroy(&store)
+
+	testing.expect(t, diag_collector_has_errors(&ctx.collector))
+}
+
+@(test)
+test_trait_missing_method :: proc(t: ^testing.T) {
+	store, ctx := typecheck_source_with_prelude(
+		"Eq : { eq: (Self, Self) -> Bool }\n@UserId is Eq : U64")
+	defer context_destroy(ctx)
+	defer free(ctx)
+	defer type_store_destroy(&store)
+
+	testing.expect(t, diag_collector_has_errors(&ctx.collector))
+}
+
+@(test)
+test_derive_eq_generates_impl :: proc(t: ^testing.T) {
+	store, ctx := typecheck_source_with_prelude(
+		"Eq : { eq: (Self, Self) -> Bool }\n@UserId is Eq : U64\nUserId_eq = |x, y| true")
+	defer context_destroy(ctx)
+	defer free(ctx)
+	defer type_store_destroy(&store)
+
+	testing.expect(t, !diag_collector_has_errors(&ctx.collector))
+	eq_name := intern(&ctx.interner, "Eq")
+	uid_name := intern(&ctx.interner, "UserId")
+	_, found := find_trait_impl(&store, eq_name, uid_name)
+	testing.expect(t, found)
+}
+
+@(test)
+test_derive_clone_generates_impl :: proc(t: ^testing.T) {
+	store, ctx := typecheck_source_with_prelude(
+		"Clone : { clone: (Self) -> Self }\n@UserId is Clone : U64\nUserId_clone = |x| x")
+	defer context_destroy(ctx)
+	defer free(ctx)
+	defer type_store_destroy(&store)
+
+	testing.expect(t, !diag_collector_has_errors(&ctx.collector))
+	clone_name := intern(&ctx.interner, "Clone")
+	uid_name := intern(&ctx.interner, "UserId")
+	_, found := find_trait_impl(&store, clone_name, uid_name)
+	testing.expect(t, found)
+}
+
+@(test)
+test_derive_hash_generates_impl :: proc(t: ^testing.T) {
+	store, ctx := typecheck_source_with_prelude(
+		"Hash : { hash: (Self) -> U64 }\n@UserId is Hash : U64\nUserId_hash = |x| x.inner()")
+	defer context_destroy(ctx)
+	defer free(ctx)
+	defer type_store_destroy(&store)
+
+	testing.expect(t, !diag_collector_has_errors(&ctx.collector))
+	hash_name := intern(&ctx.interner, "Hash")
+	uid_name := intern(&ctx.interner, "UserId")
+	_, found := find_trait_impl(&store, hash_name, uid_name)
+	testing.expect(t, found)
+}
+
+mono_source :: proc(source: string) -> (TFile, ^Compilation_Context, Type_Store) {
+	ctx: ^Compilation_Context = new(Compilation_Context)
+	alloc := context_init(ctx)
+	context.allocator = alloc
+
+	file := Source_File{path = "<mono-test>", contents = source, id = 0}
+	lexer: Lexer
+	lexer_init(&lexer, file, &ctx.collector, &ctx.interner)
+
+	parser: Parser
+	parser_init(&parser, &lexer, &ctx.collector, &ctx.interner)
+	surface := parser_parse_file(&parser)
+
+	canon := canonicalize(surface, ctx)
+
+	store: Type_Store
+	type_store_init(&store, &ctx.interner, &ctx.collector)
+	inject_prelude(&store)
+	typecheck_file(canon, &store)
+
+	annot_tfile := annotate_file(canon, &store)
+	mono_tfile := mono(annot_tfile, &store, &ctx.interner)
+
+	return mono_tfile, ctx, store
+}
+
+teardown_mono :: proc(ctx: ^Compilation_Context, store: ^Type_Store) {
+	type_store_destroy(store)
+	context_destroy(ctx)
+	free(ctx)
+}
+
+find_tdecl_by_name :: proc(tfile: TFile, name: Intern_ID) -> TDecl {
+	for decl in tfile.decls {
+		#partial switch d in decl {
+		case ^TDecl_Const:
+			if d.name.name == name {
+				return decl
+			}
+		case:
+		}
+	}
+	return nil
+}
+
+@(test)
+test_mono_mangle_generic :: proc(t: ^testing.T) {
+	mono_tfile, ctx, store := mono_source("id = <a>|x: a| -> a { x }\nresult! = id(42)")
+	defer teardown_mono(ctx, &store)
+
+	id_name := intern(&ctx.interner, "id")
+	id_decl := find_tdecl_by_name(mono_tfile, id_name)
+	testing.expect(t, id_decl != nil)
+}
+
+@(test)
+test_mono_method_dispatch :: proc(t: ^testing.T) {
+	mono_tfile, ctx, store := mono_source(
+		"Eq : { eq: (Self, Self) -> Bool }\n@UserId is Eq : U64\nUserId_eq = |x, y| true\ntest_eq! = UserId.eq(UserId(1), UserId(2))")
+	defer teardown_mono(ctx, &store)
+
+	eq_name := intern(&ctx.interner, "Eq")
+	_, found := store.trait_registry[eq_name]
+	testing.expect(t, found)
+
+	uid_name := intern(&ctx.interner, "UserId")
+	_, impl_found := find_trait_impl(&store, eq_name, uid_name)
+	testing.expect(t, impl_found)
+}
+
+check_method_call_resolved :: proc(expr: TExpr, found: ^bool) {
+	#partial switch e in expr {
+	case ^TExpr_Call:
+		check_method_call_resolved(e.callee, found)
+		for arg in e.args {
+			check_method_call_resolved(arg, found)
+		}
+	case ^TExpr_Method_Call:
+		_ = e
+	case ^TExpr_Lambda:
+		check_method_call_resolved(e.body, found)
+	case ^TExpr_Block:
+		for stmt in e.statements {
+			check_method_call_resolved(stmt, found)
+		}
+	case ^TExpr_If:
+		check_method_call_resolved(e.condition, found)
+		check_method_call_resolved(e.then_branch, found)
+		check_method_call_resolved(e.else_branch, found)
+	case ^TExpr_BinOp:
+		check_method_call_resolved(e.left, found)
+		check_method_call_resolved(e.right, found)
+	case ^TExpr_Match:
+		check_method_call_resolved(e.scrutinee, found)
+		for arm in e.arms {
+			check_method_call_resolved(arm.body, found)
+		}
+	case:
+	}
 }

@@ -1,7 +1,16 @@
 stdout = """
-canonicalized /tmp/camp-e2e/errors/missing-else/missing-else.camp: 1 declaration(s), 0 import(s)
-typecheck passed for /tmp/camp-e2e/errors/missing-else/missing-else.camp
-compiled /tmp/camp-e2e/errors/missing-else/missing-else.camp -> /tmp/camp-e2e/errors/missing-else/missing-else.wasm
+-- UNEXPECTED CHARACTER --- /tmp/camp-e2e/errors/missing-else/missing-else.camp
+
+I don't recognize the character `?`.
+   1 | x = if True 1 else ?
+                          ^
+
+-- SYNTAX ERROR --- /tmp/camp-e2e/errors/missing-else/missing-else.camp
+
+I was not expecting `` here.
+   1 | x = if True 1 else ?
+                           ^
+compilation failed with 2 error(s)
 """
 stderr = ""
-exit = 0
+exit = 1

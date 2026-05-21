@@ -1,0 +1,2 @@
+Eq : { eq: (Self, Self) -> Bool }
+@UserId is Eq : U64

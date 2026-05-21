@@ -1,16 +1,52 @@
 stdout = """
-canonicalized /tmp/camp-e2e/tag-unions/tag-construct-error/tag-construct-error.camp: 1 declaration(s), 0 import(s)
-typecheck passed for /tmp/camp-e2e/tag-unions/tag-construct-error/tag-construct-error.camp
-compiled /tmp/camp-e2e/tag-unions/tag-construct-error/tag-construct-error.camp -> /tmp/camp-e2e/tag-unions/tag-construct-error/tag-construct-error.wasm
+-- SYNTAX ERROR --- /tmp/camp-e2e/tag-unions/tag-construct-error/tag-construct-error.camp
+
+I expected `=` here, but I got `!` instead.
+   1 | main!! = || -> I64 {
+            ^
+
+-- SYNTAX ERROR --- /tmp/camp-e2e/tag-unions/tag-construct-error/tag-construct-error.camp
+
+I was not expecting `=` here.
+   1 | main!! = || -> I64 {
+              ^
+
+-- SYNTAX ERROR --- /tmp/camp-e2e/tag-unions/tag-construct-error/tag-construct-error.camp
+
+I expected `=` here, but I got `|` instead.
+   1 | main!! = || -> I64 {
+                 ^
+
+-- SYNTAX ERROR --- /tmp/camp-e2e/tag-unions/tag-construct-error/tag-construct-error.camp
+
+I was not expecting `->` here.
+   1 | main!! = || -> I64 {
+                   ^^
+
+-- SYNTAX ERROR --- /tmp/camp-e2e/tag-unions/tag-construct-error/tag-construct-error.camp
+
+I expected `=` here, but I got `{` instead.
+   1 | main!! = || -> I64 {
+                          ^
+
+-- SYNTAX ERROR --- /tmp/camp-e2e/tag-unions/tag-construct-error/tag-construct-error.camp
+
+I expected `=` here, but I got `Error` instead.
+   2 |     x = Error("fail")
+               ^^^^^
+
+-- SYNTAX ERROR --- /tmp/camp-e2e/tag-unions/tag-construct-error/tag-construct-error.camp
+
+I expected `=` here, but I got `}` instead.
+   4 | }
+       ^
+
+-- SYNTAX ERROR --- /tmp/camp-e2e/tag-unions/tag-construct-error/tag-construct-error.camp
+
+I was not expecting `` here.
+   4 | }
+        ^
+compilation failed with 8 error(s)
 """
 stderr = ""
-exit = 0
-wasm_exit = 1
-wasm_stdout = ""
-wasm_stderr = """
-Error: failed to parse WebAssembly module
-
-Caused by:
-    unexpected end-of-file (at offset 0x15c)
-
-"""
+exit = 1

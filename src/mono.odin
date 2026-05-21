@@ -608,6 +608,43 @@ walk_decl_for_call_sites :: proc(decl: TDecl, env: ^Mono_Env) {
 walk_expr_for_call_sites :: proc(expr: TExpr, env: ^Mono_Env) {
 	switch e in expr {
 	case ^TExpr_Call:
+		#partial switch callee in e.callee {
+		case ^TExpr_Name:
+			if d, ok := env.decl_map[callee.name]; ok {
+				#partial switch body in d.body {
+				case ^TExpr_Lambda:
+					if len(body.type_params) > 0 {
+						callee_type_id, has_type := env.store.bindings[callee.name.name]
+						if has_type {
+							resolved_id := resolve_var(env.store, callee_type_id)
+							callee_v := get_var(env.store, resolved_id)
+							if inf, is_inf := callee_v.link.(Inferred_Type); is_inf && inf.tag == .Function {
+								type_args := make(map[Intern_ID]Type_Var_ID, len(body.type_params))
+								param_idx := 0
+								for tp in body.type_params {
+									if param_idx < len(inf.param_ids) {
+										concrete := resolve_var(env.store, inf.param_ids[param_idx])
+										type_args[tp.name] = concrete
+										param_idx += 1
+									}
+								}
+								if len(type_args) > 0 {
+									append(&env.worklist, Mono_Item{
+										original = callee.name,
+										type_args = type_args,
+										span = e.span,
+									})
+								} else {
+									delete(type_args)
+								}
+							}
+						}
+					}
+				case:
+				}
+			}
+		case:
+		}
 		walk_expr_for_call_sites(e.callee, env)
 		for arg in e.args {
 			walk_expr_for_call_sites(arg, env)

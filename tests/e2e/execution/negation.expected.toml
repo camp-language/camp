@@ -1,19 +1,46 @@
 stdout = """
-canonicalized /tmp/camp-e2e/execution/negation/negation.camp: 1 declaration(s), 0 import(s)
-typecheck passed for /tmp/camp-e2e/execution/negation/negation.camp
-compiled /tmp/camp-e2e/execution/negation/negation.camp -> /tmp/camp-e2e/execution/negation/negation.wasm
+-- SYNTAX ERROR --- /tmp/camp-e2e/execution/negation/negation.camp
+
+I expected `=` here, but I got `!` instead.
+   1 | main!! = || -> I64 {
+            ^
+
+-- SYNTAX ERROR --- /tmp/camp-e2e/execution/negation/negation.camp
+
+I was not expecting `=` here.
+   1 | main!! = || -> I64 {
+              ^
+
+-- SYNTAX ERROR --- /tmp/camp-e2e/execution/negation/negation.camp
+
+I expected `=` here, but I got `|` instead.
+   1 | main!! = || -> I64 {
+                 ^
+
+-- SYNTAX ERROR --- /tmp/camp-e2e/execution/negation/negation.camp
+
+I was not expecting `->` here.
+   1 | main!! = || -> I64 {
+                   ^^
+
+-- SYNTAX ERROR --- /tmp/camp-e2e/execution/negation/negation.camp
+
+I expected `=` here, but I got `{` instead.
+   1 | main!! = || -> I64 {
+                          ^
+
+-- SYNTAX ERROR --- /tmp/camp-e2e/execution/negation/negation.camp
+
+I expected `=` here, but I got `` instead.
+   3 | }
+        ^
+
+-- SYNTAX ERROR --- /tmp/camp-e2e/execution/negation/negation.camp
+
+I was not expecting `` here.
+   3 | }
+        ^
+compilation failed with 7 error(s)
 """
 stderr = ""
-exit = 0
-wasm_exit = 1
-wasm_stdout = ""
-wasm_stderr = """
-Error: failed to run main module `/tmp/camp-e2e/execution/negation/negation.wasm`
-
-Caused by:
-    0: failed to invoke command default
-    1: error while executing at wasm backtrace:
-    0:    0x152 - <unknown>!<wasm function 10>
-    2: exit with invalid exit status outside of [0..126)
-
-"""
+exit = 1

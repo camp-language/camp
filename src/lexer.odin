@@ -269,14 +269,15 @@ lexer_lex_identifier :: proc(l: ^Lexer, start: int) -> Token {
 
 	text := l.source[start:l.pos]
 
-	if !is_upper {
-		if kind, ok := KEYWORDS[text]; ok {
-			return lexer_make_token(l, kind, start, text)
-		}
-		return lexer_make_token(l, .Identifier, start, text)
+	if kind, ok := KEYWORDS[text]; ok {
+		return lexer_make_token(l, kind, start, text)
 	}
 
-	return lexer_make_token(l, .Upper_Id, start, text)
+	if is_upper {
+		return lexer_make_token(l, .Upper_Id, start, text)
+	}
+
+	return lexer_make_token(l, .Identifier, start, text)
 }
 
 is_identifier_start :: proc(ch: u8) -> bool {

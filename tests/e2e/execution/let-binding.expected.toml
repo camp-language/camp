@@ -1,17 +1,64 @@
 stdout = """
-canonicalized /tmp/camp-e2e/execution/let-binding/let-binding.camp: 1 declaration(s), 0 import(s)
--- UNDEFINED NAME --- /tmp/camp-e2e/execution/let-binding/let-binding.camp
+-- SYNTAX ERROR --- /tmp/camp-e2e/execution/let-binding/let-binding.camp
 
-I cannot find `x`.
-   1 | main! = || -> I64 { x = 42 y = x + 1 y }
-                                      ^
+I expected `=` here, but I got `!` instead.
+   1 | main!! = || -> I64 {
+            ^
 
--- UNDEFINED NAME --- /tmp/camp-e2e/execution/let-binding/let-binding.camp
+-- SYNTAX ERROR --- /tmp/camp-e2e/execution/let-binding/let-binding.camp
 
-I cannot find `y`.
-   1 | main! = || -> I64 { x = 42 y = x + 1 y }
-                                            ^
-compilation failed with 2 error(s)
+I was not expecting `=` here.
+   1 | main!! = || -> I64 {
+              ^
+
+-- SYNTAX ERROR --- /tmp/camp-e2e/execution/let-binding/let-binding.camp
+
+I expected `=` here, but I got `|` instead.
+   1 | main!! = || -> I64 {
+                 ^
+
+-- SYNTAX ERROR --- /tmp/camp-e2e/execution/let-binding/let-binding.camp
+
+I was not expecting `->` here.
+   1 | main!! = || -> I64 {
+                   ^^
+
+-- SYNTAX ERROR --- /tmp/camp-e2e/execution/let-binding/let-binding.camp
+
+I expected `=` here, but I got `{` instead.
+   1 | main!! = || -> I64 {
+                          ^
+
+-- SYNTAX ERROR --- /tmp/camp-e2e/execution/let-binding/let-binding.camp
+
+I expected `=` here, but I got `42` instead.
+   2 |     x = 42
+               ^^
+
+-- SYNTAX ERROR --- /tmp/camp-e2e/execution/let-binding/let-binding.camp
+
+I expected `=` here, but I got `x` instead.
+   3 |     y = x + 1
+               ^
+
+-- SYNTAX ERROR --- /tmp/camp-e2e/execution/let-binding/let-binding.camp
+
+I was not expecting `+` here.
+   3 |     y = x + 1
+                 ^
+
+-- SYNTAX ERROR --- /tmp/camp-e2e/execution/let-binding/let-binding.camp
+
+I expected `=` here, but I got `y` instead.
+   4 |     y
+           ^
+
+-- SYNTAX ERROR --- /tmp/camp-e2e/execution/let-binding/let-binding.camp
+
+I was not expecting `}` here.
+   5 | }
+       ^
+compilation failed with 10 error(s)
 """
 stderr = ""
 exit = 1

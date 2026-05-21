@@ -1,0 +1,7 @@
+stdout = """
+canonicalized /tmp/camp-e2e/derive/basic/basic.camp: 3 declaration(s), 0 import(s)
+typecheck passed for /tmp/camp-e2e/derive/basic/basic.camp
+compiled /tmp/camp-e2e/derive/basic/basic.camp -> /tmp/camp-e2e/derive/basic/basic.wasm
+"""
+stderr = ""
+exit = 0

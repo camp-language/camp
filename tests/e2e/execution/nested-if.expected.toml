@@ -1,10 +1,46 @@
 stdout = """
-canonicalized /tmp/camp-e2e/execution/nested-if/nested-if.camp: 1 declaration(s), 0 import(s)
-typecheck passed for /tmp/camp-e2e/execution/nested-if/nested-if.camp
-compiled /tmp/camp-e2e/execution/nested-if/nested-if.camp -> /tmp/camp-e2e/execution/nested-if/nested-if.wasm
+-- SYNTAX ERROR --- /tmp/camp-e2e/execution/nested-if/nested-if.camp
+
+I expected `=` here, but I got `!` instead.
+   1 | main!! = || -> I64 {
+            ^
+
+-- SYNTAX ERROR --- /tmp/camp-e2e/execution/nested-if/nested-if.camp
+
+I was not expecting `=` here.
+   1 | main!! = || -> I64 {
+              ^
+
+-- SYNTAX ERROR --- /tmp/camp-e2e/execution/nested-if/nested-if.camp
+
+I expected `=` here, but I got `|` instead.
+   1 | main!! = || -> I64 {
+                 ^
+
+-- SYNTAX ERROR --- /tmp/camp-e2e/execution/nested-if/nested-if.camp
+
+I was not expecting `->` here.
+   1 | main!! = || -> I64 {
+                   ^^
+
+-- SYNTAX ERROR --- /tmp/camp-e2e/execution/nested-if/nested-if.camp
+
+I expected `=` here, but I got `{` instead.
+   1 | main!! = || -> I64 {
+                          ^
+
+-- SYNTAX ERROR --- /tmp/camp-e2e/execution/nested-if/nested-if.camp
+
+I expected `=` here, but I got `` instead.
+   3 | }
+        ^
+
+-- SYNTAX ERROR --- /tmp/camp-e2e/execution/nested-if/nested-if.camp
+
+I was not expecting `` here.
+   3 | }
+        ^
+compilation failed with 7 error(s)
 """
 stderr = ""
-exit = 0
-wasm_exit = 2
-wasm_stdout = ""
-wasm_stderr = ""
+exit = 1

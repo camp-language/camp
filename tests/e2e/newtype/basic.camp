@@ -1,0 +1,2 @@
+@UserId : U64
+x = UserId(42)

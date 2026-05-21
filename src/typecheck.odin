@@ -120,7 +120,11 @@ typecheck_file :: proc(file: CFile, store: ^Type_Store, current_module: Intern_I
 		#partial switch d in decl {
 		case ^CDecl_Newtype:
 			for tc in d.trait_conforms {
-				verify_trait_conformance(d.name.name, d.name.module, tc, d.span, store, &env)
+				type_mod := d.name.module
+				if type_mod == NO_NAME {
+					type_mod = env.current_module
+				}
+				verify_trait_conformance(d.name.name, type_mod, tc, d.span, store, &env)
 			}
 		case:
 		}
@@ -221,9 +225,13 @@ typecheck_decl :: proc(decl: CDecl, env: ^Type_Env, store: ^Type_Store) {
 		convert_type_to_var(d.target, store)
 		if d.target != nil && ctype_contains_self(d.target^) {
 			methods := extract_trait_methods_from_ctype(d.target, store)
+			trait_module := d.name.module
+			if trait_module == NO_NAME {
+				trait_module = env.current_module
+			}
 			trait_info := Trait_Info{
 				name = d.name.name,
-				module = d.name.module,
+				module = trait_module,
 				parent = 0,
 				methods = methods,
 			}
@@ -1720,6 +1728,16 @@ ctype_contains_self :: proc(t: CType) -> bool {
 	return false
 }
 
+convert_ctype_self_aware :: proc(t: CType, self_var: Type_Var_ID, store: ^Type_Store) -> Type_Var_ID {
+	#partial switch ty in t {
+	case ^CType_Self:
+		return self_var
+	case:
+		return convert_type_to_var_val(t, store)
+	}
+	return fresh_value_var(store, Source_Span_ZERO)
+}
+
 extract_trait_methods_from_ctype :: proc(t: ^CType, store: ^Type_Store) -> []Trait_Method_Info {
 	#partial switch ty in t^ {
 	case ^CType_Record:
@@ -1727,23 +1745,22 @@ extract_trait_methods_from_ctype :: proc(t: ^CType, store: ^Type_Store) -> []Tra
 		for f, i in ty.fields {
 			self_var := fresh_value_var(store, ty.span)
 			param_types := make([dynamic]Type_Var_ID, 0, 4)
-			append(&param_types, self_var)
 
 			#partial switch ft in f.type {
 			case ^CType_Function:
 				for p in ft.params {
-					append(&param_types, convert_type_to_var_val(p, store))
+					append(&param_types, convert_ctype_self_aware(p, self_var, store))
 				}
 				methods[i] = Trait_Method_Info{
 					name = f.name,
 					param_types = param_types[:],
-					return_type = convert_type_to_var_val(ft.return_, store),
+					return_type = convert_ctype_self_aware(ft.return_, self_var, store),
 				}
 			case:
 				methods[i] = Trait_Method_Info{
 					name = f.name,
 					param_types = param_types[:],
-					return_type = fresh_value_var(store, ty.span),
+					return_type = self_var,
 				}
 			}
 		}

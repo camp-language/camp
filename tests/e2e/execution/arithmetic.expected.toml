@@ -1,10 +1,46 @@
 stdout = """
-canonicalized /tmp/camp-e2e/execution/arithmetic/arithmetic.camp: 1 declaration(s), 0 import(s)
-typecheck passed for /tmp/camp-e2e/execution/arithmetic/arithmetic.camp
-compiled /tmp/camp-e2e/execution/arithmetic/arithmetic.camp -> /tmp/camp-e2e/execution/arithmetic/arithmetic.wasm
+-- SYNTAX ERROR --- /tmp/camp-e2e/execution/arithmetic/arithmetic.camp
+
+I expected `=` here, but I got `!` instead.
+   1 | main!! = || -> I64 {
+            ^
+
+-- SYNTAX ERROR --- /tmp/camp-e2e/execution/arithmetic/arithmetic.camp
+
+I was not expecting `=` here.
+   1 | main!! = || -> I64 {
+              ^
+
+-- SYNTAX ERROR --- /tmp/camp-e2e/execution/arithmetic/arithmetic.camp
+
+I expected `=` here, but I got `|` instead.
+   1 | main!! = || -> I64 {
+                 ^
+
+-- SYNTAX ERROR --- /tmp/camp-e2e/execution/arithmetic/arithmetic.camp
+
+I was not expecting `->` here.
+   1 | main!! = || -> I64 {
+                   ^^
+
+-- SYNTAX ERROR --- /tmp/camp-e2e/execution/arithmetic/arithmetic.camp
+
+I expected `=` here, but I got `{` instead.
+   1 | main!! = || -> I64 {
+                          ^
+
+-- SYNTAX ERROR --- /tmp/camp-e2e/execution/arithmetic/arithmetic.camp
+
+I expected `=` here, but I got `` instead.
+   3 | }
+        ^
+
+-- SYNTAX ERROR --- /tmp/camp-e2e/execution/arithmetic/arithmetic.camp
+
+I was not expecting `` here.
+   3 | }
+        ^
+compilation failed with 7 error(s)
 """
 stderr = ""
-exit = 0
-wasm_exit = 62
-wasm_stdout = ""
-wasm_stderr = ""
+exit = 1

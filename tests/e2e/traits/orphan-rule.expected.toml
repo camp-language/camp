@@ -1,0 +1,7 @@
+stdout = """
+canonicalized /tmp/camp-e2e/traits/orphan-rule/orphan-rule.camp: 3 declaration(s), 0 import(s)
+typecheck passed for /tmp/camp-e2e/traits/orphan-rule/orphan-rule.camp
+compiled /tmp/camp-e2e/traits/orphan-rule/orphan-rule.camp -> /tmp/camp-e2e/traits/orphan-rule/orphan-rule.wasm
+"""
+stderr = ""
+exit = 0
