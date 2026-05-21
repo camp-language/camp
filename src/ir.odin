@@ -90,6 +90,7 @@ IR_Expr :: union {
 	^IR_Method_Call,
 	^IR_Handle,
 	^IR_Perform,
+	^IR_Resume,
 	^IR_Closure,
 	^IR_Closure_Call,
 	^IR_Return,
@@ -213,6 +214,13 @@ IR_Perform :: struct {
 	is_non_resuming: bool,
 	type:           IR_Type,
 	span:           Source_Span,
+}
+
+IR_Resume :: struct {
+	resume_id: Intern_ID,
+	value:     IR_Expr,
+	type:      IR_Type,
+	span:      Source_Span,
 }
 
 IR_Closure :: struct {

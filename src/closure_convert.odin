@@ -91,6 +91,10 @@ cc_free_vars :: proc(expr: IR_Expr, bound: ^map[Intern_ID]bool) -> [dynamic]Inte
 		inner := cc_free_vars(e.message, bound)
 		for v in inner { append(&result, v) }
 		delete(inner)
+	case ^IR_Resume:
+		inner := cc_free_vars(e.value, bound)
+		for v in inner { append(&result, v) }
+		delete(inner)
 	case ^IR_Return:
 		inner := cc_free_vars(e.value, bound)
 		for v in inner { append(&result, v) }
@@ -467,6 +471,16 @@ cc_convert_expr :: proc(expr: IR_Expr, env: ^Closure_Convert_Env) -> IR_Expr {
 		new_crash := new(IR_Crash)
 		new_crash^ = IR_Crash{message = cc_convert_expr(e.message, env), span = e.span}
 		return IR_Expr(new_crash)
+
+	case ^IR_Resume:
+		new_resume := new(IR_Resume)
+		new_resume^ = IR_Resume{
+			resume_id = e.resume_id,
+			value = cc_convert_expr(e.value, env),
+			type = e.type,
+			span = e.span,
+		}
+		return IR_Expr(new_resume)
 	}
 
 	return expr

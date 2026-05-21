@@ -104,6 +104,8 @@ rc_collect_uses :: proc(expr: IR_Expr, uses: ^map[Intern_ID]int) {
 		}
 	case ^IR_Crash:
 		rc_collect_uses(e.message, uses)
+	case ^IR_Resume:
+		rc_collect_uses(e.value, uses)
 	case:
 	}
 }
@@ -430,6 +432,12 @@ rc_insert_expr_inner :: proc(expr: IR_Expr, remaining: ^map[Intern_ID]int, inter
 		new_crash := new(IR_Crash)
 		new_crash^ = IR_Crash{message = new_msg, span = e.span}
 		return IR_Expr(new_crash)
+
+	case ^IR_Resume:
+		new_val := rc_insert_expr_inner(e.value, remaining, interner)
+		new_resume := new(IR_Resume)
+		new_resume^ = IR_Resume{resume_id = e.resume_id, value = new_val, type = e.type, span = e.span}
+		return IR_Expr(new_resume)
 	}
 
 	return expr

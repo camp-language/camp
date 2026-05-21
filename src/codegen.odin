@@ -542,6 +542,8 @@ collect_locals :: proc(expr: IR_Expr, locals: ^map[Intern_ID]IR_Type) {
 		for arg in e.args {
 			collect_locals(arg, locals)
 		}
+	case ^IR_Resume:
+		collect_locals(e.value, locals)
 	case ^IR_Closure:
 		collect_locals(e.env, locals)
 		collect_locals(e.body, locals)
@@ -887,6 +889,40 @@ emit_expr :: proc(expr: IR_Expr, buf: ^[dynamic]u8, env: ^Codegen_Env, runtime_i
 		emit_instruction(Wasm_Drop{}, buf)
 		emit_instruction(Wasm_I32_Const{value = 1}, buf)
 		emit_instruction(Wasm_Call{index = u32(runtime_indices[RUNTIME_EXIT])}, buf)
+	case ^IR_Resume:
+		if resume_idx, ok := env.local_map[e.resume_id]; ok {
+			emit_instruction(Wasm_Local_Get{index = resume_idx}, buf)
+			emit_instruction(Wasm_I32_Load{align = 2, offset = u32(CAMP_TAG_FIELDS_OFFSET)}, buf)
+			emit_instruction(Wasm_Local_Tee{index = env.tmp_local_base + 2}, buf)
+
+			emit_instruction(Wasm_I32_Eq{}, buf)
+			emit_instruction(Wasm_If{block_type = .Void}, buf)
+			emit_instruction(Wasm_Unreachable{}, buf)
+			emit_instruction(Wasm_End{}, buf)
+
+			emit_instruction(Wasm_Local_Get{index = resume_idx}, buf)
+			emit_instruction(Wasm_I32_Const{value = 0}, buf)
+			emit_instruction(Wasm_I32_Store{align = 2, offset = u32(CAMP_TAG_FIELDS_OFFSET)}, buf)
+
+			emit_expr(e.value, buf, env, runtime_indices)
+
+			emit_instruction(Wasm_Local_Get{index = resume_idx}, buf)
+			emit_instruction(Wasm_I32_Load{align = 2, offset = u32(CAMP_TAG_FIELDS_OFFSET + 8)}, buf)
+
+			resume_params := make([]Wasm_Value_Type, 2)
+			resume_params[0] = .I32
+			resume_params[1] = ir_wasm_type_to_value_type(e.type.wasm_type)
+			resume_results := make([]Wasm_Value_Type, 1)
+			resume_results[0] = ir_wasm_type_to_value_type(e.type.wasm_type)
+			resume_type_idx := get_or_create_type(env, resume_params, resume_results)
+			delete(resume_params)
+			delete(resume_results)
+
+			emit_instruction(Wasm_Local_Get{index = env.tmp_local_base + 2}, buf)
+			emit_instruction(Wasm_Call_Indirect{type_idx = u32(resume_type_idx), table_idx = u32(env.table_idx)}, buf)
+		} else {
+			emit_instruction(Wasm_Unreachable{}, buf)
+		}
 	case:
 		emit_instruction(Wasm_Unreachable{}, buf)
 	}
@@ -981,6 +1017,7 @@ ir_operand_wasm_type :: proc(expr: IR_Expr) -> IR_Wasm_Type {
 	case ^IR_Construct_Tag: return .I32
 	case ^IR_Construct_Record: return .I32
 	case ^IR_Closure: return .I32
+	case ^IR_Resume: return e.type.wasm_type
 	case:
 		return .I32
 	}
@@ -1006,6 +1043,7 @@ ir_expr_wasm_type :: proc(expr: IR_Expr) -> IR_Wasm_Type {
 	case ^IR_BinOp: return e.type.wasm_type
 	case ^IR_Closure: return .I32
 	case ^IR_Closure_Call: return e.type.wasm_type
+	case ^IR_Resume: return e.type.wasm_type
 	case:
 		return .I32
 	}

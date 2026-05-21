@@ -175,6 +175,93 @@ el_lower_expr :: proc(expr: IR_Expr, env: ^Effect_Lower_Env) -> IR_Expr {
 		return IR_Expr(call)
 
 	case ^IR_Let:
+		#partial switch v in e.value {
+		case ^IR_Perform:
+			if !v.is_non_resuming {
+				ev_var: Intern_ID = NO_NAME
+				for i := len(env.evidence_stack) - 1; i >= 0; i -= 1 {
+					if env.evidence_stack[i].effect == v.effect {
+						ev_var = env.evidence_stack[i].ev_var
+						break
+					}
+				}
+
+				if ev_var == NO_NAME {
+					new_let := new(IR_Let)
+					new_let^ = IR_Let{
+						binding = e.binding,
+						type = e.type,
+						value = el_lower_expr(e.value, env),
+						body = el_lower_expr(e.body, env),
+						span = e.span,
+					}
+					return IR_Expr(new_let)
+				}
+
+				kc_name_id := el_fresh(env, "_kc")
+				kc_name := Canonical_Name{
+					module = NO_NAME,
+					name = kc_name_id,
+					is_local = true,
+				}
+
+				kc_params := make([dynamic]IR_Param, 0, 2)
+				append(&kc_params, IR_Param{name = e.binding, type = e.type})
+				ev_param_name := el_fresh(env, "_ev_p")
+				append(&kc_params, IR_Param{name = ev_param_name, type = IR_Type{.I32, Type_Var_ID(0)}})
+
+				kc_fn := new(IR_Decl_Fn)
+				kc_fn^ = IR_Decl_Fn{
+					name = kc_name,
+					is_effectful = false,
+					params = kc_params,
+					return_type = e.type,
+					effect_row = IR_Type{.Void, Type_Var_ID(0)},
+					body = el_lower_expr(e.body, env),
+					span = e.span,
+				}
+				append(&env.module.decls, IR_Decl(kc_fn))
+
+				env_var := el_fresh(env, "_kc_env")
+				env_lit := new(IR_Literal_Int)
+				env_lit^ = IR_Literal_Int{value = 0, type = IR_Type{.I32, Type_Var_ID(0)}, span = e.span}
+
+				closure := new(IR_Closure)
+				closure^ = IR_Closure{
+					fn_name = kc_name,
+					params = make([dynamic]IR_Param, 0),
+					env = IR_Expr(env_lit),
+					type = IR_Type{.I32, Type_Var_ID(0)},
+					span = e.span,
+				}
+
+				args := make([dynamic]IR_Expr, 0, len(v.args) + 3)
+				ev_ref := new(IR_Var)
+				ev_ref^ = IR_Var{name = ev_var, type = IR_Type{.I32, Type_Var_ID(0)}, span = v.span}
+				append(&args, IR_Expr(ev_ref))
+				append(&args, IR_Expr(closure))
+				for arg in v.args {
+					append(&args, el_lower_expr(arg, env))
+				}
+
+				handler_callee := Canonical_Name{
+					module = v.effect.module,
+					name = v.op,
+					is_local = false,
+				}
+
+				call := new(IR_Call)
+				call^ = IR_Call{
+					callee = handler_callee,
+					args = args,
+					type = v.type,
+					span = v.span,
+				}
+				return IR_Expr(call)
+			}
+		case:
+		}
+
 		new_let := new(IR_Let)
 		new_let^ = IR_Let{
 			binding = e.binding,
@@ -308,6 +395,16 @@ el_lower_expr :: proc(expr: IR_Expr, env: ^Effect_Lower_Env) -> IR_Expr {
 		new_crash := new(IR_Crash)
 		new_crash^ = IR_Crash{message = el_lower_expr(e.message, env), span = e.span}
 		return IR_Expr(new_crash)
+
+	case ^IR_Resume:
+		new_resume := new(IR_Resume)
+		new_resume^ = IR_Resume{
+			resume_id = e.resume_id,
+			value = el_lower_expr(e.value, env),
+			type = e.type,
+			span = e.span,
+		}
+		return IR_Expr(new_resume)
 	}
 
 	return expr
