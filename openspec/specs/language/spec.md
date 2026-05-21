@@ -77,17 +77,17 @@ The type of a tag union SHALL be inferred from the tags that appear in a scope.
 - THEN the inferred type SHALL widen to `[Ok(I64) | Err(Str) | Timeout]`
 
 ### Requirement: Nominal Tag Qualification
-Tags belonging to a nominal type SHALL be qualified by the type name at construction.
+Tags belonging to a nominal type SHALL be qualified by the `@`-prefixed type name at construction.
 
 #### Scenario: Qualified tag construction
-- GIVEN a newtype `Result` and a tag `Ok` belonging to it
+- GIVEN a nominal type `@Result` and a tag `Ok` belonging to it
 - WHEN constructing a value
-- THEN the construction SHALL use `Result.Ok(42)` unless the tag is imported unqualified
+- THEN the construction SHALL use `@Result.Ok(42)` unless the tag is imported unqualified
 
 #### Scenario: Unqualified import of nominal tags
-- GIVEN an import statement `import Result exposing [Ok, Err]`
+- GIVEN an import statement `import Result exposing [@[Ok, Err]]`
 - WHEN constructing a value using `Ok`
-- THEN `Ok(42)` SHALL be valid without the `Result.` qualifier
+- THEN `Ok(42)` SHALL be valid without the `@Result.` qualifier
 
 ### Requirement: Record Types
 Records SHALL be structural products with insignificant field order, supporting closed, open, and row-variable forms.
@@ -120,102 +120,150 @@ Functions SHALL accept any record that has the required fields, regardless of ad
 - WHEN called with `{ name: "Alice", age: 30 }`
 - THEN the call SHALL type-check successfully
 
-### Requirement: Newtypes
-Newtypes SHALL create a distinct nominal type wrapping an existing type, using `:=` syntax. Newtypes provide nominal identity for structural types, enabling trait implementations, encapsulation, and tag qualification.
+### Requirement: Type Aliases
+Type aliases SHALL create transparent structural shorthands using the `:` syntax (no `@` prefix). Type aliases SHALL unify with any structurally identical type. Type aliases SHALL NOT have `derives` or `is` clauses.
 
-#### Scenario: Newtype construction
-- GIVEN a newtype `UserId := U64`
+#### Scenario: Alias for a primitive
+- GIVEN a definition `IntList : List(I64)`
+- WHEN the compiler processes it
+- THEN `IntList` SHALL be a transparent alias for `List(I64)`
+
+#### Scenario: Alias for a record
+- GIVEN a definition `Coords : { x: F64, y: F64 }`
+- WHEN the compiler compares `Coords` with `{ x: F64, y: F64 }`
+- THEN they SHALL unify as the same type
+
+#### Scenario: Alias for a tag union with type parameters
+- GIVEN a definition `Maybe(a) : [Just(a) | Nothing]`
+- WHEN the compiler processes it
+- THEN `Maybe` SHALL be a transparent alias parameterized by `a`
+
+#### Scenario: Alias transparency
+- GIVEN an alias `Alias : [Left(a) | Right(Str)]` and a structural type `[Left(a) | Right(Str)]`
+- WHEN the compiler compares them
+- THEN they SHALL unify as the same type
+
+### Requirement: Nominal Types
+Nominal types SHALL create a distinct type based on its name rather than its structure, using the `@` prefix and `:` syntax. Nominal types provide encapsulation, trait implementations, and tag ownership. The `@` prefix SHALL appear at the definition site and at construction/destruction, but NOT in type annotations.
+
+#### Scenario: Nominal type definition
+- GIVEN a definition `@UserId : U64`
+- WHEN the compiler processes it
+- THEN `UserId` SHALL be a nominal type wrapping `U64`, distinct from `U64`
+
+#### Scenario: Nominal type construction
+- GIVEN a nominal type `@UserId : U64` defined in the current module
 - WHEN constructing a value
-- THEN `UserId(42)` SHALL produce a value of type `UserId`, distinct from `U64`
+- THEN `@UserId(42)` SHALL produce a value of type `UserId`, distinct from `U64`
 
-#### Scenario: Newtype inner value access
-- GIVEN a value `uid` of newtype `UserId := U64`
-- WHEN accessing the inner value
-- THEN `uid.inner()` SHALL return the wrapped `U64` value
+#### Scenario: Nominal type destruction
+- GIVEN a nominal type `@UserId : U64` and a value `uid: UserId`
+- WHEN pattern matching `@UserId(n) => n`
+- THEN `n` SHALL be bound to the inner `U64` value
 
-#### Scenario: Newtype with trait conformance
-- GIVEN a declaration `UserId is Hash := U64`
-- THEN `UserId` SHALL satisfy the `Hash` trait
+#### Scenario: Nominal type in type annotations
+- GIVEN a nominal type `@UserId : U64`
+- WHEN writing a type annotation
+- THEN the annotation SHALL use the plain name: `x : UserId`, NOT `x : @UserId`
 
-#### Scenario: Newtype nominal distinctness
-- GIVEN newtypes `UserId := U64` and `OrderId := U64`
+#### Scenario: Nominal type nominal distinctness
+- GIVEN nominal types `@UserId : U64` and `@OrderId : U64`
 - WHEN the compiler compares `UserId` and `OrderId`
 - THEN they SHALL NOT unify — they are distinct types despite wrapping the same inner type
 
-#### Scenario: No implicit coercion between newtype and inner type
-- GIVEN a newtype `UserId := U64` and a function expecting `U64`
-- WHEN a value of type `UserId` is passed without unwrapping
+#### Scenario: No implicit coercion between nominal type and inner type
+- GIVEN a nominal type `@UserId : U64` and a function expecting `U64`
+- WHEN a value of type `UserId` is passed without destructuring
 - THEN the compiler SHALL produce an error
 
-#### Scenario: Newtype wrapping a record
-- GIVEN a newtype `User := { name: Str, age: U64 }`
+#### Scenario: Nominal type wrapping a record
+- GIVEN a nominal type `@User : { name: Str, age: U64 }`
 - WHEN constructing a value
-- THEN `User({ name: "Alice", age: 30 })` SHALL produce a value of type `User`
+- THEN `@User({ name: "Alice", age: 30 })` SHALL produce a value of type `User`
 
-#### Scenario: Newtype wrapping a record — inner access
-- GIVEN a value `u` of newtype `User := { name: Str, age: U64 }`
-- WHEN accessing the inner record
-- THEN `u.inner().name` SHALL return `"Alice"`
-
-#### Scenario: Newtype with derive annotations
-- GIVEN a declaration `@derive [Display, Hash] OrderId := U64`
-- THEN the compiler SHALL record the derive targets; expansion of derived implementations SHALL occur during compilation
-
-#### Scenario: Newtype pattern destructuring
-- GIVEN a newtype `UserId := U64` and a value `uid: UserId`
-- WHEN pattern matching `UserId(n) => n`
-- THEN `n` SHALL be bound to the inner `U64` value
-
-### Requirement: Parameterized Newtypes
-Newtypes SHALL support type parameters, enabling generic nominal types.
-
-#### Scenario: Parameterized newtype declaration
-- GIVEN a declaration `Result(a, e) := [Ok(a) | Err(e)]`
-- WHEN the compiler processes the declaration
-- THEN `Result` SHALL be a newtype parameterized by `a` and `e`
-
-#### Scenario: Parameterized newtype instantiation
-- GIVEN a newtype `Result(a, e) := [Ok(a) | Err(e)]`
-- WHEN constructing `Result.Ok(42)` where the context expects `Result(I64, Str)`
-- THEN the type parameters SHALL be inferred as `a = I64`, `e = Str`
-
-#### Scenario: Different instantiations are distinct
-- GIVEN a newtype `Result(a, e) := [Ok(a) | Err(e)]`
-- WHEN the compiler compares `Result(I64, Str)` and `Result(Str, I64)`
-- THEN they SHALL NOT unify — different type arguments produce distinct types
-
-### Requirement: Newtype Tag Ownership
-When a newtype wraps a tag union, its tags SHALL be owned by that newtype and qualified by the newtype name at construction.
-
-#### Scenario: Qualified tag construction
-- GIVEN a newtype `Result(a, e) := [Ok(a) | Err(e)]`
+#### Scenario: Nominal type wrapping a tag union
+- GIVEN a nominal type `@Result(a, e) : [Ok(a) | Err(e)]`
 - WHEN constructing a value with the `Ok` tag
-- THEN `Result.Ok(42)` SHALL be required — bare `Ok(42)` SHALL NOT resolve
+- THEN `@Result.Ok(42)` SHALL be required — bare `Ok(42)` SHALL NOT resolve unless exposed via import
 
-#### Scenario: Unqualified tag via exposing import
-- GIVEN a newtype `Result(a, e) := [Ok(a) | Err(e)]` and an import `import Result exposing [Ok, Err]`
+#### Scenario: One nominal type per module
+- GIVEN a module named `Result`
+- WHEN a nominal type `@Result` is defined within it
+- THEN the definition SHALL be accepted; defining a nominal type with a different name SHALL produce a compiler error
+
+### Requirement: Nominal Type Encapsulation
+Nominal types SHALL be opaque outside their defining module unless their variants are explicitly exposed with `pub`. Non-tag-union nominal types SHALL always be opaque outside their defining module.
+
+#### Scenario: Opaque by default
+- GIVEN a nominal type `@UserId : U64` defined in module `UserId`
+- WHEN another module imports `UserId` without exposing variants
+- THEN the other module SHALL NOT construct or destructure `@UserId` values; it SHALL only pass them and call functions on them
+
+#### Scenario: Non-tag-union nominal type is always opaque
+- GIVEN a nominal type `@UserId : U64` defined in module `UserId`
+- WHEN another module imports `UserId`
+- THEN the other module SHALL NOT construct or destructure `@UserId` values regardless of import exposing; the defining module SHALL provide constructor/destructor functions (e.g., `makeUserId : U64 -> UserId`)
+
+#### Scenario: pub variants enable cross-module construction
+- GIVEN a nominal type `@Result(a, e) : pub [Ok(a) | Err(e)]` defined in module `Result`
+- WHEN another module imports `Result`
+- THEN the other module SHALL be able to construct values via `@Result.Ok(42)`
+
+#### Scenario: pub variants with import exposing enable unqualified access
+- GIVEN a nominal type `@Result(a, e) : pub [Ok(a) | Err(e)]` and `import Result exposing [@[Ok, Err]]`
 - WHEN constructing a value
-- THEN `Ok(42)` SHALL be valid and equivalent to `Result.Ok(42)`
+- THEN `Ok(42)` SHALL be valid without the `@Result.` qualifier
+
+#### Scenario: Exposing non-pub variants is an error
+- GIVEN a nominal type `@Result(a, e) : [Ok(a) | Err(e)]` (without `pub`)
+- WHEN another module writes `import Result exposing [@[Ok, Err]]`
+- THEN the compiler SHALL produce an error because the variants are not exposed
+
+### Requirement: Nominal Type Tag Ownership
+When a nominal type wraps a tag union, its tags SHALL be owned by that nominal type and qualified by the `@`-prefixed type name at construction. The `@` prefix on the variant name makes construction unambiguous.
+
+#### Scenario: Qualified tag construction with @ prefix
+- GIVEN a nominal type `@Result(a, e) : [Ok(a) | Err(e)]`
+- WHEN constructing a value with the `Ok` tag
+- THEN `@Result.Ok(42)` SHALL be required — bare `Ok(42)` SHALL NOT resolve unless exposed via import
 
 #### Scenario: Structural tags remain unqualified
-- GIVEN a tag `Some(42)` that does NOT belong to any newtype
+- GIVEN a tag `Some(42)` that does NOT belong to any nominal type
 - WHEN constructing a value
 - THEN `Some(42)` SHALL be valid without any qualifier
 
 #### Scenario: Tag ownership prevents collision
-- GIVEN newtypes `Result(a, e) := [Ok(a) | Err(e)]` and `Option(a) := [Ok(a) | None]` in different modules
+- GIVEN nominal types `@Result(a, e) : [Ok(a) | Err(e)]` and `@Option(a) : [Ok(a) | None]` in different modules
 - WHEN both are in scope
-- THEN the `Ok` tag SHALL be disambiguated by its owning newtype: `Result.Ok` vs `Option.Ok`
+- THEN the `Ok` tag SHALL be disambiguated by its owning type: `@Result.Ok` vs `@Option.Ok`
 
 #### Scenario: Qualified tag in pattern matching
-- GIVEN a newtype `Result(a, e) := [Ok(a) | Err(e)]`
+- GIVEN a nominal type `@Result(a, e) : [Ok(a) | Err(e)]`
 - WHEN pattern matching a value of type `Result(I64, Str)`
-- THEN `Result.Ok(n) => n` SHALL match the `Ok` tag and bind `n` to the inner `I64`
+- THEN `@Result.Ok(n) => n` SHALL match the `Ok` tag and bind `n` to the inner `I64`
 
 #### Scenario: Unqualified tag in pattern matching via import
-- GIVEN a newtype `Result(a, e) := [Ok(a) | Err(e)]` and `import Result exposing [Ok, Err]`
+- GIVEN a nominal type `@Result(a, e) : [Ok(a) | Err(e)]` and `import Result exposing [@[Ok, Err]]`
 - WHEN pattern matching
-- THEN `Ok(n) => n` SHALL be valid and equivalent to `Result.Ok(n) => n`
+- THEN `Ok(n) => n` SHALL be valid and equivalent to `@Result.Ok(n) => n`
+
+### Requirement: Parameterized Nominal Types
+Nominal types SHALL support type parameters, enabling generic nominal types.
+
+#### Scenario: Parameterized nominal type declaration
+- GIVEN a definition `@Result(a, e) : [Ok(a) | Err(e)]`
+- WHEN the compiler processes the declaration
+- THEN `Result` SHALL be a nominal type parameterized by `a` and `e`
+
+#### Scenario: Parameterized nominal type instantiation
+- GIVEN a nominal type `@Result(a, e) : [Ok(a) | Err(e)]`
+- WHEN constructing `@Result.Ok(42)` where the context expects `Result(I64, Str)`
+- THEN the type parameters SHALL be inferred as `a = I64`, `e = Str`
+
+#### Scenario: Different instantiations are distinct
+- GIVEN a nominal type `@Result(a, e) : [Ok(a) | Err(e)]`
+- WHEN the compiler compares `Result(I64, Str)` and `Result(Str, I64)`
+- THEN they SHALL NOT unify — different type arguments produce distinct types
 
 ### Requirement: Type Inference
 The compiler SHALL perform principal type inference using bidirectional checking with effect row unification.
@@ -347,6 +395,47 @@ A leading `.` followed by a method/field chain SHALL create an anonymous functio
 - GIVEN a token `..`
 - WHEN the compiler parses it
 - THEN it SHALL be interpreted as the spread operator, never as two dot lambdas
+
+### Requirement: Trait Definitions
+Traits SHALL be defined as structural record type aliases. A trait definition `Eq : { eq: |Self, Self| -> Bool }` SHALL define a record type with a built-in `Self` type variable. Constrained traits SHALL use `is` for parent requirements: `Ord is Eq : { ord: |Self| -> Ordering }`.
+
+#### Scenario: Unconstrained trait definition
+- GIVEN a definition `Eq : { eq: |Self, Self| -> Bool }`
+- WHEN the compiler processes it
+- THEN `Eq` SHALL be a record type alias with a `Self` type variable
+
+#### Scenario: Constrained trait definition
+- GIVEN a definition `Ord is Eq : { ord: |Self| -> Ordering }`
+- WHEN the compiler processes it
+- THEN `Ord` SHALL require any implementing type to also satisfy `Eq`
+
+#### Scenario: Self is a built-in type variable
+- GIVEN a trait definition `Eq : { eq: |Self, Self| -> Bool }`
+- WHEN the compiler type-checks implementations
+- THEN `Self` SHALL refer to the type implementing the trait
+
+### Requirement: Nominal Type Trait Conformance
+Nominal types SHALL declare trait conformance via `is` and `derives` clauses on the type definition. The `is` clause MUST appear before `derives` if both are present. `is` asserts manual conformance; `derives` auto-generates implementations for built-in traits only.
+
+#### Scenario: Manual trait conformance with is
+- GIVEN a definition `@UserId is Eq : U64`
+- WHEN the compiler processes it
+- THEN `UserId` SHALL be required to have a standalone `eq` function in the same module matching `Eq`'s signature
+
+#### Scenario: Auto-derived trait with derives
+- GIVEN a definition `@UserId derives Eq, Hash : U64`
+- WHEN the compiler processes it
+- THEN the compiler SHALL auto-generate `eq` and `hash` implementations for `UserId`
+
+#### Scenario: Both is and derives on the same type
+- GIVEN a definition `@UserId is Ord derives Eq, Hash : U64`
+- WHEN the compiler processes it
+- THEN `is` SHALL appear before `derives`; the compiler SHALL check manual `Ord` conformance and auto-generate `Eq` and `Hash`
+
+#### Scenario: Manual provision as standalone functions
+- GIVEN a nominal type `@UserId is Eq : U64` in module `UserId`
+- WHEN the compiler checks conformance
+- THEN it SHALL look for a standalone function `eq` in the same module whose type matches `|UserId, UserId| -> Bool`
 
 ### Requirement: Trait Structural Verification
 Traits SHALL be structurally verified — the compiler checks that a type's methods match the trait's required signatures by shape — but types MUST explicitly declare `is Trait` to satisfy the trait.
@@ -618,15 +707,15 @@ Effects SHALL compose by set union using aliases, not by inheritance; the `is` k
 - THEN it SHALL produce an error
 
 ### Requirement: Generic Type Parameters
-Generic type parameters SHALL be declared in angle brackets before the parameter list; trait constraints SHALL use `is` syntax.
+Generic type parameters SHALL be declared in angle brackets before the parameter list; trait constraints SHALL use `where` clause syntax.
 
 #### Scenario: Generic function
 - GIVEN a definition `add = <a>|x: a, y: a| -> a { x + y }`
 - WHEN compiled
 - THEN `add` SHALL be a generic function with type parameter `a`
 
-#### Scenario: Trait constraint on type parameter
-- GIVEN a definition `format = <a is Display>|x: a| -> Str { x.display() }`
+#### Scenario: Trait constraint on type parameter via where clause
+- GIVEN a definition `format = <a>|x: a| -> Str where a is Display { x.display() }`
 - WHEN compiled
 - THEN `a` SHALL be constrained to types that satisfy `Display`
 

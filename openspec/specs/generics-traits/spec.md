@@ -8,7 +8,7 @@ Define the behavioral requirements for Camp's generic type parameters and trait 
 
 ### Requirement: Generic Type Parameters
 
-Functions and newtypes SHALL support type parameters declared in angle brackets before the parameter list. Type parameters SHALL be substituted with concrete types via monomorphization at compile time.
+Functions and nominal types SHALL support type parameters declared in angle brackets before the parameter list. Type parameters SHALL be substituted with concrete types via monomorphization at compile time.
 
 #### Scenario: Generic function declaration
 
@@ -58,17 +58,29 @@ The compiler SHALL specialize every generic function and type at each concrete i
 
 ### Requirement: Trait Declaration
 
-Traits SHALL declare method signatures using structural types. The first parameter of each method SHALL represent `Self` — the implementing type. `Self` SHALL be a contextual keyword recognized only within trait method signatures.
+Traits SHALL be defined as structural record type aliases with a built-in `Self` type variable. Constrained traits SHALL use `is` for parent requirements. `Self` SHALL be a built-in type variable, automatically bound within trait definitions.
 
-#### Scenario: Trait with methods
+#### Scenario: Unconstrained trait definition
 
-- GIVEN a declaration `trait Display { display : Self -> Str }`
+- GIVEN a definition `Eq : { eq: |Self, Self| -> Bool }`
 - WHEN the compiler processes it
-- THEN the trait SHALL be registered with one method `display` whose first parameter is `Self`
+- THEN `Eq` SHALL be a record type alias with a `Self` type variable representing the implementing type
+
+#### Scenario: Constrained trait definition
+
+- GIVEN a definition `Ord is Eq : { ord: |Self| -> Ordering }`
+- WHEN the compiler processes it
+- THEN `Ord` SHALL require any implementing type to also satisfy `Eq`
+
+#### Scenario: Self is a built-in type variable
+
+- GIVEN a trait definition `Eq : { eq: |Self, Self| -> Bool }`
+- WHEN the compiler type-checks implementations
+- THEN `Self` SHALL refer to the type implementing the trait
 
 #### Scenario: Self is contextual
 
-- GIVEN the identifier `Self` used outside a trait method signature
+- GIVEN the identifier `Self` used outside a trait definition
 - WHEN the compiler processes it
 - THEN `Self` SHALL be treated as an ordinary identifier, not a keyword
 
@@ -151,29 +163,29 @@ Traits SHALL support single inheritance via `is`. When a type declares `is Ord` 
 
 ### Requirement: Trait Constraints on Type Parameters
 
-Type parameters SHALL support trait constraints using `is` syntax. When a constrained type variable is unified with a concrete type, the compiler SHALL immediately verify the constraint is satisfied.
+Type parameters SHALL support trait constraints using `where` clause syntax. When a constrained type variable is unified with a concrete type, the compiler SHALL immediately verify the constraint is satisfied.
 
-#### Scenario: Constrained type parameter
+#### Scenario: Constrained type parameter via where clause
 
-- GIVEN a definition `format = <a is Display>|x: a| -> Str { x.display() }`
+- GIVEN a definition `format = <a>|x: a| -> Str where a is Display { x.display() }`
 - WHEN compiled
 - THEN `a` SHALL be constrained to types that satisfy `Display`
 
 #### Scenario: Constraint satisfied at call site
 
-- GIVEN `format` with constraint `<a is Display>` and a type `UserId is Display`
+- GIVEN `format` with constraint `where a is Display` and a type `@UserId is Display`
 - WHEN `format(userId)` is called
 - THEN the call SHALL type-check because `UserId` satisfies `Display`
 
 #### Scenario: Constraint violated at call site
 
-- GIVEN `format` with constraint `<a is Display>` and a type `I64` that does NOT `is Display`
+- GIVEN `format` with constraint `where a is Display` and a type `I64` that does NOT `is Display`
 - WHEN `format(42)` is called
 - THEN the compiler SHALL produce an error: `I64` does not satisfy `Display`
 
 #### Scenario: Multiple constraints
 
-- GIVEN a definition `sort = <a is Ord>|list: List(a)| -> List(a) { ... }`
+- GIVEN a definition `sort = <a>|list: List(a)| -> List(a) where a is Ord { ... }`
 - WHEN the compiler processes the constraint
 - THEN `a` SHALL be required to satisfy `Ord` (which transitively requires `Eq`)
 

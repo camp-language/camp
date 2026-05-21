@@ -82,6 +82,24 @@ The compiler SHALL resolve imports by verifying that imported modules exist in t
 - WHEN the compiler resolves the import
 - THEN `map` and `filter` SHALL be accessible unqualified AND `List.map` and `List.filter` SHALL also be accessible
 
+#### Scenario: Exposing nominal type variants
+
+- GIVEN an import declaration `import Result exposing [@[Ok, Err], other_fn]`
+- WHEN the compiler resolves the import
+- THEN `Ok` and `Err` SHALL be accessible unqualified for construction and pattern matching, AND `@Result.Ok` SHALL also be accessible; the `@[...]` syntax signals nominal type variant exposure
+
+#### Scenario: Exposing nominal variants requires pub on type definition
+
+- GIVEN a nominal type `@Result(a, e) : [Ok(a) | Err(e)]` (without `pub`) and `import Result exposing [@[Ok, Err]]`
+- WHEN the compiler resolves the import
+- THEN it SHALL produce an error because the variants are not publicly exposed on the type definition
+
+#### Scenario: Exposing effect operations
+
+- GIVEN an import declaration `import Console exposing [Console!, println!, readline!]`
+- WHEN the compiler resolves the import
+- THEN `Console!` and its operations `println!` and `readline!` SHALL be accessible unqualified; the `!` is part of the actual name
+
 #### Scenario: Aliased import
 
 - GIVEN an import declaration `import Http.Server as S`

@@ -8,12 +8,34 @@ Define the behavioral requirements for Camp's algebraic effect system: Koka-styl
 
 ### Requirement: Effect Operations Are Called as Functions
 
-Effect operations SHALL be invoked as ordinary function calls qualified by their effect name. There SHALL be no `perform` or `do` keyword. The `!` suffix on the operation name SHALL communicate effectfulness. The effect-qualified call `E.op!(args)` SHALL be syntactically a function call, not a special form.
+Effect operations SHALL be invoked as ordinary function calls qualified by their effect name. There SHALL be no `perform` or `do` keyword. The `!` suffix on effect type names and operation names SHALL be part of the actual name, not a separate modifier. The effect-qualified call `E!.op!(args)` SHALL be syntactically a function call, not a special form.
 
 #### Scenario: Effectful function call syntax
 
-- **WHEN** a Camp program calls `Console.println!("hello")`
-- **THEN** it SHALL be syntactically a function call qualified by the `Console` effect, not a special `perform` form
+- **WHEN** a Camp program calls `Console!.println!("hello")`
+- **THEN** it SHALL be syntactically a function call qualified by the `Console!` effect, not a special `perform` form
+
+### Requirement: Effect Definition Syntax
+
+Effects SHALL be defined using the `:` syntax with the effect name ending in `!`. The `!` is part of the actual name, not a modifier. Effect operation names SHALL also end with `!`.
+
+#### Scenario: Effect definition
+
+- **GIVEN** a definition `Console! : { println!(Str) }`
+- **WHEN** the compiler processes it
+- **THEN** `Console!` SHALL be an effect type with an operation `println!`
+
+#### Scenario: Effect name must end with !
+
+- **GIVEN** a definition `Console : { println(Str) }` without `!` on the name
+- **WHEN** the compiler processes it
+- **THEN** it SHALL be treated as a type alias, not an effect; effect definitions MUST end with `!`
+
+#### Scenario: Non-effect types cannot end with !
+
+- **GIVEN** a definition `@Result! : [Ok(a) | Err(e)]`
+- **WHEN** the compiler processes it
+- **THEN** it SHALL produce an error — only effect types may end with `!`
 
 ### Requirement: Effect Rows Track Effects in Function Types
 

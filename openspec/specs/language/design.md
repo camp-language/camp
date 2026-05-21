@@ -10,13 +10,13 @@
 
 1. **Effects are the abstraction layer.** Algebraic effects subsume monads, exceptions, async/await, and state management. Effect rows in types make side effects explicit and provably handled.
 
-2. **Structural typing by default, nominal when needed.** Tag unions and records are structural — type determined by shape, not name. Nominal typing via newtypes for encapsulation, trait opt-in, and derive targets.
+2. **Structural typing by default, nominal when needed.** Tag unions and records are structural — type determined by shape, not name. Nominal typing via `@`-prefixed nominal types for encapsulation, trait opt-in, and derive targets. One nominal type per module, name must match module name.
 
 3. **Fast compilation is a feature.** Compiler never bootstrapped. Written in Odin for control over memory layout and allocation. Per-file front-end phases parallelizable and cacheable. Direct WASM emission avoids LLVM bottleneck.
 
 4. **One way to do things.** No `?` (Throw handles error propagation), no `with`/`use` (effect handlers cover the same ground), Iter-only for collections (not separate eager List ops).
 
-5. **No hidden control flow.** Effectful functions marked with `!` at definition and call sites. Mutable variables marked with `$` at every use. Effect operations qualified by effect name.
+5. **No hidden control flow.** Effectful functions and effect names marked with `!` — it's part of the actual name. Mutable variables marked with `$` at every use. Effect operations qualified by effect name. `!` is mandatory on all effect-related names.
 
 6. **The compiler never crashes.** Every "impossible" state becomes an `InternalCompilerError` diagnostic. Three error categories: warnings, errors, internal errors.
 
@@ -138,7 +138,7 @@ match result {
 
 **Variant set inference**: If a function returns `Ok(42)` in one branch and `Err("fail")` in another, the inferred return type is `[Ok(Int) | Err(Str)]`. Adding a new branch that returns `Timeout` widens the type to `[Ok(Int) | Err(Str) | Timeout]`. All call sites that pattern match must handle the full set.
 
-**Design decision — structural vs nominal tags**: Tags are structural — `Ok(42)` doesn't belong to a named type unless qualified (e.g., `Result.Ok(42)`). Nominal aliases via newtypes: `Result(a, e) := [Ok(a) | Err(e)]`. Structural flexibility + nominal identity when needed.
+**Design decision — structural vs nominal tags**: Tags are structural — `Ok(42)` doesn't belong to a named type unless qualified (e.g., `@Result.Ok(42)`). Nominal types via `@` prefix: `@Result(a, e) : [Ok(a) | Err(e)]`. Structural flexibility + nominal identity when needed.
 
 **Design decision — no `#` prefix**: Roc demonstrates bare UpperCamelCase tags work well. The naming convention rule (functions/values lowercase, types/tags UpperCamelCase) makes `Ok(42)` unambiguously a tag and `ok(42)` unambiguously a function call. No type inference needed for disambiguation — purely syntactic. The `#` prefix adds visual noise without resolving any ambiguity that case doesn't already resolve.
 
@@ -192,80 +192,101 @@ Note: `_` (not `..`) is used as the wildcard in pattern matching, following univ
 
 **Alternative considered**: Order-significant records (simpler implementation). Rejected because field order shouldn't be semantically meaningful, order-independence matches mathematical record notation, most row-polymorphic languages treat order as insignificant, and implementation complexity is manageable (sort fields at canonicalization).
 
-### 2.5 Newtypes (Nominal)
+### 2.5 Nominal Types
 
-Newtypes create a distinct type wrapping an existing type. They provide nominal identity for structural types, enabling trait implementations, encapsulation, and tag qualification.
+Nominal types create a distinct type based on its name rather than its structure. They provide encapsulation, trait implementations, and tag ownership. The `@` prefix marks a type as nominal at the definition site and at construction/destruction.
 
 **Syntax**:
 ```
-UserId := U64                              -- simple newtype
-UserId is Hash := U64                      -- with trait conformance
-@derive [Display, Hash, Eq, Serialize]
-ProductId := U64                           -- with derive
-Result(a, e) := [Ok(a) | Err(e)]          -- parameterized, wrapping tag union
-User := { name: Str, age: U64 }            -- wrapping a record
+@UserId : U64                              -- simple nominal type
+@UserId is Eq : U64                        -- with trait conformance
+@UserId is Ord derives Eq, Hash : U64      -- is before derives, both present
+@Result(a, e) : [Ok(a) | Err(e)]          -- parameterized, wrapping tag union
+@Result(a, e) : pub [Ok(a) | Err(e)]       -- pub exposes variants for cross-module construction
+@User : { name: Str, age: U64 }            -- wrapping a record
 ```
 
-- `:=` creates the newtype (lexed as `Tok_Define`)
-- `is` declares trait conformance (contextual keyword between name and `:=`)
-- `@derive` auto-generates trait implementations (recorded, expanded later)
-- Type parameters in parentheses before `:=`
+**Type aliases** (structural, transparent):
+```
+IntList : List(I64)                        -- alias for a primitive
+Coords : { x: F64, y: F64 }               -- alias for a record
+Maybe(a) : [Just(a) | Nothing]             -- alias for a tag union with type params
+```
+
+- `@` prefix marks the type as nominal; type aliases use plain names
+- `:` separates the name from the body (replaces `:=`)
+- `is` declares trait conformance (appears before `derives` if both present)
+- `derives` auto-generates trait implementations for built-in traits only
+- `pub` before variant list exposes all variants for cross-module construction
+- Type parameters in parentheses before `:`
+- `@` used at definition and construction/destruction, NOT in type annotations
+
+**One nominal type per module**: The module name MUST match the nominal type name. Defining a nominal type with a different name in a module is a compiler error.
 
 **Construction and destruction**:
 ```
-uid: UserId = UserId(42)           -- construction
-inner: U64 = uid.inner()          -- access inner value
+uid: UserId = @UserId(42)           -- construction (inside defining module)
+inner: U64 = match uid:             -- destruction via pattern matching
+  @UserId(n) => n
 
 -- Wrapping a record:
-u: User = User({ name: "Alice", age: 30 })
-name: Str = u.inner().name
+u: User = @User({ name: "Alice", age: 30 })
+name: Str = match u:
+  @User(record) => record.name
 
--- Parameterized newtype with tag ownership:
-Result.Ok(42)                      -- qualified tag construction
-Result.Err("fail")                  -- qualified tag construction
+-- Nominal type with tag ownership:
+@Result.Ok(42)                      -- qualified tag construction
+@Result.Err("fail")                  -- qualified tag construction
 
 -- Or import unqualified:
-import Result exposing [Ok, Err]
-Ok(42)                             -- unqualified after import
+import Result exposing [@[Ok, Err]]
+Ok(42)                              -- unqualified after import
 ```
 
 **Nominal distinctness**:
 - `UserId` and `U64` never unify, even though they share a runtime representation
 - `UserId` and `OrderId` never unify, even though both wrap `U64`
-- No implicit coercion in either direction — must explicitly construct (`UserId(42)`) or destruct (`uid.inner()`)
+- No implicit coercion in either direction — must explicitly construct (`@UserId(42)`) or destruct (`@UserId(n) => n`)
+
+**Encapsulation (opacity)**:
+- Nominal types are opaque outside their defining module by default
+- Non-tag-union nominal types (e.g., `@UserId : U64`) are ALWAYS opaque outside the defining module; provide manual functions like `makeUserId : U64 -> UserId`
+- Tag union nominal types with `pub` variants allow cross-module construction: `@Result(a, e) : pub [Ok(a) | Err(e)]`
+- `pub` on the type definition is sufficient for cross-module construction; import `exposing` controls naming (unqualified access)
+- Exposing non-pub variants in an import is a compiler error
 
 **Tag ownership**:
-When a newtype wraps a tag union, the tags become owned by that newtype:
-- `Result(a, e) := [Ok(a) | Err(e)]` — `Ok` and `Err` belong to `Result`
-- Construction requires qualification: `Result.Ok(42)`, not bare `Ok(42)`
-- `import Result exposing [Ok, Err]` brings tags into unqualified scope
-- Structural tags (not belonging to any newtype) remain unqualified: `Some(42)` works without a prefix
-- Two newtypes with the same tag name in different modules are disambiguated by owner: `Result.Ok` vs `Option.Ok`
+When a nominal type wraps a tag union, the tags become owned by that nominal type:
+- `@Result(a, e) : [Ok(a) | Err(e)]` — `Ok` and `Err` belong to `@Result`
+- Construction requires qualification: `@Result.Ok(42)`, not bare `Ok(42)`
+- `import Result exposing [@[Ok, Err]]` brings tags into unqualified scope
+- Structural tags (not belonging to any nominal type) remain unqualified: `Some(42)` works without a prefix
+- Two nominal types with the same tag name in different modules are disambiguated by owner: `@Result.Ok` vs `@Option.Ok`
 
 **Pattern matching**:
 ```
 -- Qualified:
 match result:
-  Result.Ok(n)  => n
-  Result.Err(e) => 0
+  @Result.Ok(n)  => n
+  @Result.Err(e) => 0
 
 -- Unqualified after import:
-import Result exposing [Ok, Err]
+import Result exposing [@[Ok, Err]]
 match result:
   Ok(n)  => n
   Err(e) => 0
 
--- Simple newtype destructuring:
+-- Simple nominal type destructuring:
 match uid:
-  UserId(n) => n     -- n is U64
+  @UserId(n) => n     -- n is U64
 ```
 
 **Type parameters**:
 ```
-Result(a, e) := [Ok(a) | Err(e)]
+@Result(a, e) : [Ok(a) | Err(e)]
 
 -- Instantiation:
-r: Result(I64, Str) = Result.Ok(42)
+r: Result(I64, Str) = @Result.Ok(42)
 -- a = I64, e = Str inferred from context
 
 -- Different instantiations are distinct:
@@ -273,21 +294,21 @@ Result(I64, Str) ≠ Result(Str, I64)
 ```
 
 **Zero-cost abstraction**:
-Newtypes are erased at runtime. `UserId` has the same WASM representation as `U64`. Construction and destruction are identity operations — `IR_Wrap` and `IR_Unwrap` nodes pass through to the inner value during codegen. No allocation, no tag, no overhead.
+Nominal types are erased at runtime. `UserId` has the same WASM representation as `U64`. Construction and destruction are identity operations — `IR_Wrap` and `IR_Unwrap` nodes pass through to the inner value during codegen. No allocation, no tag, no overhead.
 
-**Why newtypes instead of named record types**:
+**Why nominal types instead of named record types**:
 - Records are structural — adding nominal records would create a parallel type system with complex interaction rules
-- Newtypes are simpler: one wrapped type, clear construction/destruction
-- Most use cases for nominal types (type safety, trait impls, derive) are served by newtypes
-- Named records can be simulated: `User := { name: Str, age: U64 }` wraps a structural record in a newtype
+- Nominal types are simpler: one wrapped type, clear construction/destruction
+- Most use cases (type safety, trait impls, derive, encapsulation) are served by nominal types
+- Named records can be simulated: `@User : { name: Str, age: U64 }` wraps a structural record in a nominal type
 
-**Alternative considered**: Named record types like `type User = { name: Str, age: U64 }` with nominal identity. Rejected — creates two kinds of records (structural and nominal) with confusing interaction. Newtypes are the single nominal mechanism.
+**Alternative considered**: Named record types like `type User = { name: Str, age: U64 }` with nominal identity. Rejected — creates two kinds of records (structural and nominal) with confusing interaction. Nominal types are the single nominal mechanism.
 
 ### 2.6 Functions
 
 All functions use `|args| body` syntax — from top-level definitions to anonymous lambdas. This is the only function syntax in Camp. There is no `fn` keyword, no `def` keyword, no `func` keyword.
 
-**The `!` suffix convention**: Effectful functions are named with a `!` suffix. This is a naming convention enforced by the compiler — a function whose effect row is non-empty must have `!` in its name. A function named without `!` must have an empty effect row.
+**The `!` suffix convention**: Effectful functions are named with a `!` suffix. Effect type names also end with `!`. The `!` is part of the actual name, not a separate modifier. A function whose effect row is non-empty must have `!` in its name. A function named without `!` must have an empty effect row. Only effect-related names may end with `!` — non-effect types and functions cannot use `!`.
 
 **Type annotation syntax**: Type parameters, argument types, and return type all embedded within the function's arg block:
 
