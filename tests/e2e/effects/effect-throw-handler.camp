@@ -1,0 +1,6 @@
+effect Throw { throw! }
+main! = || ->{Throw} I64 {
+  handle Throw in Throw.throw!(NotFound) with {
+    .throw!(resume, err) => 1
+  }
+}

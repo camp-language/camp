@@ -1,1 +1,1 @@
-effect IO { println, readln }
+effect IO { println!, readln! }

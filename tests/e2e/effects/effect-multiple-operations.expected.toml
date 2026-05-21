@@ -1,10 +1,7 @@
 stdout = """
--- SYNTAX ERROR --- /tmp/camp-e2e/effects/effect-multiple-operations/effect-multiple-operations.camp
-
-I expected `:` here, but I got `,` instead.
-   1 | effect IO { println, readln }
-                          ^
-compilation failed with 1 error(s)
+canonicalized /tmp/camp-e2e/effects/effect-multiple-operations/effect-multiple-operations.camp: 1 declaration(s), 0 import(s)
+typecheck passed for /tmp/camp-e2e/effects/effect-multiple-operations/effect-multiple-operations.camp
+compiled /tmp/camp-e2e/effects/effect-multiple-operations/effect-multiple-operations.camp -> /tmp/camp-e2e/effects/effect-multiple-operations/effect-multiple-operations.wasm
 """
 stderr = ""
-exit = 1
+exit = 0

@@ -1,28 +1,22 @@
 stdout = """
 -- SYNTAX ERROR --- /tmp/camp-e2e/effects/effect-unhandled/effect-unhandled.camp
 
-I expected `:` here, but I got `}` instead.
-   1 | effect IO { println }
-                           ^
+I expected `=` here, but I got `.` instead.
+   2 | Ask.read!()
+          ^
 
 -- SYNTAX ERROR --- /tmp/camp-e2e/effects/effect-unhandled/effect-unhandled.camp
 
-I expected `:` here, but I got `println` instead.
-   2 | IO.println("hi")
-          ^^^^^^^
+I expected `=` here, but I got `(` instead.
+   2 | Ask.read!()
+                ^
 
 -- SYNTAX ERROR --- /tmp/camp-e2e/effects/effect-unhandled/effect-unhandled.camp
 
-I was expecting a type here, but I found `"hi"` instead.
-   2 | IO.println("hi")
-                  ^^^^
-
--- SYNTAX ERROR --- /tmp/camp-e2e/effects/effect-unhandled/effect-unhandled.camp
-
-I expected `}` here, but I got `` instead.
-   3 | 
-       ^
-compilation failed with 4 error(s)
+I was not expecting `)` here.
+   2 | Ask.read!()
+                 ^
+compilation failed with 3 error(s)
 """
 stderr = ""
 exit = 1
