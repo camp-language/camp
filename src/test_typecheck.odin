@@ -124,6 +124,27 @@ typecheck_source :: proc(source: string) -> (Type_Store, ^Compilation_Context) {
 	return store, ctx
 }
 
+typecheck_source_full :: proc(source: string) -> (Type_Store, ^Compilation_Context, CFile) {
+	ctx: ^Compilation_Context = new(Compilation_Context)
+	alloc := context_init(ctx)
+	context.allocator = alloc
+
+	file := Source_File{path = "<tc-test>", contents = source, id = 0}
+	lexer: Lexer
+	lexer_init(&lexer, file, &ctx.collector, &ctx.interner)
+
+	parser: Parser
+	parser_init(&parser, &lexer, &ctx.collector, &ctx.interner)
+	surface := parser_parse_file(&parser)
+
+	canon := canonicalize(surface, ctx)
+
+	store: Type_Store
+	type_store_init(&store, &ctx.interner, &ctx.collector)
+	typecheck_file(canon, &store)
+	return store, ctx, canon
+}
+
 @(test)
 test_typecheck_int_literal :: proc(t: ^testing.T) {
 	store, ctx := typecheck_source("x = 42")
