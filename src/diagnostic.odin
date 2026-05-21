@@ -119,6 +119,36 @@ Module_Duplicate_Name :: struct {
 	name: string,
 }
 
+Trait_Orphan_Rule_Violation :: struct {
+	type_name:  string,
+	trait_name: string,
+}
+Trait_Overlapping_Instance :: struct {
+	type_name:  string,
+	trait_name: string,
+}
+Trait_Constraint_Violation :: struct {
+	type_name:  string,
+	constraint: string,
+}
+Trait_Missing_Method :: struct {
+	type_name:  string,
+	trait_name: string,
+	method:     string,
+}
+Trait_Method_Signature_Mismatch :: struct {
+	type_name:     string,
+	trait_name:   string,
+	method:       string,
+	expected_sig: string,
+	actual_sig:   string,
+}
+Generic_Ambiguous_Type :: proc(name: string, span: Source_Span) -> Diagnostic {
+	d := diag_init(.Error, "AMBIGUOUS TYPE", span,
+		fmt.tprintf("Cannot determine type for generic parameter `{}`. Provide a type annotation.", name))
+	return d
+}
+
 Diagnostic_Collector :: struct {
 	diagnostics:    [dynamic]Diagnostic,
 	warning_count:  int,

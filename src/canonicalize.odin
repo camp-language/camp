@@ -372,9 +372,13 @@ canonicalize_expr :: proc(expr: Expr, scope: ^Canonicalize_Scope, ctx: ^Compilat
 		return c
 
 	case ^Expr_Lambda:
-		type_params := make([dynamic]Intern_ID, 0, len(e.type_params))
+		type_params := make([dynamic]Type_Param, 0, len(e.type_params))
 		for tp in e.type_params {
-			append(&type_params, tp)
+			constraints := make([dynamic]Intern_ID, 0, len(tp.constraints))
+			for c in tp.constraints {
+				append(&constraints, c)
+			}
+			append(&type_params, Type_Param{name = tp.name, constraints = constraints})
 		}
 		params := make([dynamic]CFunc_Param, 0, len(e.params))
 		for p in e.params {
@@ -548,7 +552,7 @@ canonicalize_expr :: proc(expr: Expr, scope: ^Canonicalize_Scope, ctx: ^Compilat
 
 		cl := new(CExpr_Lambda)
 		cl^ = CExpr_Lambda{
-			type_params = make([dynamic]Intern_ID, 0),
+			type_params = make([dynamic]Type_Param, 0),
 			params = params,
 			return_type = nil,
 			effects = nil,
@@ -706,6 +710,11 @@ canonicalize_type :: proc(t: Type, scope: ^Canonicalize_Scope, ctx: ^Compilation
 	case ^Type_Wildcard:
 		c := new(CType_Wildcard)
 		c^ = CType_Wildcard{span = ty.span}
+		result = CType(c)
+
+	case ^Type_Self:
+		c := new(CType_Self)
+		c^ = CType_Self{span = ty.span}
 		result = CType(c)
 	}
 	ptr := new(CType)

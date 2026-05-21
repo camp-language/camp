@@ -228,6 +228,37 @@ diag_newtype_coercion :: proc(newtype_name: string, inner_name: string, span: So
 	return d
 }
 
+diag_orphan_rule_violation :: proc(type_name: string, trait_name: string, span: Source_Span) -> Diagnostic {
+	d := diag_init(.Error, "ORPHAN RULE VIOLATION", span,
+		fmt.tprintf("Cannot implement `{}` for `{}` here — implementations must be in the same module as the type or the trait.", trait_name, type_name))
+	return d
+}
+
+diag_overlapping_instance :: proc(type_name: string, trait_name: string, span: Source_Span) -> Diagnostic {
+	d := diag_init(.Error, "OVERLAPPING INSTANCE", span,
+		fmt.tprintf("`{}` already implements `{}` — cannot implement the same trait for the same type twice.", type_name, trait_name))
+	return d
+}
+
+diag_constraint_violation :: proc(type_name: string, constraint_name: string, span: Source_Span) -> Diagnostic {
+	d := diag_init(.Error, "CONSTRAINT VIOLATION", span,
+		fmt.tprintf("`{}` does not satisfy constraint `{}`.", type_name, constraint_name))
+	return d
+}
+
+diag_missing_trait_method :: proc(type_name: string, trait_name: string, method_name: string, span: Source_Span) -> Diagnostic {
+	d := diag_init(.Error, "MISSING TRAIT METHOD", span,
+		fmt.tprintf("`{}` does not implement method `{}` required by trait `{}`.", type_name, method_name, trait_name))
+	return d
+}
+
+diag_trait_method_signature_mismatch :: proc(type_name: string, trait_name: string, method_name: string, expected_sig: string, actual_sig: string, span: Source_Span) -> Diagnostic {
+	d := diag_init(.Error, "TRAIT METHOD SIGNATURE MISMATCH", span,
+		fmt.tprintf("`{}`'s `{}` method has wrong signature for trait `{}`.", type_name, method_name, trait_name))
+	append(&d.labels, Span_Label{span = span, label = fmt.tprintf("expected `{}`, got `{}`", expected_sig, actual_sig)})
+	return d
+}
+
 char_display :: proc(ch: u8) -> string {
 	switch ch {
 	case '\n': return "\\n"

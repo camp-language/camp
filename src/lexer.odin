@@ -29,6 +29,7 @@ KEYWORDS :map[string]Token_Kind = {
 	"test"      = .Kw_Test,
 	"not"       = .Kw_Not,
 	"pub"       = .Kw_Pub,
+	"Self"      = .Kw_Self,
 }
 
 Lexer :: struct {

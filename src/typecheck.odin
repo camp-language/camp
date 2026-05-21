@@ -203,16 +203,7 @@ typecheck_decl :: proc(decl: CDecl, env: ^Type_Env, store: ^Type_Store) {
 		}
 
 	case ^CDecl_Trait:
-		for m in d.methods {
-			for p in m.params {
-				if p.type_ann != nil {
-					convert_type_to_var(p.type_ann, store)
-				}
-			}
-			if m.return_type != nil {
-				convert_type_to_var(m.return_type, store)
-			}
-		}
+		typecheck_trait_decl(d, env, store)
 
 	case ^CDecl_Alias:
 		convert_type_to_var(d.target, store)
@@ -289,6 +280,10 @@ typecheck_newtype_decl :: proc(d: ^CDecl_Newtype, env: ^Type_Env, store: ^Type_S
 		type_params = param_ids_slice[:],
 		inner_type = inner_type_var,
 		owned_tags = owned_tags_slice[:],
+	}
+
+	for tc in d.trait_conforms {
+		verify_trait_conformance(d.name.name, d.name.module, tc, d.span, store, env)
 	}
 
 	delete(param_vars)
@@ -408,13 +403,19 @@ typecheck_synth :: proc(expr: CExpr, env: ^Type_Env, store: ^Type_Store) -> Type
 
 typecheck_lambda :: proc(e: ^CExpr_Lambda, env: ^Type_Env, store: ^Type_Store) -> Type_Result {
 	child_env: Type_Env
-	child_env.bindings = make(map[Intern_ID]Type_Var_ID, len(e.params) + 4)
+	child_env.bindings = make(map[Intern_ID]Type_Var_ID, len(e.params) + len(e.type_params) + 4)
 	child_env.parent = env
 	child_env.handled_effects = make([dynamic]Intern_ID, 0, 8)
 	defer delete(child_env.bindings)
 	defer delete(child_env.handled_effects)
 
 	param_ids := store_alloc(store, Type_Var_ID, len(e.params))
+
+	for tp in e.type_params {
+		tv := fresh_value_var(store, e.span)
+		child_env.bindings[tp.name] = tv
+		store.type_constraints[tv] = tp.constraints[:]
+	}
 
 	for i in 0..<len(e.params) {
 		param := e.params[i]
@@ -962,6 +963,9 @@ convert_type_to_var_val :: proc(t: CType, store: ^Type_Store) -> Type_Var_ID {
 	case ^CType_Wildcard:
 		return fresh_value_var(store, ty.span)
 
+	case ^CType_Self:
+		return fresh_value_var(store, ty.span)
+
 	case ^CType_Function:
 		ft := ty
 		param_ids := store_alloc(store, Type_Var_ID, len(ft.params))
@@ -1278,4 +1282,159 @@ newtype_owning_tag :: proc(store: ^Type_Store, tag_name: Intern_ID) -> (Intern_I
 		}
 	}
 	return NO_NAME, false
+}
+
+typecheck_trait_decl :: proc(d: ^CDecl_Trait, env: ^Type_Env, store: ^Type_Store) {
+	methods := make([]Trait_Method_Info, len(d.methods))
+	for i in 0..<len(d.methods) {
+		m := d.methods[i]
+		self_var := fresh_value_var(store, m.span)
+		param_types := make([dynamic]Type_Var_ID, 0, len(m.params) + 1)
+		append(&param_types, self_var)
+
+		for p in m.params {
+			if p.type_ann != nil {
+				param_var := convert_type_to_var(p.type_ann, store)
+				append(&param_types, param_var)
+			} else {
+				param_var := fresh_value_var(store, p.span)
+				append(&param_types, param_var)
+			}
+		}
+
+		return_type := fresh_value_var(store, m.span)
+		if m.return_type != nil {
+			return_type = convert_type_to_var(m.return_type, store)
+		}
+
+		methods[i] = Trait_Method_Info{
+			name = m.name,
+			param_types = param_types[:],
+			return_type = return_type,
+		}
+	}
+
+	trait_info := Trait_Info{
+		name = d.name.name,
+		module = d.name.module,
+		parent = d.parent,
+		methods = methods,
+	}
+
+	store.trait_registry[d.name.name] = trait_info
+
+	trait_var := fresh_value_var(store, d.span)
+	env.bindings[d.name.name] = trait_var
+	store.bindings[d.name.name] = trait_var
+}
+
+verify_trait_conformance :: proc(type_name: Intern_ID, type_module: Intern_ID, trait_name: Intern_ID, span: Source_Span, store: ^Type_Store, env: ^Type_Env) -> bool {
+	trait_info, ok := store.trait_registry[trait_name]
+	if !ok {
+		trait_str := intern_get(store.interner, trait_name)
+		collector_add_diag(store.collector, diag_internal(
+			fmt.tprintf("trait `{}` not found in registry", trait_str), span))
+		return false
+	}
+
+	if type_module != trait_info.module && type_module != NO_NAME {
+		type_str := intern_get(store.interner, type_name)
+		trait_str := intern_get(store.interner, trait_name)
+		collector_add_diag(store.collector, diag_orphan_rule_violation(type_str, trait_str, span))
+		return false
+	}
+
+	for impl in store.trait_impls {
+		if impl.trait_name == trait_name && impl.type_name == type_name {
+			type_str := intern_get(store.interner, type_name)
+			trait_str := intern_get(store.interner, trait_name)
+			collector_add_diag(store.collector, diag_overlapping_instance(type_str, trait_str, span))
+			return false
+		}
+	}
+
+	required_traits := collect_all_traits(trait_name, store.trait_registry)
+
+	for req_trait_name in required_traits {
+		req_info := store.trait_registry[req_trait_name]
+		for method in req_info.methods {
+			impl_fn_name := fmt.tprintf("{}_{}", intern_get(store.interner, type_name), intern_get(store.interner, method.name))
+			impl_fn_id := intern(store.interner, impl_fn_name)
+
+			found := false
+			for name_id, _ in store.bindings {
+				if name_id == impl_fn_id {
+					found = true
+					break
+				}
+			}
+			if !found {
+				for name_id, _ in env.bindings {
+					if name_id == impl_fn_id {
+						found = true
+						break
+					}
+				}
+			}
+			if !found {
+				type_str := intern_get(store.interner, type_name)
+				req_trait_str := intern_get(store.interner, req_trait_name)
+				method_str := intern_get(store.interner, method.name)
+				collector_add_diag(store.collector, diag_missing_trait_method(type_str, req_trait_str, method_str, span))
+				return false
+			}
+		}
+	}
+
+	methods := make(map[Intern_ID]Canonical_Name, len(trait_info.methods))
+	for method in trait_info.methods {
+		impl_fn_name := fmt.tprintf("{}_{}", intern_get(store.interner, type_name), intern_get(store.interner, method.name))
+		impl_fn_id := intern(store.interner, impl_fn_name)
+		methods[method.name] = Canonical_Name{module = type_module, name = impl_fn_id, is_local = false}
+	}
+
+	impl := Trait_Impl{
+		trait_name = trait_name,
+		type_name = type_name,
+		type_module = type_module,
+		methods = methods,
+	}
+	append(&store.trait_impls, impl)
+
+	return true
+}
+
+check_constraint_violation :: proc(type_var_id: Type_Var_ID, store: ^Type_Store) {
+	constraints, has_constraints := store.type_constraints[type_var_id]
+	if !has_constraints {
+		return
+	}
+
+	resolved := resolve_var(store, type_var_id)
+	rv := get_var(store, resolved)
+
+	impl_type_name: Intern_ID = NO_NAME
+	if inf, is_inf := rv.link.(Inferred_Type); is_inf {
+		if inf.tag == .Newtype || inf.tag == .Primitive || inf.tag == .Constructor {
+			impl_type_name = inf.primitive_name
+		}
+	}
+
+	for constraint_name in constraints {
+		found := false
+		for impl in store.trait_impls {
+			if impl.trait_name == constraint_name && impl.type_name == impl_type_name {
+				found = true
+				break
+			}
+		}
+		if !found {
+			constraint_str := intern_get(store.interner, constraint_name)
+			type_name := "?"
+			if impl_type_name != NO_NAME {
+				type_name = intern_get(store.interner, impl_type_name)
+			}
+			collector_add_diag(store.collector, diag_constraint_violation(type_name, constraint_str, rv.span))
+		}
+	}
 }

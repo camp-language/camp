@@ -490,8 +490,39 @@ parser_parse_lambda :: proc(p: ^Parser) -> Expr {
 	start := p.current.span
 	parser_advance(p)
 
-	type_params := make([dynamic]Intern_ID, 0, 4)
+	type_params := make([dynamic]Type_Param, 0, 4)
 	params := make([dynamic]Func_Param, 0, 4)
+
+	if p.current.kind == .Lt {
+		parser_advance(p)
+		for p.current.kind != .Gt && p.current.kind != .Eof {
+			if p.current.kind != .Identifier {
+				collector_add_diag(p.collector, diag_expected_token(.Identifier, p.current, p.current.span))
+				parser_advance(p)
+				break
+			}
+			name_tok := parser_advance(p)
+			tp := Type_Param{name = intern(p.intern, name_tok.text)}
+			if p.current.kind == .Kw_Is {
+				parser_advance(p)
+				for {
+					trait_tok := parser_expect(p, .Upper_Id)
+					append(&tp.constraints, intern(p.intern, trait_tok.text))
+					if p.current.kind == .Comma {
+						parser_advance(p)
+					} else {
+						break
+					}
+				}
+			}
+			append(&type_params, tp)
+			if p.current.kind == .Comma {
+				parser_advance(p)
+				parser_skip_backslashes(p)
+			}
+		}
+		parser_expect(p, .Gt)
+	}
 
 	for p.current.kind != .Pipe && p.current.kind != .Eof {
 		param := Func_Param{span = p.current.span}
@@ -937,6 +968,12 @@ parser_parse_type :: proc(p: ^Parser) -> ^Type {
 			prim^ = Type_Primitive{name = name_id, span = name_tok.span}
 			t = prim
 		}
+
+	case .Kw_Self:
+		s := new(Type_Self)
+		s^ = Type_Self{span = p.current.span}
+		parser_advance(p)
+		t = s
 
 	case .Identifier:
 		name_tok := parser_advance(p)

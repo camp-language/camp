@@ -190,7 +190,7 @@ CExpr_Method_Call :: struct {
 }
 
 CExpr_Lambda :: struct {
-	type_params: [dynamic]Intern_ID,
+	type_params: [dynamic]Type_Param,
 	params:      [dynamic]CFunc_Param,
 	return_type: ^CType,
 	effects:     ^CType,
@@ -363,6 +363,7 @@ CType :: union {
 	^CType_Effect_Row,
 	^CType_Variable,
 	^CType_Wildcard,
+	^CType_Self,
 }
 
 CType_Primitive :: struct {
@@ -422,6 +423,10 @@ CType_Variable :: struct {
 }
 
 CType_Wildcard :: struct {
+	span: Source_Span,
+}
+
+CType_Self :: struct {
 	span: Source_Span,
 }
 

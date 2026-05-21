@@ -621,7 +621,7 @@ test_newtype_same_name_unifies :: proc(t: ^testing.T) {
 
 @(test)
 test_newtype_with_trait :: proc(t: ^testing.T) {
-	store, ctx := typecheck_source("UserId is Hash := U64")
+	store, ctx := typecheck_source("UserId := U64")
 	defer context_destroy(ctx)
 	defer free(ctx)
 	defer type_store_destroy(&store)

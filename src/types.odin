@@ -5,6 +5,26 @@ Type_Var_ID :: distinct int
 LEVEL_GENERIC :: -1
 LEVEL_TOP :: 0
 
+Trait_Method_Info :: struct {
+	name:        Intern_ID,
+	param_types: []Type_Var_ID,
+	return_type: Type_Var_ID,
+}
+
+Trait_Info :: struct {
+	name:    Intern_ID,
+	module:  Intern_ID,
+	parent:  Intern_ID,
+	methods: []Trait_Method_Info,
+}
+
+Trait_Impl :: struct {
+	trait_name:  Intern_ID,
+	type_name:   Intern_ID,
+	type_module: Intern_ID,
+	methods:     map[Intern_ID]Canonical_Name,
+}
+
 Type_Var_Kind :: enum {
 	Value,
 	Row_Record,
@@ -86,6 +106,9 @@ Type_Store :: struct {
 	declared_effects: [dynamic]Intern_ID,
 	bindings:         map[Intern_ID]Type_Var_ID,
 	newtype_decls:    map[Intern_ID]Newtype_Decl_Info,
+	trait_registry:   map[Intern_ID]Trait_Info,
+	trait_impls:      [dynamic]Trait_Impl,
+	type_constraints:  map[Type_Var_ID][]Intern_ID,
 }
 
 type_store_init :: proc(store: ^Type_Store, interner: ^Intern_Table, collector: ^Diagnostic_Collector) {
@@ -97,6 +120,9 @@ type_store_init :: proc(store: ^Type_Store, interner: ^Intern_Table, collector: 
 	store.declared_effects = make([dynamic]Intern_ID, 0, 16)
 	store.bindings = make(map[Intern_ID]Type_Var_ID, 64)
 	store.newtype_decls = make(map[Intern_ID]Newtype_Decl_Info, 16)
+	store.trait_registry = make(map[Intern_ID]Trait_Info, 16)
+	store.trait_impls = make([dynamic]Trait_Impl, 0, 16)
+	store.type_constraints = make(map[Type_Var_ID][]Intern_ID, 32)
 }
 
 type_store_destroy :: proc(store: ^Type_Store) {
@@ -104,6 +130,9 @@ type_store_destroy :: proc(store: ^Type_Store) {
 	delete(store.declared_effects)
 	delete(store.bindings)
 	delete(store.newtype_decls)
+	delete(store.trait_registry)
+	delete(store.trait_impls)
+	delete(store.type_constraints)
 }
 
 fresh_var :: proc(store: ^Type_Store, kind: Type_Var_Kind, name: Intern_ID, span: Source_Span) -> Type_Var_ID {
@@ -278,4 +307,50 @@ is_numeric_primitive :: proc(store: ^Type_Store, var_id: Type_Var_ID) -> bool {
 			inf.primitive_name == f32_name
 	}
 	return false
+}
+
+is_trait_declared :: proc(store: ^Type_Store, name: Intern_ID) -> bool {
+	_, ok := store.trait_registry[name]
+	return ok
+}
+
+find_trait_impl :: proc(store: ^Type_Store, trait_name: Intern_ID, type_name: Intern_ID) -> (Trait_Impl, bool) {
+	for impl in store.trait_impls {
+		if impl.trait_name == trait_name && impl.type_name == type_name {
+			return impl, true
+		}
+	}
+	return Trait_Impl{}, false
+}
+
+find_trait_impl_by_method :: proc(store: ^Type_Store, type_name: Intern_ID, method_name: Intern_ID) -> (Trait_Impl, bool) {
+	for impl in store.trait_impls {
+		if impl.type_name == type_name {
+			if _, has := impl.methods[method_name]; has {
+				return impl, true
+			}
+		}
+	}
+	return Trait_Impl{}, false
+}
+
+collect_all_traits :: proc(trait_name: Intern_ID, registry: map[Intern_ID]Trait_Info) -> []Intern_ID {
+	visited := make(map[Intern_ID]bool)
+	result := make([dynamic]Intern_ID, 0, 8)
+	worklist := make([dynamic]Intern_ID, 0, 8)
+	append(&worklist, trait_name)
+	for len(worklist) > 0 {
+		current := pop(&worklist)
+		if visited[current] {
+			continue
+		}
+		visited[current] = true
+		append(&result, current)
+		if info, ok := registry[current]; ok && info.parent != NO_NAME {
+			append(&worklist, info.parent)
+		}
+	}
+	delete(visited)
+	delete(worklist)
+	return result[:]
 }

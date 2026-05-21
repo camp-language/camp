@@ -67,6 +67,9 @@ unify :: proc(store: ^Type_Store, a: Type_Var_ID, b: Type_Var_ID) -> bool {
 		}
 	}
 
+	check_constraint_violation(ra, store)
+	check_constraint_violation(rb, store)
+
 	return true
 }
 

@@ -141,6 +141,8 @@ format_type_ann :: proc(type_ann: ^CType, store: ^Type_Store) -> string {
 		return intern_get(store.interner, t.name)
 	case ^CType_Wildcard:
 		return "_"
+	case ^CType_Self:
+		return "Self"
 	case:
 		return "?"
 	}

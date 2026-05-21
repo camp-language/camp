@@ -183,12 +183,17 @@ Expr_Method_Call :: struct {
 }
 
 Expr_Lambda :: struct {
-	type_params: [dynamic]Intern_ID,
+	type_params: [dynamic]Type_Param,
 	params:     [dynamic]Func_Param,
 	return_type: ^Type,
 	effects:    ^Type,
 	body:       Expr,
 	span:       Source_Span,
+}
+
+Type_Param :: struct {
+	name:        Intern_ID,
+	constraints: [dynamic]Intern_ID,
 }
 
 Func_Param :: struct {
@@ -361,6 +366,7 @@ Type :: union {
 	^Type_Effect_Row,
 	^Type_Variable,
 	^Type_Wildcard,
+	^Type_Self,
 }
 
 Type_Primitive :: struct {
@@ -420,6 +426,10 @@ Type_Variable :: struct {
 }
 
 Type_Wildcard :: struct {
+	span: Source_Span,
+}
+
+Type_Self :: struct {
 	span: Source_Span,
 }
 
