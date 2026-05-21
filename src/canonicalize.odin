@@ -158,6 +158,7 @@ canonicalize_decl :: proc(decl: Decl, scope: ^Canonicalize_Scope, imports: ^[dyn
 		cdecl^ = CDecl_Newtype{
 			name = name,
 			is_pub = d.is_pub,
+			pub_variants = d.pub_variants,
 			type_params = type_params,
 			trait_conforms = trait_conforms,
 			inner_type = cinner_type,

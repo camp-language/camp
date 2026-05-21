@@ -1309,12 +1309,20 @@ parser_parse_newtype_decl :: proc(p: ^Parser, is_pub: bool) -> Decl {
 	}
 
 	parser_expect(p, .Colon)
+
+	pub_variants := false
+	if p.current.kind == .Kw_Pub {
+		parser_advance(p)
+		pub_variants = true
+	}
+
 	inner_type := parser_parse_type(p)
 
 	decl := new(Decl_Newtype)
 	decl^ = Decl_Newtype{
 		name = name_id,
 		is_pub = is_pub,
+		pub_variants = pub_variants,
 		type_params = type_params,
 		trait_conforms = trait_conforms,
 		inner_type = inner_type,

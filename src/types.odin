@@ -91,10 +91,12 @@ Inferred_Type :: struct {
 }
 
 Newtype_Decl_Info :: struct {
-	name:        Intern_ID,
-	type_params: []Intern_ID,
-	inner_type:  Type_Var_ID,
-	owned_tags:  []Intern_ID,
+	name:          Intern_ID,
+	module:        Intern_ID,
+	pub_variants:  bool,
+	type_params:   []Intern_ID,
+	inner_type:    Type_Var_ID,
+	owned_tags:    []Intern_ID,
 }
 
 Type_Store :: struct {

@@ -61,6 +61,7 @@ Decl_Alias :: struct {
 Decl_Newtype :: struct {
 	name:           Intern_ID,
 	is_pub:         bool,
+	pub_variants:   bool,
 	type_params:    [dynamic]Intern_ID,
 	trait_conforms: [dynamic]Intern_ID,
 	inner_type:     ^Type,

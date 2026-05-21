@@ -342,6 +342,22 @@ test_parser_newtype_pub :: proc(t: ^testing.T) {
 }
 
 @(test)
+test_parser_newtype_pub_variants :: proc(t: ^testing.T) {
+	ctx: Compilation_Context
+	context_init(&ctx)
+	defer context_destroy(&ctx)
+
+	decl := parse_decl("@Result(a, e) : pub [Ok(a) | Err(e)]", &ctx)
+	testing.expect(t, !diag_collector_has_errors(&ctx.collector))
+	#partial switch d in decl {
+	case ^Decl_Newtype:
+		testing.expect(t, d.pub_variants)
+	case:
+		testing.expect(t, false)
+	}
+}
+
+@(test)
 test_parser_dot_lambda_mixed :: proc(t: ^testing.T) {
 	ctx: Compilation_Context
 	context_init(&ctx)

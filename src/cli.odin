@@ -237,7 +237,7 @@ run_build_project :: proc() {
 		}
 
 		context.allocator = ctx.allocator
-		typecheck_file(mi.cfile^, &store)
+		typecheck_file(mi.cfile^, &store, mod_id)
 		context.allocator = old_allocator_save()
 
 		if diag_collector_has_errors(&ctx.collector) {

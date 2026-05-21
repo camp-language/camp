@@ -124,6 +124,19 @@ typecheck_source :: proc(source: string) -> (Type_Store, ^Compilation_Context) {
 	return store, ctx
 }
 
+typecheck_source_with_module :: proc(source: string, current_module: Intern_ID, store: ^Type_Store, ctx: ^Compilation_Context) {
+	file := Source_File{path = "<tc-test>", contents = source, id = 0}
+	lexer: Lexer
+	lexer_init(&lexer, file, &ctx.collector, &ctx.interner)
+
+	parser: Parser
+	parser_init(&parser, &lexer, &ctx.collector, &ctx.interner)
+	surface := parser_parse_file(&parser)
+
+	canon := canonicalize(surface, ctx)
+	typecheck_file(canon, store, current_module)
+}
+
 @(test)
 test_typecheck_int_literal :: proc(t: ^testing.T) {
 	store, ctx := typecheck_source("x = 42")
@@ -670,4 +683,70 @@ test_newtype_inner_access :: proc(t: ^testing.T) {
 	defer type_store_destroy(&store)
 
 	testing.expect(t, !diag_collector_has_errors(&ctx.collector))
+}
+
+@(test)
+test_newtype_opaque_construct_cross_module :: proc(t: ^testing.T) {
+	ctx: ^Compilation_Context = new(Compilation_Context)
+	alloc := context_init(ctx)
+	defer context_destroy(ctx)
+	defer free(ctx)
+	context.allocator = alloc
+
+	store: Type_Store
+	type_store_init(&store, &ctx.interner, &ctx.collector)
+	inject_prelude(&store)
+	defer type_store_destroy(&store)
+
+	mod_a := intern(&ctx.interner, "ModuleA")
+	typecheck_source_with_module("@UserId : U64", mod_a, &store, ctx)
+	testing.expect(t, !diag_collector_has_errors(&ctx.collector))
+
+	mod_b := intern(&ctx.interner, "ModuleB")
+	typecheck_source_with_module("x = UserId(42)", mod_b, &store, ctx)
+	testing.expect(t, diag_collector_has_errors(&ctx.collector))
+}
+
+@(test)
+test_newtype_pub_variants_cross_module :: proc(t: ^testing.T) {
+	ctx: ^Compilation_Context = new(Compilation_Context)
+	alloc := context_init(ctx)
+	defer context_destroy(ctx)
+	defer free(ctx)
+	context.allocator = alloc
+
+	store: Type_Store
+	type_store_init(&store, &ctx.interner, &ctx.collector)
+	inject_prelude(&store)
+	defer type_store_destroy(&store)
+
+	mod_a := intern(&ctx.interner, "ModuleA")
+	typecheck_source_with_module("@Result(a, e) : pub [Ok(a) | Err(e)]", mod_a, &store, ctx)
+	testing.expect(t, !diag_collector_has_errors(&ctx.collector))
+
+	mod_b := intern(&ctx.interner, "ModuleB")
+	typecheck_source_with_module("x = Result.Ok(42)", mod_b, &store, ctx)
+	testing.expect(t, !diag_collector_has_errors(&ctx.collector))
+}
+
+@(test)
+test_newtype_opaque_inner_cross_module :: proc(t: ^testing.T) {
+	ctx: ^Compilation_Context = new(Compilation_Context)
+	alloc := context_init(ctx)
+	defer context_destroy(ctx)
+	defer free(ctx)
+	context.allocator = alloc
+
+	store: Type_Store
+	type_store_init(&store, &ctx.interner, &ctx.collector)
+	inject_prelude(&store)
+	defer type_store_destroy(&store)
+
+	mod_a := intern(&ctx.interner, "ModuleA")
+	typecheck_source_with_module("@UserId : U64\nuid = UserId(42)", mod_a, &store, ctx)
+	testing.expect(t, !diag_collector_has_errors(&ctx.collector))
+
+	mod_b := intern(&ctx.interner, "ModuleB")
+	typecheck_source_with_module("n = uid.inner()", mod_b, &store, ctx)
+	testing.expect(t, diag_collector_has_errors(&ctx.collector))
 }

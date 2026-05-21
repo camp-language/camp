@@ -259,6 +259,13 @@ diag_trait_method_signature_mismatch :: proc(type_name: string, trait_name: stri
 	return d
 }
 
+diag_newtype_opaque_violation :: proc(type_name: string, action: string, span: Source_Span) -> Diagnostic {
+	d := diag_init(.Error, "OPAQUE TYPE", span,
+		fmt.tprintf("Nominal type `{}` is opaque outside its defining module — cannot {} here.", type_name, action))
+	append(&d.hints, fmt.tprintf("Perform this operation in the module that defines `{}`, or use `pub` variants.", type_name))
+	return d
+}
+
 char_display :: proc(ch: u8) -> string {
 	switch ch {
 	case '\n': return "\\n"

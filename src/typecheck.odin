@@ -7,6 +7,7 @@ Type_Env :: struct {
 	bindings:       map[Intern_ID]Type_Var_ID,
 	parent:         ^Type_Env,
 	handled_effects: [dynamic]Intern_ID,
+	current_module: Intern_ID,
 }
 
 Type_Result :: struct {
@@ -98,11 +99,12 @@ format_effect_row :: proc(store: ^Type_Store, effects: Type_Var_ID) -> string {
 	return "{}"
 }
 
-typecheck_file :: proc(file: CFile, store: ^Type_Store) {
+typecheck_file :: proc(file: CFile, store: ^Type_Store, current_module: Intern_ID = NO_NAME) {
 	env: Type_Env
 	env.bindings = make(map[Intern_ID]Type_Var_ID, 64)
 	env.parent = nil
 	env.handled_effects = make([dynamic]Intern_ID, 0, 8)
+	env.current_module = current_module
 	defer delete(env.bindings)
 	defer delete(env.handled_effects)
 
@@ -298,8 +300,15 @@ typecheck_newtype_decl :: proc(d: ^CDecl_Newtype, env: ^Type_Env, store: ^Type_S
 		owned_tags_slice[i] = owned_tags[i]
 	}
 
+	defining_module := d.name.module
+	if defining_module == NO_NAME {
+		defining_module = env.current_module
+	}
+
 	store.newtype_decls[d.name.name] = Newtype_Decl_Info{
 		name = d.name.name,
+		module = defining_module,
+		pub_variants = d.pub_variants,
 		type_params = param_ids_slice[:],
 		inner_type = inner_type_var,
 		owned_tags = owned_tags_slice[:],
@@ -425,6 +434,7 @@ typecheck_lambda :: proc(e: ^CExpr_Lambda, env: ^Type_Env, store: ^Type_Store) -
 	child_env.bindings = make(map[Intern_ID]Type_Var_ID, len(e.params) + len(e.type_params) + 4)
 	child_env.parent = env
 	child_env.handled_effects = make([dynamic]Intern_ID, 0, 8)
+	child_env.current_module = env.current_module
 	defer delete(child_env.bindings)
 	defer delete(child_env.handled_effects)
 
@@ -605,9 +615,22 @@ typecheck_tag :: proc(e: ^CExpr_Tag, env: ^Type_Env, store: ^Type_Store) -> Type
 	}
 
 	nt_name, owned := newtype_owning_tag(store, e.name.name)
-	if owned && e.name.module == NO_NAME {
-		nt_str := intern_get(store.interner, nt_name)
-		collector_add_diag(store.collector, diag_unqualified_tag(nt_str, intern_get(store.interner, e.name.name), e.span))
+	if owned {
+		nt_info := store.newtype_decls[nt_name]
+		same_mod := is_same_module(env, nt_info.module)
+		if !same_mod && !nt_info.pub_variants {
+			nt_str := intern_get(store.interner, nt_name)
+			tag_str := intern_get(store.interner, e.name.name)
+			collector_add_diag(store.collector, diag_newtype_opaque_violation(nt_str, fmt.tprintf("construct variant {}", tag_str), e.span))
+		} else if !same_mod && e.name.module == NO_NAME {
+			nt_str := intern_get(store.interner, nt_name)
+			tag_str := intern_get(store.interner, e.name.name)
+			collector_add_diag(store.collector, diag_unqualified_tag(nt_str, tag_str, e.span))
+		} else if same_mod && e.name.module == NO_NAME && !nt_info.pub_variants {
+			nt_str := intern_get(store.interner, nt_name)
+			tag_str := intern_get(store.interner, e.name.name)
+			collector_add_diag(store.collector, diag_unqualified_tag(nt_str, tag_str, e.span))
+		}
 	}
 
 	payload_ids := store_alloc(store, Type_Var_ID, len(e.payload))
@@ -704,6 +727,15 @@ typecheck_pattern :: proc(pattern: CPattern, scrutinee_var: Type_Var_ID, env: ^T
 		return Type_Result{var_id = str_var, effects = eff}
 
 	case ^CPattern_Tag:
+		nt_name, owned := newtype_owning_tag(store, p.name.name)
+		if owned && !is_same_module(env, store.newtype_decls[nt_name].module) {
+			nt_info := store.newtype_decls[nt_name]
+			if !nt_info.pub_variants {
+				nt_str := intern_get(store.interner, nt_name)
+				collector_add_diag(store.collector, diag_newtype_opaque_violation(nt_str, "destructure variant", p.span))
+			}
+		}
+
 		payload_ids := store_alloc(store, Type_Var_ID, len(p.payload))
 		for sp, i in p.payload {
 			payload_ids[i] = fresh_value_var(store, p.span)
@@ -738,6 +770,28 @@ typecheck_pattern :: proc(pattern: CPattern, scrutinee_var: Type_Var_ID, env: ^T
 		})
 		unify(store, scrutinee_var, rec_var)
 		return Type_Result{var_id = rec_var, effects = eff}
+
+	case ^CPattern_Destructure:
+		if is_declared_newtype(store, p.type_name.name) {
+			nt_info, nt_ok := store.newtype_decls[p.type_name.name]
+			if nt_ok && !is_same_module(env, nt_info.module) {
+				nt_str := intern_get(store.interner, p.type_name.name)
+				collector_add_diag(store.collector, diag_newtype_opaque_violation(nt_str, "destructure", p.span))
+			}
+		}
+		inner_var := fresh_value_var(store, p.span)
+		pat_result := typecheck_pattern(p.inner, inner_var, env, store)
+		unify(store, eff, pat_result.effects)
+
+		nt_binding, has_binding := env_lookup(env, p.type_name.name)
+		if !has_binding {
+			nt_binding = store.bindings[p.type_name.name]
+		}
+		inst_binding := instantiate(store, nt_binding)
+		unify(store, scrutinee_var, inst_binding)
+		unify(store, inner_var, store.newtype_decls[p.type_name.name].inner_type)
+
+		return Type_Result{var_id = inst_binding, effects = eff}
 	}
 
 	return Type_Result{var_id = scrutinee_var, effects = eff}
@@ -856,6 +910,11 @@ typecheck_method_call :: proc(e: ^CExpr_Method_Call, env: ^Type_Env, store: ^Typ
 		receiver_result := typecheck_synth(e.receiver, env, store)
 		receiver_resolved := get_var(store, resolve_var(store, receiver_result.var_id))
 		if inf, is_inf := receiver_resolved.link.(Inferred_Type); is_inf && inf.tag == .Newtype {
+			nt_info, nt_ok := store.newtype_decls[inf.primitive_name]
+			if nt_ok && !is_same_module(env, nt_info.module) {
+				nt_str := intern_get(store.interner, inf.primitive_name)
+				collector_add_diag(store.collector, diag_newtype_opaque_violation(nt_str, "unwrap", e.span))
+			}
 			return Type_Result{var_id = inf.inner_id, effects = receiver_result.effects}
 		}
 	}
@@ -917,6 +976,11 @@ typecheck_qualified_tag_construct :: proc(receiver: ^CExpr_Tag, e: ^CExpr_Method
 	if !ok {
 		return_var := fresh_value_var(store, e.span)
 		return Type_Result{var_id = return_var, effects = eff}
+	}
+
+	if !is_same_module(env, nt_info.module) && !nt_info.pub_variants {
+		nt_str := intern_get(store.interner, receiver.name.name)
+		collector_add_diag(store.collector, diag_newtype_opaque_violation(nt_str, "construct variant", e.span))
 	}
 
 	tag_owned := false
@@ -1369,6 +1433,11 @@ typecheck_newtype_construct :: proc(e: ^CExpr_Tag, env: ^Type_Env, store: ^Type_
 		return Type_Result{var_id = var_id, effects = eff}
 	}
 
+	if !is_same_module(env, nt_info.module) {
+		nt_str := intern_get(store.interner, e.name.name)
+		collector_add_diag(store.collector, diag_newtype_opaque_violation(nt_str, "construct", e.span))
+	}
+
 	nt_binding, has_binding := env_lookup(env, e.name.name)
 	if !has_binding {
 		nt_binding = store.bindings[e.name.name]
@@ -1421,6 +1490,25 @@ newtype_owning_tag :: proc(store: ^Type_Store, tag_name: Intern_ID) -> (Intern_I
 		}
 	}
 	return NO_NAME, false
+}
+
+is_same_module :: proc(env: ^Type_Env, defining_module: Intern_ID) -> bool {
+	current := env
+	for current != nil {
+		if current.current_module == defining_module {
+			return true
+		}
+		if current.current_module != NO_NAME && defining_module != NO_NAME {
+			if current.current_module == defining_module {
+				return true
+			}
+		}
+		current = current.parent
+	}
+	if defining_module == NO_NAME {
+		return true
+	}
+	return false
 }
 
 typecheck_trait_decl :: proc(d: ^CDecl_Trait, env: ^Type_Env, store: ^Type_Store) {

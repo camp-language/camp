@@ -182,6 +182,9 @@ format_decl_newtype :: proc(v: ^Decl_Newtype, info: ^Format_Source_Info, interne
 		}
 	}
 	append(&parts, doc_text(" : "))
+	if v.pub_variants {
+		append(&parts, doc_text("pub "))
+	}
 	append(&parts, format_type(v.inner_type, info, interner))
 	return doc_concat(parts[:])
 }
