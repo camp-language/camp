@@ -1193,6 +1193,126 @@ instantiate_rec :: proc(store: ^Type_Store, var_id: Type_Var_ID, subst: ^map[Typ
 	return resolved
 }
 
+deep_clone_type :: proc(store: ^Type_Store, id: Type_Var_ID, span: Source_Span, subst: ^map[Type_Var_ID]Type_Var_ID) -> Type_Var_ID {
+	resolved := resolve_var(store, id)
+
+	if existing, ok := subst[resolved]; ok {
+		return existing
+	}
+
+	v := get_var(store, resolved)
+
+	_, is_unlinked := v.link.(Type_Unlinked)
+	if is_unlinked {
+		fresh := fresh_var(store, v.kind, v.name, span)
+		subst[resolved] = fresh
+		return fresh
+	}
+
+	inf, is_inf := v.link.(Inferred_Type)
+	if !is_inf {
+		return resolved
+	}
+
+	switch inf.tag {
+	case .Primitive, .Constructor:
+		return resolved
+
+	case .Newtype:
+		param_ids := store_alloc(store, Type_Var_ID, len(inf.param_ids))
+		for i in 0..<len(inf.param_ids) {
+			param_ids[i] = deep_clone_type(store, inf.param_ids[i], span, subst)
+		}
+		inner_id := deep_clone_type(store, inf.inner_id, span, subst)
+		fresh := fresh_value_var(store, span)
+		link_var(store, fresh, Inferred_Type{
+			tag = .Newtype,
+			primitive_name = inf.primitive_name,
+			arity = inf.arity,
+			param_ids = param_ids,
+			inner_id = inner_id,
+		})
+		subst[resolved] = fresh
+		return fresh
+
+	case .Function:
+		param_ids := store_alloc(store, Type_Var_ID, len(inf.param_ids))
+		for i in 0..<len(inf.param_ids) {
+			param_ids[i] = deep_clone_type(store, inf.param_ids[i], span, subst)
+		}
+		return_id := deep_clone_type(store, inf.return_id, span, subst)
+		effect_id := deep_clone_type(store, inf.effect_id, span, subst)
+		fresh := fresh_value_var(store, span)
+		link_var(store, fresh, Inferred_Type{
+			tag = .Function,
+			param_ids = param_ids,
+			return_id = return_id,
+			effect_id = effect_id,
+		})
+		subst[resolved] = fresh
+		return fresh
+
+	case .Effect_Row:
+		effect_names := store_alloc(store, Intern_ID, len(inf.effect_names))
+		for i in 0..<len(inf.effect_names) {
+			effect_names[i] = inf.effect_names[i]
+		}
+		rest_id := deep_clone_type(store, inf.rest_id, span, subst)
+		fresh := fresh_effect_row(store, span)
+		link_var(store, fresh, Inferred_Type{
+			tag = .Effect_Row,
+			effect_names = effect_names,
+			rest_id = rest_id,
+		})
+		subst[resolved] = fresh
+		return fresh
+
+	case .Record_Row:
+		record_fields := store_alloc(store, Type_Field_Entry, len(inf.record_fields))
+		for i in 0..<len(inf.record_fields) {
+			f := inf.record_fields[i]
+			record_fields[i] = Type_Field_Entry{
+				name = f.name,
+				var  = deep_clone_type(store, f.var, span, subst),
+			}
+		}
+		record_rest := deep_clone_type(store, inf.record_rest, span, subst)
+		fresh := fresh_record_row(store, span)
+		link_var(store, fresh, Inferred_Type{
+			tag = .Record_Row,
+			record_fields = record_fields,
+			record_rest = record_rest,
+		})
+		subst[resolved] = fresh
+		return fresh
+
+	case .Tag_Union_Row:
+		tag_entries := store_alloc(store, Type_Tag_Entry, len(inf.tag_entries))
+		for i in 0..<len(inf.tag_entries) {
+			te := inf.tag_entries[i]
+			payload := store_alloc(store, Type_Var_ID, len(te.payload))
+			for j in 0..<len(te.payload) {
+				payload[j] = deep_clone_type(store, te.payload[j], span, subst)
+			}
+			tag_entries[i] = Type_Tag_Entry{
+				name    = te.name,
+				payload = payload,
+			}
+		}
+		tag_rest := deep_clone_type(store, inf.tag_rest, span, subst)
+		fresh := fresh_tag_row(store, span)
+		link_var(store, fresh, Inferred_Type{
+			tag = .Tag_Union_Row,
+			tag_entries = tag_entries,
+			tag_rest = tag_rest,
+		})
+		subst[resolved] = fresh
+		return fresh
+	}
+
+	return resolved
+}
+
 effect_row_nonempty :: proc(store: ^Type_Store, effect_var: Type_Var_ID) -> bool {
 	resolved := resolve_var(store, effect_var)
 	v := get_var(store, resolved)
@@ -1374,17 +1494,20 @@ verify_trait_conformance :: proc(type_name: Intern_ID, type_module: Intern_ID, t
 			impl_fn_name := fmt.tprintf("{}_{}", intern_get(store.interner, type_name), intern_get(store.interner, method.name))
 			impl_fn_id := intern(store.interner, impl_fn_name)
 
+			impl_fn_var: Type_Var_ID
 			found := false
-			for name_id, _ in store.bindings {
+			for name_id, var_id in store.bindings {
 				if name_id == impl_fn_id {
 					found = true
+					impl_fn_var = var_id
 					break
 				}
 			}
 			if !found {
-				for name_id, _ in env.bindings {
+				for name_id, var_id in env.bindings {
 					if name_id == impl_fn_id {
 						found = true
+						impl_fn_var = var_id
 						break
 					}
 				}
@@ -1394,6 +1517,55 @@ verify_trait_conformance :: proc(type_name: Intern_ID, type_module: Intern_ID, t
 				req_trait_str := intern_get(store.interner, req_trait_name)
 				method_str := intern_get(store.interner, method.name)
 				collector_add_diag(store.collector, diag_missing_trait_method(type_str, req_trait_str, method_str, span))
+				return false
+			}
+
+			clone_subst := make(map[Type_Var_ID]Type_Var_ID, 8)
+			defer delete(clone_subst)
+
+			expected_params := store_alloc(store, Type_Var_ID, len(method.param_types))
+			for i in 0..<len(method.param_types) {
+				expected_params[i] = deep_clone_type(store, method.param_types[i], span, &clone_subst)
+			}
+
+			type_var := store.bindings[type_name]
+			unify(store, expected_params[0], type_var)
+
+			expected_return := deep_clone_type(store, method.return_type, span, &clone_subst)
+			expected_effect := fresh_effect_row(store, span)
+
+			expected_fn_var := fresh_value_var(store, span)
+			link_var(store, expected_fn_var, Inferred_Type{
+				tag = .Function,
+				param_ids = expected_params,
+				return_id = expected_return,
+				effect_id = expected_effect,
+			})
+
+			expected_sig := format_type_var(store, expected_fn_var)
+			actual_sig := format_type_var(store, impl_fn_var)
+
+			diag_count_before := len(store.collector.diagnostics)
+			unify_ok := unify(store, impl_fn_var, expected_fn_var)
+
+			if !unify_ok {
+				for len(store.collector.diagnostics) > diag_count_before {
+					d := &store.collector.diagnostics[len(store.collector.diagnostics) - 1]
+					switch d.category {
+					case .Warning:  store.collector.warning_count -= 1
+					case .Error:    store.collector.error_count -= 1
+					case .Internal: store.collector.internal_count -= 1
+					}
+					delete(d.labels)
+					delete(d.hints)
+					pop(&store.collector.diagnostics)
+				}
+
+				type_str := intern_get(store.interner, type_name)
+				req_trait_str := intern_get(store.interner, req_trait_name)
+				method_str := intern_get(store.interner, method.name)
+				collector_add_diag(store.collector, diag_trait_method_signature_mismatch(
+					type_str, req_trait_str, method_str, expected_sig, actual_sig, span))
 				return false
 			}
 		}
