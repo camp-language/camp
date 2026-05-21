@@ -217,6 +217,9 @@ typecheck_decl :: proc(decl: CDecl, env: ^Type_Env, store: ^Type_Store) {
 	case ^CDecl_Alias:
 		convert_type_to_var(d.target, store)
 
+	case ^CDecl_Newtype:
+		typecheck_newtype_decl(d, env, store)
+
 	case ^CDecl_Test:
 		typecheck_synth(d.body, env, store)
 
@@ -229,6 +232,67 @@ typecheck_decl :: proc(decl: CDecl, env: ^Type_Env, store: ^Type_Store) {
 	case ^CDecl_Import:
 		return
 	}
+}
+
+typecheck_newtype_decl :: proc(d: ^CDecl_Newtype, env: ^Type_Env, store: ^Type_Store) {
+	param_vars := make([dynamic]Type_Var_ID, 0, len(d.type_params))
+	enter_level(store)
+
+	for tp in d.type_params {
+		tv := fresh_value_var(store, d.span)
+		append(&param_vars, tv)
+		env.bindings[tp] = tv
+	}
+
+	inner_type_var := convert_type_to_var(d.inner_type, store)
+
+	owned_tags := make([dynamic]Intern_ID, 0, 8)
+	inner_resolved := get_var(store, resolve_var(store, inner_type_var))
+	if inf, is_inf := inner_resolved.link.(Inferred_Type); is_inf && inf.tag == .Tag_Union_Row {
+		for te in inf.tag_entries {
+			append(&owned_tags, te.name)
+		}
+	}
+
+	param_ids_slice := make([]Intern_ID, len(d.type_params))
+	for i in 0..<len(d.type_params) {
+		param_ids_slice[i] = d.type_params[i]
+	}
+
+	nt_var := fresh_value_var(store, d.span)
+	link_var(store, nt_var, Inferred_Type{
+		tag = .Newtype,
+		primitive_name = d.name.name,
+		arity = len(d.type_params),
+		param_ids = param_vars[:],
+		inner_id = inner_type_var,
+	})
+
+	for i := 0; i < len(d.type_params); i += 1 {
+		delete_key(&env.bindings, d.type_params[i])
+	}
+
+	level := store.current_level
+	exit_level(store)
+	generalize_at_level(store, level)
+
+	env.bindings[d.name.name] = nt_var
+	store.bindings[d.name.name] = nt_var
+
+	owned_tags_slice := make([]Intern_ID, len(owned_tags))
+	for i in 0..<len(owned_tags) {
+		owned_tags_slice[i] = owned_tags[i]
+	}
+
+	store.newtype_decls[d.name.name] = Newtype_Decl_Info{
+		name = d.name.name,
+		type_params = param_ids_slice[:],
+		inner_type = inner_type_var,
+		owned_tags = owned_tags_slice[:],
+	}
+
+	delete(param_vars)
+	delete(owned_tags)
 }
 
 typecheck_synth :: proc(expr: CExpr, env: ^Type_Env, store: ^Type_Store) -> Type_Result {
@@ -506,6 +570,26 @@ typecheck_prefixop :: proc(e: ^CExpr_PrefixOp, env: ^Type_Env, store: ^Type_Stor
 typecheck_tag :: proc(e: ^CExpr_Tag, env: ^Type_Env, store: ^Type_Store) -> Type_Result {
 	eff := fresh_effect_row(store, e.span)
 
+	if is_declared_newtype(store, e.name.name) {
+		if len(e.payload) == 1 {
+			return typecheck_newtype_construct(e, env, store)
+		}
+		if len(e.payload) == 0 {
+			nt_binding, has_binding := env_lookup(env, e.name.name)
+			if !has_binding {
+				nt_binding = store.bindings[e.name.name]
+			}
+			inst := instantiate(store, nt_binding)
+			return Type_Result{var_id = inst, effects = eff}
+		}
+	}
+
+	nt_name, owned := newtype_owning_tag(store, e.name.name)
+	if owned && e.name.module == NO_NAME {
+		nt_str := intern_get(store.interner, nt_name)
+		collector_add_diag(store.collector, diag_unqualified_tag(nt_str, intern_get(store.interner, e.name.name), e.span))
+	}
+
 	payload_ids := store_alloc(store, Type_Var_ID, len(e.payload))
 	for p, i in e.payload {
 		p_result := typecheck_synth(p, env, store)
@@ -514,13 +598,13 @@ typecheck_tag :: proc(e: ^CExpr_Tag, env: ^Type_Env, store: ^Type_Store) -> Type
 	}
 
 	tag_var := fresh_value_var(store, e.span)
-	rest_var := fresh_value_var(store, e.span)
+	rest_var := fresh_tag_row(store, e.span)
 	tag_entries := store_alloc(store, Type_Tag_Entry, 1)
 	tag_entries[0] = Type_Tag_Entry{name = e.name.name, payload = payload_ids}
 	inf := Inferred_Type{
 		tag = .Tag_Union_Row,
 		tag_entries = tag_entries,
-		rest_id = resolve_var(store, rest_var),
+		tag_rest = resolve_var(store, rest_var),
 	}
 	link_var(store, tag_var, inf)
 	return Type_Result{var_id = tag_var, effects = eff}
@@ -747,20 +831,33 @@ typecheck_record_update :: proc(e: ^CExpr_Record_Update, env: ^Type_Env, store: 
 }
 
 typecheck_method_call :: proc(e: ^CExpr_Method_Call, env: ^Type_Env, store: ^Type_Store) -> Type_Result {
+	inner_name := intern(store.interner, "inner")
+	if e.method.name == inner_name && len(e.args) == 0 {
+		receiver_result := typecheck_synth(e.receiver, env, store)
+		receiver_resolved := get_var(store, resolve_var(store, receiver_result.var_id))
+		if inf, is_inf := receiver_resolved.link.(Inferred_Type); is_inf && inf.tag == .Newtype {
+			return Type_Result{var_id = inf.inner_id, effects = receiver_result.effects}
+		}
+	}
+
 	receiver_result := typecheck_synth(e.receiver, env, store)
 	eff := fresh_effect_row(store, e.span)
 	unify(store, eff, receiver_result.effects)
 
 	is_effect_op := false
 	effect_name: Intern_ID = NO_NAME
+
 	#partial switch r in e.receiver {
-	case ^CExpr_Name:
-		if is_declared_effect(store, r.name.name) {
+	case ^CExpr_Tag:
+		if is_declared_newtype(store, r.name.name) && len(r.payload) == 0 && len(e.args) >= 1 {
+			return typecheck_qualified_tag_construct(r, e, env, store)
+		}
+		if len(r.payload) == 0 && is_declared_effect(store, r.name.name) {
 			is_effect_op = true
 			effect_name = r.name.name
 		}
-	case ^CExpr_Tag:
-		if len(r.payload) == 0 && is_declared_effect(store, r.name.name) {
+	case ^CExpr_Name:
+		if is_declared_effect(store, r.name.name) {
 			is_effect_op = true
 			effect_name = r.name.name
 		}
@@ -791,6 +888,63 @@ typecheck_method_call :: proc(e: ^CExpr_Method_Call, env: ^Type_Env, store: ^Typ
 
 	return_var := fresh_value_var(store, e.span)
 	return Type_Result{var_id = return_var, effects = eff}
+}
+
+typecheck_qualified_tag_construct :: proc(receiver: ^CExpr_Tag, e: ^CExpr_Method_Call, env: ^Type_Env, store: ^Type_Store) -> Type_Result {
+	eff := fresh_effect_row(store, e.span)
+
+	nt_info, ok := store.newtype_decls[receiver.name.name]
+	if !ok {
+		return_var := fresh_value_var(store, e.span)
+		return Type_Result{var_id = return_var, effects = eff}
+	}
+
+	tag_owned := false
+	for owned in nt_info.owned_tags {
+		if owned == e.method.name {
+			tag_owned = true
+			break
+		}
+	}
+	if !tag_owned {
+		nt_str := intern_get(store.interner, receiver.name.name)
+		tag_str := intern_get(store.interner, e.method.name)
+		collector_add_diag(store.collector, diag_tag_not_owned(nt_str, tag_str, e.span))
+		return_var := fresh_value_var(store, e.span)
+		return Type_Result{var_id = return_var, effects = eff}
+	}
+
+	nt_binding, has_binding := env_lookup(env, receiver.name.name)
+	if !has_binding {
+		nt_binding = store.bindings[receiver.name.name]
+	}
+	inst_binding := instantiate(store, nt_binding)
+
+	nt_resolved := get_var(store, resolve_var(store, inst_binding))
+	nt_inf, is_nt := nt_resolved.link.(Inferred_Type)
+
+	if is_nt && nt_inf.tag == .Newtype {
+		inner_resolved := get_var(store, resolve_var(store, nt_inf.inner_id))
+		if inner_inf, inner_ok := inner_resolved.link.(Inferred_Type); inner_ok && inner_inf.tag == .Tag_Union_Row {
+			for te in inner_inf.tag_entries {
+				if te.name == e.method.name && len(te.payload) == len(e.args) {
+					for a, i in e.args {
+						arg_result := typecheck_synth(a, env, store)
+						unify(store, eff, arg_result.effects)
+						unify(store, arg_result.var_id, te.payload[i])
+					}
+					return Type_Result{var_id = inst_binding, effects = eff}
+				}
+			}
+		}
+	}
+
+	for a in e.args {
+		arg_result := typecheck_synth(a, env, store)
+		unify(store, eff, arg_result.effects)
+	}
+
+	return Type_Result{var_id = inst_binding, effects = eff}
 }
 
 convert_type_to_var :: proc(t: ^CType, store: ^Type_Store) -> Type_Var_ID {
@@ -932,6 +1086,22 @@ instantiate_rec :: proc(store: ^Type_Store, var_id: Type_Var_ID, subst: ^map[Typ
 	case .Primitive, .Constructor:
 		return resolved
 
+	case .Newtype:
+		param_ids := store_alloc(store, Type_Var_ID, len(inf.param_ids))
+		for i in 0..<len(inf.param_ids) {
+			param_ids[i] = instantiate_rec(store, inf.param_ids[i], subst)
+		}
+		inner_id := instantiate_rec(store, inf.inner_id, subst)
+		vid := fresh_value_var(store, v.span)
+		link_var(store, vid, Inferred_Type{
+			tag = .Newtype,
+			primitive_name = inf.primitive_name,
+			arity = inf.arity,
+			param_ids = param_ids,
+			inner_id = inner_id,
+		})
+		return vid
+
 	case .Function:
 		param_ids := store_alloc(store, Type_Var_ID, len(inf.param_ids))
 		for i in 0..<len(inf.param_ids) {
@@ -1045,4 +1215,67 @@ is_effect_handled :: proc(env: ^Type_Env, effect_id: Intern_ID) -> bool {
 		current = current.parent
 	}
 	return false
+}
+
+typecheck_newtype_construct :: proc(e: ^CExpr_Tag, env: ^Type_Env, store: ^Type_Store) -> Type_Result {
+	eff := fresh_effect_row(store, e.span)
+
+	nt_info, ok := store.newtype_decls[e.name.name]
+	if !ok {
+		var_id := fresh_value_var(store, e.span)
+		return Type_Result{var_id = var_id, effects = eff}
+	}
+
+	nt_binding, has_binding := env_lookup(env, e.name.name)
+	if !has_binding {
+		nt_binding = store.bindings[e.name.name]
+	}
+	inst_binding := instantiate(store, nt_binding)
+
+	nt_resolved := get_var(store, resolve_var(store, inst_binding))
+	nt_inf, is_nt := nt_resolved.link.(Inferred_Type)
+
+	arg_var: Type_Var_ID
+	arg_typed := false
+	if is_nt && nt_inf.tag == .Newtype && is_numeric_primitive(store, nt_inf.inner_id) {
+		is_int_lit := false
+		is_float_lit := false
+		#partial switch arg in e.payload[0] {
+		case ^CExpr_Int:
+			is_int_lit = true
+		case ^CExpr_Float:
+			is_float_lit = true
+		}
+
+		inner_resolved := get_var(store, resolve_var(store, nt_inf.inner_id))
+		if inner_inf, inner_ok := inner_resolved.link.(Inferred_Type); inner_ok && inner_inf.tag == .Primitive {
+			if is_int_lit || is_float_lit {
+				arg_var = make_primitive_type(store, inner_inf.primitive_name, e.span)
+				arg_typed = true
+			}
+		}
+	}
+
+	if !arg_typed {
+		arg_result := typecheck_synth(e.payload[0], env, store)
+		unify(store, eff, arg_result.effects)
+		arg_var = arg_result.var_id
+	}
+
+	if is_nt && nt_inf.tag == .Newtype {
+		unify(store, arg_var, nt_inf.inner_id)
+	}
+
+	return Type_Result{var_id = inst_binding, effects = eff}
+}
+
+newtype_owning_tag :: proc(store: ^Type_Store, tag_name: Intern_ID) -> (Intern_ID, bool) {
+	for nt_name, info in store.newtype_decls {
+		for owned in info.owned_tags {
+			if owned == tag_name {
+				return nt_name, true
+			}
+		}
+	}
+	return NO_NAME, false
 }

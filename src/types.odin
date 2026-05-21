@@ -32,6 +32,7 @@ Type_Unlinked :: struct {}
 Inferred_Tag :: enum {
 	Primitive,
 	Constructor,
+	Newtype,
 	Function,
 	Record_Row,
 	Tag_Union_Row,
@@ -57,6 +58,8 @@ Inferred_Type :: struct {
 	return_id:  Type_Var_ID,
 	effect_id:  Type_Var_ID,
 
+	inner_id: Type_Var_ID,
+
 	effect_names: []Intern_ID,
 	rest_id:      Type_Var_ID,
 
@@ -67,6 +70,13 @@ Inferred_Type :: struct {
 	tag_rest:    Type_Var_ID,
 }
 
+Newtype_Decl_Info :: struct {
+	name:        Intern_ID,
+	type_params: []Intern_ID,
+	inner_type:  Type_Var_ID,
+	owned_tags:  []Intern_ID,
+}
+
 Type_Store :: struct {
 	vars:             [dynamic]Type_Var,
 	next_id:          Type_Var_ID,
@@ -75,6 +85,7 @@ Type_Store :: struct {
 	collector:        ^Diagnostic_Collector,
 	declared_effects: [dynamic]Intern_ID,
 	bindings:         map[Intern_ID]Type_Var_ID,
+	newtype_decls:    map[Intern_ID]Newtype_Decl_Info,
 }
 
 type_store_init :: proc(store: ^Type_Store, interner: ^Intern_Table, collector: ^Diagnostic_Collector) {
@@ -85,12 +96,14 @@ type_store_init :: proc(store: ^Type_Store, interner: ^Intern_Table, collector: 
 	store.collector = collector
 	store.declared_effects = make([dynamic]Intern_ID, 0, 16)
 	store.bindings = make(map[Intern_ID]Type_Var_ID, 64)
+	store.newtype_decls = make(map[Intern_ID]Newtype_Decl_Info, 16)
 }
 
 type_store_destroy :: proc(store: ^Type_Store) {
 	delete(store.vars)
 	delete(store.declared_effects)
 	delete(store.bindings)
+	delete(store.newtype_decls)
 }
 
 fresh_var :: proc(store: ^Type_Store, kind: Type_Var_Kind, name: Intern_ID, span: Source_Span) -> Type_Var_ID {
@@ -165,12 +178,20 @@ all_children_at_or_below :: proc(store: ^Type_Store, link: Type_Link, max_level:
 				if child.level > max_level do return false
 			}
 		}
-		child_rest := get_var(store, resolve_var(store, inf.rest_id))
+		child_rest := get_var(store, resolve_var(store, inf.tag_rest))
 		if child_rest.level > max_level do return false
 
 	case .Effect_Row:
 		child_rest := get_var(store, resolve_var(store, inf.rest_id))
 		if child_rest.level > max_level do return false
+
+	case .Newtype:
+		for pid in inf.param_ids {
+			child := get_var(store, resolve_var(store, pid))
+			if child.level > max_level do return false
+		}
+		child_inner := get_var(store, resolve_var(store, inf.inner_id))
+		if child_inner.level > max_level do return false
 
 	case .Primitive, .Constructor:
 	}
@@ -233,6 +254,28 @@ is_declared_effect :: proc(store: ^Type_Store, name: Intern_ID) -> bool {
 		if ef == name {
 			return true
 		}
+	}
+	return false
+}
+
+is_declared_newtype :: proc(store: ^Type_Store, name: Intern_ID) -> bool {
+	_, ok := store.newtype_decls[name]
+	return ok
+}
+
+is_numeric_primitive :: proc(store: ^Type_Store, var_id: Type_Var_ID) -> bool {
+	resolved := get_var(store, resolve_var(store, var_id))
+	if inf, ok := resolved.link.(Inferred_Type); ok && inf.tag == .Primitive {
+		i64_name := intern(store.interner, "I64")
+		i32_name := intern(store.interner, "I32")
+		u64_name := intern(store.interner, "U64")
+		f64_name := intern(store.interner, "F64")
+		f32_name := intern(store.interner, "F32")
+		return inf.primitive_name == i64_name ||
+			inf.primitive_name == i32_name ||
+			inf.primitive_name == u64_name ||
+			inf.primitive_name == f64_name ||
+			inf.primitive_name == f32_name
 	}
 	return false
 }

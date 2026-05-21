@@ -37,6 +37,7 @@ Token_Kind :: enum {
 	Arrow,
 	Fat_Arrow,
 	Eq,
+	Colon_Eq,
 	Colon,
 	Comma,
 	Dot,

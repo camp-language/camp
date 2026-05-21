@@ -124,6 +124,30 @@ unify_inferred :: proc(store: ^Type_Store, a: Inferred_Type, b: Inferred_Type, a
 			return false
 		}
 
+	case .Newtype:
+		if a.primitive_name != b.primitive_name {
+			name_a := intern_get(store.interner, a.primitive_name)
+			name_b := intern_get(store.interner, b.primitive_name)
+			va := get_var(store, resolve_var(store, a_id))
+			vb := get_var(store, resolve_var(store, b_id))
+			collector_add_diag(store.collector, diag_primitive_mismatch(name_a, name_b, va.span, vb.span))
+			return false
+		}
+		if len(a.param_ids) != len(b.param_ids) {
+			va := get_var(store, resolve_var(store, a_id))
+			vb := get_var(store, resolve_var(store, b_id))
+			collector_add_diag(store.collector, diag_arity_mismatch(len(a.param_ids), len(b.param_ids), va.span, vb.span))
+			return false
+		}
+		for i in 0..<len(a.param_ids) {
+			if !unify(store, a.param_ids[i], b.param_ids[i]) {
+				return false
+			}
+		}
+		if !unify(store, a.inner_id, b.inner_id) {
+			return false
+		}
+
 	case .Primitive, .Constructor:
 	}
 
@@ -461,6 +485,15 @@ occurs_check_inferred :: proc(store: ^Type_Store, target: Type_Var_ID, inf: Infe
 		if occurs_check(store, target, inf.tag_rest) {
 			return true
 		}
+	case .Newtype:
+		for pid in inf.param_ids {
+			if occurs_check(store, target, pid) {
+				return true
+			}
+		}
+		if occurs_check(store, target, inf.inner_id) {
+			return true
+		}
 	case .Primitive, .Constructor:
 	}
 	return false
@@ -469,6 +502,10 @@ occurs_check_inferred :: proc(store: ^Type_Store, target: Type_Var_ID, inf: Infe
 format_inferred_type :: proc(store: ^Type_Store, t: Inferred_Type) -> string {
 	#partial switch t.tag {
 	case .Primitive:
+		return intern_get(store.interner, t.primitive_name)
+	case .Constructor:
+		return intern_get(store.interner, t.primitive_name)
+	case .Newtype:
 		return intern_get(store.interner, t.primitive_name)
 	case .Function:
 		return fmt.tprintf("({} params) -> {}", len(t.param_ids), format_type_var(store, t.return_id))

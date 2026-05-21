@@ -10,6 +10,8 @@ format_decl :: proc(d: Decl, info: ^Format_Source_Info, interner: ^Intern_Table)
 		return format_decl_trait(v, info, interner)
 	case ^Decl_Alias:
 		return format_decl_alias(v, info, interner)
+	case ^Decl_Newtype:
+		return format_decl_newtype(v, info, interner)
 	case ^Decl_Import:
 		return format_decl_import(v, info, interner)
 	case ^Decl_Test:
@@ -146,6 +148,36 @@ format_decl_alias :: proc(v: ^Decl_Alias, info: ^Format_Source_Info, interner: ^
 	return doc_concat(parts[:])
 }
 
+format_decl_newtype :: proc(v: ^Decl_Newtype, info: ^Format_Source_Info, interner: ^Intern_Table) -> Doc {
+	parts: [dynamic]Doc
+	if v.is_pub {
+		append(&parts, doc_text("pub "))
+	}
+	append(&parts, doc_text(intern_get(interner, v.name)))
+	if len(v.type_params) > 0 {
+		append(&parts, doc_text("("))
+		for tp, i in v.type_params {
+			if i > 0 {
+				append(&parts, doc_text(", "))
+			}
+			append(&parts, doc_text(intern_get(interner, tp)))
+		}
+		append(&parts, doc_text(")"))
+	}
+	if len(v.trait_conforms) > 0 {
+		append(&parts, doc_text(" is "))
+		for tc, i in v.trait_conforms {
+			if i > 0 {
+				append(&parts, doc_text(", "))
+			}
+			append(&parts, doc_text(intern_get(interner, tc)))
+		}
+	}
+	append(&parts, doc_text(" := "))
+	append(&parts, format_type(v.inner_type, info, interner))
+	return doc_concat(parts[:])
+}
+
 format_decl_import :: proc(v: ^Decl_Import, info: ^Format_Source_Info, interner: ^Intern_Table) -> Doc {
 	parts: [dynamic]Doc
 	append(&parts, doc_text("import "))
@@ -252,6 +284,8 @@ decl_span_start :: proc(d: Decl) -> int {
 	case ^Decl_Trait:
 		return v.span.start
 	case ^Decl_Alias:
+		return v.span.start
+	case ^Decl_Newtype:
 		return v.span.start
 	case ^Decl_Import:
 		return v.span.start

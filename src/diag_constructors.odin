@@ -210,6 +210,24 @@ diag_internal :: proc(message: string, span: Source_Span) -> Diagnostic {
 	return d
 }
 
+diag_unqualified_tag :: proc(newtype_name: string, tag_name: string, span: Source_Span) -> Diagnostic {
+	d := diag_init(.Error, "UNQUALIFIED TAG", span,
+		fmt.tprintf("Tag `{}` belongs to newtype `{}` — use `{}.{}` to construct it.", tag_name, newtype_name, newtype_name, tag_name))
+	return d
+}
+
+diag_tag_not_owned :: proc(newtype_name: string, tag_name: string, span: Source_Span) -> Diagnostic {
+	d := diag_init(.Error, "TAG NOT OWNED", span,
+		fmt.tprintf("Tag `{}` does not belong to newtype `{}`.", tag_name, newtype_name))
+	return d
+}
+
+diag_newtype_coercion :: proc(newtype_name: string, inner_name: string, span: Source_Span) -> Diagnostic {
+	d := diag_init(.Error, "NEWTYPE COERCION", span,
+		fmt.tprintf("Cannot use `{}` where `{}` is expected — newtypes are distinct from their inner type. Use `.inner()` to unwrap.", newtype_name, inner_name))
+	return d
+}
+
 char_display :: proc(ch: u8) -> string {
 	switch ch {
 	case '\n': return "\\n"

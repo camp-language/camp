@@ -121,7 +121,7 @@ Functions SHALL accept any record that has the required fields, regardless of ad
 - THEN the call SHALL type-check successfully
 
 ### Requirement: Newtypes
-Newtypes SHALL create a distinct nominal type wrapping an existing type, using `:=` syntax.
+Newtypes SHALL create a distinct nominal type wrapping an existing type, using `:=` syntax. Newtypes provide nominal identity for structural types, enabling trait implementations, encapsulation, and tag qualification.
 
 #### Scenario: Newtype construction
 - GIVEN a newtype `UserId := U64`
@@ -136,6 +136,86 @@ Newtypes SHALL create a distinct nominal type wrapping an existing type, using `
 #### Scenario: Newtype with trait conformance
 - GIVEN a declaration `UserId is Hash := U64`
 - THEN `UserId` SHALL satisfy the `Hash` trait
+
+#### Scenario: Newtype nominal distinctness
+- GIVEN newtypes `UserId := U64` and `OrderId := U64`
+- WHEN the compiler compares `UserId` and `OrderId`
+- THEN they SHALL NOT unify — they are distinct types despite wrapping the same inner type
+
+#### Scenario: No implicit coercion between newtype and inner type
+- GIVEN a newtype `UserId := U64` and a function expecting `U64`
+- WHEN a value of type `UserId` is passed without unwrapping
+- THEN the compiler SHALL produce an error
+
+#### Scenario: Newtype wrapping a record
+- GIVEN a newtype `User := { name: Str, age: U64 }`
+- WHEN constructing a value
+- THEN `User({ name: "Alice", age: 30 })` SHALL produce a value of type `User`
+
+#### Scenario: Newtype wrapping a record — inner access
+- GIVEN a value `u` of newtype `User := { name: Str, age: U64 }`
+- WHEN accessing the inner record
+- THEN `u.inner().name` SHALL return `"Alice"`
+
+#### Scenario: Newtype with derive annotations
+- GIVEN a declaration `@derive [Display, Hash] OrderId := U64`
+- THEN the compiler SHALL record the derive targets; expansion of derived implementations SHALL occur during compilation
+
+#### Scenario: Newtype pattern destructuring
+- GIVEN a newtype `UserId := U64` and a value `uid: UserId`
+- WHEN pattern matching `UserId(n) => n`
+- THEN `n` SHALL be bound to the inner `U64` value
+
+### Requirement: Parameterized Newtypes
+Newtypes SHALL support type parameters, enabling generic nominal types.
+
+#### Scenario: Parameterized newtype declaration
+- GIVEN a declaration `Result(a, e) := [Ok(a) | Err(e)]`
+- WHEN the compiler processes the declaration
+- THEN `Result` SHALL be a newtype parameterized by `a` and `e`
+
+#### Scenario: Parameterized newtype instantiation
+- GIVEN a newtype `Result(a, e) := [Ok(a) | Err(e)]`
+- WHEN constructing `Result.Ok(42)` where the context expects `Result(I64, Str)`
+- THEN the type parameters SHALL be inferred as `a = I64`, `e = Str`
+
+#### Scenario: Different instantiations are distinct
+- GIVEN a newtype `Result(a, e) := [Ok(a) | Err(e)]`
+- WHEN the compiler compares `Result(I64, Str)` and `Result(Str, I64)`
+- THEN they SHALL NOT unify — different type arguments produce distinct types
+
+### Requirement: Newtype Tag Ownership
+When a newtype wraps a tag union, its tags SHALL be owned by that newtype and qualified by the newtype name at construction.
+
+#### Scenario: Qualified tag construction
+- GIVEN a newtype `Result(a, e) := [Ok(a) | Err(e)]`
+- WHEN constructing a value with the `Ok` tag
+- THEN `Result.Ok(42)` SHALL be required — bare `Ok(42)` SHALL NOT resolve
+
+#### Scenario: Unqualified tag via exposing import
+- GIVEN a newtype `Result(a, e) := [Ok(a) | Err(e)]` and an import `import Result exposing [Ok, Err]`
+- WHEN constructing a value
+- THEN `Ok(42)` SHALL be valid and equivalent to `Result.Ok(42)`
+
+#### Scenario: Structural tags remain unqualified
+- GIVEN a tag `Some(42)` that does NOT belong to any newtype
+- WHEN constructing a value
+- THEN `Some(42)` SHALL be valid without any qualifier
+
+#### Scenario: Tag ownership prevents collision
+- GIVEN newtypes `Result(a, e) := [Ok(a) | Err(e)]` and `Option(a) := [Ok(a) | None]` in different modules
+- WHEN both are in scope
+- THEN the `Ok` tag SHALL be disambiguated by its owning newtype: `Result.Ok` vs `Option.Ok`
+
+#### Scenario: Qualified tag in pattern matching
+- GIVEN a newtype `Result(a, e) := [Ok(a) | Err(e)]`
+- WHEN pattern matching a value of type `Result(I64, Str)`
+- THEN `Result.Ok(n) => n` SHALL match the `Ok` tag and bind `n` to the inner `I64`
+
+#### Scenario: Unqualified tag in pattern matching via import
+- GIVEN a newtype `Result(a, e) := [Ok(a) | Err(e)]` and `import Result exposing [Ok, Err]`
+- WHEN pattern matching
+- THEN `Ok(n) => n` SHALL be valid and equivalent to `Result.Ok(n) => n`
 
 ### Requirement: Type Inference
 The compiler SHALL perform principal type inference using bidirectional checking with effect row unification.

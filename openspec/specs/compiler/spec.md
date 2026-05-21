@@ -114,3 +114,31 @@ The compiler SHALL produce deterministic output for identical inputs. Given the 
 
 - **WHEN** the same Camp source file is compiled twice
 - **THEN** the WASM binaries SHALL be byte-identical
+
+### Requirement: Monomorphization
+
+The compiler SHALL specialize all generic functions at each concrete type instantiation before lowering. The monomorphization pass SHALL operate after typechecking on a typed IR representation. It SHALL use a worklist-driven BFS algorithm: each call site with concrete type arguments seeds a specialization; specialization of bodies may discover further generic calls, which are added to the worklist. After monomorphization, no generic type variables SHALL remain in the program.
+
+#### Scenario: Generic function specialized at concrete type
+
+- **WHEN** a generic function `identity = <a>|x: a| -> a { x }` is called with `I64` and `Str`
+- **THEN** monomorphization SHALL produce two specialized functions with concrete types — no generic type variable `a` shall remain
+
+#### Scenario: Recursive generic instantiation terminates
+
+- **WHEN** a generic function's body calls another generic function at a different type
+- **THEN** the worklist BFS SHALL discover the new instantiation, add it to the worklist, and terminate once all reachable instantiations are specialized — each unique (function, type-args) pair specialized exactly once
+
+#### Scenario: Ambiguous type parameter produces error
+
+- **WHEN** a generic function's type parameter cannot be determined from any call site
+- **THEN** the compiler SHALL produce an error reporting the ambiguous type parameter
+
+### Requirement: Typed IR Between Typecheck and Lower
+
+The compiler SHALL produce a typed IR (TFile) after typechecking, before monomorphization and lowering. Every expression node in the typed IR SHALL carry its inferred `Type_Var_ID` and effect row `Type_Var_ID`. The typed IR SHALL enable deep-clone-and-substitute monomorphization and provide lower with direct type access.
+
+#### Scenario: Typed IR carries type information
+
+- **WHEN** the compiler converts a typechecked canonical AST to typed IR
+- **THEN** every TExpr node SHALL include `type_id` and `eff_id` fields populated from the typechecker's inference results

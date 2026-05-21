@@ -17,6 +17,7 @@ Decl_Kind :: enum {
 	Effect,
 	Trait,
 	Alias,
+	Newtype,
 	Import,
 	Test,
 	Expect,
@@ -104,6 +105,33 @@ canonicalize_decl :: proc(decl: Decl, scope: ^Canonicalize_Scope, imports: ^[dyn
 			name = name,
 			is_pub = d.is_pub,
 			target = ctarget,
+			span = d.span,
+		}
+		return cdecl
+
+	case ^Decl_Newtype:
+		name := canonicalize_local_name(d.name, .Newtype, scope, ctx)
+		type_params := make([dynamic]Intern_ID, 0, len(d.type_params))
+		for tp in d.type_params {
+			append(&type_params, tp)
+		}
+		trait_conforms := make([dynamic]Intern_ID, 0, len(d.trait_conforms))
+		for tc in d.trait_conforms {
+			append(&trait_conforms, tc)
+		}
+		cinner_type := canonicalize_type(d.inner_type^, scope, ctx)
+		derive_targets := make([dynamic]Intern_ID, 0, len(d.derive_targets))
+		for dt in d.derive_targets {
+			append(&derive_targets, dt)
+		}
+		cdecl := new(CDecl_Newtype)
+		cdecl^ = CDecl_Newtype{
+			name = name,
+			is_pub = d.is_pub,
+			type_params = type_params,
+			trait_conforms = trait_conforms,
+			inner_type = cinner_type,
+			derive_targets = derive_targets,
 			span = d.span,
 		}
 		return cdecl

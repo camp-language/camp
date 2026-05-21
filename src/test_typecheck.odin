@@ -502,3 +502,172 @@ test_handled_effect_ok :: proc(t: ^testing.T) {
 
 	testing.expect(t, !diag_collector_has_errors(&ctx.collector))
 }
+
+@(test)
+test_newtype_simple :: proc(t: ^testing.T) {
+	store, ctx := typecheck_source("UserId := U64")
+	defer context_destroy(ctx)
+	defer free(ctx)
+	defer type_store_destroy(&store)
+
+	testing.expect(t, !diag_collector_has_errors(&ctx.collector))
+	uid_name := intern(&ctx.interner, "UserId")
+	_, ok := store.newtype_decls[uid_name]
+	testing.expect(t, ok)
+}
+
+@(test)
+test_newtype_parameterized :: proc(t: ^testing.T) {
+	store, ctx := typecheck_source("Result(a, e) := [Ok(a) | Err(e)]")
+	defer context_destroy(ctx)
+	defer free(ctx)
+	defer type_store_destroy(&store)
+
+	testing.expect(t, !diag_collector_has_errors(&ctx.collector))
+	result_name := intern(&ctx.interner, "Result")
+	info, ok := store.newtype_decls[result_name]
+	testing.expect(t, ok)
+	testing.expect(t, len(info.type_params) == 2)
+	testing.expect(t, len(info.owned_tags) == 2)
+}
+
+@(test)
+test_newtype_nominal_distinctness :: proc(t: ^testing.T) {
+	store, collector := setup_type_store()
+	defer teardown_type_store(&store, collector)
+
+	uid_name := intern(store.interner, "UserId")
+	oid_name := intern(store.interner, "OrderId")
+	i64_name := intern(store.interner, "I64")
+
+	uid_var := fresh_value_var(&store, Source_Span_ZERO)
+	link_var(&store, uid_var, Inferred_Type{
+		tag = .Newtype,
+		primitive_name = uid_name,
+		arity = 0,
+		param_ids = nil,
+		inner_id = make_primitive_type(&store, i64_name, Source_Span_ZERO),
+	})
+
+	oid_var := fresh_value_var(&store, Source_Span_ZERO)
+	link_var(&store, oid_var, Inferred_Type{
+		tag = .Newtype,
+		primitive_name = oid_name,
+		arity = 0,
+		param_ids = nil,
+		inner_id = make_primitive_type(&store, i64_name, Source_Span_ZERO),
+	})
+
+	ok := unify(&store, uid_var, oid_var)
+	testing.expect(t, !ok)
+	testing.expect(t, diag_collector_has_errors(collector))
+}
+
+@(test)
+test_newtype_no_unify_with_inner :: proc(t: ^testing.T) {
+	store, collector := setup_type_store()
+	defer teardown_type_store(&store, collector)
+
+	uid_name := intern(store.interner, "UserId")
+	i64_name := intern(store.interner, "I64")
+
+	i64_var := make_primitive_type(&store, i64_name, Source_Span_ZERO)
+
+	uid_var := fresh_value_var(&store, Source_Span_ZERO)
+	link_var(&store, uid_var, Inferred_Type{
+		tag = .Newtype,
+		primitive_name = uid_name,
+		arity = 0,
+		param_ids = nil,
+		inner_id = i64_var,
+	})
+
+	fresh_i64 := make_primitive_type(&store, i64_name, Source_Span_ZERO)
+	ok := unify(&store, uid_var, fresh_i64)
+	testing.expect(t, !ok)
+}
+
+@(test)
+test_newtype_same_name_unifies :: proc(t: ^testing.T) {
+	store, collector := setup_type_store()
+	defer teardown_type_store(&store, collector)
+
+	uid_name := intern(store.interner, "UserId")
+	i64_name := intern(store.interner, "I64")
+
+	inner := make_primitive_type(&store, i64_name, Source_Span_ZERO)
+
+	uid_a := fresh_value_var(&store, Source_Span_ZERO)
+	link_var(&store, uid_a, Inferred_Type{
+		tag = .Newtype,
+		primitive_name = uid_name,
+		arity = 0,
+		param_ids = nil,
+		inner_id = inner,
+	})
+
+	uid_b := fresh_value_var(&store, Source_Span_ZERO)
+	link_var(&store, uid_b, Inferred_Type{
+		tag = .Newtype,
+		primitive_name = uid_name,
+		arity = 0,
+		param_ids = nil,
+		inner_id = inner,
+	})
+
+	ok := unify(&store, uid_a, uid_b)
+	testing.expect(t, ok)
+}
+
+@(test)
+test_newtype_with_trait :: proc(t: ^testing.T) {
+	store, ctx := typecheck_source("UserId is Hash := U64")
+	defer context_destroy(ctx)
+	defer free(ctx)
+	defer type_store_destroy(&store)
+
+	testing.expect(t, !diag_collector_has_errors(&ctx.collector))
+}
+
+@(test)
+test_newtype_wrapping_record :: proc(t: ^testing.T) {
+	store, ctx := typecheck_source("User := { name: Str, age: U64 }")
+	defer context_destroy(ctx)
+	defer free(ctx)
+	defer type_store_destroy(&store)
+
+	testing.expect(t, !diag_collector_has_errors(&ctx.collector))
+	user_name := intern(&ctx.interner, "User")
+	_, ok := store.newtype_decls[user_name]
+	testing.expect(t, ok)
+}
+
+@(test)
+test_newtype_construction :: proc(t: ^testing.T) {
+	store, ctx := typecheck_source("UserId := U64\nx = UserId(42)")
+	defer context_destroy(ctx)
+	defer free(ctx)
+	defer type_store_destroy(&store)
+
+	testing.expect(t, !diag_collector_has_errors(&ctx.collector))
+}
+
+@(test)
+test_newtype_tag_ownership :: proc(t: ^testing.T) {
+	store, ctx := typecheck_source("Result(a, e) := [Ok(a) | Err(e)]\nx = Result.Ok(42)")
+	defer context_destroy(ctx)
+	defer free(ctx)
+	defer type_store_destroy(&store)
+
+	testing.expect(t, !diag_collector_has_errors(&ctx.collector))
+}
+
+@(test)
+test_newtype_inner_access :: proc(t: ^testing.T) {
+	store, ctx := typecheck_source("UserId := U64\nuid = UserId(42)\nn = uid.inner()")
+	defer context_destroy(ctx)
+	defer free(ctx)
+	defer type_store_destroy(&store)
+
+	testing.expect(t, !diag_collector_has_errors(&ctx.collector))
+}

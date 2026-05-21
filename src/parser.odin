@@ -159,6 +159,11 @@ parser_parse_decl :: proc(p: ^Parser) -> Decl {
 		return parser_parse_test_decl(p)
 	case .Kw_Expect:
 		return parser_parse_expect_decl(p)
+	case .Upper_Id:
+		if is_newtype_decl(p) {
+			return parser_parse_newtype_decl(p, is_pub)
+		}
+		fallthrough
 	case:
 		return parser_parse_const_decl(p, is_pub)
 	}
@@ -400,7 +405,12 @@ parser_parse_method_chain :: proc(p: ^Parser, initial: Expr) -> Expr {
 	result := initial
 	for p.current.kind == .Dot {
 		parser_advance(p)
-		method_tok := parser_expect(p, .Identifier)
+		method_tok: Token
+		if p.current.kind == .Upper_Id {
+			method_tok = parser_advance(p)
+		} else {
+			method_tok = parser_expect(p, .Identifier)
+		}
 		method_id := intern(p.intern, method_tok.text)
 
 		mc := new(Expr_Method_Call)
@@ -1210,6 +1220,80 @@ parser_parse_alias_decl :: proc(p: ^Parser, is_pub: bool) -> Decl {
 
 	decl := new(Decl_Alias)
 	decl^ = Decl_Alias{name = name_id, is_pub = is_pub, target = target, span = start}
+	return decl
+}
+
+is_newtype_decl :: proc(p: ^Parser) -> bool {
+	saved_pos := p.lexer.pos
+	saved_tok := p.current
+
+	parser_advance(p)
+
+	if p.current.kind == .LParen {
+		parser_advance(p)
+		depth := 1
+		for p.current.kind != .Eof && depth > 0 {
+			if p.current.kind == .LParen { depth += 1 }
+			if p.current.kind == .RParen { depth -= 1 }
+			parser_advance(p)
+		}
+	}
+
+	if p.current.kind == .Kw_Is {
+		parser_advance(p)
+		parser_expect(p, .Upper_Id)
+	}
+
+	result := p.current.kind == .Colon_Eq
+
+	p.lexer.pos = saved_pos
+	p.current = saved_tok
+	return result
+}
+
+parser_parse_newtype_decl :: proc(p: ^Parser, is_pub: bool) -> Decl {
+	start := p.current.span
+	name_tok := parser_expect(p, .Upper_Id)
+	name_id := intern(p.intern, name_tok.text)
+
+	type_params := make([dynamic]Intern_ID, 0, 4)
+	if p.current.kind == .LParen {
+		parser_advance(p)
+		for p.current.kind != .RParen && p.current.kind != .Eof {
+			param_tok := parser_expect(p, .Identifier)
+			append(&type_params, intern(p.intern, param_tok.text))
+			if p.current.kind == .Comma {
+				parser_advance(p)
+			}
+		}
+		parser_expect(p, .RParen)
+	}
+
+	trait_conforms := make([dynamic]Intern_ID, 0, 4)
+	if p.current.kind == .Kw_Is {
+		parser_advance(p)
+		trait_tok := parser_expect(p, .Upper_Id)
+		append(&trait_conforms, intern(p.intern, trait_tok.text))
+		for p.current.kind == .Comma {
+			parser_advance(p)
+			trait_tok = parser_expect(p, .Upper_Id)
+			append(&trait_conforms, intern(p.intern, trait_tok.text))
+		}
+	}
+
+	parser_expect(p, .Colon_Eq)
+	inner_type := parser_parse_type(p)
+
+	decl := new(Decl_Newtype)
+	decl^ = Decl_Newtype{
+		name = name_id,
+		is_pub = is_pub,
+		type_params = type_params,
+		trait_conforms = trait_conforms,
+		inner_type = inner_type,
+		derive_targets = make([dynamic]Intern_ID, 0, 4),
+		span = start,
+	}
 	return decl
 }
 

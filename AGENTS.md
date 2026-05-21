@@ -50,6 +50,7 @@ You are an AI assistant helping develop the Camp programming language - a strict
 | Language | `openspec/specs/language/spec.md` | `openspec/specs/language/design.md` |
 | Effects | `openspec/specs/effects/spec.md` | `openspec/specs/effects/design.md` |
 | Compiler | `openspec/specs/compiler/spec.md` | `openspec/specs/compiler/design.md` |
+| Generics & Traits | `openspec/specs/generics-traits/spec.md` | `openspec/specs/generics-traits/design.md` |
 | LSP | `openspec/specs/lsp/spec.md` | `openspec/specs/lsp/design.md` |
 | Diagnostics | `openspec/specs/diagnostics/spec.md` | `openspec/specs/diagnostics/design.md` |
 | Testing | `openspec/specs/testing/spec.md` | `openspec/specs/testing/design.md` |
@@ -70,14 +71,24 @@ You are an AI assistant helping develop the Camp programming language - a strict
 
 ```bash
 # Build compiler
-odin build src -out:camp
+odin build src -out:camp -ignore-unknown-attributes
 
-# Run tests
+# Run unit tests
 odin test src
 
 # Build and test
 just test
+
+# Run e2e snapshot tests
+just test-e2e
+
+# Regenerate e2e snapshots after intentional output changes
+just update-snapshots
 ```
+
+## Retry Discipline
+
+If a command returns unexpected or ambiguous output **more than twice**, stop and investigate the cause instead of blindly retrying. Changing nothing and re-running is never productive.
 
 ## When in Doubt
 

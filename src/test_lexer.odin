@@ -238,3 +238,30 @@ test_lexer_backslash_after_comma :: proc(t: ^testing.T) {
 	testing.expect(t, tokens[3].kind == .Int_Literal)
 	testing.expect(t, tokens[4].kind == .Eof)
 }
+
+@(test)
+test_lexer_colon_eq :: proc(t: ^testing.T) {
+	ctx: Compilation_Context
+	context_init(&ctx)
+	defer context_destroy(&ctx)
+
+	tokens := lex_all(":=", &ctx)
+	defer delete(tokens)
+
+	testing.expect(t, len(tokens) == 2)
+	testing.expect(t, tokens[0].kind == .Colon_Eq)
+}
+
+@(test)
+test_lexer_colon_vs_colon_eq :: proc(t: ^testing.T) {
+	ctx: Compilation_Context
+	context_init(&ctx)
+	defer context_destroy(&ctx)
+
+	tokens := lex_all(": :=", &ctx)
+	defer delete(tokens)
+
+	testing.expect(t, len(tokens) == 3)
+	testing.expect(t, tokens[0].kind == .Colon)
+	testing.expect(t, tokens[1].kind == .Colon_Eq)
+}

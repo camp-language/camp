@@ -194,29 +194,86 @@ Note: `_` (not `..`) is used as the wildcard in pattern matching, following univ
 
 ### 2.5 Newtypes (Nominal)
 
-Newtypes create a distinct type wrapping an existing type. They provide nominal identity for structural types, enabling trait implementations and encapsulation.
+Newtypes create a distinct type wrapping an existing type. They provide nominal identity for structural types, enabling trait implementations, encapsulation, and tag qualification.
 
 **Syntax**:
 ```
-UserId is Hash := U64
-OrderId := U64
+UserId := U64                              -- simple newtype
+UserId is Hash := U64                      -- with trait conformance
 @derive [Display, Hash, Eq, Serialize]
-ProductId := U64
+ProductId := U64                           -- with derive
+Result(a, e) := [Ok(a) | Err(e)]          -- parameterized, wrapping tag union
+User := { name: Str, age: U64 }            -- wrapping a record
 ```
 
-- `:=` creates the newtype
-- `is` declares trait conformance
-- `@derive` auto-generates trait implementations
+- `:=` creates the newtype (lexed as `Tok_Define`)
+- `is` declares trait conformance (contextual keyword between name and `:=`)
+- `@derive` auto-generates trait implementations (recorded, expanded later)
+- Type parameters in parentheses before `:=`
 
 **Construction and destruction**:
 ```
-uid: UserId = UserId(42)           -- qualified construction
+uid: UserId = UserId(42)           -- construction
 inner: U64 = uid.inner()          -- access inner value
 
+-- Wrapping a record:
+u: User = User({ name: "Alice", age: 30 })
+name: Str = u.inner().name
+
+-- Parameterized newtype with tag ownership:
+Result.Ok(42)                      -- qualified tag construction
+Result.Err("fail")                  -- qualified tag construction
+
 -- Or import unqualified:
-import UserId exposing [UserId]
-uid = UserId(42)
+import Result exposing [Ok, Err]
+Ok(42)                             -- unqualified after import
 ```
+
+**Nominal distinctness**:
+- `UserId` and `U64` never unify, even though they share a runtime representation
+- `UserId` and `OrderId` never unify, even though both wrap `U64`
+- No implicit coercion in either direction — must explicitly construct (`UserId(42)`) or destruct (`uid.inner()`)
+
+**Tag ownership**:
+When a newtype wraps a tag union, the tags become owned by that newtype:
+- `Result(a, e) := [Ok(a) | Err(e)]` — `Ok` and `Err` belong to `Result`
+- Construction requires qualification: `Result.Ok(42)`, not bare `Ok(42)`
+- `import Result exposing [Ok, Err]` brings tags into unqualified scope
+- Structural tags (not belonging to any newtype) remain unqualified: `Some(42)` works without a prefix
+- Two newtypes with the same tag name in different modules are disambiguated by owner: `Result.Ok` vs `Option.Ok`
+
+**Pattern matching**:
+```
+-- Qualified:
+match result:
+  Result.Ok(n)  => n
+  Result.Err(e) => 0
+
+-- Unqualified after import:
+import Result exposing [Ok, Err]
+match result:
+  Ok(n)  => n
+  Err(e) => 0
+
+-- Simple newtype destructuring:
+match uid:
+  UserId(n) => n     -- n is U64
+```
+
+**Type parameters**:
+```
+Result(a, e) := [Ok(a) | Err(e)]
+
+-- Instantiation:
+r: Result(I64, Str) = Result.Ok(42)
+-- a = I64, e = Str inferred from context
+
+-- Different instantiations are distinct:
+Result(I64, Str) ≠ Result(Str, I64)
+```
+
+**Zero-cost abstraction**:
+Newtypes are erased at runtime. `UserId` has the same WASM representation as `U64`. Construction and destruction are identity operations — `IR_Wrap` and `IR_Unwrap` nodes pass through to the inner value during codegen. No allocation, no tag, no overhead.
 
 **Why newtypes instead of named record types**:
 - Records are structural — adding nominal records would create a parallel type system with complex interaction rules
@@ -1712,6 +1769,155 @@ No blocking I/O. All I/O effects handled by the runtime, which integrates with `
 
 ---
 
+## 8.9 Newtype Pipeline Design
+
+### 8.9.1 Lexer
+
+Add `Tok_Define` (`:=`). The lexer matches `:=` as a single two-character token before attempting individual `:` or `=` tokens. This avoids ambiguity with type annotations (`:`) and assignment (`=`).
+
+### 8.9.2 Parser
+
+New parsing path in `parser_parse_decl`: when a name is followed by `:=` (or `is` then `:=`), parse as newtype instead of const decl.
+
+```
+newtype_decl ::= annotations? NAME type_params? is_clause? ':=' type
+is_clause    ::= 'is' trait_name (',' trait_name)*
+type_params  ::= '(' NAME (',' NAME)* ')'
+```
+
+`is` is a **contextual keyword** — only recognized between the newtype name and `:=`. This avoids reserving `is` globally.
+
+**Construction and destruction need no new parser nodes:**
+- `UserId(42)` already parses as `Expr_Call(Expr_Var("UserId"), [42])`
+- `Result.Ok(42)` already parses as `Expr_Call(Expr_Field_Access(Expr_Var("Result"), "Ok"), [42])`
+- `uid.inner()` already parses as `Expr_Method_Call`
+
+### 8.9.3 AST
+
+```odin
+Decl_Newtype :: struct {
+    name:        Intern_ID,
+    type_params: []Intern_ID,   -- type variables (empty for simple newtypes)
+    traits:      []Intern_ID,   -- trait names from is clause
+    target:      ^Type,         -- the wrapped type
+    annotations: []Annotation,  -- @derive etc.
+    span:        Source_Span,
+}
+```
+
+Add to `Decl` union. `Pattern_Destructure` already exists and handles newtype destructuring patterns.
+
+### 8.9.4 Canonical
+
+```odin
+CDecl_Newtype :: struct {
+    name:        Canonical_Name,
+    type_params: []Intern_ID,
+    traits:      []Canonical_Name,
+    target:      ^CType,
+    annotations: []Annotation,
+    span:        Source_Span,
+}
+```
+
+Add to `CDecl` union. Canonicalization resolves names in `traits` and `target`. Newtype names are entered into scope as regular bindings.
+
+### 8.9.5 Type System
+
+**Newtype registry in `Type_Store`:**
+
+```odin
+Newtype_Info :: struct {
+    module:        Intern_ID,          -- defining module
+    inner_type_id: Type_Var_ID,       -- type var of the inner type
+    inner_inferred: Inferred_Type,     -- resolved inner type
+    type_params:   []Intern_ID,       -- type parameters
+    owned_tags:    []Intern_ID,        -- tags owned by this newtype (for tag-union newtypes)
+    traits:        []Canonical_Name,   -- declared trait conformance
+}
+
+-- Add to Type_Store:
+newtypes: map[Intern_ID]Newtype_Info,
+tag_ownership: map[Intern_ID]Intern_ID,  -- tag_name -> owning newtype
+```
+
+**Type checking flow:**
+
+1. **Declaration:** For each `CDecl_Newtype`, allocate a type variable. Bind the name to `Constructor`-tagged `Inferred_Type`. Register in `newtypes` map. If the target is a tag union, register each tag in `tag_ownership`.
+
+2. **Construction `UserId(42)`:**
+   - Look up `UserId` → find it's a newtype constructor
+   - Typecheck argument, unify with inner type
+   - Result type: the newtype
+
+3. **Tag construction `Result.Ok(42)`:**
+   - Resolve `Result.Ok` as a field access on a newtype
+   - Look up `Ok` in `Result`'s `owned_tags`
+   - Typecheck argument against the tag's payload type
+   - Result type: the newtype with type params instantiated
+
+4. **Destruction `uid.inner()`:**
+   - Typecheck receiver → must be a newtype
+   - Method must be `inner`
+   - Result type: the inner type
+
+5. **Unification:**
+   - `Constructor("UserId")` only unifies with itself or an unbound type variable
+   - Never unifies with the inner type or other newtypes
+   - Parameterized: `Constructor("Result", [I64, Str])` only unifies with the same constructor and same type args
+
+### 8.9.6 IR
+
+```odin
+IR_Wrap :: struct {
+    newtype_name: Intern_ID,
+    value:        IR_Expr,
+    span:         Source_Span,
+}
+
+IR_Unwrap :: struct {
+    newtype_name: Intern_ID,
+    value:        IR_Expr,
+    span:         Source_Span,
+}
+```
+
+Both are identity operations at runtime — same WASM representation as the inner type.
+
+### 8.9.7 Lowering
+
+| Source form | IR form |
+|-------------|---------|
+| `Call(Var("UserId"), [arg])` where `UserId` is a newtype | `IR_Wrap("UserId", lower_expr(arg))` |
+| `Call(Field_Access(Var("Result"), "Ok"), [arg])` | `IR_Wrap("Result", IR_Construct_Tag("Ok", lower_expr(arg)))` |
+| `Method_Call(receiver, "inner", [])` where receiver is a newtype | `IR_Unwrap(newtype_name, lower_expr(receiver))` |
+| `Pattern_Destructure("UserId", inner_pat)` | `lower_pattern(inner_pat)` — identity at runtime |
+
+Newtype declarations themselves don't lower to any IR — they're purely compile-time.
+
+### 8.9.8 Codegen
+
+```odin
+codegen_expr(IR_Wrap(_, value))   → codegen_expr(value)   -- passthrough
+codegen_expr(IR_Unwrap(_, value)) → codegen_expr(value)   -- passthrough
+```
+
+Zero-cost. No allocation, no tag byte, no wrapper function.
+
+### 8.9.9 Perceus RC
+
+No changes. Newtype values have the same reference-counting behavior as the inner type. `IR_Dup`/`IR_Drop` operate on the inner representation.
+
+### 8.9.10 Module System Interaction
+
+- Newtype constructors live in the module's namespace: `Canonical_Name{module: "Result", name: "Result"}`
+- `import Result` gives qualified access: `Result.Ok(42)`
+- `import Result exposing [Ok, Err]` brings owned tags into unqualified scope: `Ok(42)`
+- `pub` on the newtype declaration makes the constructor and all owned tags exportable
+- Tag ownership is per-module: `tag_ownership` is keyed by `(module, tag_name)`
+
+---
+
 ## 9. Metaprogramming
 
 ### 9.1 Design Philosophy
@@ -2006,6 +2212,10 @@ Every major design decision, its alternatives, and the rationale for the chosen 
 | 50 | Var keyword | None (`$` prefix only) | `var $x = 0` | `$` alone signals mutability; `var` adds no information |
 | 51 | Pattern wildcard | `_` (universal convention) | `.. =>` | `_` is the standard across all languages; `..` is for open types |
 | 52 | Nominal tag qualification | Required (`Result.Ok`) with import escape | Always bare | Prevents tag name collisions; Roc model |
+| 53 | Newtype runtime cost | Zero-cost (identity at codegen) | Tag byte, wrapper allocation | Same representation as inner type; `IR_Wrap`/`IR_Unwrap` are passthroughs |
+| 54 | Newtype `is` keyword | Contextual (between name and `:=`) | Reserved keyword | Avoids reserving `is` globally; only meaningful in newtype/trait context |
+| 55 | Newtype tag ownership | Tags owned by wrapping newtype | Tags always unowned | Enables qualified construction; prevents tag name collisions across modules |
+| 56 | Module path style | Dotted from directory structure (`Http.Server`) | Flat only | Directories organize code; dots are familiar from most languages; no nested module declarations |
 
 ---
 

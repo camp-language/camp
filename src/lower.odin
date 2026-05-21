@@ -21,6 +21,7 @@ lower_file :: proc(cfile: CFile, store: ^Type_Store) -> IR_Module {
 			append(&mod.decls, ir_decl)
 			eff_def := lower_effect_def(d^, &env)
 			append(&mod.effect_defs, eff_def)
+		case ^CDecl_Newtype:
 		case:
 		}
 	}
@@ -72,6 +73,8 @@ lower_type :: proc(store: ^Type_Store, type_var: Type_Var_ID) -> IR_Type {
 			wasm_type = .Void
 		case .Constructor:
 			wasm_type = .I32
+		case .Newtype:
+			wasm_type = lower_type(store, inf.inner_id).wasm_type
 		}
 	}
 
@@ -346,7 +349,37 @@ lower_call :: proc(e: ^CExpr_Call, env: ^Lower_Env) -> IR_Expr {
 }
 
 lower_method_call :: proc(e: ^CExpr_Method_Call, env: ^Lower_Env) -> IR_Expr {
+	#partial switch r in e.receiver {
+	case ^CExpr_Tag:
+		if is_declared_newtype(env.store, r.name.name) && len(r.payload) == 0 && len(e.args) >= 1 {
+			inner_name := intern(env.interner, "inner")
+			if e.method.name == inner_name && len(e.args) == 0 {
+				return lower_expr(e.receiver, env)
+			}
+			payload := make([dynamic]IR_Expr, 0, len(e.args))
+			for a in e.args {
+				append(&payload, lower_expr(a, env))
+			}
+			type_var := fresh_value_var(env.store, e.span)
+			tag := new(IR_Construct_Tag)
+			tag^ = IR_Construct_Tag{
+				tag_name = e.method.name,
+				tag_index = 0,
+				payload = payload,
+				type = lower_type(env.store, type_var),
+				span = e.span,
+			}
+			return IR_Expr(tag)
+		}
+	case:
+	}
+
 	receiver := lower_expr(e.receiver, env)
+
+	inner_name := intern(env.interner, "inner")
+	if e.method.name == inner_name && len(e.args) == 0 {
+		return receiver
+	}
 
 	ir_args := make([dynamic]IR_Expr, 0, len(e.args))
 	for arg in e.args {
@@ -596,6 +629,10 @@ lower_prefixop :: proc(e: ^CExpr_PrefixOp, env: ^Lower_Env) -> IR_Expr {
 }
 
 lower_tag :: proc(e: ^CExpr_Tag, env: ^Lower_Env) -> IR_Expr {
+	if is_declared_newtype(env.store, e.name.name) && len(e.payload) == 1 {
+		return lower_expr(e.payload[0], env)
+	}
+
 	payload := make([dynamic]IR_Expr, 0, len(e.payload))
 	for p in e.payload {
 		append(&payload, lower_expr(p, env))

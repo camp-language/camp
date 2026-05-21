@@ -167,9 +167,17 @@ lexer_next :: proc(l: ^Lexer) -> Token {
 		return lexer_make_token(l, .Dot, start, l.source[start:l.pos])
 	}
 
+	if ch == ':' {
+		l.pos += 1
+		if l.pos < len(l.source) && l.source[l.pos] == '=' {
+			l.pos += 1
+			return lexer_make_token(l, .Colon_Eq, start, l.source[start:l.pos])
+		}
+		return lexer_make_token(l, .Colon, start, l.source[start:l.pos])
+	}
+
 	single_char_tokens :map[u8]Token_Kind = {
 		'|'  = .Pipe,
-		':'  = .Colon,
 		','  = .Comma,
 		'#'  = .Hash,
 		'@'  = .At,

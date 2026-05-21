@@ -258,6 +258,89 @@ test_parser_dot_lambda_chained :: proc(t: ^testing.T) {
 	}
 }
 
+parse_decl :: proc(source: string, ctx: ^Compilation_Context) -> Decl {
+	old_allocator := context.allocator
+	context.allocator = ctx.allocator
+	file := Source_File{path = "<test>", contents = source, id = 0}
+	lexer: Lexer
+	lexer_init(&lexer, file, &ctx.collector, &ctx.interner)
+
+	parser: Parser
+	parser_init(&parser, &lexer, &ctx.collector, &ctx.interner)
+
+	result := parser_parse_decl(&parser)
+	context.allocator = old_allocator
+	return result
+}
+
+@(test)
+test_parser_newtype_simple :: proc(t: ^testing.T) {
+	ctx: Compilation_Context
+	context_init(&ctx)
+	defer context_destroy(&ctx)
+
+	decl := parse_decl("UserId := U64", &ctx)
+	testing.expect(t, !diag_collector_has_errors(&ctx.collector))
+	#partial switch d in decl {
+	case ^Decl_Newtype:
+		testing.expect(t, !d.is_pub)
+		testing.expect(t, len(d.type_params) == 0)
+		testing.expect(t, len(d.trait_conforms) == 0)
+		testing.expect(t, d.inner_type != nil)
+	case:
+		testing.expect(t, false)
+	}
+}
+
+@(test)
+test_parser_newtype_parameterized :: proc(t: ^testing.T) {
+	ctx: Compilation_Context
+	context_init(&ctx)
+	defer context_destroy(&ctx)
+
+	decl := parse_decl("Result(a, e) := [Ok(a) | Err(e)]", &ctx)
+	testing.expect(t, !diag_collector_has_errors(&ctx.collector))
+	#partial switch d in decl {
+	case ^Decl_Newtype:
+		testing.expect(t, len(d.type_params) == 2)
+		testing.expect(t, d.inner_type != nil)
+	case:
+		testing.expect(t, false)
+	}
+}
+
+@(test)
+test_parser_newtype_with_trait :: proc(t: ^testing.T) {
+	ctx: Compilation_Context
+	context_init(&ctx)
+	defer context_destroy(&ctx)
+
+	decl := parse_decl("UserId is Hash := U64", &ctx)
+	testing.expect(t, !diag_collector_has_errors(&ctx.collector))
+	#partial switch d in decl {
+	case ^Decl_Newtype:
+		testing.expect(t, len(d.trait_conforms) == 1)
+	case:
+		testing.expect(t, false)
+	}
+}
+
+@(test)
+test_parser_newtype_pub :: proc(t: ^testing.T) {
+	ctx: Compilation_Context
+	context_init(&ctx)
+	defer context_destroy(&ctx)
+
+	decl := parse_decl("pub UserId := U64", &ctx)
+	testing.expect(t, !diag_collector_has_errors(&ctx.collector))
+	#partial switch d in decl {
+	case ^Decl_Newtype:
+		testing.expect(t, d.is_pub)
+	case:
+		testing.expect(t, false)
+	}
+}
+
 @(test)
 test_parser_dot_lambda_mixed :: proc(t: ^testing.T) {
 	ctx: Compilation_Context

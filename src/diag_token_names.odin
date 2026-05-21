@@ -36,6 +36,7 @@ token_kind_display :: proc(kind: Token_Kind) -> string {
 	case .Arrow:        return "->"
 	case .Fat_Arrow:    return "=>"
 	case .Eq:           return "="
+	case .Colon_Eq:     return ":="
 	case .Colon:        return ":"
 	case .Comma:        return ","
 	case .Dot:          return "."

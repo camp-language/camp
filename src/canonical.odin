@@ -21,6 +21,7 @@ CDecl :: union {
 	^CDecl_Effect,
 	^CDecl_Trait,
 	^CDecl_Alias,
+	^CDecl_Newtype,
 	^CDecl_Import,
 	^CDecl_Test,
 	^CDecl_Expect,
@@ -72,6 +73,16 @@ CDecl_Alias :: struct {
 	is_pub: bool,
 	target: ^CType,
 	span:   Source_Span,
+}
+
+CDecl_Newtype :: struct {
+	name:           Canonical_Name,
+	is_pub:         bool,
+	type_params:    [dynamic]Intern_ID,
+	trait_conforms: [dynamic]Intern_ID,
+	inner_type:     ^CType,
+	derive_targets: [dynamic]Intern_ID,
+	span:           Source_Span,
 }
 
 CDecl_Import :: struct {

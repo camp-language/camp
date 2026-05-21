@@ -5,6 +5,7 @@ Decl :: union {
 	^Decl_Effect,
 	^Decl_Trait,
 	^Decl_Alias,
+	^Decl_Newtype,
 	^Decl_Import,
 	^Decl_Test,
 	^Decl_Expect,
@@ -55,6 +56,16 @@ Decl_Alias :: struct {
 	is_pub: bool,
 	target: ^Type,
 	span:   Source_Span,
+}
+
+Decl_Newtype :: struct {
+	name:           Intern_ID,
+	is_pub:         bool,
+	type_params:    [dynamic]Intern_ID,
+	trait_conforms: [dynamic]Intern_ID,
+	inner_type:     ^Type,
+	derive_targets: [dynamic]Intern_ID,
+	span:           Source_Span,
 }
 
 Decl_Import :: struct {
