@@ -2,7 +2,9 @@ package camp
 
 import "core:fmt"
 
-lower_file :: proc(cfile: CFile, store: ^Type_Store) -> IR_Module {
+lower_file :: proc {lower_file_cfile, lower_file_tfile}
+
+lower_file_cfile :: proc(cfile: CFile, store: ^Type_Store) -> IR_Module {
 	mod: IR_Module
 	mod.decls = make([dynamic]IR_Decl, 0, len(cfile.decls))
 	mod.effect_defs = make([dynamic]IR_Effect_Def, 0, 8)
@@ -23,6 +25,42 @@ lower_file :: proc(cfile: CFile, store: ^Type_Store) -> IR_Module {
 			append(&mod.effect_defs, eff_def)
 		case ^CDecl_Newtype:
 		case:
+		}
+	}
+
+	for &d in env.pending_decls {
+		append(&mod.decls, d)
+	}
+	delete(env.pending_decls)
+
+	return mod
+}
+
+lower_file_tfile :: proc(tfile: TFile, store: ^Type_Store) -> IR_Module {
+	mod: IR_Module
+	mod.decls = make([dynamic]IR_Decl, 0, len(tfile.decls))
+	mod.effect_defs = make([dynamic]IR_Effect_Def, 0, 8)
+	mod.string_table = make([dynamic]String_Table_Entry, 0, 16)
+
+	env: Lower_Env = {module = &mod, store = store, interner = store.interner}
+	env.pending_decls = make([dynamic]IR_Decl, 0, 8)
+
+	for &decl in tfile.decls {
+		#partial switch d in decl {
+		case ^TDecl_Const:
+			ir_decl := lower_tdecl_const(&d^, &env)
+			append(&mod.decls, ir_decl)
+		case ^TDecl_Effect:
+			ir_decl := lower_tdecl_effect(&d^, &env)
+			append(&mod.decls, ir_decl)
+			eff_def := lower_teffect_def(&d^, &env)
+			append(&mod.effect_defs, eff_def)
+		case ^TDecl_Trait:
+		case ^TDecl_Alias:
+		case ^TDecl_Newtype:
+		case ^TDecl_Import:
+		case ^TDecl_Test:
+		case ^TDecl_Expect:
 		}
 	}
 
@@ -248,7 +286,7 @@ lower_expr :: proc(expr: CExpr, env: ^Lower_Env) -> IR_Expr {
 		return IR_Expr(v)
 
 	case ^CExpr_Call:
-		return lower_call(e, env)
+		return lower_expr(e.callee, env)
 
 	case ^CExpr_Method_Call:
 		return lower_method_call(e, env)
@@ -312,40 +350,558 @@ lower_expr :: proc(expr: CExpr, env: ^Lower_Env) -> IR_Expr {
 	return make_ir_lit_int(0, IR_Type{.I64, Type_Var_ID(-1)}, Source_Span_ZERO)
 }
 
-lower_call :: proc(e: ^CExpr_Call, env: ^Lower_Env) -> IR_Expr {
+lower_texpr :: proc(expr: TExpr, env: ^Lower_Env) -> IR_Expr {
+	switch e in expr {
+	case ^TExpr_Int:
+		type_var := make_primitive_type(env.store, intern(env.interner, "I64"), e.span)
+		return make_ir_lit_int(e.value, lower_type(env.store, type_var), e.span)
+
+	case ^TExpr_Float:
+		type_var := make_primitive_type(env.store, intern(env.interner, "F64"), e.span)
+		lit := new(IR_Literal_Float)
+		lit^ = IR_Literal_Float{value = e.value, type = e.type_, span = e.span}
+		return IR_Expr(lit)
+
+	case ^TExpr_String:
+		type_var := make_primitive_type(env.store, intern(env.interner, "Str"), e.span)
+		lit := new(IR_Literal_String)
+		lit^ = IR_Literal_String{value = e.value, type = e.type_, span = e.span}
+		append(&env.module.string_table, String_Table_Entry{id = fresh_ir_name(env), value = e.value})
+		return IR_Expr(lit)
+
+	case ^TExpr_Bool:
+		type_var := make_primitive_type(env.store, intern(env.interner, "Bool"), e.span)
+		return make_ir_lit_bool(e.value, lower_type(env.store, type_var), e.span)
+
+	case ^TExpr_Name:
+		v := new(IR_Var)
+		v^ = IR_Var{name = e.name.name, type = e.type_, span = e.span}
+		return IR_Expr(v)
+
+	case ^TExpr_Call:
+		return lower_tcall(e, env)
+
+	case ^TExpr_Method_Call:
+		return lower_tmethod_call(e, env)
+
+	case ^TExpr_Lambda:
+		return lower_tlambda(e, env)
+
+	case ^TExpr_Block:
+		return lower_tblock(e, env)
+
+	case ^TExpr_If:
+		return lower_tif(e, env)
+
+	case ^TExpr_Match:
+		return lower_tmatch(e, env)
+
+	case ^TExpr_BinOp:
+		return lower_tbinop(e, env)
+
+	case ^TExpr_PrefixOp:
+		return lower_tprefixop(e, env)
+
+	case ^TExpr_Tag:
+		return lower_ttag(e, env)
+
+	case ^TExpr_Record:
+		return lower_trecord(e, env)
+
+	case ^TExpr_Field_Access:
+		return lower_tfield_access(e, env)
+
+	case ^TExpr_Record_Update:
+		return lower_trecord_update(e, env)
+
+	case ^TExpr_Assign:
+		_ = lower_texpr(e.target, env)
+		return lower_texpr(e.value, env)
+
+	case ^TExpr_Return:
+		inner := lower_texpr(e.value, env)
+		ret := new(IR_Return)
+		ret^ = IR_Return{value = inner, span = e.span}
+		return IR_Expr(ret)
+
+	case ^TExpr_Crash:
+		msg_expr := lower_texpr(e.message, env)
+		crash := new(IR_Crash)
+		crash^ = IR_Crash{message = msg_expr, span = e.span}
+		return IR_Expr(crash)
+
+	case ^TExpr_Interpolate:
+		return lower_tinterpolate(e, env)
+
+	case ^TExpr_Handle:
+		return lower_thandle(e, env)
+
+	case ^TExpr_List:
+		return lower_tlist(e, env)
+	}
+
+	return make_ir_lit_int(0, IR_Type{.I64, Type_Var_ID(-1)}, Source_Span_ZERO)
+}
+
+lower_tdecl_const :: proc(d: ^TDecl_Const, env: ^Lower_Env) -> IR_Decl {
+	#partial switch body_expr in d.body {
+	case ^TExpr_Lambda:
+		return lower_tlambda_as_decl(body_expr, d.name, d.is_effectful, d.span, env)
+	case:
+	}
+
+	ir_type := d.type_
+	body := lower_texpr(d.body, env)
+
+	if d.is_effectful {
+		fn_decl := new(IR_Decl_Fn)
+		fn_decl^ = IR_Decl_Fn{
+			name = d.name,
+			is_effectful = true,
+			params = make([dynamic]IR_Param, 0, 4),
+			return_type = ir_type,
+			effect_row = d.eff_,
+			body = body,
+			span = d.span,
+		}
+		return IR_Decl(fn_decl)
+	}
+
+	decl := new(IR_Decl_Const)
+	decl^ = IR_Decl_Const{
+		name = d.name,
+		type = ir_type,
+		value = body,
+		span = d.span,
+	}
+	return IR_Decl(decl)
+}
+
+lower_tlambda_as_decl :: proc(e: ^TExpr_Lambda, name: Canonical_Name, is_effectful: bool, span: Source_Span, env: ^Lower_Env) -> IR_Decl {
+	params := make([dynamic]IR_Param, 0, len(e.params))
+	for p in e.params {
+		append(&params, IR_Param{name = p.name, type = p.type_})
+	}
+
+	body := lower_texpr(e.body, env)
+
+	fn_decl := new(IR_Decl_Fn)
+	fn_decl^ = IR_Decl_Fn{
+		name = name,
+		is_effectful = is_effectful,
+		params = params,
+		return_type = e.return_type,
+		effect_row = e.effects,
+		body = body,
+		span = span,
+	}
+	return IR_Decl(fn_decl)
+}
+
+lower_tdecl_effect :: proc(d: ^TDecl_Effect, env: ^Lower_Env) -> IR_Decl {
+	ops := make([dynamic]IR_Effect_Op, 0, len(d.operations))
+	for op in d.operations {
+		ir_op := lower_teffect_op(op, env)
+		append(&ops, ir_op)
+	}
+
+	decl := new(IR_Decl_Effect)
+	decl^ = IR_Decl_Effect{
+		name = d.name,
+		operations = ops,
+		span = d.span,
+	}
+	return IR_Decl(decl)
+}
+
+lower_teffect_def :: proc(d: ^TDecl_Effect, env: ^Lower_Env) -> IR_Effect_Def {
+	ops := make([dynamic]IR_Effect_Op, 0, len(d.operations))
+	for op in d.operations {
+		ir_op := lower_teffect_op(op, env)
+		append(&ops, ir_op)
+	}
+	return IR_Effect_Def{name = d.name, operations = ops}
+}
+
+lower_teffect_op :: proc(op: TEffect_Op, env: ^Lower_Env) -> IR_Effect_Op {
+	params := make([dynamic]IR_Param, 0, len(op.params))
+	for p in op.params {
+		append(&params, IR_Param{name = p.name, type = p.type_})
+	}
+
+	return IR_Effect_Op{
+		name = op.name,
+		params = params,
+		return_type = op.return_type,
+	}
+}
+
+lower_tcall :: proc(e: ^TExpr_Call, env: ^Lower_Env) -> IR_Expr {
 	#partial switch c in e.callee {
-	case ^CExpr_Name:
+	case ^TExpr_Name:
 		callee_name := c.name
 		ir_args := make([dynamic]IR_Expr, 0, len(e.args))
 		for arg in e.args {
-			append(&ir_args, lower_expr(arg, env))
+			append(&ir_args, lower_texpr(arg, env))
 		}
-		type_var := fresh_value_var(env.store, e.span)
 		call := new(IR_Call)
 		call^ = IR_Call{
 			callee = callee_name,
 			args = ir_args,
-			type = lower_type(env.store, type_var),
+			type = e.type_,
 			span = e.span,
 		}
 		return IR_Expr(call)
 
 	case:
-		callee_expr := lower_expr(c, env)
+		callee_expr := lower_texpr(e.callee, env)
 		ir_args := make([dynamic]IR_Expr, 0, len(e.args))
 		for arg in e.args {
-			append(&ir_args, lower_expr(arg, env))
+			append(&ir_args, lower_texpr(arg, env))
 		}
-		type_var := fresh_value_var(env.store, e.span)
 		ccall := new(IR_Closure_Call)
 		ccall^ = IR_Closure_Call{
 			callee = callee_expr,
 			args = ir_args,
-			type = lower_type(env.store, type_var),
+			type = e.type_,
 			span = e.span,
 		}
 		return IR_Expr(ccall)
 	}
+}
+
+lower_tmethod_call :: proc(e: ^TExpr_Method_Call, env: ^Lower_Env) -> IR_Expr {
+	receiver_ir := lower_texpr(e.receiver, env)
+	ir_args := make([dynamic]IR_Expr, 0, len(e.args) + 1)
+	append(&ir_args, receiver_ir)
+	for arg in e.args {
+		append(&ir_args, lower_texpr(arg, env))
+	}
+
+	if e.resolved_.name != 0 {
+		meth_call := new(IR_Call)
+		meth_call^ = IR_Call{
+			callee = e.resolved_,
+			args = ir_args,
+			type = e.type_,
+			span = e.span,
+		}
+		return IR_Expr(meth_call)
+	}
+
+	ccall := new(IR_Closure_Call)
+	ccall^ = IR_Closure_Call{
+		callee = receiver_ir,
+		args = ir_args,
+		type = e.type_,
+		span = e.span,
+	}
+	return IR_Expr(ccall)
+}
+
+lower_tlambda :: proc(e: ^TExpr_Lambda, env: ^Lower_Env) -> IR_Expr {
+	name := Canonical_Name{
+		module = 0,
+		name = fresh_ir_name(env),
+		is_local = true,
+	}
+	fn_decl := lower_tlambda_as_decl(e, name, false, e.span, env)
+	append(&env.pending_decls, fn_decl)
+	v := new(IR_Var)
+	v^ = IR_Var{name = name.name, type = e.type_, span = e.span}
+	return IR_Expr(v)
+}
+
+lower_tblock :: proc(e: ^TExpr_Block, env: ^Lower_Env) -> IR_Expr {
+	if len(e.statements) == 0 {
+		return make_ir_lit_int(0, e.type_, e.span)
+	}
+	last: IR_Expr
+	for stmt in e.statements {
+		last = lower_texpr(stmt, env)
+	}
+	return last
+}
+
+lower_tif :: proc(e: ^TExpr_If, env: ^Lower_Env) -> IR_Expr {
+	cond_ir := lower_texpr(e.condition, env)
+	then_ir := lower_texpr(e.then_branch, env)
+	else_ir := lower_texpr(e.else_branch, env)
+	result := new(IR_If)
+	result^ = IR_If{
+		condition = cond_ir,
+		then_branch = then_ir,
+		else_branch = else_ir,
+		type = e.type_,
+		span = e.span,
+	}
+	return IR_Expr(result)
+}
+
+lower_tmatch :: proc(e: ^TExpr_Match, env: ^Lower_Env) -> IR_Expr {
+	scrut_ir := lower_texpr(e.scrutinee, env)
+	arms := make([dynamic]IR_Match_Arm, len(e.arms))
+	for i in 0..<len(e.arms) {
+		arms[i] = IR_Match_Arm{
+			pattern = lower_tpattern(e.arms[i].pattern, env),
+			body = lower_texpr(e.arms[i].body, env),
+		}
+	}
+	result := new(IR_Match)
+	result^ = IR_Match{
+		scrutinee = scrut_ir,
+		arms = arms,
+		type = e.type_,
+		span = e.span,
+	}
+	return IR_Expr(result)
+}
+
+lower_tpattern :: proc(pattern: TPattern, env: ^Lower_Env) -> IR_Pattern {
+	switch p in pattern {
+	case ^TPattern_Tag:
+		payload_ids := make([dynamic]Intern_ID, 0, len(p.payload))
+		for sub in p.payload {
+			#partial switch s in sub {
+			case ^TPattern_Identifier:
+				append(&payload_ids, s.name)
+			case:
+				append(&payload_ids, Intern_ID(0))
+			}
+		}
+		result := new(IR_Pat_Tag)
+		result.name = p.name.name
+		result.payload = payload_ids
+		return IR_Pattern(result)
+
+	case ^TPattern_Record:
+		fields_ir := make([dynamic]IR_Pat_Field, len(p.fields))
+		for i in 0..<len(p.fields) {
+			fields_ir[i] = IR_Pat_Field{
+				name = p.fields[i].name,
+				binding = p.fields[i].binding,
+			}
+		}
+		result := new(IR_Pat_Record)
+		result.fields = fields_ir
+		result.is_open = p.is_open
+		return IR_Pattern(result)
+
+	case ^TPattern_List:
+		nil_tag := new(IR_Pat_Tag)
+		nil_tag.name = intern(env.interner, "Nil")
+		nil_tag.payload = make([dynamic]Intern_ID, 0)
+
+		list_var := fresh_ir_name(env)
+		cons_tag := new(IR_Pat_Tag)
+		cons_tag.name = intern(env.interner, "Cons")
+		cons_tag.payload = make([dynamic]Intern_ID, 0)
+		append(&cons_tag.payload, list_var)
+
+		pat := IR_Pattern(cons_tag)
+		for i := len(p.elements) - 1; i >= 0; i -= 1 {
+			elem_pat := lower_tpattern(p.elements[i], env)
+			if elem_pat != nil {
+				if elem_var, ok := elem_pat.(^IR_Pat_Var); ok {
+					prev_cons := new(IR_Pat_Tag)
+					prev_cons.name = intern(env.interner, "Cons")
+					prev_cons.payload = make([dynamic]Intern_ID, 0)
+					append(&prev_cons.payload, elem_var.name)
+					append(&prev_cons.payload, list_var)
+					list_var = elem_var.name
+					pat = IR_Pattern(prev_cons)
+				}
+			}
+		}
+		return pat
+
+	case ^TPattern_Int, ^TPattern_String, ^TPattern_Bool:
+		result := new(IR_Pat_Var)
+		result.name = Intern_ID(0)
+		return IR_Pattern(result)
+
+	case ^TPattern_Identifier:
+		result := new(IR_Pat_Var)
+		result.name = p.name
+		return IR_Pattern(result)
+
+	case ^TPattern_Wildcard:
+		result := new(IR_Pat_Wildcard)
+		return IR_Pattern(result)
+
+	case ^TPattern_Destructure:
+		result := new(IR_Pat_Var)
+		result.name = Intern_ID(0)
+		return IR_Pattern(result)
+	}
+	return IR_Pattern(nil)
+}
+
+lower_tbinop :: proc(e: ^TExpr_BinOp, env: ^Lower_Env) -> IR_Expr {
+	left_ir := lower_texpr(e.left, env)
+	right_ir := lower_texpr(e.right, env)
+	result := new(IR_BinOp)
+	result^ = IR_BinOp{
+		op = e.op,
+		left = left_ir,
+		right = right_ir,
+		type = e.type_,
+		span = e.span,
+	}
+	return IR_Expr(result)
+}
+
+lower_tprefixop :: proc(e: ^TExpr_PrefixOp, env: ^Lower_Env) -> IR_Expr {
+	operand_ir := lower_texpr(e.operand, env)
+
+	#partial switch e.op {
+	case .Kw_Not:
+		false_lit := make_ir_lit_bool(false, e.type_, e.span)
+		binop := new(IR_BinOp)
+		binop^ = IR_BinOp{op = .Eq_Eq, left = operand_ir, right = false_lit, type = e.type_, span = e.span}
+		return IR_Expr(binop)
+	case .Minus:
+		zero_lit := make_ir_lit_int(0, e.type_, e.span)
+		binop := new(IR_BinOp)
+		binop^ = IR_BinOp{op = .Minus, left = zero_lit, right = operand_ir, type = e.type_, span = e.span}
+		return IR_Expr(binop)
+	case:
+		return operand_ir
+	}
+}
+
+lower_ttag :: proc(e: ^TExpr_Tag, env: ^Lower_Env) -> IR_Expr {
+	payload := make([dynamic]IR_Expr, 0, len(e.payload))
+	for p in e.payload {
+		append(&payload, lower_texpr(p, env))
+	}
+	result := new(IR_Construct_Tag)
+	result^ = IR_Construct_Tag{
+		tag_name = e.name.name,
+		tag_index = 0,
+		payload = payload,
+		type = e.type_,
+		span = e.span,
+	}
+	return IR_Expr(result)
+}
+
+lower_trecord :: proc(e: ^TExpr_Record, env: ^Lower_Env) -> IR_Expr {
+	fields := make([dynamic]IR_Record_Field, 0, len(e.fields))
+	for f in e.fields {
+		append(&fields, IR_Record_Field{name = f.name, value = lower_texpr(f.value, env)})
+	}
+	rest := lower_texpr(e.rest, env)
+	result := new(IR_Construct_Record)
+	result^ = IR_Construct_Record{
+		fields = fields,
+		rest = rest,
+		type = e.type_,
+		span = e.span,
+	}
+	return IR_Expr(result)
+}
+
+lower_tfield_access :: proc(e: ^TExpr_Field_Access, env: ^Lower_Env) -> IR_Expr {
+	record_ir := lower_texpr(e.record, env)
+	result := new(IR_Field_Access)
+	result^ = IR_Field_Access{
+		record = record_ir,
+		field = e.field,
+		type = e.type_,
+		span = e.span,
+	}
+	return IR_Expr(result)
+}
+
+lower_trecord_update :: proc(e: ^TExpr_Record_Update, env: ^Lower_Env) -> IR_Expr {
+	rest_ir := lower_texpr(e.rest, env)
+	fields := make([dynamic]IR_Record_Field, 0, len(e.updates))
+	for f in e.updates {
+		append(&fields, IR_Record_Field{name = f.name, value = lower_texpr(f.value, env)})
+	}
+	result := new(IR_Construct_Record)
+	result^ = IR_Construct_Record{
+		fields = fields,
+		rest = rest_ir,
+		type = e.type_,
+		span = e.span,
+	}
+	return IR_Expr(result)
+}
+
+lower_tinterpolate :: proc(e: ^TExpr_Interpolate, env: ^Lower_Env) -> IR_Expr {
+	if len(e.parts) == 0 {
+		lit := new(IR_Literal_String)
+		lit^ = IR_Literal_String{value = "", type = e.type_, span = e.span}
+		return IR_Expr(lit)
+	}
+
+	result := lower_texpr(e.parts[0], env)
+	for i := 1; i < len(e.parts); i += 1 {
+		right := lower_texpr(e.parts[i], env)
+		binop := new(IR_BinOp)
+		binop^ = IR_BinOp{
+			op = .Plus,
+			left = result,
+			right = right,
+			type = e.type_,
+			span = e.span,
+		}
+		result = IR_Expr(binop)
+	}
+	return result
+}
+
+lower_thandle :: proc(e: ^TExpr_Handle, env: ^Lower_Env) -> IR_Expr {
+	body_ir := lower_texpr(e.body, env)
+	arms := make([dynamic]IR_Handler_Arm, len(e.arms))
+	for i in 0..<len(e.arms) {
+		arms[i] = IR_Handler_Arm{
+			op = e.arms[i].op,
+			resume_id = e.arms[i].resume_id,
+			body = lower_texpr(e.arms[i].body, env),
+		}
+	}
+	result := new(IR_Handle)
+	result^ = IR_Handle{
+		effect = e.effect,
+		is_shallow = e.is_shallow,
+		body = body_ir,
+		arms = arms,
+		type = e.type_,
+		span = e.span,
+	}
+	return IR_Expr(result)
+}
+
+lower_tlist :: proc(e: ^TExpr_List, env: ^Lower_Env) -> IR_Expr {
+	nil_tag := new(IR_Construct_Tag)
+	nil_tag^ = IR_Construct_Tag{
+		tag_name = intern(env.interner, "Nil"),
+		tag_index = 0,
+		payload = make([dynamic]IR_Expr, 0),
+		type = e.type_,
+		span = e.span,
+	}
+
+	result: IR_Expr = IR_Expr(nil_tag)
+	for i := len(e.elements) - 1; i >= 0; i -= 1 {
+		elem := lower_texpr(e.elements[i], env)
+		cons_payload := make([dynamic]IR_Expr, 0, 2)
+		append(&cons_payload, elem)
+		append(&cons_payload, result)
+		cons_tag := new(IR_Construct_Tag)
+		cons_tag^ = IR_Construct_Tag{
+			tag_name = intern(env.interner, "Cons"),
+			tag_index = 0,
+			payload = cons_payload,
+			type = e.type_,
+			span = e.span,
+		}
+		result = IR_Expr(cons_tag)
+	}
+	return result
 }
 
 lower_method_call :: proc(e: ^CExpr_Method_Call, env: ^Lower_Env) -> IR_Expr {

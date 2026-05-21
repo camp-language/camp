@@ -99,7 +99,7 @@ run_build_single :: proc(file_path: string) {
 	context.allocator = old_allocator
 
 	context.allocator = ctx.allocator
-	ir_mod := lower_file(canon, &store)
+	ir_mod := lower_file(mono_tfile, &store)
 	ir_mod = effect_lower(&ir_mod, &ctx)
 	ir_mod = closure_convert(&ir_mod, &ctx)
 	ir_mod = cps_transform(&ir_mod, &ctx)
@@ -343,7 +343,9 @@ combine_module_irs :: proc(sorted: []Intern_ID, project: ^Project_Discovery, ctx
 		if !ok do continue
 
 		context.allocator = ctx.allocator
-		ir_mod := lower_file(mi.cfile^, &store)
+		annot_tfile := annotate_file(mi.cfile^, &store)
+		mono_tfile := mono(annot_tfile, &store, &ctx.interner)
+		ir_mod := lower_file(mono_tfile, &store)
 
 		for &decl in ir_mod.decls {
 			#partial switch d in decl {
