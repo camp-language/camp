@@ -253,18 +253,55 @@ substitute_types_in_expr :: proc(expr: TExpr, type_args: map[Intern_ID]Type_Var_
 		return TExpr(result)
 
 	case ^TExpr_Method_Call:
-		args_t := make([dynamic]TExpr, len(e.args))
+		sub_receiver := substitute_types_in_expr(e.receiver, type_args, env)
+		sub_args := make([dynamic]TExpr, len(e.args))
 		for i in 0..<len(e.args) {
-			args_t[i] = substitute_types_in_expr(e.args[i], type_args, env)
+			sub_args[i] = substitute_types_in_expr(e.args[i], type_args, env)
 		}
+
+		sub_type := substitute_ir_type(e.type_, type_args, env)
+		sub_eff := substitute_ir_type(e.eff_, type_args, env)
+
+		receiver_type_name := resolve_mono_type(sub_receiver, type_args, env)
+		if receiver_type_name != NO_NAME {
+			impl_name, found := find_method_impl(receiver_type_name, e.method.name, env.store)
+			if found {
+				callee := new(TExpr_Name)
+				callee^ = TExpr_Name{
+					name = impl_name,
+					type_ = sub_type,
+					eff_ = sub_eff,
+					span = e.span,
+				}
+
+				all_args := make([dynamic]TExpr, len(sub_args) + 1)
+				append(&all_args, sub_receiver)
+				for a in sub_args {
+					append(&all_args, a)
+				}
+
+				result := new(TExpr_Call)
+				result^ = TExpr_Call{
+					callee = TExpr(callee),
+					args = all_args,
+					type_ = sub_type,
+					eff_ = sub_eff,
+					span = e.span,
+				}
+				return TExpr(result)
+			}
+		}
+
 		result := new(TExpr_Method_Call)
-		result.receiver = substitute_types_in_expr(e.receiver, type_args, env)
-		result.method = e.method
-		result.args = args_t
-		result.type_ = substitute_ir_type(e.type_, type_args, env)
-		result.eff_ = substitute_ir_type(e.eff_, type_args, env)
-		result.resolved_ = e.resolved_
-		result.span = e.span
+		result^ = TExpr_Method_Call{
+			receiver = sub_receiver,
+			method = e.method,
+			args = sub_args,
+			type_ = sub_type,
+			eff_ = sub_eff,
+			resolved_ = e.resolved_,
+			span = e.span,
+		}
 		return TExpr(result)
 
 	case ^TExpr_Lambda:
@@ -433,7 +470,119 @@ substitute_types_in_expr :: proc(expr: TExpr, type_args: map[Intern_ID]Type_Var_
 }
 
 substitute_ir_type :: proc(ir_type: IR_Type, type_args: map[Intern_ID]Type_Var_ID, env: ^Mono_Env) -> IR_Type {
+	if len(type_args) == 0 {
+		return ir_type
+	}
+
+	resolved := resolve_var(env.store, ir_type.type_id)
+	v := get_var(env.store, resolved)
+
+	if _, is_inf := v.link.(Inferred_Type); is_inf {
+		return ir_type
+	}
+
+	for tp_name, concrete_var_id in type_args {
+		tp_binding, has_binding := env.store.bindings[tp_name]
+		if !has_binding {
+			continue
+		}
+		tp_resolved := resolve_var(env.store, tp_binding)
+		if tp_resolved == resolved {
+			concrete_resolved := resolve_var(env.store, concrete_var_id)
+			cv := get_var(env.store, concrete_resolved)
+			wasm_type := ir_type.wasm_type
+			if cinf, cis_inf := cv.link.(Inferred_Type); cis_inf && cinf.tag == .Newtype {
+				wasm_type = lower_type(env.store, cinf.inner_id).wasm_type
+			}
+			return IR_Type{wasm_type = wasm_type, type_id = concrete_resolved}
+		}
+	}
+
 	return ir_type
+}
+
+get_expr_ir_type :: proc(expr: TExpr) -> IR_Type {
+	switch e in expr {
+	case ^TExpr_Int:
+		return e.type_
+	case ^TExpr_Float:
+		return e.type_
+	case ^TExpr_String:
+		return e.type_
+	case ^TExpr_Bool:
+		return e.type_
+	case ^TExpr_Tag:
+		return e.type_
+	case ^TExpr_Record:
+		return e.type_
+	case ^TExpr_List:
+		return e.type_
+	case ^TExpr_Name:
+		return e.type_
+	case ^TExpr_Call:
+		return e.type_
+	case ^TExpr_Method_Call:
+		return e.type_
+	case ^TExpr_Lambda:
+		return e.type_
+	case ^TExpr_Block:
+		return e.type_
+	case ^TExpr_If:
+		return e.type_
+	case ^TExpr_Match:
+		return e.type_
+	case ^TExpr_BinOp:
+		return e.type_
+	case ^TExpr_PrefixOp:
+		return e.type_
+	case ^TExpr_Field_Access:
+		return e.type_
+	case ^TExpr_Record_Update:
+		return e.type_
+	case ^TExpr_Assign:
+		return e.type_
+	case ^TExpr_Return:
+		return e.type_
+	case ^TExpr_Crash:
+		return e.type_
+	case ^TExpr_Interpolate:
+		return e.type_
+	case ^TExpr_Handle:
+		return e.type_
+	}
+	return IR_Type{}
+}
+
+resolve_mono_type :: proc(expr: TExpr, type_args: map[Intern_ID]Type_Var_ID, env: ^Mono_Env) -> Intern_ID {
+	ir_type := get_expr_ir_type(expr)
+
+	subbed := substitute_ir_type(ir_type, type_args, env)
+	resolved := resolve_var(env.store, subbed.type_id)
+	v := get_var(env.store, resolved)
+
+	inf, is_inf := v.link.(Inferred_Type)
+	if !is_inf {
+		return NO_NAME
+	}
+
+	#partial switch inf.tag {
+	case .Primitive, .Newtype, .Constructor:
+		return inf.primitive_name
+	}
+
+	return NO_NAME
+}
+
+find_method_impl :: proc(type_name: Intern_ID, method_name: Intern_ID, store: ^Type_Store) -> (Canonical_Name, bool) {
+	impl, found := find_trait_impl_by_method(store, type_name, method_name)
+	if !found {
+		return Canonical_Name{}, false
+	}
+	impl_name, has := impl.methods[method_name]
+	if !has {
+		return Canonical_Name{}, false
+	}
+	return impl_name, true
 }
 
 walk_decl_for_call_sites :: proc(decl: TDecl, env: ^Mono_Env) {
@@ -538,6 +687,37 @@ rewrite_calls_in_expr :: proc(expr: TExpr, specializations: map[string]Canonical
 			e.args[i] = rewrite_calls_in_expr(e.args[i], specializations, env)
 		}
 		e.receiver = rewrite_calls_in_expr(e.receiver, specializations, env)
+
+		no_type_args := map[Intern_ID]Type_Var_ID{}
+		receiver_type_name := resolve_mono_type(e.receiver, no_type_args, env)
+		if receiver_type_name != NO_NAME {
+			impl_name, found := find_method_impl(receiver_type_name, e.method.name, env.store)
+			if found {
+				callee := new(TExpr_Name)
+				callee^ = TExpr_Name{
+					name = impl_name,
+					type_ = e.type_,
+					eff_ = e.eff_,
+					span = e.span,
+				}
+
+				all_args := make([dynamic]TExpr, len(e.args) + 1)
+				append(&all_args, e.receiver)
+				for a in e.args {
+					append(&all_args, a)
+				}
+
+				result := new(TExpr_Call)
+				result^ = TExpr_Call{
+					callee = TExpr(callee),
+					args = all_args,
+					type_ = e.type_,
+					eff_ = e.eff_,
+					span = e.span,
+				}
+				return TExpr(result)
+			}
+		}
 	case ^TExpr_Lambda:
 		e.body = rewrite_calls_in_expr(e.body, specializations, env)
 	case ^TExpr_Block:
