@@ -185,8 +185,16 @@ inject_prelude :: proc(store: ^Type_Store) {
 typecheck_decl :: proc(decl: CDecl, env: ^Type_Env, store: ^Type_Store) {
 	switch d in decl {
 	case ^CDecl_Const:
+		self_var := fresh_value_var(store, d.span)
+		env.bindings[d.name.name] = self_var
+		store.rec_vars[self_var] = true
+
 		enter_level(store)
 		result := typecheck_synth(d.body, env, store)
+
+		unify(store, self_var, result.var_id)
+
+		delete_key(&store.rec_vars, self_var)
 
 		if d.type_ann != nil {
 			ann_var := convert_type_to_var(d.type_ann, store)
@@ -766,14 +774,14 @@ typecheck_pattern :: proc(pattern: CPattern, scrutinee_var: Type_Var_ID, env: ^T
 			pat_result := typecheck_pattern(sp, payload_ids[i], env, store)
 			unify(store, eff, pat_result.effects)
 		}
-		rest_var := fresh_value_var(store, p.span)
+		rest_var := fresh_tag_row(store, p.span)
 		tag_entries := store_alloc(store, Type_Tag_Entry, 1)
 		tag_entries[0] = Type_Tag_Entry{name = p.name.name, payload = payload_ids}
 		tag_var := fresh_value_var(store, p.span)
 		link_var(store, tag_var, Inferred_Type{
 			tag = .Tag_Union_Row,
 			tag_entries = tag_entries,
-			rest_id = resolve_var(store, rest_var),
+			tag_rest = resolve_var(store, rest_var),
 		})
 		unify(store, scrutinee_var, tag_var)
 		return Type_Result{var_id = tag_var, effects = eff}

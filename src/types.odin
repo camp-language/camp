@@ -111,6 +111,7 @@ Type_Store :: struct {
 	trait_registry:   map[Intern_ID]Trait_Info,
 	trait_impls:      [dynamic]Trait_Impl,
 	type_constraints:  map[Type_Var_ID][]Intern_ID,
+	rec_vars:         map[Type_Var_ID]bool,
 }
 
 type_store_init :: proc(store: ^Type_Store, interner: ^Intern_Table, collector: ^Diagnostic_Collector) {
@@ -125,6 +126,7 @@ type_store_init :: proc(store: ^Type_Store, interner: ^Intern_Table, collector: 
 	store.trait_registry = make(map[Intern_ID]Trait_Info, 16)
 	store.trait_impls = make([dynamic]Trait_Impl, 0, 16)
 	store.type_constraints = make(map[Type_Var_ID][]Intern_ID, 32)
+	store.rec_vars = make(map[Type_Var_ID]bool, 4)
 }
 
 type_store_destroy :: proc(store: ^Type_Store) {
@@ -135,6 +137,7 @@ type_store_destroy :: proc(store: ^Type_Store) {
 	delete(store.trait_registry)
 	delete(store.trait_impls)
 	delete(store.type_constraints)
+	delete(store.rec_vars)
 }
 
 fresh_var :: proc(store: ^Type_Store, kind: Type_Var_Kind, name: Intern_ID, span: Source_Span) -> Type_Var_ID {

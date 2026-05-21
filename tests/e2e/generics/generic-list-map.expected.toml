@@ -1,21 +1,5 @@
 stdout = """
 canonicalized /tmp/camp-e2e/generics/generic-list-map/generic-list-map.camp: 1 declaration(s), 0 import(s)
--- TYPE MISMATCH --- /tmp/camp-e2e/generics/generic-list-map/generic-list-map.camp
-
-`Bool` does not match `tag union`.
-
--- UNDEFINED NAME --- /tmp/camp-e2e/generics/generic-list-map/generic-list-map.camp
-
-I cannot find `map`.
-   1 | map = |f, xs| { match xs { Nil => Nil | Cons(h, t) => Cons(f(h), map(f, t)) } }
-                                                                        ^^^
-
--- TYPE MISMATCH --- /tmp/camp-e2e/generics/generic-list-map/generic-list-map.camp
-
-I expected a row type here, but I found a value type instead.
-   1 | map = |f, xs| { match xs { Nil => Nil | Cons(h, t) => Cons(f(h), map(f, t)) } }
-                                         ^^^
-compilation failed with 3 error(s)
 """
 stderr = ""
-exit = 1
+exit = 0
