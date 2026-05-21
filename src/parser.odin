@@ -149,19 +149,17 @@ parser_parse_decl :: proc(p: ^Parser) -> Decl {
 	#partial switch p.current.kind {
 	case .Kw_Effect:
 		return parser_parse_effect_decl(p, is_pub)
-	case .Kw_Trait:
-		return parser_parse_trait_decl(p, is_pub)
-	case .Kw_Alias:
-		return parser_parse_alias_decl(p, is_pub)
 	case .Kw_Import, .Kw_Unsafe:
 		return parser_parse_import_decl(p, is_pub)
 	case .Kw_Test:
 		return parser_parse_test_decl(p)
 	case .Kw_Expect:
 		return parser_parse_expect_decl(p)
+	case .At:
+		return parser_parse_newtype_decl(p, is_pub)
 	case .Upper_Id:
-		if is_newtype_decl(p) {
-			return parser_parse_newtype_decl(p, is_pub)
+		if is_trait_decl(p) {
+			return parser_parse_trait_decl(p, is_pub)
 		}
 		fallthrough
 	case:
@@ -174,6 +172,7 @@ parser_parse_const_decl :: proc(p: ^Parser, is_pub: bool) -> Decl {
 
 	name := parser_advance(p)
 	name_text := name.text
+	is_upper := name.kind == .Upper_Id
 
 	is_effectful := false
 	if p.current.kind == .Bang {
@@ -188,6 +187,12 @@ parser_parse_const_decl :: proc(p: ^Parser, is_pub: bool) -> Decl {
 	if p.current.kind == .Colon {
 		parser_advance(p)
 		type_ann = parser_parse_type(p)
+	}
+
+	if is_upper && type_ann != nil && p.current.kind != .Eq {
+		decl := new(Decl_Alias)
+		decl^ = Decl_Alias{name = name_id, is_pub = is_pub, target = type_ann, span = Source_Span{file_id = start_span.file_id, start = start_span.start, end = p.current.span.end}}
+		return decl
 	}
 
 	parser_expect(p, .Eq)
@@ -1211,7 +1216,6 @@ parser_parse_effect_decl :: proc(p: ^Parser, is_pub: bool) -> Decl {
 
 parser_parse_trait_decl :: proc(p: ^Parser, is_pub: bool) -> Decl {
 	start := p.current.span
-	parser_advance(p)
 
 	name_tok := parser_expect(p, .Upper_Id)
 	name_id := intern(p.intern, name_tok.text)
@@ -1222,6 +1226,8 @@ parser_parse_trait_decl :: proc(p: ^Parser, is_pub: bool) -> Decl {
 		parent_tok := parser_expect(p, .Upper_Id)
 		parent = intern(p.intern, parent_tok.text)
 	}
+
+	parser_expect(p, .Colon)
 
 	methods := make([dynamic]Trait_Method, 0, 8)
 
@@ -1246,42 +1252,12 @@ parser_parse_trait_decl :: proc(p: ^Parser, is_pub: bool) -> Decl {
 	return decl
 }
 
-parser_parse_alias_decl :: proc(p: ^Parser, is_pub: bool) -> Decl {
-	start := p.current.span
-	parser_advance(p)
-
-	name_tok := parser_expect(p, .Upper_Id)
-	name_id := intern(p.intern, name_tok.text)
-	parser_expect(p, .Eq)
-	target := parser_parse_type(p)
-
-	decl := new(Decl_Alias)
-	decl^ = Decl_Alias{name = name_id, is_pub = is_pub, target = target, span = start}
-	return decl
-}
-
-is_newtype_decl :: proc(p: ^Parser) -> bool {
+is_trait_decl :: proc(p: ^Parser) -> bool {
 	saved_pos := p.lexer.pos
 	saved_tok := p.current
 
 	parser_advance(p)
-
-	if p.current.kind == .LParen {
-		parser_advance(p)
-		depth := 1
-		for p.current.kind != .Eof && depth > 0 {
-			if p.current.kind == .LParen { depth += 1 }
-			if p.current.kind == .RParen { depth -= 1 }
-			parser_advance(p)
-		}
-	}
-
-	if p.current.kind == .Kw_Is {
-		parser_advance(p)
-		parser_expect(p, .Upper_Id)
-	}
-
-	result := p.current.kind == .Colon_Eq
+	result := p.current.kind == .Kw_Is
 
 	p.lexer.pos = saved_pos
 	p.current = saved_tok
@@ -1290,6 +1266,8 @@ is_newtype_decl :: proc(p: ^Parser) -> bool {
 
 parser_parse_newtype_decl :: proc(p: ^Parser, is_pub: bool) -> Decl {
 	start := p.current.span
+	parser_expect(p, .At)
+
 	name_tok := parser_expect(p, .Upper_Id)
 	name_id := intern(p.intern, name_tok.text)
 
@@ -1318,17 +1296,37 @@ parser_parse_newtype_decl :: proc(p: ^Parser, is_pub: bool) -> Decl {
 		}
 	}
 
-	parser_expect(p, .Colon_Eq)
+	derive_targets := make([dynamic]Intern_ID, 0, 4)
+	if p.current.kind == .Kw_Derives {
+		parser_advance(p)
+		derive_tok := parser_expect(p, .Upper_Id)
+		append(&derive_targets, intern(p.intern, derive_tok.text))
+		for p.current.kind == .Comma {
+			parser_advance(p)
+			derive_tok = parser_expect(p, .Upper_Id)
+			append(&derive_targets, intern(p.intern, derive_tok.text))
+		}
+	}
+
+	parser_expect(p, .Colon)
+
+	pub_variants := false
+	if p.current.kind == .Kw_Pub {
+		parser_advance(p)
+		pub_variants = true
+	}
+
 	inner_type := parser_parse_type(p)
 
 	decl := new(Decl_Newtype)
 	decl^ = Decl_Newtype{
 		name = name_id,
 		is_pub = is_pub,
+		pub_variants = pub_variants,
 		type_params = type_params,
 		trait_conforms = trait_conforms,
 		inner_type = inner_type,
-		derive_targets = make([dynamic]Intern_ID, 0, 4),
+		derive_targets = derive_targets,
 		span = start,
 	}
 	return decl

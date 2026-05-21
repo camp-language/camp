@@ -9,9 +9,8 @@ KEYWORDS :map[string]Token_Kind = {
 	"else"      = .Kw_Else,
 	"match"     = .Kw_Match,
 	"effect"    = .Kw_Effect,
-	"trait"     = .Kw_Trait,
 	"is"        = .Kw_Is,
-	"alias"     = .Kw_Alias,
+	"derives"   = .Kw_Derives,
 	"handle"    = .Kw_Handle,
 	"intercept" = .Kw_Intercept,
 	"in"        = .Kw_In,
@@ -270,14 +269,15 @@ lexer_lex_identifier :: proc(l: ^Lexer, start: int) -> Token {
 
 	text := l.source[start:l.pos]
 
-	if !is_upper {
-		if kind, ok := KEYWORDS[text]; ok {
-			return lexer_make_token(l, kind, start, text)
-		}
-		return lexer_make_token(l, .Identifier, start, text)
+	if kind, ok := KEYWORDS[text]; ok {
+		return lexer_make_token(l, kind, start, text)
 	}
 
-	return lexer_make_token(l, .Upper_Id, start, text)
+	if is_upper {
+		return lexer_make_token(l, .Upper_Id, start, text)
+	}
+
+	return lexer_make_token(l, .Identifier, start, text)
 }
 
 is_identifier_start :: proc(ch: u8) -> bool {

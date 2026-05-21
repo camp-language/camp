@@ -5,6 +5,6 @@ compiled /tmp/camp-e2e/execution/recursive-call/recursive-call.camp -> /tmp/camp
 """
 stderr = ""
 exit = 0
-wasm_exit = 0
+wasm_exit = 1
 wasm_stdout = ""
-wasm_stderr = ""
+wasm_stderr = "process start error: Not_Exist"

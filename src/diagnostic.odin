@@ -143,6 +143,10 @@ Trait_Method_Signature_Mismatch :: struct {
 	expected_sig: string,
 	actual_sig:   string,
 }
+Newtype_Opaque_Violation :: struct {
+	type_name: string,
+	action:    string,
+}
 Generic_Ambiguous_Type :: proc(name: string, span: Source_Span) -> Diagnostic {
 	d := diag_init(.Error, "AMBIGUOUS TYPE", span,
 		fmt.tprintf("Cannot determine type for generic parameter `{}`. Provide a type annotation.", name))

@@ -1,0 +1,3 @@
+@UserId : U64
+uid = UserId(42)
+n = uid + 1

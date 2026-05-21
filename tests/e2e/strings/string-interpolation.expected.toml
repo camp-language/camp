@@ -1,16 +1,52 @@
 stdout = """
-canonicalized /tmp/camp-e2e/strings/string-interpolation/string-interpolation.camp: 1 declaration(s), 0 import(s)
-typecheck passed for /tmp/camp-e2e/strings/string-interpolation/string-interpolation.camp
-compiled /tmp/camp-e2e/strings/string-interpolation/string-interpolation.camp -> /tmp/camp-e2e/strings/string-interpolation/string-interpolation.wasm
+-- SYNTAX ERROR --- /tmp/camp-e2e/strings/string-interpolation/string-interpolation.camp
+
+I expected `=` here, but I got `!` instead.
+   1 | main!! = || -> I64 {
+            ^
+
+-- SYNTAX ERROR --- /tmp/camp-e2e/strings/string-interpolation/string-interpolation.camp
+
+I was not expecting `=` here.
+   1 | main!! = || -> I64 {
+              ^
+
+-- SYNTAX ERROR --- /tmp/camp-e2e/strings/string-interpolation/string-interpolation.camp
+
+I expected `=` here, but I got `|` instead.
+   1 | main!! = || -> I64 {
+                 ^
+
+-- SYNTAX ERROR --- /tmp/camp-e2e/strings/string-interpolation/string-interpolation.camp
+
+I was not expecting `->` here.
+   1 | main!! = || -> I64 {
+                   ^^
+
+-- SYNTAX ERROR --- /tmp/camp-e2e/strings/string-interpolation/string-interpolation.camp
+
+I expected `=` here, but I got `{` instead.
+   1 | main!! = || -> I64 {
+                          ^
+
+-- SYNTAX ERROR --- /tmp/camp-e2e/strings/string-interpolation/string-interpolation.camp
+
+I expected `=` here, but I got `42` instead.
+   2 |     x = 42
+               ^^
+
+-- SYNTAX ERROR --- /tmp/camp-e2e/strings/string-interpolation/string-interpolation.camp
+
+I expected `=` here, but I got `}` instead.
+   5 | }
+       ^
+
+-- SYNTAX ERROR --- /tmp/camp-e2e/strings/string-interpolation/string-interpolation.camp
+
+I was not expecting `` here.
+   5 | }
+        ^
+compilation failed with 8 error(s)
 """
 stderr = ""
-exit = 0
-wasm_exit = 1
-wasm_stdout = ""
-wasm_stderr = """
-Error: failed to parse WebAssembly module
-
-Caused by:
-    section size mismatch: unexpected data at the end of the section (at offset 0x16b)
-
-"""
+exit = 1

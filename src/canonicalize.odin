@@ -40,6 +40,17 @@ canonicalize :: proc(surface: File, ctx: ^Compilation_Context) -> CFile {
 	for decl in surface.decls {
 		cdecl := canonicalize_decl(decl, &scope, &cfile.imports, ctx)
 		append(&cfile.decls, cdecl)
+
+		#partial switch d in cdecl {
+		case ^CDecl_Newtype:
+			if len(d.derive_targets) > 0 {
+				stubs := generate_derive_stubs(d, &scope, ctx)
+				for stub in stubs {
+					append(&cfile.decls, stub)
+				}
+			}
+		case:
+		}
 	}
 
 	return cfile
@@ -115,9 +126,28 @@ canonicalize_decl :: proc(decl: Decl, scope: ^Canonicalize_Scope, imports: ^[dyn
 		for tp in d.type_params {
 			append(&type_params, tp)
 		}
-		trait_conforms := make([dynamic]Intern_ID, 0, len(d.trait_conforms))
+		trait_conforms_set := make(map[Intern_ID]bool, len(d.trait_conforms) + len(d.derive_targets) + 1)
+		defer delete(trait_conforms_set)
+		trait_conforms := make([dynamic]Intern_ID, 0, len(d.trait_conforms) + len(d.derive_targets) + 1)
 		for tc in d.trait_conforms {
-			append(&trait_conforms, tc)
+			if !trait_conforms_set[tc] {
+				trait_conforms_set[tc] = true
+				append(&trait_conforms, tc)
+			}
+		}
+		for dt in d.derive_targets {
+			if !trait_conforms_set[dt] {
+				trait_conforms_set[dt] = true
+				append(&trait_conforms, dt)
+			}
+			derive_name_str := intern_get(&ctx.interner, dt)
+			if derive_name_str == "Ord" {
+				eq_id := intern(&ctx.interner, "Eq")
+				if !trait_conforms_set[eq_id] {
+					trait_conforms_set[eq_id] = true
+					append(&trait_conforms, eq_id)
+				}
+			}
 		}
 		cinner_type := canonicalize_type(d.inner_type^, scope, ctx)
 		derive_targets := make([dynamic]Intern_ID, 0, len(d.derive_targets))
@@ -128,6 +158,7 @@ canonicalize_decl :: proc(decl: Decl, scope: ^Canonicalize_Scope, imports: ^[dyn
 		cdecl^ = CDecl_Newtype{
 			name = name,
 			is_pub = d.is_pub,
+			pub_variants = d.pub_variants,
 			type_params = type_params,
 			trait_conforms = trait_conforms,
 			inner_type = cinner_type,
@@ -750,4 +781,149 @@ sort_type_fields_by_name :: proc(fields: ^[dynamic]CType_Field) {
 			}
 		}
 	}
+}
+
+generate_derive_stubs :: proc(d: ^CDecl_Newtype, scope: ^Canonicalize_Scope, ctx: ^Compilation_Context) -> [dynamic]CDecl {
+	result := make([dynamic]CDecl, 0, 8)
+	type_name_str := intern_get(&ctx.interner, d.name.name)
+	generated: map[string]bool
+	generated = make(map[string]bool, 8)
+	defer delete(generated)
+
+	for dt in d.derive_targets {
+		derive_name_str := intern_get(&ctx.interner, dt)
+		switch derive_name_str {
+		case "Eq":
+			stub_name := fmt.tprintf("{}_eq", type_name_str)
+			if !generated[stub_name] {
+				generated[stub_name] = true
+				append(&result, make_derive_method_decl(d, "eq", 2, false, scope, ctx))
+			}
+		case "Clone":
+			stub_name := fmt.tprintf("{}_clone", type_name_str)
+			if !generated[stub_name] {
+				generated[stub_name] = true
+				append(&result, make_derive_method_decl(d, "clone", 1, true, scope, ctx))
+			}
+		case "Hash":
+			stub_name := fmt.tprintf("{}_hash", type_name_str)
+			if !generated[stub_name] {
+				generated[stub_name] = true
+				append(&result, make_derive_method_decl(d, "hash", 1, false, scope, ctx))
+			}
+		case "Ord":
+			compare_name := fmt.tprintf("{}_compare", type_name_str)
+			if !generated[compare_name] {
+				generated[compare_name] = true
+				append(&result, make_derive_method_decl(d, "compare", 2, false, scope, ctx))
+			}
+			eq_name := fmt.tprintf("{}_eq", type_name_str)
+			if !generated[eq_name] {
+				generated[eq_name] = true
+				append(&result, make_derive_method_decl(d, "eq", 2, false, scope, ctx))
+			}
+		case:
+		}
+	}
+
+	return result
+}
+
+make_derive_method_decl :: proc(
+	d: ^CDecl_Newtype,
+	method_name: string,
+	param_count: int,
+	wrap_in_newtype: bool,
+	scope: ^Canonicalize_Scope,
+	ctx: ^Compilation_Context,
+) -> CDecl {
+	type_name_str := intern_get(&ctx.interner, d.name.name)
+	fn_name_str := fmt.tprintf("{}_{}", type_name_str, method_name)
+	fn_name_id := intern(&ctx.interner, fn_name_str)
+
+	fn_canonical_name := Canonical_Name{module = d.name.module, name = fn_name_id, is_local = true}
+	scope.local_names[fn_name_id] = fn_canonical_name
+	scope.local_kinds[fn_name_id] = .Const
+
+	param_name_strs := [2]string{"x", "y"}
+	params := make([dynamic]CFunc_Param, 0, param_count)
+	param_ids := make([dynamic]Intern_ID, 0, param_count)
+	for i in 0..<param_count {
+		p_id := intern(&ctx.interner, param_name_strs[i])
+		append(&param_ids, p_id)
+		append(&params, CFunc_Param{name = p_id, span = d.span})
+	}
+
+	inner_id := intern(&ctx.interner, "inner")
+	method_id := intern(&ctx.interner, method_name)
+
+	x_name := Canonical_Name{module = NO_NAME, name = param_ids[0], is_local = true}
+	x_expr := new(CExpr_Name)
+	x_expr^ = CExpr_Name{name = x_name, span = d.span}
+
+	inner_canonical := Canonical_Name{module = NO_NAME, name = inner_id, is_local = true}
+	x_inner := new(CExpr_Method_Call)
+	x_inner^ = CExpr_Method_Call{
+		receiver = x_expr,
+		method = inner_canonical,
+		args = make([dynamic]CExpr, 0),
+		span = d.span,
+	}
+
+	method_canonical := Canonical_Name{module = NO_NAME, name = method_id, is_local = true}
+	method_args := make([dynamic]CExpr, 0, param_count - 1)
+	for i in 1..<param_count {
+		y_name := Canonical_Name{module = NO_NAME, name = param_ids[i], is_local = true}
+		y_expr := new(CExpr_Name)
+		y_expr^ = CExpr_Name{name = y_name, span = d.span}
+		y_inner := new(CExpr_Method_Call)
+		y_inner^ = CExpr_Method_Call{
+			receiver = y_expr,
+			method = inner_canonical,
+			args = make([dynamic]CExpr, 0),
+			span = d.span,
+		}
+		append(&method_args, y_inner)
+	}
+
+	method_call := new(CExpr_Method_Call)
+	method_call^ = CExpr_Method_Call{
+		receiver = x_inner,
+		method = method_canonical,
+		args = method_args,
+		span = d.span,
+	}
+
+	body_expr: CExpr
+	if wrap_in_newtype {
+		tag_payload := make([dynamic]CExpr, 1)
+		tag_payload[0] = method_call
+		tag := new(CExpr_Tag)
+		tag^ = CExpr_Tag{name = d.name, payload = tag_payload, span = d.span}
+		body_expr = tag
+	} else {
+		body_expr = method_call
+	}
+
+	lambda := new(CExpr_Lambda)
+	lambda^ = CExpr_Lambda{
+		type_params = make([dynamic]Type_Param, 0),
+		params = params,
+		return_type = nil,
+		effects = nil,
+		body = body_expr,
+		span = d.span,
+	}
+
+	cdecl := new(CDecl_Const)
+	cdecl^ = CDecl_Const{
+		name = fn_canonical_name,
+		is_pub = d.is_pub,
+		is_effectful = false,
+		body = lambda,
+		derive_targets = make([dynamic]Intern_ID, 0, 4),
+		span = d.span,
+	}
+
+	return cdecl
 }

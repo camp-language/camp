@@ -182,3 +182,90 @@ test_canonicalize_handle :: proc(t: ^testing.T) {
 		testing.expect(t, false)
 	}
 }
+
+@(test)
+test_canonicalize_derive_eq :: proc(t: ^testing.T) {
+	file, ctx := canon_file("@UserId derives Eq : U64")
+	defer context_destroy(ctx)
+	defer free(ctx)
+
+	testing.expect(t, len(file.decls) == 2)
+	#partial switch decl in file.decls[0] {
+	case ^CDecl_Newtype:
+		testing.expect(t, len(decl.derive_targets) == 1)
+		testing.expect(t, len(decl.trait_conforms) == 1)
+	case:
+		testing.expect(t, false)
+	}
+	#partial switch decl in file.decls[1] {
+	case ^CDecl_Const:
+		eq_name := intern(&ctx.interner, "UserId_eq")
+		testing.expect(t, decl.name.name == eq_name)
+		#partial switch expr in decl.body {
+		case ^CExpr_Lambda:
+			testing.expect(t, len(expr.params) == 2)
+		case:
+			testing.expect(t, false)
+		}
+	case:
+		testing.expect(t, false)
+	}
+}
+
+@(test)
+test_canonicalize_derive_ord :: proc(t: ^testing.T) {
+	file, ctx := canon_file("@UserId derives Ord : U64")
+	defer context_destroy(ctx)
+	defer free(ctx)
+
+	testing.expect(t, len(file.decls) == 3)
+	#partial switch decl in file.decls[0] {
+	case ^CDecl_Newtype:
+		testing.expect(t, len(decl.derive_targets) == 1)
+		testing.expect(t, len(decl.trait_conforms) == 2)
+	case:
+		testing.expect(t, false)
+	}
+	compare_name := intern(&ctx.interner, "UserId_compare")
+	eq_name := intern(&ctx.interner, "UserId_eq")
+	#partial switch decl in file.decls[1] {
+	case ^CDecl_Const:
+		testing.expect(t, decl.name.name == compare_name)
+	case:
+		testing.expect(t, false)
+	}
+	#partial switch decl in file.decls[2] {
+	case ^CDecl_Const:
+		testing.expect(t, decl.name.name == eq_name)
+	case:
+		testing.expect(t, false)
+	}
+}
+
+@(test)
+test_canonicalize_derive_clone :: proc(t: ^testing.T) {
+	file, ctx := canon_file("@UserId derives Clone : U64")
+	defer context_destroy(ctx)
+	defer free(ctx)
+
+	testing.expect(t, len(file.decls) == 2)
+	#partial switch decl in file.decls[1] {
+	case ^CDecl_Const:
+		clone_name := intern(&ctx.interner, "UserId_clone")
+		testing.expect(t, decl.name.name == clone_name)
+		#partial switch expr in decl.body {
+		case ^CExpr_Lambda:
+			testing.expect(t, len(expr.params) == 1)
+			#partial switch body in expr.body {
+			case ^CExpr_Tag:
+				testing.expect(t, len(body.payload) == 1)
+			case:
+				testing.expect(t, false)
+			}
+		case:
+			testing.expect(t, false)
+		}
+	case:
+		testing.expect(t, false)
+	}
+}

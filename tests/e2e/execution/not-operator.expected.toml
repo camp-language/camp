@@ -1,17 +1,52 @@
 stdout = """
-canonicalized /tmp/camp-e2e/execution/not-operator/not-operator.camp: 1 declaration(s), 0 import(s)
-typecheck passed for /tmp/camp-e2e/execution/not-operator/not-operator.camp
-compiled /tmp/camp-e2e/execution/not-operator/not-operator.camp -> /tmp/camp-e2e/execution/not-operator/not-operator.wasm
+-- SYNTAX ERROR --- /tmp/camp-e2e/execution/not-operator/not-operator.camp
+
+I expected `=` here, but I got `!` instead.
+   1 | main!! = || -> I64 {
+            ^
+
+-- SYNTAX ERROR --- /tmp/camp-e2e/execution/not-operator/not-operator.camp
+
+I was not expecting `=` here.
+   1 | main!! = || -> I64 {
+              ^
+
+-- SYNTAX ERROR --- /tmp/camp-e2e/execution/not-operator/not-operator.camp
+
+I expected `=` here, but I got `|` instead.
+   1 | main!! = || -> I64 {
+                 ^
+
+-- SYNTAX ERROR --- /tmp/camp-e2e/execution/not-operator/not-operator.camp
+
+I was not expecting `->` here.
+   1 | main!! = || -> I64 {
+                   ^^
+
+-- SYNTAX ERROR --- /tmp/camp-e2e/execution/not-operator/not-operator.camp
+
+I expected `=` here, but I got `{` instead.
+   1 | main!! = || -> I64 {
+                          ^
+
+-- UNEXPECTED CHARACTER --- /tmp/camp-e2e/execution/not-operator/not-operator.camp
+
+I don't recognize the character `?`.
+   2 |     if ?False 1 else 0
+              ^
+
+-- SYNTAX ERROR --- /tmp/camp-e2e/execution/not-operator/not-operator.camp
+
+I expected `=` here, but I got `` instead.
+   3 | }
+        ^
+
+-- SYNTAX ERROR --- /tmp/camp-e2e/execution/not-operator/not-operator.camp
+
+I was not expecting `` here.
+   3 | }
+        ^
+compilation failed with 8 error(s)
 """
 stderr = ""
-exit = 0
-wasm_exit = 1
-wasm_stdout = ""
-wasm_stderr = """
-Error: failed to compile: wasm[0]::function[10]
-
-Caused by:
-    0: WebAssembly translation error
-    1: Invalid input WebAssembly code at offset 336: type mismatch: expected i64, found i32
-
-"""
+exit = 1

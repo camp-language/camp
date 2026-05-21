@@ -1,17 +1,46 @@
 stdout = """
-canonicalized /tmp/camp-e2e/execution/multi-decl/multi-decl.camp: 3 declaration(s), 0 import(s)
--- UNDEFINED NAME --- /tmp/camp-e2e/execution/multi-decl/multi-decl.camp
+-- SYNTAX ERROR --- /tmp/camp-e2e/execution/multi-decl/multi-decl.camp
 
-I cannot find `x`.
-   3 | main! = || -> I64 { x + y }
-                           ^
+I expected `=` here, but I got `!` instead.
+   3 | main!! = || -> I64 {
+            ^
 
--- UNDEFINED NAME --- /tmp/camp-e2e/execution/multi-decl/multi-decl.camp
+-- SYNTAX ERROR --- /tmp/camp-e2e/execution/multi-decl/multi-decl.camp
 
-I cannot find `y`.
-   3 | main! = || -> I64 { x + y }
-                               ^
-compilation failed with 2 error(s)
+I was not expecting `=` here.
+   3 | main!! = || -> I64 {
+              ^
+
+-- SYNTAX ERROR --- /tmp/camp-e2e/execution/multi-decl/multi-decl.camp
+
+I expected `=` here, but I got `|` instead.
+   3 | main!! = || -> I64 {
+                 ^
+
+-- SYNTAX ERROR --- /tmp/camp-e2e/execution/multi-decl/multi-decl.camp
+
+I was not expecting `->` here.
+   3 | main!! = || -> I64 {
+                   ^^
+
+-- SYNTAX ERROR --- /tmp/camp-e2e/execution/multi-decl/multi-decl.camp
+
+I expected `=` here, but I got `{` instead.
+   3 | main!! = || -> I64 {
+                          ^
+
+-- SYNTAX ERROR --- /tmp/camp-e2e/execution/multi-decl/multi-decl.camp
+
+I expected `=` here, but I got `` instead.
+   5 | }
+        ^
+
+-- SYNTAX ERROR --- /tmp/camp-e2e/execution/multi-decl/multi-decl.camp
+
+I was not expecting `` here.
+   5 | }
+        ^
+compilation failed with 7 error(s)
 """
 stderr = ""
 exit = 1

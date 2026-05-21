@@ -78,6 +78,7 @@ CDecl_Alias :: struct {
 CDecl_Newtype :: struct {
 	name:           Canonical_Name,
 	is_pub:         bool,
+	pub_variants:   bool,
 	type_params:    [dynamic]Intern_ID,
 	trait_conforms: [dynamic]Intern_ID,
 	inner_type:     ^CType,

@@ -1,16 +1,46 @@
 stdout = """
-canonicalized /tmp/camp-e2e/strings/string-literal/string-literal.camp: 1 declaration(s), 0 import(s)
-typecheck passed for /tmp/camp-e2e/strings/string-literal/string-literal.camp
-compiled /tmp/camp-e2e/strings/string-literal/string-literal.camp -> /tmp/camp-e2e/strings/string-literal/string-literal.wasm
+-- SYNTAX ERROR --- /tmp/camp-e2e/strings/string-literal/string-literal.camp
+
+I expected `=` here, but I got `!` instead.
+   1 | main!! = || -> I64 {
+            ^
+
+-- SYNTAX ERROR --- /tmp/camp-e2e/strings/string-literal/string-literal.camp
+
+I was not expecting `=` here.
+   1 | main!! = || -> I64 {
+              ^
+
+-- SYNTAX ERROR --- /tmp/camp-e2e/strings/string-literal/string-literal.camp
+
+I expected `=` here, but I got `|` instead.
+   1 | main!! = || -> I64 {
+                 ^
+
+-- SYNTAX ERROR --- /tmp/camp-e2e/strings/string-literal/string-literal.camp
+
+I was not expecting `->` here.
+   1 | main!! = || -> I64 {
+                   ^^
+
+-- SYNTAX ERROR --- /tmp/camp-e2e/strings/string-literal/string-literal.camp
+
+I expected `=` here, but I got `{` instead.
+   1 | main!! = || -> I64 {
+                          ^
+
+-- SYNTAX ERROR --- /tmp/camp-e2e/strings/string-literal/string-literal.camp
+
+I expected `=` here, but I got `}` instead.
+   4 | }
+       ^
+
+-- SYNTAX ERROR --- /tmp/camp-e2e/strings/string-literal/string-literal.camp
+
+I was not expecting `` here.
+   4 | }
+        ^
+compilation failed with 7 error(s)
 """
 stderr = ""
-exit = 0
-wasm_exit = 1
-wasm_stdout = ""
-wasm_stderr = """
-Error: failed to parse WebAssembly module
-
-Caused by:
-    unexpected end-of-file (at offset 0x15d)
-
-"""
+exit = 1

@@ -1140,7 +1140,7 @@ test_format_decl_alias :: proc(t: ^testing.T) {
 	result := doc_resolve(format_decl(Decl(da), &info, &ctx.interner), 0)
 	defer delete(result)
 
-	testing.expectf(t, result == "alias MyInt = Int", "expected %q, got %q", "alias MyInt = Int", result)
+	testing.expectf(t, result == "MyInt : Int", "expected %q, got %q", "MyInt : Int", result)
 }
 
 @(test)
@@ -1480,4 +1480,16 @@ test_format_preserves_blank_line :: proc(t: ^testing.T) {
 		"expected no diagnostics, got %d", len(result.diagnostics))
 	testing.expectf(t, strings.contains(result.output, "\n\n"),
 		"expected blank line in output, got %q", result.output)
+}
+
+@(test)
+test_format_decl_newtype_pub_variants :: proc(t: ^testing.T) {
+	source := "@Result(a, e) : pub [Ok(a) | Err(e)]"
+	result := format(source, "test.camp", context.allocator)
+	defer cleanup_format_result(&result)
+
+	testing.expectf(t, len(result.diagnostics) == 0,
+		"expected no diagnostics, got %d", len(result.diagnostics))
+	testing.expectf(t, result.output == "@Result(a, e) : pub [Ok(a) | Err(e)]",
+		"expected %q, got %q", "@Result(a, e) : pub [Ok(a) | Err(e)]", result.output)
 }
