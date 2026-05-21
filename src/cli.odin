@@ -146,30 +146,47 @@ run_build_project :: proc() {
 
 	fmt.printfln("discovered {} module(s)", len(project.modules))
 
+	cached_count := 0
+
 	for name, &mi in project.modules {
-		source_file := Source_File{path = mi.path, contents = mi.source, id = 0}
-		lexer: Lexer
-		lexer_init(&lexer, source_file, &ctx.collector, &ctx.interner)
-
-		context.allocator = ctx.allocator
-		parser: Parser
-		parser_init(&parser, &lexer, &ctx.collector, &ctx.interner)
-		ast_file := parser_parse_file(&parser)
-		context.allocator = old_allocator_save()
-
-		if diag_collector_has_errors(&ctx.collector) {
-			render_all(&ctx.collector, mi.path, mi.source)
-			os.exit(1)
+		manifest, cache_ok := cache_read_manifest(mi.content_hash, ctx.allocator)
+		if cache_ok && len(manifest.imports) > 0 {
+			cached_count += 1
+			mi.imports = make([dynamic]Deferred_Import, 0, len(manifest.imports))
+			for m_imp in manifest.imports {
+				di: Deferred_Import
+				di.module = intern(&ctx.interner, m_imp.module)
+				di.exposing = make([dynamic]Intern_ID, 0, len(m_imp.exposing))
+				for exp in m_imp.exposing {
+					append(&di.exposing, intern(&ctx.interner, exp))
+				}
+				if len(m_imp.alias) > 0 {
+					di.alias = intern(&ctx.interner, m_imp.alias)
+				}
+				di.is_unsafe = m_imp.is_unsafe
+				append(&mi.imports, di)
+			}
+			mi.exports = make([dynamic]Export_Info, 0, len(manifest.exports))
+			for m_exp in manifest.exports {
+				append(&mi.exports, Export_Info{
+					name = intern(&ctx.interner, m_exp.name),
+					kind = m_exp.kind,
+					is_pub = m_exp.is_pub,
+					type_var = Type_Var_ID(-1),
+				})
+			}
+			manifest_destroy(&manifest)
+			continue
+		}
+		if cache_ok {
+			manifest_destroy(&manifest)
 		}
 
-		context.allocator = ctx.allocator
-		canon := canonicalize(ast_file, &ctx)
-		context.allocator = old_allocator_save()
+		parse_and_canonicalize(&mi, &ctx)
+	}
 
-		cfile_ptr := new(CFile)
-		cfile_ptr^ = canon
-		mi.cfile = cfile_ptr
-		mi.imports = canon.imports
+	if cached_count > 0 {
+		fmt.printfln("loaded {} module(s) from cache", cached_count)
 	}
 
 	graph := build_module_graph(&project, &ctx.interner, &ctx.collector)
@@ -187,9 +204,14 @@ run_build_project :: proc() {
 	}
 
 	for mod_id in sorted {
-		mi := project.modules[mod_id]
-		if mi.cfile == nil do continue
+		mi_ptr, mi_ok := &project.modules[mod_id]
+		if !mi_ok do continue
+		if mi_ptr.cfile == nil {
+			parse_and_canonicalize(mi_ptr, &ctx)
+		}
+		if mi_ptr.cfile == nil do continue
 
+		mi := mi_ptr^
 		store: Type_Store
 		type_store_init(&store, &ctx.interner, &ctx.collector)
 		inject_prelude(&store)
@@ -224,11 +246,12 @@ run_build_project :: proc() {
 	}
 
 	for mod_id in sorted {
-		mi := project.modules[mod_id]
-		if mi.cfile == nil do continue
+		mi2_ptr, mi2_ok := &project.modules[mod_id]
+		if !mi2_ok do continue
+		if mi2_ptr.cfile == nil do continue
 
-		scope := resolve_imports(mod_id, mi.cfile, &ctx.export_tables, &project, &ctx.interner, &ctx.collector)
-		apply_import_resolution(mi.cfile, &scope, &ctx.export_tables, &ctx.interner, &ctx.collector)
+		scope := resolve_imports(mod_id, mi2_ptr.cfile, &ctx.export_tables, &project, &ctx.interner, &ctx.collector)
+		apply_import_resolution(mi2_ptr.cfile, &scope, &ctx.export_tables, &ctx.interner, &ctx.collector)
 		import_scope_destroy(&scope)
 	}
 
@@ -269,6 +292,36 @@ run_build_project :: proc() {
 
 old_allocator_save :: proc() -> mem.Allocator {
 	return context.allocator
+}
+
+parse_and_canonicalize :: proc(mi: ^Module_Info, ctx: ^Compilation_Context) {
+	source_file := Source_File{path = mi.path, contents = mi.source, id = 0}
+	lexer: Lexer
+	lexer_init(&lexer, source_file, &ctx.collector, &ctx.interner)
+
+	context.allocator = ctx.allocator
+	parser: Parser
+	parser_init(&parser, &lexer, &ctx.collector, &ctx.interner)
+	ast_file := parser_parse_file(&parser)
+	context.allocator = old_allocator_save()
+
+	if diag_collector_has_errors(&ctx.collector) {
+		render_all(&ctx.collector, mi.path, mi.source)
+		os.exit(1)
+	}
+
+	context.allocator = ctx.allocator
+	canon := canonicalize(ast_file, ctx)
+	context.allocator = old_allocator_save()
+
+	cfile_ptr := new(CFile)
+	cfile_ptr^ = canon
+	mi.cfile = cfile_ptr
+	mi.imports = canon.imports
+
+	context.allocator = ctx.allocator
+	cache_write_manifest(mi, &ctx.interner)
+	context.allocator = old_allocator_save()
 }
 
 combine_module_irs :: proc(sorted: []Intern_ID, project: ^Project_Discovery, ctx: ^Compilation_Context) -> IR_Module {

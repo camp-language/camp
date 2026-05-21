@@ -348,3 +348,73 @@ test_duplicate_name_same_kind_ok :: proc(t: ^testing.T) {
 
 	testing.expect(t, !diag_collector_has_errors(&ctx.collector))
 }
+
+@(test)
+test_manifest_round_trip :: proc(t: ^testing.T) {
+	ctx: Compilation_Context
+	context_init(&ctx)
+	defer context_destroy(&ctx)
+
+	manifest: Module_Manifest
+	manifest.content_hash = "abc123"
+	manifest.module_name = "List"
+	manifest.imports = make([dynamic]Manifest_Import, 0, 4)
+	manifest.exports = make([dynamic]Manifest_Export, 0, 4)
+
+	imp: Manifest_Import
+	imp.module = "Maybe"
+	imp.exposing = make([dynamic]string, 0, 4)
+	append(&imp.exposing, "just")
+	append(&imp.exposing, "nothing")
+	imp.alias = ""
+	imp.is_unsafe = false
+	append(&manifest.imports, imp)
+
+	exp: Manifest_Export
+	exp.name = "map"
+	exp.kind = .Const
+	exp.is_pub = true
+	append(&manifest.exports, exp)
+
+	data := serialize_manifest(manifest, ctx.allocator)
+	testing.expect(t, len(data) > 0)
+
+	result, ok := deserialize_manifest(data, ctx.allocator)
+	testing.expect(t, ok)
+	testing.expect(t, result.content_hash == "abc123")
+	testing.expect(t, result.module_name == "List")
+	testing.expect(t, len(result.imports) == 1)
+	testing.expect(t, len(result.exports) == 1)
+
+	if len(result.imports) > 0 {
+		testing.expect(t, result.imports[0].module == "Maybe")
+		testing.expect(t, len(result.imports[0].exposing) == 2)
+		testing.expect(t, result.imports[0].exposing[0] == "just")
+	}
+
+	if len(result.exports) > 0 {
+		testing.expect(t, result.exports[0].name == "map")
+		testing.expect(t, result.exports[0].kind == .Const)
+		testing.expect(t, result.exports[0].is_pub == true)
+	}
+
+	manifest_destroy(&manifest)
+	manifest_destroy(&result)
+}
+
+@(test)
+test_manifest_deserialize_bad_magic :: proc(t: ^testing.T) {
+	ctx: Compilation_Context
+	context_init(&ctx)
+	defer context_destroy(&ctx)
+
+	data := []byte{0xDE, 0xAD, 0xBE, 0xEF, 0, 0, 0, 0}
+	_, ok := deserialize_manifest(data, ctx.allocator)
+	testing.expect(t, !ok)
+}
+
+@(test)
+test_cache_has_miss :: proc(t: ^testing.T) {
+	has := cache_has("nonexistent_key_12345", ".manifest")
+	testing.expect(t, !has)
+}
