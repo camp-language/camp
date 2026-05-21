@@ -1,2 +1,6 @@
-effect Ask { read }
-result = handle Ask.read() with { Ask.read() -> resume(42) }
+effect Ask { read! }
+main! = || ->{Ask} I64 {
+  handle Ask in Ask.read!() with {
+    .read!(resume) => resume(42)
+  }
+}

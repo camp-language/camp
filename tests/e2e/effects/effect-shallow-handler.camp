@@ -1,2 +1,6 @@
-effect IO { println }
-main! = || -> {IO} I64 { intercept IO.println("hi") with { IO.println(s) -> resume(()) } 0 }
+effect Ask { read! }
+main! = || ->{Ask} I64 {
+  intercept Ask in Ask.read!() with {
+    .read!(resume) => resume(42)
+  }
+}

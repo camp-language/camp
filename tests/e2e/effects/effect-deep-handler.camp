@@ -1,2 +1,6 @@
-effect IO { println }
-main! = || -> {IO} I64 { handle IO.println("hi") with { IO.println(s) -> resume(()) } 0 }
+effect Ask { read! }
+main! = || ->{Ask} I64 {
+  handle Ask in Ask.read!() with {
+    .read!(resume) => resume(42)
+  }
+}

@@ -858,6 +858,7 @@ lower_thandle :: proc(e: ^TExpr_Handle, env: ^Lower_Env) -> IR_Expr {
 		arms[i] = IR_Handler_Arm{
 			op = e.arms[i].op,
 			resume_id = e.arms[i].resume_id,
+			op_params = e.arms[i].op_params,
 			body = lower_texpr(e.arms[i].body, env),
 		}
 	}
@@ -938,6 +939,30 @@ lower_method_call :: proc(e: ^CExpr_Method_Call, env: ^Lower_Env) -> IR_Expr {
 	ir_args := make([dynamic]IR_Expr, 0, len(e.args))
 	for arg in e.args {
 		append(&ir_args, lower_expr(arg, env))
+	}
+
+	receiver_effect_name: Intern_ID = NO_NAME
+	receiver_effect_canonical: Canonical_Name
+	#partial switch r in e.receiver {
+	case ^CExpr_Name:
+		receiver_effect_name = r.name.name
+		receiver_effect_canonical = r.name
+	case ^CExpr_Tag:
+		receiver_effect_name = r.name.name
+		receiver_effect_canonical = r.name
+	case:
+	}
+
+	if receiver_effect_name != NO_NAME && is_declared_effect(env.store, receiver_effect_name) {
+		perf := new(IR_Perform)
+		perf^ = IR_Perform{
+			effect = receiver_effect_canonical,
+			op = e.method.name,
+			args = ir_args,
+			type = IR_Type{.I32, fresh_value_var(env.store, e.span)},
+			span = e.span,
+		}
+		return IR_Expr(perf)
 	}
 
 	if is_declared_effect(env.store, e.method.name) {
@@ -1289,6 +1314,7 @@ lower_handle :: proc(e: ^CExpr_Handle, env: ^Lower_Env) -> IR_Expr {
 		append(&arms, IR_Handler_Arm{
 			op = arm.op,
 			resume_id = arm.resume_id,
+			op_params = arm.op_params,
 			body = lower_expr(arm.body, env),
 		})
 	}

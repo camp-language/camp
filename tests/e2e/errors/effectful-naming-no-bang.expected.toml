@@ -1,46 +1,7 @@
 stdout = """
--- SYNTAX ERROR --- /tmp/camp-e2e/errors/effectful-naming-no-bang/effectful-naming-no-bang.camp
-
-I expected `:` here, but I got `}` instead.
-   1 | effect IO { println }
-                           ^
-
--- SYNTAX ERROR --- /tmp/camp-e2e/errors/effectful-naming-no-bang/effectful-naming-no-bang.camp
-
-I expected `:` here, but I got `|` instead.
-   2 | main = || -> {IO} I64 { 0 }
-              ^
-
--- SYNTAX ERROR --- /tmp/camp-e2e/errors/effectful-naming-no-bang/effectful-naming-no-bang.camp
-
-I expected `|` here, but I got `->` instead.
-   2 | main = || -> {IO} I64 { 0 }
-                 ^^
-
--- SYNTAX ERROR --- /tmp/camp-e2e/errors/effectful-naming-no-bang/effectful-naming-no-bang.camp
-
-I expected `:` here, but I got `IO` instead.
-   2 | main = || -> {IO} I64 { 0 }
-                     ^^
-
--- SYNTAX ERROR --- /tmp/camp-e2e/errors/effectful-naming-no-bang/effectful-naming-no-bang.camp
-
-I was expecting a type here, but I found `}` instead.
-   2 | main = || -> {IO} I64 { 0 }
-                       ^
-
--- SYNTAX ERROR --- /tmp/camp-e2e/errors/effectful-naming-no-bang/effectful-naming-no-bang.camp
-
-I expected `:` here, but I got `{` instead.
-   2 | main = || -> {IO} I64 { 0 }
-                             ^
-
--- SYNTAX ERROR --- /tmp/camp-e2e/errors/effectful-naming-no-bang/effectful-naming-no-bang.camp
-
-I was expecting a type here, but I found `0` instead.
-   2 | main = || -> {IO} I64 { 0 }
-                               ^
-compilation failed with 7 error(s)
+canonicalized /tmp/camp-e2e/errors/effectful-naming-no-bang/effectful-naming-no-bang.camp: 2 declaration(s), 0 import(s)
+typecheck passed for /tmp/camp-e2e/errors/effectful-naming-no-bang/effectful-naming-no-bang.camp
+compiled /tmp/camp-e2e/errors/effectful-naming-no-bang/effectful-naming-no-bang.camp -> /tmp/camp-e2e/errors/effectful-naming-no-bang/effectful-naming-no-bang.wasm
 """
 stderr = ""
-exit = 1
+exit = 0

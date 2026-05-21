@@ -1,22 +1,7 @@
 stdout = """
--- SYNTAX ERROR --- /tmp/camp-e2e/typechecking/effect-declaration/effect-declaration.camp
-
-I expected `:` here, but I got `}` instead.
-   1 | effect IO { println }
-                           ^
-
--- SYNTAX ERROR --- /tmp/camp-e2e/typechecking/effect-declaration/effect-declaration.camp
-
-I was expecting a type here, but I found `` instead.
-   2 | 
-       ^
-
--- SYNTAX ERROR --- /tmp/camp-e2e/typechecking/effect-declaration/effect-declaration.camp
-
-I expected `}` here, but I got `` instead.
-   2 | 
-       ^
-compilation failed with 3 error(s)
+canonicalized /tmp/camp-e2e/typechecking/effect-declaration/effect-declaration.camp: 1 declaration(s), 0 import(s)
+typecheck passed for /tmp/camp-e2e/typechecking/effect-declaration/effect-declaration.camp
+compiled /tmp/camp-e2e/typechecking/effect-declaration/effect-declaration.camp -> /tmp/camp-e2e/typechecking/effect-declaration/effect-declaration.wasm
 """
 stderr = ""
-exit = 1
+exit = 0

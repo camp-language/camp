@@ -1,61 +1,49 @@
 stdout = """
 -- SYNTAX ERROR --- /tmp/camp-e2e/typechecking/handle-expression/handle-expression.camp
 
-I expected `:` here, but I got `}` instead.
-   1 | effect IO { println }
-                           ^
-
--- SYNTAX ERROR --- /tmp/camp-e2e/typechecking/handle-expression/handle-expression.camp
-
-I expected `:` here, but I got `handle` instead.
+I expected `in` here, but I got `.` instead.
    2 | result = handle IO.println("hi") with { IO.println(s) -> resume(()) }
-                ^^^^^^
+                         ^
 
 -- SYNTAX ERROR --- /tmp/camp-e2e/typechecking/handle-expression/handle-expression.camp
 
-I expected `:` here, but I got `println` instead.
+I expected `.` here, but I got `IO` instead.
    2 | result = handle IO.println("hi") with { IO.println(s) -> resume(()) }
-                          ^^^^^^^
+                                               ^^
 
 -- SYNTAX ERROR --- /tmp/camp-e2e/typechecking/handle-expression/handle-expression.camp
 
-I was expecting a type here, but I found `"hi"` instead.
+I expected `identifier` here, but I got `.` instead.
    2 | result = handle IO.println("hi") with { IO.println(s) -> resume(()) }
-                                  ^^^^
+                                                 ^
 
 -- SYNTAX ERROR --- /tmp/camp-e2e/typechecking/handle-expression/handle-expression.camp
 
-I expected `:` here, but I got `{` instead.
-   2 | result = handle IO.println("hi") with { IO.println(s) -> resume(()) }
-                                             ^
-
--- SYNTAX ERROR --- /tmp/camp-e2e/typechecking/handle-expression/handle-expression.camp
-
-I expected `:` here, but I got `println` instead.
+I expected `!` here, but I got `println` instead.
    2 | result = handle IO.println("hi") with { IO.println(s) -> resume(()) }
                                                   ^^^^^^^
 
 -- SYNTAX ERROR --- /tmp/camp-e2e/typechecking/handle-expression/handle-expression.camp
 
-I expected `:` here, but I got `(` instead.
+I expected `=>` here, but I got `->` instead.
    2 | result = handle IO.println("hi") with { IO.println(s) -> resume(()) }
-                                                                       ^
+                                                             ^^
 
 -- SYNTAX ERROR --- /tmp/camp-e2e/typechecking/handle-expression/handle-expression.camp
 
-I was expecting a type here, but I found `)` instead.
+I was not expecting `)` here.
    2 | result = handle IO.println("hi") with { IO.println(s) -> resume(()) }
                                                                         ^
 
 -- SYNTAX ERROR --- /tmp/camp-e2e/typechecking/handle-expression/handle-expression.camp
 
-I expected `:` here, but I got `}` instead.
+I was not expecting `}` here.
    2 | result = handle IO.println("hi") with { IO.println(s) -> resume(()) }
                                                                            ^
 
 -- SYNTAX ERROR --- /tmp/camp-e2e/typechecking/handle-expression/handle-expression.camp
 
-I was expecting a type here, but I found `` instead.
+I expected `)` here, but I got `` instead.
    3 | 
        ^
 
@@ -64,7 +52,7 @@ I was expecting a type here, but I found `` instead.
 I expected `}` here, but I got `` instead.
    3 | 
        ^
-compilation failed with 11 error(s)
+compilation failed with 9 error(s)
 """
 stderr = ""
 exit = 1

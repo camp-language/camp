@@ -1,2 +1,2 @@
-effect IO { println }
-IO.println("hi")
+effect Ask { read! }
+Ask.read!()

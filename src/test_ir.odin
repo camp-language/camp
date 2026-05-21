@@ -187,7 +187,15 @@ test_lower_effect_decl :: proc(t: ^testing.T) {
 	defer teardown_lower(ctx, &store)
 
 	testing.expect(t, len(mod.effect_defs) == 1)
-	testing.expect(t, len(mod.effect_defs[0].operations) == 1)
+	io_found := false
+	for eff in mod.effect_defs {
+		io_name := intern_get(&ctx.interner, eff.name.name)
+		if io_name == "IO" {
+			io_found = true
+			testing.expect(t, len(eff.operations) == 1)
+		}
+	}
+	testing.expect(t, io_found)
 }
 
 @(test)
@@ -328,6 +336,8 @@ contains_ir_let :: proc(expr: IR_Expr) -> bool {
 contains_ir_call :: proc(expr: IR_Expr) -> bool {
 	#partial switch e in expr {
 	case ^IR_Call:
+		return true
+	case ^IR_Closure_Call:
 		return true
 	case ^IR_Let:
 		return contains_ir_call(e.value) || contains_ir_call(e.body)
@@ -509,7 +519,7 @@ test_effect_lower_perform :: proc(t: ^testing.T) {
 }
 
 @(test)
-test_effect_lower_handler_fns :: proc(t: ^testing.T) {
+	test_effect_lower_handler_fns :: proc(t: ^testing.T) {
 	mod, ctx, store := lower_source(
 		"effect IO { println: Str }\nmain! = handle IO in { 42 } with { .println!(resume) => resume({}) }")
 	defer teardown_lower(ctx, &store)
@@ -520,13 +530,14 @@ test_effect_lower_handler_fns :: proc(t: ^testing.T) {
 	for decl in result.decls {
 		#partial switch d in decl {
 		case ^IR_Decl_Fn:
-			if d.is_effectful {
+			name_str := intern_get(&ctx.interner, d.name.name)
+			if strings.has_prefix(name_str, "handler_") {
 				handler_count += 1
 			}
 		case:
 		}
 	}
-	testing.expect(t, handler_count >= 2)
+	testing.expect(t, handler_count >= 1)
 }
 
 find_closure_in_expr :: proc(expr: IR_Expr) -> ^IR_Closure {

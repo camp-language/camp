@@ -377,6 +377,7 @@ rc_insert_expr_inner :: proc(expr: IR_Expr, remaining: ^map[Intern_ID]int, inter
 			append(&new_arms, IR_Handler_Arm{
 				op = arm.op,
 				resume_id = arm.resume_id,
+				op_params = arm.op_params,
 				body = rc_insert_expr_inner(arm.body, remaining, interner),
 			})
 		}

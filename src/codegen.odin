@@ -244,12 +244,63 @@ codegen :: proc(ir_mod: IR_Module, ctx: ^Compilation_Context) -> Wasm_Module {
 			is_main := intern_get(&ctx.interner, d.name.name) == "main" || intern_get(&ctx.interner, d.name.name) == "main!"
 
 			if is_main && d.is_effectful {
-				placeholder: [dynamic]u8
-				placeholder = make([dynamic]u8, 0, 4)
-				emit_instruction(Wasm_Unreachable{}, &placeholder)
-				emit_instruction(Wasm_End{}, &placeholder)
-				append(&mod.codes, Wasm_Code{locals = []Wasm_Local_Decl{}, body = copy_dynamic_bytes(placeholder)})
-				delete(placeholder)
+				env.locals = make([dynamic]Wasm_Local_Decl, 0, 32)
+				env.local_map = make(map[Intern_ID]u32, 32)
+				env.next_local = u32(len(d.params))
+
+				for p, i in d.params {
+					env.local_map[p.name] = u32(i)
+				}
+
+				collected_locals: map[Intern_ID]IR_Type
+				collected_locals = make(map[Intern_ID]IR_Type, 32)
+				collect_locals(d.body, &collected_locals)
+
+				local_groups: map[Wasm_Value_Type][dynamic]Intern_ID
+				local_groups = make(map[Wasm_Value_Type][dynamic]Intern_ID, 8)
+
+				for name, typ in collected_locals {
+					vt := ir_wasm_type_to_value_type(typ.wasm_type)
+					if vt in local_groups {
+						append(&local_groups[vt], name)
+					} else {
+						list: [dynamic]Intern_ID
+						list = make([dynamic]Intern_ID, 0, 8)
+						append(&list, name)
+						local_groups[vt] = list
+					}
+				}
+
+				for vt, names in local_groups {
+					for name in names {
+						env.local_map[name] = env.next_local
+						env.next_local += 1
+					}
+					append(&env.locals, Wasm_Local_Decl{count = u32(len(names)), type = vt})
+					delete(names)
+				}
+				delete(local_groups)
+				delete(collected_locals)
+
+				env.tmp_local_base = env.next_local
+				env.tmp_count = 0
+				append(&env.locals, Wasm_Local_Decl{count = 4, type = .I32})
+				env.next_local += 4
+
+				body_buf: [dynamic]u8
+				body_buf = make([dynamic]u8, 0, 512)
+				emit_expr(d.body, &body_buf, &env, runtime_func_indices[:])
+				emit_instruction(Wasm_End{}, &body_buf)
+
+				locals_copy := make([]Wasm_Local_Decl, len(env.locals))
+				for l, i in env.locals {
+					locals_copy[i] = l
+				}
+
+				append(&mod.codes, Wasm_Code{locals = locals_copy, body = copy_dynamic_bytes(body_buf)})
+				delete(body_buf)
+				delete(env.locals)
+				delete(env.local_map)
 				continue
 			}
 

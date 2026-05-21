@@ -184,10 +184,11 @@ CExpr_Call :: struct {
 }
 
 CExpr_Method_Call :: struct {
-	receiver: CExpr,
-	method:   Canonical_Name,
-	args:     [dynamic]CExpr,
-	span:     Source_Span,
+	receiver:      CExpr,
+	method:        Canonical_Name,
+	args:          [dynamic]CExpr,
+	is_effectful:  bool,
+	span:          Source_Span,
 }
 
 CExpr_Lambda :: struct {
@@ -280,6 +281,7 @@ CExpr_Handle :: struct {
 CHandler_Arm :: struct {
 	op:        Intern_ID,
 	resume_id: Intern_ID,
+	op_params: [dynamic]Intern_ID,
 	body:      CExpr,
 	span:      Source_Span,
 }

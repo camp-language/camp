@@ -1,28 +1,10 @@
 stdout = """
 -- SYNTAX ERROR --- /tmp/camp-e2e/typechecking/perform-call/perform-call.camp
 
-I expected `:` here, but I got `}` instead.
-   1 | effect IO { println }
-                           ^
-
--- SYNTAX ERROR --- /tmp/camp-e2e/typechecking/perform-call/perform-call.camp
-
-I expected `:` here, but I got `println` instead.
+I expected `=` here, but I got `.` instead.
    2 | IO.println("hi")
-          ^^^^^^^
-
--- SYNTAX ERROR --- /tmp/camp-e2e/typechecking/perform-call/perform-call.camp
-
-I was expecting a type here, but I found `"hi"` instead.
-   2 | IO.println("hi")
-                  ^^^^
-
--- SYNTAX ERROR --- /tmp/camp-e2e/typechecking/perform-call/perform-call.camp
-
-I expected `}` here, but I got `` instead.
-   3 | 
-       ^
-compilation failed with 4 error(s)
+         ^
+compilation failed with 1 error(s)
 """
 stderr = ""
 exit = 1

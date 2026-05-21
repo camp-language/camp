@@ -430,8 +430,24 @@ typecheck_synth :: proc(expr: CExpr, env: ^Type_Env, store: ^Type_Store) -> Type
 		append(&env.handled_effects, e.effect.name)
 		body_result := typecheck_synth(e.body, env, store)
 		_ = pop(&env.handled_effects)
-		result_eff := fresh_effect_row(store, e.span)
-		return Type_Result{var_id = body_result.var_id, effects = result_eff}
+
+		effect_names := store_alloc(store, Intern_ID, 1)
+		effect_names[0] = e.effect.name
+		handled_rest := fresh_effect_row(store, e.span)
+		handled_row_var := fresh_effect_row(store, e.span)
+		link_var(store, handled_row_var, Inferred_Type{
+			tag = .Effect_Row,
+			effect_names = effect_names,
+			rest_id = handled_rest,
+		})
+		result_row_var := fresh_effect_row(store, e.span)
+		link_var(store, result_row_var, Inferred_Type{
+			tag = .Effect_Row,
+			effect_names = effect_names,
+			rest_id = fresh_effect_row(store, e.span),
+		})
+		unify(store, body_result.effects, result_row_var)
+		return Type_Result{var_id = body_result.var_id, effects = handled_rest}
 	}
 	var_id := fresh_value_var(store, Source_Span_ZERO)
 	return Type_Result{var_id = var_id, effects = fresh_effect_row(store, Source_Span_ZERO)}

@@ -399,7 +399,7 @@ canonicalize_expr :: proc(expr: Expr, scope: ^Canonicalize_Scope, ctx: ^Compilat
 			append(&args, canonicalize_expr(a, scope, ctx))
 		}
 		c := new(CExpr_Method_Call)
-		c^ = CExpr_Method_Call{receiver = creceiver, method = name, args = args, span = e.span}
+		c^ = CExpr_Method_Call{receiver = creceiver, method = name, args = args, is_effectful = e.is_effectful, span = e.span}
 		return c
 
 	case ^Expr_Lambda:
@@ -562,6 +562,7 @@ canonicalize_expr :: proc(expr: Expr, scope: ^Canonicalize_Scope, ctx: ^Compilat
 			append(&arms, CHandler_Arm{
 				op = a.op,
 				resume_id = a.resume_id,
+				op_params = a.op_params,
 				body = canonicalize_expr(a.body, scope, ctx),
 				span = a.span,
 			})
