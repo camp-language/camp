@@ -345,7 +345,7 @@ combine_module_irs :: proc(sorted: []Intern_ID, project: ^Project_Discovery, ctx
 		context.allocator = ctx.allocator
 		annot_tfile := annotate_file(mi.cfile^, &store)
 		mono_tfile := mono(annot_tfile, &store, &ctx.interner)
-		ir_mod := lower_file(mono_tfile, &store)
+		ir_mod := lower_tfile(mono_tfile, &store)
 
 		for &decl in ir_mod.decls {
 			#partial switch d in decl {
