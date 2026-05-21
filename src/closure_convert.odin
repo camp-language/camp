@@ -266,6 +266,7 @@ cc_convert_expr :: proc(expr: IR_Expr, env: ^Closure_Convert_Env) -> IR_Expr {
 			params = params,
 			return_type = e.type,
 			effect_row = IR_Type{.Void, Type_Var_ID(0)},
+			effects = make([dynamic]Canonical_Name, 0),
 			body = rewrite_free_var_access(converted_body, &env_access_map),
 			span = e.span,
 		}

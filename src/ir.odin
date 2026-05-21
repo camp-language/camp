@@ -40,6 +40,7 @@ IR_Decl_Fn :: struct {
 	params:       [dynamic]IR_Param,
 	return_type:  IR_Type,
 	effect_row:   IR_Type,
+	effects:      [dynamic]Canonical_Name,
 	body:         IR_Expr,
 	span:         Source_Span,
 }
@@ -100,6 +101,8 @@ IR_Expr :: union {
 	^IR_Drop_Reuse,
 	^IR_Alloc_At,
 	^IR_Crash,
+	^IR_I32_Load,
+	^IR_I32_Store,
 }
 
 IR_Literal_Int :: struct { value: i64, type: IR_Type, span: Source_Span }
@@ -242,4 +245,17 @@ IR_Alloc_At :: struct { value: Intern_ID, at: Intern_ID, span: Source_Span }
 IR_Crash :: struct {
 	message: IR_Expr,
 	span:    Source_Span,
+}
+
+IR_I32_Load :: struct {
+	base:   IR_Expr,
+	offset: int,
+	span:   Source_Span,
+}
+
+IR_I32_Store :: struct {
+	base:   IR_Expr,
+	offset: int,
+	value:  IR_Expr,
+	span:   Source_Span,
 }

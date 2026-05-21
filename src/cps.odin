@@ -32,6 +32,7 @@ cps_make_continuation :: proc(body: IR_Expr, param_name: Intern_ID, return_type:
 		params = cont_params,
 		return_type = return_type,
 		effect_row = IR_Type{.Void, Type_Var_ID(0)},
+		effects = make([dynamic]Canonical_Name, 0),
 		body = cps_transform_expr(body, k_name, env),
 		span = Source_Span_ZERO,
 	}

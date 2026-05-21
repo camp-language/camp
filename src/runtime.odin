@@ -117,3 +117,20 @@ emit_camp_exit_body :: proc() -> Wasm_Code {
 
 	return Wasm_Code{locals = locals, body = body}
 }
+
+emit_camp_dealloc_body :: proc() -> Wasm_Code {
+	buf: [dynamic]u8
+	buf = make([dynamic]u8, 0, 16)
+
+	emit_instruction(Wasm_End{}, &buf)
+
+	locals := make([]Wasm_Local_Decl, 0)
+
+	body := make([]u8, len(buf))
+	for b, i in buf {
+		body[i] = b
+	}
+	delete(buf)
+
+	return Wasm_Code{locals = locals, body = body}
+}

@@ -13,14 +13,21 @@ lower_file :: proc(cfile: CFile, store: ^Type_Store) -> IR_Module {
 
 	for &decl in cfile.decls {
 		#partial switch d in decl {
+		case ^CDecl_Effect:
+			eff_def := lower_effect_def(d^, &env)
+			append(&mod.effect_defs, eff_def)
+		case:
+		}
+	}
+
+	for &decl in cfile.decls {
+		#partial switch d in decl {
 		case ^CDecl_Const:
 			ir_decl := lower_decl_const(d^, &env)
 			append(&mod.decls, ir_decl)
 		case ^CDecl_Effect:
 			ir_decl := lower_decl_effect(d^, &env)
 			append(&mod.decls, ir_decl)
-			eff_def := lower_effect_def(d^, &env)
-			append(&mod.effect_defs, eff_def)
 		case ^CDecl_Newtype:
 		case:
 		}
@@ -45,14 +52,21 @@ lower_tfile :: proc(tfile: TFile, store: ^Type_Store) -> IR_Module {
 
 	for &decl in tfile.decls {
 		#partial switch d in decl {
+		case ^TDecl_Effect:
+			eff_def := lower_teffect_def(&d^, &env)
+			append(&mod.effect_defs, eff_def)
+		case:
+		}
+	}
+
+	for &decl in tfile.decls {
+		#partial switch d in decl {
 		case ^TDecl_Const:
 			ir_decl := lower_tdecl_const(&d^, &env)
 			append(&mod.decls, ir_decl)
 		case ^TDecl_Effect:
 			ir_decl := lower_tdecl_effect(&d^, &env)
 			append(&mod.decls, ir_decl)
-			eff_def := lower_teffect_def(&d^, &env)
-			append(&mod.effect_defs, eff_def)
 		case ^TDecl_Trait:
 		case ^TDecl_Alias:
 		case ^TDecl_Newtype:
@@ -123,6 +137,48 @@ fresh_ir_name :: proc(env: ^Lower_Env) -> Intern_ID {
 	return intern(env.interner, name)
 }
 
+extract_effects :: proc(store: ^Type_Store, effect_row_var: Type_Var_ID, effect_defs: []IR_Effect_Def) -> [dynamic]Canonical_Name {
+	effects: [dynamic]Canonical_Name
+	effects = make([dynamic]Canonical_Name, 0, 4)
+	collect_effects_from_row(store, effect_row_var, effect_defs, &effects)
+	return effects
+}
+
+collect_effects_from_row :: proc(store: ^Type_Store, effect_var: Type_Var_ID, effect_defs: []IR_Effect_Def, result: ^[dynamic]Canonical_Name) {
+	resolved := resolve_var(store, effect_var)
+	v := get_var(store, resolved)
+
+	inf, is_inf := v.link.(Inferred_Type)
+	if !is_inf || inf.tag != .Effect_Row {
+		return
+	}
+
+	for eid in inf.effect_names {
+		for def in effect_defs {
+			if def.name.name == eid {
+				already := false
+				for e in result^ {
+					if e == def.name {
+						already = true
+						break
+					}
+				}
+				if !already {
+					append(result, def.name)
+				}
+				break
+			}
+		}
+	}
+
+	rest_resolved := resolve_var(store, inf.rest_id)
+	rest_v := get_var(store, rest_resolved)
+	rest_inf, rest_is_inf := rest_v.link.(Inferred_Type)
+	if rest_is_inf && rest_inf.tag == .Effect_Row {
+		collect_effects_from_row(store, inf.rest_id, effect_defs, result)
+	}
+}
+
 make_ir_lit_int :: proc(value: i64, type_: IR_Type, span: Source_Span) -> IR_Expr {
 	lit := new(IR_Literal_Int)
 	lit^ = IR_Literal_Int{value = value, type = type_, span = span}
@@ -160,6 +216,7 @@ lower_decl_const :: proc(d: CDecl_Const, env: ^Lower_Env) -> IR_Decl {
 			params = make([dynamic]IR_Param, 0, 4),
 			return_type = ir_type,
 			effect_row = IR_Type{.Void, type_var},
+			effects = extract_effects(env.store, type_var, env.module.effect_defs[:]),
 			body = body,
 			span = d.span,
 		}
@@ -194,13 +251,19 @@ lower_lambda_as_decl :: proc(e: ^CExpr_Lambda, name: Canonical_Name, is_effectfu
 	}
 	ir_ret_type := lower_type(env.store, ret_type_var)
 
+	eff_type_var := fresh_effect_row(env.store, span)
+	if e.effects != nil {
+		eff_type_var = convert_type_to_var(e.effects, env.store)
+	}
+
 	fn_decl := new(IR_Decl_Fn)
 	fn_decl^ = IR_Decl_Fn{
 		name = name,
 		is_effectful = is_effectful,
 		params = params,
 		return_type = ir_ret_type,
-		effect_row = IR_Type{.Void, fresh_effect_row(env.store, span)},
+		effect_row = IR_Type{.Void, eff_type_var},
+		effects = extract_effects(env.store, eff_type_var, env.module.effect_defs[:]),
 		body = body,
 		span = span,
 	}
@@ -459,6 +522,7 @@ lower_tdecl_const :: proc(d: ^TDecl_Const, env: ^Lower_Env) -> IR_Decl {
 			params = make([dynamic]IR_Param, 0, 4),
 			return_type = ir_type,
 			effect_row = d.eff_,
+			effects = extract_effects(env.store, d.eff_.type_id, env.module.effect_defs[:]),
 			body = body,
 			span = d.span,
 		}
@@ -490,6 +554,7 @@ lower_tlambda_as_decl :: proc(e: ^TExpr_Lambda, name: Canonical_Name, is_effectf
 		params = params,
 		return_type = e.return_type,
 		effect_row = e.effects,
+		effects = extract_effects(env.store, e.effects.type_id, env.module.effect_defs[:]),
 		body = body,
 		span = span,
 	}
@@ -1018,6 +1083,7 @@ lower_lambda :: proc(e: ^CExpr_Lambda, env: ^Lower_Env) -> IR_Expr {
 		params = param_types,
 		return_type = ir_ret_type,
 		effect_row = IR_Type{.Void, fresh_effect_row(env.store, e.span)},
+		effects = make([dynamic]Canonical_Name, 0),
 		body = body,
 		span = e.span,
 	}

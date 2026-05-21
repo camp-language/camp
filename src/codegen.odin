@@ -2,7 +2,7 @@ package camp
 
 WASI_MODULE :: "wasi_snapshot_preview1"
 
-RUNTIME_FUNC_COUNT :: 5
+RUNTIME_FUNC_COUNT :: 6
 
 CAMP_TAG_HEADER_SIZE :: 8
 CAMP_TAG_REFCOUNT_OFFSET :: 0
@@ -164,6 +164,7 @@ codegen :: proc(ir_mod: IR_Module, ctx: ^Compilation_Context) -> Wasm_Module {
 	drop_type_idx := dup_type_idx
 	print_str_type_idx := get_or_create_type(&env, []Wasm_Value_Type{.I32, .I32}, []Wasm_Value_Type{})
 	exit_type_idx := dup_type_idx
+	dealloc_type_idx := get_or_create_type(&env, []Wasm_Value_Type{.I32, .I32}, []Wasm_Value_Type{})
 
 	runtime_func_indices: [RUNTIME_FUNC_COUNT]int
 	alloc_func_idx := add_function(&env, alloc_type_idx)
@@ -176,6 +177,8 @@ codegen :: proc(ir_mod: IR_Module, ctx: ^Compilation_Context) -> Wasm_Module {
 	runtime_func_indices[3] = print_str_func_idx
 	exit_func_idx := add_function(&env, exit_type_idx)
 	runtime_func_indices[4] = exit_func_idx
+	dealloc_func_idx := add_function(&env, dealloc_type_idx)
+	runtime_func_indices[5] = dealloc_func_idx
 
 	camp_alloc_code := emit_camp_alloc_body(heap_ptr_global_idx)
 	append(&mod.codes, camp_alloc_code)
@@ -191,6 +194,14 @@ codegen :: proc(ir_mod: IR_Module, ctx: ^Compilation_Context) -> Wasm_Module {
 
 	camp_exit_code := emit_camp_exit_body()
 	append(&mod.codes, camp_exit_code)
+
+	camp_dealloc_code := emit_camp_dealloc_body()
+	append(&mod.codes, camp_dealloc_code)
+
+	camp_alloc_name := intern(&ctx.interner, "camp_alloc")
+	env.func_map[int(camp_alloc_name)] = alloc_func_idx
+	camp_dealloc_name := intern(&ctx.interner, "camp_dealloc")
+	env.func_map[int(camp_dealloc_name)] = dealloc_func_idx
 
 	main_fn_idx := -1
 	main_decl: ^IR_Decl_Fn = nil
@@ -541,6 +552,11 @@ collect_locals :: proc(expr: IR_Expr, locals: ^map[Intern_ID]IR_Type) {
 		collect_locals(e.body, locals)
 	case ^IR_Crash:
 		collect_locals(e.message, locals)
+	case ^IR_I32_Load:
+		collect_locals(e.base, locals)
+	case ^IR_I32_Store:
+		collect_locals(e.base, locals)
+		collect_locals(e.value, locals)
 	case:
 	}
 }
@@ -550,6 +566,7 @@ RUNTIME_DUP :: 1
 RUNTIME_DROP :: 2
 RUNTIME_PRINT_STR :: 3
 RUNTIME_EXIT :: 4
+RUNTIME_DEALLOC :: 5
 
 extract_effectful_body :: proc(expr: IR_Expr) -> IR_Expr {
 	#partial switch e in expr {
@@ -880,6 +897,17 @@ emit_expr :: proc(expr: IR_Expr, buf: ^[dynamic]u8, env: ^Codegen_Env, runtime_i
 		emit_instruction(Wasm_Drop{}, buf)
 		emit_instruction(Wasm_I32_Const{value = 1}, buf)
 		emit_instruction(Wasm_Call{index = u32(runtime_indices[RUNTIME_EXIT])}, buf)
+	case ^IR_I32_Load:
+		emit_expr(e.base, buf, env, runtime_indices)
+		emit_instruction(Wasm_I32_Const{value = i32(e.offset)}, buf)
+		emit_instruction(Wasm_I32_Add{}, buf)
+		emit_instruction(Wasm_I32_Load{align = 2, offset = 0}, buf)
+	case ^IR_I32_Store:
+		emit_expr(e.base, buf, env, runtime_indices)
+		emit_instruction(Wasm_I32_Const{value = i32(e.offset)}, buf)
+		emit_instruction(Wasm_I32_Add{}, buf)
+		emit_expr(e.value, buf, env, runtime_indices)
+		emit_instruction(Wasm_I32_Store{align = 2, offset = 0}, buf)
 	case:
 		emit_instruction(Wasm_Unreachable{}, buf)
 	}
