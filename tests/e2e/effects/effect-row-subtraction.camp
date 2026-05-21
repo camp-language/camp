@@ -1,0 +1,9 @@
+effect Ask { read! }
+x = handle Ask in Ask.read!() with { .read!(resume) => resume(42) }
+
+effect State { get! }
+y = handle Ask in
+      handle State in
+        Ask.read!()
+      with { .get!(resume) => resume(0) }
+    with { .read!(resume) => resume(42) }
