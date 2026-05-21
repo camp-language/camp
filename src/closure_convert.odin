@@ -145,6 +145,27 @@ cc_free_vars :: proc(expr: IR_Expr, bound: ^map[Intern_ID]bool) -> [dynamic]Inte
 			for v in inner { append(&result, v) }
 			delete(inner)
 		}
+	case ^IR_Resume:
+		if _, ok := bound^[e.resume_id]; !ok {
+			already := false
+			for v in result {
+				if v == e.resume_id {
+					already = true
+					break
+				}
+			}
+			if !already {
+				append(&result, e.resume_id)
+			}
+		}
+		inner := cc_free_vars(e.value, bound)
+		for v in inner { append(&result, v) }
+		delete(inner)
+		if e.ev != nil {
+			ev_free := cc_free_vars(e.ev, bound)
+			for v in ev_free { append(&result, v) }
+			delete(ev_free)
+		}
 	case ^IR_Closure:
 		inner := cc_free_vars(e.body, bound)
 		for v in inner { append(&result, v) }
@@ -439,6 +460,21 @@ cc_convert_expr :: proc(expr: IR_Expr, env: ^Closure_Convert_Env) -> IR_Expr {
 		new_perf^ = IR_Perform{effect = e.effect, op = e.op, args = new_args, type = e.type, span = e.span}
 		return IR_Expr(new_perf)
 
+	case ^IR_Resume:
+		new_resume := new(IR_Resume)
+		ev_val: IR_Expr = nil
+		if e.ev != nil {
+			ev_val = cc_convert_expr(e.ev, env)
+		}
+		new_resume^ = IR_Resume{
+			resume_id = e.resume_id,
+			value = cc_convert_expr(e.value, env),
+			ev = ev_val,
+			type = e.type,
+			span = e.span,
+		}
+		return IR_Expr(new_resume)
+
 	case ^IR_Return:
 		new_ret := new(IR_Return)
 		new_ret^ = IR_Return{value = cc_convert_expr(e.value, env), span = e.span}
@@ -604,6 +640,20 @@ rewrite_free_var_access :: proc(expr: IR_Expr, env_map: ^map[Intern_ID]IR_Expr) 
 			span = e.span,
 		}
 		return IR_Expr(new_fa)
+	case ^IR_Resume:
+		new_resume := new(IR_Resume)
+		ev_val: IR_Expr = nil
+		if e.ev != nil {
+			ev_val = rewrite_free_var_access(e.ev, env_map)
+		}
+		new_resume^ = IR_Resume{
+			resume_id = e.resume_id,
+			value = rewrite_free_var_access(e.value, env_map),
+			ev = ev_val,
+			type = e.type,
+			span = e.span,
+		}
+		return IR_Expr(new_resume)
 	case:
 		return expr
 	}

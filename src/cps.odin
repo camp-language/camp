@@ -311,6 +311,21 @@ cps_transform_expr :: proc(expr: IR_Expr, k_name: Intern_ID, env: ^CPS_Env) -> I
 		new_perf^ = IR_Perform{effect = e.effect, op = e.op, args = new_args, type = e.type, span = e.span}
 		return IR_Expr(new_perf)
 
+	case ^IR_Resume:
+		new_resume := new(IR_Resume)
+		ev_val: IR_Expr = nil
+		if e.ev != nil {
+			ev_val = cps_transform_expr(e.ev, k_name, env)
+		}
+		new_resume^ = IR_Resume{
+			resume_id = e.resume_id,
+			value = cps_transform_expr(e.value, k_name, env),
+			ev = ev_val,
+			type = e.type,
+			span = e.span,
+		}
+		return IR_Expr(new_resume)
+
 	case ^IR_Block:
 		new_stmts := make([dynamic]IR_Expr, 0, len(e.statements))
 		for stmt in e.statements {

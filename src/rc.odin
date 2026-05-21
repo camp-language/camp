@@ -79,6 +79,17 @@ rc_collect_uses :: proc(expr: IR_Expr, uses: ^map[Intern_ID]int) {
 		for arg in e.args {
 			rc_collect_uses(arg, uses)
 		}
+	case ^IR_Resume:
+		count, ok := (uses^)[e.resume_id]
+		if ok {
+			(uses^)[e.resume_id] = count + 1
+		} else {
+			(uses^)[e.resume_id] = 1
+		}
+		rc_collect_uses(e.value, uses)
+		if e.ev != nil {
+			rc_collect_uses(e.ev, uses)
+		}
 	case ^IR_Return:
 		rc_collect_uses(e.value, uses)
 	case ^IR_Block:
@@ -399,6 +410,21 @@ rc_insert_expr_inner :: proc(expr: IR_Expr, remaining: ^map[Intern_ID]int, inter
 		new_perf := new(IR_Perform)
 		new_perf^ = IR_Perform{effect = e.effect, op = e.op, args = new_args, type = e.type, span = e.span}
 		return IR_Expr(new_perf)
+
+	case ^IR_Resume:
+		new_resume := new(IR_Resume)
+		ev_val: IR_Expr = nil
+		if e.ev != nil {
+			ev_val = rc_insert_expr_inner(e.ev, remaining, interner)
+		}
+		new_resume^ = IR_Resume{
+			resume_id = e.resume_id,
+			value = rc_insert_expr_inner(e.value, remaining, interner),
+			ev = ev_val,
+			type = e.type,
+			span = e.span,
+		}
+		return IR_Expr(new_resume)
 
 	case ^IR_Return:
 		new_ret := new(IR_Return)

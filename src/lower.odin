@@ -347,7 +347,7 @@ lower_expr :: proc(expr: CExpr, env: ^Lower_Env) -> IR_Expr {
 		return IR_Expr(v)
 
 	case ^CExpr_Call:
-		return lower_expr(e.callee, env)
+		return lower_call(e, env)
 
 	case ^CExpr_Method_Call:
 		return lower_method_call(e, env)
@@ -596,6 +596,42 @@ lower_teffect_op :: proc(op: TEffect_Op, env: ^Lower_Env) -> IR_Effect_Op {
 		name = op.name,
 		params = params,
 		return_type = op.return_type,
+	}
+}
+
+lower_call :: proc(e: ^CExpr_Call, env: ^Lower_Env) -> IR_Expr {
+	#partial switch c in e.callee {
+	case ^CExpr_Name:
+		callee_name := c.name
+		ir_args := make([dynamic]IR_Expr, 0, len(e.args))
+		for arg in e.args {
+			append(&ir_args, lower_expr(arg, env))
+		}
+		type_var := fresh_value_var(env.store, e.span)
+		call := new(IR_Call)
+		call^ = IR_Call{
+			callee = callee_name,
+			args = ir_args,
+			type = lower_type(env.store, type_var),
+			span = e.span,
+		}
+		return IR_Expr(call)
+
+	case:
+		callee_expr := lower_expr(e.callee, env)
+		ir_args := make([dynamic]IR_Expr, 0, len(e.args))
+		for arg in e.args {
+			append(&ir_args, lower_expr(arg, env))
+		}
+		type_var := fresh_value_var(env.store, e.span)
+		ccall := new(IR_Closure_Call)
+		ccall^ = IR_Closure_Call{
+			callee = callee_expr,
+			args = ir_args,
+			type = lower_type(env.store, type_var),
+			span = e.span,
+		}
+		return IR_Expr(ccall)
 	}
 }
 
