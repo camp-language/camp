@@ -184,10 +184,11 @@ CExpr_Call :: struct {
 }
 
 CExpr_Method_Call :: struct {
-	receiver: CExpr,
-	method:   Canonical_Name,
-	args:     [dynamic]CExpr,
-	span:     Source_Span,
+	receiver:      CExpr,
+	method:        Canonical_Name,
+	args:          [dynamic]CExpr,
+	is_effectful:  bool,
+	span:          Source_Span,
 }
 
 CExpr_Lambda :: struct {
@@ -270,17 +271,17 @@ CExpr_Interpolate :: struct {
 }
 
 CExpr_Handle :: struct {
-	effect:         Canonical_Name,
-	is_shallow:    bool,
-	is_non_resuming: bool,
-	body:           CExpr,
-	arms:           [dynamic]CHandler_Arm,
-	span:           Source_Span,
+	effect:     Canonical_Name,
+	is_shallow: bool,
+	body:       CExpr,
+	arms:       [dynamic]CHandler_Arm,
+	span:       Source_Span,
 }
 
 CHandler_Arm :: struct {
 	op:        Intern_ID,
 	resume_id: Intern_ID,
+	op_params: [dynamic]Intern_ID,
 	body:      CExpr,
 	span:      Source_Span,
 }

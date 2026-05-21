@@ -8,17 +8,6 @@ lower_file :: proc(cfile: CFile, store: ^Type_Store) -> IR_Module {
 	mod.effect_defs = make([dynamic]IR_Effect_Def, 0, 8)
 	mod.string_table = make([dynamic]String_Table_Entry, 0, 16)
 
-	throw_name := intern(store.interner, "Throw")
-	throw_throw_name := intern(store.interner, "throw!")
-	throw_effect := Canonical_Name{module = NO_NAME, name = throw_name, is_local = false}
-	throw_ops := make([dynamic]IR_Effect_Op, 0, 1)
-	append(&throw_ops, IR_Effect_Op{
-		name = throw_throw_name,
-		params = make([dynamic]IR_Param, 0),
-		return_type = IR_Type{.I32, Type_Var_ID(0)},
-	})
-	append(&mod.effect_defs, IR_Effect_Def{name = throw_effect, operations = throw_ops})
-
 	env: Lower_Env = {module = &mod, store = store, interner = store.interner}
 	env.pending_decls = make([dynamic]IR_Decl, 0, 8)
 
@@ -50,17 +39,6 @@ lower_tfile :: proc(tfile: TFile, store: ^Type_Store) -> IR_Module {
 	mod.decls = make([dynamic]IR_Decl, 0, len(tfile.decls))
 	mod.effect_defs = make([dynamic]IR_Effect_Def, 0, 8)
 	mod.string_table = make([dynamic]String_Table_Entry, 0, 16)
-
-	throw_name := intern(store.interner, "Throw")
-	throw_throw_name := intern(store.interner, "throw!")
-	throw_effect := Canonical_Name{module = NO_NAME, name = throw_name, is_local = false}
-	throw_ops := make([dynamic]IR_Effect_Op, 0, 1)
-	append(&throw_ops, IR_Effect_Op{
-		name = throw_throw_name,
-		params = make([dynamic]IR_Param, 0),
-		return_type = IR_Type{.I32, Type_Var_ID(0)},
-	})
-	append(&mod.effect_defs, IR_Effect_Def{name = throw_effect, operations = throw_ops})
 
 	env: Lower_Env = {module = &mod, store = store, interner = store.interner}
 	env.pending_decls = make([dynamic]IR_Decl, 0, 8)
@@ -880,6 +858,7 @@ lower_thandle :: proc(e: ^TExpr_Handle, env: ^Lower_Env) -> IR_Expr {
 		arms[i] = IR_Handler_Arm{
 			op = e.arms[i].op,
 			resume_id = e.arms[i].resume_id,
+			op_params = e.arms[i].op_params,
 			body = lower_texpr(e.arms[i].body, env),
 		}
 	}
@@ -887,7 +866,6 @@ lower_thandle :: proc(e: ^TExpr_Handle, env: ^Lower_Env) -> IR_Expr {
 	result^ = IR_Handle{
 		effect = e.effect,
 		is_shallow = e.is_shallow,
-		is_non_resuming = e.is_non_resuming,
 		body = body_ir,
 		arms = arms,
 		type = e.type_,
@@ -963,13 +941,36 @@ lower_method_call :: proc(e: ^CExpr_Method_Call, env: ^Lower_Env) -> IR_Expr {
 		append(&ir_args, lower_expr(arg, env))
 	}
 
+	receiver_effect_name: Intern_ID = NO_NAME
+	receiver_effect_canonical: Canonical_Name
+	#partial switch r in e.receiver {
+	case ^CExpr_Name:
+		receiver_effect_name = r.name.name
+		receiver_effect_canonical = r.name
+	case ^CExpr_Tag:
+		receiver_effect_name = r.name.name
+		receiver_effect_canonical = r.name
+	case:
+	}
+
+	if receiver_effect_name != NO_NAME && is_declared_effect(env.store, receiver_effect_name) {
+		perf := new(IR_Perform)
+		perf^ = IR_Perform{
+			effect = receiver_effect_canonical,
+			op = e.method.name,
+			args = ir_args,
+			type = IR_Type{.I32, fresh_value_var(env.store, e.span)},
+			span = e.span,
+		}
+		return IR_Expr(perf)
+	}
+
 	if is_declared_effect(env.store, e.method.name) {
 		perf := new(IR_Perform)
 		perf^ = IR_Perform{
 			effect = e.method,
 			op = e.method.name,
 			args = ir_args,
-			is_non_resuming = is_throw_effect(env.store, e.method.name),
 			type = IR_Type{.I32, fresh_value_var(env.store, e.span)},
 			span = e.span,
 		}
@@ -1313,6 +1314,7 @@ lower_handle :: proc(e: ^CExpr_Handle, env: ^Lower_Env) -> IR_Expr {
 		append(&arms, IR_Handler_Arm{
 			op = arm.op,
 			resume_id = arm.resume_id,
+			op_params = arm.op_params,
 			body = lower_expr(arm.body, env),
 		})
 	}
@@ -1322,7 +1324,6 @@ lower_handle :: proc(e: ^CExpr_Handle, env: ^Lower_Env) -> IR_Expr {
 	h^ = IR_Handle{
 		effect = e.effect,
 		is_shallow = e.is_shallow,
-		is_non_resuming = e.is_non_resuming,
 		body = body,
 		arms = arms,
 		type = lower_type(env.store, type_var),

@@ -106,7 +106,6 @@ Type_Store :: struct {
 	interner:         ^Intern_Table,
 	collector:        ^Diagnostic_Collector,
 	declared_effects: [dynamic]Intern_ID,
-	throw_name:       Intern_ID,
 	bindings:         map[Intern_ID]Type_Var_ID,
 	newtype_decls:    map[Intern_ID]Newtype_Decl_Info,
 	trait_registry:   map[Intern_ID]Trait_Info,
@@ -121,8 +120,6 @@ type_store_init :: proc(store: ^Type_Store, interner: ^Intern_Table, collector: 
 	store.interner = interner
 	store.collector = collector
 	store.declared_effects = make([dynamic]Intern_ID, 0, 16)
-	store.throw_name = intern(interner, "Throw")
-	append(&store.declared_effects, store.throw_name)
 	store.bindings = make(map[Intern_ID]Type_Var_ID, 64)
 	store.newtype_decls = make(map[Intern_ID]Newtype_Decl_Info, 16)
 	store.trait_registry = make(map[Intern_ID]Trait_Info, 16)
@@ -290,60 +287,6 @@ is_declared_effect :: proc(store: ^Type_Store, name: Intern_ID) -> bool {
 		}
 	}
 	return false
-}
-
-is_throw_effect :: proc(store: ^Type_Store, name: Intern_ID) -> bool {
-	return name == store.throw_name
-}
-
-subtract_effect_from_row :: proc(store: ^Type_Store, row_var: Type_Var_ID, effect_name: Intern_ID) -> Type_Var_ID {
-	resolved_id := resolve_var(store, row_var)
-	resolved := get_var(store, resolved_id)
-	if inf, ok := resolved.link.(Inferred_Type); ok && inf.tag == .Effect_Row {
-		new_names: [dynamic]Intern_ID
-		new_names = make([dynamic]Intern_ID, 0, len(inf.effect_names))
-		for n in inf.effect_names {
-			if n != effect_name {
-				append(&new_names, n)
-			}
-		}
-		result := fresh_effect_row(store, Source_Span_ZERO)
-		if len(new_names) == 0 {
-			unify(store, result, inf.rest_id)
-		} else {
-			names := store_alloc(store, Intern_ID, len(new_names))
-			for i in 0..<len(new_names) {
-				names[i] = new_names[i]
-			}
-			result_type := Inferred_Type{
-				tag = .Effect_Row,
-				effect_names = names,
-				rest_id = inf.rest_id,
-			}
-			link_var(store, result, result_type)
-		}
-		delete(new_names)
-		return result
-	}
-	result := fresh_effect_row(store, Source_Span_ZERO)
-	effect_names := store_alloc(store, Intern_ID, 1)
-	effect_names[0] = effect_name
-	rest := fresh_effect_row(store, Source_Span_ZERO)
-	handled_row := Inferred_Type{
-		tag = .Effect_Row,
-		effect_names = effect_names,
-		rest_id = rest,
-	}
-	handled_var := fresh_effect_row(store, Source_Span_ZERO)
-	link_var(store, handled_var, handled_row)
-	remaining := fresh_effect_row(store, Source_Span_ZERO)
-	link_var(store, remaining, Inferred_Type{
-		tag = .Effect_Row,
-		effect_names = make([]Intern_ID, 0),
-		rest_id = handled_var,
-	})
-	unify(store, row_var, remaining)
-	return result
 }
 
 is_declared_newtype :: proc(store: ^Type_Store, name: Intern_ID) -> bool {

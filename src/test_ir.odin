@@ -186,7 +186,7 @@ test_lower_effect_decl :: proc(t: ^testing.T) {
 	mod, ctx, store := lower_source("effect IO { println: Str }")
 	defer teardown_lower(ctx, &store)
 
-	testing.expect(t, len(mod.effect_defs) == 2)
+	testing.expect(t, len(mod.effect_defs) == 1)
 	io_found := false
 	for eff in mod.effect_defs {
 		io_name := intern_get(&ctx.interner, eff.name.name)
@@ -336,6 +336,8 @@ contains_ir_let :: proc(expr: IR_Expr) -> bool {
 contains_ir_call :: proc(expr: IR_Expr) -> bool {
 	#partial switch e in expr {
 	case ^IR_Call:
+		return true
+	case ^IR_Closure_Call:
 		return true
 	case ^IR_Let:
 		return contains_ir_call(e.value) || contains_ir_call(e.body)

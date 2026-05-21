@@ -472,6 +472,7 @@ annotate_expr :: proc(expr: CExpr, env: ^Annotate_Env) -> TExpr {
 			arms_t[i] = THandler_Arm{
 				op = e.arms[i].op,
 				resume_id = e.arms[i].resume_id,
+				op_params = e.arms[i].op_params,
 				body = annotate_expr(e.arms[i].body, env),
 				span = e.arms[i].span,
 			}
@@ -479,7 +480,6 @@ annotate_expr :: proc(expr: CExpr, env: ^Annotate_Env) -> TExpr {
 		result := new(TExpr_Handle)
 		result.effect = e.effect
 		result.is_shallow = e.is_shallow
-		result.is_non_resuming = e.is_non_resuming
 		result.body = annotate_expr(e.body, env)
 		result.arms = arms_t
 		result.type_ = type_ir

@@ -416,6 +416,14 @@ parser_parse_method_chain :: proc(p: ^Parser, initial: Expr) -> Expr {
 		} else {
 			method_tok = parser_expect(p, .Identifier)
 		}
+
+		is_effectful := false
+		if p.current.kind == .Bang {
+			is_effectful = true
+			method_tok.text = strings.concatenate({method_tok.text, "!"}, context.allocator)
+			parser_advance(p)
+		}
+
 		method_id := intern(p.intern, method_tok.text)
 
 		mc := new(Expr_Method_Call)
@@ -423,6 +431,7 @@ parser_parse_method_chain :: proc(p: ^Parser, initial: Expr) -> Expr {
 			receiver = result,
 			method = method_id,
 			args = make([dynamic]Expr, 0, 4),
+			is_effectful = is_effectful,
 			span = method_tok.span,
 		}
 
@@ -810,10 +819,22 @@ parser_parse_handle :: proc(p: ^Parser) -> Expr {
 		parser_expect(p, .LParen)
 		resume_tok := parser_expect(p, .Identifier)
 		resume_id := intern(p.intern, resume_tok.text)
+		op_params := make([dynamic]Intern_ID, 0, 4)
+		if p.current.kind == .Comma {
+			parser_advance(p)
+		}
+		for p.current.kind == .Identifier || p.current.kind == .Upper_Id {
+			param_tok := parser_advance(p)
+			param_id := intern(p.intern, param_tok.text)
+			append(&op_params, param_id)
+			if p.current.kind == .Comma {
+				parser_advance(p)
+			}
+		}
 		parser_expect(p, .RParen)
 		parser_expect(p, .Fat_Arrow)
 		arm_body := parser_parse_expr(p)
-		append(&arms, Handler_Arm{op = op_id, resume_id = resume_id, body = arm_body, span = op_tok.span})
+		append(&arms, Handler_Arm{op = op_id, resume_id = resume_id, op_params = op_params, body = arm_body, span = op_tok.span})
 		if p.current.kind == .Comma {
 			parser_advance(p)
 		}
@@ -1198,8 +1219,11 @@ parser_parse_effect_decl :: proc(p: ^Parser, is_pub: bool) -> Decl {
 		}
 		op_name_id := intern(p.intern, op_name_text)
 
-		parser_expect(p, .Colon)
-		return_type := parser_parse_type(p)
+		return_type: ^Type = nil
+		if p.current.kind == .Colon {
+			parser_advance(p)
+			return_type = parser_parse_type(p)
+		}
 
 		append(&ops, Effect_Op{name = op_name_id, is_effectful = is_effectful, return_type = return_type, span = op_name_tok.span})
 

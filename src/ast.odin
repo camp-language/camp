@@ -177,10 +177,11 @@ Expr_Call :: struct {
 }
 
 Expr_Method_Call :: struct {
-	receiver: Expr,
-	method:   Intern_ID,
-	args:     [dynamic]Expr,
-	span:     Source_Span,
+	receiver:      Expr,
+	method:        Intern_ID,
+	args:          [dynamic]Expr,
+	is_effectful:  bool,
+	span:          Source_Span,
 }
 
 Expr_Lambda :: struct {
@@ -339,12 +340,11 @@ Expr_Interpolate :: struct {
 }
 
 Expr_Handle :: struct {
-	effect:         Intern_ID,
-	is_shallow:     bool,
-	is_non_resuming: bool,
-	body:           Expr,
-	arms:           [dynamic]Handler_Arm,
-	span:           Source_Span,
+	effect:     Intern_ID,
+	is_shallow: bool,
+	body:       Expr,
+	arms:       [dynamic]Handler_Arm,
+	span:       Source_Span,
 }
 
 Expr_Dot_Lambda :: struct {
@@ -355,6 +355,7 @@ Expr_Dot_Lambda :: struct {
 Handler_Arm :: struct {
 	op:        Intern_ID,
 	resume_id: Intern_ID,
+	op_params: [dynamic]Intern_ID,
 	body:      Expr,
 	span:      Source_Span,
 }

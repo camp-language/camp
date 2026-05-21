@@ -90,7 +90,6 @@ IR_Expr :: union {
 	^IR_Method_Call,
 	^IR_Handle,
 	^IR_Perform,
-	^IR_Resume,
 	^IR_Closure,
 	^IR_Closure_Call,
 	^IR_Return,
@@ -192,35 +191,27 @@ IR_Method_Call :: struct {
 }
 
 IR_Handle :: struct {
-	effect:         Canonical_Name,
-	is_shallow:     bool,
-	is_non_resuming: bool,
-	body:           IR_Expr,
-	arms:           [dynamic]IR_Handler_Arm,
-	type:           IR_Type,
-	span:           Source_Span,
+	effect:     Canonical_Name,
+	is_shallow: bool,
+	body:       IR_Expr,
+	arms:       [dynamic]IR_Handler_Arm,
+	type:       IR_Type,
+	span:       Source_Span,
 }
 
 IR_Handler_Arm :: struct {
 	op:        Intern_ID,
 	resume_id: Intern_ID,
+	op_params: [dynamic]Intern_ID,
 	body:      IR_Expr,
 }
 
 IR_Perform :: struct {
-	effect:         Canonical_Name,
-	op:             Intern_ID,
-	args:           [dynamic]IR_Expr,
-	is_non_resuming: bool,
-	type:           IR_Type,
-	span:           Source_Span,
-}
-
-IR_Resume :: struct {
-	resume_id: Intern_ID,
-	value:     IR_Expr,
-	type:      IR_Type,
-	span:      Source_Span,
+	effect: Canonical_Name,
+	op:     Intern_ID,
+	args:   [dynamic]IR_Expr,
+	type:   IR_Type,
+	span:   Source_Span,
 }
 
 IR_Closure :: struct {

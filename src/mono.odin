@@ -452,6 +452,7 @@ substitute_types_in_expr :: proc(expr: TExpr, type_args: map[Intern_ID]Type_Var_
 			arms_t[i] = THandler_Arm{
 				op = e.arms[i].op,
 				resume_id = e.arms[i].resume_id,
+				op_params = e.arms[i].op_params,
 				body = substitute_types_in_expr(e.arms[i].body, type_args, env),
 				span = e.arms[i].span,
 			}
@@ -459,7 +460,6 @@ substitute_types_in_expr :: proc(expr: TExpr, type_args: map[Intern_ID]Type_Var_
 		result := new(TExpr_Handle)
 		result.effect = e.effect
 		result.is_shallow = e.is_shallow
-		result.is_non_resuming = e.is_non_resuming
 		result.body = substitute_types_in_expr(e.body, type_args, env)
 		result.arms = arms_t
 		result.type_ = substitute_ir_type(e.type_, type_args, env)
