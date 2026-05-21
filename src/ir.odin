@@ -191,12 +191,13 @@ IR_Method_Call :: struct {
 }
 
 IR_Handle :: struct {
-	effect:     Canonical_Name,
-	is_shallow: bool,
-	body:       IR_Expr,
-	arms:       [dynamic]IR_Handler_Arm,
-	type:       IR_Type,
-	span:       Source_Span,
+	effect:         Canonical_Name,
+	is_shallow:     bool,
+	is_non_resuming: bool,
+	body:           IR_Expr,
+	arms:           [dynamic]IR_Handler_Arm,
+	type:           IR_Type,
+	span:           Source_Span,
 }
 
 IR_Handler_Arm :: struct {
@@ -206,11 +207,12 @@ IR_Handler_Arm :: struct {
 }
 
 IR_Perform :: struct {
-	effect: Canonical_Name,
-	op:     Intern_ID,
-	args:   [dynamic]IR_Expr,
-	type:   IR_Type,
-	span:   Source_Span,
+	effect:         Canonical_Name,
+	op:             Intern_ID,
+	args:           [dynamic]IR_Expr,
+	is_non_resuming: bool,
+	type:           IR_Type,
+	span:           Source_Span,
 }
 
 IR_Closure :: struct {
