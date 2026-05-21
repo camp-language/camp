@@ -8,6 +8,17 @@ lower_file :: proc(cfile: CFile, store: ^Type_Store) -> IR_Module {
 	mod.effect_defs = make([dynamic]IR_Effect_Def, 0, 8)
 	mod.string_table = make([dynamic]String_Table_Entry, 0, 16)
 
+	throw_name := intern(store.interner, "Throw")
+	throw_throw_name := intern(store.interner, "throw!")
+	throw_effect := Canonical_Name{module = NO_NAME, name = throw_name, is_local = false}
+	throw_ops := make([dynamic]IR_Effect_Op, 0, 1)
+	append(&throw_ops, IR_Effect_Op{
+		name = throw_throw_name,
+		params = make([dynamic]IR_Param, 0),
+		return_type = IR_Type{.I32, Type_Var_ID(0)},
+	})
+	append(&mod.effect_defs, IR_Effect_Def{name = throw_effect, operations = throw_ops})
+
 	env: Lower_Env = {module = &mod, store = store, interner = store.interner}
 	env.pending_decls = make([dynamic]IR_Decl, 0, 8)
 
@@ -39,6 +50,17 @@ lower_tfile :: proc(tfile: TFile, store: ^Type_Store) -> IR_Module {
 	mod.decls = make([dynamic]IR_Decl, 0, len(tfile.decls))
 	mod.effect_defs = make([dynamic]IR_Effect_Def, 0, 8)
 	mod.string_table = make([dynamic]String_Table_Entry, 0, 16)
+
+	throw_name := intern(store.interner, "Throw")
+	throw_throw_name := intern(store.interner, "throw!")
+	throw_effect := Canonical_Name{module = NO_NAME, name = throw_name, is_local = false}
+	throw_ops := make([dynamic]IR_Effect_Op, 0, 1)
+	append(&throw_ops, IR_Effect_Op{
+		name = throw_throw_name,
+		params = make([dynamic]IR_Param, 0),
+		return_type = IR_Type{.I32, Type_Var_ID(0)},
+	})
+	append(&mod.effect_defs, IR_Effect_Def{name = throw_effect, operations = throw_ops})
 
 	env: Lower_Env = {module = &mod, store = store, interner = store.interner}
 	env.pending_decls = make([dynamic]IR_Decl, 0, 8)

@@ -186,8 +186,16 @@ test_lower_effect_decl :: proc(t: ^testing.T) {
 	mod, ctx, store := lower_source("effect IO { println: Str }")
 	defer teardown_lower(ctx, &store)
 
-	testing.expect(t, len(mod.effect_defs) == 1)
-	testing.expect(t, len(mod.effect_defs[0].operations) == 1)
+	testing.expect(t, len(mod.effect_defs) == 2)
+	io_found := false
+	for eff in mod.effect_defs {
+		io_name := intern_get(&ctx.interner, eff.name.name)
+		if io_name == "IO" {
+			io_found = true
+			testing.expect(t, len(eff.operations) == 1)
+		}
+	}
+	testing.expect(t, io_found)
 }
 
 @(test)

@@ -3,8 +3,9 @@ package camp
 import "core:fmt"
 
 Effect_Evidence :: struct {
-	effect: Canonical_Name,
-	ev_var: Intern_ID,
+	effect:     Canonical_Name,
+	ev_var:     Intern_ID,
+	is_shallow: bool,
 }
 
 Effect_Lower_Env :: struct {
@@ -98,7 +99,7 @@ el_lower_expr :: proc(expr: IR_Expr, env: ^Effect_Lower_Env) -> IR_Expr {
 			append(&env.module.decls, IR_Decl(handler_fn))
 		}
 
-		append(&env.evidence_stack, Effect_Evidence{effect = e.effect, ev_var = ev_var})
+		append(&env.evidence_stack, Effect_Evidence{effect = e.effect, ev_var = ev_var, is_shallow = e.is_shallow})
 		transformed_body := el_lower_expr(e.body, env)
 		if len(env.evidence_stack) > 0 {
 			pop(&env.evidence_stack)
@@ -179,9 +180,11 @@ el_lower_expr :: proc(expr: IR_Expr, env: ^Effect_Lower_Env) -> IR_Expr {
 		case ^IR_Perform:
 			if !v.is_non_resuming {
 				ev_var: Intern_ID = NO_NAME
+				is_shallow := false
 				for i := len(env.evidence_stack) - 1; i >= 0; i -= 1 {
 					if env.evidence_stack[i].effect == v.effect {
 						ev_var = env.evidence_stack[i].ev_var
+						is_shallow = env.evidence_stack[i].is_shallow
 						break
 					}
 				}
@@ -207,8 +210,10 @@ el_lower_expr :: proc(expr: IR_Expr, env: ^Effect_Lower_Env) -> IR_Expr {
 
 				kc_params := make([dynamic]IR_Param, 0, 2)
 				append(&kc_params, IR_Param{name = e.binding, type = e.type})
-				ev_param_name := el_fresh(env, "_ev_p")
-				append(&kc_params, IR_Param{name = ev_param_name, type = IR_Type{.I32, Type_Var_ID(0)}})
+				if !is_shallow {
+					ev_param_name := el_fresh(env, "_ev_p")
+					append(&kc_params, IR_Param{name = ev_param_name, type = IR_Type{.I32, Type_Var_ID(0)}})
+				}
 
 				kc_fn := new(IR_Decl_Fn)
 				kc_fn^ = IR_Decl_Fn{
