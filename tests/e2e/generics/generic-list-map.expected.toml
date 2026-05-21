@@ -1,28 +1,21 @@
 stdout = """
--- SYNTAX ERROR --- /tmp/camp-e2e/generics/generic-list-map/generic-list-map.camp
+canonicalized /tmp/camp-e2e/generics/generic-list-map/generic-list-map.camp: 1 declaration(s), 0 import(s)
+-- TYPE MISMATCH --- /tmp/camp-e2e/generics/generic-list-map/generic-list-map.camp
 
-I expected `)` here, but I got `,` instead.
-   1 | map = (f, xs) { match xs { Nil -> Nil | Cons(h, t) -> Cons(f(h), map(f, t)) } }
-               ^
+`Bool` does not match `tag union`.
 
--- SYNTAX ERROR --- /tmp/camp-e2e/generics/generic-list-map/generic-list-map.camp
+-- UNDEFINED NAME --- /tmp/camp-e2e/generics/generic-list-map/generic-list-map.camp
 
-I expected `=` here, but I got `)` instead.
-   1 | map = (f, xs) { match xs { Nil -> Nil | Cons(h, t) -> Cons(f(h), map(f, t)) } }
-                   ^
+I cannot find `map`.
+   1 | map = |f, xs| { match xs { Nil => Nil | Cons(h, t) => Cons(f(h), map(f, t)) } }
+                                                                        ^^^
 
--- SYNTAX ERROR --- /tmp/camp-e2e/generics/generic-list-map/generic-list-map.camp
+-- TYPE MISMATCH --- /tmp/camp-e2e/generics/generic-list-map/generic-list-map.camp
 
-I expected `=>` here, but I got `->` instead.
-   1 | map = (f, xs) { match xs { Nil -> Nil | Cons(h, t) -> Cons(f(h), map(f, t)) } }
-                                      ^^
-
--- SYNTAX ERROR --- /tmp/camp-e2e/generics/generic-list-map/generic-list-map.camp
-
-I expected `=>` here, but I got `->` instead.
-   1 | map = (f, xs) { match xs { Nil -> Nil | Cons(h, t) -> Cons(f(h), map(f, t)) } }
-                                                          ^^
-compilation failed with 4 error(s)
+I expected a row type here, but I found a value type instead.
+   1 | map = |f, xs| { match xs { Nil => Nil | Cons(h, t) => Cons(f(h), map(f, t)) } }
+                                         ^^^
+compilation failed with 3 error(s)
 """
 stderr = ""
 exit = 1

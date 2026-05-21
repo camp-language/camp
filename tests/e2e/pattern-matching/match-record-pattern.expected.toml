@@ -1,10 +1,6 @@
 stdout = """
--- SYNTAX ERROR --- /tmp/camp-e2e/pattern-matching/match-record-pattern/match-record-pattern.camp
-
-I expected `=>` here, but I got `->` instead.
-   1 | main! = || -> I64 { match { x: 1, y: 2 } { { x: a, y: b } -> a + b } }
-                                                                 ^^
-compilation failed with 1 error(s)
+canonicalized /tmp/camp-e2e/pattern-matching/match-record-pattern/match-record-pattern.camp: 1 declaration(s), 0 import(s)
+typecheck passed for /tmp/camp-e2e/pattern-matching/match-record-pattern/match-record-pattern.camp
 """
 stderr = ""
-exit = 1
+exit = 4
