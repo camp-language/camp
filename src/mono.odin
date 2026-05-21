@@ -3,16 +3,17 @@ package camp
 import "core:fmt"
 
 Mono_Env :: struct {
-	store:           ^Type_Store,
-	interner:        ^Intern_Table,
-	specializations: map[string]Canonical_Name,
-	worklist:        [dynamic]Mono_Item,
-	output_decls:    [dynamic]TDecl,
+	store:             ^Type_Store,
+	interner:          ^Intern_Table,
+	specializations:   map[string]Canonical_Name,
+	decl_map:          map[Canonical_Name]^TDecl_Const,
+	worklist:         [dynamic]Mono_Item,
+	output_decls:      [dynamic]TDecl,
 }
 
 Mono_Item :: struct {
 	original:  Canonical_Name,
-	type_args:  map[Intern_ID]Type_Var_ID,
+	type_args: map[Intern_ID]Type_Var_ID,
 	span:      Source_Span,
 }
 
@@ -21,10 +22,14 @@ mono :: proc(tfile: TFile, store: ^Type_Store, interner: ^Intern_Table) -> TFile
 	env.store = store
 	env.interner = interner
 	env.specializations = make(map[string]Canonical_Name, 32)
+	env.decl_map = make(map[Canonical_Name]^TDecl_Const, 32)
 	env.worklist = make([dynamic]Mono_Item, 0, 16)
 	env.output_decls = make([dynamic]TDecl, 0, len(tfile.decls))
 
 	for decl in tfile.decls {
+		if d, ok := decl.(^TDecl_Const); ok {
+			env.decl_map[d.name] = d
+		}
 		walk_decl_for_call_sites(decl, &env)
 	}
 
@@ -37,6 +42,11 @@ mono :: proc(tfile: TFile, store: ^Type_Store, interner: ^Intern_Table) -> TFile
 
 		specialized_name := mangle(item.original, item.type_args, env.interner, store)
 		env.specializations[key] = specialized_name
+
+		specialized_decl := specialize_decl(item, &env)
+		if specialized_decl != nil {
+			append(&env.output_decls, TDecl(specialized_decl))
+		}
 	}
 
 	for decl in tfile.decls {
@@ -51,6 +61,7 @@ mono :: proc(tfile: TFile, store: ^Type_Store, interner: ^Intern_Table) -> TFile
 	result.imports = tfile.imports
 
 	delete(env.specializations)
+	delete(env.decl_map)
 	delete(env.worklist)
 	return result
 }
@@ -137,6 +148,292 @@ mangle :: proc(name: Canonical_Name, type_args: map[Intern_ID]Type_Var_ID, inter
 		name = mangled_name,
 		is_local = name.is_local,
 	}
+}
+
+specialize_decl :: proc(item: Mono_Item, env: ^Mono_Env) -> ^TDecl_Const {
+	original, exists := env.decl_map[item.original]
+	if !exists {
+		return nil
+	}
+
+	specialized_name := mangle(item.original, item.type_args, env.interner, env.store)
+
+	decl := new(TDecl_Const)
+	decl.name = specialized_name
+	decl.is_pub = original.is_pub
+	decl.is_effectful = original.is_effectful
+	decl.type_ann = original.type_ann
+	decl.derive_targets = original.derive_targets
+	decl.span = item.span
+
+	decl.body = substitute_types_in_expr(original.body, item.type_args, env)
+
+	decl.type_ = substitute_ir_type(original.type_, item.type_args, env)
+	decl.eff_ = substitute_ir_type(original.eff_, item.type_args, env)
+
+	return decl
+}
+
+substitute_types_in_expr :: proc(expr: TExpr, type_args: map[Intern_ID]Type_Var_ID, env: ^Mono_Env) -> TExpr {
+	switch e in expr {
+	case ^TExpr_Int:
+		return expr
+
+	case ^TExpr_Float:
+		return expr
+
+	case ^TExpr_String:
+		return expr
+
+	case ^TExpr_Bool:
+		return expr
+
+	case ^TExpr_Tag:
+		payload_t := make([dynamic]TExpr, len(e.payload))
+		for i in 0..<len(e.payload) {
+			payload_t[i] = substitute_types_in_expr(e.payload[i], type_args, env)
+		}
+		result := new(TExpr_Tag)
+		result.name = e.name
+		result.payload = payload_t
+		result.type_ = substitute_ir_type(e.type_, type_args, env)
+		result.eff_ = substitute_ir_type(e.eff_, type_args, env)
+		result.span = e.span
+		return TExpr(result)
+
+	case ^TExpr_Record:
+		fields_t := make([dynamic]TRecord_Field, len(e.fields))
+		for i in 0..<len(e.fields) {
+			fields_t[i] = TRecord_Field{
+				name = e.fields[i].name,
+				value = substitute_types_in_expr(e.fields[i].value, type_args, env),
+				span = e.fields[i].span,
+			}
+		}
+		result := new(TExpr_Record)
+		result.fields = fields_t
+		result.rest = substitute_types_in_expr(e.rest, type_args, env)
+		result.is_open = e.is_open
+		result.type_ = substitute_ir_type(e.type_, type_args, env)
+		result.eff_ = substitute_ir_type(e.eff_, type_args, env)
+		result.span = e.span
+		return TExpr(result)
+
+	case ^TExpr_List:
+		elements_t := make([dynamic]TExpr, len(e.elements))
+		for i in 0..<len(e.elements) {
+			elements_t[i] = substitute_types_in_expr(e.elements[i], type_args, env)
+		}
+		result := new(TExpr_List)
+		result.elements = elements_t
+		result.type_ = substitute_ir_type(e.type_, type_args, env)
+		result.eff_ = substitute_ir_type(e.eff_, type_args, env)
+		result.span = e.span
+		return TExpr(result)
+
+	case ^TExpr_Name:
+		result := new(TExpr_Name)
+		result.name = e.name
+		result.type_ = substitute_ir_type(e.type_, type_args, env)
+		result.eff_ = substitute_ir_type(e.eff_, type_args, env)
+		result.span = e.span
+		return TExpr(result)
+
+	case ^TExpr_Call:
+		args_t := make([dynamic]TExpr, len(e.args))
+		for i in 0..<len(e.args) {
+			args_t[i] = substitute_types_in_expr(e.args[i], type_args, env)
+		}
+		result := new(TExpr_Call)
+		result.callee = substitute_types_in_expr(e.callee, type_args, env)
+		result.args = args_t
+		result.type_ = substitute_ir_type(e.type_, type_args, env)
+		result.eff_ = substitute_ir_type(e.eff_, type_args, env)
+		result.span = e.span
+		return TExpr(result)
+
+	case ^TExpr_Method_Call:
+		args_t := make([dynamic]TExpr, len(e.args))
+		for i in 0..<len(e.args) {
+			args_t[i] = substitute_types_in_expr(e.args[i], type_args, env)
+		}
+		result := new(TExpr_Method_Call)
+		result.receiver = substitute_types_in_expr(e.receiver, type_args, env)
+		result.method = e.method
+		result.args = args_t
+		result.type_ = substitute_ir_type(e.type_, type_args, env)
+		result.eff_ = substitute_ir_type(e.eff_, type_args, env)
+		result.resolved_ = e.resolved_
+		result.span = e.span
+		return TExpr(result)
+
+	case ^TExpr_Lambda:
+		substituted_params := make([dynamic]TFunc_Param, len(e.params))
+		for i in 0..<len(e.params) {
+			substituted_params[i] = TFunc_Param{
+				name = e.params[i].name,
+				type_ = substitute_ir_type(e.params[i].type_, type_args, env),
+				eff_ = substitute_ir_type(e.params[i].eff_, type_args, env),
+				span = e.params[i].span,
+			}
+		}
+		result := new(TExpr_Lambda)
+		result.type_params = e.type_params
+		result.params = substituted_params
+		result.return_type = substitute_ir_type(e.return_type, type_args, env)
+		result.effects = substitute_ir_type(e.effects, type_args, env)
+		result.body = substitute_types_in_expr(e.body, type_args, env)
+		result.type_ = substitute_ir_type(e.type_, type_args, env)
+		result.eff_ = substitute_ir_type(e.eff_, type_args, env)
+		result.span = e.span
+		return TExpr(result)
+
+	case ^TExpr_Block:
+		statements_t := make([dynamic]TExpr, len(e.statements))
+		for i in 0..<len(e.statements) {
+			statements_t[i] = substitute_types_in_expr(e.statements[i], type_args, env)
+		}
+		result := new(TExpr_Block)
+		result.statements = statements_t
+		result.type_ = substitute_ir_type(e.type_, type_args, env)
+		result.eff_ = substitute_ir_type(e.eff_, type_args, env)
+		result.span = e.span
+		return TExpr(result)
+
+	case ^TExpr_If:
+		result := new(TExpr_If)
+		result.condition = substitute_types_in_expr(e.condition, type_args, env)
+		result.then_branch = substitute_types_in_expr(e.then_branch, type_args, env)
+		result.else_branch = substitute_types_in_expr(e.else_branch, type_args, env)
+		result.type_ = substitute_ir_type(e.type_, type_args, env)
+		result.eff_ = substitute_ir_type(e.eff_, type_args, env)
+		result.span = e.span
+		return TExpr(result)
+
+	case ^TExpr_Match:
+		arms_t := make([dynamic]TMatch_Arm, len(e.arms))
+		for i in 0..<len(e.arms) {
+			arms_t[i] = TMatch_Arm{
+				pattern = e.arms[i].pattern,
+				body = substitute_types_in_expr(e.arms[i].body, type_args, env),
+				span = e.arms[i].span,
+			}
+		}
+		result := new(TExpr_Match)
+		result.scrutinee = substitute_types_in_expr(e.scrutinee, type_args, env)
+		result.arms = arms_t
+		result.type_ = substitute_ir_type(e.type_, type_args, env)
+		result.eff_ = substitute_ir_type(e.eff_, type_args, env)
+		result.span = e.span
+		return TExpr(result)
+
+	case ^TExpr_BinOp:
+		result := new(TExpr_BinOp)
+		result.op = e.op
+		result.left = substitute_types_in_expr(e.left, type_args, env)
+		result.right = substitute_types_in_expr(e.right, type_args, env)
+		result.type_ = substitute_ir_type(e.type_, type_args, env)
+		result.eff_ = substitute_ir_type(e.eff_, type_args, env)
+		result.span = e.span
+		return TExpr(result)
+
+	case ^TExpr_PrefixOp:
+		result := new(TExpr_PrefixOp)
+		result.op = e.op
+		result.operand = substitute_types_in_expr(e.operand, type_args, env)
+		result.type_ = substitute_ir_type(e.type_, type_args, env)
+		result.eff_ = substitute_ir_type(e.eff_, type_args, env)
+		result.span = e.span
+		return TExpr(result)
+
+	case ^TExpr_Field_Access:
+		result := new(TExpr_Field_Access)
+		result.record = substitute_types_in_expr(e.record, type_args, env)
+		result.field = e.field
+		result.type_ = substitute_ir_type(e.type_, type_args, env)
+		result.eff_ = substitute_ir_type(e.eff_, type_args, env)
+		result.span = e.span
+		return TExpr(result)
+
+	case ^TExpr_Record_Update:
+		updates_t := make([dynamic]TRecord_Field, len(e.updates))
+		for i in 0..<len(e.updates) {
+			updates_t[i] = TRecord_Field{
+				name = e.updates[i].name,
+				value = substitute_types_in_expr(e.updates[i].value, type_args, env),
+				span = e.updates[i].span,
+			}
+		}
+		result := new(TExpr_Record_Update)
+		result.rest = substitute_types_in_expr(e.rest, type_args, env)
+		result.updates = updates_t
+		result.type_ = substitute_ir_type(e.type_, type_args, env)
+		result.eff_ = substitute_ir_type(e.eff_, type_args, env)
+		result.span = e.span
+		return TExpr(result)
+
+	case ^TExpr_Assign:
+		result := new(TExpr_Assign)
+		result.target = substitute_types_in_expr(e.target, type_args, env)
+		result.value = substitute_types_in_expr(e.value, type_args, env)
+		result.type_ = substitute_ir_type(e.type_, type_args, env)
+		result.eff_ = substitute_ir_type(e.eff_, type_args, env)
+		result.span = e.span
+		return TExpr(result)
+
+	case ^TExpr_Return:
+		result := new(TExpr_Return)
+		result.value = substitute_types_in_expr(e.value, type_args, env)
+		result.type_ = substitute_ir_type(e.type_, type_args, env)
+		result.eff_ = substitute_ir_type(e.eff_, type_args, env)
+		result.span = e.span
+		return TExpr(result)
+
+	case ^TExpr_Crash:
+		result := new(TExpr_Crash)
+		result.message = substitute_types_in_expr(e.message, type_args, env)
+		result.type_ = substitute_ir_type(e.type_, type_args, env)
+		result.eff_ = substitute_ir_type(e.eff_, type_args, env)
+		result.span = e.span
+		return TExpr(result)
+
+	case ^TExpr_Interpolate:
+		parts_t := make([dynamic]TExpr, len(e.parts))
+		for i in 0..<len(e.parts) {
+			parts_t[i] = substitute_types_in_expr(e.parts[i], type_args, env)
+		}
+		result := new(TExpr_Interpolate)
+		result.parts = parts_t
+		result.type_ = substitute_ir_type(e.type_, type_args, env)
+		result.eff_ = substitute_ir_type(e.eff_, type_args, env)
+		result.span = e.span
+		return TExpr(result)
+
+	case ^TExpr_Handle:
+		arms_t := make([dynamic]THandler_Arm, len(e.arms))
+		for i in 0..<len(e.arms) {
+			arms_t[i] = THandler_Arm{
+				op = e.arms[i].op,
+				resume_id = e.arms[i].resume_id,
+				body = substitute_types_in_expr(e.arms[i].body, type_args, env),
+				span = e.arms[i].span,
+			}
+		}
+		result := new(TExpr_Handle)
+		result.effect = e.effect
+		result.is_shallow = e.is_shallow
+		result.body = substitute_types_in_expr(e.body, type_args, env)
+		result.arms = arms_t
+		result.type_ = substitute_ir_type(e.type_, type_args, env)
+		result.eff_ = substitute_ir_type(e.eff_, type_args, env)
+		result.span = e.span
+		return TExpr(result)
+	}
+	return expr
+}
+
+substitute_ir_type :: proc(ir_type: IR_Type, type_args: map[Intern_ID]Type_Var_ID, env: ^Mono_Env) -> IR_Type {
+	return ir_type
 }
 
 walk_decl_for_call_sites :: proc(decl: TDecl, env: ^Mono_Env) {
