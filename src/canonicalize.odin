@@ -561,8 +561,7 @@ canonicalize_expr :: proc(expr: Expr, scope: ^Canonicalize_Scope, ctx: ^Compilat
 		for a in e.arms {
 			append(&arms, CHandler_Arm{
 				op = a.op,
-				resume_id = a.resume_id,
-				op_params = a.op_params,
+				params = a.params,
 				body = canonicalize_expr(a.body, scope, ctx),
 				span = a.span,
 			})

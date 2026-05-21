@@ -572,8 +572,12 @@ parser_parse_lambda :: proc(p: ^Parser) -> Expr {
 	effects: ^Type = nil
 	if p.current.kind == .Arrow {
 		parser_advance(p)
-		if p.current.kind == .LBrace {
+		if p.current.kind == .Minus {
+			parser_advance(p)
+			parser_expect(p, .LBrack)
 			effects = parser_parse_effect_row_type(p)
+			parser_expect(p, .RBrack)
+			parser_expect(p, .Arrow)
 		}
 		return_type = parser_parse_type(p)
 	}
@@ -819,14 +823,15 @@ parser_parse_handle :: proc(p: ^Parser) -> Expr {
 		parser_expect(p, .LParen)
 		resume_tok := parser_expect(p, .Identifier)
 		resume_id := intern(p.intern, resume_tok.text)
-		op_params := make([dynamic]Intern_ID, 0, 4)
+		params := make([dynamic]Intern_ID, 0, 4)
+		append(&params, resume_id)
 		if p.current.kind == .Comma {
 			parser_advance(p)
 		}
 		for p.current.kind == .Identifier || p.current.kind == .Upper_Id {
 			param_tok := parser_advance(p)
 			param_id := intern(p.intern, param_tok.text)
-			append(&op_params, param_id)
+			append(&params, param_id)
 			if p.current.kind == .Comma {
 				parser_advance(p)
 			}
@@ -834,7 +839,7 @@ parser_parse_handle :: proc(p: ^Parser) -> Expr {
 		parser_expect(p, .RParen)
 		parser_expect(p, .Fat_Arrow)
 		arm_body := parser_parse_expr(p)
-		append(&arms, Handler_Arm{op = op_id, resume_id = resume_id, op_params = op_params, body = arm_body, span = op_tok.span})
+		append(&arms, Handler_Arm{op = op_id, params = params, body = arm_body, span = op_tok.span})
 		if p.current.kind == .Comma {
 			parser_advance(p)
 		}
@@ -1053,8 +1058,12 @@ parser_parse_function_type :: proc(p: ^Parser) -> Type {
 	effects: ^Type = nil
 	if p.current.kind == .Arrow {
 		parser_advance(p)
-		if p.current.kind == .LBrace {
+		if p.current.kind == .Minus {
+			parser_advance(p)
+			parser_expect(p, .LBrack)
 			effects = parser_parse_effect_row_type(p)
+			parser_expect(p, .RBrack)
+			parser_expect(p, .Arrow)
 		}
 		return_type := parser_parse_type(p)
 		ft := new(Type_Function)
@@ -1162,13 +1171,12 @@ parser_parse_tag_union_type :: proc(p: ^Parser) -> Type {
 
 parser_parse_effect_row_type :: proc(p: ^Parser) -> ^Type {
 	start := p.current.span
-	parser_advance(p)
 
 	effects := make([dynamic]Intern_ID, 0, 8)
 	rest: Intern_ID = 0
 	is_open := false
 
-	for p.current.kind != .RBrace && p.current.kind != .Eof {
+	for p.current.kind != .RBrack && p.current.kind != .Eof {
 		if p.current.kind == .Dot_Dot {
 			is_open = true
 			parser_advance(p)
@@ -1176,7 +1184,7 @@ parser_parse_effect_row_type :: proc(p: ^Parser) -> ^Type {
 				rest_tok := parser_advance(p)
 				rest = intern(p.intern, rest_tok.text)
 			}
-			if p.current.kind == .Comma {
+			if p.current.kind == .Pipe {
 				parser_advance(p)
 			}
 			continue
@@ -1186,11 +1194,10 @@ parser_parse_effect_row_type :: proc(p: ^Parser) -> ^Type {
 		name_id := intern(p.intern, name_tok.text)
 		append(&effects, name_id)
 
-		if p.current.kind == .Comma {
+		if p.current.kind == .Pipe {
 			parser_advance(p)
 		}
 	}
-	parser_expect(p, .RBrace)
 
 	row := new(Type_Effect_Row)
 	row^ = Type_Effect_Row{effects = effects, rest = rest, is_open = is_open, span = start}

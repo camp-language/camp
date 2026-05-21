@@ -134,7 +134,7 @@ cc_free_vars :: proc(expr: IR_Expr, bound: ^map[Intern_ID]bool) -> [dynamic]Inte
 		for v in body { append(&result, v) }
 		delete(body)
 		for arm in e.arms {
-			bound^[arm.resume_id] = true
+			bound^[arm.params[0]] = true
 			inner := cc_free_vars(arm.body, bound)
 			for v in inner { append(&result, v) }
 			delete(inner)
@@ -416,7 +416,7 @@ cc_convert_expr :: proc(expr: IR_Expr, env: ^Closure_Convert_Env) -> IR_Expr {
 		body := cc_convert_expr(e.body, env)
 		new_arms := make([dynamic]IR_Handler_Arm, 0, len(e.arms))
 		for arm in e.arms {
-			append(&new_arms, IR_Handler_Arm{op = arm.op, resume_id = arm.resume_id, op_params = arm.op_params, body = cc_convert_expr(arm.body, env)})
+			append(&new_arms, IR_Handler_Arm{op = arm.op, params = arm.params, body = cc_convert_expr(arm.body, env)})
 		}
 		new_handle := new(IR_Handle)
 		new_handle^ = IR_Handle{

@@ -200,10 +200,9 @@ IR_Handle :: struct {
 }
 
 IR_Handler_Arm :: struct {
-	op:        Intern_ID,
-	resume_id: Intern_ID,
-	op_params: [dynamic]Intern_ID,
-	body:      IR_Expr,
+	op:     Intern_ID,
+	params: [dynamic]Intern_ID,
+	body:   IR_Expr,
 }
 
 IR_Perform :: struct {

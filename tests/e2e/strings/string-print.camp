@@ -1,2 +1,2 @@
 effect IO { println }
-main! = || -> {IO} I64 { IO.println("hello") 0 }
+main! = || -> -[IO]-> I64 { IO.println("hello") 0 }

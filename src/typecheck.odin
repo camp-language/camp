@@ -83,20 +83,20 @@ format_effect_row :: proc(store: ^Type_Store, effects: Type_Var_ID) -> string {
 	rv := get_var(store, rid)
 	it, is_inferred := rv.link.(Inferred_Type)
 	if is_inferred && it.tag == .Effect_Row {
-		if len(it.effect_names) == 0 do return "{}"
+		if len(it.effect_names) == 0 do return "[]"
 		builder: strings.Builder
 		strings.builder_init_len_cap(&builder, 0, 64)
-		strings.write_rune(&builder, '{')
+		strings.write_rune(&builder, '[')
 		for i, eid in it.effect_names {
-			if i > 0 do strings.write_string(&builder, ", ")
+			if i > 0 do strings.write_string(&builder, " | ")
 			strings.write_string(&builder, intern_get(store.interner, Intern_ID(eid)))
 		}
-		strings.write_rune(&builder, '}')
+		strings.write_rune(&builder, ']')
 		result := strings.to_string(builder)
 		strings.builder_destroy(&builder)
 		return result
 	}
-	return "{}"
+	return "[]"
 }
 
 typecheck_file :: proc(file: CFile, store: ^Type_Store, current_module: Intern_ID = NO_NAME) {

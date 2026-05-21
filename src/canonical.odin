@@ -279,11 +279,10 @@ CExpr_Handle :: struct {
 }
 
 CHandler_Arm :: struct {
-	op:        Intern_ID,
-	resume_id: Intern_ID,
-	op_params: [dynamic]Intern_ID,
-	body:      CExpr,
-	span:      Source_Span,
+	op:     Intern_ID,
+	params: [dynamic]Intern_ID,
+	body:   CExpr,
+	span:   Source_Span,
 }
 
 CMatch_Arm :: struct {

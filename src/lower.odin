@@ -857,8 +857,7 @@ lower_thandle :: proc(e: ^TExpr_Handle, env: ^Lower_Env) -> IR_Expr {
 	for i in 0..<len(e.arms) {
 		arms[i] = IR_Handler_Arm{
 			op = e.arms[i].op,
-			resume_id = e.arms[i].resume_id,
-			op_params = e.arms[i].op_params,
+			params = e.arms[i].params,
 			body = lower_texpr(e.arms[i].body, env),
 		}
 	}
@@ -1313,8 +1312,7 @@ lower_handle :: proc(e: ^CExpr_Handle, env: ^Lower_Env) -> IR_Expr {
 	for arm in e.arms {
 		append(&arms, IR_Handler_Arm{
 			op = arm.op,
-			resume_id = arm.resume_id,
-			op_params = arm.op_params,
+			params = arm.params,
 			body = lower_expr(arm.body, env),
 		})
 	}

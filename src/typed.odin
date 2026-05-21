@@ -295,11 +295,10 @@ TExpr_Handle :: struct {
 }
 
 THandler_Arm :: struct {
-	op:        Intern_ID,
-	resume_id: Intern_ID,
-	op_params: [dynamic]Intern_ID,
-	body:      TExpr,
-	span:      Source_Span,
+	op:     Intern_ID,
+	params: [dynamic]Intern_ID,
+	body:   TExpr,
+	span:   Source_Span,
 }
 
 TDecl :: union {

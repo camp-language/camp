@@ -451,8 +451,7 @@ substitute_types_in_expr :: proc(expr: TExpr, type_args: map[Intern_ID]Type_Var_
 		for i in 0..<len(e.arms) {
 			arms_t[i] = THandler_Arm{
 				op = e.arms[i].op,
-				resume_id = e.arms[i].resume_id,
-				op_params = e.arms[i].op_params,
+				params = e.arms[i].params,
 				body = substitute_types_in_expr(e.arms[i].body, type_args, env),
 				span = e.arms[i].span,
 			}

@@ -471,8 +471,7 @@ annotate_expr :: proc(expr: CExpr, env: ^Annotate_Env) -> TExpr {
 		for i in 0..<len(e.arms) {
 			arms_t[i] = THandler_Arm{
 				op = e.arms[i].op,
-				resume_id = e.arms[i].resume_id,
-				op_params = e.arms[i].op_params,
+				params = e.arms[i].params,
 				body = annotate_expr(e.arms[i].body, env),
 				span = e.arms[i].span,
 			}

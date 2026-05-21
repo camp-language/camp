@@ -630,7 +630,15 @@ format_handler_arms :: proc(arms: []Handler_Arm, info: ^Format_Source_Info, inte
 		}
 		append(&arm_parts, doc_text(intern_get(interner, arm.op)))
 		append(&arm_parts, doc_text(" "))
-		append(&arm_parts, doc_text(intern_get(interner, arm.resume_id)))
+		if len(arm.params) > 0 {
+			append(&arm_parts, doc_text(intern_get(interner, arm.params[0])))
+		}
+		if len(arm.params) > 1 {
+			for i in 1..<len(arm.params) {
+				append(&arm_parts, doc_text(", "))
+				append(&arm_parts, doc_text(intern_get(interner, arm.params[i])))
+			}
+		}
 		append(&arm_parts, doc_text(" -> "))
 		append(&arm_parts, format_expr(arm.body, info, interner))
 	}

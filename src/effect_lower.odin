@@ -221,8 +221,7 @@ el_replace_resume :: proc(expr: IR_Expr, resume_id: Intern_ID, resume_param: Int
 		for arm in e.arms {
 			append(&new_arms, IR_Handler_Arm{
 				op = arm.op,
-				resume_id = arm.resume_id,
-				op_params = arm.op_params,
+				params = arm.params,
 				body = el_replace_resume(arm.body, resume_id, resume_param, env),
 			})
 		}
@@ -392,7 +391,7 @@ el_lower_expr :: proc(expr: IR_Expr, env: ^Effect_Lower_Env) -> IR_Expr {
 			}
 
 			lowered_body := el_lower_expr(arm.body, env)
-			transformed_body := el_replace_resume(lowered_body, arm.resume_id, resume_param, env)
+			transformed_body := el_replace_resume(lowered_body, arm.params[0], resume_param, env)
 
 			handler_fn := new(IR_Decl_Fn)
 			handler_fn^ = IR_Decl_Fn{

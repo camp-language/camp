@@ -1,2 +1,2 @@
 effect IO { println }
-main = || -> {IO} I64 { 0 }
+main = || -> -[IO]-> I64 { 0 }

@@ -286,9 +286,8 @@ cps_transform_expr :: proc(expr: IR_Expr, k_name: Intern_ID, env: ^CPS_Env) -> I
 		for arm in e.arms {
 			append(&new_arms, IR_Handler_Arm{
 				op = arm.op,
-				resume_id = arm.resume_id,
-				op_params = arm.op_params,
-				body = cps_transform_expr(arm.body, arm.resume_id, env),
+				params = arm.params,
+				body = cps_transform_expr(arm.body, arm.params[0], env),
 			})
 		}
 		new_handle := new(IR_Handle)
