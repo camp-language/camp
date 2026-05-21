@@ -566,8 +566,13 @@ canonicalize_expr :: proc(expr: Expr, scope: ^Canonicalize_Scope, ctx: ^Compilat
 				span = a.span,
 			})
 		}
+		is_non_resuming := e.is_non_resuming
+		effect_str := intern_get(&ctx.interner, e.effect)
+		if effect_str == "Throw" {
+			is_non_resuming = true
+		}
 		c := new(CExpr_Handle)
-		c^ = CExpr_Handle{effect = effect_name, is_shallow = e.is_shallow, body = cbody, arms = arms, span = e.span}
+		c^ = CExpr_Handle{effect = effect_name, is_shallow = e.is_shallow, is_non_resuming = is_non_resuming, body = cbody, arms = arms, span = e.span}
 		return c
 
 	case ^Expr_Dot_Lambda:

@@ -270,11 +270,12 @@ CExpr_Interpolate :: struct {
 }
 
 CExpr_Handle :: struct {
-	effect:     Canonical_Name,
-	is_shallow: bool,
-	body:       CExpr,
-	arms:       [dynamic]CHandler_Arm,
-	span:       Source_Span,
+	effect:         Canonical_Name,
+	is_shallow:    bool,
+	is_non_resuming: bool,
+	body:           CExpr,
+	arms:           [dynamic]CHandler_Arm,
+	span:           Source_Span,
 }
 
 CHandler_Arm :: struct {

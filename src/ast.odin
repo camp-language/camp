@@ -339,11 +339,12 @@ Expr_Interpolate :: struct {
 }
 
 Expr_Handle :: struct {
-	effect:     Intern_ID,
-	is_shallow: bool,
-	body:       Expr,
-	arms:       [dynamic]Handler_Arm,
-	span:       Source_Span,
+	effect:         Intern_ID,
+	is_shallow:     bool,
+	is_non_resuming: bool,
+	body:           Expr,
+	arms:           [dynamic]Handler_Arm,
+	span:           Source_Span,
 }
 
 Expr_Dot_Lambda :: struct {

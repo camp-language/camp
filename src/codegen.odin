@@ -2,7 +2,7 @@ package camp
 
 WASI_MODULE :: "wasi_snapshot_preview1"
 
-RUNTIME_FUNC_COUNT :: 5
+RUNTIME_FUNC_COUNT :: 6
 
 CAMP_TAG_HEADER_SIZE :: 8
 CAMP_TAG_REFCOUNT_OFFSET :: 0
@@ -176,6 +176,9 @@ codegen :: proc(ir_mod: IR_Module, ctx: ^Compilation_Context) -> Wasm_Module {
 	runtime_func_indices[3] = print_str_func_idx
 	exit_func_idx := add_function(&env, exit_type_idx)
 	runtime_func_indices[4] = exit_func_idx
+	throw_handler_type_idx := get_or_create_type(&env, []Wasm_Value_Type{.I32}, []Wasm_Value_Type{})
+	throw_func_idx := add_function(&env, throw_handler_type_idx)
+	runtime_func_indices[5] = throw_func_idx
 
 	camp_alloc_code := emit_camp_alloc_body(heap_ptr_global_idx)
 	append(&mod.codes, camp_alloc_code)
@@ -191,6 +194,9 @@ codegen :: proc(ir_mod: IR_Module, ctx: ^Compilation_Context) -> Wasm_Module {
 
 	camp_exit_code := emit_camp_exit_body()
 	append(&mod.codes, camp_exit_code)
+
+	camp_throw_code := emit_camp_throw_handler_body(runtime_func_indices[RUNTIME_EXIT])
+	append(&mod.codes, camp_throw_code)
 
 	main_fn_idx := -1
 	main_decl: ^IR_Decl_Fn = nil
@@ -244,12 +250,63 @@ codegen :: proc(ir_mod: IR_Module, ctx: ^Compilation_Context) -> Wasm_Module {
 			is_main := intern_get(&ctx.interner, d.name.name) == "main" || intern_get(&ctx.interner, d.name.name) == "main!"
 
 			if is_main && d.is_effectful {
-				placeholder: [dynamic]u8
-				placeholder = make([dynamic]u8, 0, 4)
-				emit_instruction(Wasm_Unreachable{}, &placeholder)
-				emit_instruction(Wasm_End{}, &placeholder)
-				append(&mod.codes, Wasm_Code{locals = []Wasm_Local_Decl{}, body = copy_dynamic_bytes(placeholder)})
-				delete(placeholder)
+				env.locals = make([dynamic]Wasm_Local_Decl, 0, 32)
+				env.local_map = make(map[Intern_ID]u32, 32)
+				env.next_local = u32(len(d.params))
+
+				for p, i in d.params {
+					env.local_map[p.name] = u32(i)
+				}
+
+				collected_locals: map[Intern_ID]IR_Type
+				collected_locals = make(map[Intern_ID]IR_Type, 32)
+				collect_locals(d.body, &collected_locals)
+
+				local_groups: map[Wasm_Value_Type][dynamic]Intern_ID
+				local_groups = make(map[Wasm_Value_Type][dynamic]Intern_ID, 8)
+
+				for name, typ in collected_locals {
+					vt := ir_wasm_type_to_value_type(typ.wasm_type)
+					if vt in local_groups {
+						append(&local_groups[vt], name)
+					} else {
+						list: [dynamic]Intern_ID
+						list = make([dynamic]Intern_ID, 0, 8)
+						append(&list, name)
+						local_groups[vt] = list
+					}
+				}
+
+				for vt, names in local_groups {
+					for name in names {
+						env.local_map[name] = env.next_local
+						env.next_local += 1
+					}
+					append(&env.locals, Wasm_Local_Decl{count = u32(len(names)), type = vt})
+					delete(names)
+				}
+				delete(local_groups)
+				delete(collected_locals)
+
+				env.tmp_local_base = env.next_local
+				env.tmp_count = 0
+				append(&env.locals, Wasm_Local_Decl{count = 4, type = .I32})
+				env.next_local += 4
+
+				body_buf: [dynamic]u8
+				body_buf = make([dynamic]u8, 0, 512)
+				emit_expr(d.body, &body_buf, &env, runtime_func_indices[:])
+				emit_instruction(Wasm_End{}, &body_buf)
+
+				locals_copy := make([]Wasm_Local_Decl, len(env.locals))
+				for l, i in env.locals {
+					locals_copy[i] = l
+				}
+
+				append(&mod.codes, Wasm_Code{locals = locals_copy, body = copy_dynamic_bytes(body_buf)})
+				delete(body_buf)
+				delete(env.locals)
+				delete(env.local_map)
 				continue
 			}
 
@@ -499,6 +556,7 @@ RUNTIME_DUP :: 1
 RUNTIME_DROP :: 2
 RUNTIME_PRINT_STR :: 3
 RUNTIME_EXIT :: 4
+RUNTIME_THROW :: 5
 
 extract_effectful_body :: proc(expr: IR_Expr) -> IR_Expr {
 	#partial switch e in expr {

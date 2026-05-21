@@ -865,6 +865,7 @@ lower_thandle :: proc(e: ^TExpr_Handle, env: ^Lower_Env) -> IR_Expr {
 	result^ = IR_Handle{
 		effect = e.effect,
 		is_shallow = e.is_shallow,
+		is_non_resuming = e.is_non_resuming,
 		body = body_ir,
 		arms = arms,
 		type = e.type_,
@@ -946,6 +947,7 @@ lower_method_call :: proc(e: ^CExpr_Method_Call, env: ^Lower_Env) -> IR_Expr {
 			effect = e.method,
 			op = e.method.name,
 			args = ir_args,
+			is_non_resuming = is_throw_effect(env.store, e.method.name),
 			type = IR_Type{.I32, fresh_value_var(env.store, e.span)},
 			span = e.span,
 		}
@@ -1298,6 +1300,7 @@ lower_handle :: proc(e: ^CExpr_Handle, env: ^Lower_Env) -> IR_Expr {
 	h^ = IR_Handle{
 		effect = e.effect,
 		is_shallow = e.is_shallow,
+		is_non_resuming = e.is_non_resuming,
 		body = body,
 		arms = arms,
 		type = lower_type(env.store, type_var),

@@ -285,13 +285,14 @@ TExpr_Interpolate :: struct {
 }
 
 TExpr_Handle :: struct {
-	effect:     Canonical_Name,
-	is_shallow: bool,
-	body:       TExpr,
-	arms:       [dynamic]THandler_Arm,
-	type_:      IR_Type,
-	eff_:       IR_Type,
-	span:       Source_Span,
+	effect:         Canonical_Name,
+	is_shallow:     bool,
+	is_non_resuming: bool,
+	body:           TExpr,
+	arms:           [dynamic]THandler_Arm,
+	type_:          IR_Type,
+	eff_:           IR_Type,
+	span:           Source_Span,
 }
 
 THandler_Arm :: struct {

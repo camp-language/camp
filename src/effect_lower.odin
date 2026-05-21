@@ -80,13 +80,15 @@ el_lower_expr :: proc(expr: IR_Expr, env: ^Effect_Lower_Env) -> IR_Expr {
 			}
 
 			params := make([dynamic]IR_Param, 0, 4)
-			append(&params, IR_Param{name = ev_var, type = IR_Type{.I64, Type_Var_ID(0)}})
-			append(&params, IR_Param{name = arm.resume_id, type = IR_Type{.Funcref, Type_Var_ID(0)}})
+			append(&params, IR_Param{name = ev_var, type = IR_Type{.I32, Type_Var_ID(0)}})
+			if !e.is_non_resuming {
+				append(&params, IR_Param{name = arm.resume_id, type = IR_Type{.Funcref, Type_Var_ID(0)}})
+			}
 
 			handler_fn := new(IR_Decl_Fn)
 			handler_fn^ = IR_Decl_Fn{
 				name = handler_name,
-				is_effectful = true,
+				is_effectful = false,
 				params = params,
 				return_type = e.type,
 				effect_row = IR_Type{.Void, Type_Var_ID(0)},
@@ -102,29 +104,32 @@ el_lower_expr :: proc(expr: IR_Expr, env: ^Effect_Lower_Env) -> IR_Expr {
 			pop(&env.evidence_stack)
 		}
 
-		make_handler_name := Canonical_Name{
+		num_arms := len(e.arms)
+		record_size := num_arms * 8
+
+		alloc_args := make([dynamic]IR_Expr, 0, 1)
+		lit := new(IR_Literal_Int)
+		lit^ = IR_Literal_Int{value = i64(record_size), type = IR_Type{.I32, Type_Var_ID(0)}, span = e.span}
+		append(&alloc_args, IR_Expr(lit))
+
+		alloc_callee := Canonical_Name{
 			module = NO_NAME,
-			name = intern(env.interner, "make_handler"),
+			name = intern(env.interner, "camp_alloc"),
 			is_local = false,
 		}
-		make_handler_args := make([dynamic]IR_Expr, 0, 1)
-		lit := new(IR_Literal_Int)
-		lit^ = IR_Literal_Int{value = 0, type = IR_Type{.I64, Type_Var_ID(0)}, span = e.span}
-		append(&make_handler_args, IR_Expr(lit))
-
-		call := new(IR_Call)
-		call^ = IR_Call{
-			callee = make_handler_name,
-			args = make_handler_args,
-			type = e.type,
+		alloc_call := new(IR_Call)
+		alloc_call^ = IR_Call{
+			callee = alloc_callee,
+			args = alloc_args,
+			type = IR_Type{.I32, Type_Var_ID(0)},
 			span = e.span,
 		}
 
 		let_expr := new(IR_Let)
 		let_expr^ = IR_Let{
 			binding = ev_var,
-			type = e.type,
-			value = IR_Expr(call),
+			type = IR_Type{.I32, Type_Var_ID(0)},
+			value = IR_Expr(alloc_call),
 			body = transformed_body,
 			span = e.span,
 		}
@@ -146,9 +151,9 @@ el_lower_expr :: proc(expr: IR_Expr, env: ^Effect_Lower_Env) -> IR_Expr {
 			return IR_Expr(lit)
 		}
 
-		args := make([dynamic]IR_Expr, 0, len(e.args) + 1)
+		args := make([dynamic]IR_Expr, 0, len(e.args) + 2)
 		ev_ref := new(IR_Var)
-		ev_ref^ = IR_Var{name = ev_var, type = IR_Type{.I64, Type_Var_ID(0)}, span = e.span}
+		ev_ref^ = IR_Var{name = ev_var, type = IR_Type{.I32, Type_Var_ID(0)}, span = e.span}
 		append(&args, IR_Expr(ev_ref))
 		for arg in e.args {
 			append(&args, el_lower_expr(arg, env))

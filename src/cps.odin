@@ -294,6 +294,7 @@ cps_transform_expr :: proc(expr: IR_Expr, k_name: Intern_ID, env: ^CPS_Env) -> I
 		new_handle^ = IR_Handle{
 			effect = e.effect,
 			is_shallow = e.is_shallow,
+			is_non_resuming = e.is_non_resuming,
 			body = cps_transform_expr(e.body, k_name, env),
 			arms = new_arms,
 			type = e.type,
@@ -307,7 +308,7 @@ cps_transform_expr :: proc(expr: IR_Expr, k_name: Intern_ID, env: ^CPS_Env) -> I
 			append(&new_args, cps_transform_expr(arg, k_name, env))
 		}
 		new_perf := new(IR_Perform)
-		new_perf^ = IR_Perform{effect = e.effect, op = e.op, args = new_args, type = e.type, span = e.span}
+		new_perf^ = IR_Perform{effect = e.effect, op = e.op, args = new_args, is_non_resuming = e.is_non_resuming, type = e.type, span = e.span}
 		return IR_Expr(new_perf)
 
 	case ^IR_Block:

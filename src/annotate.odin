@@ -479,6 +479,7 @@ annotate_expr :: proc(expr: CExpr, env: ^Annotate_Env) -> TExpr {
 		result := new(TExpr_Handle)
 		result.effect = e.effect
 		result.is_shallow = e.is_shallow
+		result.is_non_resuming = e.is_non_resuming
 		result.body = annotate_expr(e.body, env)
 		result.arms = arms_t
 		result.type_ = type_ir

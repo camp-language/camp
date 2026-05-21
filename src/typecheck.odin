@@ -430,7 +430,7 @@ typecheck_synth :: proc(expr: CExpr, env: ^Type_Env, store: ^Type_Store) -> Type
 		append(&env.handled_effects, e.effect.name)
 		body_result := typecheck_synth(e.body, env, store)
 		_ = pop(&env.handled_effects)
-		result_eff := fresh_effect_row(store, e.span)
+		result_eff := subtract_effect_from_row(store, body_result.effects, e.effect.name)
 		return Type_Result{var_id = body_result.var_id, effects = result_eff}
 	}
 	var_id := fresh_value_var(store, Source_Span_ZERO)
