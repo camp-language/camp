@@ -94,6 +94,11 @@ run_build_single :: proc(file_path: string) {
 	fmt.printfln("typecheck passed for {}", file_path)
 
 	context.allocator = ctx.allocator
+	annot_tfile := annotate_file(canon, &store)
+	mono_tfile := mono(annot_tfile, &store, &ctx.interner)
+	context.allocator = old_allocator
+
+	context.allocator = ctx.allocator
 	ir_mod := lower_file(canon, &store)
 	ir_mod = effect_lower(&ir_mod, &ctx)
 	ir_mod = closure_convert(&ir_mod, &ctx)
