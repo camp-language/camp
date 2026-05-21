@@ -113,6 +113,16 @@ typecheck_file :: proc(file: CFile, store: ^Type_Store) {
 	for name_id, var_id in env.bindings {
 		store.bindings[name_id] = var_id
 	}
+
+	for decl in file.decls {
+		#partial switch d in decl {
+		case ^CDecl_Newtype:
+			for tc in d.trait_conforms {
+				verify_trait_conformance(d.name.name, d.name.module, tc, d.span, store, &env)
+			}
+		case:
+		}
+	}
 }
 
 inject_prelude :: proc(store: ^Type_Store) {
@@ -293,10 +303,6 @@ typecheck_newtype_decl :: proc(d: ^CDecl_Newtype, env: ^Type_Env, store: ^Type_S
 		type_params = param_ids_slice[:],
 		inner_type = inner_type_var,
 		owned_tags = owned_tags_slice[:],
-	}
-
-	for tc in d.trait_conforms {
-		verify_trait_conformance(d.name.name, d.name.module, tc, d.span, store, env)
 	}
 
 	delete(param_vars)
