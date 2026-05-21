@@ -207,6 +207,19 @@ typecheck_decl :: proc(decl: CDecl, env: ^Type_Env, store: ^Type_Store) {
 
 	case ^CDecl_Alias:
 		convert_type_to_var(d.target, store)
+		if d.target != nil && ctype_contains_self(d.target^) {
+			methods := extract_trait_methods_from_ctype(d.target, store)
+			trait_info := Trait_Info{
+				name = d.name.name,
+				module = d.name.module,
+				parent = 0,
+				methods = methods,
+			}
+			store.trait_registry[d.name.name] = trait_info
+			trait_var := fresh_value_var(store, d.span)
+			env.bindings[d.name.name] = trait_var
+			store.bindings[d.name.name] = trait_var
+		}
 
 	case ^CDecl_Newtype:
 		typecheck_newtype_decl(d, env, store)
@@ -1402,6 +1415,76 @@ verify_trait_conformance :: proc(type_name: Intern_ID, type_module: Intern_ID, t
 	append(&store.trait_impls, impl)
 
 	return true
+}
+
+ctype_contains_self :: proc(t: CType) -> bool {
+	#partial switch ty in t {
+	case ^CType_Self:
+		return true
+	case ^CType_Record:
+		for f in ty.fields {
+			if ctype_contains_self(f.type) {
+				return true
+			}
+		}
+	case ^CType_Function:
+		for p in ty.params {
+			if ctype_contains_self(p) {
+				return true
+			}
+		}
+		return ctype_contains_self(ty.return_)
+	case ^CType_Tag_Union:
+		for tg in ty.tags {
+			for p in tg.payload {
+				if ctype_contains_self(p) {
+					return true
+				}
+			}
+		}
+	case ^CType_Applied:
+		for a in ty.args {
+			if ctype_contains_self(a) {
+				return true
+			}
+		}
+	case:
+		return false
+	}
+	return false
+}
+
+extract_trait_methods_from_ctype :: proc(t: ^CType, store: ^Type_Store) -> []Trait_Method_Info {
+	#partial switch ty in t^ {
+	case ^CType_Record:
+		methods := make([]Trait_Method_Info, len(ty.fields))
+		for f, i in ty.fields {
+			self_var := fresh_value_var(store, ty.span)
+			param_types := make([dynamic]Type_Var_ID, 0, 4)
+			append(&param_types, self_var)
+
+			#partial switch ft in f.type {
+			case ^CType_Function:
+				for p in ft.params {
+					append(&param_types, convert_type_to_var_val(p, store))
+				}
+				methods[i] = Trait_Method_Info{
+					name = f.name,
+					param_types = param_types[:],
+					return_type = convert_type_to_var_val(ft.return_, store),
+				}
+			case:
+				methods[i] = Trait_Method_Info{
+					name = f.name,
+					param_types = param_types[:],
+					return_type = fresh_value_var(store, ty.span),
+				}
+			}
+		}
+		return methods
+	case:
+	}
+	return make([]Trait_Method_Info, 0)
 }
 
 check_constraint_violation :: proc(type_var_id: Type_Var_ID, store: ^Type_Store) {

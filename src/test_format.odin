@@ -1140,7 +1140,7 @@ test_format_decl_alias :: proc(t: ^testing.T) {
 	result := doc_resolve(format_decl(Decl(da), &info, &ctx.interner), 0)
 	defer delete(result)
 
-	testing.expectf(t, result == "alias MyInt = Int", "expected %q, got %q", "alias MyInt = Int", result)
+	testing.expectf(t, result == "MyInt : Int", "expected %q, got %q", "MyInt : Int", result)
 }
 
 @(test)

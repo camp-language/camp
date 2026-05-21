@@ -505,7 +505,7 @@ test_handled_effect_ok :: proc(t: ^testing.T) {
 
 @(test)
 test_newtype_simple :: proc(t: ^testing.T) {
-	store, ctx := typecheck_source("UserId := U64")
+	store, ctx := typecheck_source("@UserId : U64")
 	defer context_destroy(ctx)
 	defer free(ctx)
 	defer type_store_destroy(&store)
@@ -518,7 +518,7 @@ test_newtype_simple :: proc(t: ^testing.T) {
 
 @(test)
 test_newtype_parameterized :: proc(t: ^testing.T) {
-	store, ctx := typecheck_source("Result(a, e) := [Ok(a) | Err(e)]")
+	store, ctx := typecheck_source("@Result(a, e) : [Ok(a) | Err(e)]")
 	defer context_destroy(ctx)
 	defer free(ctx)
 	defer type_store_destroy(&store)
@@ -621,7 +621,7 @@ test_newtype_same_name_unifies :: proc(t: ^testing.T) {
 
 @(test)
 test_newtype_with_trait :: proc(t: ^testing.T) {
-	store, ctx := typecheck_source("UserId := U64")
+	store, ctx := typecheck_source("@UserId : U64")
 	defer context_destroy(ctx)
 	defer free(ctx)
 	defer type_store_destroy(&store)
@@ -631,7 +631,7 @@ test_newtype_with_trait :: proc(t: ^testing.T) {
 
 @(test)
 test_newtype_wrapping_record :: proc(t: ^testing.T) {
-	store, ctx := typecheck_source("User := { name: Str, age: U64 }")
+	store, ctx := typecheck_source("@User : { name: Str, age: U64 }")
 	defer context_destroy(ctx)
 	defer free(ctx)
 	defer type_store_destroy(&store)
@@ -644,7 +644,7 @@ test_newtype_wrapping_record :: proc(t: ^testing.T) {
 
 @(test)
 test_newtype_construction :: proc(t: ^testing.T) {
-	store, ctx := typecheck_source("UserId := U64\nx = UserId(42)")
+	store, ctx := typecheck_source("@UserId : U64\nx = UserId(42)")
 	defer context_destroy(ctx)
 	defer free(ctx)
 	defer type_store_destroy(&store)
@@ -654,7 +654,7 @@ test_newtype_construction :: proc(t: ^testing.T) {
 
 @(test)
 test_newtype_tag_ownership :: proc(t: ^testing.T) {
-	store, ctx := typecheck_source("Result(a, e) := [Ok(a) | Err(e)]\nx = Result.Ok(42)")
+	store, ctx := typecheck_source("@Result(a, e) : [Ok(a) | Err(e)]\nx = Result.Ok(42)")
 	defer context_destroy(ctx)
 	defer free(ctx)
 	defer type_store_destroy(&store)
@@ -664,7 +664,7 @@ test_newtype_tag_ownership :: proc(t: ^testing.T) {
 
 @(test)
 test_newtype_inner_access :: proc(t: ^testing.T) {
-	store, ctx := typecheck_source("UserId := U64\nuid = UserId(42)\nn = uid.inner()")
+	store, ctx := typecheck_source("@UserId : U64\nuid = UserId(42)\nn = uid.inner()")
 	defer context_destroy(ctx)
 	defer free(ctx)
 	defer type_store_destroy(&store)

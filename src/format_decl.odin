@@ -92,7 +92,6 @@ format_effect_ops :: proc(ops: []Effect_Op, info: ^Format_Source_Info, interner:
 
 format_decl_trait :: proc(v: ^Decl_Trait, info: ^Format_Source_Info, interner: ^Intern_Table) -> Doc {
 	parts: [dynamic]Doc
-	append(&parts, doc_text("trait "))
 	append(&parts, doc_text(intern_get(interner, v.name)))
 	if v.parent != 0 {
 		append(&parts, doc_text(" is "))
@@ -100,11 +99,11 @@ format_decl_trait :: proc(v: ^Decl_Trait, info: ^Format_Source_Info, interner: ^
 	}
 
 	if len(v.methods) == 0 {
-		append(&parts, doc_text(" {}"))
+		append(&parts, doc_text(" : {}"))
 		return doc_concat(parts[:])
 	}
 
-	append(&parts, doc_text(" {"))
+	append(&parts, doc_text(" : {"))
 	append(&parts, doc_nest(4, format_trait_methods(v.methods[:], info, interner)))
 	append(&parts, doc_line())
 	append(&parts, doc_text("}"))
@@ -141,9 +140,8 @@ format_trait_methods :: proc(methods: []Trait_Method, info: ^Format_Source_Info,
 
 format_decl_alias :: proc(v: ^Decl_Alias, info: ^Format_Source_Info, interner: ^Intern_Table) -> Doc {
 	parts: [dynamic]Doc
-	append(&parts, doc_text("alias "))
 	append(&parts, doc_text(intern_get(interner, v.name)))
-	append(&parts, doc_text(" = "))
+	append(&parts, doc_text(" : "))
 	append(&parts, format_type(v.target, info, interner))
 	return doc_concat(parts[:])
 }
@@ -153,6 +151,7 @@ format_decl_newtype :: proc(v: ^Decl_Newtype, info: ^Format_Source_Info, interne
 	if v.is_pub {
 		append(&parts, doc_text("pub "))
 	}
+	append(&parts, doc_text("@"))
 	append(&parts, doc_text(intern_get(interner, v.name)))
 	if len(v.type_params) > 0 {
 		append(&parts, doc_text("("))
@@ -173,7 +172,16 @@ format_decl_newtype :: proc(v: ^Decl_Newtype, info: ^Format_Source_Info, interne
 			append(&parts, doc_text(intern_get(interner, tc)))
 		}
 	}
-	append(&parts, doc_text(" := "))
+	if len(v.derive_targets) > 0 {
+		append(&parts, doc_text(" derives "))
+		for dt, i in v.derive_targets {
+			if i > 0 {
+				append(&parts, doc_text(", "))
+			}
+			append(&parts, doc_text(intern_get(interner, dt)))
+		}
+	}
+	append(&parts, doc_text(" : "))
 	append(&parts, format_type(v.inner_type, info, interner))
 	return doc_concat(parts[:])
 }
