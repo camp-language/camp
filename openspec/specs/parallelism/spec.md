@@ -32,13 +32,41 @@ The `Parallel!` effect SHALL provide `map!`, `for_each!`, `filter!`, `reduce!`, 
 
 - Given `Parallel!.any!([|| Throw!.throw!(A), || 42, || Throw!.throw!(B)])`
 - When the handler executes tasks
-- Then the result SHALL be `42` and remaining tasks SHALL be cancelled
+- Then the result SHALL be `42` of type `a` and remaining tasks SHALL be cancelled
+
+#### Scenario: Parallel any return type
+
+- Given `Parallel!.any!(thunks)` where each thunk has type `|| -[e]-> a`
+- When the operation completes
+- Then the return type of `any!` SHALL be `a` — the result of the first successfully completing thunk
+
+#### Scenario: Parallel any all tasks throw
+
+- Given `Parallel!.any!([|| Throw!.throw!(A), || Throw!.throw!(B)])`
+- When all thunks throw
+- Then the first thrown error SHALL be propagated via `Throw!`
 
 #### Scenario: Parallel all returns all results in order
 
 - Given `Parallel!.all!([|| compute_a(), || compute_b()])`
 - When both computations complete
 - Then results SHALL be returned in input order as a `List`
+
+### Requirement: Parallel any! Method Sugar
+
+`List(a)` SHALL provide a `par_any!` method that desugars to `Parallel!.any!` at canonicalization, enabling the concise "first success" pattern on lists of thunks.
+
+#### Scenario: par_any! method desugars correctly
+
+- Given `items.par_any!(|x| try_parse!(x))`
+- When canonicalization runs
+- Then it SHALL be equivalent to `Parallel!.any!(items, |x| try_parse!(x))`
+
+#### Scenario: par_any! returns first success type
+
+- Given `records.par_any!(|r| validate!(r))` where `validate!` returns `Bool`
+- When the operation completes
+- Then the result type SHALL be `Bool` — the return type of the thunk
 
 ### Requirement: Parallel Effect Row Propagation
 
@@ -61,7 +89,7 @@ The `Parallel!` effect SHALL propagate inner function effects through its operat
 
 ### Requirement: Parallel Method Sugar
 
-`List(a)` SHALL provide `par_map!`, `par_filter!`, `par_reduce!`, and `par_for_each!` methods that desugar to `Parallel!` effect operations at canonicalization.
+`List(a)` SHALL provide `par_map!`, `par_filter!`, `par_reduce!`, `par_for_each!`, and `par_any!` methods that desugar to `Parallel!` effect operations at canonicalization.
 
 #### Scenario: Method sugar desugars correctly
 
