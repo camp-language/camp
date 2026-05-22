@@ -134,6 +134,13 @@ Wasm_I64_Le_S :: struct {}
 Wasm_I64_Ge_S :: struct {}
 Wasm_I32_And :: struct {}
 Wasm_I32_Or :: struct {}
+Wasm_I32_Xor :: struct {}
+Wasm_I32_Shl :: struct {}
+Wasm_I32_Shr_S :: struct {}
+Wasm_I32_Shr_U :: struct {}
+Wasm_I32_Div_S :: struct {}
+Wasm_I32_Div_U :: struct {}
+Wasm_I32_Rem_S :: struct {}
 Wasm_I64_And :: struct {}
 Wasm_I64_Or :: struct {}
 Wasm_Call :: struct { index: u32 }
@@ -265,6 +272,13 @@ Wasm_Instruction :: union {
 	Wasm_I64_Ge_S,
 	Wasm_I32_And,
 	Wasm_I32_Or,
+	Wasm_I32_Xor,
+	Wasm_I32_Shl,
+	Wasm_I32_Shr_S,
+	Wasm_I32_Shr_U,
+	Wasm_I32_Div_S,
+	Wasm_I32_Div_U,
+	Wasm_I32_Rem_S,
 	Wasm_I64_And,
 	Wasm_I64_Or,
 	Wasm_Call,
@@ -448,6 +462,20 @@ emit_instruction :: proc(instr: Wasm_Instruction, buf: ^[dynamic]u8) {
 		append(buf, 0x71)
 	case Wasm_I32_Or:
 		append(buf, 0x72)
+	case Wasm_I32_Xor:
+		append(buf, 0x73)
+	case Wasm_I32_Shl:
+		append(buf, 0x74)
+	case Wasm_I32_Shr_S:
+		append(buf, 0x75)
+	case Wasm_I32_Shr_U:
+		append(buf, 0x76)
+	case Wasm_I32_Div_S:
+		append(buf, 0x6D)
+	case Wasm_I32_Div_U:
+		append(buf, 0x6E)
+	case Wasm_I32_Rem_S:
+		append(buf, 0x6F)
 	case Wasm_I64_And:
 		append(buf, 0x7B)
 	case Wasm_I64_Or:

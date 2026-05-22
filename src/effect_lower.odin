@@ -14,6 +14,23 @@ Effect_Lower_Env :: struct {
 	collector:      ^Diagnostic_Collector,
 	fresh:          int,
 	evidence_stack: [dynamic]Effect_Evidence,
+	async_id:       Intern_ID,
+	spawn_id:       Intern_ID,
+	parallel_id:    Intern_ID,
+	file_id:        Intern_ID,
+	console_id:     Intern_ID,
+	time_id:        Intern_ID,
+}
+
+is_scheduler_effect :: proc(effect: Canonical_Name, env: ^Effect_Lower_Env) -> bool {
+	name := effect.name
+	if name == env.async_id do return true
+	if name == env.spawn_id do return true
+	if name == env.parallel_id do return true
+	if name == env.file_id do return true
+	if name == env.console_id do return true
+	if name == env.time_id do return true
+	return false
 }
 
 el_fresh :: proc(env: ^Effect_Lower_Env, prefix: string) -> Intern_ID {
@@ -40,6 +57,12 @@ effect_lower :: proc(mod: ^IR_Module, ctx: ^Compilation_Context) -> IR_Module {
 	env.fresh = 0
 	env.evidence_stack = make([dynamic]Effect_Evidence, 0, 8)
 	env.collector = &ctx.collector
+	env.async_id = intern(&ctx.interner, "Async!")
+	env.spawn_id = intern(&ctx.interner, "Spawn!")
+	env.parallel_id = intern(&ctx.interner, "Parallel!")
+	env.file_id = intern(&ctx.interner, "File!")
+	env.console_id = intern(&ctx.interner, "Console!")
+	env.time_id = intern(&ctx.interner, "Time!")
 
 	for decl in mod.decls {
 		transformed := el_lower_decl(decl, &env)
@@ -318,6 +341,31 @@ el_replace_resume :: proc(expr: IR_Expr, resume_id: Intern_ID, resume_param: Int
 }
 
 el_lower_let_perform :: proc(let_expr: ^IR_Let, perform: ^IR_Perform, env: ^Effect_Lower_Env) -> IR_Expr {
+	// Scheduler-mediated effects are handled directly by the codegen
+	if is_scheduler_effect(perform.effect, env) {
+		new_args := make([dynamic]IR_Expr, 0, len(perform.args))
+		for arg in perform.args {
+			append(&new_args, el_lower_expr(arg, env))
+		}
+		new_perform := new(IR_Perform)
+		new_perform^ = IR_Perform{
+			effect = perform.effect,
+			op = perform.op,
+			args = new_args,
+			type = perform.type,
+			span = perform.span,
+		}
+		new_let := new(IR_Let)
+		new_let^ = IR_Let{
+			binding = let_expr.binding,
+			type = let_expr.type,
+			value = IR_Expr(new_perform),
+			body = el_lower_expr(let_expr.body, env),
+			span = let_expr.span,
+		}
+		return IR_Expr(new_let)
+	}
+
 	ev_var: Intern_ID = NO_NAME
 	handler_name: Canonical_Name
 	for i := len(env.evidence_stack) - 1; i >= 0; i -= 1 {
@@ -375,6 +423,21 @@ el_lower_let_perform :: proc(let_expr: ^IR_Let, perform: ^IR_Perform, env: ^Effe
 el_lower_expr :: proc(expr: IR_Expr, env: ^Effect_Lower_Env) -> IR_Expr {
 	#partial switch e in expr {
 	case ^IR_Handle:
+		// Scheduler-mediated effects are handled directly by the codegen
+		// (they call camp_sched_* runtime functions, not CPS evidence passing)
+		if is_scheduler_effect(e.effect, env) {
+			new_handle := new(IR_Handle)
+			new_handle^ = IR_Handle{
+				effect = e.effect,
+				is_shallow = e.is_shallow,
+				body = el_lower_expr(e.body, env),
+				arms = e.arms, // arms kept for scope_id tracking but not transformed
+				type = e.type,
+				span = e.span,
+			}
+			return IR_Expr(new_handle)
+		}
+
 		ev_var := el_fresh(env, "_ev")
 
 		effect_ops := el_find_effect_ops(e.effect, env)
@@ -463,6 +526,23 @@ el_lower_expr :: proc(expr: IR_Expr, env: ^Effect_Lower_Env) -> IR_Expr {
 		return IR_Expr(new_let)
 
 	case ^IR_Perform:
+		// Scheduler-mediated effects are handled directly by the codegen
+		if is_scheduler_effect(e.effect, env) {
+			new_args := make([dynamic]IR_Expr, 0, len(e.args))
+			for arg in e.args {
+				append(&new_args, el_lower_expr(arg, env))
+			}
+			new_perform := new(IR_Perform)
+			new_perform^ = IR_Perform{
+				effect = e.effect,
+				op = e.op,
+				args = new_args,
+				type = e.type,
+				span = e.span,
+			}
+			return IR_Expr(new_perform)
+		}
+
 		ev_var: Intern_ID = NO_NAME
 		handler_name: Canonical_Name
 		for i := len(env.evidence_stack) - 1; i >= 0; i -= 1 {

@@ -11,21 +11,39 @@ CAMP_TAG_SCAN_SIZE_OFFSET :: 5
 CAMP_TAG_FIELDS_OFFSET :: 8
 
 		Codegen_Env :: struct {
-	mod:           ^Wasm_Module,
-	interner:      ^Intern_Table,
-	type_map:      map[int]int,
-	func_map:      map[int]int,
-	next_type_idx: int,
-	next_func_idx: int,
-	import_count:  int,
-	data_offset:   u32,
-	locals:        [dynamic]Wasm_Local_Decl,
-	local_map:     map[Intern_ID]u32,
-	next_local:    u32,
+	mod:            ^Wasm_Module,
+	interner:       ^Intern_Table,
+	type_map:       map[int]int,
+	func_map:       map[int]int,
+	next_type_idx:  int,
+	next_func_idx:  int,
+	import_count:   int,
+	data_offset:    u32,
+	locals:         [dynamic]Wasm_Local_Decl,
+	local_map:      map[Intern_ID]u32,
+	next_local:     u32,
 	tmp_local_base: u32,
-	tmp_count:     u32,
-	table_idx:     int,
+	tmp_count:      u32,
+	table_idx:      int,
 	func_type_indices: [dynamic]u32,
+	next_scope_id:  int,
+	async_id:       Intern_ID,
+	spawn_id:       Intern_ID,
+	parallel_id:    Intern_ID,
+	file_id:        Intern_ID,
+	console_id:     Intern_ID,
+	time_id:        Intern_ID,
+}
+
+cg_is_scheduler_effect :: proc(effect: Canonical_Name, env: ^Codegen_Env) -> bool {
+	name := effect.name
+	if name == env.async_id do return true
+	if name == env.spawn_id do return true
+	if name == env.parallel_id do return true
+	if name == env.file_id do return true
+	if name == env.console_id do return true
+	if name == env.time_id do return true
+	return false
 }
 
 hash_func_type :: proc(params: []Wasm_Value_Type, results: []Wasm_Value_Type) -> int {
@@ -94,7 +112,35 @@ emit_wasi_imports :: proc(env: ^Codegen_Env) {
 
 	args_sizes_get_type := get_or_create_type(env, []Wasm_Value_Type{.I32, .I32}, []Wasm_Value_Type{.I32})
 	add_import(env, WASI_MODULE, "args_sizes_get", .Func, args_sizes_get_type)
+
+	// WASI I/O imports for scheduler (Preview 1 style)
+	// poll_oneoff(in, out, nsubs, nevents) -> errno
+	poll_oneoff_type := get_or_create_type(env, []Wasm_Value_Type{.I32, .I32, .I32, .I32}, []Wasm_Value_Type{.I32})
+	add_import(env, WASI_MODULE, "poll_oneoff", .Func, poll_oneoff_type)
+
+	// fd_read(fd, iovs, iovs_len, nread) -> errno
+	fd_read_type := get_or_create_type(env, []Wasm_Value_Type{.I32, .I32, .I32, .I32}, []Wasm_Value_Type{.I32})
+	add_import(env, WASI_MODULE, "fd_read", .Func, fd_read_type)
+
+	// fd_close(fd) -> errno
+	fd_close_type := get_or_create_type(env, []Wasm_Value_Type{.I32}, []Wasm_Value_Type{.I32})
+	add_import(env, WASI_MODULE, "fd_close", .Func, fd_close_type)
+
+	// clock_time_get(clock_id, precision, time_ptr) -> errno
+	clock_time_get_type := get_or_create_type(env, []Wasm_Value_Type{.I32, .I64, .I32}, []Wasm_Value_Type{.I32})
+	add_import(env, WASI_MODULE, "clock_time_get", .Func, clock_time_get_type)
+
+	// sched_yield() -> errno
+	sched_yield_type := get_or_create_type(env, []Wasm_Value_Type{}, []Wasm_Value_Type{.I32})
+	add_import(env, WASI_MODULE, "sched_yield", .Func, sched_yield_type)
 }
+
+// WASI import function indices (offset from import_count base)
+WASI_IMPORT_POLL_ONEOFF   :: 5
+WASI_IMPORT_FD_READ      :: 6
+WASI_IMPORT_FD_CLOSE     :: 7
+WASI_IMPORT_CLOCK_TIME_GET :: 8
+WASI_IMPORT_SCHED_YIELD  :: 9
 
 emit_runtime_types :: proc(env: ^Codegen_Env) {
 	get_or_create_type(env, []Wasm_Value_Type{.I32}, []Wasm_Value_Type{.I32})
@@ -129,6 +175,13 @@ codegen :: proc(ir_mod: IR_Module, ctx: ^Compilation_Context) -> Wasm_Module {
 	env.local_map = make(map[Intern_ID]u32, 32)
 	env.table_idx = -1
 	env.func_type_indices = make([dynamic]u32, 0, 64)
+	env.next_scope_id = 1
+	env.async_id = intern(&ctx.interner, "Async!")
+	env.spawn_id = intern(&ctx.interner, "Spawn!")
+	env.parallel_id = intern(&ctx.interner, "Parallel!")
+	env.file_id = intern(&ctx.interner, "File!")
+	env.console_id = intern(&ctx.interner, "Console!")
+	env.time_id = intern(&ctx.interner, "Time!")
 
 	emit_wasi_imports(&env)
 	emit_runtime_types(&env)
@@ -932,9 +985,176 @@ emit_expr :: proc(expr: IR_Expr, buf: ^[dynamic]u8, env: ^Codegen_Env, runtime_i
 	case ^IR_Method_Call:
 		emit_instruction(Wasm_Unreachable{}, buf)
 	case ^IR_Handle:
-		emit_instruction(Wasm_Unreachable{}, buf)
+		if cg_is_scheduler_effect(e.effect, env) {
+			// Allocate scope_id for structured concurrency cleanup
+			scope_id := env.next_scope_id
+			env.next_scope_id += 1
+
+			// Emit body — IR_Perform nodes inside will call scheduler functions
+			emit_expr(e.body, buf, env, runtime_indices)
+
+			// On handler exit: iterate handle table, cancel all Pending handles with this scope_id
+			// This implements structured concurrency (D10 Phase 1)
+			handle_table_base := SCHED_BASE + SCHED_WORKER_COUNT_SIZE + SCHED_SPINNING_SIZE + SCHED_NOTIFICATION_SIZE
+			// local for loop counter
+			scope_local := env.tmp_local_base + env.tmp_count
+			env.tmp_count += 1
+			entry_addr_local := scope_local + 1
+			env.tmp_count += 1
+
+			// Loop over handle table entries
+			emit_instruction(Wasm_I32_Const{value = 0}, buf)
+			emit_instruction(Wasm_Local_Set{index = scope_local}, buf)
+
+			emit_instruction(Wasm_Block{block_type = .Void}, buf)
+			emit_instruction(Wasm_Loop{block_type = .Void}, buf)
+
+			// Check if counter < SCHED_MAX_HANDLES
+			emit_instruction(Wasm_Local_Get{index = scope_local}, buf)
+			emit_instruction(Wasm_I32_Const{value = i32(SCHED_MAX_HANDLES)}, buf)
+			emit_instruction(Wasm_I32_Ge_S{}, buf)
+			emit_instruction(Wasm_Br_If{label = 1}, buf) // break
+
+			// Compute entry address
+			emit_instruction(Wasm_I32_Const{value = i32(handle_table_base + 4)}, buf)
+			emit_instruction(Wasm_Local_Get{index = scope_local}, buf)
+			emit_instruction(Wasm_I32_Const{value = i32(SCHED_HANDLE_ENTRY_SIZE)}, buf)
+			emit_instruction(Wasm_I32_Mul{}, buf)
+			emit_instruction(Wasm_I32_Add{}, buf)
+			emit_instruction(Wasm_Local_Set{index = entry_addr_local}, buf)
+
+			// Check scope_id matches
+			emit_instruction(Wasm_Local_Get{index = entry_addr_local}, buf)
+			emit_instruction(Wasm_I32_Load{align = 2, offset = 20}, buf) // scope_id at offset 20
+			emit_instruction(Wasm_I32_Const{value = i32(scope_id)}, buf)
+			emit_instruction(Wasm_I32_Ne{}, buf)
+			emit_instruction(Wasm_Br_If{label = 0}, buf) // continue (skip, wrong scope)
+
+			// Check status == Pending
+			emit_instruction(Wasm_Local_Get{index = entry_addr_local}, buf)
+			emit_instruction(Wasm_I32_Atomic_Load{align = 2, offset = 0}, buf)
+			emit_instruction(Wasm_I32_Const{value = HANDLE_STATUS_PENDING}, buf)
+			emit_instruction(Wasm_I32_Ne{}, buf)
+			emit_instruction(Wasm_Br_If{label = 0}, buf) // continue (skip, not pending)
+
+			// Set status = Cancelled
+			emit_instruction(Wasm_Local_Get{index = entry_addr_local}, buf)
+			emit_instruction(Wasm_I32_Const{value = HANDLE_STATUS_CANCELLED}, buf)
+			emit_instruction(Wasm_I32_Store{align = 2, offset = 0}, buf)
+
+			// Increment counter, loop
+			emit_instruction(Wasm_Local_Get{index = scope_local}, buf)
+			emit_instruction(Wasm_I32_Const{value = 1}, buf)
+			emit_instruction(Wasm_I32_Add{}, buf)
+			emit_instruction(Wasm_Local_Set{index = scope_local}, buf)
+			emit_instruction(Wasm_Br{label = 0}, buf) // continue loop
+
+			emit_instruction(Wasm_End{}, buf) // end loop
+			emit_instruction(Wasm_End{}, buf) // end block
+		} else {
+			emit_instruction(Wasm_Unreachable{}, buf)
+		}
 	case ^IR_Perform:
-		emit_instruction(Wasm_Unreachable{}, buf)
+		if cg_is_scheduler_effect(e.effect, env) {
+			effect_str := intern_get(env.interner, e.effect.name)
+			op_str := intern_get(env.interner, e.op)
+
+			if effect_str == "Async!" || effect_str == "Spawn!" {
+				// Async!/Spawn! operations map to scheduler runtime functions
+				if op_str == "spawn!" {
+					// Args: thunk (closure ptr), scope_id
+					// camp_sched_spawn(fn_index, env_ptr, scope_id) -> handle_id
+					if len(e.args) >= 1 {
+						// The thunk is a closure: extract fn_index and env_ptr
+						thunk_local := env.tmp_local_base + env.tmp_count
+						env.tmp_count += 1
+						emit_expr(e.args[0], buf, env, runtime_indices)
+						emit_instruction(Wasm_Local_Set{index = thunk_local}, buf)
+
+						// fn_index = closure[CAMP_TAG_FIELDS_OFFSET]
+						emit_instruction(Wasm_Local_Get{index = thunk_local}, buf)
+						emit_instruction(Wasm_I32_Load{align = 2, offset = u32(CAMP_TAG_FIELDS_OFFSET)}, buf)
+
+						// env_ptr = closure[CAMP_TAG_FIELDS_OFFSET + 8]
+						emit_instruction(Wasm_Local_Get{index = thunk_local}, buf)
+						emit_instruction(Wasm_I32_Load{align = 2, offset = u32(CAMP_TAG_FIELDS_OFFSET + 8)}, buf)
+
+						// scope_id from enclosing handler (use 0 as default if no scope tracking)
+						emit_instruction(Wasm_I32_Const{value = 0}, buf)
+
+						emit_instruction(Wasm_Call{index = u32(runtime_indices[RUNTIME_SCHED_SPAWN])}, buf)
+					} else {
+						emit_instruction(Wasm_I32_Const{value = 0}, buf)
+					}
+				} else if op_str == "join!" {
+					// camp_sched_join(handle_id) -> result_value
+					if len(e.args) >= 1 {
+						emit_expr(e.args[0], buf, env, runtime_indices)
+					} else {
+						emit_instruction(Wasm_I32_Const{value = 0}, buf)
+					}
+					emit_instruction(Wasm_Call{index = u32(runtime_indices[RUNTIME_SCHED_JOIN])}, buf)
+				} else if op_str == "yield!" {
+					// camp_sched_yield() -> void
+					emit_instruction(Wasm_Call{index = u32(runtime_indices[RUNTIME_SCHED_YIELD])}, buf)
+				} else if op_str == "cancel!" {
+					// camp_sched_cancel(handle_id) -> void
+					if len(e.args) >= 1 {
+						emit_expr(e.args[0], buf, env, runtime_indices)
+					} else {
+						emit_instruction(Wasm_I32_Const{value = 0}, buf)
+					}
+					emit_instruction(Wasm_Call{index = u32(runtime_indices[RUNTIME_SCHED_CANCEL])}, buf)
+				} else {
+					emit_instruction(Wasm_Unreachable{}, buf)
+				}
+			} else if effect_str == "Time!" {
+				if op_str == "sleep!" {
+					// camp_sched_timer_insert(ms, task_ptr) -> void
+					// For now, simplified: just call timer_insert with the duration
+					if len(e.args) >= 1 {
+						emit_expr(e.args[0], buf, env, runtime_indices)
+					} else {
+						emit_instruction(Wasm_I32_Const{value = 0}, buf)
+					}
+					// task_ptr placeholder (would need current task context)
+					emit_instruction(Wasm_I32_Const{value = 0}, buf)
+					emit_instruction(Wasm_Call{index = u32(runtime_indices[RUNTIME_SCHED_TIMER_INSERT])}, buf)
+				} else {
+					emit_instruction(Wasm_Unreachable{}, buf)
+				}
+			} else if effect_str == "File!" || effect_str == "Console!" {
+				// I/O effects use camp_sched_block_io for suspension
+				// Full implementation deferred to I/O bridge (Group 6)
+				if op_str == "read!" || op_str == "readln!" {
+					// Simplified: call block_io with placeholder pollable
+					if len(e.args) >= 1 {
+						emit_expr(e.args[0], buf, env, runtime_indices)
+					} else {
+						emit_instruction(Wasm_I32_Const{value = 0}, buf)
+					}
+					emit_instruction(Wasm_I32_Const{value = 0}, buf) // task_ptr placeholder
+					emit_instruction(Wasm_Call{index = u32(runtime_indices[RUNTIME_SCHED_BLOCK_IO])}, buf)
+				} else if op_str == "write!" {
+					if len(e.args) >= 2 {
+						emit_expr(e.args[0], buf, env, runtime_indices)
+						emit_expr(e.args[1], buf, env, runtime_indices)
+					} else {
+						emit_instruction(Wasm_I32_Const{value = 0}, buf)
+						emit_instruction(Wasm_I32_Const{value = 0}, buf)
+					}
+					// Use fd_write for actual write, then block_io if needed
+					emit_instruction(Wasm_Call{index = u32(1)}, buf) // fd_write import
+					emit_instruction(Wasm_Drop{}, buf)
+				} else {
+					emit_instruction(Wasm_Unreachable{}, buf)
+				}
+			} else {
+				emit_instruction(Wasm_Unreachable{}, buf)
+			}
+		} else {
+			emit_instruction(Wasm_Unreachable{}, buf)
+		}
 	case ^IR_Closure:
 		num_fields := len(e.params) + 2
 		total_size := CAMP_TAG_HEADER_SIZE + num_fields * 8
