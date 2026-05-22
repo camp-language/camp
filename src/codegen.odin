@@ -2,7 +2,7 @@ package camp
 
 WASI_MODULE :: "wasi_snapshot_preview1"
 
-RUNTIME_FUNC_COUNT :: 5
+RUNTIME_FUNC_COUNT :: 6
 
 CAMP_TAG_HEADER_SIZE :: 8
 CAMP_TAG_REFCOUNT_OFFSET :: 0
@@ -164,6 +164,7 @@ codegen :: proc(ir_mod: IR_Module, ctx: ^Compilation_Context) -> Wasm_Module {
 	drop_type_idx := dup_type_idx
 	print_str_type_idx := get_or_create_type(&env, []Wasm_Value_Type{.I32, .I32}, []Wasm_Value_Type{})
 	exit_type_idx := dup_type_idx
+	print_str_stderr_type_idx := print_str_type_idx
 
 	runtime_func_indices: [RUNTIME_FUNC_COUNT]int
 	alloc_func_idx := add_function(&env, alloc_type_idx)
@@ -176,6 +177,8 @@ codegen :: proc(ir_mod: IR_Module, ctx: ^Compilation_Context) -> Wasm_Module {
 	runtime_func_indices[3] = print_str_func_idx
 	exit_func_idx := add_function(&env, exit_type_idx)
 	runtime_func_indices[4] = exit_func_idx
+	print_str_stderr_func_idx := add_function(&env, print_str_stderr_type_idx)
+	runtime_func_indices[5] = print_str_stderr_func_idx
 
 	camp_alloc_code := emit_camp_alloc_body(heap_ptr_global_idx)
 	append(&mod.codes, camp_alloc_code)
@@ -191,6 +194,9 @@ codegen :: proc(ir_mod: IR_Module, ctx: ^Compilation_Context) -> Wasm_Module {
 
 	camp_exit_code := emit_camp_exit_body()
 	append(&mod.codes, camp_exit_code)
+
+	camp_print_str_stderr_code := emit_camp_print_str_stderr_body()
+	append(&mod.codes, camp_print_str_stderr_code)
 
 	main_fn_idx := -1
 	main_decl: ^IR_Decl_Fn = nil
@@ -549,6 +555,7 @@ RUNTIME_DUP :: 1
 RUNTIME_DROP :: 2
 RUNTIME_PRINT_STR :: 3
 RUNTIME_EXIT :: 4
+RUNTIME_PRINT_STR_STDERR :: 5
 
 extract_effectful_body :: proc(expr: IR_Expr) -> IR_Expr {
 	#partial switch e in expr {
@@ -881,8 +888,14 @@ emit_expr :: proc(expr: IR_Expr, buf: ^[dynamic]u8, env: ^Codegen_Env, runtime_i
 		emit_instruction(Wasm_I32_Const{value = 16}, buf)
 		emit_instruction(Wasm_Call{index = u32(runtime_indices[RUNTIME_ALLOC])}, buf)
 	case ^IR_Crash:
-		emit_expr(e.message, buf, env, runtime_indices)
-		emit_instruction(Wasm_Drop{}, buf)
+		msg_str, is_str := e.message.(^IR_Literal_String)
+		if is_str {
+			emit_instruction(Wasm_I32_Const{value = i32(env.data_offset)}, buf)
+			msg_bytes := transmute([]u8)msg_str.value
+			emit_instruction(Wasm_I32_Const{value = i32(len(msg_bytes))}, buf)
+			emit_instruction(Wasm_Call{index = u32(runtime_indices[RUNTIME_PRINT_STR_STDERR])}, buf)
+			env.data_offset += u32(len(msg_bytes))
+		}
 		emit_instruction(Wasm_I32_Const{value = 1}, buf)
 		emit_instruction(Wasm_Call{index = u32(runtime_indices[RUNTIME_EXIT])}, buf)
 	case:

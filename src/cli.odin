@@ -99,6 +99,7 @@ run_build_single :: proc(file_path: string) {
 	context.allocator = old_allocator
 
 	context.allocator = ctx.allocator
+	ctx.type_store = &store
 	ir_mod := lower_tfile(mono_tfile, &store)
 	ir_mod = effect_lower(&ir_mod, &ctx)
 	ir_mod = closure_convert(&ir_mod, &ctx)
@@ -278,6 +279,7 @@ run_build_project :: proc() {
 	fmt.printfln("typecheck passed for all modules")
 
 	context.allocator = ctx.allocator
+	ctx.type_store = &ctx.module_stores[project.entry_point]
 	combined_ir := combine_module_irs(sorted, &project, &ctx)
 	combined_ir = effect_lower(&combined_ir, &ctx)
 	combined_ir = closure_convert(&combined_ir, &ctx)

@@ -41,8 +41,10 @@ effect_lower :: proc(mod: ^IR_Module, ctx: ^Compilation_Context) -> IR_Module {
 	env.evidence_stack = make([dynamic]Effect_Evidence, 0, 8)
 	env.collector = &ctx.collector
 
+	throw_name := intern(&ctx.interner, "Throw!")
+
 	for decl in mod.decls {
-		transformed := el_lower_decl(decl, &env)
+		transformed := el_lower_decl(decl, &env, throw_name, ctx.type_store)
 		append(&result.decls, transformed)
 	}
 
@@ -50,12 +52,17 @@ effect_lower :: proc(mod: ^IR_Module, ctx: ^Compilation_Context) -> IR_Module {
 	return result
 }
 
-el_lower_decl :: proc(decl: IR_Decl, env: ^Effect_Lower_Env) -> IR_Decl {
+el_lower_decl :: proc(decl: IR_Decl, env: ^Effect_Lower_Env, throw_name: Intern_ID, type_store: ^Type_Store) -> IR_Decl {
 	#partial switch d in decl {
 	case ^IR_Decl_Fn:
 		new_fn := new(IR_Decl_Fn)
 		new_fn^ = d^
-		new_fn.body = el_lower_expr(d.body, env)
+		body := d.body
+		name_str := intern_get(env.interner, d.name.name)
+		if (name_str == "main" || name_str == "main!") && type_store != nil {
+			body = el_wrap_throw_handler(body, d, throw_name, type_store, env)
+		}
+		new_fn.body = el_lower_expr(body, env)
 		return IR_Decl(new_fn)
 	case ^IR_Decl_Const:
 		new_const := new(IR_Decl_Const)
@@ -65,6 +72,67 @@ el_lower_decl :: proc(decl: IR_Decl, env: ^Effect_Lower_Env) -> IR_Decl {
 	case:
 		return decl
 	}
+}
+
+el_effect_row_has_throw :: proc(effect_row: IR_Type, throw_name: Intern_ID, store: ^Type_Store) -> bool {
+	effect_var_id := effect_row.type_id
+	resolved := resolve_var(store, effect_var_id)
+	v := get_var(store, resolved)
+	inf, is_inf := v.link.(Inferred_Type)
+	if !is_inf || inf.tag != .Effect_Row {
+		return false
+	}
+	for eff_name in inf.effect_names {
+		if eff_name == throw_name {
+			return true
+		}
+	}
+	return false
+}
+
+el_wrap_throw_handler :: proc(body: IR_Expr, fn_decl: ^IR_Decl_Fn, throw_name: Intern_ID, type_store: ^Type_Store, env: ^Effect_Lower_Env) -> IR_Expr {
+	if !el_effect_row_has_throw(fn_decl.effect_row, throw_name, type_store) {
+		return body
+	}
+
+	throw_effect_name := Canonical_Name{
+		module = NO_NAME,
+		name = throw_name,
+		is_local = false,
+	}
+
+	throw_op_name := intern(env.interner, "throw!")
+	resume_id := el_fresh(env, "_resume")
+	tag_param := el_fresh(env, "_tag")
+
+	crash_msg := new(IR_Literal_String)
+	crash_msg^ = IR_Literal_String{value = "Unhandled tag\n", type = IR_Type{.I32, Type_Var_ID(0)}, span = fn_decl.span}
+
+	crash := new(IR_Crash)
+	crash^ = IR_Crash{message = IR_Expr(crash_msg), span = fn_decl.span}
+
+	arm := IR_Handler_Arm{
+		op = throw_op_name,
+		resume_id = resume_id,
+		op_params = make([dynamic]Intern_ID, 0, 2),
+		body = IR_Expr(crash),
+	}
+	append(&arm.op_params, resume_id)
+	append(&arm.op_params, tag_param)
+
+	arms := make([dynamic]IR_Handler_Arm, 0, 1)
+	append(&arms, arm)
+
+	handle := new(IR_Handle)
+	handle^ = IR_Handle{
+		effect = throw_effect_name,
+		is_shallow = false,
+		body = body,
+		arms = arms,
+		type = fn_decl.return_type,
+		span = fn_decl.span,
+	}
+	return IR_Expr(handle)
 }
 
 el_find_effect_ops :: proc(effect: Canonical_Name, env: ^Effect_Lower_Env) -> []IR_Effect_Op {

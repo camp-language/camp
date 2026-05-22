@@ -967,7 +967,8 @@ typecheck_method_call :: proc(e: ^CExpr_Method_Call, env: ^Type_Env, store: ^Typ
 	}
 
 	if is_effect_op {
-		if !is_effect_handled(env, effect_name) {
+		throw_name := intern(store.interner, "Throw!")
+		if !is_effect_handled(env, effect_name) && effect_name != throw_name {
 			effect_str := intern_get(store.interner, effect_name)
 			collector_add_diag(store.collector, diag_unhandled_effect(effect_str, e.span))
 		}

@@ -117,3 +117,32 @@ emit_camp_exit_body :: proc() -> Wasm_Code {
 
 	return Wasm_Code{locals = locals, body = body}
 }
+
+emit_camp_print_str_stderr_body :: proc() -> Wasm_Code {
+	buf: [dynamic]u8
+	buf = make([dynamic]u8, 0, 128)
+
+	emit_instruction(Wasm_I32_Const{value = 1}, &buf)
+	emit_instruction(Wasm_I32_Const{value = 4096}, &buf)
+	emit_instruction(Wasm_Local_Get{index = 0}, &buf)
+	emit_instruction(Wasm_I32_Store{align = 2, offset = 0}, &buf)
+	emit_instruction(Wasm_I32_Const{value = 4100}, &buf)
+	emit_instruction(Wasm_Local_Get{index = 1}, &buf)
+	emit_instruction(Wasm_I32_Store{align = 2, offset = 0}, &buf)
+	emit_instruction(Wasm_I32_Const{value = 2}, &buf)
+	emit_instruction(Wasm_I32_Const{value = 4096}, &buf)
+	emit_instruction(Wasm_I32_Const{value = 1}, &buf)
+	emit_instruction(Wasm_Call{index = 1}, &buf)
+	emit_instruction(Wasm_Drop{}, &buf)
+	emit_instruction(Wasm_End{}, &buf)
+
+	locals := make([]Wasm_Local_Decl, 0)
+
+	body := make([]u8, len(buf))
+	for b, i in buf {
+		body[i] = b
+	}
+	delete(buf)
+
+	return Wasm_Code{locals = locals, body = body}
+}
