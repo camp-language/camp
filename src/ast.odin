@@ -415,8 +415,14 @@ Type_Tag :: struct {
 	span:    Source_Span,
 }
 
+Type_Effect_Entry :: struct {
+	name:      Intern_ID,
+	type_args: [dynamic]Type,  // Type from ast.odin — empty for unparameterized
+	span:      Source_Span,
+}
+
 Type_Effect_Row :: struct {
-	effects: [dynamic]Intern_ID,
+	effects: [dynamic]Type_Effect_Entry,
 	rest:    Intern_ID,
 	is_open: bool,
 	span:    Source_Span,

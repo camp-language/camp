@@ -412,8 +412,14 @@ CType_Tag :: struct {
 	span:    Source_Span,
 }
 
+CType_Effect_Entry :: struct {
+	name:      Intern_ID,
+	type_args: [dynamic]CType,
+	span:      Source_Span,
+}
+
 CType_Effect_Row :: struct {
-	effects: [dynamic]Intern_ID,
+	effects: [dynamic]CType_Effect_Entry,
 	rest:    Intern_ID,
 	is_open: bool,
 	span:    Source_Span,

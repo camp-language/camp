@@ -193,37 +193,37 @@ unify_inferred :: proc(store: ^Type_Store, a: Inferred_Type, b: Inferred_Type, a
 }
 
 unify_effect_rows :: proc(store: ^Type_Store, a: Inferred_Type, b: Inferred_Type) -> bool {
-	a_only: [dynamic]Intern_ID
-	a_only = make([dynamic]Intern_ID, 0, len(a.effect_names))
+	a_only: [dynamic]Effect_Row_Entry
+	a_only = make([dynamic]Effect_Row_Entry, 0, len(a.effects))
 	defer delete(a_only)
 
-	b_only: [dynamic]Intern_ID
-	b_only = make([dynamic]Intern_ID, 0, len(b.effect_names))
+	b_only: [dynamic]Effect_Row_Entry
+	b_only = make([dynamic]Effect_Row_Entry, 0, len(b.effects))
 	defer delete(b_only)
 
-	for an in a.effect_names {
+	for ae in a.effects {
 		found := false
-		for bn in b.effect_names {
-			if an == bn {
+		for be in b.effects {
+			if ae.name == be.name {
 				found = true
 				break
 			}
 		}
 		if !found {
-			append(&a_only, an)
+			append(&a_only, ae)
 		}
 	}
 
-	for bn in b.effect_names {
+	for be in b.effects {
 		found := false
-		for an in a.effect_names {
-			if bn == an {
+		for ae in a.effects {
+			if be.name == ae.name {
 				found = true
 				break
 			}
 		}
 		if !found {
-			append(&b_only, bn)
+			append(&b_only, be)
 		}
 	}
 
@@ -234,13 +234,13 @@ unify_effect_rows :: proc(store: ^Type_Store, a: Inferred_Type, b: Inferred_Type
 	shared_rest := fresh_effect_row(store, Source_Span_ZERO)
 
 	if len(b_only) > 0 {
-		names := store_alloc(store, Intern_ID, len(b_only))
+		b_only_entries := store_alloc(store, Effect_Row_Entry, len(b_only))
 		for i in 0..<len(b_only) {
-			names[i] = b_only[i]
+			b_only_entries[i] = b_only[i]
 		}
 		rem_type := Inferred_Type{
 			tag = .Effect_Row,
-			effect_names = names,
+			effects = b_only_entries,
 			rest_id = shared_rest,
 		}
 		rem_var := fresh_effect_row(store, Source_Span_ZERO)
@@ -255,13 +255,13 @@ unify_effect_rows :: proc(store: ^Type_Store, a: Inferred_Type, b: Inferred_Type
 	}
 
 	if len(a_only) > 0 {
-		names := store_alloc(store, Intern_ID, len(a_only))
+		a_only_entries := store_alloc(store, Effect_Row_Entry, len(a_only))
 		for i in 0..<len(a_only) {
-			names[i] = a_only[i]
+			a_only_entries[i] = a_only[i]
 		}
 		rem_type := Inferred_Type{
 			tag = .Effect_Row,
-			effect_names = names,
+			effects = a_only_entries,
 			rest_id = shared_rest,
 		}
 		rem_var := fresh_effect_row(store, Source_Span_ZERO)

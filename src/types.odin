@@ -69,6 +69,11 @@ Type_Tag_Entry :: struct {
 	payload: []Type_Var_ID,
 }
 
+Effect_Row_Entry :: struct {
+	name:      Intern_ID,
+	type_args: []Type_Var_ID,  // empty for unparameterized effects
+}
+
 Inferred_Type :: struct {
 	tag:            Inferred_Tag,
 	primitive_name: Intern_ID,
@@ -80,8 +85,8 @@ Inferred_Type :: struct {
 
 	inner_id: Type_Var_ID,
 
-	effect_names: []Intern_ID,
-	rest_id:      Type_Var_ID,
+	effects: []Effect_Row_Entry,
+	rest_id: Type_Var_ID,
 
 	record_fields: []Type_Field_Entry,
 	record_rest:   Type_Var_ID,

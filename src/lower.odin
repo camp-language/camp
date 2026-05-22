@@ -173,9 +173,9 @@ collect_effects_from_row :: proc(store: ^Type_Store, effect_var: Type_Var_ID, ef
 		return
 	}
 
-	for eid in inf.effect_names {
+	for entry in inf.effects {
 		for def in effect_defs {
-			if def.name.name == eid {
+			if def.name.name == entry.name {
 				already := false
 				for e in result^ {
 					if e == def.name {

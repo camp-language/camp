@@ -83,13 +83,13 @@ format_effect_row :: proc(store: ^Type_Store, effects: Type_Var_ID) -> string {
 	rv := get_var(store, rid)
 	it, is_inferred := rv.link.(Inferred_Type)
 	if is_inferred && it.tag == .Effect_Row {
-		if len(it.effect_names) == 0 do return "[]"
+		if len(it.effects) == 0 do return "[]"
 		builder: strings.Builder
 		strings.builder_init_len_cap(&builder, 0, 64)
 		strings.write_rune(&builder, '[')
-		for i, eid in it.effect_names {
+		for entry, i in it.effects {
 			if i > 0 do strings.write_string(&builder, " | ")
-			strings.write_string(&builder, intern_get(store.interner, Intern_ID(eid)))
+			strings.write_string(&builder, intern_get(store.interner, Intern_ID(entry.name)))
 		}
 		strings.write_rune(&builder, ']')
 		result := strings.to_string(builder)
@@ -965,13 +965,13 @@ typecheck_method_call :: proc(e: ^CExpr_Method_Call, env: ^Type_Env, store: ^Typ
 			collector_add_diag(store.collector, diag_unhandled_effect(effect_str, e.span))
 		}
 
-		effect_names := store_alloc(store, Intern_ID, 1)
-		effect_names[0] = effect_name
+		effect_entries := store_alloc(store, Effect_Row_Entry, 1)
+		effect_entries[0] = Effect_Row_Entry{name = effect_name, type_args = {}}
 		rest := fresh_effect_row(store, e.span)
 		row := fresh_effect_row(store, e.span)
 		link_var(store, row, Inferred_Type{
 			tag = .Effect_Row,
-			effect_names = effect_names,
+			effects = effect_entries,
 			rest_id = rest,
 		})
 		unify(store, eff, row)
@@ -1145,15 +1145,20 @@ convert_type_to_var_val :: proc(t: CType, store: ^Type_Store) -> Type_Var_ID {
 		if len(ert.effects) == 0 {
 			return fresh_effect_row(store, ert.span)
 		}
-		effect_names := store_alloc(store, Intern_ID, len(ert.effects))
+		effect_entries := store_alloc(store, Effect_Row_Entry, len(ert.effects))
 		for i in 0..<len(ert.effects) {
-			effect_names[i] = ert.effects[i]
+			ce := ert.effects[i]
+			type_args := store_alloc(store, Type_Var_ID, len(ce.type_args))
+			for j in 0..<len(ce.type_args) {
+				type_args[j] = convert_type_to_var(&ce.type_args[j], store)
+			}
+			effect_entries[i] = Effect_Row_Entry{name = ce.name, type_args = type_args}
 		}
 		rest_id := fresh_effect_row(store, ert.span)
 		vid := fresh_effect_row(store, ert.span)
 		link_var(store, vid, Inferred_Type{
 			tag = .Effect_Row,
-			effect_names = effect_names,
+			effects = effect_entries,
 			rest_id = rest_id,
 		})
 		return vid
@@ -1223,15 +1228,20 @@ instantiate_rec :: proc(store: ^Type_Store, var_id: Type_Var_ID, subst: ^map[Typ
 		return vid
 
 	case .Effect_Row:
-		effect_names := store_alloc(store, Intern_ID, len(inf.effect_names))
-		for i in 0..<len(inf.effect_names) {
-			effect_names[i] = inf.effect_names[i]
+		effect_entries := store_alloc(store, Effect_Row_Entry, len(inf.effects))
+		for i in 0..<len(inf.effects) {
+			entry := inf.effects[i]
+			type_args := store_alloc(store, Type_Var_ID, len(entry.type_args))
+			for j in 0..<len(entry.type_args) {
+				type_args[j] = instantiate_rec(store, entry.type_args[j], subst)
+			}
+			effect_entries[i] = Effect_Row_Entry{name = entry.name, type_args = type_args}
 		}
 		rest_id := instantiate_rec(store, inf.rest_id, subst)
 		vid := fresh_effect_row(store, v.span)
 		link_var(store, vid, Inferred_Type{
 			tag = .Effect_Row,
-			effect_names = effect_names,
+			effects = effect_entries,
 			rest_id = rest_id,
 		})
 		return vid
@@ -1340,15 +1350,20 @@ deep_clone_type :: proc(store: ^Type_Store, id: Type_Var_ID, span: Source_Span, 
 		return fresh
 
 	case .Effect_Row:
-		effect_names := store_alloc(store, Intern_ID, len(inf.effect_names))
-		for i in 0..<len(inf.effect_names) {
-			effect_names[i] = inf.effect_names[i]
+		effect_entries := store_alloc(store, Effect_Row_Entry, len(inf.effects))
+		for i in 0..<len(inf.effects) {
+			entry := inf.effects[i]
+			type_args := store_alloc(store, Type_Var_ID, len(entry.type_args))
+			for j in 0..<len(entry.type_args) {
+				type_args[j] = deep_clone_type(store, entry.type_args[j], span, subst)
+			}
+			effect_entries[i] = Effect_Row_Entry{name = entry.name, type_args = type_args}
 		}
 		rest_id := deep_clone_type(store, inf.rest_id, span, subst)
 		fresh := fresh_effect_row(store, span)
 		link_var(store, fresh, Inferred_Type{
 			tag = .Effect_Row,
-			effect_names = effect_names,
+			effects = effect_entries,
 			rest_id = rest_id,
 		})
 		subst[resolved] = fresh
@@ -1407,28 +1422,28 @@ subtract_effect_from_row :: proc(store: ^Type_Store, row: Type_Var_ID, effect: I
 	inf, is_inf := rv.link.(Inferred_Type)
 	if is_inf && inf.tag == .Effect_Row {
 		found := false
-		for en in inf.effect_names {
-			if en == effect {
+		for entry in inf.effects {
+			if entry.name == effect {
 				found = true
 				break
 			}
 		}
 		if found {
-			if len(inf.effect_names) == 1 {
+			if len(inf.effects) == 1 {
 				return inf.rest_id
 			}
-			new_names := store_alloc(store, Intern_ID, len(inf.effect_names) - 1)
+			new_entries := store_alloc(store, Effect_Row_Entry, len(inf.effects) - 1)
 			j := 0
-			for en in inf.effect_names {
-				if en != effect {
-					new_names[j] = en
+			for entry in inf.effects {
+				if entry.name != effect {
+					new_entries[j] = entry
 					j += 1
 				}
 			}
 			new_row := fresh_effect_row(store, span)
 			link_var(store, new_row, Inferred_Type{
 				tag = .Effect_Row,
-				effect_names = new_names,
+				effects = new_entries,
 				rest_id = inf.rest_id,
 			})
 			return new_row
@@ -1439,12 +1454,12 @@ subtract_effect_from_row :: proc(store: ^Type_Store, row: Type_Var_ID, effect: I
 	_, is_unlinked := rv.link.(Type_Unlinked)
 	if is_unlinked {
 		handled_rest := fresh_effect_row(store, span)
-		effect_names := store_alloc(store, Intern_ID, 1)
-		effect_names[0] = effect
+		effect_entries := store_alloc(store, Effect_Row_Entry, 1)
+		effect_entries[0] = Effect_Row_Entry{name = effect, type_args = {}}
 		handled_row := fresh_effect_row(store, span)
 		link_var(store, handled_row, Inferred_Type{
 			tag = .Effect_Row,
-			effect_names = effect_names,
+			effects = effect_entries,
 			rest_id = handled_rest,
 		})
 		unify(store, rid, handled_row)
@@ -1463,7 +1478,7 @@ effect_row_nonempty :: proc(store: ^Type_Store, effect_var: Type_Var_ID) -> bool
 		return false
 	}
 
-	if len(inf.effect_names) > 0 {
+	if len(inf.effects) > 0 {
 		return true
 	}
 

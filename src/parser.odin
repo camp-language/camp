@@ -1260,7 +1260,7 @@ parser_parse_tag_union_type :: proc(p: ^Parser) -> Type {
 parser_parse_effect_row_type :: proc(p: ^Parser) -> ^Type {
 	start := p.current.span
 
-	effects := make([dynamic]Intern_ID, 0, 8)
+	effects := make([dynamic]Type_Effect_Entry, 0, 8)
 	rest: Intern_ID = 0
 	is_open := false
 
@@ -1285,7 +1285,28 @@ parser_parse_effect_row_type :: proc(p: ^Parser) -> ^Type {
 			parser_advance(p)
 		}
 		name_id := intern(p.intern, name_text)
-		append(&effects, name_id)
+
+		type_args := make([dynamic]Type, 0, 4)
+		// Parse optional type arguments: Name!(Type1, Type2, ...)
+		if p.current.kind == .LParen {
+			parser_advance(p)
+			for p.current.kind != .RParen && p.current.kind != .Eof {
+				if len(type_args) > 0 {
+					parser_expect(p, .Comma)
+					parser_skip_backslashes(p)
+					if p.current.kind == .RParen do break
+				}
+				arg_type := parser_parse_type(p)
+				append(&type_args, arg_type^)
+			}
+			parser_expect(p, .RParen)
+		}
+
+		append(&effects, Type_Effect_Entry{
+			name = name_id,
+			type_args = type_args,
+			span = name_tok.span,
+		})
 
 		if p.current.kind == .Pipe {
 			parser_advance(p)

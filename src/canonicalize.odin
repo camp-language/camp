@@ -725,9 +725,18 @@ canonicalize_type :: proc(t: Type, scope: ^Canonicalize_Scope, ctx: ^Compilation
 		result = CType(c)
 
 	case ^Type_Effect_Row:
-		effects := make([dynamic]Intern_ID, 0, len(ty.effects))
+		effects := make([dynamic]CType_Effect_Entry, 0, len(ty.effects))
 		for e in ty.effects {
-			append(&effects, e)
+			type_args := make([dynamic]CType, 0, len(e.type_args))
+			for a in e.type_args {
+				ca := canonicalize_type(a, scope, ctx)
+				append(&type_args, ca^)
+			}
+			append(&effects, CType_Effect_Entry{
+				name = e.name,
+				type_args = type_args,
+				span = e.span,
+			})
 		}
 		c := new(CType_Effect_Row)
 		c^ = CType_Effect_Row{effects = effects, rest = ty.rest, is_open = ty.is_open, span = ty.span}

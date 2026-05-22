@@ -218,11 +218,24 @@ format_type_effect_row :: proc(t: ^Type_Effect_Row, info: ^Format_Source_Info, i
 
 format_effect_row_flat :: proc(t: ^Type_Effect_Row, info: ^Format_Source_Info, interner: ^Intern_Table) -> Doc {
 	parts: [dynamic]Doc
-	for effect, i in t.effects {
+	for entry, i in t.effects {
 		if i > 0 {
 			append(&parts, doc_text(" | "))
 		}
-		append(&parts, doc_text(intern_get(interner, effect)))
+		name := intern_get(interner, entry.name)
+		if len(entry.type_args) > 0 {
+			append(&parts, doc_text(name))
+			append(&parts, doc_text("!("))
+			for j in 0..<len(entry.type_args) {
+				if j > 0 {
+					append(&parts, doc_text(", "))
+				}
+				append(&parts, format_type(&entry.type_args[j], info, interner))
+			}
+			append(&parts, doc_text(")"))
+		} else {
+			append(&parts, doc_text(name))
+		}
 	}
 
 	if t.is_open {
@@ -240,12 +253,25 @@ format_effect_row_multiline :: proc(t: ^Type_Effect_Row, info: ^Format_Source_In
 	inner: [dynamic]Doc
 	append(&inner, doc_line())
 
-	for effect, i in t.effects {
+	for entry, i in t.effects {
 		if i > 0 {
 			append(&inner, doc_line())
 			append(&inner, doc_text("| "))
 		}
-		append(&inner, doc_text(intern_get(interner, effect)))
+		name := intern_get(interner, entry.name)
+		if len(entry.type_args) > 0 {
+			append(&inner, doc_text(name))
+			append(&inner, doc_text("!("))
+			for j in 0..<len(entry.type_args) {
+				if j > 0 {
+					append(&inner, doc_text(", "))
+				}
+				append(&inner, format_type(&entry.type_args[j], info, interner))
+			}
+			append(&inner, doc_text(")"))
+		} else {
+			append(&inner, doc_text(name))
+		}
 	}
 
 	if t.is_open {
