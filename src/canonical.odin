@@ -127,6 +127,8 @@ CExpr :: union {
 	^CExpr_Crash,
 	^CExpr_Interpolate,
 	^CExpr_Handle,
+	^CExpr_Perform,
+	^CExpr_Par,
 }
 
 CExpr_Int :: struct {
@@ -277,6 +279,21 @@ CExpr_Handle :: struct {
 	body:       CExpr,
 	arms:       [dynamic]CHandler_Arm,
 	span:       Source_Span,
+}
+
+CExpr_Perform :: struct {
+	effect: Canonical_Name,
+	op:     Intern_ID,
+	args:   [dynamic]CExpr,
+	span:   Source_Span,
+}
+
+CExpr_Par :: struct {
+	expressions: [dynamic]CExpr,  // for par { e1, e2 }
+	for_var:     Intern_ID,      // 0 if not par-for
+	for_iter:    CExpr,          // the xs in "par for x in xs"
+	for_body:    CExpr,          // the body in "par for x in xs { body }"
+	span:        Source_Span,
 }
 
 CHandler_Arm :: struct {

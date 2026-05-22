@@ -493,6 +493,33 @@ annotate_expr :: proc(expr: CExpr, env: ^Annotate_Env) -> TExpr {
 		result.eff_ = eff_ir
 		result.span = e.span
 		return TExpr(result)
+
+	case ^CExpr_Perform:
+		type_ir := lower_type(env.store, fresh_value_var(env.store, e.span))
+		eff_ir := lower_effect_type(env.store, fresh_effect_row(env.store, e.span))
+		args_t := make([dynamic]TExpr, len(e.args))
+		for i in 0..<len(e.args) {
+			args_t[i] = annotate_expr(e.args[i], env)
+		}
+		perform := new(TExpr_Perform)
+		perform.effect = e.effect
+		perform.op = e.op
+		perform.args = args_t
+		perform.type_ = type_ir
+		perform.eff_ = eff_ir
+		perform.span = e.span
+		return TExpr(perform)
+
+	case ^CExpr_Par:
+		// CExpr_Par is always desugared into CExpr_Perform in canonicalize,
+		// so this should never be reached.
+		type_ir := lower_type(env.store, fresh_value_var(env.store, e.span))
+		eff_ir := lower_effect_type(env.store, fresh_effect_row(env.store, e.span))
+		result := new(TExpr_Int)
+		result.type_ = type_ir
+		result.eff_ = eff_ir
+		result.span = e.span
+		return TExpr(result)
 	}
 
 	unreachable()

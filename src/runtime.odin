@@ -134,3 +134,194 @@ emit_camp_dealloc_body :: proc() -> Wasm_Code {
 
 	return Wasm_Code{locals = locals, body = body}
 }
+
+emit_camp_print_err_body :: proc() -> Wasm_Code {
+	buf: [dynamic]u8
+	buf = make([dynamic]u8, 0, 128)
+
+	emit_instruction(Wasm_I32_Const{value = 2}, &buf)
+	emit_instruction(Wasm_I32_Const{value = 4096}, &buf)
+	emit_instruction(Wasm_Local_Get{index = 0}, &buf)
+	emit_instruction(Wasm_I32_Store{align = 2, offset = 0}, &buf)
+	emit_instruction(Wasm_I32_Const{value = 4100}, &buf)
+	emit_instruction(Wasm_Local_Get{index = 1}, &buf)
+	emit_instruction(Wasm_I32_Store{align = 2, offset = 0}, &buf)
+	emit_instruction(Wasm_I32_Const{value = 2}, &buf)
+	emit_instruction(Wasm_I32_Const{value = 4096}, &buf)
+	emit_instruction(Wasm_I32_Const{value = 1}, &buf)
+	emit_instruction(Wasm_Call{index = 1}, &buf)
+	emit_instruction(Wasm_Drop{}, &buf)
+	emit_instruction(Wasm_End{}, &buf)
+
+	locals := make([]Wasm_Local_Decl, 0)
+
+	body := make([]u8, len(buf))
+	for b, i in buf {
+		body[i] = b
+	}
+	delete(buf)
+
+	return Wasm_Code{locals = locals, body = body}
+}
+
+emit_camp_list_alloc_body :: proc() -> Wasm_Code {
+	buf: [dynamic]u8
+	buf = make([dynamic]u8, 0, 64)
+
+	emit_instruction(Wasm_I32_Const{value = 12}, &buf)
+	emit_instruction(Wasm_Call{index = 0}, &buf)
+
+	emit_instruction(Wasm_Local_Tee{index = 0}, &buf)
+	emit_instruction(Wasm_I32_Const{value = 0}, &buf)
+	emit_instruction(Wasm_I32_Store{align = 2, offset = 0}, &buf)
+
+	emit_instruction(Wasm_Local_Get{index = 0}, &buf)
+	emit_instruction(Wasm_I32_Const{value = 4}, &buf)
+	emit_instruction(Wasm_I32_Store{align = 2, offset = 4}, &buf)
+
+	emit_instruction(Wasm_I32_Const{value = 32}, &buf)
+	emit_instruction(Wasm_Call{index = 0}, &buf)
+
+	emit_instruction(Wasm_Local_Get{index = 0}, &buf)
+	emit_instruction(Wasm_I32_Store{align = 2, offset = 8}, &buf)
+
+	emit_instruction(Wasm_Local_Get{index = 0}, &buf)
+	emit_instruction(Wasm_End{}, &buf)
+
+	locals := make([]Wasm_Local_Decl, 1)
+	locals[0] = Wasm_Local_Decl{count = 1, type = .I32}
+
+	body := make([]u8, len(buf))
+	for b, i in buf {
+		body[i] = b
+	}
+	delete(buf)
+
+	return Wasm_Code{locals = locals, body = body}
+}
+
+emit_camp_list_push_body :: proc() -> Wasm_Code {
+	buf: [dynamic]u8
+	buf = make([dynamic]u8, 0, 128)
+
+	emit_instruction(Wasm_Local_Get{index = 0}, &buf)
+	emit_instruction(Wasm_I32_Load{align = 2, offset = 0}, &buf)
+
+	emit_instruction(Wasm_Local_Get{index = 0}, &buf)
+	emit_instruction(Wasm_I32_Load{align = 2, offset = 8}, &buf)
+
+	emit_instruction(Wasm_Local_Get{index = 0}, &buf)
+	emit_instruction(Wasm_I32_Load{align = 2, offset = 0}, &buf)
+	emit_instruction(Wasm_I32_Const{value = 8}, &buf)
+	emit_instruction(Wasm_I32_Mul{}, &buf)
+	emit_instruction(Wasm_I32_Add{}, &buf)
+
+	emit_instruction(Wasm_Local_Get{index = 1}, &buf)
+	emit_instruction(Wasm_I32_Store{align = 2, offset = 0}, &buf)
+
+	emit_instruction(Wasm_Local_Get{index = 0}, &buf)
+	emit_instruction(Wasm_Local_Get{index = 0}, &buf)
+	emit_instruction(Wasm_I32_Load{align = 2, offset = 0}, &buf)
+	emit_instruction(Wasm_I32_Const{value = 1}, &buf)
+	emit_instruction(Wasm_I32_Add{}, &buf)
+	emit_instruction(Wasm_I32_Store{align = 2, offset = 0}, &buf)
+
+	emit_instruction(Wasm_Local_Get{index = 0}, &buf)
+	emit_instruction(Wasm_End{}, &buf)
+
+	locals := make([]Wasm_Local_Decl, 0)
+
+	body := make([]u8, len(buf))
+	for b, i in buf {
+		body[i] = b
+	}
+	delete(buf)
+
+	return Wasm_Code{locals = locals, body = body}
+}
+
+emit_camp_list_len_body :: proc() -> Wasm_Code {
+	buf: [dynamic]u8
+	buf = make([dynamic]u8, 0, 16)
+
+	emit_instruction(Wasm_Local_Get{index = 0}, &buf)
+	emit_instruction(Wasm_I32_Load{align = 2, offset = 0}, &buf)
+	emit_instruction(Wasm_End{}, &buf)
+
+	locals := make([]Wasm_Local_Decl, 0)
+
+	body := make([]u8, len(buf))
+	for b, i in buf {
+		body[i] = b
+	}
+	delete(buf)
+
+	return Wasm_Code{locals = locals, body = body}
+}
+
+emit_camp_list_get_body :: proc() -> Wasm_Code {
+	buf: [dynamic]u8
+	buf = make([dynamic]u8, 0, 32)
+
+	emit_instruction(Wasm_Local_Get{index = 0}, &buf)
+	emit_instruction(Wasm_I32_Load{align = 2, offset = 8}, &buf)
+
+	emit_instruction(Wasm_Local_Get{index = 1}, &buf)
+	emit_instruction(Wasm_I32_Const{value = 8}, &buf)
+	emit_instruction(Wasm_I32_Mul{}, &buf)
+	emit_instruction(Wasm_I32_Add{}, &buf)
+
+	emit_instruction(Wasm_I32_Load{align = 2, offset = 0}, &buf)
+	emit_instruction(Wasm_End{}, &buf)
+
+	locals := make([]Wasm_Local_Decl, 0)
+
+	body := make([]u8, len(buf))
+	for b, i in buf {
+		body[i] = b
+	}
+	delete(buf)
+
+	return Wasm_Code{locals = locals, body = body}
+}
+
+emit_camp_str_len_body :: proc() -> Wasm_Code {
+	buf: [dynamic]u8
+	buf = make([dynamic]u8, 0, 16)
+
+	emit_instruction(Wasm_Local_Get{index = 0}, &buf)
+	emit_instruction(Wasm_I32_Load{align = 2, offset = 0}, &buf)
+	emit_instruction(Wasm_End{}, &buf)
+
+	locals := make([]Wasm_Local_Decl, 0)
+
+	body := make([]u8, len(buf))
+	for b, i in buf {
+		body[i] = b
+	}
+	delete(buf)
+
+	return Wasm_Code{locals = locals, body = body}
+}
+
+emit_camp_str_eq_body :: proc() -> Wasm_Code {
+	buf: [dynamic]u8
+	buf = make([dynamic]u8, 0, 64)
+
+	emit_instruction(Wasm_Local_Get{index = 0}, &buf)
+	emit_instruction(Wasm_I32_Load{align = 2, offset = 0}, &buf)
+	emit_instruction(Wasm_Local_Get{index = 1}, &buf)
+	emit_instruction(Wasm_I32_Load{align = 2, offset = 0}, &buf)
+	emit_instruction(Wasm_I32_Eq{}, &buf)
+	emit_instruction(Wasm_End{}, &buf)
+
+	locals := make([]Wasm_Local_Decl, 0)
+
+	body := make([]u8, len(buf))
+	for b, i in buf {
+		body[i] = b
+	}
+	delete(buf)
+
+	return Wasm_Code{locals = locals, body = body}
+}

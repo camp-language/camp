@@ -91,6 +91,7 @@ expr_span_start :: proc(expr: Expr) -> int {
 	case ^Expr_Crash:             return e.span.start
 	case ^Expr_Interpolate:       return e.span.start
 	case ^Expr_Handle:            return e.span.start
+	case ^Expr_Par:               return e.span.start
 	case ^Expr_Dot_Lambda:        return e.span.start
 	case:                         return 0
 	}
@@ -122,6 +123,7 @@ right_span_end :: proc(expr: Expr) -> int {
 	case ^Expr_Crash:             return e.span.end
 	case ^Expr_Interpolate:       return e.span.end
 	case ^Expr_Handle:            return e.span.end
+	case ^Expr_Par:               return e.span.end
 	case ^Expr_Dot_Lambda:        return e.span.end
 	case:                         return 0
 	}
@@ -417,6 +419,9 @@ parser_parse_prefix :: proc(p: ^Parser) -> Expr {
 
 	case .Kw_Handle, .Kw_Intercept:
 		return parser_parse_handle(p)
+
+	case .Kw_Par:
+		return parser_parse_par(p)
 
 	case .LParen:
 		parser_advance(p)
@@ -959,6 +964,43 @@ parser_parse_handle :: proc(p: ^Parser) -> Expr {
 
 	e := new(Expr_Handle)
 	e^ = Expr_Handle{effect = effect_id, is_shallow = is_shallow, body = body, arms = arms, span = start}
+	return e
+}
+
+parser_parse_par :: proc(p: ^Parser) -> Expr {
+	start := p.current.span
+	parser_advance(p)  // consume 'par'
+
+	e := new(Expr_Par)
+	e^ = Expr_Par{
+		for_var = Intern_ID(0),
+		span = start,
+	}
+
+	if p.current.kind == .Kw_For {
+		// par for x in xs { body }
+		parser_advance(p)  // consume 'for'
+		var_tok := parser_expect(p, .Identifier)
+		e.for_var = intern(p.intern, var_tok.text)
+		parser_expect(p, .Kw_In)
+		e.for_iter = parser_parse_expr(p)
+		parser_expect(p, .LBrace)
+		e.for_body = parser_parse_expr(p)
+		parser_expect(p, .RBrace)
+	} else {
+		// par { e1, e2, e3 }
+		parser_expect(p, .LBrace)
+		e.expressions = make([dynamic]Expr, 0, 4)
+		for p.current.kind != .RBrace && p.current.kind != .Eof {
+			expr := parser_parse_expr(p)
+			append(&e.expressions, expr)
+			if p.current.kind == .Comma {
+				parser_advance(p)
+			}
+		}
+		parser_expect(p, .RBrace)
+	}
+
 	return e
 }
 

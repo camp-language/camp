@@ -434,6 +434,24 @@ lower_expr :: proc(expr: CExpr, env: ^Lower_Env) -> IR_Expr {
 
 	case ^CExpr_List:
 		return lower_list(e, env)
+
+	case ^CExpr_Perform:
+		ir_args := make([dynamic]IR_Expr, 0, len(e.args))
+		for arg in e.args {
+			append(&ir_args, lower_expr(arg, env))
+		}
+		perf := new(IR_Perform)
+		perf^ = IR_Perform{
+			effect = e.effect,
+			op = e.op,
+			args = ir_args,
+			type = IR_Type{},
+			span = e.span,
+		}
+		return IR_Expr(perf)
+
+	case ^CExpr_Par:
+		return make_ir_lit_int(0, IR_Type{.I64, Type_Var_ID(-1)}, Source_Span_ZERO)
 	}
 
 	return make_ir_lit_int(0, IR_Type{.I64, Type_Var_ID(-1)}, Source_Span_ZERO)
@@ -527,6 +545,21 @@ lower_texpr :: proc(expr: TExpr, env: ^Lower_Env) -> IR_Expr {
 
 	case ^TExpr_List:
 		return lower_tlist(e, env)
+
+	case ^TExpr_Perform:
+		ir_args := make([dynamic]IR_Expr, 0, len(e.args))
+		for arg in e.args {
+			append(&ir_args, lower_texpr(arg, env))
+		}
+		perf := new(IR_Perform)
+		perf^ = IR_Perform{
+			effect = e.effect,
+			op = e.op,
+			args = ir_args,
+			type = e.type_,
+			span = e.span,
+		}
+		return IR_Expr(perf)
 	}
 
 	return make_ir_lit_int(0, IR_Type{.I64, Type_Var_ID(-1)}, Source_Span_ZERO)
@@ -677,7 +710,7 @@ inject_prelude_effect_defs :: proc(mod: ^IR_Module, store: ^Type_Store) {
 		}
 	}
 
-	throw_name := intern(store.interner, "Throw")
+		throw_name := intern(store.interner, "Throw")
 	if is_declared_effect(store, throw_name) {
 		already := false
 		for eff in mod.effect_defs {
@@ -703,6 +736,102 @@ inject_prelude_effect_defs :: proc(mod: ^IR_Module, store: ^Type_Store) {
 			append(&mod.effect_defs, IR_Effect_Def{
 				name = throw_canonical,
 				operations = throw_ops,
+				type_params = make([dynamic]Intern_ID, 0),
+			})
+		}
+	}
+
+	// Parallel! effect
+	parallel_name := intern(store.interner, "Parallel")
+	if is_declared_effect(store, parallel_name) {
+		already := false
+		for eff in mod.effect_defs {
+			if eff.name.name == parallel_name {
+				already = true
+				break
+			}
+		}
+		if !already {
+			parallel_canonical := Canonical_Name{module = NO_NAME, name = parallel_name}
+			i32_type := IR_Type{wasm_type = .I32, type_id = 0}
+			parallel_ops := make([dynamic]IR_Effect_Op, 0, 6)
+
+			// map!(items, f) -> List(b)
+			map_params := make([dynamic]IR_Param, 0, 2)
+			append(&map_params, IR_Param{name = intern(store.interner, "items"), type = i32_type})
+			append(&map_params, IR_Param{name = intern(store.interner, "f"), type = i32_type})
+			append(&parallel_ops, IR_Effect_Op{name = intern(store.interner, "map!"), params = map_params, return_type = i32_type})
+
+			// for_each!(items, f) -> Unit
+			for_each_params := make([dynamic]IR_Param, 0, 2)
+			append(&for_each_params, IR_Param{name = intern(store.interner, "items"), type = i32_type})
+			append(&for_each_params, IR_Param{name = intern(store.interner, "f"), type = i32_type})
+			append(&parallel_ops, IR_Effect_Op{name = intern(store.interner, "for_each!"), params = for_each_params, return_type = i32_type})
+
+			// filter!(items, pred) -> List(a)
+			filter_params := make([dynamic]IR_Param, 0, 2)
+			append(&filter_params, IR_Param{name = intern(store.interner, "items"), type = i32_type})
+			append(&filter_params, IR_Param{name = intern(store.interner, "pred"), type = i32_type})
+			append(&parallel_ops, IR_Effect_Op{name = intern(store.interner, "filter!"), params = filter_params, return_type = i32_type})
+
+			// reduce!(items, init, f) -> a
+			reduce_params := make([dynamic]IR_Param, 0, 3)
+			append(&reduce_params, IR_Param{name = intern(store.interner, "items"), type = i32_type})
+			append(&reduce_params, IR_Param{name = intern(store.interner, "init"), type = i32_type})
+			append(&reduce_params, IR_Param{name = intern(store.interner, "f"), type = i32_type})
+			append(&parallel_ops, IR_Effect_Op{name = intern(store.interner, "reduce!"), params = reduce_params, return_type = i32_type})
+
+			// all!(tasks) -> List(a)
+			all_params := make([dynamic]IR_Param, 0, 1)
+			append(&all_params, IR_Param{name = intern(store.interner, "tasks"), type = i32_type})
+			append(&parallel_ops, IR_Effect_Op{name = intern(store.interner, "all!"), params = all_params, return_type = i32_type})
+
+			// any!(tasks) -> List(a)
+			any_params := make([dynamic]IR_Param, 0, 1)
+			append(&any_params, IR_Param{name = intern(store.interner, "tasks"), type = i32_type})
+			append(&parallel_ops, IR_Effect_Op{name = intern(store.interner, "any!"), params = any_params, return_type = i32_type})
+
+			append(&mod.effect_defs, IR_Effect_Def{
+				name = parallel_canonical,
+				operations = parallel_ops,
+				type_params = make([dynamic]Intern_ID, 0),
+			})
+		}
+	}
+
+	// Spawn! effect
+	spawn_name := intern(store.interner, "Spawn")
+	if is_declared_effect(store, spawn_name) {
+		already := false
+		for eff in mod.effect_defs {
+			if eff.name.name == spawn_name {
+				already = true
+				break
+			}
+		}
+		if !already {
+			spawn_canonical := Canonical_Name{module = NO_NAME, name = spawn_name}
+			i32_type := IR_Type{wasm_type = .I32, type_id = 0}
+			spawn_ops := make([dynamic]IR_Effect_Op, 0, 3)
+
+			// spawn!(thunk) -> Handle(a)
+			spawn_params := make([dynamic]IR_Param, 0, 1)
+			append(&spawn_params, IR_Param{name = intern(store.interner, "thunk"), type = i32_type})
+			append(&spawn_ops, IR_Effect_Op{name = intern(store.interner, "spawn!"), params = spawn_params, return_type = i32_type})
+
+			// join!(handle) -> a
+			join_params := make([dynamic]IR_Param, 0, 1)
+			append(&join_params, IR_Param{name = intern(store.interner, "handle"), type = i32_type})
+			append(&spawn_ops, IR_Effect_Op{name = intern(store.interner, "join!"), params = join_params, return_type = i32_type})
+
+			// cancel!(handle) -> Unit
+			cancel_params := make([dynamic]IR_Param, 0, 1)
+			append(&cancel_params, IR_Param{name = intern(store.interner, "handle"), type = i32_type})
+			append(&spawn_ops, IR_Effect_Op{name = intern(store.interner, "cancel!"), params = cancel_params, return_type = i32_type})
+
+			append(&mod.effect_defs, IR_Effect_Def{
+				name = spawn_canonical,
+				operations = spawn_ops,
 				type_params = make([dynamic]Intern_ID, 0),
 			})
 		}

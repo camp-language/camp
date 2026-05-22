@@ -24,6 +24,7 @@ TExpr :: union {
 	^TExpr_Crash,
 	^TExpr_Interpolate,
 	^TExpr_Handle,
+	^TExpr_Perform,
 }
 
 TExpr_Int :: struct {
@@ -292,6 +293,15 @@ TExpr_Handle :: struct {
 	type_:      IR_Type,
 	eff_:       IR_Type,
 	span:       Source_Span,
+}
+
+TExpr_Perform :: struct {
+	effect: Canonical_Name,
+	op:     Intern_ID,
+	args:   [dynamic]TExpr,
+	type_:  IR_Type,
+	eff_:   IR_Type,
+	span:   Source_Span,
 }
 
 THandler_Arm :: struct {

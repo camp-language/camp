@@ -315,6 +315,22 @@ resolve_expr_names :: proc(expr: CExpr, scope: ^Import_Scope, export_tables: ^ma
 		}
 
 	case ^CExpr_Int, ^CExpr_Float, ^CExpr_String, ^CExpr_Bool:
+
+	case ^CExpr_Perform:
+		for &arg in e.args {
+			resolve_expr_names(arg, scope, export_tables, interner, collector)
+		}
+
+	case ^CExpr_Par:
+		if e.for_var != 0 {
+			resolve_expr_names(e.for_iter, scope, export_tables, interner, collector)
+			resolve_expr_names(e.for_body, scope, export_tables, interner, collector)
+		} else {
+			for &expr in e.expressions {
+				resolve_expr_names(expr, scope, export_tables, interner, collector)
+			}
+		}
+
 	case:
 	}
 }

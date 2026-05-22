@@ -114,6 +114,7 @@ Expr :: union {
 	^Expr_Crash,
 	^Expr_Interpolate,
 	^Expr_Handle,
+	^Expr_Par,
 	^Expr_Dot_Lambda,
 }
 
@@ -359,6 +360,14 @@ Handler_Arm :: struct {
 	params: [dynamic]Intern_ID,
 	body:   Expr,
 	span:   Source_Span,
+}
+
+Expr_Par :: struct {
+	expressions: [dynamic]Expr,  // for par { e1, e2 }
+	for_var:     Intern_ID,      // 0 if not par-for
+	for_iter:    Expr,            // the xs in "par for x in xs"
+	for_body:    Expr,            // the body in "par for x in xs { body }"
+	span:        Source_Span,
 }
 
 Type :: union {

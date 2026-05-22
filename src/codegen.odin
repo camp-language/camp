@@ -2,7 +2,7 @@ package camp
 
 WASI_MODULE :: "wasi_snapshot_preview1"
 
-RUNTIME_FUNC_COUNT :: 6
+RUNTIME_FUNC_COUNT :: 13
 
 CAMP_TAG_HEADER_SIZE :: 8
 CAMP_TAG_REFCOUNT_OFFSET :: 0
@@ -101,6 +101,8 @@ emit_runtime_types :: proc(env: ^Codegen_Env) {
 	get_or_create_type(env, []Wasm_Value_Type{.I32}, []Wasm_Value_Type{.I32})
 	get_or_create_type(env, []Wasm_Value_Type{.I32}, []Wasm_Value_Type{})
 	get_or_create_type(env, []Wasm_Value_Type{.I32, .I32}, []Wasm_Value_Type{})
+	get_or_create_type(env, []Wasm_Value_Type{}, []Wasm_Value_Type{.I32})
+	get_or_create_type(env, []Wasm_Value_Type{.I32, .I32}, []Wasm_Value_Type{.I32})
 }
 
 codegen :: proc(ir_mod: IR_Module, ctx: ^Compilation_Context) -> Wasm_Module {
@@ -167,6 +169,14 @@ codegen :: proc(ir_mod: IR_Module, ctx: ^Compilation_Context) -> Wasm_Module {
 	exit_type_idx := dup_type_idx
 	dealloc_type_idx := get_or_create_type(&env, []Wasm_Value_Type{.I32, .I32}, []Wasm_Value_Type{})
 
+	print_err_type_idx := print_str_type_idx
+	list_alloc_type_idx := get_or_create_type(&env, []Wasm_Value_Type{}, []Wasm_Value_Type{.I32})
+	list_push_type_idx := get_or_create_type(&env, []Wasm_Value_Type{.I32, .I32}, []Wasm_Value_Type{.I32})
+	list_len_type_idx := alloc_type_idx
+	list_get_type_idx := list_push_type_idx
+	str_len_type_idx := alloc_type_idx
+	str_eq_type_idx := list_push_type_idx
+
 	runtime_func_indices: [RUNTIME_FUNC_COUNT]int
 	alloc_func_idx := add_function(&env, alloc_type_idx)
 	runtime_func_indices[0] = alloc_func_idx
@@ -180,6 +190,21 @@ codegen :: proc(ir_mod: IR_Module, ctx: ^Compilation_Context) -> Wasm_Module {
 	runtime_func_indices[4] = exit_func_idx
 	dealloc_func_idx := add_function(&env, dealloc_type_idx)
 	runtime_func_indices[5] = dealloc_func_idx
+
+	print_err_func_idx := add_function(&env, print_err_type_idx)
+	runtime_func_indices[6] = print_err_func_idx
+	list_alloc_func_idx := add_function(&env, list_alloc_type_idx)
+	runtime_func_indices[7] = list_alloc_func_idx
+	list_push_func_idx := add_function(&env, list_push_type_idx)
+	runtime_func_indices[8] = list_push_func_idx
+	list_len_func_idx := add_function(&env, list_len_type_idx)
+	runtime_func_indices[9] = list_len_func_idx
+	list_get_func_idx := add_function(&env, list_get_type_idx)
+	runtime_func_indices[10] = list_get_func_idx
+	str_len_func_idx := add_function(&env, str_len_type_idx)
+	runtime_func_indices[11] = str_len_func_idx
+	str_eq_func_idx := add_function(&env, str_eq_type_idx)
+	runtime_func_indices[12] = str_eq_func_idx
 
 	camp_alloc_code := emit_camp_alloc_body(heap_ptr_global_idx)
 	append(&mod.codes, camp_alloc_code)
@@ -198,6 +223,27 @@ codegen :: proc(ir_mod: IR_Module, ctx: ^Compilation_Context) -> Wasm_Module {
 
 	camp_dealloc_code := emit_camp_dealloc_body()
 	append(&mod.codes, camp_dealloc_code)
+
+	camp_print_err_code := emit_camp_print_err_body()
+	append(&mod.codes, camp_print_err_code)
+
+	camp_list_alloc_code := emit_camp_list_alloc_body()
+	append(&mod.codes, camp_list_alloc_code)
+
+	camp_list_push_code := emit_camp_list_push_body()
+	append(&mod.codes, camp_list_push_code)
+
+	camp_list_len_code := emit_camp_list_len_body()
+	append(&mod.codes, camp_list_len_code)
+
+	camp_list_get_code := emit_camp_list_get_body()
+	append(&mod.codes, camp_list_get_code)
+
+	camp_str_len_code := emit_camp_str_len_body()
+	append(&mod.codes, camp_str_len_code)
+
+	camp_str_eq_code := emit_camp_str_eq_body()
+	append(&mod.codes, camp_str_eq_code)
 
 	camp_alloc_name := intern(&ctx.interner, "camp_alloc")
 	env.func_map[int(camp_alloc_name)] = alloc_func_idx
@@ -513,6 +559,19 @@ codegen :: proc(ir_mod: IR_Module, ctx: ^Compilation_Context) -> Wasm_Module {
 							break
 						}
 					}
+				} else {
+					// Generic unhandled effect handler: exit(1) for any operation
+					slot_offset := 0
+					for eff_def in ir_mod.effect_defs {
+						if eff_def.name == eff {
+							for op_idx in 0..<len(eff_def.operations) {
+								handler_idx := emit_unhandled_effect_handler_fn(&env, &mod, eff_name, runtime_func_indices[:])
+								emit_handler_into_evidence(&code_buf, &env, ev_local_idx, slot_offset, handler_idx, runtime_func_indices[:])
+								slot_offset += 4
+							}
+							break
+						}
+					}
 				}
 			}
 
@@ -753,6 +812,13 @@ RUNTIME_DROP :: 2
 RUNTIME_PRINT_STR :: 3
 RUNTIME_EXIT :: 4
 RUNTIME_DEALLOC :: 5
+RUNTIME_PRINT_ERR :: 6
+RUNTIME_LIST_ALLOC :: 7
+RUNTIME_LIST_PUSH :: 8
+RUNTIME_LIST_LEN :: 9
+RUNTIME_LIST_GET :: 10
+RUNTIME_STR_LEN :: 11
+RUNTIME_STR_EQ :: 12
 
 extract_effectful_body :: proc(expr: IR_Expr) -> IR_Expr {
 	#partial switch e in expr {
@@ -1489,6 +1555,33 @@ emit_console_readln_handler_fn :: proc(env: ^Codegen_Env, mod: ^Wasm_Module) -> 
 	buf = make([dynamic]u8, 0, 8)
 
 	// readln! not supported — unreachable
+	emit_instruction(Wasm_Unreachable{}, &buf)
+	emit_instruction(Wasm_End{}, &buf)
+
+	locals := make([]Wasm_Local_Decl, 0)
+	append(&mod.codes, Wasm_Code{locals = locals, body = copy_dynamic_bytes(buf)})
+	delete(buf)
+
+	return handler_fn_idx
+}
+
+emit_unhandled_effect_handler_fn :: proc(env: ^Codegen_Env, mod: ^Wasm_Module, eff_name: string, runtime_indices: []int) -> int {
+	// Generic handler for unhandled effects: exit(1)
+	// Handler type: (i32=env, i32..=op_args, i32=resume, i32=ev) -> i64
+	handler_type_idx := get_or_create_type(env, []Wasm_Value_Type{.I32, .I32, .I32, .I32}, []Wasm_Value_Type{.I64})
+	handler_fn_idx := add_function(env, handler_type_idx)
+
+	for len(env.func_type_indices) <= handler_fn_idx {
+		append(&env.func_type_indices, 0)
+	}
+	env.func_type_indices[handler_fn_idx] = u32(handler_type_idx)
+
+	buf: [dynamic]u8
+	buf = make([dynamic]u8, 0, 32)
+
+	// Call camp_exit(1) — unhandled effect
+	emit_instruction(Wasm_I32_Const{value = 1}, &buf)
+	emit_instruction(Wasm_Call{index = u32(runtime_indices[RUNTIME_EXIT])}, &buf)
 	emit_instruction(Wasm_Unreachable{}, &buf)
 	emit_instruction(Wasm_End{}, &buf)
 
