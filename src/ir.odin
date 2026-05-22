@@ -172,6 +172,8 @@ IR_Expr :: union {
 	^IR_Atomic_Fence,
 	^IR_Wait,
 	^IR_Notify,
+	^IR_Assign,
+	^IR_Loop,
 }
 
 IR_Literal_Int :: struct { value: i64, type: IR_Type, span: Source_Span }
@@ -187,6 +189,21 @@ IR_Let :: struct {
 	value:   IR_Expr,
 	body:    IR_Expr,
 	span:    Source_Span,
+}
+
+IR_Assign :: struct {
+	binding: Intern_ID,
+	value:   IR_Expr,
+	type:    IR_Type,
+	span:    Source_Span,
+}
+
+IR_Loop :: struct {
+	var:      Intern_ID,
+	iterable: IR_Expr,
+	body:     IR_Expr,
+	type:     IR_Type,
+	span:     Source_Span,
 }
 
 IR_Call :: struct {

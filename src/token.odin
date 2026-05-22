@@ -32,6 +32,7 @@ Token_Kind :: enum {
 	Kw_Pub,
 	Kw_Self,
 	Kw_Par,
+	Kw_Where,
 
 	Pipe,
 	Arrow,

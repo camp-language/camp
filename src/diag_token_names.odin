@@ -32,6 +32,7 @@ token_kind_display :: proc(kind: Token_Kind) -> string {
 	case .Kw_Pub:       return "pub"
 	case .Kw_Self:      return "Self"
 	case .Kw_Par:       return "par"
+	case .Kw_Where:     return "where"
 	case .Pipe:         return "|"
 	case .Arrow:        return "->"
 	case .Fat_Arrow:    return "=>"

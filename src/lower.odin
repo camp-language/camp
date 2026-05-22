@@ -74,6 +74,7 @@ lower_tfile :: proc(tfile: TFile, store: ^Type_Store) -> IR_Module {
 		case ^TDecl_Trait:
 		case ^TDecl_Alias:
 		case ^TDecl_Newtype:
+		// Newtypes are erased at runtime — no IR decl needed.
 		case ^TDecl_Import:
 		case ^TDecl_Test:
 		case ^TDecl_Expect:
@@ -413,8 +414,21 @@ lower_expr :: proc(expr: CExpr, env: ^Lower_Env) -> IR_Expr {
 		return lower_record_update(e, env)
 
 	case ^CExpr_Assign:
-		_ = lower_expr(e.target, env)
-		return lower_expr(e.value, env)
+		#partial switch target in e.target {
+		case ^CExpr_Name:
+			value := lower_expr(e.value, env)
+			type_var := fresh_value_var(env.store, e.span)
+			assign := new(IR_Assign)
+			assign^ = IR_Assign{
+				binding = target.name.name,
+				value   = value,
+				type    = lower_type(env.store, type_var),
+				span    = e.span,
+			}
+			return IR_Expr(assign)
+		case:
+			return lower_expr(e.value, env)
+		}
 
 	case ^CExpr_Return:
 		inner := lower_expr(e.value, env)
@@ -454,6 +468,20 @@ lower_expr :: proc(expr: CExpr, env: ^Lower_Env) -> IR_Expr {
 
 	case ^CExpr_Par:
 		return make_ir_lit_int(0, IR_Type{.I64, Type_Var_ID(-1)}, Source_Span_ZERO)
+
+	case ^CExpr_For:
+		iterable := lower_expr(e.iterable, env)
+		body := lower_expr(e.body, env)
+		type_var := fresh_value_var(env.store, e.span)
+		loop := new(IR_Loop)
+		loop^ = IR_Loop{
+			var      = e.var,
+			iterable = iterable,
+			body     = body,
+			type     = lower_type(env.store, type_var),
+			span     = e.span,
+		}
+		return IR_Expr(loop)
 	}
 
 	return make_ir_lit_int(0, IR_Type{.I64, Type_Var_ID(-1)}, Source_Span_ZERO)
@@ -524,8 +552,20 @@ lower_texpr :: proc(expr: TExpr, env: ^Lower_Env) -> IR_Expr {
 		return lower_trecord_update(e, env)
 
 	case ^TExpr_Assign:
-		_ = lower_texpr(e.target, env)
-		return lower_texpr(e.value, env)
+		#partial switch target in e.target {
+		case ^TExpr_Name:
+			value := lower_texpr(e.value, env)
+			assign := new(IR_Assign)
+			assign^ = IR_Assign{
+				binding = target.name.name,
+				value   = value,
+				type    = e.type_,
+				span    = e.span,
+			}
+			return IR_Expr(assign)
+		case:
+			return lower_texpr(e.value, env)
+		}
 
 	case ^TExpr_Return:
 		inner := lower_texpr(e.value, env)
@@ -562,6 +602,19 @@ lower_texpr :: proc(expr: TExpr, env: ^Lower_Env) -> IR_Expr {
 			span = e.span,
 		}
 		return IR_Expr(perf)
+
+	case ^TExpr_For:
+		iterable := lower_texpr(e.iterable, env)
+		body := lower_texpr(e.body, env)
+		loop := new(IR_Loop)
+		loop^ = IR_Loop{
+			var      = e.var,
+			iterable = iterable,
+			body     = body,
+			type     = e.type_,
+			span     = e.span,
+		}
+		return IR_Expr(loop)
 	}
 
 	return make_ir_lit_int(0, IR_Type{.I64, Type_Var_ID(-1)}, Source_Span_ZERO)
@@ -996,6 +1049,48 @@ lower_tmethod_call :: proc(e: ^TExpr_Method_Call, env: ^Lower_Env) -> IR_Expr {
 			span = e.span,
 		}
 		return IR_Expr(perf)
+	}
+
+	// Check for string method intrinsics: .len() and .slice()
+	// We check the receiver type to see if it's a Str
+	method_str := intern_get(env.interner, e.method.name)
+	receiver_type_var: Type_Var_ID = 0
+	#partial switch r in e.receiver {
+	case ^TExpr_Name:
+		receiver_type_var = r.type_.type_id
+	case ^TExpr_String:
+		receiver_type_var = r.type_.type_id
+	case ^TExpr_Method_Call:
+		receiver_type_var = r.type_.type_id
+	case ^TExpr_Field_Access:
+		receiver_type_var = r.type_.type_id
+	case ^TExpr_Call:
+		receiver_type_var = r.type_.type_id
+	case:
+	}
+
+	if receiver_type_var != 0 {
+		resolved_type := resolve_var(env.store, receiver_type_var)
+		v := get_var(env.store, resolved_type)
+		if inf, ok := v.link.(Inferred_Type); ok && inf.tag == .Primitive {
+			type_name_str := intern_get(env.interner, inf.primitive_name)
+			if type_name_str == "Str" {
+				if method_str == "len" && len(e.args) == 0 {
+					str_name := intern(env.interner, "Str")
+					len_name := intern(env.interner, "length")
+					args := make([dynamic]IR_Expr, 0, 1)
+					append(&args, receiver_ir)
+					call := new(IR_Call)
+					call^ = IR_Call{
+						callee = Canonical_Name{module = str_name, name = len_name},
+						args = args,
+						type = e.type_,
+						span = e.span,
+					}
+					return IR_Expr(call)
+				}
+			}
+		}
 	}
 
 	ir_args := make([dynamic]IR_Expr, 0, len(e.args) + 1)
@@ -1516,15 +1611,19 @@ lower_block :: proc(e: ^CExpr_Block, env: ^Lower_Env) -> IR_Expr {
 		case ^CExpr_Assign:
 			#partial switch target in s.target {
 			case ^CExpr_Name:
-				let_expr := new(IR_Let)
-				let_expr^ = IR_Let{
+				assign := new(IR_Assign)
+				assign^ = IR_Assign{
 					binding = target.name.name,
 					type    = lower_type(env.store, type_var),
 					value   = lower_expr(s.value, env),
-					body    = result,
 					span    = e.span,
 				}
-				result = IR_Expr(let_expr)
+				block_stmts := make([dynamic]IR_Expr, 2)
+				block_stmts[0] = IR_Expr(assign)
+				block_stmts[1] = result
+				block := new(IR_Block)
+				block^ = IR_Block{statements = block_stmts, type = lower_type(env.store, type_var), span = e.span}
+				result = IR_Expr(block)
 				is_assign_or_skip = true
 			}
 		}

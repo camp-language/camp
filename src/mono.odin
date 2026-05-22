@@ -7,6 +7,7 @@ Mono_Env :: struct {
 	interner:          ^Intern_Table,
 	specializations:   map[string]Canonical_Name,
 	decl_map:          map[Canonical_Name]^TDecl_Const,
+	newtype_map:       map[Canonical_Name]^TDecl_Newtype,
 	worklist:         [dynamic]Mono_Item,
 	output_decls:      [dynamic]TDecl,
 }
@@ -23,12 +24,15 @@ mono :: proc(tfile: TFile, store: ^Type_Store, interner: ^Intern_Table) -> TFile
 	env.interner = interner
 	env.specializations = make(map[string]Canonical_Name, 32)
 	env.decl_map = make(map[Canonical_Name]^TDecl_Const, 32)
+	env.newtype_map = make(map[Canonical_Name]^TDecl_Newtype, 16)
 	env.worklist = make([dynamic]Mono_Item, 0, 16)
 	env.output_decls = make([dynamic]TDecl, 0, len(tfile.decls))
 
 	for decl in tfile.decls {
 		if d, ok := decl.(^TDecl_Const); ok {
 			env.decl_map[d.name] = d
+		} else if d, ok := decl.(^TDecl_Newtype); ok {
+			env.newtype_map[d.name] = d
 		}
 		walk_decl_for_call_sites(decl, &env)
 	}
@@ -46,6 +50,11 @@ mono :: proc(tfile: TFile, store: ^Type_Store, interner: ^Intern_Table) -> TFile
 		specialized_decl := specialize_decl(item, &env)
 		if specialized_decl != nil {
 			append(&env.output_decls, TDecl(specialized_decl))
+		} else {
+			specialized_newtype := specialize_newtype(item, &env)
+			if specialized_newtype != nil {
+				append(&env.output_decls, TDecl(specialized_newtype))
+			}
 		}
 	}
 
@@ -62,6 +71,7 @@ mono :: proc(tfile: TFile, store: ^Type_Store, interner: ^Intern_Table) -> TFile
 
 	delete(env.specializations)
 	delete(env.decl_map)
+	delete(env.newtype_map)
 	delete(env.worklist)
 	return result
 }
@@ -150,6 +160,29 @@ mangle :: proc(name: Canonical_Name, type_args: map[Intern_ID]Type_Var_ID, inter
 		name = mangled_name,
 		is_local = name.is_local,
 	}
+}
+
+specialize_newtype :: proc(item: Mono_Item, env: ^Mono_Env) -> ^TDecl_Newtype {
+	original, exists := env.newtype_map[item.original]
+	if !exists {
+		return nil
+	}
+
+	specialized_name := mangle(item.original, item.type_args, env.interner, env.store)
+
+	decl := new(TDecl_Newtype)
+	decl.name = specialized_name
+	decl.is_pub = original.is_pub
+	decl.type_params = make([dynamic]Intern_ID, 0)
+	decl.trait_conforms = make([dynamic]Intern_ID, len(original.trait_conforms))
+	copy(decl.trait_conforms[:], original.trait_conforms[:])
+	decl.inner_type = original.inner_type
+	decl.type_ = substitute_ir_type(original.type_, item.type_args, env)
+	decl.derive_targets = make([dynamic]Intern_ID, len(original.derive_targets))
+	copy(decl.derive_targets[:], original.derive_targets[:])
+	decl.span = item.span
+
+	return decl
 }
 
 specialize_decl :: proc(item: Mono_Item, env: ^Mono_Env) -> ^TDecl_Const {
@@ -481,6 +514,16 @@ substitute_types_in_expr :: proc(expr: TExpr, type_args: map[Intern_ID]Type_Var_
 		result.eff_ = substitute_ir_type(e.eff_, type_args, env)
 		result.span = e.span
 		return TExpr(result)
+
+	case ^TExpr_For:
+		result := new(TExpr_For)
+		result.var = e.var
+		result.iterable = substitute_types_in_expr(e.iterable, type_args, env)
+		result.body = substitute_types_in_expr(e.body, type_args, env)
+		result.type_ = substitute_ir_type(e.type_, type_args, env)
+		result.eff_ = substitute_ir_type(e.eff_, type_args, env)
+		result.span = e.span
+		return TExpr(result)
 	}
 	return expr
 }
@@ -567,6 +610,8 @@ get_expr_ir_type :: proc(expr: TExpr) -> IR_Type {
 		return e.type_
 	case ^TExpr_Perform:
 		return e.type_
+	case ^TExpr_For:
+		return e.type_
 	}
 	return IR_Type{}
 }
@@ -615,6 +660,24 @@ walk_decl_for_call_sites :: proc(decl: TDecl, env: ^Mono_Env) {
 	case ^TDecl_Trait:
 	case ^TDecl_Alias:
 	case ^TDecl_Newtype:
+		// Newtypes with type params may need specialization
+		if len(d.type_params) > 0 {
+			type_args := make(map[Intern_ID]Type_Var_ID, len(d.type_params))
+			for tp in d.type_params {
+				if binding, has := env.store.bindings[tp]; has {
+					type_args[tp] = binding
+				}
+			}
+			if len(type_args) > 0 {
+				append(&env.worklist, Mono_Item{
+					original = d.name,
+					type_args = type_args,
+					span = d.span,
+				})
+			} else {
+				delete(type_args)
+			}
+		}
 	case ^TDecl_Import:
 	case ^TDecl_Test:
 		walk_expr_for_call_sites(d.body, env)
@@ -714,7 +777,8 @@ walk_expr_for_call_sites :: proc(expr: TExpr, env: ^Mono_Env) {
 			walk_expr_for_call_sites(arg, env)
 		}
 	case ^TExpr_Int, ^TExpr_Float, ^TExpr_String, ^TExpr_Bool,
-		^TExpr_Tag, ^TExpr_Record, ^TExpr_List, ^TExpr_Name:
+		^TExpr_Tag, ^TExpr_Record, ^TExpr_List, ^TExpr_Name,
+		^TExpr_For:
 	}
 }
 
@@ -729,7 +793,21 @@ rewrite_calls_in_decl :: proc(decl: TDecl, specializations: map[string]Canonical
 	case ^TDecl_Expect:
 		new_cond := rewrite_calls_in_expr(d.condition, specializations, env)
 		d.condition = new_cond
-	case ^TDecl_Effect, ^TDecl_Trait, ^TDecl_Alias, ^TDecl_Newtype, ^TDecl_Import:
+	case ^TDecl_Newtype:
+		// Substitute type params in the IR type for generic newtypes
+		if len(d.type_params) > 0 {
+			type_args := make(map[Intern_ID]Type_Var_ID, len(d.type_params))
+			for tp in d.type_params {
+				if binding, has := env.store.bindings[tp]; has {
+					type_args[tp] = binding
+				}
+			}
+			if len(type_args) > 0 {
+				d.type_ = substitute_ir_type(d.type_, type_args, env)
+			}
+			delete(type_args)
+		}
+	case ^TDecl_Effect, ^TDecl_Trait, ^TDecl_Alias, ^TDecl_Import:
 	}
 	return decl
 }
@@ -819,7 +897,8 @@ rewrite_calls_in_expr :: proc(expr: TExpr, specializations: map[string]Canonical
 			e.args[i] = rewrite_calls_in_expr(e.args[i], specializations, env)
 		}
 	case ^TExpr_Int, ^TExpr_Float, ^TExpr_String, ^TExpr_Bool,
-		^TExpr_Tag, ^TExpr_Record, ^TExpr_List, ^TExpr_Name:
+		^TExpr_Tag, ^TExpr_Record, ^TExpr_List, ^TExpr_Name,
+		^TExpr_For:
 	}
 	return expr
 }

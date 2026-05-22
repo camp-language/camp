@@ -25,6 +25,7 @@ TExpr :: union {
 	^TExpr_Interpolate,
 	^TExpr_Handle,
 	^TExpr_Perform,
+	^TExpr_For,
 }
 
 TExpr_Int :: struct {
@@ -302,6 +303,15 @@ TExpr_Perform :: struct {
 	type_:  IR_Type,
 	eff_:   IR_Type,
 	span:   Source_Span,
+}
+
+TExpr_For :: struct {
+	var:      Intern_ID,
+	iterable: TExpr,
+	body:     TExpr,
+	type_:    IR_Type,
+	eff_:     IR_Type,
+	span:     Source_Span,
 }
 
 THandler_Arm :: struct {

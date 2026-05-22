@@ -581,8 +581,14 @@ typecheck_synth :: proc(expr: CExpr, env: ^Type_Env, store: ^Type_Store) -> Type
 		result := typecheck_synth(e.value, env, store)
 		#partial switch target in e.target {
 		case ^CExpr_Name:
-			check_shadow(env, target.name.name, store, e.span)
-			env.bindings[target.name.name] = result.var_id
+			if existing, ok := env_lookup(env, target.name.name); ok {
+				// Existing binding — verify type compatibility (mutation)
+				unify(store, existing, result.var_id)
+			} else {
+				// New binding — check shadow and bind
+				check_shadow(env, target.name.name, store, e.span)
+				env.bindings[target.name.name] = result.var_id
+			}
 		case:
 		}
 		return Type_Result{var_id = result.var_id, effects = result.effects}
@@ -705,6 +711,24 @@ typecheck_synth :: proc(expr: CExpr, env: ^Type_Env, store: ^Type_Store) -> Type
 	case ^CExpr_Par:
 		var_id := fresh_value_var(store, e.span)
 		return Type_Result{var_id = var_id, effects = fresh_effect_row(store, e.span)}
+
+	case ^CExpr_For:
+		eff := fresh_effect_row(store, e.span)
+		iter_result := typecheck_synth(e.iterable, env, store)
+		unify(store, eff, iter_result.effects)
+
+		element_var := fresh_value_var(store, e.span)
+
+		check_shadow(env, e.var, store, e.span)
+		env.bindings[e.var] = element_var
+
+		body_result := typecheck_synth(e.body, env, store)
+		unify(store, eff, body_result.effects)
+
+		unit_name := intern(store.interner, "Unit")
+		unit_var := make_primitive_type(store, unit_name, e.span)
+
+		return Type_Result{var_id = unit_var, effects = eff}
 	}
 	var_id := fresh_value_var(store, Source_Span_ZERO)
 	return Type_Result{var_id = var_id, effects = fresh_effect_row(store, Source_Span_ZERO)}

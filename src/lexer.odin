@@ -29,6 +29,7 @@ KEYWORDS :map[string]Token_Kind = {
 	"pub"       = .Kw_Pub,
 	"Self"      = .Kw_Self,
 	"par"       = .Kw_Par,
+	"where"     = .Kw_Where,
 }
 
 Lexer :: struct {
@@ -103,6 +104,22 @@ lexer_next :: proc(l: ^Lexer) -> Token {
 	if ch == '$' {
 		l.pos += 1
 		return lexer_make_token(l, .Dollar, start, l.source[start:l.pos])
+	}
+
+	if ch == '`' {
+		l.pos += 1
+		for l.pos < len(l.source) && l.source[l.pos] != '`' {
+			l.pos += 1
+		}
+		if l.pos >= len(l.source) {
+			collector_add_diag(l.collector, diag_unexpected_char('`', lexer_make_span(l, start)))
+			return lexer_next(l)
+		}
+		l.pos += 1 // skip closing backtick
+		// Extract the identifier text without the backticks
+		inner_text := l.source[start+1:l.pos-1]
+		// Return as a regular Identifier token
+		return Token{kind = .Identifier, text = inner_text, span = lexer_make_span(l, start)}
 	}
 
 	if is_identifier_start(ch) {

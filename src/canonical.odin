@@ -34,6 +34,7 @@ CDecl_Const :: struct {
 	type_ann:        ^CType,
 	body:            CExpr,
 	derive_targets:  [dynamic]Intern_ID,
+	where_clauses:   [dynamic]Where_Clause,
 	span:            Source_Span,
 }
 
@@ -129,6 +130,7 @@ CExpr :: union {
 	^CExpr_Handle,
 	^CExpr_Perform,
 	^CExpr_Par,
+	^CExpr_For,
 }
 
 CExpr_Int :: struct {
@@ -286,6 +288,13 @@ CExpr_Perform :: struct {
 	op:     Intern_ID,
 	args:   [dynamic]CExpr,
 	span:   Source_Span,
+}
+
+CExpr_For :: struct {
+	var:      Intern_ID,
+	iterable: CExpr,
+	body:     CExpr,
+	span:     Source_Span,
 }
 
 CExpr_Par :: struct {

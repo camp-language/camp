@@ -35,6 +35,17 @@ format_decl_const :: proc(v: ^Decl_Const, info: ^Format_Source_Info, interner: ^
 		append(&parts, doc_text(": "))
 		append(&parts, format_type(v.type_ann, info, interner))
 	}
+	if len(v.where_clauses) > 0 {
+		append(&parts, doc_text(" where "))
+		for wc, i in v.where_clauses {
+			if i > 0 {
+				append(&parts, doc_text(", "))
+			}
+			append(&parts, doc_text(intern_get(interner, wc.type_param)))
+			append(&parts, doc_text(" is "))
+			append(&parts, doc_text(intern_get(interner, wc.trait_name)))
+		}
+	}
 	append(&parts, doc_text(" = "))
 	append(&parts, format_expr(v.body, info, interner))
 	return doc_concat(parts[:])

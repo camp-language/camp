@@ -17,7 +17,14 @@ Decl_Const :: struct {
 	is_effectful:  bool,
 	body:          Expr,
 	type_ann:      ^Type,
+	where_clauses: [dynamic]Where_Clause,
 	span:          Source_Span,
+}
+
+Where_Clause :: struct {
+	type_param:  Intern_ID,
+	trait_name:  Intern_ID,
+	span:        Source_Span,
 }
 
 Decl_Effect :: struct {
@@ -116,6 +123,7 @@ Expr :: union {
 	^Expr_Handle,
 	^Expr_Par,
 	^Expr_Dot_Lambda,
+	^Expr_For,
 }
 
 Expr_Int :: struct {
@@ -360,6 +368,13 @@ Handler_Arm :: struct {
 	params: [dynamic]Intern_ID,
 	body:   Expr,
 	span:   Source_Span,
+}
+
+Expr_For :: struct {
+	var:      Intern_ID,
+	iterable: Expr,
+	body:     Expr,
+	span:     Source_Span,
 }
 
 Expr_Par :: struct {
