@@ -68,6 +68,7 @@ Wasm_Memory :: struct {
 	min:     u32,
 	max:     u32,
 	has_max: bool,
+	shared:  bool,
 }
 
 Wasm_Global :: struct {
@@ -1060,7 +1061,11 @@ wasm_serialize :: proc(mod: Wasm_Module) -> []u8 {
 		content = make([dynamic]u8, 0, 16)
 		encode_u32_leb128(u32(len(mod.memories)), &content)
 		for mem in mod.memories {
-			if mem.has_max {
+			if mem.has_max && mem.shared {
+				append(&content, 3) // shared + has_max
+				encode_u32_leb128(mem.min, &content)
+				encode_u32_leb128(mem.max, &content)
+			} else if mem.has_max {
 				append(&content, 1)
 				encode_u32_leb128(mem.min, &content)
 				encode_u32_leb128(mem.max, &content)

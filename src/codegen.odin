@@ -2,7 +2,7 @@ package camp
 
 WASI_MODULE :: "wasi_snapshot_preview1"
 
-RUNTIME_FUNC_COUNT :: 5
+RUNTIME_FUNC_COUNT :: 17
 
 CAMP_TAG_HEADER_SIZE :: 8
 CAMP_TAG_REFCOUNT_OFFSET :: 0
@@ -133,7 +133,12 @@ codegen :: proc(ir_mod: IR_Module, ctx: ^Compilation_Context) -> Wasm_Module {
 	emit_wasi_imports(&env)
 	emit_runtime_types(&env)
 
-	append(&mod.memories, Wasm_Memory{min = 1})
+	// Memory: shared when threads > 1, with maximum for WASM threads
+	if ctx.thread_count > 1 {
+		append(&mod.memories, Wasm_Memory{min = 1, max = 65536, has_max = true, shared = true})
+	} else {
+		append(&mod.memories, Wasm_Memory{min = 1})
+	}
 
 	env.table_idx = len(mod.tables)
 	append(&mod.tables, Wasm_Table{
@@ -177,6 +182,45 @@ codegen :: proc(ir_mod: IR_Module, ctx: ^Compilation_Context) -> Wasm_Module {
 	exit_func_idx := add_function(&env, exit_type_idx)
 	runtime_func_indices[4] = exit_func_idx
 
+	// Scheduler runtime function types
+	sched_init_type_idx := get_or_create_type(&env, []Wasm_Value_Type{.I32}, []Wasm_Value_Type{})
+	sched_spawn_type_idx := get_or_create_type(&env, []Wasm_Value_Type{.I32, .I32, .I32}, []Wasm_Value_Type{.I32})
+	sched_join_type_idx := get_or_create_type(&env, []Wasm_Value_Type{.I32}, []Wasm_Value_Type{.I32})
+	sched_cancel_type_idx := get_or_create_type(&env, []Wasm_Value_Type{.I32}, []Wasm_Value_Type{})
+	sched_complete_type_idx := get_or_create_type(&env, []Wasm_Value_Type{.I32, .I32, .I32}, []Wasm_Value_Type{})
+	sched_yield_type_idx := get_or_create_type(&env, []Wasm_Value_Type{}, []Wasm_Value_Type{})
+	sched_block_io_type_idx := get_or_create_type(&env, []Wasm_Value_Type{.I32, .I32}, []Wasm_Value_Type{})
+	sched_timer_insert_type_idx := get_or_create_type(&env, []Wasm_Value_Type{.I32, .I32}, []Wasm_Value_Type{})
+	sched_timer_cancel_type_idx := get_or_create_type(&env, []Wasm_Value_Type{.I32}, []Wasm_Value_Type{})
+	sched_notify_type_idx := get_or_create_type(&env, []Wasm_Value_Type{}, []Wasm_Value_Type{})
+	sched_park_type_idx := get_or_create_type(&env, []Wasm_Value_Type{}, []Wasm_Value_Type{})
+	sched_worker_loop_type_idx := get_or_create_type(&env, []Wasm_Value_Type{.I32}, []Wasm_Value_Type{})
+
+	sched_init_func_idx := add_function(&env, sched_init_type_idx)
+	runtime_func_indices[RUNTIME_SCHED_INIT] = sched_init_func_idx
+	sched_spawn_func_idx := add_function(&env, sched_spawn_type_idx)
+	runtime_func_indices[RUNTIME_SCHED_SPAWN] = sched_spawn_func_idx
+	sched_join_func_idx := add_function(&env, sched_join_type_idx)
+	runtime_func_indices[RUNTIME_SCHED_JOIN] = sched_join_func_idx
+	sched_cancel_func_idx := add_function(&env, sched_cancel_type_idx)
+	runtime_func_indices[RUNTIME_SCHED_CANCEL] = sched_cancel_func_idx
+	sched_complete_func_idx := add_function(&env, sched_complete_type_idx)
+	runtime_func_indices[RUNTIME_SCHED_COMPLETE] = sched_complete_func_idx
+	sched_yield_func_idx := add_function(&env, sched_yield_type_idx)
+	runtime_func_indices[RUNTIME_SCHED_YIELD] = sched_yield_func_idx
+	sched_block_io_func_idx := add_function(&env, sched_block_io_type_idx)
+	runtime_func_indices[RUNTIME_SCHED_BLOCK_IO] = sched_block_io_func_idx
+	sched_timer_insert_func_idx := add_function(&env, sched_timer_insert_type_idx)
+	runtime_func_indices[RUNTIME_SCHED_TIMER_INSERT] = sched_timer_insert_func_idx
+	sched_timer_cancel_func_idx := add_function(&env, sched_timer_cancel_type_idx)
+	runtime_func_indices[RUNTIME_SCHED_TIMER_CANCEL] = sched_timer_cancel_func_idx
+	sched_notify_func_idx := add_function(&env, sched_notify_type_idx)
+	runtime_func_indices[RUNTIME_SCHED_NOTIFY] = sched_notify_func_idx
+	sched_park_func_idx := add_function(&env, sched_park_type_idx)
+	runtime_func_indices[RUNTIME_SCHED_PARK] = sched_park_func_idx
+	sched_worker_loop_func_idx := add_function(&env, sched_worker_loop_type_idx)
+	runtime_func_indices[RUNTIME_SCHED_WORKER_LOOP] = sched_worker_loop_func_idx
+
 	camp_alloc_code := emit_camp_alloc_body(heap_ptr_global_idx)
 	append(&mod.codes, camp_alloc_code)
 
@@ -191,6 +235,20 @@ codegen :: proc(ir_mod: IR_Module, ctx: ^Compilation_Context) -> Wasm_Module {
 
 	camp_exit_code := emit_camp_exit_body()
 	append(&mod.codes, camp_exit_code)
+
+	// Scheduler runtime function bodies
+	append(&mod.codes, emit_camp_sched_init_body())
+	append(&mod.codes, emit_camp_sched_spawn_body())
+	append(&mod.codes, emit_camp_sched_join_body())
+	append(&mod.codes, emit_camp_sched_cancel_body())
+	append(&mod.codes, emit_camp_sched_complete_body())
+	append(&mod.codes, emit_camp_sched_yield_body())
+	append(&mod.codes, emit_camp_sched_block_io_body())
+	append(&mod.codes, emit_camp_sched_timer_insert_body())
+	append(&mod.codes, emit_camp_sched_timer_cancel_body())
+	append(&mod.codes, emit_camp_sched_notify_body())
+	append(&mod.codes, emit_camp_sched_park_body())
+	append(&mod.codes, emit_camp_sched_worker_loop_body())
 
 	main_fn_idx := -1
 	main_decl: ^IR_Decl_Fn = nil
@@ -416,6 +474,33 @@ codegen :: proc(ir_mod: IR_Module, ctx: ^Compilation_Context) -> Wasm_Module {
 			emit_instruction(Wasm_I32_And{}, &code_buf)
 		}
 
+		// If main is effectful, initialize scheduler before running main body
+		// and enter worker loop after
+		if main_decl.is_effectful {
+			// Prepend scheduler init: camp_sched_init(thread_count)
+			pre_buf: [dynamic]u8
+			pre_buf = make([dynamic]u8, 0, 32)
+			emit_instruction(Wasm_I32_Const{value = i32(ctx.thread_count)}, &pre_buf)
+			emit_instruction(Wasm_Call{index = u32(runtime_func_indices[RUNTIME_SCHED_INIT])}, &pre_buf)
+
+			// Append worker loop entry: camp_sched_worker_loop(0)
+			post_buf: [dynamic]u8
+			post_buf = make([dynamic]u8, 0, 16)
+			emit_instruction(Wasm_I32_Const{value = 0}, &post_buf)
+			emit_instruction(Wasm_Call{index = u32(runtime_func_indices[RUNTIME_SCHED_WORKER_LOOP])}, &post_buf)
+
+			// Combine: pre + original body + post
+			combined: [dynamic]u8
+			combined = make([dynamic]u8, 0, len(pre_buf) + len(code_buf) + len(post_buf))
+			for b in pre_buf { append(&combined, b) }
+			for b in code_buf { append(&combined, b) }
+			for b in post_buf { append(&combined, b) }
+			delete(code_buf)
+			code_buf = combined
+			delete(pre_buf)
+			delete(post_buf)
+		}
+
 		emit_instruction(Wasm_Call{index = 0}, &code_buf)
 		emit_instruction(Wasm_End{}, &code_buf)
 
@@ -430,6 +515,25 @@ codegen :: proc(ir_mod: IR_Module, ctx: ^Compilation_Context) -> Wasm_Module {
 		delete(env.local_map)
 
 		append(&mod.exports, Wasm_Export{name = "_start", kind = .Func, index = start_func_idx})
+
+		// When threads > 1, also export camp_worker_entry for host-spawned workers
+		if ctx.thread_count > 1 {
+			// camp_worker_entry takes worker_id (i32) and calls camp_sched_worker_loop
+			worker_entry_type_idx := get_or_create_type(&env, []Wasm_Value_Type{.I32}, []Wasm_Value_Type{})
+			worker_entry_func_idx := add_function(&env, worker_entry_type_idx)
+
+			worker_buf: [dynamic]u8
+			worker_buf = make([dynamic]u8, 0, 64)
+			emit_instruction(Wasm_Local_Get{index = 0}, &worker_buf)
+			emit_instruction(Wasm_Call{index = u32(runtime_func_indices[RUNTIME_SCHED_WORKER_LOOP])}, &worker_buf)
+			emit_instruction(Wasm_End{}, &worker_buf)
+
+			worker_locals := make([]Wasm_Local_Decl, 0)
+			append(&mod.codes, Wasm_Code{locals = worker_locals, body = copy_dynamic_bytes(worker_buf)})
+			delete(worker_buf)
+
+			append(&mod.exports, Wasm_Export{name = "camp_worker_entry", kind = .Func, index = worker_entry_func_idx})
+		}
 	}
 
 	env.data_offset = 0
@@ -566,6 +670,18 @@ RUNTIME_DUP :: 1
 RUNTIME_DROP :: 2
 RUNTIME_PRINT_STR :: 3
 RUNTIME_EXIT :: 4
+RUNTIME_SCHED_INIT :: 5
+RUNTIME_SCHED_SPAWN :: 6
+RUNTIME_SCHED_JOIN :: 7
+RUNTIME_SCHED_CANCEL :: 8
+RUNTIME_SCHED_COMPLETE :: 9
+RUNTIME_SCHED_YIELD :: 10
+RUNTIME_SCHED_BLOCK_IO :: 11
+RUNTIME_SCHED_TIMER_INSERT :: 12
+RUNTIME_SCHED_TIMER_CANCEL :: 13
+RUNTIME_SCHED_NOTIFY :: 14
+RUNTIME_SCHED_PARK :: 15
+RUNTIME_SCHED_WORKER_LOOP :: 16
 
 extract_effectful_body :: proc(expr: IR_Expr) -> IR_Expr {
 	#partial switch e in expr {
