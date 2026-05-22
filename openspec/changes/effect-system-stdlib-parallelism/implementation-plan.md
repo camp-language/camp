@@ -2,7 +2,7 @@
 
 **Branch**: `smores/effect-system-stdlib-parallelism`
 **Worktree**: `/home/smores/code/github.com/camp-language/camp.effect-system-stdlib-parallelism/`
-**Status**: Groups 1-6 complete (27/134 tasks). Groups 7-19 remain.
+**Status**: Groups 1-19 complete. All compiler-side infrastructure implemented.
 
 ## Pipeline Order (for reference)
 
