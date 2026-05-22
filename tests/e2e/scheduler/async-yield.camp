@@ -1,0 +1,8 @@
+main! = || ->{Async!} I64 {
+  handle Async! in {
+    Async!.yield!()
+    42
+  } with {
+    .yield!(resume) => resume(0)
+  }
+}

@@ -1,0 +1,7 @@
+stdout = """
+canonicalized /tmp/camp-e2e/scheduler/handle-type-annotation/handle-type-annotation.camp: 1 declaration(s), 0 import(s)
+typecheck passed for /tmp/camp-e2e/scheduler/handle-type-annotation/handle-type-annotation.camp
+compiled /tmp/camp-e2e/scheduler/handle-type-annotation/handle-type-annotation.camp -> /tmp/camp-e2e/scheduler/handle-type-annotation/handle-type-annotation.wasm
+"""
+stderr = ""
+exit = 0

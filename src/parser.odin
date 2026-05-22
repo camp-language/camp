@@ -341,6 +341,13 @@ parser_parse_prefix :: proc(p: ^Parser) -> Expr {
 parser_parse_tag_or_call :: proc(p: ^Parser) -> Expr {
 	start := p.current.span
 	name_tok := parser_advance(p)
+
+	// Effect names may include ! (e.g., Spawn!, Parallel!, Async!)
+	if p.current.kind == .Bang {
+		name_tok.text = strings.concatenate({name_tok.text, "!"}, context.allocator)
+		parser_advance(p)
+	}
+
 	name_id := intern(p.intern, name_tok.text)
 
 	tag := new(Expr_Tag)
@@ -803,7 +810,13 @@ parser_parse_handle :: proc(p: ^Parser) -> Expr {
 	parser_advance(p)
 
 	effect_tok := parser_expect(p, .Upper_Id)
-	effect_id := intern(p.intern, effect_tok.text)
+	effect_name := effect_tok.text
+	// Effect names may include ! (e.g., Spawn!, Parallel!, Async!)
+	if p.current.kind == .Bang {
+		effect_name = strings.concatenate({effect_name, "!"}, context.allocator)
+		parser_advance(p)
+	}
+	effect_id := intern(p.intern, effect_name)
 
 	parser_expect(p, .Kw_In)
 	body := parser_parse_expr(p)
@@ -1184,7 +1197,13 @@ parser_parse_effect_row_type :: proc(p: ^Parser) -> ^Type {
 		}
 
 		name_tok := parser_expect(p, .Upper_Id)
-		name_id := intern(p.intern, name_tok.text)
+		effect_name := name_tok.text
+		// Effect names may include ! (e.g., Spawn!, Parallel!, Async!)
+		if p.current.kind == .Bang {
+			effect_name = strings.concatenate({effect_name, "!"}, context.allocator)
+			parser_advance(p)
+		}
+		name_id := intern(p.intern, effect_name)
 		append(&effects, name_id)
 
 		if p.current.kind == .Comma {

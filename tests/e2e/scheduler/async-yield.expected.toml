@@ -1,0 +1,7 @@
+stdout = """
+canonicalized /tmp/camp-e2e/scheduler/async-yield/async-yield.camp: 1 declaration(s), 0 import(s)
+typecheck passed for /tmp/camp-e2e/scheduler/async-yield/async-yield.camp
+compiled /tmp/camp-e2e/scheduler/async-yield/async-yield.camp -> /tmp/camp-e2e/scheduler/async-yield/async-yield.wasm
+"""
+stderr = ""
+exit = 0
