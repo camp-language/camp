@@ -144,6 +144,26 @@ extract_effects :: proc(store: ^Type_Store, effect_row_var: Type_Var_ID, effect_
 	return effects
 }
 
+extract_effects_from_fn_binding :: proc(store: ^Type_Store, fn_name: Canonical_Name, effect_defs: []IR_Effect_Def) -> [dynamic]Canonical_Name {
+	if fn_name.module != NO_NAME {
+		return make([dynamic]Canonical_Name, 0)
+	}
+	binding_var, ok := store.bindings[fn_name.name]
+	if !ok {
+		return make([dynamic]Canonical_Name, 0)
+	}
+	resolved := resolve_var(store, binding_var)
+	v := get_var(store, resolved)
+	inf, is_inf := v.link.(Inferred_Type)
+	tag_str := "none"
+	if is_inf { tag_str = fmt.tprintf("%v", inf.tag) }
+	if !is_inf || inf.tag != .Function {
+		return make([dynamic]Canonical_Name, 0)
+	}
+	result := extract_effects(store, inf.effect_id, effect_defs)
+	return result
+}
+
 collect_effects_from_row :: proc(store: ^Type_Store, effect_var: Type_Var_ID, effect_defs: []IR_Effect_Def, result: ^[dynamic]Canonical_Name) {
 	resolved := resolve_var(store, effect_var)
 	v := get_var(store, resolved)
@@ -522,7 +542,7 @@ lower_tdecl_const :: proc(d: ^TDecl_Const, env: ^Lower_Env) -> IR_Decl {
 			params = make([dynamic]IR_Param, 0, 4),
 			return_type = ir_type,
 			effect_row = d.eff_,
-			effects = extract_effects(env.store, d.eff_.type_id, env.module.effect_defs[:]),
+			effects = extract_effects_from_fn_binding(env.store, d.name, env.module.effect_defs[:]),
 			body = body,
 			span = d.span,
 		}
@@ -547,6 +567,12 @@ lower_tlambda_as_decl :: proc(e: ^TExpr_Lambda, name: Canonical_Name, is_effectf
 
 	body := lower_texpr(e.body, env)
 
+	// Extract effects from the typechecker's resolved function type,
+	// not from the annotation's fresh (unlinked) effect row variable.
+	// The annotation creates fresh variables that are never connected
+	// to the typechecker's results, so e.effects.type_id is Unlinked.
+	effects := extract_effects_from_fn_binding(env.store, name, env.module.effect_defs[:])
+
 	fn_decl := new(IR_Decl_Fn)
 	fn_decl^ = IR_Decl_Fn{
 		name = name,
@@ -554,7 +580,7 @@ lower_tlambda_as_decl :: proc(e: ^TExpr_Lambda, name: Canonical_Name, is_effectf
 		params = params,
 		return_type = e.return_type,
 		effect_row = e.effects,
-		effects = extract_effects(env.store, e.effects.type_id, env.module.effect_defs[:]),
+		effects = effects,
 		body = body,
 		span = span,
 	}
@@ -671,6 +697,50 @@ lower_tcall :: proc(e: ^TExpr_Call, env: ^Lower_Env) -> IR_Expr {
 
 lower_tmethod_call :: proc(e: ^TExpr_Method_Call, env: ^Lower_Env) -> IR_Expr {
 	receiver_ir := lower_texpr(e.receiver, env)
+
+	// Check if this is an effect operation call
+	receiver_effect_name: Intern_ID = NO_NAME
+	receiver_effect_canonical: Canonical_Name
+	#partial switch r in e.receiver {
+	case ^TExpr_Name:
+		receiver_effect_name = r.name.name
+		receiver_effect_canonical = r.name
+	case ^TExpr_Tag:
+		receiver_effect_name = r.name.name
+		receiver_effect_canonical = r.name
+	case:
+	}
+
+	if receiver_effect_name != NO_NAME && is_declared_effect(env.store, receiver_effect_name) {
+		ir_args := make([dynamic]IR_Expr, 0, len(e.args))
+		for arg in e.args {
+			append(&ir_args, lower_texpr(arg, env))
+		}
+		// Look up the effect operation's return type for proper wasm_type resolution
+		perf_type := e.type_
+		for &eff_def in env.module.effect_defs {
+			if eff_def.name == receiver_effect_canonical {
+				for op_def in eff_def.operations {
+					if op_def.name == e.method.name {
+						resolved_type := lower_type(env.store, op_def.return_type.type_id)
+						perf_type = resolved_type
+						break
+					}
+				}
+				break
+			}
+		}
+		perf := new(IR_Perform)
+		perf^ = IR_Perform{
+			effect = receiver_effect_canonical,
+			op = e.method.name,
+			args = ir_args,
+			type = perf_type,
+			span = e.span,
+		}
+		return IR_Expr(perf)
+	}
+
 	ir_args := make([dynamic]IR_Expr, 0, len(e.args) + 1)
 	append(&ir_args, receiver_ir)
 	for arg in e.args {

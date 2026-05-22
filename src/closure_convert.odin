@@ -247,6 +247,33 @@ cc_convert_decl :: proc(decl: IR_Decl, env: ^Closure_Convert_Env) -> IR_Decl {
 cc_convert_expr :: proc(expr: IR_Expr, env: ^Closure_Convert_Env) -> IR_Expr {
 	#partial switch e in expr {
 	case ^IR_Closure:
+		// If fn_name is set and body is nil, this is a reference closure
+		// pointing to an already-created IR_Decl_Fn (e.g., from effect_lower)
+		if e.body == nil && e.fn_name.name != NO_NAME {
+			// Use IR_Var referencing the function by name — codegen resolves via func_map
+			fields := make([dynamic]IR_Record_Field, 0, 2)
+			fn_idx_id := intern(env.interner, "fn_idx")
+			fn_idx_var := new(IR_Var)
+			fn_idx_var^ = IR_Var{name = e.fn_name.name, type = IR_Type{.I32, Type_Var_ID(0)}, span = e.span}
+			append(&fields, IR_Record_Field{name = fn_idx_id, value = IR_Expr(fn_idx_var)})
+
+			// Add env as a field
+			env_id := intern(env.interner, "env")
+			append(&fields, IR_Record_Field{name = env_id, value = e.env})
+
+			rest_nil := new(IR_Literal_Int)
+			rest_nil^ = IR_Literal_Int{value = 0, type = IR_Type{.I32, Type_Var_ID(0)}, span = e.span}
+
+			rec := new(IR_Construct_Record)
+			rec^ = IR_Construct_Record{
+				fields = fields,
+				rest = IR_Expr(rest_nil),
+				type = IR_Type{.I32, Type_Var_ID(0)},
+				span = e.span,
+			}
+			return IR_Expr(rec)
+		}
+
 		env_param_name := cc_fresh(env, "_cenv")
 
 		bound: map[Intern_ID]bool
@@ -292,14 +319,13 @@ cc_convert_expr :: proc(expr: IR_Expr, env: ^Closure_Convert_Env) -> IR_Expr {
 			span = e.span,
 		}
 		append(&env.module.decls, IR_Decl(closed_fn))
-		fn_idx_val := len(env.module.decls) - 1
 
-		fn_idx_lit := new(IR_Literal_Int)
-		fn_idx_lit^ = IR_Literal_Int{value = i64(fn_idx_val), type = IR_Type{.I32, Type_Var_ID(0)}, span = e.span}
+		fn_idx_var := new(IR_Var)
+		fn_idx_var^ = IR_Var{name = closed_fn_name.name, type = IR_Type{.I32, Type_Var_ID(0)}, span = e.span}
 
 		fields := make([dynamic]IR_Record_Field, 0, len(free) + 1)
 		fn_idx_id := intern(env.interner, "fn_idx")
-		append(&fields, IR_Record_Field{name = fn_idx_id, value = IR_Expr(fn_idx_lit)})
+		append(&fields, IR_Record_Field{name = fn_idx_id, value = IR_Expr(fn_idx_var)})
 
 		for fv in free {
 			fv_var := new(IR_Var)

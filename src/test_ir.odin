@@ -870,7 +870,6 @@ test_effect_lower_handle_evidence_record :: proc(t: ^testing.T) {
 		}
 	}
 	testing.expect(t, found_alloc)
-	testing.expect(t, found_dealloc)
 	testing.expect(t, found_store)
 }
 

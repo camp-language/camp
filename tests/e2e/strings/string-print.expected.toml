@@ -4,7 +4,7 @@ canonicalized /tmp/camp-e2e/strings/string-print/string-print.camp: 2 declaratio
 
 This expression performs effect `IO`, but there is no `handle` block around it.
    2 | main! = || -> -[IO]-> I64 { IO.println("hello") 0 }
-                                   ^^^^^^^
+                                      ^^^^^^^
   Try wrapping it with a `handle` block.
 compilation failed with 1 error(s)
 """

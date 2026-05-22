@@ -26,6 +26,7 @@ CAMP_TAG_FIELDS_OFFSET :: 8
 	tmp_count:     u32,
 	table_idx:     int,
 	func_type_indices: [dynamic]u32,
+	decl_to_wasm_fn_idx: map[int]int,
 }
 
 hash_func_type :: proc(params: []Wasm_Value_Type, results: []Wasm_Value_Type) -> int {
@@ -205,7 +206,8 @@ codegen :: proc(ir_mod: IR_Module, ctx: ^Compilation_Context) -> Wasm_Module {
 
 	main_fn_idx := -1
 	main_decl: ^IR_Decl_Fn = nil
-	for decl in ir_mod.decls {
+	env.decl_to_wasm_fn_idx = make(map[int]int, len(ir_mod.decls))
+	for decl, decl_idx in ir_mod.decls {
 		#partial switch d in decl {
 		case ^IR_Decl_Fn:
 			name_str := intern_get(&ctx.interner, d.name.name)
@@ -227,6 +229,7 @@ codegen :: proc(ir_mod: IR_Module, ctx: ^Compilation_Context) -> Wasm_Module {
 				env.func_map[hash_string(mangled)] = func_idx
 			}
 			env.func_map[int(d.name.name)] = func_idx
+			env.decl_to_wasm_fn_idx[decl_idx] = func_idx
 
 			for len(env.func_type_indices) <= func_idx {
 				append(&env.func_type_indices, 0)
@@ -239,6 +242,19 @@ codegen :: proc(ir_mod: IR_Module, ctx: ^Compilation_Context) -> Wasm_Module {
 			}
 		case:
 		}
+	}
+
+	cont_func_idx := -1
+	main_ret_type := get_main_return_type(ir_mod, &ctx.interner)
+	if main_fn_idx >= 0 && main_decl != nil && main_decl.is_effectful && len(main_decl.effects) > 0 {
+		cont_ret_types := []Wasm_Value_Type{ir_wasm_type_to_value_type(main_ret_type)}
+		cont_type_idx := get_or_create_type(&env, []Wasm_Value_Type{.I32, .I64}, cont_ret_types)
+		cont_func_idx = add_function(&env, cont_type_idx)
+
+		for len(env.func_type_indices) <= cont_func_idx {
+			append(&env.func_type_indices, 0)
+		}
+		env.func_type_indices[cont_func_idx] = u32(cont_type_idx)
 	}
 
 	start_func_idx := -1
@@ -408,38 +424,152 @@ codegen :: proc(ir_mod: IR_Module, ctx: ^Compilation_Context) -> Wasm_Module {
 		code_buf: [dynamic]u8
 		code_buf = make([dynamic]u8, 0, 256)
 
-		main_body := extract_effectful_body(main_decl.body)
+		if main_decl.is_effectful && len(main_decl.effects) > 0 {
+			// Effectful main: _start allocates evidence records, calls main!, exits
 
-		collected_locals: map[Intern_ID]IR_Type
-		collected_locals = make(map[Intern_ID]IR_Type, 32)
-		collect_locals(main_body, &collected_locals)
-		env.local_map = make(map[Intern_ID]u32, 32)
-		for name, typ in collected_locals {
-			env.local_map[name] = env.next_local
+			// Emit top-level continuation function body for CPS-transformed main!
+			// The continuation takes (env: i32, result: i64) and calls camp_exit(result & 127)
+			cont_body_buf: [dynamic]u8
+			cont_body_buf = make([dynamic]u8, 0, 32)
+			emit_instruction(Wasm_Local_Get{index = 1}, &cont_body_buf)  // result (i64)
+			emit_instruction(Wasm_I32_Wrap_I64{}, &cont_body_buf)         // to i32
+			emit_instruction(Wasm_I32_Const{value = 127}, &cont_body_buf)
+			emit_instruction(Wasm_I32_And{}, &cont_body_buf)              // result & 127
+			emit_instruction(Wasm_Call{index = u32(runtime_func_indices[RUNTIME_EXIT])}, &cont_body_buf)
+			emit_instruction(Wasm_Unreachable{}, &cont_body_buf)          // camp_exit doesn't return
+			emit_instruction(Wasm_End{}, &cont_body_buf)
+
+			cont_locals := make([]Wasm_Local_Decl, 0)
+			append(&mod.codes, Wasm_Code{locals = cont_locals, body = copy_dynamic_bytes(cont_body_buf)})
+			delete(cont_body_buf)
+
+			ev_param_count := len(main_decl.effects)
+
+			// Allocate evidence records and store in locals
+			for i in 0..<ev_param_count {
+				ev_local_idx := env.next_local
+				env.next_local += 1
+
+				// Determine evidence record size from effect definition
+				eff := main_decl.effects[i]
+				num_ops := 0
+				for eff_def in ir_mod.effect_defs {
+					if eff_def.name == eff {
+						num_ops = len(eff_def.operations)
+						break
+					}
+				}
+
+				ev_record_size := num_ops * 4
+				if ev_record_size == 0 {
+					ev_record_size = 4
+				}
+
+				// Emit: ev_local = camp_alloc(ev_record_size)
+				emit_instruction(Wasm_I32_Const{value = i32(ev_record_size)}, &code_buf)
+				emit_instruction(Wasm_Call{index = u32(runtime_func_indices[RUNTIME_ALLOC])}, &code_buf)
+				emit_instruction(Wasm_Local_Set{index = ev_local_idx}, &code_buf)
+
+				// Push evidence pointer for the call to main!
+				emit_instruction(Wasm_Local_Get{index = ev_local_idx}, &code_buf)
+			}
+
+			// Call main! with evidence pointers as arguments
+			main_fn_idx, ok := env.func_map[int(main_decl.name.name)]
+			if !ok {
+				mangled := mangle_name(main_decl.name.module, main_decl.name.name, env.interner)
+				main_fn_idx = env.func_map[hash_string(mangled)]
+			}
+
+			// Allocate closure record for top-level continuation
+			closure_local := env.next_local
 			env.next_local += 1
+			emit_instruction(Wasm_I32_Const{value = 24}, &code_buf)      // size = CAMP_TAG_HEADER_SIZE(8) + 2*8
+			emit_instruction(Wasm_Call{index = u32(runtime_func_indices[RUNTIME_ALLOC])}, &code_buf)
+			emit_instruction(Wasm_Local_Set{index = closure_local}, &code_buf)
+
+			// Set refcount = 1
+			emit_instruction(Wasm_Local_Get{index = closure_local}, &code_buf)
+			emit_instruction(Wasm_I32_Const{value = 1}, &code_buf)
+			emit_instruction(Wasm_I32_Store{align = 2, offset = CAMP_TAG_REFCOUNT_OFFSET}, &code_buf)
+
+			// Set tag = closure tag (0xFE)
+			emit_instruction(Wasm_Local_Get{index = closure_local}, &code_buf)
+			emit_instruction(Wasm_I32_Const{value = 0xFE}, &code_buf)
+			emit_instruction(Wasm_I32_Store8{offset = CAMP_TAG_TAG_OFFSET}, &code_buf)
+
+			// Set scan_size = 2 fields
+			emit_instruction(Wasm_Local_Get{index = closure_local}, &code_buf)
+			emit_instruction(Wasm_I32_Const{value = 2}, &code_buf)
+			emit_instruction(Wasm_I32_Store8{offset = CAMP_TAG_SCAN_SIZE_OFFSET}, &code_buf)
+
+			// Store function index = continuation function
+			emit_instruction(Wasm_Local_Get{index = closure_local}, &code_buf)
+			emit_instruction(Wasm_I32_Const{value = i32(CAMP_TAG_FIELDS_OFFSET)}, &code_buf)
+			emit_instruction(Wasm_I32_Add{}, &code_buf)
+			emit_instruction(Wasm_I32_Const{value = i32(cont_func_idx)}, &code_buf)
+			emit_instruction(Wasm_I32_Store{align = 2, offset = 0}, &code_buf)
+
+			// Store env = null
+			emit_instruction(Wasm_Local_Get{index = closure_local}, &code_buf)
+			emit_instruction(Wasm_I32_Const{value = i32(CAMP_TAG_FIELDS_OFFSET + 8)}, &code_buf)
+			emit_instruction(Wasm_I32_Add{}, &code_buf)
+			emit_instruction(Wasm_I32_Const{value = 0}, &code_buf)
+			emit_instruction(Wasm_I32_Store{align = 2, offset = 0}, &code_buf)
+
+			// Push closure pointer as continuation argument
+			emit_instruction(Wasm_Local_Get{index = closure_local}, &code_buf)
+
+			emit_instruction(Wasm_Call{index = u32(main_fn_idx)}, &code_buf)
+
+			// CPS-transformed main! tail-calls the continuation — it never returns here
+			emit_instruction(Wasm_Unreachable{}, &code_buf)
+			emit_instruction(Wasm_End{}, &code_buf)
+
+			start_locals := make([dynamic]Wasm_Local_Decl, 0, 8)
+			append(&start_locals, Wasm_Local_Decl{count = 4, type = .I32})
+			if ev_param_count > 0 {
+				append(&start_locals, Wasm_Local_Decl{count = u32(ev_param_count), type = .I32})
+			}
+			append(&start_locals, Wasm_Local_Decl{count = 1, type = .I32})
+			append(&mod.codes, Wasm_Code{locals = start_locals[:], body = copy_dynamic_bytes(code_buf)})
+		} else {
+			// Non-effectful main: inline the body
+			main_body := extract_effectful_body(main_decl.body)
+
+			env.local_map = make(map[Intern_ID]u32, 32)
+
+			collected_locals: map[Intern_ID]IR_Type
+			collected_locals = make(map[Intern_ID]IR_Type, 32)
+			collect_locals(main_body, &collected_locals)
+			for name, typ in collected_locals {
+				env.local_map[name] = env.next_local
+				env.next_local += 1
+			}
+
+			emit_expr(main_body, &code_buf, &env, runtime_func_indices[:])
+
+			main_ret_type := get_main_return_type(ir_mod, &ctx.interner)
+			if main_ret_type == .I64 {
+				emit_instruction(Wasm_I32_Wrap_I64{}, &code_buf)
+				emit_instruction(Wasm_I32_Const{value = 127}, &code_buf)
+				emit_instruction(Wasm_I32_And{}, &code_buf)
+			}
+
+			emit_instruction(Wasm_Call{index = 0}, &code_buf)
+			emit_instruction(Wasm_End{}, &code_buf)
+
+			start_locals := make([dynamic]Wasm_Local_Decl, 0, 8)
+			append(&start_locals, Wasm_Local_Decl{count = 4, type = .I32})
+			for _, typ in collected_locals {
+				append(&start_locals, Wasm_Local_Decl{count = 1, type = ir_wasm_type_to_value_type(typ.wasm_type)})
+			}
+			append(&mod.codes, Wasm_Code{locals = start_locals[:], body = copy_dynamic_bytes(code_buf)})
+			delete(collected_locals)
+			delete(env.local_map)
 		}
 
-		emit_expr(main_body, &code_buf, &env, runtime_func_indices[:])
-
-		main_ret_type := get_main_return_type(ir_mod, &ctx.interner)
-		if main_ret_type == .I64 {
-			emit_instruction(Wasm_I32_Wrap_I64{}, &code_buf)
-			emit_instruction(Wasm_I32_Const{value = 127}, &code_buf)
-			emit_instruction(Wasm_I32_And{}, &code_buf)
-		}
-
-		emit_instruction(Wasm_Call{index = 0}, &code_buf)
-		emit_instruction(Wasm_End{}, &code_buf)
-
-		start_locals := make([dynamic]Wasm_Local_Decl, 0, 8)
-		append(&start_locals, Wasm_Local_Decl{count = 4, type = .I32})
-		for _, typ in collected_locals {
-			append(&start_locals, Wasm_Local_Decl{count = 1, type = ir_wasm_type_to_value_type(typ.wasm_type)})
-		}
-		append(&mod.codes, Wasm_Code{locals = start_locals[:], body = copy_dynamic_bytes(code_buf)})
-		delete(collected_locals)
 		delete(code_buf)
-		delete(env.local_map)
 
 		append(&mod.exports, Wasm_Export{name = "_start", kind = .Func, index = start_func_idx})
 	}
@@ -466,6 +596,7 @@ codegen :: proc(ir_mod: IR_Module, ctx: ^Compilation_Context) -> Wasm_Module {
 	delete(env.type_map)
 	delete(env.func_map)
 	delete(env.func_type_indices)
+	delete(env.decl_to_wasm_fn_idx)
 	return mod
 }
 
@@ -488,7 +619,9 @@ collect_locals :: proc(expr: IR_Expr, locals: ^map[Intern_ID]IR_Type) {
 
 	#partial switch e in expr {
 	case ^IR_Let:
-		locals^[e.binding] = e.type
+		if e.type.wasm_type != .Void {
+			locals^[e.binding] = e.type
+		}
 		collect_locals(e.value, locals)
 		collect_locals(e.body, locals)
 	case ^IR_Call:
@@ -592,7 +725,11 @@ emit_expr :: proc(expr: IR_Expr, buf: ^[dynamic]u8, env: ^Codegen_Env, runtime_i
 
 	#partial switch e in expr {
 	case ^IR_Literal_Int:
-		emit_instruction(Wasm_I64_Const{value = e.value}, buf)
+		if e.type.wasm_type == .I32 {
+			emit_instruction(Wasm_I32_Const{value = i32(e.value)}, buf)
+		} else {
+			emit_instruction(Wasm_I64_Const{value = e.value}, buf)
+		}
 	case ^IR_Literal_Float:
 		emit_instruction(Wasm_F64_Const{value = e.value}, buf)
 	case ^IR_Literal_Bool:
@@ -607,12 +744,16 @@ emit_expr :: proc(expr: IR_Expr, buf: ^[dynamic]u8, env: ^Codegen_Env, runtime_i
 	case ^IR_Var:
 		if idx, ok := env.local_map[e.name]; ok {
 			emit_instruction(Wasm_Local_Get{index = idx}, buf)
+		} else if idx, ok := env.func_map[int(e.name)]; ok {
+			emit_instruction(Wasm_I32_Const{value = i32(idx)}, buf)
 		} else {
 			emit_instruction(Wasm_I64_Const{value = 0}, buf)
 		}
 	case ^IR_Let:
 		emit_expr(e.value, buf, env, runtime_indices)
-		if idx, ok := env.local_map[e.binding]; ok {
+		if e.type.wasm_type == .Void {
+			// Void-typed let: value is for side effects only, no binding
+		} else if idx, ok := env.local_map[e.binding]; ok {
 			emit_instruction(Wasm_Local_Set{index = idx}, buf)
 		} else {
 			emit_instruction(Wasm_Drop{}, buf)
@@ -635,21 +776,83 @@ emit_expr :: proc(expr: IR_Expr, buf: ^[dynamic]u8, env: ^Codegen_Env, runtime_i
 		}
 		emit_instruction(Wasm_Call{index = u32(call_idx)}, buf)
 	case ^IR_Tail_Call:
-		for arg in e.args {
-			emit_expr(arg, buf, env, runtime_indices)
-		}
-		tail_idx: int = 0
-		if e.callee.module != NO_NAME {
-			mangled := mangle_name(e.callee.module, e.callee.name, env.interner)
-			if idx, ok := env.func_map[hash_string(mangled)]; ok {
-				tail_idx = idx
+		// Check if callee is a local variable (closure pointer) or a named function
+		if local_idx, ok := env.local_map[e.callee.name]; ok {
+			// Callee is a closure pointer in a local variable — use call_indirect
+			emit_instruction(Wasm_Local_Get{index = local_idx}, buf)
+
+			callee_local := env.tmp_local_base + 2
+			emit_instruction(Wasm_Local_Set{index = callee_local}, buf)
+
+			// Load env from closure record
+			emit_instruction(Wasm_Local_Get{index = callee_local}, buf)
+			emit_instruction(Wasm_I32_Load{align = 2, offset = u32(CAMP_TAG_FIELDS_OFFSET + 8)}, buf)
+
+			// Emit arguments after env
+			for arg in e.args {
+				emit_expr(arg, buf, env, runtime_indices)
+			}
+
+			// Load function index from closure record
+			emit_instruction(Wasm_Local_Get{index = callee_local}, buf)
+			emit_instruction(Wasm_I32_Load{align = 2, offset = u32(CAMP_TAG_FIELDS_OFFSET)}, buf)
+
+			// Build closure call type: (env i32, args...) -> (result)
+			// For tail calls to closures, the result type comes from the
+			// continuation's return type, not from IR_Tail_Call (which is Void).
+			// Infer it from the argument types: the continuation takes (env, result)
+			// and returns the result type.
+			closure_params := make([]Wasm_Value_Type, 1 + len(e.args))
+			closure_params[0] = .I32
+			for idx := 0; idx < len(e.args); idx += 1 {
+				closure_params[idx + 1] = ir_wasm_type_to_value_type(ir_expr_wasm_type(e.args[idx]))
+			}
+			// The continuation returns the same type as its result parameter
+			has_return := false
+			return_value_type := Wasm_Value_Type(.I32)
+			if len(e.args) > 0 {
+				last_arg_type := ir_expr_wasm_type(e.args[len(e.args) - 1])
+				if last_arg_type != .Void {
+					has_return = true
+					return_value_type = ir_wasm_type_to_value_type(last_arg_type)
+				}
+			}
+			closure_results: []Wasm_Value_Type
+			if has_return {
+				closure_results = make([]Wasm_Value_Type, 1)
+				closure_results[0] = return_value_type
+			}
+			closure_type_idx := get_or_create_type(env, closure_params, closure_results)
+			delete(closure_params)
+			if len(closure_results) > 0 {
+				delete(closure_results)
+			}
+
+			emit_instruction(Wasm_Call_Indirect{type_idx = u32(closure_type_idx), table_idx = u32(env.table_idx)}, buf)
+
+			// IR_Tail_Call is in a void-returning context (effectful function),
+			// but call_indirect may return a value — drop it
+			if has_return {
+				emit_instruction(Wasm_Drop{}, buf)
+			}
+		} else {
+			// Callee is a named function — use return_call
+			for arg in e.args {
+				emit_expr(arg, buf, env, runtime_indices)
+			}
+			tail_idx: int = 0
+			if e.callee.module != NO_NAME {
+				mangled := mangle_name(e.callee.module, e.callee.name, env.interner)
+				if idx, ok := env.func_map[hash_string(mangled)]; ok {
+					tail_idx = idx
+				} else if idx, ok := env.func_map[int(e.callee.name)]; ok {
+					tail_idx = idx
+				}
 			} else if idx, ok := env.func_map[int(e.callee.name)]; ok {
 				tail_idx = idx
 			}
-		} else if idx, ok := env.func_map[int(e.callee.name)]; ok {
-			tail_idx = idx
+			emit_instruction(Wasm_Return_Call{index = u32(tail_idx)}, buf)
 		}
-		emit_instruction(Wasm_Return_Call{index = u32(tail_idx)}, buf)
 	case ^IR_If:
 		emit_expr(e.condition, buf, env, runtime_indices)
 		block_type := ir_wasm_type_to_block_type(e.type.wasm_type)
@@ -798,10 +1001,23 @@ emit_expr :: proc(expr: IR_Expr, buf: ^[dynamic]u8, env: ^Codegen_Env, runtime_i
 		emit_instruction(Wasm_I32_Const{value = i32(num_fields)}, buf)
 		emit_instruction(Wasm_I32_Store8{offset = CAMP_TAG_SCAN_SIZE_OFFSET}, buf)
 
+		// Pre-compute interned "fn_idx" name for decl-to-wasm translation
+		fn_idx_name := env.interner != nil ? intern(env.interner, "fn_idx") : 0
 		for i in 0..<len(e.fields) {
 			emit_instruction(Wasm_Local_Get{index = tmp_local_idx}, buf)
 			emit_instruction(Wasm_I32_Const{value = i32(CAMP_TAG_FIELDS_OFFSET + i * 8)}, buf)
 			emit_instruction(Wasm_I32_Add{}, buf)
+
+			// Translate "fn_idx" field from decls index to WASM function index
+			if e.fields[i].name == fn_idx_name {
+				if lit, ok := e.fields[i].value.(^IR_Literal_Int); ok {
+					if wasm_idx, found := env.decl_to_wasm_fn_idx[int(lit.value)]; found {
+						emit_instruction(Wasm_I32_Const{value = i32(wasm_idx)}, buf)
+						emit_store_for_type(ir_expr_wasm_type(e.fields[i].value), buf)
+						continue
+					}
+				}
+			}
 			emit_expr(e.fields[i].value, buf, env, runtime_indices)
 			emit_store_for_type(ir_expr_wasm_type(e.fields[i].value), buf)
 		}
@@ -821,6 +1037,7 @@ emit_expr :: proc(expr: IR_Expr, buf: ^[dynamic]u8, env: ^Codegen_Env, runtime_i
 		emit_instruction(Wasm_Unreachable{}, buf)
 	case ^IR_Resume:
 		resume_local := env.tmp_local_base + 3
+		fn_idx_local := env.tmp_local_base + 2
 
 		if idx, ok := env.local_map[e.resume_id]; ok {
 			emit_instruction(Wasm_Local_Get{index = idx}, buf)
@@ -829,39 +1046,43 @@ emit_expr :: proc(expr: IR_Expr, buf: ^[dynamic]u8, env: ^Codegen_Env, runtime_i
 		}
 		emit_instruction(Wasm_Local_Set{index = resume_local}, buf)
 
+		// Load fn_idx once into a tmp local for both null check and call
 		emit_instruction(Wasm_Local_Get{index = resume_local}, buf)
 		emit_instruction(Wasm_I32_Load{align = 2, offset = u32(CAMP_TAG_FIELDS_OFFSET)}, buf)
+		emit_instruction(Wasm_Local_Tee{index = fn_idx_local}, buf)
 
-		emit_instruction(Wasm_Local_Get{index = resume_local}, buf)
-		emit_instruction(Wasm_I32_Load{align = 2, offset = u32(CAMP_TAG_FIELDS_OFFSET)}, buf)
+		// One-shot check: fn_idx == 0 means already resumed
 		emit_instruction(Wasm_I32_Const{value = 0}, buf)
 		emit_instruction(Wasm_I32_Eq{}, buf)
 		emit_instruction(Wasm_If{block_type = .Void}, buf)
 		emit_instruction(Wasm_Unreachable{}, buf)
 		emit_instruction(Wasm_End{}, buf)
 
+		// Zero fn_idx to enforce one-shot
 		emit_instruction(Wasm_Local_Get{index = resume_local}, buf)
 		emit_instruction(Wasm_I32_Const{value = 0}, buf)
 		emit_instruction(Wasm_I32_Store{align = 2, offset = u32(CAMP_TAG_FIELDS_OFFSET)}, buf)
 
+		// Load env pointer
 		emit_instruction(Wasm_Local_Get{index = resume_local}, buf)
 		emit_instruction(Wasm_I32_Load{align = 2, offset = u32(CAMP_TAG_FIELDS_OFFSET + 8)}, buf)
+
+		// Emit value FIRST, then ev (matching continuation function param order: env, value, ev)
+		emit_expr(e.value, buf, env, runtime_indices)
 
 		if e.ev != nil {
 			emit_expr(e.ev, buf, env, runtime_indices)
 		}
 
-		emit_expr(e.value, buf, env, runtime_indices)
-
-		emit_instruction(Wasm_Local_Get{index = resume_local}, buf)
-		emit_instruction(Wasm_I32_Load{align = 2, offset = u32(CAMP_TAG_FIELDS_OFFSET)}, buf)
+		// Use saved fn_idx for the call
+		emit_instruction(Wasm_Local_Get{index = fn_idx_local}, buf)
 
 		resume_params := make([dynamic]Wasm_Value_Type, 0, 4)
 		append(&resume_params, Wasm_Value_Type.I32)
+		append(&resume_params, ir_wasm_type_to_value_type(e.type.wasm_type))
 		if e.ev != nil {
 			append(&resume_params, Wasm_Value_Type.I32)
 		}
-		append(&resume_params, ir_wasm_type_to_value_type(e.type.wasm_type))
 		resume_results := make([dynamic]Wasm_Value_Type, 0, 1)
 		append(&resume_results, ir_wasm_type_to_value_type(e.type.wasm_type))
 		resume_type_idx := get_or_create_type(env, resume_params[:], resume_results[:])
