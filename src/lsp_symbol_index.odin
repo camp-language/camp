@@ -89,7 +89,7 @@ build_symbol_index :: proc(idx: ^Symbol_Index, file: CFile, uri: string, source:
 		case ^CDecl_Effect:
 			name_str := intern_get(store.interner, d.name.name)
 			range := span_to_lsp_range(source, d.span)
-			symbol_index_add(idx, name_str, uri, range, .Effect, "effect")
+			symbol_index_add(idx, strings.concatenate({name_str, "!"}, context.allocator), uri, range, .Effect, "effect type")
 			for op in d.operations {
 				op_name := intern_get(store.interner, op.name)
 				op_range := span_to_lsp_range(source, op.span)

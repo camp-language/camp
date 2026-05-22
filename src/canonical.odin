@@ -41,6 +41,7 @@ CDecl_Effect :: struct {
 	name:       Canonical_Name,
 	is_pub:     bool,
 	operations: [dynamic]CEffect_Op,
+	type_params: [dynamic]Type_Param,
 	span:       Source_Span,
 }
 
@@ -126,6 +127,8 @@ CExpr :: union {
 	^CExpr_Crash,
 	^CExpr_Interpolate,
 	^CExpr_Handle,
+	^CExpr_Perform,
+	^CExpr_Par,
 }
 
 CExpr_Int :: struct {
@@ -278,12 +281,26 @@ CExpr_Handle :: struct {
 	span:       Source_Span,
 }
 
+CExpr_Perform :: struct {
+	effect: Canonical_Name,
+	op:     Intern_ID,
+	args:   [dynamic]CExpr,
+	span:   Source_Span,
+}
+
+CExpr_Par :: struct {
+	expressions: [dynamic]CExpr,  // for par { e1, e2 }
+	for_var:     Intern_ID,      // 0 if not par-for
+	for_iter:    CExpr,          // the xs in "par for x in xs"
+	for_body:    CExpr,          // the body in "par for x in xs { body }"
+	span:        Source_Span,
+}
+
 CHandler_Arm :: struct {
-	op:        Intern_ID,
-	resume_id: Intern_ID,
-	op_params: [dynamic]Intern_ID,
-	body:      CExpr,
-	span:      Source_Span,
+	op:     Intern_ID,
+	params: [dynamic]Intern_ID,
+	body:   CExpr,
+	span:   Source_Span,
 }
 
 CMatch_Arm :: struct {
@@ -413,8 +430,14 @@ CType_Tag :: struct {
 	span:    Source_Span,
 }
 
+CType_Effect_Entry :: struct {
+	name:      Intern_ID,
+	type_args: [dynamic]CType,
+	span:      Source_Span,
+}
+
 CType_Effect_Row :: struct {
-	effects: [dynamic]Intern_ID,
+	effects: [dynamic]CType_Effect_Entry,
 	rest:    Intern_ID,
 	is_open: bool,
 	span:    Source_Span,

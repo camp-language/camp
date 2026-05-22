@@ -1,22 +1,12 @@
 stdout = """
--- SYNTAX ERROR --- /tmp/camp-e2e/effects/effect-unhandled/effect-unhandled.camp
+canonicalized /tmp/camp-e2e/effects/effect-unhandled/effect-unhandled.camp: 2 declaration(s), 0 import(s)
+-- UNHANDLED EFFECT --- /tmp/camp-e2e/effects/effect-unhandled/effect-unhandled.camp
 
-I expected `=` here, but I got `.` instead.
-   2 | Ask.read!()
-          ^
-
--- SYNTAX ERROR --- /tmp/camp-e2e/effects/effect-unhandled/effect-unhandled.camp
-
-I expected `=` here, but I got `(` instead.
-   2 | Ask.read!()
-                ^
-
--- SYNTAX ERROR --- /tmp/camp-e2e/effects/effect-unhandled/effect-unhandled.camp
-
-I was not expecting `)` here.
-   2 | Ask.read!()
-                 ^
-compilation failed with 3 error(s)
+This expression performs effect `Ask`, but there is no `handle` block around it.
+   3 |   Ask.read!()
+             ^^^^
+  Try wrapping it with a `handle` block.
+compilation failed with 1 error(s)
 """
 stderr = ""
 exit = 1

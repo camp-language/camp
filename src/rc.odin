@@ -79,6 +79,17 @@ rc_collect_uses :: proc(expr: IR_Expr, uses: ^map[Intern_ID]int) {
 		for arg in e.args {
 			rc_collect_uses(arg, uses)
 		}
+	case ^IR_Resume:
+		count, ok := (uses^)[e.resume_id]
+		if ok {
+			(uses^)[e.resume_id] = count + 1
+		} else {
+			(uses^)[e.resume_id] = 1
+		}
+		rc_collect_uses(e.value, uses)
+		if e.ev != nil {
+			rc_collect_uses(e.ev, uses)
+		}
 	case ^IR_Return:
 		rc_collect_uses(e.value, uses)
 	case ^IR_Block:
@@ -104,22 +115,20 @@ rc_collect_uses :: proc(expr: IR_Expr, uses: ^map[Intern_ID]int) {
 		}
 	case ^IR_Crash:
 		rc_collect_uses(e.message, uses)
-	case ^IR_Resume:
-		rc_collect_uses(e.value, uses)
 	case ^IR_Atomic_Load:
-		rc_collect_uses(e.ptr, uses)
+		rc_collect_uses(e.base, uses)
 	case ^IR_Atomic_Store:
-		rc_collect_uses(e.ptr, uses)
+		rc_collect_uses(e.base, uses)
 		rc_collect_uses(e.value, uses)
 	case ^IR_Atomic_RMW:
-		rc_collect_uses(e.ptr, uses)
+		rc_collect_uses(e.base, uses)
 		rc_collect_uses(e.value, uses)
 	case ^IR_Atomic_Fence:
 	case ^IR_Wait:
-		rc_collect_uses(e.ptr, uses)
+		rc_collect_uses(e.base, uses)
 		rc_collect_uses(e.expected, uses)
 	case ^IR_Notify:
-		rc_collect_uses(e.ptr, uses)
+		rc_collect_uses(e.base, uses)
 		rc_collect_uses(e.count, uses)
 	case:
 	}
@@ -393,8 +402,7 @@ rc_insert_expr_inner :: proc(expr: IR_Expr, remaining: ^map[Intern_ID]int, inter
 		for arm in e.arms {
 			append(&new_arms, IR_Handler_Arm{
 				op = arm.op,
-				resume_id = arm.resume_id,
-				op_params = arm.op_params,
+				params = arm.params,
 				body = rc_insert_expr_inner(arm.body, remaining, interner),
 			})
 		}
@@ -417,6 +425,21 @@ rc_insert_expr_inner :: proc(expr: IR_Expr, remaining: ^map[Intern_ID]int, inter
 		new_perf := new(IR_Perform)
 		new_perf^ = IR_Perform{effect = e.effect, op = e.op, args = new_args, type = e.type, span = e.span}
 		return IR_Expr(new_perf)
+
+	case ^IR_Resume:
+		new_resume := new(IR_Resume)
+		ev_val: IR_Expr = nil
+		if e.ev != nil {
+			ev_val = rc_insert_expr_inner(e.ev, remaining, interner)
+		}
+		new_resume^ = IR_Resume{
+			resume_id = e.resume_id,
+			value = rc_insert_expr_inner(e.value, remaining, interner),
+			ev = ev_val,
+			type = e.type,
+			span = e.span,
+		}
+		return IR_Expr(new_resume)
 
 	case ^IR_Return:
 		new_ret := new(IR_Return)
@@ -448,20 +471,19 @@ rc_insert_expr_inner :: proc(expr: IR_Expr, remaining: ^map[Intern_ID]int, inter
 		new_crash := new(IR_Crash)
 		new_crash^ = IR_Crash{message = new_msg, span = e.span}
 		return IR_Expr(new_crash)
-	case ^IR_Resume:
-		return expr
+
 	case ^IR_Atomic_Load:
-		return expr
+		return IR_Expr(e)
 	case ^IR_Atomic_Store:
-		return expr
+		return IR_Expr(e)
 	case ^IR_Atomic_RMW:
-		return expr
+		return IR_Expr(e)
 	case ^IR_Atomic_Fence:
-		return expr
+		return IR_Expr(e)
 	case ^IR_Wait:
-		return expr
+		return IR_Expr(e)
 	case ^IR_Notify:
-		return expr
+		return IR_Expr(e)
 	}
 
 	return expr

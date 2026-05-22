@@ -24,7 +24,7 @@ test_integration_hello_world :: proc(t: ^testing.T) {
 	context_init(&ctx)
 	defer context_destroy(&ctx)
 
-	file := parse_camp_source("main! = || ->{ Console } Str { \"Hello, Camp!\" }", &ctx)
+	file := parse_camp_source("main! = || -> -[Console]-> Str { \"Hello, Camp!\" }", &ctx)
 	testing.expect(t, !diag_collector_has_errors(&ctx.collector))
 	testing.expect(t, len(file.decls) == 1)
 	#partial switch d in file.decls[0] {
@@ -69,7 +69,7 @@ test_integration_effect_definition :: proc(t: ^testing.T) {
 	context_init(&ctx)
 	defer context_destroy(&ctx)
 
-	file := parse_camp_source("effect Console { print!: Str }", &ctx)
+	file := parse_camp_source("Console! : { print!: || -> Str }", &ctx)
 	testing.expect(t, !diag_collector_has_errors(&ctx.collector))
 	testing.expect(t, len(file.decls) == 1)
 }
@@ -80,7 +80,7 @@ test_integration_multiple_decls :: proc(t: ^testing.T) {
 	context_init(&ctx)
 	defer context_destroy(&ctx)
 
-	file := parse_camp_source("name = \"Camp\"\nversion = 1\nmain! = || ->{ Console } Str { \"Hello\" }", &ctx)
+	file := parse_camp_source("name = \"Camp\"\nversion = 1\nmain! = || -> -[Console]-> Str { \"Hello\" }", &ctx)
 	testing.expect(t, !diag_collector_has_errors(&ctx.collector))
 	testing.expect(t, len(file.decls) == 3)
 }

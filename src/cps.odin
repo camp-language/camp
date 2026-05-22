@@ -32,6 +32,7 @@ cps_make_continuation :: proc(body: IR_Expr, param_name: Intern_ID, return_type:
 		params = cont_params,
 		return_type = return_type,
 		effect_row = IR_Type{.Void, Type_Var_ID(0)},
+		effects = make([dynamic]Canonical_Name, 0),
 		body = cps_transform_expr(body, k_name, env),
 		span = Source_Span_ZERO,
 	}
@@ -296,9 +297,8 @@ cps_transform_expr :: proc(expr: IR_Expr, k_name: Intern_ID, env: ^CPS_Env) -> I
 		for arm in e.arms {
 			append(&new_arms, IR_Handler_Arm{
 				op = arm.op,
-				resume_id = arm.resume_id,
-				op_params = arm.op_params,
-				body = cps_transform_expr(arm.body, arm.resume_id, env),
+				params = arm.params,
+				body = cps_transform_expr(arm.body, arm.params[0], env),
 			})
 		}
 		new_handle := new(IR_Handle)
@@ -320,6 +320,21 @@ cps_transform_expr :: proc(expr: IR_Expr, k_name: Intern_ID, env: ^CPS_Env) -> I
 		new_perf := new(IR_Perform)
 		new_perf^ = IR_Perform{effect = e.effect, op = e.op, args = new_args, type = e.type, span = e.span}
 		return IR_Expr(new_perf)
+
+	case ^IR_Resume:
+		new_resume := new(IR_Resume)
+		ev_val: IR_Expr = nil
+		if e.ev != nil {
+			ev_val = cps_transform_expr(e.ev, k_name, env)
+		}
+		new_resume^ = IR_Resume{
+			resume_id = e.resume_id,
+			value = cps_transform_expr(e.value, k_name, env),
+			ev = ev_val,
+			type = e.type,
+			span = e.span,
+		}
+		return IR_Expr(new_resume)
 
 	case ^IR_Block:
 		new_stmts := make([dynamic]IR_Expr, 0, len(e.statements))
@@ -346,26 +361,18 @@ cps_transform_expr :: proc(expr: IR_Expr, k_name: Intern_ID, env: ^CPS_Env) -> I
 		new_crash^ = IR_Crash{message = cps_transform_expr(e.message, k_name, env), span = e.span}
 		return IR_Expr(new_crash)
 
-	case ^IR_Resume:
-		return expr
-
 	case ^IR_Atomic_Load:
-		return expr
-
+		return IR_Expr(e)
 	case ^IR_Atomic_Store:
-		return expr
-
+		return IR_Expr(e)
 	case ^IR_Atomic_RMW:
-		return expr
-
+		return IR_Expr(e)
 	case ^IR_Atomic_Fence:
-		return expr
-
+		return IR_Expr(e)
 	case ^IR_Wait:
-		return expr
-
+		return IR_Expr(e)
 	case ^IR_Notify:
-		return expr
+		return IR_Expr(e)
 	}
 
 	return expr

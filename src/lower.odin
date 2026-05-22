@@ -13,14 +13,23 @@ lower_file :: proc(cfile: CFile, store: ^Type_Store) -> IR_Module {
 
 	for &decl in cfile.decls {
 		#partial switch d in decl {
+		case ^CDecl_Effect:
+			eff_def := lower_effect_def(d^, &env)
+			append(&mod.effect_defs, eff_def)
+		case:
+		}
+	}
+
+	inject_prelude_effect_defs(&mod, store)
+
+	for &decl in cfile.decls {
+		#partial switch d in decl {
 		case ^CDecl_Const:
 			ir_decl := lower_decl_const(d^, &env)
 			append(&mod.decls, ir_decl)
 		case ^CDecl_Effect:
 			ir_decl := lower_decl_effect(d^, &env)
 			append(&mod.decls, ir_decl)
-			eff_def := lower_effect_def(d^, &env)
-			append(&mod.effect_defs, eff_def)
 		case ^CDecl_Newtype:
 		case:
 		}
@@ -45,14 +54,23 @@ lower_tfile :: proc(tfile: TFile, store: ^Type_Store) -> IR_Module {
 
 	for &decl in tfile.decls {
 		#partial switch d in decl {
+		case ^TDecl_Effect:
+			eff_def := lower_teffect_def(&d^, &env)
+			append(&mod.effect_defs, eff_def)
+		case:
+		}
+	}
+
+	inject_prelude_effect_defs(&mod, store)
+
+	for &decl in tfile.decls {
+		#partial switch d in decl {
 		case ^TDecl_Const:
 			ir_decl := lower_tdecl_const(&d^, &env)
 			append(&mod.decls, ir_decl)
 		case ^TDecl_Effect:
 			ir_decl := lower_tdecl_effect(&d^, &env)
 			append(&mod.decls, ir_decl)
-			eff_def := lower_teffect_def(&d^, &env)
-			append(&mod.effect_defs, eff_def)
 		case ^TDecl_Trait:
 		case ^TDecl_Alias:
 		case ^TDecl_Newtype:
@@ -125,6 +143,68 @@ fresh_ir_name :: proc(env: ^Lower_Env) -> Intern_ID {
 	return intern(env.interner, name)
 }
 
+extract_effects :: proc(store: ^Type_Store, effect_row_var: Type_Var_ID, effect_defs: []IR_Effect_Def) -> [dynamic]Canonical_Name {
+	effects: [dynamic]Canonical_Name
+	effects = make([dynamic]Canonical_Name, 0, 4)
+	collect_effects_from_row(store, effect_row_var, effect_defs, &effects)
+	return effects
+}
+
+extract_effects_from_fn_binding :: proc(store: ^Type_Store, fn_name: Canonical_Name, effect_defs: []IR_Effect_Def) -> [dynamic]Canonical_Name {
+	if fn_name.module != NO_NAME {
+		return make([dynamic]Canonical_Name, 0)
+	}
+	binding_var, ok := store.bindings[fn_name.name]
+	if !ok {
+		return make([dynamic]Canonical_Name, 0)
+	}
+	resolved := resolve_var(store, binding_var)
+	v := get_var(store, resolved)
+	inf, is_inf := v.link.(Inferred_Type)
+	tag_str := "none"
+	if is_inf { tag_str = fmt.tprintf("%v", inf.tag) }
+	if !is_inf || inf.tag != .Function {
+		return make([dynamic]Canonical_Name, 0)
+	}
+	result := extract_effects(store, inf.effect_id, effect_defs)
+	return result
+}
+
+collect_effects_from_row :: proc(store: ^Type_Store, effect_var: Type_Var_ID, effect_defs: []IR_Effect_Def, result: ^[dynamic]Canonical_Name) {
+	resolved := resolve_var(store, effect_var)
+	v := get_var(store, resolved)
+
+	inf, is_inf := v.link.(Inferred_Type)
+	if !is_inf || inf.tag != .Effect_Row {
+		return
+	}
+
+	for entry in inf.effects {
+		for def in effect_defs {
+			if def.name.name == entry.name {
+				already := false
+				for e in result^ {
+					if e == def.name {
+						already = true
+						break
+					}
+				}
+				if !already {
+					append(result, def.name)
+				}
+				break
+			}
+		}
+	}
+
+	rest_resolved := resolve_var(store, inf.rest_id)
+	rest_v := get_var(store, rest_resolved)
+	rest_inf, rest_is_inf := rest_v.link.(Inferred_Type)
+	if rest_is_inf && rest_inf.tag == .Effect_Row {
+		collect_effects_from_row(store, inf.rest_id, effect_defs, result)
+	}
+}
+
 make_ir_lit_int :: proc(value: i64, type_: IR_Type, span: Source_Span) -> IR_Expr {
 	lit := new(IR_Literal_Int)
 	lit^ = IR_Literal_Int{value = value, type = type_, span = span}
@@ -162,6 +242,7 @@ lower_decl_const :: proc(d: CDecl_Const, env: ^Lower_Env) -> IR_Decl {
 			params = make([dynamic]IR_Param, 0, 4),
 			return_type = ir_type,
 			effect_row = IR_Type{.Void, type_var},
+			effects = extract_effects(env.store, type_var, env.module.effect_defs[:]),
 			body = body,
 			span = d.span,
 		}
@@ -196,13 +277,19 @@ lower_lambda_as_decl :: proc(e: ^CExpr_Lambda, name: Canonical_Name, is_effectfu
 	}
 	ir_ret_type := lower_type(env.store, ret_type_var)
 
+	eff_type_var := fresh_effect_row(env.store, span)
+	if e.effects != nil {
+		eff_type_var = convert_type_to_var(e.effects, env.store)
+	}
+
 	fn_decl := new(IR_Decl_Fn)
 	fn_decl^ = IR_Decl_Fn{
 		name = name,
 		is_effectful = is_effectful,
 		params = params,
 		return_type = ir_ret_type,
-		effect_row = IR_Type{.Void, fresh_effect_row(env.store, span)},
+		effect_row = IR_Type{.Void, eff_type_var},
+		effects = extract_effects(env.store, eff_type_var, env.module.effect_defs[:]),
 		body = body,
 		span = span,
 	}
@@ -231,7 +318,11 @@ lower_effect_def :: proc(d: CDecl_Effect, env: ^Lower_Env) -> IR_Effect_Def {
 		ir_op := lower_effect_op(op, env)
 		append(&ops, ir_op)
 	}
-	return IR_Effect_Def{name = d.name, operations = ops}
+	type_params := make([dynamic]Intern_ID, 0, len(d.type_params))
+	for tp in d.type_params {
+		append(&type_params, tp.name)
+	}
+	return IR_Effect_Def{name = d.name, operations = ops, type_params = type_params}
 }
 
 lower_effect_op :: proc(op: CEffect_Op, env: ^Lower_Env) -> IR_Effect_Op {
@@ -286,7 +377,7 @@ lower_expr :: proc(expr: CExpr, env: ^Lower_Env) -> IR_Expr {
 		return IR_Expr(v)
 
 	case ^CExpr_Call:
-		return lower_expr(e.callee, env)
+		return lower_call(e, env)
 
 	case ^CExpr_Method_Call:
 		return lower_method_call(e, env)
@@ -345,6 +436,24 @@ lower_expr :: proc(expr: CExpr, env: ^Lower_Env) -> IR_Expr {
 
 	case ^CExpr_List:
 		return lower_list(e, env)
+
+	case ^CExpr_Perform:
+		ir_args := make([dynamic]IR_Expr, 0, len(e.args))
+		for arg in e.args {
+			append(&ir_args, lower_expr(arg, env))
+		}
+		perf := new(IR_Perform)
+		perf^ = IR_Perform{
+			effect = e.effect,
+			op = e.op,
+			args = ir_args,
+			type = IR_Type{},
+			span = e.span,
+		}
+		return IR_Expr(perf)
+
+	case ^CExpr_Par:
+		return make_ir_lit_int(0, IR_Type{.I64, Type_Var_ID(-1)}, Source_Span_ZERO)
 	}
 
 	return make_ir_lit_int(0, IR_Type{.I64, Type_Var_ID(-1)}, Source_Span_ZERO)
@@ -438,6 +547,21 @@ lower_texpr :: proc(expr: TExpr, env: ^Lower_Env) -> IR_Expr {
 
 	case ^TExpr_List:
 		return lower_tlist(e, env)
+
+	case ^TExpr_Perform:
+		ir_args := make([dynamic]IR_Expr, 0, len(e.args))
+		for arg in e.args {
+			append(&ir_args, lower_texpr(arg, env))
+		}
+		perf := new(IR_Perform)
+		perf^ = IR_Perform{
+			effect = e.effect,
+			op = e.op,
+			args = ir_args,
+			type = e.type_,
+			span = e.span,
+		}
+		return IR_Expr(perf)
 	}
 
 	return make_ir_lit_int(0, IR_Type{.I64, Type_Var_ID(-1)}, Source_Span_ZERO)
@@ -461,6 +585,7 @@ lower_tdecl_const :: proc(d: ^TDecl_Const, env: ^Lower_Env) -> IR_Decl {
 			params = make([dynamic]IR_Param, 0, 4),
 			return_type = ir_type,
 			effect_row = d.eff_,
+			effects = extract_effects_from_fn_binding(env.store, d.name, env.module.effect_defs[:]),
 			body = body,
 			span = d.span,
 		}
@@ -485,6 +610,12 @@ lower_tlambda_as_decl :: proc(e: ^TExpr_Lambda, name: Canonical_Name, is_effectf
 
 	body := lower_texpr(e.body, env)
 
+	// Extract effects from the typechecker's resolved function type,
+	// not from the annotation's fresh (unlinked) effect row variable.
+	// The annotation creates fresh variables that are never connected
+	// to the typechecker's results, so e.effects.type_id is Unlinked.
+	effects := extract_effects_from_fn_binding(env.store, name, env.module.effect_defs[:])
+
 	fn_decl := new(IR_Decl_Fn)
 	fn_decl^ = IR_Decl_Fn{
 		name = name,
@@ -492,6 +623,7 @@ lower_tlambda_as_decl :: proc(e: ^TExpr_Lambda, name: Canonical_Name, is_effectf
 		params = params,
 		return_type = e.return_type,
 		effect_row = e.effects,
+		effects = effects,
 		body = body,
 		span = span,
 	}
@@ -520,7 +652,11 @@ lower_teffect_def :: proc(d: ^TDecl_Effect, env: ^Lower_Env) -> IR_Effect_Def {
 		ir_op := lower_teffect_op(op, env)
 		append(&ops, ir_op)
 	}
-	return IR_Effect_Def{name = d.name, operations = ops}
+	type_params := make([dynamic]Intern_ID, 0, len(d.type_params))
+	for tp in d.type_params {
+		append(&type_params, tp.name)
+	}
+	return IR_Effect_Def{name = d.name, operations = ops, type_params = type_params}
 }
 
 lower_teffect_op :: proc(op: TEffect_Op, env: ^Lower_Env) -> IR_Effect_Op {
@@ -533,6 +669,252 @@ lower_teffect_op :: proc(op: TEffect_Op, env: ^Lower_Env) -> IR_Effect_Op {
 		name = op.name,
 		params = params,
 		return_type = op.return_type,
+	}
+}
+
+inject_prelude_effect_defs :: proc(mod: ^IR_Module, store: ^Type_Store) {
+	console_name := intern(store.interner, "Console")
+	if is_declared_effect(store, console_name) {
+		already := false
+		for eff in mod.effect_defs {
+			if eff.name.name == console_name {
+				already = true
+				break
+			}
+		}
+		if !already {
+			console_canonical := Canonical_Name{module = NO_NAME, name = console_name}
+
+			// println! : |Str| -> Unit
+			println_params := make([dynamic]IR_Param, 0, 1)
+			str_type := lower_type(store, store.bindings[intern(store.interner, "Str")])
+			append(&println_params, IR_Param{name = intern(store.interner, "msg"), type = str_type})
+			unit_type := lower_type(store, store.bindings[intern(store.interner, "Unit")])
+
+			// readln! : || -> Str
+			console_ops := make([dynamic]IR_Effect_Op, 0, 2)
+			append(&console_ops, IR_Effect_Op{
+				name = intern(store.interner, "println!"),
+				params = println_params,
+				return_type = unit_type,
+			})
+			append(&console_ops, IR_Effect_Op{
+				name = intern(store.interner, "readln!"),
+				params = make([dynamic]IR_Param, 0),
+				return_type = str_type,
+			})
+
+			append(&mod.effect_defs, IR_Effect_Def{
+				name = console_canonical,
+				operations = console_ops,
+				type_params = make([dynamic]Intern_ID, 0),
+			})
+		}
+	}
+
+		throw_name := intern(store.interner, "Throw")
+	if is_declared_effect(store, throw_name) {
+		already := false
+		for eff in mod.effect_defs {
+			if eff.name.name == throw_name {
+				already = true
+				break
+			}
+		}
+		if !already {
+			throw_canonical := Canonical_Name{module = NO_NAME, name = throw_name}
+			throw_ops := make([dynamic]IR_Effect_Op, 0, 1)
+
+			// throw! : |e| -> a (generic types — use I32 for wasm)
+			throw_params := make([dynamic]IR_Param, 0, 1)
+			append(&throw_params, IR_Param{name = intern(store.interner, "err"), type = IR_Type{wasm_type = .I32, type_id = 0}})
+
+			append(&throw_ops, IR_Effect_Op{
+				name = intern(store.interner, "throw!"),
+				params = throw_params,
+				return_type = IR_Type{wasm_type = .I32, type_id = 0},
+			})
+
+			append(&mod.effect_defs, IR_Effect_Def{
+				name = throw_canonical,
+				operations = throw_ops,
+				type_params = make([dynamic]Intern_ID, 0),
+			})
+		}
+	}
+
+	// Parallel! effect
+	parallel_name := intern(store.interner, "Parallel")
+	if is_declared_effect(store, parallel_name) {
+		already := false
+		for eff in mod.effect_defs {
+			if eff.name.name == parallel_name {
+				already = true
+				break
+			}
+		}
+		if !already {
+			parallel_canonical := Canonical_Name{module = NO_NAME, name = parallel_name}
+			i32_type := IR_Type{wasm_type = .I32, type_id = 0}
+			parallel_ops := make([dynamic]IR_Effect_Op, 0, 6)
+
+			// map!(items, f) -> List(b)
+			map_params := make([dynamic]IR_Param, 0, 2)
+			append(&map_params, IR_Param{name = intern(store.interner, "items"), type = i32_type})
+			append(&map_params, IR_Param{name = intern(store.interner, "f"), type = i32_type})
+			append(&parallel_ops, IR_Effect_Op{name = intern(store.interner, "map!"), params = map_params, return_type = i32_type})
+
+			// for_each!(items, f) -> Unit
+			for_each_params := make([dynamic]IR_Param, 0, 2)
+			append(&for_each_params, IR_Param{name = intern(store.interner, "items"), type = i32_type})
+			append(&for_each_params, IR_Param{name = intern(store.interner, "f"), type = i32_type})
+			append(&parallel_ops, IR_Effect_Op{name = intern(store.interner, "for_each!"), params = for_each_params, return_type = i32_type})
+
+			// filter!(items, pred) -> List(a)
+			filter_params := make([dynamic]IR_Param, 0, 2)
+			append(&filter_params, IR_Param{name = intern(store.interner, "items"), type = i32_type})
+			append(&filter_params, IR_Param{name = intern(store.interner, "pred"), type = i32_type})
+			append(&parallel_ops, IR_Effect_Op{name = intern(store.interner, "filter!"), params = filter_params, return_type = i32_type})
+
+			// reduce!(items, init, f) -> a
+			reduce_params := make([dynamic]IR_Param, 0, 3)
+			append(&reduce_params, IR_Param{name = intern(store.interner, "items"), type = i32_type})
+			append(&reduce_params, IR_Param{name = intern(store.interner, "init"), type = i32_type})
+			append(&reduce_params, IR_Param{name = intern(store.interner, "f"), type = i32_type})
+			append(&parallel_ops, IR_Effect_Op{name = intern(store.interner, "reduce!"), params = reduce_params, return_type = i32_type})
+
+			// all!(tasks) -> List(a)
+			all_params := make([dynamic]IR_Param, 0, 1)
+			append(&all_params, IR_Param{name = intern(store.interner, "tasks"), type = i32_type})
+			append(&parallel_ops, IR_Effect_Op{name = intern(store.interner, "all!"), params = all_params, return_type = i32_type})
+
+			// any!(tasks) -> List(a)
+			any_params := make([dynamic]IR_Param, 0, 1)
+			append(&any_params, IR_Param{name = intern(store.interner, "tasks"), type = i32_type})
+			append(&parallel_ops, IR_Effect_Op{name = intern(store.interner, "any!"), params = any_params, return_type = i32_type})
+
+			append(&mod.effect_defs, IR_Effect_Def{
+				name = parallel_canonical,
+				operations = parallel_ops,
+				type_params = make([dynamic]Intern_ID, 0),
+			})
+		}
+	}
+
+	// Spawn! effect
+	spawn_name := intern(store.interner, "Spawn")
+	if is_declared_effect(store, spawn_name) {
+		already := false
+		for eff in mod.effect_defs {
+			if eff.name.name == spawn_name {
+				already = true
+				break
+			}
+		}
+		if !already {
+			spawn_canonical := Canonical_Name{module = NO_NAME, name = spawn_name}
+			i32_type := IR_Type{wasm_type = .I32, type_id = 0}
+			spawn_ops := make([dynamic]IR_Effect_Op, 0, 3)
+
+			// spawn!(thunk) -> Handle(a)
+			spawn_params := make([dynamic]IR_Param, 0, 1)
+			append(&spawn_params, IR_Param{name = intern(store.interner, "thunk"), type = i32_type})
+			append(&spawn_ops, IR_Effect_Op{name = intern(store.interner, "spawn!"), params = spawn_params, return_type = i32_type})
+
+			// join!(handle) -> a
+			join_params := make([dynamic]IR_Param, 0, 1)
+			append(&join_params, IR_Param{name = intern(store.interner, "handle"), type = i32_type})
+			append(&spawn_ops, IR_Effect_Op{name = intern(store.interner, "join!"), params = join_params, return_type = i32_type})
+
+			// cancel!(handle) -> Unit
+			cancel_params := make([dynamic]IR_Param, 0, 1)
+			append(&cancel_params, IR_Param{name = intern(store.interner, "handle"), type = i32_type})
+			append(&spawn_ops, IR_Effect_Op{name = intern(store.interner, "cancel!"), params = cancel_params, return_type = i32_type})
+
+			append(&mod.effect_defs, IR_Effect_Def{
+				name = spawn_canonical,
+				operations = spawn_ops,
+				type_params = make([dynamic]Intern_ID, 0),
+			})
+		}
+	}
+
+	// Async! effect
+	async_name := intern(store.interner, "Async")
+	if is_declared_effect(store, async_name) {
+		already := false
+		for eff in mod.effect_defs {
+			if eff.name.name == async_name {
+				already = true
+				break
+			}
+		}
+		if !already {
+			async_canonical := Canonical_Name{module = NO_NAME, name = async_name}
+			i32_type := IR_Type{wasm_type = .I32, type_id = 0}
+			async_ops := make([dynamic]IR_Effect_Op, 0, 4)
+
+			// spawn!(thunk) -> Handle(a)
+			spawn_params := make([dynamic]IR_Param, 0, 1)
+			append(&spawn_params, IR_Param{name = intern(store.interner, "thunk"), type = i32_type})
+			append(&async_ops, IR_Effect_Op{name = intern(store.interner, "spawn!"), params = spawn_params, return_type = i32_type})
+
+			// join!(handle) -> a
+			join_params := make([dynamic]IR_Param, 0, 1)
+			append(&join_params, IR_Param{name = intern(store.interner, "handle"), type = i32_type})
+			append(&async_ops, IR_Effect_Op{name = intern(store.interner, "join!"), params = join_params, return_type = i32_type})
+
+			// yield!() -> Unit
+			yield_params := make([dynamic]IR_Param, 0)
+			append(&async_ops, IR_Effect_Op{name = intern(store.interner, "yield!"), params = yield_params, return_type = i32_type})
+
+			// cancel!(handle) -> Unit
+			cancel_params := make([dynamic]IR_Param, 0, 1)
+			append(&cancel_params, IR_Param{name = intern(store.interner, "handle"), type = i32_type})
+			append(&async_ops, IR_Effect_Op{name = intern(store.interner, "cancel!"), params = cancel_params, return_type = i32_type})
+
+			append(&mod.effect_defs, IR_Effect_Def{
+				name = async_canonical,
+				operations = async_ops,
+				type_params = make([dynamic]Intern_ID, 0),
+			})
+		}
+	}
+}
+
+lower_call :: proc(e: ^CExpr_Call, env: ^Lower_Env) -> IR_Expr {
+	#partial switch c in e.callee {
+	case ^CExpr_Name:
+		callee_name := c.name
+		ir_args := make([dynamic]IR_Expr, 0, len(e.args))
+		for arg in e.args {
+			append(&ir_args, lower_expr(arg, env))
+		}
+		type_var := fresh_value_var(env.store, e.span)
+		call := new(IR_Call)
+		call^ = IR_Call{
+			callee = callee_name,
+			args = ir_args,
+			type = lower_type(env.store, type_var),
+			span = e.span,
+		}
+		return IR_Expr(call)
+
+	case:
+		callee_expr := lower_expr(e.callee, env)
+		ir_args := make([dynamic]IR_Expr, 0, len(e.args))
+		for arg in e.args {
+			append(&ir_args, lower_expr(arg, env))
+		}
+		type_var := fresh_value_var(env.store, e.span)
+		ccall := new(IR_Closure_Call)
+		ccall^ = IR_Closure_Call{
+			callee = callee_expr,
+			args = ir_args,
+			type = lower_type(env.store, type_var),
+			span = e.span,
+		}
+		return IR_Expr(ccall)
 	}
 }
 
@@ -591,12 +973,26 @@ lower_tmethod_call :: proc(e: ^TExpr_Method_Call, env: ^Lower_Env) -> IR_Expr {
 		for arg in e.args {
 			append(&ir_args, lower_texpr(arg, env))
 		}
+		// Look up the effect operation's return type for proper wasm_type resolution
+		perf_type := e.type_
+		for &eff_def in env.module.effect_defs {
+			if eff_def.name == receiver_effect_canonical {
+				for op_def in eff_def.operations {
+					if op_def.name == e.method.name {
+						resolved_type := lower_type(env.store, op_def.return_type.type_id)
+						perf_type = resolved_type
+						break
+					}
+				}
+				break
+			}
+		}
 		perf := new(IR_Perform)
 		perf^ = IR_Perform{
 			effect = receiver_effect_canonical,
 			op = e.method.name,
 			args = ir_args,
-			type = e.type_,
+			type = perf_type,
 			span = e.span,
 		}
 		return IR_Expr(perf)
@@ -889,8 +1285,7 @@ lower_thandle :: proc(e: ^TExpr_Handle, env: ^Lower_Env) -> IR_Expr {
 	for i in 0..<len(e.arms) {
 		arms[i] = IR_Handler_Arm{
 			op = e.arms[i].op,
-			resume_id = e.arms[i].resume_id,
-			op_params = e.arms[i].op_params,
+			params = e.arms[i].params,
 			body = lower_texpr(e.arms[i].body, env),
 		}
 	}
@@ -1051,6 +1446,7 @@ lower_lambda :: proc(e: ^CExpr_Lambda, env: ^Lower_Env) -> IR_Expr {
 		params = param_types,
 		return_type = ir_ret_type,
 		effect_row = IR_Type{.Void, fresh_effect_row(env.store, e.span)},
+		effects = make([dynamic]Canonical_Name, 0),
 		body = body,
 		span = e.span,
 	}
@@ -1345,8 +1741,7 @@ lower_handle :: proc(e: ^CExpr_Handle, env: ^Lower_Env) -> IR_Expr {
 	for arm in e.arms {
 		append(&arms, IR_Handler_Arm{
 			op = arm.op,
-			resume_id = arm.resume_id,
-			op_params = arm.op_params,
+			params = arm.params,
 			body = lower_expr(arm.body, env),
 		})
 	}

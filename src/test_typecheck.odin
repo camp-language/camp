@@ -388,23 +388,23 @@ test_unify_effect_row_same_effects :: proc(t: ^testing.T) {
 
 	console_name := intern(store.interner, "Console")
 
-	eff_names_a := store_alloc(&store, Intern_ID, 1)
-	eff_names_a[0] = console_name
+	eff_entries_a := store_alloc(&store, Effect_Row_Entry, 1)
+	eff_entries_a[0] = Effect_Row_Entry{name = console_name, type_args = {}}
 	rest_a := fresh_effect_row(&store, Source_Span_ZERO)
 	row_a := fresh_effect_row(&store, Source_Span_ZERO)
 	link_var(&store, row_a, Inferred_Type{
 		tag = .Effect_Row,
-		effect_names = eff_names_a,
+		effects = eff_entries_a,
 		rest_id = rest_a,
 	})
 
-	eff_names_b := store_alloc(&store, Intern_ID, 1)
-	eff_names_b[0] = console_name
+	eff_entries_b := store_alloc(&store, Effect_Row_Entry, 1)
+	eff_entries_b[0] = Effect_Row_Entry{name = console_name, type_args = {}}
 	rest_b := fresh_effect_row(&store, Source_Span_ZERO)
 	row_b := fresh_effect_row(&store, Source_Span_ZERO)
 	link_var(&store, row_b, Inferred_Type{
 		tag = .Effect_Row,
-		effect_names = eff_names_b,
+		effects = eff_entries_b,
 		rest_id = rest_b,
 	})
 
@@ -420,23 +420,23 @@ test_unify_effect_row_different_effects :: proc(t: ^testing.T) {
 	console_name := intern(store.interner, "Console")
 	file_name := intern(store.interner, "File")
 
-	eff_names_a := store_alloc(&store, Intern_ID, 1)
-	eff_names_a[0] = console_name
+	eff_entries_a := store_alloc(&store, Effect_Row_Entry, 1)
+	eff_entries_a[0] = Effect_Row_Entry{name = console_name, type_args = {}}
 	rest_a := fresh_effect_row(&store, Source_Span_ZERO)
 	row_a := fresh_effect_row(&store, Source_Span_ZERO)
 	link_var(&store, row_a, Inferred_Type{
 		tag = .Effect_Row,
-		effect_names = eff_names_a,
+		effects = eff_entries_a,
 		rest_id = rest_a,
 	})
 
-	eff_names_b := store_alloc(&store, Intern_ID, 1)
-	eff_names_b[0] = file_name
+	eff_entries_b := store_alloc(&store, Effect_Row_Entry, 1)
+	eff_entries_b[0] = Effect_Row_Entry{name = file_name, type_args = {}}
 	rest_b := fresh_effect_row(&store, Source_Span_ZERO)
 	row_b := fresh_effect_row(&store, Source_Span_ZERO)
 	link_var(&store, row_b, Inferred_Type{
 		tag = .Effect_Row,
-		effect_names = eff_names_b,
+		effects = eff_entries_b,
 		rest_id = rest_b,
 	})
 
@@ -527,7 +527,7 @@ test_typecheck_function_application :: proc(t: ^testing.T) {
 @(test)
 test_effectful_naming_enforcement :: proc(t: ^testing.T) {
 	store, ctx := typecheck_source(
-		"effect IO { println: Str }\nresult = handle IO in { IO.println(\"hi\") } with { .println!(resume) => resume({}) }")
+		"IO! : { println!: || -> Str }\nresult = handle IO in { IO.println(\"hi\") } with { .println!(resume) => resume({}) }")
 	defer context_destroy(ctx)
 	defer free(ctx)
 	defer type_store_destroy(&store)
@@ -538,7 +538,7 @@ test_effectful_naming_enforcement :: proc(t: ^testing.T) {
 @(test)
 test_unhandled_effect_error :: proc(t: ^testing.T) {
 	store, ctx := typecheck_source(
-		"effect IO { println: Str }\nval = IO.println(\"hello\")")
+		"IO! : { println!: || -> Str }\nval = IO.println(\"hello\")")
 	defer context_destroy(ctx)
 	defer free(ctx)
 	defer type_store_destroy(&store)
@@ -552,7 +552,7 @@ test_unhandled_effect_error :: proc(t: ^testing.T) {
 @(test)
 test_handled_effect_ok :: proc(t: ^testing.T) {
 	store, ctx := typecheck_source(
-		"effect IO { println: Str }\nmain! = handle IO in { IO.println(\"hello\") } with { .println!(resume) => resume({}) }")
+		"IO! : { println!: || -> Str }\nmain! = handle IO in { IO.println(\"hello\") } with { .println!(resume) => resume({}) }")
 	defer context_destroy(ctx)
 	defer free(ctx)
 	defer type_store_destroy(&store)

@@ -83,11 +83,20 @@ canonicalize_decl :: proc(decl: Decl, scope: ^Canonicalize_Scope, imports: ^[dyn
 		for op in d.operations {
 			append(&ops, canonicalize_effect_op(op, scope, ctx))
 		}
+		type_params := make([dynamic]Type_Param, 0, len(d.type_params))
+		for tp in d.type_params {
+			constraints := make([dynamic]Intern_ID, 0, len(tp.constraints))
+			for c in tp.constraints {
+				append(&constraints, c)
+			}
+			append(&type_params, Type_Param{name = tp.name, constraints = constraints, is_effect = tp.is_effect})
+		}
 		cdecl := new(CDecl_Effect)
 		cdecl^ = CDecl_Effect{
 			name = name,
 			is_pub = d.is_pub,
 			operations = ops,
+			type_params = type_params,
 			span = d.span,
 		}
 		return cdecl
@@ -398,6 +407,14 @@ canonicalize_expr :: proc(expr: Expr, scope: ^Canonicalize_Scope, ctx: ^Compilat
 		for a in e.args {
 			append(&args, canonicalize_expr(a, scope, ctx))
 		}
+
+		// Method sugar desugaring: par_map!, par_filter!, etc. → Parallel! perform
+		method_str := intern_get(&ctx.interner, e.method)
+		parallel_sugar := desugar_parallel_method(method_str, creceiver, args, e.span, scope, ctx)
+		if parallel_sugar != nil {
+			return parallel_sugar
+		}
+
 		c := new(CExpr_Method_Call)
 		c^ = CExpr_Method_Call{receiver = creceiver, method = name, args = args, is_effectful = e.is_effectful, span = e.span}
 		return c
@@ -409,7 +426,7 @@ canonicalize_expr :: proc(expr: Expr, scope: ^Canonicalize_Scope, ctx: ^Compilat
 			for c in tp.constraints {
 				append(&constraints, c)
 			}
-			append(&type_params, Type_Param{name = tp.name, constraints = constraints})
+			append(&type_params, Type_Param{name = tp.name, constraints = constraints, is_effect = tp.is_effect})
 		}
 		params := make([dynamic]CFunc_Param, 0, len(e.params))
 		for p in e.params {
@@ -561,8 +578,7 @@ canonicalize_expr :: proc(expr: Expr, scope: ^Canonicalize_Scope, ctx: ^Compilat
 		for a in e.arms {
 			append(&arms, CHandler_Arm{
 				op = a.op,
-				resume_id = a.resume_id,
-				op_params = a.op_params,
+				params = a.params,
 				body = canonicalize_expr(a.body, scope, ctx),
 				span = a.span,
 			})
@@ -570,6 +586,67 @@ canonicalize_expr :: proc(expr: Expr, scope: ^Canonicalize_Scope, ctx: ^Compilat
 		c := new(CExpr_Handle)
 		c^ = CExpr_Handle{effect = effect_name, is_shallow = e.is_shallow, body = cbody, arms = arms, span = e.span}
 		return c
+
+	case ^Expr_Par:
+		if e.for_var != Intern_ID(0) {
+			// par for x in xs { body } → Parallel!.for_each!(xs, |x| body)
+			citer := canonicalize_expr(e.for_iter, scope, ctx)
+			cbody := canonicalize_expr(e.for_body, scope, ctx)
+
+			// Create lambda: |x| body
+			params := make([dynamic]CFunc_Param, 1)
+			params[0] = CFunc_Param{name = e.for_var, span = e.span}
+			lambda := new(CExpr_Lambda)
+			lambda^ = CExpr_Lambda{
+				type_params = make([dynamic]Type_Param, 0),
+				params = params,
+				return_type = nil,
+				effects = nil,
+				body = cbody,
+				span = e.span,
+			}
+
+			// Create perform: Parallel!.for_each!(iter, lambda)
+			parallel_name := Canonical_Name{module = NO_NAME, name = intern(&ctx.interner, "Parallel"), is_local = true}
+			for_each_op := intern(&ctx.interner, "for_each!")
+			args := make([dynamic]CExpr, 0, 2)
+			append(&args, citer)
+			append(&args, lambda)
+
+			perform := new(CExpr_Perform)
+			perform^ = CExpr_Perform{effect = parallel_name, op = for_each_op, args = args, span = e.span}
+			return perform
+		} else {
+			// par { e1, e2, e3 } → Parallel!.all!([|| e1, || e2, || e3])
+			lambda_exprs := make([dynamic]CExpr, 0, len(e.expressions))
+			for expr in e.expressions {
+				cexpr := canonicalize_expr(expr, scope, ctx)
+				lambda := new(CExpr_Lambda)
+				lambda^ = CExpr_Lambda{
+					type_params = make([dynamic]Type_Param, 0),
+					params = make([dynamic]CFunc_Param, 0),
+					return_type = nil,
+					effects = nil,
+					body = cexpr,
+					span = e.span,
+				}
+				append(&lambda_exprs, lambda)
+			}
+
+			// Create list of lambdas
+			list_expr := new(CExpr_List)
+			list_expr^ = CExpr_List{elements = lambda_exprs, span = e.span}
+
+			// Create perform: Parallel!.all!(list)
+			parallel_name := Canonical_Name{module = NO_NAME, name = intern(&ctx.interner, "Parallel"), is_local = true}
+			all_op := intern(&ctx.interner, "all!")
+			args := make([dynamic]CExpr, 0, 1)
+			append(&args, list_expr)
+
+			perform := new(CExpr_Perform)
+			perform^ = CExpr_Perform{effect = parallel_name, op = all_op, args = args, span = e.span}
+			return perform
+		}
 
 	case ^Expr_Dot_Lambda:
 		dot_lambda_counter += 1
@@ -726,9 +803,18 @@ canonicalize_type :: proc(t: Type, scope: ^Canonicalize_Scope, ctx: ^Compilation
 		result = CType(c)
 
 	case ^Type_Effect_Row:
-		effects := make([dynamic]Intern_ID, 0, len(ty.effects))
+		effects := make([dynamic]CType_Effect_Entry, 0, len(ty.effects))
 		for e in ty.effects {
-			append(&effects, e)
+			type_args := make([dynamic]CType, 0, len(e.type_args))
+			for a in e.type_args {
+				ca := canonicalize_type(a, scope, ctx)
+				append(&type_args, ca^)
+			}
+			append(&effects, CType_Effect_Entry{
+				name = e.name,
+				type_args = type_args,
+				span = e.span,
+			})
 		}
 		c := new(CType_Effect_Row)
 		c^ = CType_Effect_Row{effects = effects, rest = ty.rest, is_open = ty.is_open, span = ty.span}
@@ -927,4 +1013,43 @@ make_derive_method_decl :: proc(
 	}
 
 	return cdecl
+}
+
+// Method sugar desugaring: receiver.par_map!(args) → Parallel!.map!(receiver, args)
+
+desugar_parallel_method :: proc(method_str: string, receiver: CExpr, args: [dynamic]CExpr, span: Source_Span, scope: ^Canonicalize_Scope, ctx: ^Compilation_Context) -> CExpr {
+	op_name: string
+	is_sugar := false
+
+	if method_str == "par_map!" {
+		op_name = "map!"; is_sugar = true
+	} else if method_str == "par_filter!" {
+		op_name = "filter!"; is_sugar = true
+	} else if method_str == "par_reduce!" {
+		op_name = "reduce!"; is_sugar = true
+	} else if method_str == "par_for_each!" {
+		op_name = "for_each!"; is_sugar = true
+	} else if method_str == "par_all!" {
+		op_name = "all!"; is_sugar = true
+	} else if method_str == "par_any!" {
+		op_name = "any!"; is_sugar = true
+	}
+
+	if !is_sugar {
+		return nil
+	}
+
+	parallel_name := Canonical_Name{module = NO_NAME, name = intern(&ctx.interner, "Parallel"), is_local = true}
+	op_id := intern(&ctx.interner, op_name)
+
+	// Build args: [receiver, ...original_args]
+	perform_args := make([dynamic]CExpr, 0, len(args) + 1)
+	append(&perform_args, receiver)
+	for a in args {
+		append(&perform_args, a)
+	}
+
+	perform := new(CExpr_Perform)
+	perform^ = CExpr_Perform{effect = parallel_name, op = op_id, args = perform_args, span = span}
+	return perform
 }

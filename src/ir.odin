@@ -40,6 +40,7 @@ IR_Decl_Fn :: struct {
 	params:       [dynamic]IR_Param,
 	return_type:  IR_Type,
 	effect_row:   IR_Type,
+	effects:      [dynamic]Canonical_Name,
 	body:         IR_Expr,
 	span:         Source_Span,
 }
@@ -71,6 +72,68 @@ IR_Effect_Op :: struct {
 IR_Effect_Def :: struct {
 	name:       Canonical_Name,
 	operations: [dynamic]IR_Effect_Op,
+	type_params: [dynamic]Intern_ID,
+}
+
+Atomic_Width :: enum {
+	B1,
+	B2,
+	B4,
+	B8,
+}
+
+Atomic_Op :: enum {
+	Add,
+	Sub,
+	And,
+	Or,
+	Xor,
+	Xchg,
+	CmpXchg,
+}
+
+IR_Atomic_Load :: struct {
+	base:   IR_Expr,
+	offset: int,
+	width:  Atomic_Width,
+	span:   Source_Span,
+}
+
+IR_Atomic_Store :: struct {
+	base:   IR_Expr,
+	offset: int,
+	value:  IR_Expr,
+	width:  Atomic_Width,
+	span:   Source_Span,
+}
+
+IR_Atomic_RMW :: struct {
+	base:   IR_Expr,
+	offset: int,
+	value:  IR_Expr,
+	op:     Atomic_Op,
+	width:  Atomic_Width,
+	span:   Source_Span,
+}
+
+IR_Atomic_Fence :: struct {
+	span: Source_Span,
+}
+
+IR_Wait :: struct {
+	base:     IR_Expr,
+	offset:   int,
+	expected: IR_Expr,
+	timeout:  IR_Expr,
+	width:    Atomic_Width,
+	span:      Source_Span,
+}
+
+IR_Notify :: struct {
+	base:   IR_Expr,
+	offset: int,
+	count:  IR_Expr,
+	span:   Source_Span,
 }
 
 IR_Expr :: union {
@@ -90,6 +153,7 @@ IR_Expr :: union {
 	^IR_Method_Call,
 	^IR_Handle,
 	^IR_Perform,
+	^IR_Resume,
 	^IR_Closure,
 	^IR_Closure_Call,
 	^IR_Return,
@@ -100,7 +164,8 @@ IR_Expr :: union {
 	^IR_Drop_Reuse,
 	^IR_Alloc_At,
 	^IR_Crash,
-	^IR_Resume,
+	^IR_I32_Load,
+	^IR_I32_Store,
 	^IR_Atomic_Load,
 	^IR_Atomic_Store,
 	^IR_Atomic_RMW,
@@ -207,10 +272,9 @@ IR_Handle :: struct {
 }
 
 IR_Handler_Arm :: struct {
-	op:        Intern_ID,
-	resume_id: Intern_ID,
-	op_params: [dynamic]Intern_ID,
-	body:      IR_Expr,
+	op:     Intern_ID,
+	params: [dynamic]Intern_ID,
+	body:   IR_Expr,
 }
 
 IR_Perform :: struct {
@@ -219,6 +283,14 @@ IR_Perform :: struct {
 	args:   [dynamic]IR_Expr,
 	type:   IR_Type,
 	span:   Source_Span,
+}
+
+IR_Resume :: struct {
+	resume_id: Intern_ID,
+	value:     IR_Expr,
+	ev:        IR_Expr,
+	type:      IR_Type,
+	span:      Source_Span,
 }
 
 IR_Closure :: struct {
@@ -252,82 +324,15 @@ IR_Crash :: struct {
 	span:    Source_Span,
 }
 
-Atomic_Width :: enum {
-	B1,
-	B2,
-	B4,
-	B8,
+IR_I32_Load :: struct {
+	base:   IR_Expr,
+	offset: int,
+	span:   Source_Span,
 }
 
-Atomic_Op :: enum {
-	Add,
-	Sub,
-	And,
-	Or,
-	Xor,
-	Xchg,
-	CmpXchg,
-}
-
-Memory_Ordering :: enum {
-	SeqCst,
-}
-
-IR_Resume :: struct {
-	resume_id: Intern_ID,
-	value:     IR_Expr,
-	type:      IR_Type,
-	span:      Source_Span,
-}
-
-IR_Atomic_Load :: struct {
-	ptr:       IR_Expr,
-	offset:    u32,
-	width:     Atomic_Width,
-	ordering:  Memory_Ordering,
-	type:      IR_Type,
-	span:      Source_Span,
-}
-
-IR_Atomic_Store :: struct {
-	ptr:       IR_Expr,
-	offset:    u32,
-	value:     IR_Expr,
-	width:     Atomic_Width,
-	ordering:  Memory_Ordering,
-	span:      Source_Span,
-}
-
-IR_Atomic_RMW :: struct {
-	ptr:       IR_Expr,
-	offset:    u32,
-	value:     IR_Expr,
-	op:        Atomic_Op,
-	width:     Atomic_Width,
-	ordering:  Memory_Ordering,
-	type:      IR_Type,
-	span:      Source_Span,
-}
-
-IR_Atomic_Fence :: struct {
-	ordering:  Memory_Ordering,
-	span:      Source_Span,
-}
-
-IR_Wait :: struct {
-	ptr:       IR_Expr,
-	offset:    u32,
-	expected:  IR_Expr,
-	timeout:   i64,
-	width:     Atomic_Width,
-	type:      IR_Type,
-	span:      Source_Span,
-}
-
-IR_Notify :: struct {
-	ptr:       IR_Expr,
-	offset:    u32,
-	count:     IR_Expr,
-	type:      IR_Type,
-	span:      Source_Span,
+IR_I32_Store :: struct {
+	base:   IR_Expr,
+	offset: int,
+	value:  IR_Expr,
+	span:   Source_Span,
 }

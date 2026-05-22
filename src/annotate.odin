@@ -72,6 +72,14 @@ annotate_decl_effect :: proc(d: ^CDecl_Effect, env: ^Annotate_Env) -> TDecl {
 	result := new(TDecl_Effect)
 	result.name = d.name
 	result.is_pub = d.is_pub
+	result.type_params = make([dynamic]Type_Param, len(d.type_params))
+	for tp, i in d.type_params {
+		constraints := make([dynamic]Intern_ID, len(tp.constraints))
+		for c, j in tp.constraints {
+			constraints[j] = c
+		}
+		result.type_params[i] = Type_Param{name = tp.name, constraints = constraints, is_effect = tp.is_effect}
+	}
 	result.operations = make([dynamic]TEffect_Op, len(d.operations))
 
 	for i in 0..<len(d.operations) {
@@ -471,8 +479,7 @@ annotate_expr :: proc(expr: CExpr, env: ^Annotate_Env) -> TExpr {
 		for i in 0..<len(e.arms) {
 			arms_t[i] = THandler_Arm{
 				op = e.arms[i].op,
-				resume_id = e.arms[i].resume_id,
-				op_params = e.arms[i].op_params,
+				params = e.arms[i].params,
 				body = annotate_expr(e.arms[i].body, env),
 				span = e.arms[i].span,
 			}
@@ -482,6 +489,33 @@ annotate_expr :: proc(expr: CExpr, env: ^Annotate_Env) -> TExpr {
 		result.is_shallow = e.is_shallow
 		result.body = annotate_expr(e.body, env)
 		result.arms = arms_t
+		result.type_ = type_ir
+		result.eff_ = eff_ir
+		result.span = e.span
+		return TExpr(result)
+
+	case ^CExpr_Perform:
+		type_ir := lower_type(env.store, fresh_value_var(env.store, e.span))
+		eff_ir := lower_effect_type(env.store, fresh_effect_row(env.store, e.span))
+		args_t := make([dynamic]TExpr, len(e.args))
+		for i in 0..<len(e.args) {
+			args_t[i] = annotate_expr(e.args[i], env)
+		}
+		perform := new(TExpr_Perform)
+		perform.effect = e.effect
+		perform.op = e.op
+		perform.args = args_t
+		perform.type_ = type_ir
+		perform.eff_ = eff_ir
+		perform.span = e.span
+		return TExpr(perform)
+
+	case ^CExpr_Par:
+		// CExpr_Par is always desugared into CExpr_Perform in canonicalize,
+		// so this should never be reached.
+		type_ir := lower_type(env.store, fresh_value_var(env.store, e.span))
+		eff_ir := lower_effect_type(env.store, fresh_effect_row(env.store, e.span))
+		result := new(TExpr_Int)
 		result.type_ = type_ir
 		result.eff_ = eff_ir
 		result.span = e.span

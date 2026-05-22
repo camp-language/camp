@@ -91,6 +91,7 @@ expr_span_start :: proc(expr: Expr) -> int {
 	case ^Expr_Crash:             return e.span.start
 	case ^Expr_Interpolate:       return e.span.start
 	case ^Expr_Handle:            return e.span.start
+	case ^Expr_Par:               return e.span.start
 	case ^Expr_Dot_Lambda:        return e.span.start
 	case:                         return 0
 	}
@@ -122,6 +123,7 @@ right_span_end :: proc(expr: Expr) -> int {
 	case ^Expr_Crash:             return e.span.end
 	case ^Expr_Interpolate:       return e.span.end
 	case ^Expr_Handle:            return e.span.end
+	case ^Expr_Par:               return e.span.end
 	case ^Expr_Dot_Lambda:        return e.span.end
 	case:                         return 0
 	}
@@ -148,8 +150,6 @@ parser_parse_decl :: proc(p: ^Parser) -> Decl {
 	}
 
 	#partial switch p.current.kind {
-	case .Kw_Effect:
-		return parser_parse_effect_decl(p, is_pub)
 	case .Kw_Import, .Kw_Unsafe:
 		return parser_parse_import_decl(p, is_pub)
 	case .Kw_Test:
@@ -184,13 +184,119 @@ parser_parse_const_decl :: proc(p: ^Parser, is_pub: bool) -> Decl {
 
 	name_id := intern(p.intern, name_text)
 
+	type_params := make([dynamic]Type_Param, 0, 4)
 	type_ann: ^Type = nil
+	is_effect_decl := false
+
+	// Parse optional type parameters on effect declarations: Name!<T, U> : { ... }
+	if is_effectful && is_upper && p.current.kind == .Lt {
+		parser_advance(p)
+		for p.current.kind != .Gt && p.current.kind != .Eof {
+			if p.current.kind != .Identifier {
+				collector_add_diag(p.collector, diag_expected_token(.Identifier, p.current, p.current.span))
+				parser_advance(p)
+				break
+			}
+			tp_tok := parser_advance(p)
+			tp := Type_Param{name = intern(p.intern, tp_tok.text), is_effect = true}
+			append(&type_params, tp)
+			if p.current.kind == .Comma {
+				parser_advance(p)
+				parser_skip_backslashes(p)
+			}
+		}
+		parser_expect(p, .Gt)
+	}
+
 	if p.current.kind == .Colon {
 		parser_advance(p)
-		type_ann = parser_parse_type(p)
+
+		// Effect declaration: Name! : { ... }
+		if is_effectful && is_upper && p.current.kind == .LBrace {
+			is_effect_decl = true
+		} else {
+			type_ann = parser_parse_type(p)
+		}
+	}
+
+	if is_effect_decl {
+		parser_advance(p) // consume {
+
+		ops := make([dynamic]Effect_Op, 0, 8)
+
+		for p.current.kind != .RBrace && p.current.kind != .Eof {
+			if p.current.kind == .Dot_Dot {
+				parser_advance(p)
+				if p.current.kind == .Identifier {
+					parser_advance(p)
+				}
+				if p.current.kind == .Comma {
+					parser_advance(p)
+				}
+				continue
+			}
+
+			// Parse operation name (identifier + optional bang)
+			op_tok := parser_expect(p, .Identifier)
+			op_name_text := op_tok.text
+			op_is_effectful := p.current.kind == .Bang
+			if op_is_effectful {
+				parser_advance(p)
+				op_name_text = strings.concatenate({op_tok.text, "!"}, context.allocator)
+			}
+			op_name_id := intern(p.intern, op_name_text)
+
+			// Require : after operation name
+			parser_expect(p, .Colon)
+
+			// Parse the operation type (function type)
+			op_type := parser_parse_type(p)
+			op_return_effects: ^Type = nil
+			op_params := make([dynamic]Func_Param, 0, 4)
+
+			return_type: ^Type = nil
+			#partial switch t in op_type^ {
+			case ^Type_Function:
+				for pt in t.params {
+					param_type_ann := new(Type)
+					param_type_ann^ = pt
+					append(&op_params, Func_Param{
+						name = 0,
+						type_ann = param_type_ann,
+						span = op_tok.span,
+					})
+				}
+				op_return_effects = t.effects
+				return_type = new(Type)
+				return_type^ = t.return_
+			case:
+				return_type = op_type
+			}
+
+			append(&ops, Effect_Op{
+				name = op_name_id,
+				is_effectful = op_is_effectful,
+				params = op_params,
+				return_type = return_type,
+				return_effects = op_return_effects,
+				span = op_tok.span,
+			})
+
+			if p.current.kind == .Comma {
+				parser_advance(p)
+			}
+		}
+		parser_expect(p, .RBrace)
+
+		// Use the name WITHOUT the ! suffix for internal effect name consistency
+		effect_name_id := intern(p.intern, name.text)
+		decl := new(Decl_Effect)
+		decl^ = Decl_Effect{name = effect_name_id, is_pub = is_pub, operations = ops, type_params = type_params, span = start_span}
+		return decl
 	}
 
 	if is_upper && type_ann != nil && p.current.kind != .Eq {
+		delete(type_params)
 		decl := new(Decl_Alias)
 		decl^ = Decl_Alias{name = name_id, is_pub = is_pub, target = type_ann, span = Source_Span{file_id = start_span.file_id, start = start_span.start, end = p.current.span.end}}
 		return decl
@@ -199,6 +305,7 @@ parser_parse_const_decl :: proc(p: ^Parser, is_pub: bool) -> Decl {
 	parser_expect(p, .Eq)
 	body := parser_parse_expr(p)
 
+	delete(type_params)
 	decl := new(Decl_Const)
 	decl^ = Decl_Const{
 		name = name_id,
@@ -312,6 +419,9 @@ parser_parse_prefix :: proc(p: ^Parser) -> Expr {
 
 	case .Kw_Handle, .Kw_Intercept:
 		return parser_parse_handle(p)
+
+	case .Kw_Par:
+		return parser_parse_par(p)
 
 	case .LParen:
 		parser_advance(p)
@@ -580,8 +690,12 @@ parser_parse_lambda :: proc(p: ^Parser) -> Expr {
 	effects: ^Type = nil
 	if p.current.kind == .Arrow {
 		parser_advance(p)
-		if p.current.kind == .LBrace {
+		if p.current.kind == .Minus {
+			parser_advance(p)
+			parser_expect(p, .LBrack)
 			effects = parser_parse_effect_row_type(p)
+			parser_expect(p, .RBrack)
+			parser_expect(p, .Arrow)
 		}
 		return_type = parser_parse_type(p)
 	}
@@ -811,9 +925,8 @@ parser_parse_handle :: proc(p: ^Parser) -> Expr {
 
 	effect_tok := parser_expect(p, .Upper_Id)
 	effect_name := effect_tok.text
-	// Effect names may include ! (e.g., Spawn!, Parallel!, Async!)
+	// Support Name! syntax for effect names (strip the ! for internal lookup)
 	if p.current.kind == .Bang {
-		effect_name = strings.concatenate({effect_name, "!"}, context.allocator)
 		parser_advance(p)
 	}
 	effect_id := intern(p.intern, effect_name)
@@ -833,14 +946,15 @@ parser_parse_handle :: proc(p: ^Parser) -> Expr {
 		parser_expect(p, .LParen)
 		resume_tok := parser_expect(p, .Identifier)
 		resume_id := intern(p.intern, resume_tok.text)
-		op_params := make([dynamic]Intern_ID, 0, 4)
+		params := make([dynamic]Intern_ID, 0, 4)
+		append(&params, resume_id)
 		if p.current.kind == .Comma {
 			parser_advance(p)
 		}
 		for p.current.kind == .Identifier || p.current.kind == .Upper_Id {
 			param_tok := parser_advance(p)
 			param_id := intern(p.intern, param_tok.text)
-			append(&op_params, param_id)
+			append(&params, param_id)
 			if p.current.kind == .Comma {
 				parser_advance(p)
 			}
@@ -848,7 +962,7 @@ parser_parse_handle :: proc(p: ^Parser) -> Expr {
 		parser_expect(p, .RParen)
 		parser_expect(p, .Fat_Arrow)
 		arm_body := parser_parse_expr(p)
-		append(&arms, Handler_Arm{op = op_id, resume_id = resume_id, op_params = op_params, body = arm_body, span = op_tok.span})
+		append(&arms, Handler_Arm{op = op_id, params = params, body = arm_body, span = op_tok.span})
 		if p.current.kind == .Comma {
 			parser_advance(p)
 		}
@@ -857,6 +971,43 @@ parser_parse_handle :: proc(p: ^Parser) -> Expr {
 
 	e := new(Expr_Handle)
 	e^ = Expr_Handle{effect = effect_id, is_shallow = is_shallow, body = body, arms = arms, span = start}
+	return e
+}
+
+parser_parse_par :: proc(p: ^Parser) -> Expr {
+	start := p.current.span
+	parser_advance(p)  // consume 'par'
+
+	e := new(Expr_Par)
+	e^ = Expr_Par{
+		for_var = Intern_ID(0),
+		span = start,
+	}
+
+	if p.current.kind == .Kw_For {
+		// par for x in xs { body }
+		parser_advance(p)  // consume 'for'
+		var_tok := parser_expect(p, .Identifier)
+		e.for_var = intern(p.intern, var_tok.text)
+		parser_expect(p, .Kw_In)
+		e.for_iter = parser_parse_expr(p)
+		parser_expect(p, .LBrace)
+		e.for_body = parser_parse_expr(p)
+		parser_expect(p, .RBrace)
+	} else {
+		// par { e1, e2, e3 }
+		parser_expect(p, .LBrace)
+		e.expressions = make([dynamic]Expr, 0, 4)
+		for p.current.kind != .RBrace && p.current.kind != .Eof {
+			expr := parser_parse_expr(p)
+			append(&e.expressions, expr)
+			if p.current.kind == .Comma {
+				parser_advance(p)
+			}
+		}
+		parser_expect(p, .RBrace)
+	}
+
 	return e
 }
 
@@ -1067,8 +1218,12 @@ parser_parse_function_type :: proc(p: ^Parser) -> Type {
 	effects: ^Type = nil
 	if p.current.kind == .Arrow {
 		parser_advance(p)
-		if p.current.kind == .LBrace {
+		if p.current.kind == .Minus {
+			parser_advance(p)
+			parser_expect(p, .LBrack)
 			effects = parser_parse_effect_row_type(p)
+			parser_expect(p, .RBrack)
+			parser_expect(p, .Arrow)
 		}
 		return_type := parser_parse_type(p)
 		ft := new(Type_Function)
@@ -1176,13 +1331,12 @@ parser_parse_tag_union_type :: proc(p: ^Parser) -> Type {
 
 parser_parse_effect_row_type :: proc(p: ^Parser) -> ^Type {
 	start := p.current.span
-	parser_advance(p)
 
-	effects := make([dynamic]Intern_ID, 0, 8)
+	effects := make([dynamic]Type_Effect_Entry, 0, 8)
 	rest: Intern_ID = 0
 	is_open := false
 
-	for p.current.kind != .RBrace && p.current.kind != .Eof {
+	for p.current.kind != .RBrack && p.current.kind != .Eof {
 		if p.current.kind == .Dot_Dot {
 			is_open = true
 			parser_advance(p)
@@ -1190,72 +1344,52 @@ parser_parse_effect_row_type :: proc(p: ^Parser) -> ^Type {
 				rest_tok := parser_advance(p)
 				rest = intern(p.intern, rest_tok.text)
 			}
-			if p.current.kind == .Comma {
+			if p.current.kind == .Pipe {
 				parser_advance(p)
 			}
 			continue
 		}
 
 		name_tok := parser_expect(p, .Upper_Id)
-		effect_name := name_tok.text
-		// Effect names may include ! (e.g., Spawn!, Parallel!, Async!)
+		name_text := name_tok.text
+		// Support Name! syntax for effect names in rows (strip the ! for internal lookup)
 		if p.current.kind == .Bang {
-			effect_name = strings.concatenate({effect_name, "!"}, context.allocator)
 			parser_advance(p)
 		}
-		name_id := intern(p.intern, effect_name)
-		append(&effects, name_id)
+		name_id := intern(p.intern, name_text)
 
-		if p.current.kind == .Comma {
+		type_args := make([dynamic]Type, 0, 4)
+		// Parse optional type arguments: Name!(Type1, Type2, ...)
+		if p.current.kind == .LParen {
+			parser_advance(p)
+			for p.current.kind != .RParen && p.current.kind != .Eof {
+				if len(type_args) > 0 {
+					parser_expect(p, .Comma)
+					parser_skip_backslashes(p)
+					if p.current.kind == .RParen do break
+				}
+				arg_type := parser_parse_type(p)
+				append(&type_args, arg_type^)
+			}
+			parser_expect(p, .RParen)
+		}
+
+		append(&effects, Type_Effect_Entry{
+			name = name_id,
+			type_args = type_args,
+			span = name_tok.span,
+		})
+
+		if p.current.kind == .Pipe {
 			parser_advance(p)
 		}
 	}
-	parser_expect(p, .RBrace)
 
 	row := new(Type_Effect_Row)
 	row^ = Type_Effect_Row{effects = effects, rest = rest, is_open = is_open, span = start}
 	result := new(Type)
 	result^ = row
 	return result
-}
-
-parser_parse_effect_decl :: proc(p: ^Parser, is_pub: bool) -> Decl {
-	start := p.current.span
-	parser_advance(p)
-
-	name_tok := parser_expect(p, .Upper_Id)
-	name_id := intern(p.intern, name_tok.text)
-
-	ops := make([dynamic]Effect_Op, 0, 8)
-
-	parser_expect(p, .LBrace)
-	for p.current.kind != .RBrace && p.current.kind != .Eof {
-		op_name_tok := parser_advance(p)
-		op_name_text := op_name_tok.text
-		is_effectful := p.current.kind == .Bang
-		if is_effectful {
-			parser_advance(p)
-			op_name_text = strings.concatenate({op_name_tok.text, "!"}, context.allocator)
-		}
-		op_name_id := intern(p.intern, op_name_text)
-
-		return_type: ^Type = nil
-		if p.current.kind == .Colon {
-			parser_advance(p)
-			return_type = parser_parse_type(p)
-		}
-
-		append(&ops, Effect_Op{name = op_name_id, is_effectful = is_effectful, return_type = return_type, span = op_name_tok.span})
-
-		if p.current.kind == .Comma {
-			parser_advance(p)
-		}
-	}
-	parser_expect(p, .RBrace)
-
-	decl := new(Decl_Effect)
-	decl^ = Decl_Effect{name = name_id, is_pub = is_pub, operations = ops, span = start}
-	return decl
 }
 
 parser_parse_trait_decl :: proc(p: ^Parser, is_pub: bool) -> Decl {

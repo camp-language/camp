@@ -1,0 +1,25 @@
+Option : <a> [Some(a) | None]
+
+is_some = <a>|o: Option(a)| -> Bool {
+  match o { Some(_) => True | None => False }
+}
+
+is_none = <a>|o: Option(a)| -> Bool {
+  match o { Some(_) => False | None => True }
+}
+
+map = <a, b>|f: |a| -> b, o: Option(a)| -> Option(b) {
+  match o { Some(v) => Some(f(v)) | None => None }
+}
+
+and_then = <a, b>|f: |a| -> Option(b), o: Option(a)| -> Option(b) {
+  match o { Some(v) => f(v) | None => None }
+}
+
+unwrap = <a>|o: Option(a)| -> a {
+  match o { Some(v) => v | None => crash "unwrap on None" }
+}
+
+unwrap_or = <a>|default: a, o: Option(a)| -> a {
+  match o { Some(v) => v | None => default }
+}

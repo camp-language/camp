@@ -1,58 +1,7 @@
 stdout = """
--- SYNTAX ERROR --- /tmp/camp-e2e/effects/effect-handler-resume-twice/effect-handler-resume-twice.camp
-
-I expected `.` here, but I got `=>` instead.
-   5 |     .read!(resume) => resume(2)
-                          ^^
-
--- SYNTAX ERROR --- /tmp/camp-e2e/effects/effect-handler-resume-twice/effect-handler-resume-twice.camp
-
-I expected `!` here, but I got `(` instead.
-   5 |     .read!(resume) => resume(2)
-                                   ^
-
--- SYNTAX ERROR --- /tmp/camp-e2e/effects/effect-handler-resume-twice/effect-handler-resume-twice.camp
-
-I expected `(` here, but I got `2` instead.
-   5 |     .read!(resume) => resume(2)
-                                    ^
-
--- SYNTAX ERROR --- /tmp/camp-e2e/effects/effect-handler-resume-twice/effect-handler-resume-twice.camp
-
-I expected `identifier` here, but I got `)` instead.
-   5 |     .read!(resume) => resume(2)
-                                     ^
-
--- SYNTAX ERROR --- /tmp/camp-e2e/effects/effect-handler-resume-twice/effect-handler-resume-twice.camp
-
-I expected `)` here, but I got `}` instead.
-   6 |   }
-         ^
-
--- SYNTAX ERROR --- /tmp/camp-e2e/effects/effect-handler-resume-twice/effect-handler-resume-twice.camp
-
-I expected `=>` here, but I got `}` instead.
-   7 | }
-       ^
-
--- SYNTAX ERROR --- /tmp/camp-e2e/effects/effect-handler-resume-twice/effect-handler-resume-twice.camp
-
-I was not expecting `` here.
-   8 | 
-       ^
-
--- SYNTAX ERROR --- /tmp/camp-e2e/effects/effect-handler-resume-twice/effect-handler-resume-twice.camp
-
-I expected `}` here, but I got `` instead.
-   8 | 
-       ^
-
--- SYNTAX ERROR --- /tmp/camp-e2e/effects/effect-handler-resume-twice/effect-handler-resume-twice.camp
-
-I expected `}` here, but I got `` instead.
-   8 | 
-       ^
-compilation failed with 9 error(s)
+canonicalized /tmp/camp-e2e/effects/effect-handler-resume-twice/effect-handler-resume-twice.camp: 2 declaration(s), 0 import(s)
+typecheck passed for /tmp/camp-e2e/effects/effect-handler-resume-twice/effect-handler-resume-twice.camp
+compiled /tmp/camp-e2e/effects/effect-handler-resume-twice/effect-handler-resume-twice.camp -> /tmp/camp-e2e/effects/effect-handler-resume-twice/effect-handler-resume-twice.wasm
 """
 stderr = ""
-exit = 1
+exit = 0

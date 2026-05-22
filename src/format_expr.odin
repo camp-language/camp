@@ -115,6 +115,8 @@ format_expr :: proc(e: Expr, info: ^Format_Source_Info, interner: ^Intern_Table)
 		return format_expr_interpolate(v, info, interner)
 	case ^Expr_Handle:
 		return format_expr_handle(v, info, interner)
+	case ^Expr_Par:
+		return format_expr_par(v, info, interner)
 	}
 	return doc_text("?")
 }
@@ -630,11 +632,57 @@ format_handler_arms :: proc(arms: []Handler_Arm, info: ^Format_Source_Info, inte
 		}
 		append(&arm_parts, doc_text(intern_get(interner, arm.op)))
 		append(&arm_parts, doc_text(" "))
-		append(&arm_parts, doc_text(intern_get(interner, arm.resume_id)))
+		if len(arm.params) > 0 {
+			append(&arm_parts, doc_text(intern_get(interner, arm.params[0])))
+		}
+		if len(arm.params) > 1 {
+			for i in 1..<len(arm.params) {
+				append(&arm_parts, doc_text(", "))
+				append(&arm_parts, doc_text(intern_get(interner, arm.params[i])))
+			}
+		}
 		append(&arm_parts, doc_text(" -> "))
 		append(&arm_parts, format_expr(arm.body, info, interner))
 	}
 	return doc_group(arm_parts[:])
+}
+
+format_expr_par :: proc(e: ^Expr_Par, info: ^Format_Source_Info, interner: ^Intern_Table) -> Doc {
+	parts: [dynamic]Doc
+
+	if e.for_var != Intern_ID(0) {
+		// par for x in xs { body }
+		append(&parts, doc_text("par for "))
+		append(&parts, doc_text(intern_get(interner, e.for_var)))
+		append(&parts, doc_text(" in "))
+		append(&parts, format_expr(e.for_iter, info, interner))
+		append(&parts, doc_text(" {"))
+		append(&parts, doc_line())
+		append(&parts, doc_nest(4, format_expr(e.for_body, info, interner)))
+		append(&parts, doc_line())
+		append(&parts, doc_text("}"))
+	} else {
+		// par { e1, e2, e3 }
+		append(&parts, doc_text("par {"))
+		append(&parts, doc_line())
+		append(&parts, doc_nest(4, format_exprs_comma_multiline_inner(e.expressions[:], info, interner)))
+		append(&parts, doc_line())
+		append(&parts, doc_text("}"))
+	}
+
+	return doc_concat(parts[:])
+}
+
+format_exprs_comma_multiline_inner :: proc(exprs: []Expr, info: ^Format_Source_Info, interner: ^Intern_Table) -> Doc {
+	parts: [dynamic]Doc
+	for expr, i in exprs {
+		if i > 0 {
+			append(&parts, doc_text(","))
+			append(&parts, doc_line())
+		}
+		append(&parts, format_expr(expr, info, interner))
+	}
+	return doc_concat(parts[:])
 }
 
 // Comma-separated formatting helpers

@@ -1,2 +1,2 @@
-effect IO { println! }
-effect State { get!, put! }
+IO! : { println!: || -> () }
+State! : { get!: || -> I64, put!: || -> () }

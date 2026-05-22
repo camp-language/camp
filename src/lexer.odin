@@ -8,7 +8,6 @@ KEYWORDS :map[string]Token_Kind = {
 	"if"        = .Kw_If,
 	"else"      = .Kw_Else,
 	"match"     = .Kw_Match,
-	"effect"    = .Kw_Effect,
 	"is"        = .Kw_Is,
 	"derives"   = .Kw_Derives,
 	"handle"    = .Kw_Handle,
@@ -29,6 +28,7 @@ KEYWORDS :map[string]Token_Kind = {
 	"not"       = .Kw_Not,
 	"pub"       = .Kw_Pub,
 	"Self"      = .Kw_Self,
+	"par"       = .Kw_Par,
 }
 
 Lexer :: struct {

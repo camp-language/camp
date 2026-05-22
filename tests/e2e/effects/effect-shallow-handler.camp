@@ -1,5 +1,5 @@
-effect Ask { read! }
-main! = || ->{Ask} I64 {
+Ask! : { read!: || -> I64 }
+main! = || -> -[Ask]-> I64 {
   intercept Ask in Ask.read!() with {
     .read!(resume) => resume(42)
   }

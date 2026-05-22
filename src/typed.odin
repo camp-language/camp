@@ -24,6 +24,7 @@ TExpr :: union {
 	^TExpr_Crash,
 	^TExpr_Interpolate,
 	^TExpr_Handle,
+	^TExpr_Perform,
 }
 
 TExpr_Int :: struct {
@@ -294,12 +295,20 @@ TExpr_Handle :: struct {
 	span:       Source_Span,
 }
 
+TExpr_Perform :: struct {
+	effect: Canonical_Name,
+	op:     Intern_ID,
+	args:   [dynamic]TExpr,
+	type_:  IR_Type,
+	eff_:   IR_Type,
+	span:   Source_Span,
+}
+
 THandler_Arm :: struct {
-	op:        Intern_ID,
-	resume_id: Intern_ID,
-	op_params: [dynamic]Intern_ID,
-	body:      TExpr,
-	span:      Source_Span,
+	op:     Intern_ID,
+	params: [dynamic]Intern_ID,
+	body:   TExpr,
+	span:   Source_Span,
 }
 
 TDecl :: union {
@@ -329,6 +338,7 @@ TDecl_Effect :: struct {
 	name:       Canonical_Name,
 	is_pub:     bool,
 	operations: [dynamic]TEffect_Op,
+	type_params: [dynamic]Type_Param,
 	span:       Source_Span,
 }
 

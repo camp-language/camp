@@ -26,15 +26,14 @@ parse_command :: proc(cmd: string) -> (CLI_Command, bool) {
 
 run_build :: proc(args: []string) {
 	thread_count := 1
-
-	// Parse --threads=N flag
-	filtered_args: [dynamic]string
-	filtered_args = make([dynamic]string, 0, len(args))
-	for arg in args {
-		if len(arg) > 10 && arg[:10] == "--threads=" {
-			rest := arg[10:]
-			n := 0
-			for c in rest {
+	filtered := make([dynamic]string, 0, len(args))
+	i := 0
+	for i < len(args) {
+		if args[i] == "--threads" && i + 1 < len(args) {
+			i += 1
+			val := args[i]
+			n: int = 0
+			for c in val {
 				if c >= '0' && c <= '9' {
 					n = n * 10 + int(c - '0')
 				} else {
@@ -44,38 +43,22 @@ run_build :: proc(args: []string) {
 			if n > 0 {
 				thread_count = n
 			}
+			i += 1
 		} else {
-			append(&filtered_args, arg)
+			append(&filtered, args[i])
+			i += 1
 		}
 	}
+	defer delete(filtered)
+	CAMP_THREADS = thread_count
 
-	// Check CAMP_THREADS env var (medium priority, CLI overrides)
-	if thread_count == 1 {
-		env_threads := os.get_env_alloc("CAMP_THREADS", context.allocator)
-		if len(env_threads) > 0 {
-			n := 0
-			for c in env_threads {
-				if c >= '0' && c <= '9' {
-					n = n * 10 + int(c - '0')
-				} else {
-					break
-				}
-			}
-			if n > 0 {
-				thread_count = n
-			}
-		}
-	}
-
-	single_file := len(filtered_args) > 0
+	single_file := len(filtered) > 0
 
 	if single_file {
-		run_build_single(filtered_args[0], thread_count)
-		delete(filtered_args)
+		run_build_single(filtered[0])
 		return
 	}
 
-	delete(filtered_args)
 	run_build_project(thread_count)
 }
 
@@ -177,6 +160,7 @@ run_build_project :: proc(thread_count: int = 1) {
 	}
 
 	project := discover_project(cwd, &ctx.interner, &ctx.collector, ctx.allocator)
+	register_stdlib_modules(&project, &ctx.interner)
 	ctx.project = project
 
 	if diag_collector_has_errors(&ctx.collector) {

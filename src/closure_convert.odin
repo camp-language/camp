@@ -134,7 +134,7 @@ cc_free_vars :: proc(expr: IR_Expr, bound: ^map[Intern_ID]bool) -> [dynamic]Inte
 		for v in body { append(&result, v) }
 		delete(body)
 		for arm in e.arms {
-			bound^[arm.resume_id] = true
+			bound^[arm.params[0]] = true
 			inner := cc_free_vars(arm.body, bound)
 			for v in inner { append(&result, v) }
 			delete(inner)
@@ -144,6 +144,27 @@ cc_free_vars :: proc(expr: IR_Expr, bound: ^map[Intern_ID]bool) -> [dynamic]Inte
 			inner := cc_free_vars(arg, bound)
 			for v in inner { append(&result, v) }
 			delete(inner)
+		}
+	case ^IR_Resume:
+		if _, ok := bound^[e.resume_id]; !ok {
+			already := false
+			for v in result {
+				if v == e.resume_id {
+					already = true
+					break
+				}
+			}
+			if !already {
+				append(&result, e.resume_id)
+			}
+		}
+		inner := cc_free_vars(e.value, bound)
+		for v in inner { append(&result, v) }
+		delete(inner)
+		if e.ev != nil {
+			ev_free := cc_free_vars(e.ev, bound)
+			for v in ev_free { append(&result, v) }
+			delete(ev_free)
 		}
 	case ^IR_Closure:
 		inner := cc_free_vars(e.body, bound)
@@ -226,6 +247,33 @@ cc_convert_decl :: proc(decl: IR_Decl, env: ^Closure_Convert_Env) -> IR_Decl {
 cc_convert_expr :: proc(expr: IR_Expr, env: ^Closure_Convert_Env) -> IR_Expr {
 	#partial switch e in expr {
 	case ^IR_Closure:
+		// If fn_name is set and body is nil, this is a reference closure
+		// pointing to an already-created IR_Decl_Fn (e.g., from effect_lower)
+		if e.body == nil && e.fn_name.name != NO_NAME {
+			// Use IR_Var referencing the function by name — codegen resolves via func_map
+			fields := make([dynamic]IR_Record_Field, 0, 2)
+			fn_idx_id := intern(env.interner, "fn_idx")
+			fn_idx_var := new(IR_Var)
+			fn_idx_var^ = IR_Var{name = e.fn_name.name, type = IR_Type{.I32, Type_Var_ID(0)}, span = e.span}
+			append(&fields, IR_Record_Field{name = fn_idx_id, value = IR_Expr(fn_idx_var)})
+
+			// Add env as a field
+			env_id := intern(env.interner, "env")
+			append(&fields, IR_Record_Field{name = env_id, value = e.env})
+
+			rest_nil := new(IR_Literal_Int)
+			rest_nil^ = IR_Literal_Int{value = 0, type = IR_Type{.I32, Type_Var_ID(0)}, span = e.span}
+
+			rec := new(IR_Construct_Record)
+			rec^ = IR_Construct_Record{
+				fields = fields,
+				rest = IR_Expr(rest_nil),
+				type = IR_Type{.I32, Type_Var_ID(0)},
+				span = e.span,
+			}
+			return IR_Expr(rec)
+		}
+
 		env_param_name := cc_fresh(env, "_cenv")
 
 		bound: map[Intern_ID]bool
@@ -266,17 +314,18 @@ cc_convert_expr :: proc(expr: IR_Expr, env: ^Closure_Convert_Env) -> IR_Expr {
 			params = params,
 			return_type = e.type,
 			effect_row = IR_Type{.Void, Type_Var_ID(0)},
+			effects = make([dynamic]Canonical_Name, 0),
 			body = rewrite_free_var_access(converted_body, &env_access_map),
 			span = e.span,
 		}
-			append(&env.module.decls, IR_Decl(closed_fn))
+		append(&env.module.decls, IR_Decl(closed_fn))
 
-			fn_idx_var := new(IR_Var)
-			fn_idx_var^ = IR_Var{name = closed_fn_name.name, type = IR_Type{.I32, Type_Var_ID(0)}, span = e.span}
+		fn_idx_var := new(IR_Var)
+		fn_idx_var^ = IR_Var{name = closed_fn_name.name, type = IR_Type{.I32, Type_Var_ID(0)}, span = e.span}
 
-			fields := make([dynamic]IR_Record_Field, 0, len(free) + 1)
-			fn_idx_id := intern(env.interner, "fn_idx")
-			append(&fields, IR_Record_Field{name = fn_idx_id, value = IR_Expr(fn_idx_var)})
+		fields := make([dynamic]IR_Record_Field, 0, len(free) + 1)
+		fn_idx_id := intern(env.interner, "fn_idx")
+		append(&fields, IR_Record_Field{name = fn_idx_id, value = IR_Expr(fn_idx_var)})
 
 		for fv in free {
 			fv_var := new(IR_Var)
@@ -415,7 +464,7 @@ cc_convert_expr :: proc(expr: IR_Expr, env: ^Closure_Convert_Env) -> IR_Expr {
 		body := cc_convert_expr(e.body, env)
 		new_arms := make([dynamic]IR_Handler_Arm, 0, len(e.arms))
 		for arm in e.arms {
-			append(&new_arms, IR_Handler_Arm{op = arm.op, resume_id = arm.resume_id, op_params = arm.op_params, body = cc_convert_expr(arm.body, env)})
+			append(&new_arms, IR_Handler_Arm{op = arm.op, params = arm.params, body = cc_convert_expr(arm.body, env)})
 		}
 		new_handle := new(IR_Handle)
 		new_handle^ = IR_Handle{
@@ -436,6 +485,21 @@ cc_convert_expr :: proc(expr: IR_Expr, env: ^Closure_Convert_Env) -> IR_Expr {
 		new_perf := new(IR_Perform)
 		new_perf^ = IR_Perform{effect = e.effect, op = e.op, args = new_args, type = e.type, span = e.span}
 		return IR_Expr(new_perf)
+
+	case ^IR_Resume:
+		new_resume := new(IR_Resume)
+		ev_val: IR_Expr = nil
+		if e.ev != nil {
+			ev_val = cc_convert_expr(e.ev, env)
+		}
+		new_resume^ = IR_Resume{
+			resume_id = e.resume_id,
+			value = cc_convert_expr(e.value, env),
+			ev = ev_val,
+			type = e.type,
+			span = e.span,
+		}
+		return IR_Expr(new_resume)
 
 	case ^IR_Return:
 		new_ret := new(IR_Return)
@@ -466,20 +530,19 @@ cc_convert_expr :: proc(expr: IR_Expr, env: ^Closure_Convert_Env) -> IR_Expr {
 		new_crash := new(IR_Crash)
 		new_crash^ = IR_Crash{message = cc_convert_expr(e.message, env), span = e.span}
 		return IR_Expr(new_crash)
-	case ^IR_Resume:
-		return expr
+
 	case ^IR_Atomic_Load:
-		return expr
+		return IR_Expr(e)
 	case ^IR_Atomic_Store:
-		return expr
+		return IR_Expr(e)
 	case ^IR_Atomic_RMW:
-		return expr
+		return IR_Expr(e)
 	case ^IR_Atomic_Fence:
-		return expr
+		return IR_Expr(e)
 	case ^IR_Wait:
-		return expr
+		return IR_Expr(e)
 	case ^IR_Notify:
-		return expr
+		return IR_Expr(e)
 	}
 
 	return expr
@@ -616,6 +679,20 @@ rewrite_free_var_access :: proc(expr: IR_Expr, env_map: ^map[Intern_ID]IR_Expr) 
 			span = e.span,
 		}
 		return IR_Expr(new_fa)
+	case ^IR_Resume:
+		new_resume := new(IR_Resume)
+		ev_val: IR_Expr = nil
+		if e.ev != nil {
+			ev_val = rewrite_free_var_access(e.ev, env_map)
+		}
+		new_resume^ = IR_Resume{
+			resume_id = e.resume_id,
+			value = rewrite_free_var_access(e.value, env_map),
+			ev = ev_val,
+			type = e.type,
+			span = e.span,
+		}
+		return IR_Expr(new_resume)
 	case:
 		return expr
 	}

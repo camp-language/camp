@@ -1,2 +1,4 @@
-effect Ask { read! }
-Ask.read!()
+Ask! : { read!: || -> I64 }
+main! = || -> I64 {
+  Ask.read!()
+}

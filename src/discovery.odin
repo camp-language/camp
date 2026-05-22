@@ -188,6 +188,27 @@ project_discovery_destroy :: proc(project: ^Project_Discovery) {
 	delete(project.module_names)
 }
 
+// Register stdlib modules into the project discovery.
+// Called after discover_project to add embedded stdlib modules as a fallback.
+register_stdlib_modules :: proc(project: ^Project_Discovery, interner: ^Intern_Table) {
+	for mod in STDLIB_MODULES {
+		name_id := intern(interner, mod.name)
+		if _, exists := project.modules[name_id]; exists {
+			continue  // project-local module takes precedence
+		}
+		mi := Module_Info{
+			name = name_id,
+			path = mod.path,
+			content_hash = simple_hash(mod.source),
+			source = mod.source,
+			imports = make([dynamic]Deferred_Import, 0, 8),
+			exports = make([dynamic]Export_Info, 0, 16),
+		}
+		project.modules[name_id] = mi
+		append(&project.module_names, name_id)
+	}
+}
+
 mangle_name :: proc(module: Intern_ID, name: Intern_ID, interner: ^Intern_Table) -> string {
 	module_str := intern_get(interner, module)
 	name_str := intern_get(interner, name)
