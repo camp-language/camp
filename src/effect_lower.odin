@@ -1070,6 +1070,19 @@ el_lower_expr :: proc(expr: IR_Expr, env: ^Effect_Lower_Env) -> IR_Expr {
 			span = e.span,
 		}
 		return IR_Expr(new_store)
+
+	case ^IR_Atomic_Load:
+		return IR_Expr(e)
+	case ^IR_Atomic_Store:
+		return IR_Expr(e)
+	case ^IR_Atomic_RMW:
+		return IR_Expr(e)
+	case ^IR_Atomic_Fence:
+		return IR_Expr(e)
+	case ^IR_Wait:
+		return IR_Expr(e)
+	case ^IR_Notify:
+		return IR_Expr(e)
 	}
 
 	return expr

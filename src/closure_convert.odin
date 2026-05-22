@@ -530,6 +530,19 @@ cc_convert_expr :: proc(expr: IR_Expr, env: ^Closure_Convert_Env) -> IR_Expr {
 		new_crash := new(IR_Crash)
 		new_crash^ = IR_Crash{message = cc_convert_expr(e.message, env), span = e.span}
 		return IR_Expr(new_crash)
+
+	case ^IR_Atomic_Load:
+		return IR_Expr(e)
+	case ^IR_Atomic_Store:
+		return IR_Expr(e)
+	case ^IR_Atomic_RMW:
+		return IR_Expr(e)
+	case ^IR_Atomic_Fence:
+		return IR_Expr(e)
+	case ^IR_Wait:
+		return IR_Expr(e)
+	case ^IR_Notify:
+		return IR_Expr(e)
 	}
 
 	return expr

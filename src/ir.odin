@@ -75,6 +75,67 @@ IR_Effect_Def :: struct {
 	type_params: [dynamic]Intern_ID,
 }
 
+Atomic_Width :: enum {
+	B1,
+	B2,
+	B4,
+	B8,
+}
+
+Atomic_Op :: enum {
+	Add,
+	Sub,
+	And,
+	Or,
+	Xor,
+	Xchg,
+	CmpXchg,
+}
+
+IR_Atomic_Load :: struct {
+	base:   IR_Expr,
+	offset: int,
+	width:  Atomic_Width,
+	span:   Source_Span,
+}
+
+IR_Atomic_Store :: struct {
+	base:   IR_Expr,
+	offset: int,
+	value:  IR_Expr,
+	width:  Atomic_Width,
+	span:   Source_Span,
+}
+
+IR_Atomic_RMW :: struct {
+	base:   IR_Expr,
+	offset: int,
+	value:  IR_Expr,
+	op:     Atomic_Op,
+	width:  Atomic_Width,
+	span:   Source_Span,
+}
+
+IR_Atomic_Fence :: struct {
+	span: Source_Span,
+}
+
+IR_Wait :: struct {
+	base:     IR_Expr,
+	offset:   int,
+	expected: IR_Expr,
+	timeout:  IR_Expr,
+	width:    Atomic_Width,
+	span:      Source_Span,
+}
+
+IR_Notify :: struct {
+	base:   IR_Expr,
+	offset: int,
+	count:  IR_Expr,
+	span:   Source_Span,
+}
+
 IR_Expr :: union {
 	^IR_Literal_Int,
 	^IR_Literal_Float,
@@ -105,6 +166,12 @@ IR_Expr :: union {
 	^IR_Crash,
 	^IR_I32_Load,
 	^IR_I32_Store,
+	^IR_Atomic_Load,
+	^IR_Atomic_Store,
+	^IR_Atomic_RMW,
+	^IR_Atomic_Fence,
+	^IR_Wait,
+	^IR_Notify,
 }
 
 IR_Literal_Int :: struct { value: i64, type: IR_Type, span: Source_Span }

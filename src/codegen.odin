@@ -464,6 +464,12 @@ codegen :: proc(ir_mod: IR_Module, ctx: ^Compilation_Context) -> Wasm_Module {
 		}
 	}
 
+	worker_func_idx := -1
+	if start_func_idx >= 0 {
+		worker_type_idx := get_or_create_type(&env, []Wasm_Value_Type{.I32}, []Wasm_Value_Type{.I32})
+		worker_func_idx = add_function(&env, worker_type_idx)
+	}
+
 	if env.table_idx >= 0 && len(env.func_type_indices) > 0 {
 		total_funcs := len(env.func_type_indices)
 
@@ -705,6 +711,33 @@ codegen :: proc(ir_mod: IR_Module, ctx: ^Compilation_Context) -> Wasm_Module {
 		delete(code_buf)
 
 		append(&mod.exports, Wasm_Export{name = "_start", kind = .Func, index = start_func_idx})
+	}
+
+	if worker_func_idx >= 0 {
+		worker_buf: [dynamic]u8
+		worker_buf = make([dynamic]u8, 0, 64)
+
+		// Load env pointer from closure at CAMP_TAG_FIELDS_OFFSET + 8
+		emit_instruction(Wasm_Local_Get{index = 0}, &worker_buf)
+		emit_instruction(Wasm_I32_Const{value = i32(CAMP_TAG_FIELDS_OFFSET + 8)}, &worker_buf)
+		emit_instruction(Wasm_I32_Add{}, &worker_buf)
+		emit_instruction(Wasm_I32_Load{align = 2, offset = 0}, &worker_buf)
+
+		// Load function index from closure at CAMP_TAG_FIELDS_OFFSET
+		emit_instruction(Wasm_Local_Get{index = 0}, &worker_buf)
+		emit_instruction(Wasm_I32_Load{align = 2, offset = u32(CAMP_TAG_FIELDS_OFFSET)}, &worker_buf)
+
+		// call_indirect with type (i32) -> (i32)
+		worker_call_type_idx := get_or_create_type(&env, []Wasm_Value_Type{.I32}, []Wasm_Value_Type{.I32})
+		emit_instruction(Wasm_Call_Indirect{type_idx = u32(worker_call_type_idx), table_idx = u32(env.table_idx)}, &worker_buf)
+
+		emit_instruction(Wasm_End{}, &worker_buf)
+
+		worker_locals := make([]Wasm_Local_Decl, 0)
+		append(&mod.codes, Wasm_Code{locals = worker_locals, body = copy_dynamic_bytes(worker_buf)})
+		delete(worker_buf)
+
+		append(&mod.exports, Wasm_Export{name = "camp_worker_entry", kind = .Func, index = worker_func_idx})
 	}
 
 	env.data_offset = 0
@@ -1328,6 +1361,24 @@ emit_expr :: proc(expr: IR_Expr, buf: ^[dynamic]u8, env: ^Codegen_Env, runtime_i
 		emit_instruction(Wasm_I32_Add{}, buf)
 		emit_expr(e.value, buf, env, runtime_indices)
 		emit_instruction(Wasm_I32_Store{align = 2, offset = 0}, buf)
+	case ^IR_Atomic_Load:
+		// TODO: emit 0xFE 0x10 + alignment + offset
+		emit_instruction(Wasm_Unreachable{}, buf)
+	case ^IR_Atomic_Store:
+		// TODO: emit 0xFE 0x17 + alignment + offset
+		emit_instruction(Wasm_Unreachable{}, buf)
+	case ^IR_Atomic_RMW:
+		// TODO: emit 0xFE 0x1E-0x48 + alignment + offset
+		emit_instruction(Wasm_Unreachable{}, buf)
+	case ^IR_Atomic_Fence:
+		// TODO: emit 0xFE 0x50
+		emit_instruction(Wasm_Unreachable{}, buf)
+	case ^IR_Wait:
+		// TODO: emit 0xFE 0x52 + alignment + offset
+		emit_instruction(Wasm_Unreachable{}, buf)
+	case ^IR_Notify:
+		// TODO: emit 0xFE 0x54 + alignment + offset
+		emit_instruction(Wasm_Unreachable{}, buf)
 	case:
 		emit_instruction(Wasm_Unreachable{}, buf)
 	}
