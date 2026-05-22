@@ -298,8 +298,22 @@ inject_prelude :: proc(store: ^Type_Store) {
 		{name = intern(store.interner, "cancel!"), param_count = 1, param_types = nil, return_type = void_id},
 	}
 
+	// Async! effect
+	async_name := intern(store.interner, "Async")
+	append(&store.declared_effects, async_name)
+
+	a_var_async := fresh_value_var(store, Source_Span_ZERO)
+	handle_id_async := store.bindings[intern(store.interner, "Handle")]
+
+	store.effect_ops[async_name] = []Effect_Op_Sig{
+		{name = intern(store.interner, "spawn!"), param_count = 1, param_types = nil, return_type = handle_id_async},
+		{name = intern(store.interner, "join!"), param_count = 1, param_types = nil, return_type = a_var_async},
+		{name = intern(store.interner, "yield!"), param_count = 0, param_types = nil, return_type = void_id},
+		{name = intern(store.interner, "cancel!"), param_count = 1, param_types = nil, return_type = void_id},
+	}
+
 	// Future effect name declarations (operations added later)
-	future_effects := []string{"Async", "File", "Env", "Time", "Random", "Log", "CryptoRandom"}
+	future_effects := []string{"File", "Env", "Time", "Random", "Log", "CryptoRandom"}
 
 	for eff_name in future_effects {
 		name_id := intern(store.interner, eff_name)
@@ -1221,8 +1235,10 @@ typecheck_method_call :: proc(e: ^CExpr_Method_Call, env: ^Type_Env, store: ^Typ
 		throw_name := intern(store.interner, "Throw")
 		parallel_name := intern(store.interner, "Parallel")
 		spawn_name := intern(store.interner, "Spawn")
+		async_name := intern(store.interner, "Async")
 		is_prelude := effect_name == console_name || effect_name == throw_name ||
-		              effect_name == parallel_name || effect_name == spawn_name
+		              effect_name == parallel_name || effect_name == spawn_name ||
+		              effect_name == async_name
 		if !is_prelude && !is_effect_handled(env, effect_name) {
 			effect_str := intern_get(store.interner, effect_name)
 			collector_add_diag(store.collector, diag_unhandled_effect(effect_str, e.span))

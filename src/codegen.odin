@@ -2,7 +2,7 @@ package camp
 
 WASI_MODULE :: "wasi_snapshot_preview1"
 
-RUNTIME_FUNC_COUNT :: 13
+RUNTIME_FUNC_COUNT :: 17
 
 CAMP_TAG_HEADER_SIZE :: 8
 CAMP_TAG_REFCOUNT_OFFSET :: 0
@@ -206,6 +206,20 @@ codegen :: proc(ir_mod: IR_Module, ctx: ^Compilation_Context) -> Wasm_Module {
 	str_eq_func_idx := add_function(&env, str_eq_type_idx)
 	runtime_func_indices[12] = str_eq_func_idx
 
+	async_init_type_idx := get_or_create_type(&env, []Wasm_Value_Type{}, []Wasm_Value_Type{})
+	async_enqueue_type_idx := get_or_create_type(&env, []Wasm_Value_Type{.I32, .I32}, []Wasm_Value_Type{.I32})
+	async_dequeue_type_idx := get_or_create_type(&env, []Wasm_Value_Type{}, []Wasm_Value_Type{.I32})
+	async_run_type_idx := get_or_create_type(&env, []Wasm_Value_Type{}, []Wasm_Value_Type{.I32})
+
+	async_init_func_idx := add_function(&env, async_init_type_idx)
+	runtime_func_indices[13] = async_init_func_idx
+	async_enqueue_func_idx := add_function(&env, async_enqueue_type_idx)
+	runtime_func_indices[14] = async_enqueue_func_idx
+	async_dequeue_func_idx := add_function(&env, async_dequeue_type_idx)
+	runtime_func_indices[15] = async_dequeue_func_idx
+	async_run_func_idx := add_function(&env, async_run_type_idx)
+	runtime_func_indices[16] = async_run_func_idx
+
 	camp_alloc_code := emit_camp_alloc_body(heap_ptr_global_idx)
 	append(&mod.codes, camp_alloc_code)
 
@@ -244,6 +258,18 @@ codegen :: proc(ir_mod: IR_Module, ctx: ^Compilation_Context) -> Wasm_Module {
 
 	camp_str_eq_code := emit_camp_str_eq_body()
 	append(&mod.codes, camp_str_eq_code)
+
+	camp_async_init_code := emit_camp_async_init_body()
+	append(&mod.codes, camp_async_init_code)
+
+	camp_async_enqueue_code := emit_camp_async_enqueue_body()
+	append(&mod.codes, camp_async_enqueue_code)
+
+	camp_async_dequeue_code := emit_camp_async_dequeue_body()
+	append(&mod.codes, camp_async_dequeue_code)
+
+	camp_async_run_code := emit_camp_async_run_body()
+	append(&mod.codes, camp_async_run_code)
 
 	camp_alloc_name := intern(&ctx.interner, "camp_alloc")
 	env.func_map[int(camp_alloc_name)] = alloc_func_idx
@@ -819,6 +845,10 @@ RUNTIME_LIST_LEN :: 9
 RUNTIME_LIST_GET :: 10
 RUNTIME_STR_LEN :: 11
 RUNTIME_STR_EQ :: 12
+RUNTIME_ASYNC_INIT :: 13
+RUNTIME_ASYNC_ENQUEUE :: 14
+RUNTIME_ASYNC_DEQUEUE :: 15
+RUNTIME_ASYNC_RUN :: 16
 
 extract_effectful_body :: proc(expr: IR_Expr) -> IR_Expr {
 	#partial switch e in expr {

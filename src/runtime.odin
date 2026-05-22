@@ -325,3 +325,64 @@ emit_camp_str_eq_body :: proc() -> Wasm_Code {
 
 	return Wasm_Code{locals = locals, body = body}
 }
+
+emit_camp_async_init_body :: proc() -> Wasm_Code {
+	// Initialize async scheduler — no-op for now (scheduler state in linear memory)
+	buf: [dynamic]u8
+	buf = make([dynamic]u8, 0, 8)
+	emit_instruction(Wasm_End{}, &buf)
+	locals := make([]Wasm_Local_Decl, 0)
+	body := make([]u8, len(buf))
+	for b, i in buf {
+		body[i] = b
+	}
+	delete(buf)
+	return Wasm_Code{locals = locals, body = body}
+}
+
+emit_camp_async_enqueue_body :: proc() -> Wasm_Code {
+	// camp_async_enqueue(closure_fn: i32, closure_env: i32) -> i32 (handle_id)
+	// Simplified: return closure_fn as handle_id
+	buf: [dynamic]u8
+	buf = make([dynamic]u8, 0, 16)
+	emit_instruction(Wasm_Local_Get{index = 0}, &buf)
+	emit_instruction(Wasm_End{}, &buf)
+	locals := make([]Wasm_Local_Decl, 0)
+	body := make([]u8, len(buf))
+	for b, i in buf {
+		body[i] = b
+	}
+	delete(buf)
+	return Wasm_Code{locals = locals, body = body}
+}
+
+emit_camp_async_dequeue_body :: proc() -> Wasm_Code {
+	// camp_async_dequeue() -> i32 (closure_fn, 0 = empty)
+	buf: [dynamic]u8
+	buf = make([dynamic]u8, 0, 8)
+	emit_instruction(Wasm_I32_Const{value = 0}, &buf)
+	emit_instruction(Wasm_End{}, &buf)
+	locals := make([]Wasm_Local_Decl, 0)
+	body := make([]u8, len(buf))
+	for b, i in buf {
+		body[i] = b
+	}
+	delete(buf)
+	return Wasm_Code{locals = locals, body = body}
+}
+
+emit_camp_async_run_body :: proc() -> Wasm_Code {
+	// camp_async_run() -> i32 (exit code)
+	// Simplified: return 0
+	buf: [dynamic]u8
+	buf = make([dynamic]u8, 0, 8)
+	emit_instruction(Wasm_I32_Const{value = 0}, &buf)
+	emit_instruction(Wasm_End{}, &buf)
+	locals := make([]Wasm_Local_Decl, 0)
+	body := make([]u8, len(buf))
+	for b, i in buf {
+		body[i] = b
+	}
+	delete(buf)
+	return Wasm_Code{locals = locals, body = body}
+}

@@ -836,6 +836,48 @@ inject_prelude_effect_defs :: proc(mod: ^IR_Module, store: ^Type_Store) {
 			})
 		}
 	}
+
+	// Async! effect
+	async_name := intern(store.interner, "Async")
+	if is_declared_effect(store, async_name) {
+		already := false
+		for eff in mod.effect_defs {
+			if eff.name.name == async_name {
+				already = true
+				break
+			}
+		}
+		if !already {
+			async_canonical := Canonical_Name{module = NO_NAME, name = async_name}
+			i32_type := IR_Type{wasm_type = .I32, type_id = 0}
+			async_ops := make([dynamic]IR_Effect_Op, 0, 4)
+
+			// spawn!(thunk) -> Handle(a)
+			spawn_params := make([dynamic]IR_Param, 0, 1)
+			append(&spawn_params, IR_Param{name = intern(store.interner, "thunk"), type = i32_type})
+			append(&async_ops, IR_Effect_Op{name = intern(store.interner, "spawn!"), params = spawn_params, return_type = i32_type})
+
+			// join!(handle) -> a
+			join_params := make([dynamic]IR_Param, 0, 1)
+			append(&join_params, IR_Param{name = intern(store.interner, "handle"), type = i32_type})
+			append(&async_ops, IR_Effect_Op{name = intern(store.interner, "join!"), params = join_params, return_type = i32_type})
+
+			// yield!() -> Unit
+			yield_params := make([dynamic]IR_Param, 0)
+			append(&async_ops, IR_Effect_Op{name = intern(store.interner, "yield!"), params = yield_params, return_type = i32_type})
+
+			// cancel!(handle) -> Unit
+			cancel_params := make([dynamic]IR_Param, 0, 1)
+			append(&cancel_params, IR_Param{name = intern(store.interner, "handle"), type = i32_type})
+			append(&async_ops, IR_Effect_Op{name = intern(store.interner, "cancel!"), params = cancel_params, return_type = i32_type})
+
+			append(&mod.effect_defs, IR_Effect_Def{
+				name = async_canonical,
+				operations = async_ops,
+				type_params = make([dynamic]Intern_ID, 0),
+			})
+		}
+	}
 }
 
 lower_call :: proc(e: ^CExpr_Call, env: ^Lower_Env) -> IR_Expr {
