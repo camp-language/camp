@@ -125,7 +125,7 @@ typecheck_source :: proc(source: string) -> (Type_Store, ^Compilation_Context) {
 	return store, ctx
 }
 
-typecheck_source_full :: proc(source: string) -> (Type_Store, ^Compilation_Context, CFile) {
+typecheck_source_full :: proc(source: string) -> (Type_Store, ^Compilation_Context, CFile, TFile) {
 	ctx: ^Compilation_Context = new(Compilation_Context)
 	alloc := context_init(ctx)
 	context.allocator = alloc
@@ -142,8 +142,8 @@ typecheck_source_full :: proc(source: string) -> (Type_Store, ^Compilation_Conte
 
 	store: Type_Store
 	type_store_init(&store, &ctx.interner, &ctx.collector)
-	typecheck_file(canon, &store)
-	return store, ctx, canon
+	tfile := typecheck_file(canon, &store)
+	return store, ctx, canon, tfile
 }
 
 typecheck_source_with_prelude :: proc(source: string) -> (Type_Store, ^Compilation_Context) {
@@ -938,10 +938,9 @@ mono_source :: proc(source: string) -> (TFile, ^Compilation_Context, Type_Store)
 	store: Type_Store
 	type_store_init(&store, &ctx.interner, &ctx.collector)
 	inject_prelude(&store)
-	typecheck_file(canon, &store)
+	tfile := typecheck_file(canon, &store)
 
-	annot_tfile := annotate_file(canon, &store)
-	mono_tfile := mono(annot_tfile, &store, &ctx.interner)
+	mono_tfile := mono(tfile, &store, &ctx.interner)
 
 	return mono_tfile, ctx, store
 }

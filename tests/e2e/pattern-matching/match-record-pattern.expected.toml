@@ -1,6 +1,7 @@
 stdout = """
 canonicalized /tmp/camp-e2e/pattern-matching/match-record-pattern/match-record-pattern.camp: 1 declaration(s), 0 import(s)
 typecheck passed for /tmp/camp-e2e/pattern-matching/match-record-pattern/match-record-pattern.camp
+compiled /tmp/camp-e2e/pattern-matching/match-record-pattern/match-record-pattern.camp -> /tmp/camp-e2e/pattern-matching/match-record-pattern/match-record-pattern.wasm
 """
 stderr = ""
-exit = 4
+exit = 0
