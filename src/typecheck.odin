@@ -180,6 +180,35 @@ inject_prelude :: proc(store: ^Type_Store) {
 		tag_rest = false_rest,
 	})
 	store.bindings[false_name] = false_var
+
+	// Console! effect
+	console_name := intern(store.interner, "Console")
+	append(&store.declared_effects, console_name)
+
+	str_id := store.bindings[intern(store.interner, "Str")]
+	void_id := store.bindings[intern(store.interner, "Unit")]
+
+	println_params := make([]Type_Var_ID, 1)
+	println_params[0] = str_id
+
+	store.effect_ops[console_name] = []Effect_Op_Sig{
+		{name = intern(store.interner, "println!"), param_count = 1, param_types = println_params[:], return_type = void_id},
+		{name = intern(store.interner, "readln!"), param_count = 0, param_types = nil, return_type = str_id},
+	}
+
+	// Throw! effect
+	throw_name := intern(store.interner, "Throw")
+	append(&store.declared_effects, throw_name)
+
+	err_type_var := fresh_value_var(store, Source_Span_ZERO)
+	result_type_var := fresh_value_var(store, Source_Span_ZERO)
+
+	throw_params := make([]Type_Var_ID, 1)
+	throw_params[0] = err_type_var
+
+	store.effect_ops[throw_name] = []Effect_Op_Sig{
+		{name = intern(store.interner, "throw!"), param_count = 1, param_types = throw_params[:], return_type = result_type_var},
+	}
 }
 
 typecheck_decl :: proc(decl: CDecl, env: ^Type_Env, store: ^Type_Store) {
@@ -1079,7 +1108,10 @@ typecheck_method_call :: proc(e: ^CExpr_Method_Call, env: ^Type_Env, store: ^Typ
 	}
 
 	if is_effect_op {
-		if !is_effect_handled(env, effect_name) {
+		console_name := intern(store.interner, "Console")
+		throw_name := intern(store.interner, "Throw")
+		is_prelude := effect_name == console_name || effect_name == throw_name
+		if !is_prelude && !is_effect_handled(env, effect_name) {
 			effect_str := intern_get(store.interner, effect_name)
 			collector_add_diag(store.collector, diag_unhandled_effect(effect_str, e.span))
 		}

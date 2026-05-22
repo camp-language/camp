@@ -445,10 +445,13 @@ codegen :: proc(ir_mod: IR_Module, ctx: ^Compilation_Context) -> Wasm_Module {
 
 			ev_param_count := len(main_decl.effects)
 
-			// Allocate evidence records and store in locals
+			ev_local_indices := make([dynamic]int, 0, ev_param_count)
+
+			// Allocate evidence records and collect local indices
 			for i in 0..<ev_param_count {
-				ev_local_idx := env.next_local
+				ev_local_idx := int(env.next_local)
 				env.next_local += 1
+				append(&ev_local_indices, ev_local_idx)
 
 				// Determine evidence record size from effect definition
 				eff := main_decl.effects[i]
@@ -468,11 +471,56 @@ codegen :: proc(ir_mod: IR_Module, ctx: ^Compilation_Context) -> Wasm_Module {
 				// Emit: ev_local = camp_alloc(ev_record_size)
 				emit_instruction(Wasm_I32_Const{value = i32(ev_record_size)}, &code_buf)
 				emit_instruction(Wasm_Call{index = u32(runtime_func_indices[RUNTIME_ALLOC])}, &code_buf)
-				emit_instruction(Wasm_Local_Set{index = ev_local_idx}, &code_buf)
-
-				// Push evidence pointer for the call to main!
-				emit_instruction(Wasm_Local_Get{index = ev_local_idx}, &code_buf)
+				emit_instruction(Wasm_Local_Set{index = u32(ev_local_idx)}, &code_buf)
 			}
+
+			// Populate evidence record slots with default handler closures for prelude effects
+			for i in 0..<ev_param_count {
+				eff := main_decl.effects[i]
+				eff_name := intern_get(&ctx.interner, eff.name)
+				ev_local_idx := ev_local_indices[i]
+
+				if eff_name == "Console" {
+					slot_offset := 0
+					for eff_def in ir_mod.effect_defs {
+						if eff_def.name == eff {
+							for op_idx in 0..<len(eff_def.operations) {
+								op_name := intern_get(&ctx.interner, eff_def.operations[op_idx].name)
+								if op_name == "println!" {
+									println_handler_idx := emit_console_println_handler_fn(&env, &mod, cont_func_idx)
+									emit_handler_into_evidence(&code_buf, &env, ev_local_idx, slot_offset, println_handler_idx, runtime_func_indices[:])
+								} else if op_name == "readln!" {
+									readln_handler_idx := emit_console_readln_handler_fn(&env, &mod)
+									emit_handler_into_evidence(&code_buf, &env, ev_local_idx, slot_offset, readln_handler_idx, runtime_func_indices[:])
+								}
+								slot_offset += 4
+							}
+							break
+						}
+					}
+				} else if eff_name == "Throw" {
+					slot_offset := 0
+					for eff_def in ir_mod.effect_defs {
+						if eff_def.name == eff {
+							for op_idx in 0..<len(eff_def.operations) {
+								op_name := intern_get(&ctx.interner, eff_def.operations[op_idx].name)
+								if op_name == "throw!" {
+									throw_handler_idx := emit_throw_handler_fn(&env, &mod, runtime_func_indices[:])
+									emit_handler_into_evidence(&code_buf, &env, ev_local_idx, slot_offset, throw_handler_idx, runtime_func_indices[:])
+								}
+								slot_offset += 4
+							}
+							break
+						}
+					}
+				}
+			}
+
+			// Push evidence pointers for the call to main!
+			for ev_idx in ev_local_indices {
+				emit_instruction(Wasm_Local_Get{index = u32(ev_idx)}, &code_buf)
+			}
+			delete(ev_local_indices)
 
 			// Call main! with evidence pointers as arguments
 			main_fn_idx, ok := env.func_map[int(main_decl.name.name)]
@@ -1325,6 +1373,130 @@ emit_load_for_type :: proc(wasm_type: IR_Wasm_Type, buf: ^[dynamic]u8) {
 	case .F64: emit_instruction(Wasm_F64_Load{align = 3, offset = 0}, buf)
 	case: emit_instruction(Wasm_I32_Load{align = 2, offset = 0}, buf)
 	}
+}
+
+emit_handler_into_evidence :: proc(buf: ^[dynamic]u8, env: ^Codegen_Env, ev_local_idx: int, slot_offset: int, fn_idx: int, runtime_indices: []int) {
+	// Save the evidence record pointer first
+	emit_instruction(Wasm_Local_Get{index = u32(ev_local_idx)}, buf)
+
+	// Allocate closure: size = CAMP_TAG_HEADER_SIZE(8) + 2*8 = 24
+	emit_instruction(Wasm_I32_Const{value = 24}, buf)
+	emit_instruction(Wasm_Call{index = u32(runtime_indices[RUNTIME_ALLOC])}, buf)
+
+	tmp := env.tmp_local_base + 3
+	emit_instruction(Wasm_Local_Tee{index = u32(tmp)}, buf)
+
+	// Set refcount = 1
+	emit_instruction(Wasm_I32_Const{value = 1}, buf)
+	emit_instruction(Wasm_I32_Store{align = 2, offset = CAMP_TAG_REFCOUNT_OFFSET}, buf)
+
+	// Set tag = closure tag (0xFE)
+	emit_instruction(Wasm_Local_Get{index = u32(tmp)}, buf)
+	emit_instruction(Wasm_I32_Const{value = 0xFE}, buf)
+	emit_instruction(Wasm_I32_Store8{offset = CAMP_TAG_TAG_OFFSET}, buf)
+
+	// Set scan_size = 2 fields
+	emit_instruction(Wasm_Local_Get{index = u32(tmp)}, buf)
+	emit_instruction(Wasm_I32_Const{value = 2}, buf)
+	emit_instruction(Wasm_I32_Store8{offset = CAMP_TAG_SCAN_SIZE_OFFSET}, buf)
+
+	// Store function index
+	emit_instruction(Wasm_Local_Get{index = u32(tmp)}, buf)
+	emit_instruction(Wasm_I32_Const{value = i32(CAMP_TAG_FIELDS_OFFSET)}, buf)
+	emit_instruction(Wasm_I32_Add{}, buf)
+	emit_instruction(Wasm_I32_Const{value = i32(fn_idx)}, buf)
+	emit_instruction(Wasm_I32_Store{align = 2, offset = 0}, buf)
+
+	// Store env = null
+	emit_instruction(Wasm_Local_Get{index = u32(tmp)}, buf)
+	emit_instruction(Wasm_I32_Const{value = i32(CAMP_TAG_FIELDS_OFFSET + 8)}, buf)
+	emit_instruction(Wasm_I32_Add{}, buf)
+	emit_instruction(Wasm_I32_Const{value = 0}, buf)
+	emit_instruction(Wasm_I32_Store{align = 2, offset = 0}, buf)
+
+	// Store closure pointer into evidence record at slot_offset
+	// Stack: [ev_ptr], closure_ptr is saved in local tmp
+	emit_instruction(Wasm_I32_Const{value = i32(slot_offset)}, buf)
+	emit_instruction(Wasm_I32_Add{}, buf)                   // address = ev_ptr + slot_offset
+	emit_instruction(Wasm_Local_Get{index = u32(tmp)}, buf) // value = closure_ptr
+	emit_store_for_type(.I32, buf)                           // store closure_ptr at [ev_ptr + slot_offset]
+}
+
+emit_throw_handler_fn :: proc(env: ^Codegen_Env, mod: ^Wasm_Module, runtime_indices: []int) -> int {
+	// Handler type: (i32=env, i32=err_arg, i32=resume, i32=ev) -> i64
+	handler_type_idx := get_or_create_type(env, []Wasm_Value_Type{.I32, .I32, .I32, .I32}, []Wasm_Value_Type{.I64})
+	handler_fn_idx := add_function(env, handler_type_idx)
+
+	for len(env.func_type_indices) <= handler_fn_idx {
+		append(&env.func_type_indices, 0)
+	}
+	env.func_type_indices[handler_fn_idx] = u32(handler_type_idx)
+
+	buf: [dynamic]u8
+	buf = make([dynamic]u8, 0, 32)
+
+	// Call camp_exit(1)
+	emit_instruction(Wasm_I32_Const{value = 1}, &buf)
+	emit_instruction(Wasm_Call{index = u32(runtime_indices[RUNTIME_EXIT])}, &buf)
+	emit_instruction(Wasm_Unreachable{}, &buf)
+	emit_instruction(Wasm_End{}, &buf)
+
+	locals := make([]Wasm_Local_Decl, 0)
+	append(&mod.codes, Wasm_Code{locals = locals, body = copy_dynamic_bytes(buf)})
+	delete(buf)
+
+	return handler_fn_idx
+}
+
+emit_console_println_handler_fn :: proc(env: ^Codegen_Env, mod: ^Wasm_Module, cont_fn_idx: int) -> int {
+	// Handler type: (i32=env, i32=str_arg, i32=resume, i32=ev) -> i64
+	handler_type_idx := get_or_create_type(env, []Wasm_Value_Type{.I32, .I32, .I32, .I32}, []Wasm_Value_Type{.I64})
+	handler_fn_idx := add_function(env, handler_type_idx)
+
+	for len(env.func_type_indices) <= handler_fn_idx {
+		append(&env.func_type_indices, 0)
+	}
+	env.func_type_indices[handler_fn_idx] = u32(handler_type_idx)
+
+	buf: [dynamic]u8
+	buf = make([dynamic]u8, 0, 32)
+
+	// Ignore the string arg for now — call continuation with Unit
+	emit_instruction(Wasm_I32_Const{value = 0}, &buf)  // env = null
+	emit_instruction(Wasm_I64_Const{value = 0}, &buf)  // result = Unit
+	emit_instruction(Wasm_Call{index = u32(cont_fn_idx)}, &buf)
+	emit_instruction(Wasm_Unreachable{}, &buf)           // continuation never returns
+	emit_instruction(Wasm_End{}, &buf)
+
+	locals := make([]Wasm_Local_Decl, 0)
+	append(&mod.codes, Wasm_Code{locals = locals, body = copy_dynamic_bytes(buf)})
+	delete(buf)
+
+	return handler_fn_idx
+}
+
+emit_console_readln_handler_fn :: proc(env: ^Codegen_Env, mod: ^Wasm_Module) -> int {
+	// Handler type: (i32=env, i32=resume, i32=ev) -> i32 (Str)
+	handler_type_idx := get_or_create_type(env, []Wasm_Value_Type{.I32, .I32, .I32}, []Wasm_Value_Type{.I32})
+	handler_fn_idx := add_function(env, handler_type_idx)
+
+	for len(env.func_type_indices) <= handler_fn_idx {
+		append(&env.func_type_indices, 0)
+	}
+	env.func_type_indices[handler_fn_idx] = u32(handler_type_idx)
+
+	buf: [dynamic]u8
+	buf = make([dynamic]u8, 0, 8)
+
+	// readln! not supported — unreachable
+	emit_instruction(Wasm_Unreachable{}, &buf)
+	emit_instruction(Wasm_End{}, &buf)
+
+	locals := make([]Wasm_Local_Decl, 0)
+	append(&mod.codes, Wasm_Code{locals = locals, body = copy_dynamic_bytes(buf)})
+	delete(buf)
+
+	return handler_fn_idx
 }
 
 hash_string :: proc(s: string) -> int {

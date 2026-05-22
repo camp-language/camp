@@ -20,6 +20,8 @@ lower_file :: proc(cfile: CFile, store: ^Type_Store) -> IR_Module {
 		}
 	}
 
+	inject_prelude_effect_defs(&mod, store)
+
 	for &decl in cfile.decls {
 		#partial switch d in decl {
 		case ^CDecl_Const:
@@ -58,6 +60,8 @@ lower_tfile :: proc(tfile: TFile, store: ^Type_Store) -> IR_Module {
 		case:
 		}
 	}
+
+	inject_prelude_effect_defs(&mod, store)
 
 	for &decl in tfile.decls {
 		#partial switch d in decl {
@@ -630,6 +634,78 @@ lower_teffect_op :: proc(op: TEffect_Op, env: ^Lower_Env) -> IR_Effect_Op {
 		name = op.name,
 		params = params,
 		return_type = op.return_type,
+	}
+}
+
+inject_prelude_effect_defs :: proc(mod: ^IR_Module, store: ^Type_Store) {
+	console_name := intern(store.interner, "Console")
+	if is_declared_effect(store, console_name) {
+		already := false
+		for eff in mod.effect_defs {
+			if eff.name.name == console_name {
+				already = true
+				break
+			}
+		}
+		if !already {
+			console_canonical := Canonical_Name{module = NO_NAME, name = console_name}
+
+			// println! : |Str| -> Unit
+			println_params := make([dynamic]IR_Param, 0, 1)
+			str_type := lower_type(store, store.bindings[intern(store.interner, "Str")])
+			append(&println_params, IR_Param{name = intern(store.interner, "msg"), type = str_type})
+			unit_type := lower_type(store, store.bindings[intern(store.interner, "Unit")])
+
+			// readln! : || -> Str
+			console_ops := make([dynamic]IR_Effect_Op, 0, 2)
+			append(&console_ops, IR_Effect_Op{
+				name = intern(store.interner, "println!"),
+				params = println_params,
+				return_type = unit_type,
+			})
+			append(&console_ops, IR_Effect_Op{
+				name = intern(store.interner, "readln!"),
+				params = make([dynamic]IR_Param, 0),
+				return_type = str_type,
+			})
+
+			append(&mod.effect_defs, IR_Effect_Def{
+				name = console_canonical,
+				operations = console_ops,
+				type_params = make([dynamic]Intern_ID, 0),
+			})
+		}
+	}
+
+	throw_name := intern(store.interner, "Throw")
+	if is_declared_effect(store, throw_name) {
+		already := false
+		for eff in mod.effect_defs {
+			if eff.name.name == throw_name {
+				already = true
+				break
+			}
+		}
+		if !already {
+			throw_canonical := Canonical_Name{module = NO_NAME, name = throw_name}
+			throw_ops := make([dynamic]IR_Effect_Op, 0, 1)
+
+			// throw! : |e| -> a (generic types — use I32 for wasm)
+			throw_params := make([dynamic]IR_Param, 0, 1)
+			append(&throw_params, IR_Param{name = intern(store.interner, "err"), type = IR_Type{wasm_type = .I32, type_id = 0}})
+
+			append(&throw_ops, IR_Effect_Op{
+				name = intern(store.interner, "throw!"),
+				params = throw_params,
+				return_type = IR_Type{wasm_type = .I32, type_id = 0},
+			})
+
+			append(&mod.effect_defs, IR_Effect_Def{
+				name = throw_canonical,
+				operations = throw_ops,
+				type_params = make([dynamic]Intern_ID, 0),
+			})
+		}
 	}
 }
 
