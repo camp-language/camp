@@ -3,7 +3,7 @@ main! = || ->{Spawn!} I64 {
     h = Spawn!.spawn!(|| -> I64 { 42 })
     Spawn!.join!(h)
   } with {
-    .spawn!(resume) => resume(0),
-    .join!(resume) => resume(0)
+    .spawn!(resume, f) => resume(0),
+    .join!(resume, h_ref) => resume(0)
   }
 }
