@@ -534,7 +534,6 @@ codegen :: proc(ir_mod: IR_Module, ctx: ^Compilation_Context) -> Wasm_Module {
 	}
 
 	if start_func_idx >= 0 && main_decl != nil {
-		env.tmp_local_base = 0
 		env.next_local = 4
 
 		code_buf: [dynamic]u8
@@ -551,6 +550,16 @@ codegen :: proc(ir_mod: IR_Module, ctx: ^Compilation_Context) -> Wasm_Module {
 			env.next_local += 1
 		}
 
+		// Set tmp_local_base after collected locals so tmp locals don't overlap
+		env.tmp_local_base = env.next_local
+		env.tmp_count = 0
+		// Pre-allocate 4 i32 tmp locals for emit_expr intermediate values
+		tmp_count := 4
+		if main_decl.is_effectful {
+			tmp_count += 2 // 2 more for structured concurrency cleanup loop
+		}
+		env.next_local += u32(tmp_count)
+
 		emit_expr(main_body, &code_buf, &env, runtime_func_indices[:])
 
 		main_ret_type := get_main_return_type(ir_mod, &ctx.interner)
@@ -560,7 +569,8 @@ codegen :: proc(ir_mod: IR_Module, ctx: ^Compilation_Context) -> Wasm_Module {
 			emit_instruction(Wasm_I32_And{}, &code_buf)
 		}
 
-		// If main is effectful, initialize scheduler before running main body
+		// If main is effectful, initialize scheduler before running main body,
+		// auto-install a top-level handler scope for structured concurrency cleanup,
 		// and enter worker loop after
 		if main_decl.is_effectful {
 			// Prepend scheduler init: camp_sched_init(thread_count)
@@ -569,21 +579,82 @@ codegen :: proc(ir_mod: IR_Module, ctx: ^Compilation_Context) -> Wasm_Module {
 			emit_instruction(Wasm_I32_Const{value = i32(ctx.thread_count)}, &pre_buf)
 			emit_instruction(Wasm_Call{index = u32(runtime_func_indices[RUNTIME_SCHED_INIT])}, &pre_buf)
 
+			// Auto-install handler scope: structured concurrency cleanup loop
+			// Cancels all Pending handles with scope_id=0 (the top-level auto-installed scope)
+			// This ensures Parallel!/Async!/Spawn! tasks are cleaned up on main! exit
+			mid_buf: [dynamic]u8
+			mid_buf = make([dynamic]u8, 0, 128)
+			handle_table_base := SCHED_BASE + SCHED_WORKER_COUNT_SIZE + SCHED_SPINNING_SIZE + SCHED_NOTIFICATION_SIZE
+			cleanup_scope_local := env.tmp_local_base + 4 // after the 4 general tmp locals
+			cleanup_entry_local := cleanup_scope_local + 1
+
+			// Loop over handle table entries
+			emit_instruction(Wasm_I32_Const{value = 0}, &mid_buf)
+			emit_instruction(Wasm_Local_Set{index = cleanup_scope_local}, &mid_buf)
+
+			emit_instruction(Wasm_Block{block_type = .Void}, &mid_buf)
+			emit_instruction(Wasm_Loop{block_type = .Void}, &mid_buf)
+
+			// Check if counter < SCHED_MAX_HANDLES
+			emit_instruction(Wasm_Local_Get{index = cleanup_scope_local}, &mid_buf)
+			emit_instruction(Wasm_I32_Const{value = i32(SCHED_MAX_HANDLES)}, &mid_buf)
+			emit_instruction(Wasm_I32_Ge_S{}, &mid_buf)
+			emit_instruction(Wasm_Br_If{label = 1}, &mid_buf) // break
+
+			// Compute entry address
+			emit_instruction(Wasm_I32_Const{value = i32(handle_table_base + 4)}, &mid_buf)
+			emit_instruction(Wasm_Local_Get{index = cleanup_scope_local}, &mid_buf)
+			emit_instruction(Wasm_I32_Const{value = i32(SCHED_HANDLE_ENTRY_SIZE)}, &mid_buf)
+			emit_instruction(Wasm_I32_Mul{}, &mid_buf)
+			emit_instruction(Wasm_I32_Add{}, &mid_buf)
+			emit_instruction(Wasm_Local_Set{index = cleanup_entry_local}, &mid_buf)
+
+			// Check scope_id matches (scope_id = 0 for auto-installed handler)
+			emit_instruction(Wasm_Local_Get{index = cleanup_entry_local}, &mid_buf)
+			emit_instruction(Wasm_I32_Load{align = 2, offset = 20}, &mid_buf) // scope_id at offset 20
+			emit_instruction(Wasm_I32_Const{value = 0}, &mid_buf) // auto-installed scope_id = 0
+			emit_instruction(Wasm_I32_Ne{}, &mid_buf)
+			emit_instruction(Wasm_Br_If{label = 0}, &mid_buf) // continue (skip, wrong scope)
+
+			// Check status == Pending
+			emit_instruction(Wasm_Local_Get{index = cleanup_entry_local}, &mid_buf)
+			emit_instruction(Wasm_I32_Atomic_Load{align = 2, offset = 0}, &mid_buf)
+			emit_instruction(Wasm_I32_Const{value = HANDLE_STATUS_PENDING}, &mid_buf)
+			emit_instruction(Wasm_I32_Ne{}, &mid_buf)
+			emit_instruction(Wasm_Br_If{label = 0}, &mid_buf) // continue (skip, not pending)
+
+			// Set status = Cancelled
+			emit_instruction(Wasm_Local_Get{index = cleanup_entry_local}, &mid_buf)
+			emit_instruction(Wasm_I32_Const{value = HANDLE_STATUS_CANCELLED}, &mid_buf)
+			emit_instruction(Wasm_I32_Store{align = 2, offset = 0}, &mid_buf)
+
+			// Increment counter, loop
+			emit_instruction(Wasm_Local_Get{index = cleanup_scope_local}, &mid_buf)
+			emit_instruction(Wasm_I32_Const{value = 1}, &mid_buf)
+			emit_instruction(Wasm_I32_Add{}, &mid_buf)
+			emit_instruction(Wasm_Local_Set{index = cleanup_scope_local}, &mid_buf)
+			emit_instruction(Wasm_Br{label = 0}, &mid_buf) // continue loop
+
+			emit_instruction(Wasm_End{}, &mid_buf) // end loop
+			emit_instruction(Wasm_End{}, &mid_buf) // end block
+
 			// Append worker loop entry: camp_sched_worker_loop(0)
 			post_buf: [dynamic]u8
 			post_buf = make([dynamic]u8, 0, 16)
 			emit_instruction(Wasm_I32_Const{value = 0}, &post_buf)
 			emit_instruction(Wasm_Call{index = u32(runtime_func_indices[RUNTIME_SCHED_WORKER_LOOP])}, &post_buf)
 
-			// Combine: pre + original body + post
+			// Combine: pre + original body + cleanup loop + post
 			combined: [dynamic]u8
-			combined = make([dynamic]u8, 0, len(pre_buf) + len(code_buf) + len(post_buf))
+			combined = make([dynamic]u8, 0, len(pre_buf) + len(code_buf) + len(mid_buf) + len(post_buf))
 			for b in pre_buf { append(&combined, b) }
 			for b in code_buf { append(&combined, b) }
+			for b in mid_buf { append(&combined, b) }
 			for b in post_buf { append(&combined, b) }
 			delete(code_buf)
 			code_buf = combined
 			delete(pre_buf)
+			delete(mid_buf)
 			delete(post_buf)
 		}
 
@@ -595,6 +666,8 @@ codegen :: proc(ir_mod: IR_Module, ctx: ^Compilation_Context) -> Wasm_Module {
 		for _, typ in collected_locals {
 			append(&start_locals, Wasm_Local_Decl{count = 1, type = ir_wasm_type_to_value_type(typ.wasm_type)})
 		}
+		// Add pre-allocated tmp locals
+		append(&start_locals, Wasm_Local_Decl{count = u32(tmp_count), type = .I32})
 		append(&mod.codes, Wasm_Code{locals = start_locals[:], body = copy_dynamic_bytes(code_buf)})
 		delete(collected_locals)
 		delete(code_buf)
