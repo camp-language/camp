@@ -2,7 +2,7 @@ package camp
 
 WASI_MODULE :: "wasi_snapshot_preview1"
 
-RUNTIME_FUNC_COUNT :: 7
+RUNTIME_FUNC_COUNT :: 11
 
 CAMP_TAG_HEADER_SIZE :: 8
 CAMP_TAG_REFCOUNT_OFFSET :: 0
@@ -183,6 +183,20 @@ codegen :: proc(ir_mod: IR_Module, ctx: ^Compilation_Context) -> Wasm_Module {
 	drop_reuse_func_idx := add_function(&env, drop_reuse_type_idx)
 	runtime_func_indices[6] = drop_reuse_func_idx
 
+	list_alloc_type_idx := get_or_create_type(&env, []Wasm_Value_Type{.I32}, []Wasm_Value_Type{.I32})
+	list_push_type_idx := get_or_create_type(&env, []Wasm_Value_Type{.I32, .I32}, []Wasm_Value_Type{})
+	list_len_type_idx := get_or_create_type(&env, []Wasm_Value_Type{.I32}, []Wasm_Value_Type{.I32})
+	list_get_type_idx := get_or_create_type(&env, []Wasm_Value_Type{.I32, .I32}, []Wasm_Value_Type{.I32})
+
+	list_alloc_func_idx := add_function(&env, list_alloc_type_idx)
+	runtime_func_indices[7] = list_alloc_func_idx
+	list_push_func_idx := add_function(&env, list_push_type_idx)
+	runtime_func_indices[8] = list_push_func_idx
+	list_len_func_idx := add_function(&env, list_len_type_idx)
+	runtime_func_indices[9] = list_len_func_idx
+	list_get_func_idx := add_function(&env, list_get_type_idx)
+	runtime_func_indices[10] = list_get_func_idx
+
 	camp_alloc_code := emit_camp_alloc_body(heap_ptr_global_idx)
 	append(&mod.codes, camp_alloc_code)
 
@@ -203,6 +217,18 @@ codegen :: proc(ir_mod: IR_Module, ctx: ^Compilation_Context) -> Wasm_Module {
 
 	camp_drop_reuse_code := emit_camp_drop_reuse_body()
 	append(&mod.codes, camp_drop_reuse_code)
+
+	camp_list_alloc_code := emit_camp_list_alloc_body(alloc_func_idx)
+	append(&mod.codes, camp_list_alloc_code)
+
+	camp_list_push_code := emit_camp_list_push_body(alloc_func_idx)
+	append(&mod.codes, camp_list_push_code)
+
+	camp_list_len_code := emit_camp_list_len_body()
+	append(&mod.codes, camp_list_len_code)
+
+	camp_list_get_code := emit_camp_list_get_body()
+	append(&mod.codes, camp_list_get_code)
 
 	main_fn_idx := -1
 	main_decl: ^IR_Decl_Fn = nil
@@ -563,6 +589,10 @@ RUNTIME_PRINT_STR :: 3
 RUNTIME_EXIT :: 4
 RUNTIME_PRINT_STR_STDERR :: 5
 RUNTIME_DROP_REUSE :: 6
+RUNTIME_LIST_ALLOC :: 7
+RUNTIME_LIST_PUSH :: 8
+RUNTIME_LIST_LEN :: 9
+RUNTIME_LIST_GET :: 10
 
 extract_effectful_body :: proc(expr: IR_Expr) -> IR_Expr {
 	#partial switch e in expr {
