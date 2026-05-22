@@ -72,6 +72,7 @@ IR_Effect_Op :: struct {
 IR_Effect_Def :: struct {
 	name:       Canonical_Name,
 	operations: [dynamic]IR_Effect_Op,
+	type_params: [dynamic]Intern_ID,
 }
 
 IR_Expr :: union {

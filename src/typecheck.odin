@@ -215,6 +215,14 @@ typecheck_decl :: proc(decl: CDecl, env: ^Type_Env, store: ^Type_Store) {
 
 	case ^CDecl_Effect:
 		append(&store.declared_effects, d.name.name)
+		enter_level(store)
+		for tp in d.type_params {
+			tv := fresh_value_var(store, d.span)
+			if tp.is_effect {
+				tv = fresh_effect_row(store, d.span)
+			}
+			env.bindings[tp.name] = tv
+		}
 		for op in d.operations {
 			for p in op.params {
 				if p.type_ann != nil {
@@ -225,6 +233,9 @@ typecheck_decl :: proc(decl: CDecl, env: ^Type_Env, store: ^Type_Store) {
 				convert_type_to_var(op.return_type, store)
 			}
 		}
+		level := store.current_level
+		exit_level(store)
+		generalize_at_level(store, level)
 
 	case ^CDecl_Trait:
 		typecheck_trait_decl(d, env, store)

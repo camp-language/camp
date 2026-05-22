@@ -24,6 +24,7 @@ Decl_Effect :: struct {
 	name:       Intern_ID,
 	is_pub:     bool,
 	operations: [dynamic]Effect_Op,
+	type_params: [dynamic]Type_Param,
 	span:       Source_Span,
 }
 
@@ -196,6 +197,7 @@ Expr_Lambda :: struct {
 Type_Param :: struct {
 	name:        Intern_ID,
 	constraints: [dynamic]Intern_ID,
+	is_effect:   bool,
 }
 
 Func_Param :: struct {

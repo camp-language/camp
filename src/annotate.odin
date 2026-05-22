@@ -72,6 +72,14 @@ annotate_decl_effect :: proc(d: ^CDecl_Effect, env: ^Annotate_Env) -> TDecl {
 	result := new(TDecl_Effect)
 	result.name = d.name
 	result.is_pub = d.is_pub
+	result.type_params = make([dynamic]Type_Param, len(d.type_params))
+	for tp, i in d.type_params {
+		constraints := make([dynamic]Intern_ID, len(tp.constraints))
+		for c, j in tp.constraints {
+			constraints[j] = c
+		}
+		result.type_params[i] = Type_Param{name = tp.name, constraints = constraints, is_effect = tp.is_effect}
+	}
 	result.operations = make([dynamic]TEffect_Op, len(d.operations))
 
 	for i in 0..<len(d.operations) {

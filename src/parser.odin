@@ -182,8 +182,29 @@ parser_parse_const_decl :: proc(p: ^Parser, is_pub: bool) -> Decl {
 
 	name_id := intern(p.intern, name_text)
 
+	type_params := make([dynamic]Type_Param, 0, 4)
 	type_ann: ^Type = nil
 	is_effect_decl := false
+
+	// Parse optional type parameters on effect declarations: Name!<T, U> : { ... }
+	if is_effectful && is_upper && p.current.kind == .Lt {
+		parser_advance(p)
+		for p.current.kind != .Gt && p.current.kind != .Eof {
+			if p.current.kind != .Identifier {
+				collector_add_diag(p.collector, diag_expected_token(.Identifier, p.current, p.current.span))
+				parser_advance(p)
+				break
+			}
+			tp_tok := parser_advance(p)
+			tp := Type_Param{name = intern(p.intern, tp_tok.text), is_effect = true}
+			append(&type_params, tp)
+			if p.current.kind == .Comma {
+				parser_advance(p)
+				parser_skip_backslashes(p)
+			}
+		}
+		parser_expect(p, .Gt)
+	}
 
 	if p.current.kind == .Colon {
 		parser_advance(p)
@@ -268,11 +289,12 @@ parser_parse_const_decl :: proc(p: ^Parser, is_pub: bool) -> Decl {
 		// Use the name WITHOUT the ! suffix for internal effect name consistency
 		effect_name_id := intern(p.intern, name.text)
 		decl := new(Decl_Effect)
-		decl^ = Decl_Effect{name = effect_name_id, is_pub = is_pub, operations = ops, span = start_span}
+		decl^ = Decl_Effect{name = effect_name_id, is_pub = is_pub, operations = ops, type_params = type_params, span = start_span}
 		return decl
 	}
 
 	if is_upper && type_ann != nil && p.current.kind != .Eq {
+		delete(type_params)
 		decl := new(Decl_Alias)
 		decl^ = Decl_Alias{name = name_id, is_pub = is_pub, target = type_ann, span = Source_Span{file_id = start_span.file_id, start = start_span.start, end = p.current.span.end}}
 		return decl
@@ -281,6 +303,7 @@ parser_parse_const_decl :: proc(p: ^Parser, is_pub: bool) -> Decl {
 	parser_expect(p, .Eq)
 	body := parser_parse_expr(p)
 
+	delete(type_params)
 	decl := new(Decl_Const)
 	decl^ = Decl_Const{
 		name = name_id,

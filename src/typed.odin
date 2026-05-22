@@ -328,6 +328,7 @@ TDecl_Effect :: struct {
 	name:       Canonical_Name,
 	is_pub:     bool,
 	operations: [dynamic]TEffect_Op,
+	type_params: [dynamic]Type_Param,
 	span:       Source_Span,
 }
 

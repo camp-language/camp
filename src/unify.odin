@@ -206,6 +206,17 @@ unify_effect_rows :: proc(store: ^Type_Store, a: Inferred_Type, b: Inferred_Type
 		for be in b.effects {
 			if ae.name == be.name {
 				found = true
+				// Unify type args for matching effects
+				if len(ae.type_args) == len(be.type_args) {
+					for i in 0..<len(ae.type_args) {
+						if !unify(store, ae.type_args[i], be.type_args[i]) {
+							return false
+						}
+					}
+				} else if len(ae.type_args) > 0 || len(be.type_args) > 0 {
+					// Arity mismatch
+					return false
+				}
 				break
 			}
 		}

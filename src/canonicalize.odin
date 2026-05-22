@@ -83,11 +83,20 @@ canonicalize_decl :: proc(decl: Decl, scope: ^Canonicalize_Scope, imports: ^[dyn
 		for op in d.operations {
 			append(&ops, canonicalize_effect_op(op, scope, ctx))
 		}
+		type_params := make([dynamic]Type_Param, 0, len(d.type_params))
+		for tp in d.type_params {
+			constraints := make([dynamic]Intern_ID, 0, len(tp.constraints))
+			for c in tp.constraints {
+				append(&constraints, c)
+			}
+			append(&type_params, Type_Param{name = tp.name, constraints = constraints, is_effect = tp.is_effect})
+		}
 		cdecl := new(CDecl_Effect)
 		cdecl^ = CDecl_Effect{
 			name = name,
 			is_pub = d.is_pub,
 			operations = ops,
+			type_params = type_params,
 			span = d.span,
 		}
 		return cdecl
@@ -409,7 +418,7 @@ canonicalize_expr :: proc(expr: Expr, scope: ^Canonicalize_Scope, ctx: ^Compilat
 			for c in tp.constraints {
 				append(&constraints, c)
 			}
-			append(&type_params, Type_Param{name = tp.name, constraints = constraints})
+			append(&type_params, Type_Param{name = tp.name, constraints = constraints, is_effect = tp.is_effect})
 		}
 		params := make([dynamic]CFunc_Param, 0, len(e.params))
 		for p in e.params {

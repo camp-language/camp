@@ -312,7 +312,11 @@ lower_effect_def :: proc(d: CDecl_Effect, env: ^Lower_Env) -> IR_Effect_Def {
 		ir_op := lower_effect_op(op, env)
 		append(&ops, ir_op)
 	}
-	return IR_Effect_Def{name = d.name, operations = ops}
+	type_params := make([dynamic]Intern_ID, 0, len(d.type_params))
+	for tp in d.type_params {
+		append(&type_params, tp.name)
+	}
+	return IR_Effect_Def{name = d.name, operations = ops, type_params = type_params}
 }
 
 lower_effect_op :: proc(op: CEffect_Op, env: ^Lower_Env) -> IR_Effect_Op {
@@ -609,7 +613,11 @@ lower_teffect_def :: proc(d: ^TDecl_Effect, env: ^Lower_Env) -> IR_Effect_Def {
 		ir_op := lower_teffect_op(op, env)
 		append(&ops, ir_op)
 	}
-	return IR_Effect_Def{name = d.name, operations = ops}
+	type_params := make([dynamic]Intern_ID, 0, len(d.type_params))
+	for tp in d.type_params {
+		append(&type_params, tp.name)
+	}
+	return IR_Effect_Def{name = d.name, operations = ops, type_params = type_params}
 }
 
 lower_teffect_op :: proc(op: TEffect_Op, env: ^Lower_Env) -> IR_Effect_Op {
