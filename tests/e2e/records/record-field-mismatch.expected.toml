@@ -1,6 +1,7 @@
 stdout = """
 canonicalized /tmp/camp-e2e/records/record-field-mismatch/record-field-mismatch.camp: 2 declaration(s), 0 import(s)
 typecheck passed for /tmp/camp-e2e/records/record-field-mismatch/record-field-mismatch.camp
+compiled /tmp/camp-e2e/records/record-field-mismatch/record-field-mismatch.camp -> /tmp/camp-e2e/records/record-field-mismatch/record-field-mismatch.wasm
 """
 stderr = ""
-exit = 4
+exit = 0

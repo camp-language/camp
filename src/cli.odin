@@ -110,7 +110,7 @@ run_build_single :: proc(file_path: string, thread_count: int = 1) {
 	store: Type_Store
 	type_store_init(&store, &ctx.interner, &ctx.collector)
 	inject_prelude(&store)
-	typecheck_file(canon, &store)
+	tfile := typecheck_file(canon, &store)
 	context.allocator = old_allocator
 
 	if diag_collector_has_errors(&ctx.collector) {
@@ -122,8 +122,7 @@ run_build_single :: proc(file_path: string, thread_count: int = 1) {
 	fmt.printfln("typecheck passed for {}", file_path)
 
 	context.allocator = ctx.allocator
-	annot_tfile := annotate_file(canon, &store)
-	mono_tfile := mono(annot_tfile, &store, &ctx.interner)
+	mono_tfile := mono(tfile, &store, &ctx.interner)
 	context.allocator = old_allocator
 
 	context.allocator = ctx.allocator
@@ -376,8 +375,8 @@ combine_module_irs :: proc(sorted: []Intern_ID, project: ^Project_Discovery, ctx
 		if !ok do continue
 
 		context.allocator = ctx.allocator
-		annot_tfile := annotate_file(mi.cfile^, &store)
-		mono_tfile := mono(annot_tfile, &store, &ctx.interner)
+		tfile := typecheck_file(mi.cfile^, &store)
+		mono_tfile := mono(tfile, &store, &ctx.interner)
 		ir_mod := lower_tfile(mono_tfile, &store)
 
 		for &decl in ir_mod.decls {

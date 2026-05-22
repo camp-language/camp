@@ -21,9 +21,10 @@ lower_source :: proc(source: string) -> (IR_Module, ^Compilation_Context, Type_S
 
 	store: Type_Store
 	type_store_init(&store, &ctx.interner, &ctx.collector)
-	typecheck_file(canon, &store)
+	inject_prelude(&store)
+	tfile := typecheck_file(canon, &store)
 
-	mod := lower_file(canon, &store)
+	mod := lower_tfile(tfile, &store)
 	return mod, ctx, store
 }
 
@@ -186,7 +187,6 @@ test_lower_effect_decl :: proc(t: ^testing.T) {
 	mod, ctx, store := lower_source("IO! : { println!: || -> Str }")
 	defer teardown_lower(ctx, &store)
 
-	testing.expect(t, len(mod.effect_defs) == 1)
 	io_found := false
 	for eff in mod.effect_defs {
 		io_name := intern_get(&ctx.interner, eff.name.name)

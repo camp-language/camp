@@ -20,9 +20,10 @@ compile_source :: proc(source: string) -> ([]u8, ^Compilation_Context) {
 
 	store: Type_Store
 	type_store_init(&store, &ctx.interner, &ctx.collector)
-	typecheck_file(canon, &store)
+	inject_prelude(&store)
+	tfile := typecheck_file(canon, &store)
 
-	ir_mod := lower_file(canon, &store)
+	ir_mod := lower_tfile(tfile, &store)
 	ir_mod = effect_lower(&ir_mod, ctx)
 	ir_mod = closure_convert(&ir_mod, ctx)
 	ir_mod = cps_transform(&ir_mod, ctx)
