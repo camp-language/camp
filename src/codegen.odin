@@ -2,8 +2,6 @@ package camp
 
 WASI_MODULE :: "wasi_snapshot_preview1"
 
-RUNTIME_FUNC_COUNT :: 17
-
 CAMP_TAG_HEADER_SIZE :: 8
 CAMP_TAG_REFCOUNT_OFFSET :: 0
 CAMP_TAG_TAG_OFFSET :: 4
@@ -274,6 +272,33 @@ codegen :: proc(ir_mod: IR_Module, ctx: ^Compilation_Context) -> Wasm_Module {
 	sched_worker_loop_func_idx := add_function(&env, sched_worker_loop_type_idx)
 	runtime_func_indices[RUNTIME_SCHED_WORKER_LOOP] = sched_worker_loop_func_idx
 
+	// Parallel! runtime function types
+	// camp_parallel_map(fn_idx: i32, fn_env: i32, items_ptr: i32, items_len: i32, chunk_size: i32) -> i32
+	parallel_map_type_idx := get_or_create_type(&env, []Wasm_Value_Type{.I32, .I32, .I32, .I32, .I32}, []Wasm_Value_Type{.I32})
+	// camp_parallel_reduce(fn_idx: i32, fn_env: i32, items_ptr: i32, items_len: i32, init: i32, chunk_size: i32) -> i32
+	parallel_reduce_type_idx := get_or_create_type(&env, []Wasm_Value_Type{.I32, .I32, .I32, .I32, .I32, .I32}, []Wasm_Value_Type{.I32})
+	// camp_parallel_any(fn_idx: i32, fn_env: i32, items_ptr: i32, items_len: i32) -> i32
+	parallel_any_type_idx := get_or_create_type(&env, []Wasm_Value_Type{.I32, .I32, .I32, .I32}, []Wasm_Value_Type{.I32})
+	// camp_parallel_all(fn_idx: i32, fn_env: i32, items_ptr: i32, items_len: i32, chunk_size: i32) -> i32
+	parallel_all_type_idx := get_or_create_type(&env, []Wasm_Value_Type{.I32, .I32, .I32, .I32, .I32}, []Wasm_Value_Type{.I32})
+	// camp_parallel_filter(fn_idx: i32, fn_env: i32, items_ptr: i32, items_len: i32, chunk_size: i32) -> i32
+	parallel_filter_type_idx := get_or_create_type(&env, []Wasm_Value_Type{.I32, .I32, .I32, .I32, .I32}, []Wasm_Value_Type{.I32})
+	// camp_parallel_for_each(fn_idx: i32, fn_env: i32, items_ptr: i32, items_len: i32, chunk_size: i32) -> void
+	parallel_for_each_type_idx := get_or_create_type(&env, []Wasm_Value_Type{.I32, .I32, .I32, .I32, .I32}, []Wasm_Value_Type{})
+
+	parallel_map_func_idx := add_function(&env, parallel_map_type_idx)
+	runtime_func_indices[RUNTIME_PARALLEL_MAP] = parallel_map_func_idx
+	parallel_reduce_func_idx := add_function(&env, parallel_reduce_type_idx)
+	runtime_func_indices[RUNTIME_PARALLEL_REDUCE] = parallel_reduce_func_idx
+	parallel_any_func_idx := add_function(&env, parallel_any_type_idx)
+	runtime_func_indices[RUNTIME_PARALLEL_ANY] = parallel_any_func_idx
+	parallel_all_func_idx := add_function(&env, parallel_all_type_idx)
+	runtime_func_indices[RUNTIME_PARALLEL_ALL] = parallel_all_func_idx
+	parallel_filter_func_idx := add_function(&env, parallel_filter_type_idx)
+	runtime_func_indices[RUNTIME_PARALLEL_FILTER] = parallel_filter_func_idx
+	parallel_for_each_func_idx := add_function(&env, parallel_for_each_type_idx)
+	runtime_func_indices[RUNTIME_PARALLEL_FOR_EACH] = parallel_for_each_func_idx
+
 	camp_alloc_code := emit_camp_alloc_body(heap_ptr_global_idx)
 	append(&mod.codes, camp_alloc_code)
 
@@ -302,6 +327,14 @@ codegen :: proc(ir_mod: IR_Module, ctx: ^Compilation_Context) -> Wasm_Module {
 	append(&mod.codes, emit_camp_sched_notify_body())
 	append(&mod.codes, emit_camp_sched_park_body())
 	append(&mod.codes, emit_camp_sched_worker_loop_body())
+
+	// Parallel! runtime function bodies
+	append(&mod.codes, emit_camp_parallel_map_body(runtime_func_indices))
+	append(&mod.codes, emit_camp_parallel_reduce_body(runtime_func_indices))
+	append(&mod.codes, emit_camp_parallel_any_body(runtime_func_indices))
+	append(&mod.codes, emit_camp_parallel_all_body(runtime_func_indices))
+	append(&mod.codes, emit_camp_parallel_filter_body(runtime_func_indices))
+	append(&mod.codes, emit_camp_parallel_for_each_body(runtime_func_indices))
 
 	main_fn_idx := -1
 	main_decl: ^IR_Decl_Fn = nil
@@ -735,6 +768,13 @@ RUNTIME_SCHED_TIMER_CANCEL :: 13
 RUNTIME_SCHED_NOTIFY :: 14
 RUNTIME_SCHED_PARK :: 15
 RUNTIME_SCHED_WORKER_LOOP :: 16
+RUNTIME_PARALLEL_MAP :: 17
+RUNTIME_PARALLEL_REDUCE :: 18
+RUNTIME_PARALLEL_ANY :: 19
+RUNTIME_PARALLEL_ALL :: 20
+RUNTIME_PARALLEL_FILTER :: 21
+RUNTIME_PARALLEL_FOR_EACH :: 22
+RUNTIME_FUNC_COUNT :: 23
 
 extract_effectful_body :: proc(expr: IR_Expr) -> IR_Expr {
 	#partial switch e in expr {
@@ -1146,6 +1186,114 @@ emit_expr :: proc(expr: IR_Expr, buf: ^[dynamic]u8, env: ^Codegen_Env, runtime_i
 					// Use fd_write for actual write, then block_io if needed
 					emit_instruction(Wasm_Call{index = u32(1)}, buf) // fd_write import
 					emit_instruction(Wasm_Drop{}, buf)
+				} else {
+					emit_instruction(Wasm_Unreachable{}, buf)
+				}
+			} else if effect_str == "Parallel!" {
+				// Parallel! operations delegate to runtime functions
+				if op_str == "map!" && len(e.args) >= 2 {
+					// map!(fn, items) -> camp_parallel_map(fn_idx, fn_env, items_ptr, items_len, chunk_size)
+					fn_local := env.tmp_local_base + env.tmp_count; env.tmp_count += 1
+					emit_expr(e.args[0], buf, env, runtime_indices)
+					emit_instruction(Wasm_Local_Set{index = fn_local}, buf)
+					emit_instruction(Wasm_Local_Get{index = fn_local}, buf)
+					emit_instruction(Wasm_I32_Load{align = 2, offset = u32(CAMP_TAG_FIELDS_OFFSET)}, buf)
+					emit_instruction(Wasm_Local_Get{index = fn_local}, buf)
+					emit_instruction(Wasm_I32_Load{align = 2, offset = u32(CAMP_TAG_FIELDS_OFFSET + 8)}, buf)
+					items_local := env.tmp_local_base + env.tmp_count; env.tmp_count += 1
+					emit_expr(e.args[1], buf, env, runtime_indices)
+					emit_instruction(Wasm_Local_Set{index = items_local}, buf)
+					emit_instruction(Wasm_Local_Get{index = items_local}, buf)
+					emit_instruction(Wasm_I32_Load{align = 2, offset = u32(CAMP_TAG_FIELDS_OFFSET)}, buf)
+					emit_instruction(Wasm_Local_Get{index = items_local}, buf)
+					emit_instruction(Wasm_I32_Load{align = 2, offset = u32(CAMP_TAG_FIELDS_OFFSET + 8)}, buf)
+					emit_instruction(Wasm_I32_Const{value = 0}, buf)
+					emit_instruction(Wasm_Call{index = u32(runtime_indices[RUNTIME_PARALLEL_MAP])}, buf)
+				} else if op_str == "reduce!" && len(e.args) >= 3 {
+					fn_local := env.tmp_local_base + env.tmp_count; env.tmp_count += 1
+					emit_expr(e.args[0], buf, env, runtime_indices)
+					emit_instruction(Wasm_Local_Set{index = fn_local}, buf)
+					emit_instruction(Wasm_Local_Get{index = fn_local}, buf)
+					emit_instruction(Wasm_I32_Load{align = 2, offset = u32(CAMP_TAG_FIELDS_OFFSET)}, buf)
+					emit_instruction(Wasm_Local_Get{index = fn_local}, buf)
+					emit_instruction(Wasm_I32_Load{align = 2, offset = u32(CAMP_TAG_FIELDS_OFFSET + 8)}, buf)
+					items_local := env.tmp_local_base + env.tmp_count; env.tmp_count += 1
+					emit_expr(e.args[1], buf, env, runtime_indices)
+					emit_instruction(Wasm_Local_Set{index = items_local}, buf)
+					emit_instruction(Wasm_Local_Get{index = items_local}, buf)
+					emit_instruction(Wasm_I32_Load{align = 2, offset = u32(CAMP_TAG_FIELDS_OFFSET)}, buf)
+					emit_instruction(Wasm_Local_Get{index = items_local}, buf)
+					emit_instruction(Wasm_I32_Load{align = 2, offset = u32(CAMP_TAG_FIELDS_OFFSET + 8)}, buf)
+					emit_expr(e.args[2], buf, env, runtime_indices)
+					emit_instruction(Wasm_I32_Const{value = 0}, buf)
+					emit_instruction(Wasm_Call{index = u32(runtime_indices[RUNTIME_PARALLEL_REDUCE])}, buf)
+				} else if op_str == "any!" && len(e.args) >= 2 {
+					fn_local := env.tmp_local_base + env.tmp_count; env.tmp_count += 1
+					emit_expr(e.args[0], buf, env, runtime_indices)
+					emit_instruction(Wasm_Local_Set{index = fn_local}, buf)
+					emit_instruction(Wasm_Local_Get{index = fn_local}, buf)
+					emit_instruction(Wasm_I32_Load{align = 2, offset = u32(CAMP_TAG_FIELDS_OFFSET)}, buf)
+					emit_instruction(Wasm_Local_Get{index = fn_local}, buf)
+					emit_instruction(Wasm_I32_Load{align = 2, offset = u32(CAMP_TAG_FIELDS_OFFSET + 8)}, buf)
+					items_local := env.tmp_local_base + env.tmp_count; env.tmp_count += 1
+					emit_expr(e.args[1], buf, env, runtime_indices)
+					emit_instruction(Wasm_Local_Set{index = items_local}, buf)
+					emit_instruction(Wasm_Local_Get{index = items_local}, buf)
+					emit_instruction(Wasm_I32_Load{align = 2, offset = u32(CAMP_TAG_FIELDS_OFFSET)}, buf)
+					emit_instruction(Wasm_Local_Get{index = items_local}, buf)
+					emit_instruction(Wasm_I32_Load{align = 2, offset = u32(CAMP_TAG_FIELDS_OFFSET + 8)}, buf)
+					emit_instruction(Wasm_Call{index = u32(runtime_indices[RUNTIME_PARALLEL_ANY])}, buf)
+				} else if op_str == "all!" && len(e.args) >= 2 {
+					fn_local := env.tmp_local_base + env.tmp_count; env.tmp_count += 1
+					emit_expr(e.args[0], buf, env, runtime_indices)
+					emit_instruction(Wasm_Local_Set{index = fn_local}, buf)
+					emit_instruction(Wasm_Local_Get{index = fn_local}, buf)
+					emit_instruction(Wasm_I32_Load{align = 2, offset = u32(CAMP_TAG_FIELDS_OFFSET)}, buf)
+					emit_instruction(Wasm_Local_Get{index = fn_local}, buf)
+					emit_instruction(Wasm_I32_Load{align = 2, offset = u32(CAMP_TAG_FIELDS_OFFSET + 8)}, buf)
+					items_local := env.tmp_local_base + env.tmp_count; env.tmp_count += 1
+					emit_expr(e.args[1], buf, env, runtime_indices)
+					emit_instruction(Wasm_Local_Set{index = items_local}, buf)
+					emit_instruction(Wasm_Local_Get{index = items_local}, buf)
+					emit_instruction(Wasm_I32_Load{align = 2, offset = u32(CAMP_TAG_FIELDS_OFFSET)}, buf)
+					emit_instruction(Wasm_Local_Get{index = items_local}, buf)
+					emit_instruction(Wasm_I32_Load{align = 2, offset = u32(CAMP_TAG_FIELDS_OFFSET + 8)}, buf)
+					emit_instruction(Wasm_I32_Const{value = 0}, buf)
+					emit_instruction(Wasm_Call{index = u32(runtime_indices[RUNTIME_PARALLEL_ALL])}, buf)
+				} else if op_str == "filter!" && len(e.args) >= 2 {
+					fn_local := env.tmp_local_base + env.tmp_count; env.tmp_count += 1
+					emit_expr(e.args[0], buf, env, runtime_indices)
+					emit_instruction(Wasm_Local_Set{index = fn_local}, buf)
+					emit_instruction(Wasm_Local_Get{index = fn_local}, buf)
+					emit_instruction(Wasm_I32_Load{align = 2, offset = u32(CAMP_TAG_FIELDS_OFFSET)}, buf)
+					emit_instruction(Wasm_Local_Get{index = fn_local}, buf)
+					emit_instruction(Wasm_I32_Load{align = 2, offset = u32(CAMP_TAG_FIELDS_OFFSET + 8)}, buf)
+					items_local := env.tmp_local_base + env.tmp_count; env.tmp_count += 1
+					emit_expr(e.args[1], buf, env, runtime_indices)
+					emit_instruction(Wasm_Local_Set{index = items_local}, buf)
+					emit_instruction(Wasm_Local_Get{index = items_local}, buf)
+					emit_instruction(Wasm_I32_Load{align = 2, offset = u32(CAMP_TAG_FIELDS_OFFSET)}, buf)
+					emit_instruction(Wasm_Local_Get{index = items_local}, buf)
+					emit_instruction(Wasm_I32_Load{align = 2, offset = u32(CAMP_TAG_FIELDS_OFFSET + 8)}, buf)
+					emit_instruction(Wasm_I32_Const{value = 0}, buf)
+					emit_instruction(Wasm_Call{index = u32(runtime_indices[RUNTIME_PARALLEL_FILTER])}, buf)
+				} else if op_str == "for_each!" && len(e.args) >= 2 {
+					fn_local := env.tmp_local_base + env.tmp_count; env.tmp_count += 1
+					emit_expr(e.args[0], buf, env, runtime_indices)
+					emit_instruction(Wasm_Local_Set{index = fn_local}, buf)
+					emit_instruction(Wasm_Local_Get{index = fn_local}, buf)
+					emit_instruction(Wasm_I32_Load{align = 2, offset = u32(CAMP_TAG_FIELDS_OFFSET)}, buf)
+					emit_instruction(Wasm_Local_Get{index = fn_local}, buf)
+					emit_instruction(Wasm_I32_Load{align = 2, offset = u32(CAMP_TAG_FIELDS_OFFSET + 8)}, buf)
+					items_local := env.tmp_local_base + env.tmp_count; env.tmp_count += 1
+					emit_expr(e.args[1], buf, env, runtime_indices)
+					emit_instruction(Wasm_Local_Set{index = items_local}, buf)
+					emit_instruction(Wasm_Local_Get{index = items_local}, buf)
+					emit_instruction(Wasm_I32_Load{align = 2, offset = u32(CAMP_TAG_FIELDS_OFFSET)}, buf)
+					emit_instruction(Wasm_Local_Get{index = items_local}, buf)
+					emit_instruction(Wasm_I32_Load{align = 2, offset = u32(CAMP_TAG_FIELDS_OFFSET + 8)}, buf)
+					emit_instruction(Wasm_I32_Const{value = 0}, buf)
+					emit_instruction(Wasm_Call{index = u32(runtime_indices[RUNTIME_PARALLEL_FOR_EACH])}, buf)
 				} else {
 					emit_instruction(Wasm_Unreachable{}, buf)
 				}

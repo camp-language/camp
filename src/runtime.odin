@@ -989,3 +989,534 @@ emit_camp_sched_worker_loop_body :: proc() -> Wasm_Code {
 
 	return Wasm_Code{locals = locals, body = body}
 }
+
+// --- Parallel! runtime function bodies (sequential fallback) ---
+// Each function iterates over items sequentially and calls the user function
+// via call_indirect. These are placeholder implementations that will be
+// optimized with actual parallelism in a future pass.
+
+emit_camp_parallel_map_body :: proc(runtime_indices: [RUNTIME_FUNC_COUNT]int) -> Wasm_Code {
+	// camp_parallel_map(fn_idx: i32, fn_env: i32, items_ptr: i32, items_len: i32, chunk_size: i32) -> i32
+	// Sequential fallback: iterate items, call fn(fn_env, item) -> result, collect results in a record.
+	// Params: local 0 = fn_idx, local 1 = fn_env, local 2 = items_ptr, local 3 = items_len, local 4 = chunk_size
+	// Locals: 5 = result_ptr, 6 = i, 7 = item_val, 8 = result_val
+	buf: [dynamic]u8
+	buf = make([dynamic]u8, 0, 256)
+
+	// Allocate result record: CAMP_TAG_HEADER_SIZE + items_len * 8
+	emit_instruction(Wasm_I32_Const{value = i32(CAMP_TAG_HEADER_SIZE)}, &buf)
+	emit_instruction(Wasm_Local_Get{index = 3}, &buf)
+	emit_instruction(Wasm_I32_Const{value = 8}, &buf)
+	emit_instruction(Wasm_I32_Mul{}, &buf)
+	emit_instruction(Wasm_I32_Add{}, &buf)
+	emit_instruction(Wasm_Call{index = u32(runtime_indices[RUNTIME_ALLOC])}, &buf)
+	emit_instruction(Wasm_Local_Set{index = 5}, &buf) // result_ptr
+
+	// Set refcount = 1
+	emit_instruction(Wasm_Local_Get{index = 5}, &buf)
+	emit_instruction(Wasm_I32_Const{value = 1}, &buf)
+	emit_instruction(Wasm_I32_Store{align = 2, offset = CAMP_TAG_REFCOUNT_OFFSET}, &buf)
+
+	// Set tag = 0xFF (record)
+	emit_instruction(Wasm_Local_Get{index = 5}, &buf)
+	emit_instruction(Wasm_I32_Const{value = 0xFF}, &buf)
+	emit_instruction(Wasm_I32_Store8{offset = CAMP_TAG_TAG_OFFSET}, &buf)
+
+	// Set scan_size = items_len
+	emit_instruction(Wasm_Local_Get{index = 5}, &buf)
+	emit_instruction(Wasm_Local_Get{index = 3}, &buf)
+	emit_instruction(Wasm_I32_Store8{offset = CAMP_TAG_SCAN_SIZE_OFFSET}, &buf)
+
+	// i = 0
+	emit_instruction(Wasm_I32_Const{value = 0}, &buf)
+	emit_instruction(Wasm_Local_Set{index = 6}, &buf)
+
+	// Loop: while i < items_len
+	emit_instruction(Wasm_Block{block_type = .Void}, &buf) // outer block (break target)
+	emit_instruction(Wasm_Loop{block_type = .Void}, &buf) // loop header
+
+	// if i >= items_len, break
+	emit_instruction(Wasm_Local_Get{index = 6}, &buf)
+	emit_instruction(Wasm_Local_Get{index = 3}, &buf)
+	emit_instruction(Wasm_I32_Lt_S{}, &buf)
+	emit_instruction(Wasm_Br_If{label = 1}, &buf) // break (label 1 = outer block)
+
+	// Load item_val = items_ptr[i * 4]
+	emit_instruction(Wasm_Local_Get{index = 2}, &buf)
+	emit_instruction(Wasm_Local_Get{index = 6}, &buf)
+	emit_instruction(Wasm_I32_Const{value = 4}, &buf)
+	emit_instruction(Wasm_I32_Mul{}, &buf)
+	emit_instruction(Wasm_I32_Add{}, &buf)
+	emit_instruction(Wasm_I32_Load{align = 2, offset = 0}, &buf)
+	emit_instruction(Wasm_Local_Set{index = 7}, &buf)
+
+	// Call fn(fn_env, item_val) -> result_val via call_indirect
+	// TODO: use correct type_idx for (i32, i32) -> i32 instead of placeholder 0
+	emit_instruction(Wasm_Local_Get{index = 1}, &buf) // fn_env (arg 0)
+	emit_instruction(Wasm_Local_Get{index = 7}, &buf) // item_val (arg 1)
+	emit_instruction(Wasm_Local_Get{index = 0}, &buf) // fn_idx
+	emit_instruction(Wasm_Call_Indirect{type_idx = 0, table_idx = 0}, &buf)
+	emit_instruction(Wasm_Local_Set{index = 8}, &buf) // result_val
+
+	// Store result_val at result_ptr + CAMP_TAG_FIELDS_OFFSET + i * 8
+	emit_instruction(Wasm_Local_Get{index = 5}, &buf)
+	emit_instruction(Wasm_I32_Const{value = i32(CAMP_TAG_FIELDS_OFFSET)}, &buf)
+	emit_instruction(Wasm_Local_Get{index = 6}, &buf)
+	emit_instruction(Wasm_I32_Const{value = 8}, &buf)
+	emit_instruction(Wasm_I32_Mul{}, &buf)
+	emit_instruction(Wasm_I32_Add{}, &buf)
+	emit_instruction(Wasm_I32_Add{}, &buf)
+	emit_instruction(Wasm_Local_Get{index = 8}, &buf)
+	emit_instruction(Wasm_I32_Store{align = 2, offset = 0}, &buf)
+
+	// i++
+	emit_instruction(Wasm_Local_Get{index = 6}, &buf)
+	emit_instruction(Wasm_I32_Const{value = 1}, &buf)
+	emit_instruction(Wasm_I32_Add{}, &buf)
+	emit_instruction(Wasm_Local_Set{index = 6}, &buf)
+
+	// Continue loop
+	emit_instruction(Wasm_Br{label = 0}, &buf) // branch to loop (label 0)
+	emit_instruction(Wasm_End{}, &buf) // end loop
+	emit_instruction(Wasm_End{}, &buf) // end block
+
+	// Return result_ptr
+	emit_instruction(Wasm_Local_Get{index = 5}, &buf)
+	emit_instruction(Wasm_End{}, &buf)
+
+	locals := make([]Wasm_Local_Decl, 4)
+	locals[0] = Wasm_Local_Decl{count = 1, type = .I32} // result_ptr
+	locals[1] = Wasm_Local_Decl{count = 1, type = .I32} // i
+	locals[2] = Wasm_Local_Decl{count = 1, type = .I32} // item_val
+	locals[3] = Wasm_Local_Decl{count = 1, type = .I32} // result_val
+
+	body := make([]u8, len(buf))
+	for b, i in buf {
+		body[i] = b
+	}
+	delete(buf)
+
+	return Wasm_Code{locals = locals, body = body}
+}
+
+emit_camp_parallel_reduce_body :: proc(runtime_indices: [RUNTIME_FUNC_COUNT]int) -> Wasm_Code {
+	// camp_parallel_reduce(fn_idx: i32, fn_env: i32, items_ptr: i32, items_len: i32, init: i32, chunk_size: i32) -> i32
+	// Sequential fallback: iterate items, call fn(fn_env, acc, item) -> new_acc
+	// Params: local 0 = fn_idx, local 1 = fn_env, local 2 = items_ptr, local 3 = items_len, local 4 = init, local 5 = chunk_size
+	// Locals: 6 = acc, 7 = i, 8 = item_val
+	buf: [dynamic]u8
+	buf = make([dynamic]u8, 0, 192)
+
+	// acc = init
+	emit_instruction(Wasm_Local_Get{index = 4}, &buf)
+	emit_instruction(Wasm_Local_Set{index = 6}, &buf)
+
+	// i = 0
+	emit_instruction(Wasm_I32_Const{value = 0}, &buf)
+	emit_instruction(Wasm_Local_Set{index = 7}, &buf)
+
+	// Loop: while i < items_len
+	emit_instruction(Wasm_Block{block_type = .Void}, &buf)
+	emit_instruction(Wasm_Loop{block_type = .Void}, &buf)
+
+	// if i >= items_len, break
+	emit_instruction(Wasm_Local_Get{index = 7}, &buf)
+	emit_instruction(Wasm_Local_Get{index = 3}, &buf)
+	emit_instruction(Wasm_I32_Lt_S{}, &buf)
+	emit_instruction(Wasm_Br_If{label = 1}, &buf)
+
+	// Load item_val = items_ptr[i * 4]
+	emit_instruction(Wasm_Local_Get{index = 2}, &buf)
+	emit_instruction(Wasm_Local_Get{index = 7}, &buf)
+	emit_instruction(Wasm_I32_Const{value = 4}, &buf)
+	emit_instruction(Wasm_I32_Mul{}, &buf)
+	emit_instruction(Wasm_I32_Add{}, &buf)
+	emit_instruction(Wasm_I32_Load{align = 2, offset = 0}, &buf)
+	emit_instruction(Wasm_Local_Set{index = 8}, &buf)
+
+	// Call fn(fn_env, acc, item_val) -> new_acc via call_indirect
+	// TODO: use correct type_idx for (i32, i32, i32) -> i32 instead of placeholder 0
+	emit_instruction(Wasm_Local_Get{index = 1}, &buf) // fn_env (arg 0)
+	emit_instruction(Wasm_Local_Get{index = 6}, &buf) // acc (arg 1)
+	emit_instruction(Wasm_Local_Get{index = 8}, &buf) // item_val (arg 2)
+	emit_instruction(Wasm_Local_Get{index = 0}, &buf) // fn_idx
+	emit_instruction(Wasm_Call_Indirect{type_idx = 0, table_idx = 0}, &buf)
+	emit_instruction(Wasm_Local_Set{index = 6}, &buf) // acc = new_acc
+
+	// i++
+	emit_instruction(Wasm_Local_Get{index = 7}, &buf)
+	emit_instruction(Wasm_I32_Const{value = 1}, &buf)
+	emit_instruction(Wasm_I32_Add{}, &buf)
+	emit_instruction(Wasm_Local_Set{index = 7}, &buf)
+
+	// Continue loop
+	emit_instruction(Wasm_Br{label = 0}, &buf)
+	emit_instruction(Wasm_End{}, &buf) // end loop
+	emit_instruction(Wasm_End{}, &buf) // end block
+
+	// Return acc
+	emit_instruction(Wasm_Local_Get{index = 6}, &buf)
+	emit_instruction(Wasm_End{}, &buf)
+
+	locals := make([]Wasm_Local_Decl, 3)
+	locals[0] = Wasm_Local_Decl{count = 1, type = .I32} // acc
+	locals[1] = Wasm_Local_Decl{count = 1, type = .I32} // i
+	locals[2] = Wasm_Local_Decl{count = 1, type = .I32} // item_val
+
+	body := make([]u8, len(buf))
+	for b, i in buf {
+		body[i] = b
+	}
+	delete(buf)
+
+	return Wasm_Code{locals = locals, body = body}
+}
+
+emit_camp_parallel_any_body :: proc(runtime_indices: [RUNTIME_FUNC_COUNT]int) -> Wasm_Code {
+	// camp_parallel_any(fn_idx: i32, fn_env: i32, items_ptr: i32, items_len: i32) -> i32
+	// Sequential fallback: iterate items, return first truthy result.
+	// Params: local 0 = fn_idx, local 1 = fn_env, local 2 = items_ptr, local 3 = items_len
+	// Locals: 4 = i, 5 = item_val, 6 = result_val
+	buf: [dynamic]u8
+	buf = make([dynamic]u8, 0, 192)
+
+	// i = 0
+	emit_instruction(Wasm_I32_Const{value = 0}, &buf)
+	emit_instruction(Wasm_Local_Set{index = 4}, &buf)
+
+	// Loop: while i < items_len
+	emit_instruction(Wasm_Block{block_type = .I32}, &buf) // block exits with result
+	emit_instruction(Wasm_Loop{block_type = .Void}, &buf)
+
+	// if i >= items_len, break with 0
+	emit_instruction(Wasm_Local_Get{index = 4}, &buf)
+	emit_instruction(Wasm_Local_Get{index = 3}, &buf)
+	emit_instruction(Wasm_I32_Lt_S{}, &buf)
+	emit_instruction(Wasm_Br_If{label = 1}, &buf) // break with 0
+
+	// Load item_val = items_ptr[i * 4]
+	emit_instruction(Wasm_Local_Get{index = 2}, &buf)
+	emit_instruction(Wasm_Local_Get{index = 4}, &buf)
+	emit_instruction(Wasm_I32_Const{value = 4}, &buf)
+	emit_instruction(Wasm_I32_Mul{}, &buf)
+	emit_instruction(Wasm_I32_Add{}, &buf)
+	emit_instruction(Wasm_I32_Load{align = 2, offset = 0}, &buf)
+	emit_instruction(Wasm_Local_Set{index = 5}, &buf)
+
+	// Call fn(fn_env, item_val) -> result_val
+	emit_instruction(Wasm_Local_Get{index = 1}, &buf) // fn_env (arg 0)
+	emit_instruction(Wasm_Local_Get{index = 5}, &buf) // item_val (arg 1)
+	emit_instruction(Wasm_Local_Get{index = 0}, &buf) // fn_idx
+	emit_instruction(Wasm_Call_Indirect{type_idx = 0, table_idx = 0}, &buf)
+	emit_instruction(Wasm_Local_Set{index = 6}, &buf) // result_val
+
+	// If result_val != 0, return it (break with result)
+	emit_instruction(Wasm_Local_Get{index = 6}, &buf)
+	emit_instruction(Wasm_Br_If{label = 1}, &buf) // break with result_val
+
+	// i++
+	emit_instruction(Wasm_Local_Get{index = 4}, &buf)
+	emit_instruction(Wasm_I32_Const{value = 1}, &buf)
+	emit_instruction(Wasm_I32_Add{}, &buf)
+	emit_instruction(Wasm_Local_Set{index = 4}, &buf)
+
+	// Continue loop
+	emit_instruction(Wasm_Br{label = 0}, &buf)
+	emit_instruction(Wasm_End{}, &buf) // end loop
+	emit_instruction(Wasm_End{}, &buf) // end block (returns 0 or result_val)
+
+	emit_instruction(Wasm_End{}, &buf)
+
+	locals := make([]Wasm_Local_Decl, 3)
+	locals[0] = Wasm_Local_Decl{count = 1, type = .I32} // i
+	locals[1] = Wasm_Local_Decl{count = 1, type = .I32} // item_val
+	locals[2] = Wasm_Local_Decl{count = 1, type = .I32} // result_val
+
+	body := make([]u8, len(buf))
+	for b, i in buf {
+		body[i] = b
+	}
+	delete(buf)
+
+	return Wasm_Code{locals = locals, body = body}
+}
+
+emit_camp_parallel_all_body :: proc(runtime_indices: [RUNTIME_FUNC_COUNT]int) -> Wasm_Code {
+	// camp_parallel_all(fn_idx: i32, fn_env: i32, items_ptr: i32, items_len: i32, chunk_size: i32) -> i32
+	// Sequential fallback: iterate items, call fn on each, collect all results (same as map).
+	// Params: local 0 = fn_idx, local 1 = fn_env, local 2 = items_ptr, local 3 = items_len, local 4 = chunk_size
+	// Locals: 5 = result_ptr, 6 = i, 7 = item_val, 8 = result_val
+	buf: [dynamic]u8
+	buf = make([dynamic]u8, 0, 256)
+
+	// Allocate result record
+	emit_instruction(Wasm_I32_Const{value = i32(CAMP_TAG_HEADER_SIZE)}, &buf)
+	emit_instruction(Wasm_Local_Get{index = 3}, &buf)
+	emit_instruction(Wasm_I32_Const{value = 8}, &buf)
+	emit_instruction(Wasm_I32_Mul{}, &buf)
+	emit_instruction(Wasm_I32_Add{}, &buf)
+	emit_instruction(Wasm_Call{index = u32(runtime_indices[RUNTIME_ALLOC])}, &buf)
+	emit_instruction(Wasm_Local_Set{index = 5}, &buf)
+
+	// Set refcount = 1
+	emit_instruction(Wasm_Local_Get{index = 5}, &buf)
+	emit_instruction(Wasm_I32_Const{value = 1}, &buf)
+	emit_instruction(Wasm_I32_Store{align = 2, offset = CAMP_TAG_REFCOUNT_OFFSET}, &buf)
+
+	// Set tag = 0xFF
+	emit_instruction(Wasm_Local_Get{index = 5}, &buf)
+	emit_instruction(Wasm_I32_Const{value = 0xFF}, &buf)
+	emit_instruction(Wasm_I32_Store8{offset = CAMP_TAG_TAG_OFFSET}, &buf)
+
+	// Set scan_size = items_len
+	emit_instruction(Wasm_Local_Get{index = 5}, &buf)
+	emit_instruction(Wasm_Local_Get{index = 3}, &buf)
+	emit_instruction(Wasm_I32_Store8{offset = CAMP_TAG_SCAN_SIZE_OFFSET}, &buf)
+
+	// i = 0
+	emit_instruction(Wasm_I32_Const{value = 0}, &buf)
+	emit_instruction(Wasm_Local_Set{index = 6}, &buf)
+
+	// Loop
+	emit_instruction(Wasm_Block{block_type = .Void}, &buf)
+	emit_instruction(Wasm_Loop{block_type = .Void}, &buf)
+
+	emit_instruction(Wasm_Local_Get{index = 6}, &buf)
+	emit_instruction(Wasm_Local_Get{index = 3}, &buf)
+	emit_instruction(Wasm_I32_Lt_S{}, &buf)
+	emit_instruction(Wasm_Br_If{label = 1}, &buf)
+
+	// Load item_val
+	emit_instruction(Wasm_Local_Get{index = 2}, &buf)
+	emit_instruction(Wasm_Local_Get{index = 6}, &buf)
+	emit_instruction(Wasm_I32_Const{value = 4}, &buf)
+	emit_instruction(Wasm_I32_Mul{}, &buf)
+	emit_instruction(Wasm_I32_Add{}, &buf)
+	emit_instruction(Wasm_I32_Load{align = 2, offset = 0}, &buf)
+	emit_instruction(Wasm_Local_Set{index = 7}, &buf)
+
+	// Call fn
+	emit_instruction(Wasm_Local_Get{index = 1}, &buf)
+	emit_instruction(Wasm_Local_Get{index = 7}, &buf)
+	emit_instruction(Wasm_Local_Get{index = 0}, &buf)
+	emit_instruction(Wasm_Call_Indirect{type_idx = 0, table_idx = 0}, &buf)
+	emit_instruction(Wasm_Local_Set{index = 8}, &buf)
+
+	// Store result
+	emit_instruction(Wasm_Local_Get{index = 5}, &buf)
+	emit_instruction(Wasm_I32_Const{value = i32(CAMP_TAG_FIELDS_OFFSET)}, &buf)
+	emit_instruction(Wasm_Local_Get{index = 6}, &buf)
+	emit_instruction(Wasm_I32_Const{value = 8}, &buf)
+	emit_instruction(Wasm_I32_Mul{}, &buf)
+	emit_instruction(Wasm_I32_Add{}, &buf)
+	emit_instruction(Wasm_I32_Add{}, &buf)
+	emit_instruction(Wasm_Local_Get{index = 8}, &buf)
+	emit_instruction(Wasm_I32_Store{align = 2, offset = 0}, &buf)
+
+	// i++
+	emit_instruction(Wasm_Local_Get{index = 6}, &buf)
+	emit_instruction(Wasm_I32_Const{value = 1}, &buf)
+	emit_instruction(Wasm_I32_Add{}, &buf)
+	emit_instruction(Wasm_Local_Set{index = 6}, &buf)
+
+	emit_instruction(Wasm_Br{label = 0}, &buf)
+	emit_instruction(Wasm_End{}, &buf)
+	emit_instruction(Wasm_End{}, &buf)
+
+	emit_instruction(Wasm_Local_Get{index = 5}, &buf)
+	emit_instruction(Wasm_End{}, &buf)
+
+	locals := make([]Wasm_Local_Decl, 4)
+	locals[0] = Wasm_Local_Decl{count = 1, type = .I32} // result_ptr
+	locals[1] = Wasm_Local_Decl{count = 1, type = .I32} // i
+	locals[2] = Wasm_Local_Decl{count = 1, type = .I32} // item_val
+	locals[3] = Wasm_Local_Decl{count = 1, type = .I32} // result_val
+
+	body := make([]u8, len(buf))
+	for b, i in buf {
+		body[i] = b
+	}
+	delete(buf)
+
+	return Wasm_Code{locals = locals, body = body}
+}
+
+emit_camp_parallel_filter_body :: proc(runtime_indices: [RUNTIME_FUNC_COUNT]int) -> Wasm_Code {
+	// camp_parallel_filter(fn_idx: i32, fn_env: i32, items_ptr: i32, items_len: i32, chunk_size: i32) -> i32
+	// Sequential fallback: iterate items, call predicate fn, collect matching items in result record.
+	// Params: local 0 = fn_idx, local 1 = fn_env, local 2 = items_ptr, local 3 = items_len, local 4 = chunk_size
+	// Locals: 5 = result_ptr, 6 = i, 7 = item_val, 8 = result_val, 9 = match_count
+	buf: [dynamic]u8
+	buf = make([dynamic]u8, 0, 256)
+
+	// Allocate result record with items_len fields (worst case, may waste space)
+	emit_instruction(Wasm_I32_Const{value = i32(CAMP_TAG_HEADER_SIZE)}, &buf)
+	emit_instruction(Wasm_Local_Get{index = 3}, &buf)
+	emit_instruction(Wasm_I32_Const{value = 8}, &buf)
+	emit_instruction(Wasm_I32_Mul{}, &buf)
+	emit_instruction(Wasm_I32_Add{}, &buf)
+	emit_instruction(Wasm_Call{index = u32(runtime_indices[RUNTIME_ALLOC])}, &buf)
+	emit_instruction(Wasm_Local_Set{index = 5}, &buf) // result_ptr
+
+	// Set refcount = 1
+	emit_instruction(Wasm_Local_Get{index = 5}, &buf)
+	emit_instruction(Wasm_I32_Const{value = 1}, &buf)
+	emit_instruction(Wasm_I32_Store{align = 2, offset = CAMP_TAG_REFCOUNT_OFFSET}, &buf)
+
+	// Set tag = 0xFF (record)
+	emit_instruction(Wasm_Local_Get{index = 5}, &buf)
+	emit_instruction(Wasm_I32_Const{value = 0xFF}, &buf)
+	emit_instruction(Wasm_I32_Store8{offset = CAMP_TAG_TAG_OFFSET}, &buf)
+
+	// match_count = 0
+	emit_instruction(Wasm_I32_Const{value = 0}, &buf)
+	emit_instruction(Wasm_Local_Set{index = 9}, &buf)
+
+	// i = 0
+	emit_instruction(Wasm_I32_Const{value = 0}, &buf)
+	emit_instruction(Wasm_Local_Set{index = 6}, &buf)
+
+	// Loop
+	emit_instruction(Wasm_Block{block_type = .Void}, &buf)
+	emit_instruction(Wasm_Loop{block_type = .Void}, &buf)
+
+	emit_instruction(Wasm_Local_Get{index = 6}, &buf)
+	emit_instruction(Wasm_Local_Get{index = 3}, &buf)
+	emit_instruction(Wasm_I32_Lt_S{}, &buf)
+	emit_instruction(Wasm_Br_If{label = 1}, &buf)
+
+	// Load item_val
+	emit_instruction(Wasm_Local_Get{index = 2}, &buf)
+	emit_instruction(Wasm_Local_Get{index = 6}, &buf)
+	emit_instruction(Wasm_I32_Const{value = 4}, &buf)
+	emit_instruction(Wasm_I32_Mul{}, &buf)
+	emit_instruction(Wasm_I32_Add{}, &buf)
+	emit_instruction(Wasm_I32_Load{align = 2, offset = 0}, &buf)
+	emit_instruction(Wasm_Local_Set{index = 7}, &buf)
+
+	// Call predicate fn(fn_env, item_val) -> result_val
+	emit_instruction(Wasm_Local_Get{index = 1}, &buf)
+	emit_instruction(Wasm_Local_Get{index = 7}, &buf)
+	emit_instruction(Wasm_Local_Get{index = 0}, &buf)
+	emit_instruction(Wasm_Call_Indirect{type_idx = 0, table_idx = 0}, &buf)
+	emit_instruction(Wasm_Local_Set{index = 8}, &buf)
+
+	// If result_val != 0 (truthy), store item in result and increment match_count
+	emit_instruction(Wasm_Local_Get{index = 8}, &buf)
+	emit_instruction(Wasm_If{block_type = .Void}, &buf)
+
+	// Store item_val at result_ptr + CAMP_TAG_FIELDS_OFFSET + match_count * 8
+	emit_instruction(Wasm_Local_Get{index = 5}, &buf)
+	emit_instruction(Wasm_I32_Const{value = i32(CAMP_TAG_FIELDS_OFFSET)}, &buf)
+	emit_instruction(Wasm_Local_Get{index = 9}, &buf)
+	emit_instruction(Wasm_I32_Const{value = 8}, &buf)
+	emit_instruction(Wasm_I32_Mul{}, &buf)
+	emit_instruction(Wasm_I32_Add{}, &buf)
+	emit_instruction(Wasm_I32_Add{}, &buf)
+	emit_instruction(Wasm_Local_Get{index = 7}, &buf)
+	emit_instruction(Wasm_I32_Store{align = 2, offset = 0}, &buf)
+
+	// match_count++
+	emit_instruction(Wasm_Local_Get{index = 9}, &buf)
+	emit_instruction(Wasm_I32_Const{value = 1}, &buf)
+	emit_instruction(Wasm_I32_Add{}, &buf)
+	emit_instruction(Wasm_Local_Set{index = 9}, &buf)
+
+	emit_instruction(Wasm_End{}, &buf) // end if
+
+	// i++
+	emit_instruction(Wasm_Local_Get{index = 6}, &buf)
+	emit_instruction(Wasm_I32_Const{value = 1}, &buf)
+	emit_instruction(Wasm_I32_Add{}, &buf)
+	emit_instruction(Wasm_Local_Set{index = 6}, &buf)
+
+	emit_instruction(Wasm_Br{label = 0}, &buf)
+	emit_instruction(Wasm_End{}, &buf)
+	emit_instruction(Wasm_End{}, &buf)
+
+	// Update scan_size = match_count
+	emit_instruction(Wasm_Local_Get{index = 5}, &buf)
+	emit_instruction(Wasm_Local_Get{index = 9}, &buf)
+	emit_instruction(Wasm_I32_Store8{offset = CAMP_TAG_SCAN_SIZE_OFFSET}, &buf)
+
+	// Return result_ptr
+	emit_instruction(Wasm_Local_Get{index = 5}, &buf)
+	emit_instruction(Wasm_End{}, &buf)
+
+	locals := make([]Wasm_Local_Decl, 5)
+	locals[0] = Wasm_Local_Decl{count = 1, type = .I32} // result_ptr
+	locals[1] = Wasm_Local_Decl{count = 1, type = .I32} // i
+	locals[2] = Wasm_Local_Decl{count = 1, type = .I32} // item_val
+	locals[3] = Wasm_Local_Decl{count = 1, type = .I32} // result_val
+	locals[4] = Wasm_Local_Decl{count = 1, type = .I32} // match_count
+
+	body := make([]u8, len(buf))
+	for b, i in buf {
+		body[i] = b
+	}
+	delete(buf)
+
+	return Wasm_Code{locals = locals, body = body}
+}
+
+emit_camp_parallel_for_each_body :: proc(runtime_indices: [RUNTIME_FUNC_COUNT]int) -> Wasm_Code {
+	// camp_parallel_for_each(fn_idx: i32, fn_env: i32, items_ptr: i32, items_len: i32, chunk_size: i32) -> void
+	// Sequential fallback: iterate items, call fn on each, discard results.
+	// Params: local 0 = fn_idx, local 1 = fn_env, local 2 = items_ptr, local 3 = items_len, local 4 = chunk_size
+	// Locals: 5 = i, 6 = item_val
+	buf: [dynamic]u8
+	buf = make([dynamic]u8, 0, 192)
+
+	// i = 0
+	emit_instruction(Wasm_I32_Const{value = 0}, &buf)
+	emit_instruction(Wasm_Local_Set{index = 5}, &buf)
+
+	// Loop
+	emit_instruction(Wasm_Block{block_type = .Void}, &buf)
+	emit_instruction(Wasm_Loop{block_type = .Void}, &buf)
+
+	emit_instruction(Wasm_Local_Get{index = 5}, &buf)
+	emit_instruction(Wasm_Local_Get{index = 3}, &buf)
+	emit_instruction(Wasm_I32_Lt_S{}, &buf)
+	emit_instruction(Wasm_Br_If{label = 1}, &buf)
+
+	// Load item_val
+	emit_instruction(Wasm_Local_Get{index = 2}, &buf)
+	emit_instruction(Wasm_Local_Get{index = 5}, &buf)
+	emit_instruction(Wasm_I32_Const{value = 4}, &buf)
+	emit_instruction(Wasm_I32_Mul{}, &buf)
+	emit_instruction(Wasm_I32_Add{}, &buf)
+	emit_instruction(Wasm_I32_Load{align = 2, offset = 0}, &buf)
+	emit_instruction(Wasm_Local_Set{index = 6}, &buf)
+
+	// Call fn(fn_env, item_val), drop result
+	emit_instruction(Wasm_Local_Get{index = 1}, &buf)
+	emit_instruction(Wasm_Local_Get{index = 6}, &buf)
+	emit_instruction(Wasm_Local_Get{index = 0}, &buf)
+	emit_instruction(Wasm_Call_Indirect{type_idx = 0, table_idx = 0}, &buf)
+	emit_instruction(Wasm_Drop{}, &buf)
+
+	// i++
+	emit_instruction(Wasm_Local_Get{index = 5}, &buf)
+	emit_instruction(Wasm_I32_Const{value = 1}, &buf)
+	emit_instruction(Wasm_I32_Add{}, &buf)
+	emit_instruction(Wasm_Local_Set{index = 5}, &buf)
+
+	emit_instruction(Wasm_Br{label = 0}, &buf)
+	emit_instruction(Wasm_End{}, &buf)
+	emit_instruction(Wasm_End{}, &buf)
+
+	emit_instruction(Wasm_End{}, &buf)
+
+	locals := make([]Wasm_Local_Decl, 2)
+	locals[0] = Wasm_Local_Decl{count = 1, type = .I32} // i
+	locals[1] = Wasm_Local_Decl{count = 1, type = .I32} // item_val
+
+	body := make([]u8, len(buf))
+	for b, i in buf {
+		body[i] = b
+	}
+	delete(buf)
+
+	return Wasm_Code{locals = locals, body = body}
+}

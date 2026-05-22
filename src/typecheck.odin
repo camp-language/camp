@@ -197,11 +197,13 @@ inject_prelude :: proc(store: ^Type_Store) {
 	})
 	store.bindings[handle_name] = handle_var
 
-	// Scheduler effects: Async! and Spawn!
+	// Scheduler effects: Async!, Spawn!, and Parallel!
 	async_name := intern(store.interner, "Async!")
 	spawn_name := intern(store.interner, "Spawn!")
+	parallel_name := intern(store.interner, "Parallel!")
 	append(&store.declared_effects, async_name)
 	append(&store.declared_effects, spawn_name)
+	append(&store.declared_effects, parallel_name)
 }
 
 typecheck_decl :: proc(decl: CDecl, env: ^Type_Env, store: ^Type_Store) {
@@ -1063,6 +1065,59 @@ typecheck_method_call :: proc(e: ^CExpr_Method_Call, env: ^Type_Env, store: ^Typ
 				return Type_Result{var_id = inf.inner_id, effects = eff}
 			}
 			// Fallback: if arg is not yet inferred as Handle, return fresh var
+			return_var := fresh_value_var(store, e.span)
+			return Type_Result{var_id = return_var, effects = eff}
+		}
+
+		// Parallel! operations: add Spawn! to effect row (they use spawn internally)
+		is_parallel := effect_name == intern(store.interner, "Parallel!")
+		if is_parallel {
+			spawn_effect_name := intern(store.interner, "Spawn!")
+			spawn_effect_names := store_alloc(store, Intern_ID, 1)
+			spawn_effect_names[0] = spawn_effect_name
+			spawn_rest := fresh_effect_row(store, e.span)
+			spawn_row := fresh_effect_row(store, e.span)
+			link_var(store, spawn_row, Inferred_Type{
+				tag = .Effect_Row,
+				effect_names = spawn_effect_names,
+				rest_id = spawn_rest,
+			})
+			unify(store, eff, spawn_row)
+
+			// Typecheck args for Parallel! operations
+			for a in e.args {
+				arg_result := typecheck_synth(a, env, store)
+				unify(store, eff, arg_result.effects)
+			}
+
+			// Return type depends on the operation
+			map_name := intern(store.interner, "map!")
+			all_name := intern(store.interner, "all!")
+			filter_name := intern(store.interner, "filter!")
+			for_each_name := intern(store.interner, "for_each!")
+			reduce_name := intern(store.interner, "reduce!")
+			any_name := intern(store.interner, "any!")
+
+			if e.method.name == for_each_name {
+				// for_each! returns Unit
+				unit_name := intern(store.interner, "Unit")
+				return_var := make_primitive_type(store, unit_name, e.span)
+				return Type_Result{var_id = return_var, effects = eff}
+			}
+
+			if e.method.name == any_name && len(e.args) >= 2 {
+				// any!(fn, items) returns the element type
+				return_var := fresh_value_var(store, e.span)
+				return Type_Result{var_id = return_var, effects = eff}
+			}
+
+			if e.method.name == reduce_name && len(e.args) >= 3 {
+				// reduce!(fn, items, init) returns init's type
+				init_result := typecheck_synth(e.args[2], env, store)
+				return Type_Result{var_id = init_result.var_id, effects = eff}
+			}
+
+			// map!, all!, filter! return a list type (fresh var for now)
 			return_var := fresh_value_var(store, e.span)
 			return Type_Result{var_id = return_var, effects = eff}
 		}
