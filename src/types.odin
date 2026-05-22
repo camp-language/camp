@@ -1,5 +1,7 @@
 package camp
 
+import "core:mem"
+
 Type_Var_ID :: distinct int
 
 LEVEL_GENERIC :: -1
@@ -118,6 +120,7 @@ Type_Store :: struct {
 	current_level:    int,
 	interner:         ^Intern_Table,
 	collector:        ^Diagnostic_Collector,
+	allocator:        mem.Allocator,
 	declared_effects: [dynamic]Intern_ID,
 	bindings:         map[Intern_ID]Type_Var_ID,
 	newtype_decls:    map[Intern_ID]Newtype_Decl_Info,
@@ -128,23 +131,65 @@ Type_Store :: struct {
 	effect_ops:       map[Intern_ID][]Effect_Op_Sig,
 }
 
-type_store_init :: proc(store: ^Type_Store, interner: ^Intern_Table, collector: ^Diagnostic_Collector) {
-	store.vars = make([dynamic]Type_Var, 0, 256)
+type_store_init :: proc(store: ^Type_Store, interner: ^Intern_Table, collector: ^Diagnostic_Collector, allocator: mem.Allocator = context.allocator) {
+	store.allocator = allocator
+	store.vars = make([dynamic]Type_Var, 0, 256, allocator)
 	store.next_id = 0
 	store.current_level = LEVEL_TOP
 	store.interner = interner
 	store.collector = collector
-	store.declared_effects = make([dynamic]Intern_ID, 0, 16)
-	store.bindings = make(map[Intern_ID]Type_Var_ID, 64)
-	store.newtype_decls = make(map[Intern_ID]Newtype_Decl_Info, 16)
-	store.trait_registry = make(map[Intern_ID]Trait_Info, 16)
-	store.trait_impls = make([dynamic]Trait_Impl, 0, 16)
-	store.type_constraints = make(map[Type_Var_ID][]Intern_ID, 32)
-	store.rec_vars = make(map[Type_Var_ID]bool, 4)
-	store.effect_ops = make(map[Intern_ID][]Effect_Op_Sig, 16)
+	store.declared_effects = make([dynamic]Intern_ID, 0, 16, allocator)
+	store.bindings = make(map[Intern_ID]Type_Var_ID, 64, allocator)
+	store.newtype_decls = make(map[Intern_ID]Newtype_Decl_Info, 16, allocator)
+	store.trait_registry = make(map[Intern_ID]Trait_Info, 16, allocator)
+	store.trait_impls = make([dynamic]Trait_Impl, 0, 16, allocator)
+	store.type_constraints = make(map[Type_Var_ID][]Intern_ID, 32, allocator)
+	store.rec_vars = make(map[Type_Var_ID]bool, 4, allocator)
+	store.effect_ops = make(map[Intern_ID][]Effect_Op_Sig, 16, allocator)
 }
 
 type_store_destroy :: proc(store: ^Type_Store) {
+	for v in store.vars {
+		inf, ok := v.link.(Inferred_Type)
+		if !ok do continue
+		#partial switch inf.tag {
+		case .Function, .Newtype:
+			if inf.param_ids != nil do delete(inf.param_ids, store.allocator)
+		case .Record_Row:
+			if inf.record_fields != nil do delete(inf.record_fields, store.allocator)
+		case .Tag_Union_Row:
+			if inf.tag_entries != nil {
+				for te in inf.tag_entries {
+					if te.payload != nil do delete(te.payload, store.allocator)
+				}
+				delete(inf.tag_entries, store.allocator)
+			}
+		case .Effect_Row:
+			if inf.effects != nil {
+				for e in inf.effects {
+					if e.type_args != nil do delete(e.type_args, store.allocator)
+				}
+				delete(inf.effects, store.allocator)
+			}
+		case:
+		}
+	}
+	for _, sigs in store.effect_ops {
+		for sig in sigs {
+			if len(sig.param_types) > 0 do delete(sig.param_types, store.allocator)
+		}
+		if len(sigs) > 0 do delete(sigs, store.allocator)
+	}
+	for _, constraints in store.type_constraints {
+		if len(constraints) > 0 do delete(constraints, store.allocator)
+	}
+	for _, info in store.newtype_decls {
+		if len(info.type_params) > 0 do delete(info.type_params, store.allocator)
+		if len(info.owned_tags) > 0 do delete(info.owned_tags, store.allocator)
+	}
+	for _, info in store.trait_registry {
+		if len(info.methods) > 0 do delete(info.methods, store.allocator)
+	}
 	delete(store.vars)
 	delete(store.declared_effects)
 	delete(store.bindings)
@@ -302,7 +347,7 @@ make_primitive_type :: proc(store: ^Type_Store, name: Intern_ID, span: Source_Sp
 }
 
 store_alloc :: proc(store: ^Type_Store, $T: typeid, count: int) -> []T {
-	return make([]T, count)
+	return make([]T, count, store.allocator)
 }
 
 is_declared_effect :: proc(store: ^Type_Store, name: Intern_ID) -> bool {

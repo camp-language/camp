@@ -105,30 +105,30 @@ inject_prelude_effects_typecheck :: proc(store: ^Type_Store) {
 		append(&store.declared_effects, name_id)
 
 		generic_vars: map[int]Type_Var_ID
-		generic_vars = make(map[int]Type_Var_ID, 4)
+		generic_vars = make(map[int]Type_Var_ID, 4, store.allocator)
 
-		ops := make([dynamic]Effect_Op_Sig, 0, 8)
+		ops := make([dynamic]Effect_Op_Sig, 0, 8, store.allocator)
 
 		switch eff_name {
 		case "Console":
 			append(&ops, Effect_Op_Sig{
 				name = intern(store.interner, "println!"),
 				param_count = 1,
-				param_types = make([]Type_Var_ID, 1),
+				param_types = make([]Type_Var_ID, 1, store.allocator),
 				return_type = prelude_resolve_type_ref(store, "Unit", 0, &generic_vars),
 			})
 			ops[len(ops)-1].param_types[0] = prelude_resolve_type_ref(store, "Str", 0, &generic_vars)
 			append(&ops, Effect_Op_Sig{
 				name = intern(store.interner, "readln!"),
 				param_count = 0,
-				param_types = make([]Type_Var_ID, 0),
+				param_types = make([]Type_Var_ID, 0, store.allocator),
 				return_type = prelude_resolve_type_ref(store, "Str", 0, &generic_vars),
 			})
 		case "Throw":
 			append(&ops, Effect_Op_Sig{
 				name = intern(store.interner, "throw!"),
 				param_count = 1,
-				param_types = make([]Type_Var_ID, 1),
+				param_types = make([]Type_Var_ID, 1, store.allocator),
 				return_type = prelude_resolve_type_ref(store, "generic", 1, &generic_vars),
 			})
 			ops[len(ops)-1].param_types[0] = prelude_resolve_type_ref(store, "generic", 0, &generic_vars)
@@ -137,16 +137,16 @@ inject_prelude_effects_typecheck :: proc(store: ^Type_Store) {
 			f_type := prelude_resolve_type_ref(store, "generic", 1, &generic_vars)
 			list_type := prelude_resolve_type_ref(store, "List", 0, &generic_vars)
 			unit_type := prelude_resolve_type_ref(store, "Unit", 0, &generic_vars)
-			append(&ops, Effect_Op_Sig{name = intern(store.interner, "map!"), param_count = 2, param_types = make([]Type_Var_ID, 2), return_type = list_type})
+			append(&ops, Effect_Op_Sig{name = intern(store.interner, "map!"), param_count = 2, param_types = make([]Type_Var_ID, 2, store.allocator), return_type = list_type})
 			ops[len(ops)-1].param_types[0] = items_type; ops[len(ops)-1].param_types[1] = f_type
-			append(&ops, Effect_Op_Sig{name = intern(store.interner, "for_each!"), param_count = 2, param_types = make([]Type_Var_ID, 2), return_type = unit_type})
+			append(&ops, Effect_Op_Sig{name = intern(store.interner, "for_each!"), param_count = 2, param_types = make([]Type_Var_ID, 2, store.allocator), return_type = unit_type})
 			ops[len(ops)-1].param_types[0] = items_type; ops[len(ops)-1].param_types[1] = f_type
-			append(&ops, Effect_Op_Sig{name = intern(store.interner, "filter!"), param_count = 2, param_types = make([]Type_Var_ID, 2), return_type = list_type})
+			append(&ops, Effect_Op_Sig{name = intern(store.interner, "filter!"), param_count = 2, param_types = make([]Type_Var_ID, 2, store.allocator), return_type = list_type})
 			ops[len(ops)-1].param_types[0] = items_type; ops[len(ops)-1].param_types[1] = f_type
 			init_type := prelude_resolve_type_ref(store, "generic", 1, &generic_vars)
 			reduce_f_type := prelude_resolve_type_ref(store, "generic", 2, &generic_vars)
 			reduce_return := prelude_resolve_type_ref(store, "generic", 0, &generic_vars)
-			append(&ops, Effect_Op_Sig{name = intern(store.interner, "reduce!"), param_count = 3, param_types = make([]Type_Var_ID, 3), return_type = reduce_return})
+			append(&ops, Effect_Op_Sig{name = intern(store.interner, "reduce!"), param_count = 3, param_types = make([]Type_Var_ID, 3, store.allocator), return_type = reduce_return})
 			ops[len(ops)-1].param_types[0] = items_type; ops[len(ops)-1].param_types[1] = init_type; ops[len(ops)-1].param_types[2] = reduce_f_type
 			tasks_type := prelude_resolve_type_ref(store, "generic", 0, &generic_vars)
 			append(&ops, Effect_Op_Sig{name = intern(store.interner, "all!"), param_count = 1, param_types = make([]Type_Var_ID, 1), return_type = list_type})
