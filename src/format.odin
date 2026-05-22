@@ -66,6 +66,7 @@ format :: proc(source: string, file_path: string, allocator: mem.Allocator) -> F
 	// Format
 	doc := format_file(ast_file, &info, &itable)
 	result.output = doc_resolve(doc, 0)
+	doc_destroy(doc)
 
 	result.diagnostics = copy_diagnostics(collector.diagnostics[:])
 	return result

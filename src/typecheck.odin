@@ -194,7 +194,7 @@ inject_prelude :: proc(store: ^Type_Store) {
 		payload: []Type_Var_ID = nil
 		if td.has_payload {
 			p := fresh_value_var(store, Source_Span_ZERO)
-			payload = make([]Type_Var_ID, 1)
+			payload = make([]Type_Var_ID, 1, store.allocator)
 			payload[0] = p
 		}
 		tag_entries[0] = Type_Tag_Entry{name = name_id, payload = payload}

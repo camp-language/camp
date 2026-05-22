@@ -66,3 +66,12 @@ doc_backslash_break :: proc() -> Doc {
 doc_space :: proc() -> Doc {
 	return doc_text(" ")
 }
+
+doc_destroy :: proc(d: Doc) {
+	if len(d.children) > 0 {
+		for child in d.children {
+			doc_destroy(child)
+		}
+		delete(d.children)
+	}
+}
