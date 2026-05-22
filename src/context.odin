@@ -11,7 +11,7 @@ Compilation_Context :: struct {
 	project:        Project_Discovery,
 	export_tables:  map[Intern_ID]Export_Table,
 	module_stores:  map[Intern_ID]Type_Store,
-	type_store:     ^Type_Store,
+	thread_count:   int,
 }
 
 context_init :: proc(ctx: ^Compilation_Context) -> mem.Allocator {
@@ -24,7 +24,7 @@ context_init :: proc(ctx: ^Compilation_Context) -> mem.Allocator {
 	diag_collector_init(&ctx.collector)
 	ctx.export_tables = make(map[Intern_ID]Export_Table, 16)
 	ctx.module_stores = make(map[Intern_ID]Type_Store, 16)
-	ctx.type_store = nil
+	ctx.thread_count = 1
 	return ctx.allocator
 }
 

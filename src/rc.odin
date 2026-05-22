@@ -104,6 +104,23 @@ rc_collect_uses :: proc(expr: IR_Expr, uses: ^map[Intern_ID]int) {
 		}
 	case ^IR_Crash:
 		rc_collect_uses(e.message, uses)
+	case ^IR_Resume:
+		rc_collect_uses(e.value, uses)
+	case ^IR_Atomic_Load:
+		rc_collect_uses(e.ptr, uses)
+	case ^IR_Atomic_Store:
+		rc_collect_uses(e.ptr, uses)
+		rc_collect_uses(e.value, uses)
+	case ^IR_Atomic_RMW:
+		rc_collect_uses(e.ptr, uses)
+		rc_collect_uses(e.value, uses)
+	case ^IR_Atomic_Fence:
+	case ^IR_Wait:
+		rc_collect_uses(e.ptr, uses)
+		rc_collect_uses(e.expected, uses)
+	case ^IR_Notify:
+		rc_collect_uses(e.ptr, uses)
+		rc_collect_uses(e.count, uses)
 	case:
 	}
 }
@@ -431,6 +448,20 @@ rc_insert_expr_inner :: proc(expr: IR_Expr, remaining: ^map[Intern_ID]int, inter
 		new_crash := new(IR_Crash)
 		new_crash^ = IR_Crash{message = new_msg, span = e.span}
 		return IR_Expr(new_crash)
+	case ^IR_Resume:
+		return expr
+	case ^IR_Atomic_Load:
+		return expr
+	case ^IR_Atomic_Store:
+		return expr
+	case ^IR_Atomic_RMW:
+		return expr
+	case ^IR_Atomic_Fence:
+		return expr
+	case ^IR_Wait:
+		return expr
+	case ^IR_Notify:
+		return expr
 	}
 
 	return expr

@@ -2,8 +2,6 @@ package camp
 
 WASI_MODULE :: "wasi_snapshot_preview1"
 
-RUNTIME_FUNC_COUNT :: 11
-
 CAMP_TAG_HEADER_SIZE :: 8
 CAMP_TAG_REFCOUNT_OFFSET :: 0
 CAMP_TAG_TAG_OFFSET :: 4
@@ -11,21 +9,39 @@ CAMP_TAG_SCAN_SIZE_OFFSET :: 5
 CAMP_TAG_FIELDS_OFFSET :: 8
 
 		Codegen_Env :: struct {
-	mod:           ^Wasm_Module,
-	interner:      ^Intern_Table,
-	type_map:      map[int]int,
-	func_map:      map[int]int,
-	next_type_idx: int,
-	next_func_idx: int,
-	import_count:  int,
-	data_offset:   u32,
-	locals:        [dynamic]Wasm_Local_Decl,
-	local_map:     map[Intern_ID]u32,
-	next_local:    u32,
+	mod:            ^Wasm_Module,
+	interner:       ^Intern_Table,
+	type_map:       map[int]int,
+	func_map:       map[int]int,
+	next_type_idx:  int,
+	next_func_idx:  int,
+	import_count:   int,
+	data_offset:    u32,
+	locals:         [dynamic]Wasm_Local_Decl,
+	local_map:      map[Intern_ID]u32,
+	next_local:     u32,
 	tmp_local_base: u32,
-	tmp_count:     u32,
-	table_idx:     int,
+	tmp_count:      u32,
+	table_idx:      int,
 	func_type_indices: [dynamic]u32,
+	next_scope_id:  int,
+	async_id:       Intern_ID,
+	spawn_id:       Intern_ID,
+	parallel_id:    Intern_ID,
+	file_id:        Intern_ID,
+	console_id:     Intern_ID,
+	time_id:        Intern_ID,
+}
+
+cg_is_scheduler_effect :: proc(effect: Canonical_Name, env: ^Codegen_Env) -> bool {
+	name := effect.name
+	if name == env.async_id do return true
+	if name == env.spawn_id do return true
+	if name == env.parallel_id do return true
+	if name == env.file_id do return true
+	if name == env.console_id do return true
+	if name == env.time_id do return true
+	return false
 }
 
 hash_func_type :: proc(params: []Wasm_Value_Type, results: []Wasm_Value_Type) -> int {
@@ -94,7 +110,35 @@ emit_wasi_imports :: proc(env: ^Codegen_Env) {
 
 	args_sizes_get_type := get_or_create_type(env, []Wasm_Value_Type{.I32, .I32}, []Wasm_Value_Type{.I32})
 	add_import(env, WASI_MODULE, "args_sizes_get", .Func, args_sizes_get_type)
+
+	// WASI I/O imports for scheduler (Preview 1 style)
+	// poll_oneoff(in, out, nsubs, nevents) -> errno
+	poll_oneoff_type := get_or_create_type(env, []Wasm_Value_Type{.I32, .I32, .I32, .I32}, []Wasm_Value_Type{.I32})
+	add_import(env, WASI_MODULE, "poll_oneoff", .Func, poll_oneoff_type)
+
+	// fd_read(fd, iovs, iovs_len, nread) -> errno
+	fd_read_type := get_or_create_type(env, []Wasm_Value_Type{.I32, .I32, .I32, .I32}, []Wasm_Value_Type{.I32})
+	add_import(env, WASI_MODULE, "fd_read", .Func, fd_read_type)
+
+	// fd_close(fd) -> errno
+	fd_close_type := get_or_create_type(env, []Wasm_Value_Type{.I32}, []Wasm_Value_Type{.I32})
+	add_import(env, WASI_MODULE, "fd_close", .Func, fd_close_type)
+
+	// clock_time_get(clock_id, precision, time_ptr) -> errno
+	clock_time_get_type := get_or_create_type(env, []Wasm_Value_Type{.I32, .I64, .I32}, []Wasm_Value_Type{.I32})
+	add_import(env, WASI_MODULE, "clock_time_get", .Func, clock_time_get_type)
+
+	// sched_yield() -> errno
+	sched_yield_type := get_or_create_type(env, []Wasm_Value_Type{}, []Wasm_Value_Type{.I32})
+	add_import(env, WASI_MODULE, "sched_yield", .Func, sched_yield_type)
 }
+
+// WASI import function indices (offset from import_count base)
+WASI_IMPORT_POLL_ONEOFF   :: 5
+WASI_IMPORT_FD_READ      :: 6
+WASI_IMPORT_FD_CLOSE     :: 7
+WASI_IMPORT_CLOCK_TIME_GET :: 8
+WASI_IMPORT_SCHED_YIELD  :: 9
 
 emit_runtime_types :: proc(env: ^Codegen_Env) {
 	get_or_create_type(env, []Wasm_Value_Type{.I32}, []Wasm_Value_Type{.I32})
@@ -129,11 +173,23 @@ codegen :: proc(ir_mod: IR_Module, ctx: ^Compilation_Context) -> Wasm_Module {
 	env.local_map = make(map[Intern_ID]u32, 32)
 	env.table_idx = -1
 	env.func_type_indices = make([dynamic]u32, 0, 64)
+	env.next_scope_id = 1
+	env.async_id = intern(&ctx.interner, "Async!")
+	env.spawn_id = intern(&ctx.interner, "Spawn!")
+	env.parallel_id = intern(&ctx.interner, "Parallel!")
+	env.file_id = intern(&ctx.interner, "File!")
+	env.console_id = intern(&ctx.interner, "Console!")
+	env.time_id = intern(&ctx.interner, "Time!")
 
 	emit_wasi_imports(&env)
 	emit_runtime_types(&env)
 
-	append(&mod.memories, Wasm_Memory{min = 1})
+	// Memory: shared when threads > 1, with maximum for WASM threads
+	if ctx.thread_count > 1 {
+		append(&mod.memories, Wasm_Memory{min = 1, max = 65536, has_max = true, shared = true})
+	} else {
+		append(&mod.memories, Wasm_Memory{min = 1})
+	}
 
 	env.table_idx = len(mod.tables)
 	append(&mod.tables, Wasm_Table{
@@ -162,10 +218,8 @@ codegen :: proc(ir_mod: IR_Module, ctx: ^Compilation_Context) -> Wasm_Module {
 	alloc_type_idx := get_or_create_type(&env, []Wasm_Value_Type{.I32}, []Wasm_Value_Type{.I32})
 	dup_type_idx := get_or_create_type(&env, []Wasm_Value_Type{.I32}, []Wasm_Value_Type{})
 	drop_type_idx := dup_type_idx
-	drop_reuse_type_idx := alloc_type_idx
 	print_str_type_idx := get_or_create_type(&env, []Wasm_Value_Type{.I32, .I32}, []Wasm_Value_Type{})
 	exit_type_idx := dup_type_idx
-	print_str_stderr_type_idx := print_str_type_idx
 
 	runtime_func_indices: [RUNTIME_FUNC_COUNT]int
 	alloc_func_idx := add_function(&env, alloc_type_idx)
@@ -178,24 +232,72 @@ codegen :: proc(ir_mod: IR_Module, ctx: ^Compilation_Context) -> Wasm_Module {
 	runtime_func_indices[3] = print_str_func_idx
 	exit_func_idx := add_function(&env, exit_type_idx)
 	runtime_func_indices[4] = exit_func_idx
-	print_str_stderr_func_idx := add_function(&env, print_str_stderr_type_idx)
-	runtime_func_indices[5] = print_str_stderr_func_idx
-	drop_reuse_func_idx := add_function(&env, drop_reuse_type_idx)
-	runtime_func_indices[6] = drop_reuse_func_idx
 
-	list_alloc_type_idx := get_or_create_type(&env, []Wasm_Value_Type{.I32}, []Wasm_Value_Type{.I32})
-	list_push_type_idx := get_or_create_type(&env, []Wasm_Value_Type{.I32, .I32}, []Wasm_Value_Type{})
-	list_len_type_idx := get_or_create_type(&env, []Wasm_Value_Type{.I32}, []Wasm_Value_Type{.I32})
-	list_get_type_idx := get_or_create_type(&env, []Wasm_Value_Type{.I32, .I32}, []Wasm_Value_Type{.I32})
+	// Scheduler runtime function types
+	sched_init_type_idx := get_or_create_type(&env, []Wasm_Value_Type{.I32}, []Wasm_Value_Type{})
+	sched_spawn_type_idx := get_or_create_type(&env, []Wasm_Value_Type{.I32, .I32, .I32}, []Wasm_Value_Type{.I32})
+	sched_join_type_idx := get_or_create_type(&env, []Wasm_Value_Type{.I32}, []Wasm_Value_Type{.I32})
+	sched_cancel_type_idx := get_or_create_type(&env, []Wasm_Value_Type{.I32}, []Wasm_Value_Type{})
+	sched_complete_type_idx := get_or_create_type(&env, []Wasm_Value_Type{.I32, .I32, .I32}, []Wasm_Value_Type{})
+	sched_yield_type_idx := get_or_create_type(&env, []Wasm_Value_Type{}, []Wasm_Value_Type{})
+	sched_block_io_type_idx := get_or_create_type(&env, []Wasm_Value_Type{.I32, .I32}, []Wasm_Value_Type{})
+	sched_timer_insert_type_idx := get_or_create_type(&env, []Wasm_Value_Type{.I32, .I32}, []Wasm_Value_Type{})
+	sched_timer_cancel_type_idx := get_or_create_type(&env, []Wasm_Value_Type{.I32}, []Wasm_Value_Type{})
+	sched_notify_type_idx := get_or_create_type(&env, []Wasm_Value_Type{}, []Wasm_Value_Type{})
+	sched_park_type_idx := get_or_create_type(&env, []Wasm_Value_Type{}, []Wasm_Value_Type{})
+	sched_worker_loop_type_idx := get_or_create_type(&env, []Wasm_Value_Type{.I32}, []Wasm_Value_Type{})
 
-	list_alloc_func_idx := add_function(&env, list_alloc_type_idx)
-	runtime_func_indices[7] = list_alloc_func_idx
-	list_push_func_idx := add_function(&env, list_push_type_idx)
-	runtime_func_indices[8] = list_push_func_idx
-	list_len_func_idx := add_function(&env, list_len_type_idx)
-	runtime_func_indices[9] = list_len_func_idx
-	list_get_func_idx := add_function(&env, list_get_type_idx)
-	runtime_func_indices[10] = list_get_func_idx
+	sched_init_func_idx := add_function(&env, sched_init_type_idx)
+	runtime_func_indices[RUNTIME_SCHED_INIT] = sched_init_func_idx
+	sched_spawn_func_idx := add_function(&env, sched_spawn_type_idx)
+	runtime_func_indices[RUNTIME_SCHED_SPAWN] = sched_spawn_func_idx
+	sched_join_func_idx := add_function(&env, sched_join_type_idx)
+	runtime_func_indices[RUNTIME_SCHED_JOIN] = sched_join_func_idx
+	sched_cancel_func_idx := add_function(&env, sched_cancel_type_idx)
+	runtime_func_indices[RUNTIME_SCHED_CANCEL] = sched_cancel_func_idx
+	sched_complete_func_idx := add_function(&env, sched_complete_type_idx)
+	runtime_func_indices[RUNTIME_SCHED_COMPLETE] = sched_complete_func_idx
+	sched_yield_func_idx := add_function(&env, sched_yield_type_idx)
+	runtime_func_indices[RUNTIME_SCHED_YIELD] = sched_yield_func_idx
+	sched_block_io_func_idx := add_function(&env, sched_block_io_type_idx)
+	runtime_func_indices[RUNTIME_SCHED_BLOCK_IO] = sched_block_io_func_idx
+	sched_timer_insert_func_idx := add_function(&env, sched_timer_insert_type_idx)
+	runtime_func_indices[RUNTIME_SCHED_TIMER_INSERT] = sched_timer_insert_func_idx
+	sched_timer_cancel_func_idx := add_function(&env, sched_timer_cancel_type_idx)
+	runtime_func_indices[RUNTIME_SCHED_TIMER_CANCEL] = sched_timer_cancel_func_idx
+	sched_notify_func_idx := add_function(&env, sched_notify_type_idx)
+	runtime_func_indices[RUNTIME_SCHED_NOTIFY] = sched_notify_func_idx
+	sched_park_func_idx := add_function(&env, sched_park_type_idx)
+	runtime_func_indices[RUNTIME_SCHED_PARK] = sched_park_func_idx
+	sched_worker_loop_func_idx := add_function(&env, sched_worker_loop_type_idx)
+	runtime_func_indices[RUNTIME_SCHED_WORKER_LOOP] = sched_worker_loop_func_idx
+
+	// Parallel! runtime function types
+	// camp_parallel_map(fn_idx: i32, fn_env: i32, items_ptr: i32, items_len: i32, chunk_size: i32) -> i32
+	parallel_map_type_idx := get_or_create_type(&env, []Wasm_Value_Type{.I32, .I32, .I32, .I32, .I32}, []Wasm_Value_Type{.I32})
+	// camp_parallel_reduce(fn_idx: i32, fn_env: i32, items_ptr: i32, items_len: i32, init: i32, chunk_size: i32) -> i32
+	parallel_reduce_type_idx := get_or_create_type(&env, []Wasm_Value_Type{.I32, .I32, .I32, .I32, .I32, .I32}, []Wasm_Value_Type{.I32})
+	// camp_parallel_any(fn_idx: i32, fn_env: i32, items_ptr: i32, items_len: i32) -> i32
+	parallel_any_type_idx := get_or_create_type(&env, []Wasm_Value_Type{.I32, .I32, .I32, .I32}, []Wasm_Value_Type{.I32})
+	// camp_parallel_all(fn_idx: i32, fn_env: i32, items_ptr: i32, items_len: i32, chunk_size: i32) -> i32
+	parallel_all_type_idx := get_or_create_type(&env, []Wasm_Value_Type{.I32, .I32, .I32, .I32, .I32}, []Wasm_Value_Type{.I32})
+	// camp_parallel_filter(fn_idx: i32, fn_env: i32, items_ptr: i32, items_len: i32, chunk_size: i32) -> i32
+	parallel_filter_type_idx := get_or_create_type(&env, []Wasm_Value_Type{.I32, .I32, .I32, .I32, .I32}, []Wasm_Value_Type{.I32})
+	// camp_parallel_for_each(fn_idx: i32, fn_env: i32, items_ptr: i32, items_len: i32, chunk_size: i32) -> void
+	parallel_for_each_type_idx := get_or_create_type(&env, []Wasm_Value_Type{.I32, .I32, .I32, .I32, .I32}, []Wasm_Value_Type{})
+
+	parallel_map_func_idx := add_function(&env, parallel_map_type_idx)
+	runtime_func_indices[RUNTIME_PARALLEL_MAP] = parallel_map_func_idx
+	parallel_reduce_func_idx := add_function(&env, parallel_reduce_type_idx)
+	runtime_func_indices[RUNTIME_PARALLEL_REDUCE] = parallel_reduce_func_idx
+	parallel_any_func_idx := add_function(&env, parallel_any_type_idx)
+	runtime_func_indices[RUNTIME_PARALLEL_ANY] = parallel_any_func_idx
+	parallel_all_func_idx := add_function(&env, parallel_all_type_idx)
+	runtime_func_indices[RUNTIME_PARALLEL_ALL] = parallel_all_func_idx
+	parallel_filter_func_idx := add_function(&env, parallel_filter_type_idx)
+	runtime_func_indices[RUNTIME_PARALLEL_FILTER] = parallel_filter_func_idx
+	parallel_for_each_func_idx := add_function(&env, parallel_for_each_type_idx)
+	runtime_func_indices[RUNTIME_PARALLEL_FOR_EACH] = parallel_for_each_func_idx
 
 	camp_alloc_code := emit_camp_alloc_body(heap_ptr_global_idx)
 	append(&mod.codes, camp_alloc_code)
@@ -212,23 +314,27 @@ codegen :: proc(ir_mod: IR_Module, ctx: ^Compilation_Context) -> Wasm_Module {
 	camp_exit_code := emit_camp_exit_body()
 	append(&mod.codes, camp_exit_code)
 
-	camp_print_str_stderr_code := emit_camp_print_str_stderr_body()
-	append(&mod.codes, camp_print_str_stderr_code)
+	// Scheduler runtime function bodies
+	append(&mod.codes, emit_camp_sched_init_body())
+	append(&mod.codes, emit_camp_sched_spawn_body())
+	append(&mod.codes, emit_camp_sched_join_body())
+	append(&mod.codes, emit_camp_sched_cancel_body())
+	append(&mod.codes, emit_camp_sched_complete_body())
+	append(&mod.codes, emit_camp_sched_yield_body())
+	append(&mod.codes, emit_camp_sched_block_io_body())
+	append(&mod.codes, emit_camp_sched_timer_insert_body())
+	append(&mod.codes, emit_camp_sched_timer_cancel_body())
+	append(&mod.codes, emit_camp_sched_notify_body())
+	append(&mod.codes, emit_camp_sched_park_body())
+	append(&mod.codes, emit_camp_sched_worker_loop_body())
 
-	camp_drop_reuse_code := emit_camp_drop_reuse_body()
-	append(&mod.codes, camp_drop_reuse_code)
-
-	camp_list_alloc_code := emit_camp_list_alloc_body(alloc_func_idx)
-	append(&mod.codes, camp_list_alloc_code)
-
-	camp_list_push_code := emit_camp_list_push_body(alloc_func_idx)
-	append(&mod.codes, camp_list_push_code)
-
-	camp_list_len_code := emit_camp_list_len_body()
-	append(&mod.codes, camp_list_len_code)
-
-	camp_list_get_code := emit_camp_list_get_body()
-	append(&mod.codes, camp_list_get_code)
+	// Parallel! runtime function bodies
+	append(&mod.codes, emit_camp_parallel_map_body(runtime_func_indices))
+	append(&mod.codes, emit_camp_parallel_reduce_body(runtime_func_indices))
+	append(&mod.codes, emit_camp_parallel_any_body(runtime_func_indices))
+	append(&mod.codes, emit_camp_parallel_all_body(runtime_func_indices))
+	append(&mod.codes, emit_camp_parallel_filter_body(runtime_func_indices))
+	append(&mod.codes, emit_camp_parallel_for_each_body(runtime_func_indices))
 
 	main_fn_idx := -1
 	main_decl: ^IR_Decl_Fn = nil
@@ -428,7 +534,6 @@ codegen :: proc(ir_mod: IR_Module, ctx: ^Compilation_Context) -> Wasm_Module {
 	}
 
 	if start_func_idx >= 0 && main_decl != nil {
-		env.tmp_local_base = 0
 		env.next_local = 4
 
 		code_buf: [dynamic]u8
@@ -445,6 +550,16 @@ codegen :: proc(ir_mod: IR_Module, ctx: ^Compilation_Context) -> Wasm_Module {
 			env.next_local += 1
 		}
 
+		// Set tmp_local_base after collected locals so tmp locals don't overlap
+		env.tmp_local_base = env.next_local
+		env.tmp_count = 0
+		// Pre-allocate 4 i32 tmp locals for emit_expr intermediate values
+		tmp_count := 4
+		if main_decl.is_effectful {
+			tmp_count += 2 // 2 more for structured concurrency cleanup loop
+		}
+		env.next_local += u32(tmp_count)
+
 		emit_expr(main_body, &code_buf, &env, runtime_func_indices[:])
 
 		main_ret_type := get_main_return_type(ir_mod, &ctx.interner)
@@ -452,6 +567,95 @@ codegen :: proc(ir_mod: IR_Module, ctx: ^Compilation_Context) -> Wasm_Module {
 			emit_instruction(Wasm_I32_Wrap_I64{}, &code_buf)
 			emit_instruction(Wasm_I32_Const{value = 127}, &code_buf)
 			emit_instruction(Wasm_I32_And{}, &code_buf)
+		}
+
+		// If main is effectful, initialize scheduler before running main body,
+		// auto-install a top-level handler scope for structured concurrency cleanup,
+		// and enter worker loop after
+		if main_decl.is_effectful {
+			// Prepend scheduler init: camp_sched_init(thread_count)
+			pre_buf: [dynamic]u8
+			pre_buf = make([dynamic]u8, 0, 32)
+			emit_instruction(Wasm_I32_Const{value = i32(ctx.thread_count)}, &pre_buf)
+			emit_instruction(Wasm_Call{index = u32(runtime_func_indices[RUNTIME_SCHED_INIT])}, &pre_buf)
+
+			// Auto-install handler scope: structured concurrency cleanup loop
+			// Cancels all Pending handles with scope_id=0 (the top-level auto-installed scope)
+			// This ensures Parallel!/Async!/Spawn! tasks are cleaned up on main! exit
+			mid_buf: [dynamic]u8
+			mid_buf = make([dynamic]u8, 0, 128)
+			handle_table_base := SCHED_BASE + SCHED_WORKER_COUNT_SIZE + SCHED_SPINNING_SIZE + SCHED_NOTIFICATION_SIZE
+			cleanup_scope_local := env.tmp_local_base + 4 // after the 4 general tmp locals
+			cleanup_entry_local := cleanup_scope_local + 1
+
+			// Loop over handle table entries
+			emit_instruction(Wasm_I32_Const{value = 0}, &mid_buf)
+			emit_instruction(Wasm_Local_Set{index = cleanup_scope_local}, &mid_buf)
+
+			emit_instruction(Wasm_Block{block_type = .Void}, &mid_buf)
+			emit_instruction(Wasm_Loop{block_type = .Void}, &mid_buf)
+
+			// Check if counter < SCHED_MAX_HANDLES
+			emit_instruction(Wasm_Local_Get{index = cleanup_scope_local}, &mid_buf)
+			emit_instruction(Wasm_I32_Const{value = i32(SCHED_MAX_HANDLES)}, &mid_buf)
+			emit_instruction(Wasm_I32_Ge_S{}, &mid_buf)
+			emit_instruction(Wasm_Br_If{label = 1}, &mid_buf) // break
+
+			// Compute entry address
+			emit_instruction(Wasm_I32_Const{value = i32(handle_table_base + 4)}, &mid_buf)
+			emit_instruction(Wasm_Local_Get{index = cleanup_scope_local}, &mid_buf)
+			emit_instruction(Wasm_I32_Const{value = i32(SCHED_HANDLE_ENTRY_SIZE)}, &mid_buf)
+			emit_instruction(Wasm_I32_Mul{}, &mid_buf)
+			emit_instruction(Wasm_I32_Add{}, &mid_buf)
+			emit_instruction(Wasm_Local_Set{index = cleanup_entry_local}, &mid_buf)
+
+			// Check scope_id matches (scope_id = 0 for auto-installed handler)
+			emit_instruction(Wasm_Local_Get{index = cleanup_entry_local}, &mid_buf)
+			emit_instruction(Wasm_I32_Load{align = 2, offset = 20}, &mid_buf) // scope_id at offset 20
+			emit_instruction(Wasm_I32_Const{value = 0}, &mid_buf) // auto-installed scope_id = 0
+			emit_instruction(Wasm_I32_Ne{}, &mid_buf)
+			emit_instruction(Wasm_Br_If{label = 0}, &mid_buf) // continue (skip, wrong scope)
+
+			// Check status == Pending
+			emit_instruction(Wasm_Local_Get{index = cleanup_entry_local}, &mid_buf)
+			emit_instruction(Wasm_I32_Atomic_Load{align = 2, offset = 0}, &mid_buf)
+			emit_instruction(Wasm_I32_Const{value = HANDLE_STATUS_PENDING}, &mid_buf)
+			emit_instruction(Wasm_I32_Ne{}, &mid_buf)
+			emit_instruction(Wasm_Br_If{label = 0}, &mid_buf) // continue (skip, not pending)
+
+			// Set status = Cancelled
+			emit_instruction(Wasm_Local_Get{index = cleanup_entry_local}, &mid_buf)
+			emit_instruction(Wasm_I32_Const{value = HANDLE_STATUS_CANCELLED}, &mid_buf)
+			emit_instruction(Wasm_I32_Store{align = 2, offset = 0}, &mid_buf)
+
+			// Increment counter, loop
+			emit_instruction(Wasm_Local_Get{index = cleanup_scope_local}, &mid_buf)
+			emit_instruction(Wasm_I32_Const{value = 1}, &mid_buf)
+			emit_instruction(Wasm_I32_Add{}, &mid_buf)
+			emit_instruction(Wasm_Local_Set{index = cleanup_scope_local}, &mid_buf)
+			emit_instruction(Wasm_Br{label = 0}, &mid_buf) // continue loop
+
+			emit_instruction(Wasm_End{}, &mid_buf) // end loop
+			emit_instruction(Wasm_End{}, &mid_buf) // end block
+
+			// Append worker loop entry: camp_sched_worker_loop(0)
+			post_buf: [dynamic]u8
+			post_buf = make([dynamic]u8, 0, 16)
+			emit_instruction(Wasm_I32_Const{value = 0}, &post_buf)
+			emit_instruction(Wasm_Call{index = u32(runtime_func_indices[RUNTIME_SCHED_WORKER_LOOP])}, &post_buf)
+
+			// Combine: pre + original body + cleanup loop + post
+			combined: [dynamic]u8
+			combined = make([dynamic]u8, 0, len(pre_buf) + len(code_buf) + len(mid_buf) + len(post_buf))
+			for b in pre_buf { append(&combined, b) }
+			for b in code_buf { append(&combined, b) }
+			for b in mid_buf { append(&combined, b) }
+			for b in post_buf { append(&combined, b) }
+			delete(code_buf)
+			code_buf = combined
+			delete(pre_buf)
+			delete(mid_buf)
+			delete(post_buf)
 		}
 
 		emit_instruction(Wasm_Call{index = 0}, &code_buf)
@@ -462,12 +666,33 @@ codegen :: proc(ir_mod: IR_Module, ctx: ^Compilation_Context) -> Wasm_Module {
 		for _, typ in collected_locals {
 			append(&start_locals, Wasm_Local_Decl{count = 1, type = ir_wasm_type_to_value_type(typ.wasm_type)})
 		}
+		// Add pre-allocated tmp locals
+		append(&start_locals, Wasm_Local_Decl{count = u32(tmp_count), type = .I32})
 		append(&mod.codes, Wasm_Code{locals = start_locals[:], body = copy_dynamic_bytes(code_buf)})
 		delete(collected_locals)
 		delete(code_buf)
 		delete(env.local_map)
 
 		append(&mod.exports, Wasm_Export{name = "_start", kind = .Func, index = start_func_idx})
+
+		// When threads > 1, also export camp_worker_entry for host-spawned workers
+		if ctx.thread_count > 1 {
+			// camp_worker_entry takes worker_id (i32) and calls camp_sched_worker_loop
+			worker_entry_type_idx := get_or_create_type(&env, []Wasm_Value_Type{.I32}, []Wasm_Value_Type{})
+			worker_entry_func_idx := add_function(&env, worker_entry_type_idx)
+
+			worker_buf: [dynamic]u8
+			worker_buf = make([dynamic]u8, 0, 64)
+			emit_instruction(Wasm_Local_Get{index = 0}, &worker_buf)
+			emit_instruction(Wasm_Call{index = u32(runtime_func_indices[RUNTIME_SCHED_WORKER_LOOP])}, &worker_buf)
+			emit_instruction(Wasm_End{}, &worker_buf)
+
+			worker_locals := make([]Wasm_Local_Decl, 0)
+			append(&mod.codes, Wasm_Code{locals = worker_locals, body = copy_dynamic_bytes(worker_buf)})
+			delete(worker_buf)
+
+			append(&mod.exports, Wasm_Export{name = "camp_worker_entry", kind = .Func, index = worker_entry_func_idx})
+		}
 	}
 
 	env.data_offset = 0
@@ -578,6 +803,23 @@ collect_locals :: proc(expr: IR_Expr, locals: ^map[Intern_ID]IR_Type) {
 		collect_locals(e.body, locals)
 	case ^IR_Crash:
 		collect_locals(e.message, locals)
+	case ^IR_Resume:
+		collect_locals(e.value, locals)
+	case ^IR_Atomic_Load:
+		collect_locals(e.ptr, locals)
+	case ^IR_Atomic_Store:
+		collect_locals(e.ptr, locals)
+		collect_locals(e.value, locals)
+	case ^IR_Atomic_RMW:
+		collect_locals(e.ptr, locals)
+		collect_locals(e.value, locals)
+	case ^IR_Atomic_Fence:
+	case ^IR_Wait:
+		collect_locals(e.ptr, locals)
+		collect_locals(e.expected, locals)
+	case ^IR_Notify:
+		collect_locals(e.ptr, locals)
+		collect_locals(e.count, locals)
 	case:
 	}
 }
@@ -587,12 +829,25 @@ RUNTIME_DUP :: 1
 RUNTIME_DROP :: 2
 RUNTIME_PRINT_STR :: 3
 RUNTIME_EXIT :: 4
-RUNTIME_PRINT_STR_STDERR :: 5
-RUNTIME_DROP_REUSE :: 6
-RUNTIME_LIST_ALLOC :: 7
-RUNTIME_LIST_PUSH :: 8
-RUNTIME_LIST_LEN :: 9
-RUNTIME_LIST_GET :: 10
+RUNTIME_SCHED_INIT :: 5
+RUNTIME_SCHED_SPAWN :: 6
+RUNTIME_SCHED_JOIN :: 7
+RUNTIME_SCHED_CANCEL :: 8
+RUNTIME_SCHED_COMPLETE :: 9
+RUNTIME_SCHED_YIELD :: 10
+RUNTIME_SCHED_BLOCK_IO :: 11
+RUNTIME_SCHED_TIMER_INSERT :: 12
+RUNTIME_SCHED_TIMER_CANCEL :: 13
+RUNTIME_SCHED_NOTIFY :: 14
+RUNTIME_SCHED_PARK :: 15
+RUNTIME_SCHED_WORKER_LOOP :: 16
+RUNTIME_PARALLEL_MAP :: 17
+RUNTIME_PARALLEL_REDUCE :: 18
+RUNTIME_PARALLEL_ANY :: 19
+RUNTIME_PARALLEL_ALL :: 20
+RUNTIME_PARALLEL_FILTER :: 21
+RUNTIME_PARALLEL_FOR_EACH :: 22
+RUNTIME_FUNC_COUNT :: 23
 
 extract_effectful_body :: proc(expr: IR_Expr) -> IR_Expr {
 	#partial switch e in expr {
@@ -843,9 +1098,284 @@ emit_expr :: proc(expr: IR_Expr, buf: ^[dynamic]u8, env: ^Codegen_Env, runtime_i
 	case ^IR_Method_Call:
 		emit_instruction(Wasm_Unreachable{}, buf)
 	case ^IR_Handle:
-		emit_instruction(Wasm_Unreachable{}, buf)
+		if cg_is_scheduler_effect(e.effect, env) {
+			// Allocate scope_id for structured concurrency cleanup
+			scope_id := env.next_scope_id
+			env.next_scope_id += 1
+
+			// Emit body — IR_Perform nodes inside will call scheduler functions
+			emit_expr(e.body, buf, env, runtime_indices)
+
+			// On handler exit: iterate handle table, cancel all Pending handles with this scope_id
+			// This implements structured concurrency (D10 Phase 1)
+			handle_table_base := SCHED_BASE + SCHED_WORKER_COUNT_SIZE + SCHED_SPINNING_SIZE + SCHED_NOTIFICATION_SIZE
+			// local for loop counter
+			scope_local := env.tmp_local_base + env.tmp_count
+			env.tmp_count += 1
+			entry_addr_local := scope_local + 1
+			env.tmp_count += 1
+
+			// Loop over handle table entries
+			emit_instruction(Wasm_I32_Const{value = 0}, buf)
+			emit_instruction(Wasm_Local_Set{index = scope_local}, buf)
+
+			emit_instruction(Wasm_Block{block_type = .Void}, buf)
+			emit_instruction(Wasm_Loop{block_type = .Void}, buf)
+
+			// Check if counter < SCHED_MAX_HANDLES
+			emit_instruction(Wasm_Local_Get{index = scope_local}, buf)
+			emit_instruction(Wasm_I32_Const{value = i32(SCHED_MAX_HANDLES)}, buf)
+			emit_instruction(Wasm_I32_Ge_S{}, buf)
+			emit_instruction(Wasm_Br_If{label = 1}, buf) // break
+
+			// Compute entry address
+			emit_instruction(Wasm_I32_Const{value = i32(handle_table_base + 4)}, buf)
+			emit_instruction(Wasm_Local_Get{index = scope_local}, buf)
+			emit_instruction(Wasm_I32_Const{value = i32(SCHED_HANDLE_ENTRY_SIZE)}, buf)
+			emit_instruction(Wasm_I32_Mul{}, buf)
+			emit_instruction(Wasm_I32_Add{}, buf)
+			emit_instruction(Wasm_Local_Set{index = entry_addr_local}, buf)
+
+			// Check scope_id matches
+			emit_instruction(Wasm_Local_Get{index = entry_addr_local}, buf)
+			emit_instruction(Wasm_I32_Load{align = 2, offset = 20}, buf) // scope_id at offset 20
+			emit_instruction(Wasm_I32_Const{value = i32(scope_id)}, buf)
+			emit_instruction(Wasm_I32_Ne{}, buf)
+			emit_instruction(Wasm_Br_If{label = 0}, buf) // continue (skip, wrong scope)
+
+			// Check status == Pending
+			emit_instruction(Wasm_Local_Get{index = entry_addr_local}, buf)
+			emit_instruction(Wasm_I32_Atomic_Load{align = 2, offset = 0}, buf)
+			emit_instruction(Wasm_I32_Const{value = HANDLE_STATUS_PENDING}, buf)
+			emit_instruction(Wasm_I32_Ne{}, buf)
+			emit_instruction(Wasm_Br_If{label = 0}, buf) // continue (skip, not pending)
+
+			// Set status = Cancelled
+			emit_instruction(Wasm_Local_Get{index = entry_addr_local}, buf)
+			emit_instruction(Wasm_I32_Const{value = HANDLE_STATUS_CANCELLED}, buf)
+			emit_instruction(Wasm_I32_Store{align = 2, offset = 0}, buf)
+
+			// Increment counter, loop
+			emit_instruction(Wasm_Local_Get{index = scope_local}, buf)
+			emit_instruction(Wasm_I32_Const{value = 1}, buf)
+			emit_instruction(Wasm_I32_Add{}, buf)
+			emit_instruction(Wasm_Local_Set{index = scope_local}, buf)
+			emit_instruction(Wasm_Br{label = 0}, buf) // continue loop
+
+			emit_instruction(Wasm_End{}, buf) // end loop
+			emit_instruction(Wasm_End{}, buf) // end block
+		} else {
+			emit_instruction(Wasm_Unreachable{}, buf)
+		}
 	case ^IR_Perform:
-		emit_instruction(Wasm_Unreachable{}, buf)
+		if cg_is_scheduler_effect(e.effect, env) {
+			effect_str := intern_get(env.interner, e.effect.name)
+			op_str := intern_get(env.interner, e.op)
+
+			if effect_str == "Async!" || effect_str == "Spawn!" {
+				// Async!/Spawn! operations map to scheduler runtime functions
+				if op_str == "spawn!" {
+					// Args: thunk (closure ptr), scope_id
+					// camp_sched_spawn(fn_index, env_ptr, scope_id) -> handle_id
+					if len(e.args) >= 1 {
+						// The thunk is a closure: extract fn_index and env_ptr
+						thunk_local := env.tmp_local_base + env.tmp_count
+						env.tmp_count += 1
+						emit_expr(e.args[0], buf, env, runtime_indices)
+						emit_instruction(Wasm_Local_Set{index = thunk_local}, buf)
+
+						// fn_index = closure[CAMP_TAG_FIELDS_OFFSET]
+						emit_instruction(Wasm_Local_Get{index = thunk_local}, buf)
+						emit_instruction(Wasm_I32_Load{align = 2, offset = u32(CAMP_TAG_FIELDS_OFFSET)}, buf)
+
+						// env_ptr = closure[CAMP_TAG_FIELDS_OFFSET + 8]
+						emit_instruction(Wasm_Local_Get{index = thunk_local}, buf)
+						emit_instruction(Wasm_I32_Load{align = 2, offset = u32(CAMP_TAG_FIELDS_OFFSET + 8)}, buf)
+
+						// scope_id from enclosing handler (use 0 as default if no scope tracking)
+						emit_instruction(Wasm_I32_Const{value = 0}, buf)
+
+						emit_instruction(Wasm_Call{index = u32(runtime_indices[RUNTIME_SCHED_SPAWN])}, buf)
+					} else {
+						emit_instruction(Wasm_I32_Const{value = 0}, buf)
+					}
+				} else if op_str == "join!" {
+					// camp_sched_join(handle_id) -> result_value
+					if len(e.args) >= 1 {
+						emit_expr(e.args[0], buf, env, runtime_indices)
+					} else {
+						emit_instruction(Wasm_I32_Const{value = 0}, buf)
+					}
+					emit_instruction(Wasm_Call{index = u32(runtime_indices[RUNTIME_SCHED_JOIN])}, buf)
+				} else if op_str == "yield!" {
+					// camp_sched_yield() -> void
+					emit_instruction(Wasm_Call{index = u32(runtime_indices[RUNTIME_SCHED_YIELD])}, buf)
+				} else if op_str == "cancel!" {
+					// camp_sched_cancel(handle_id) -> void
+					if len(e.args) >= 1 {
+						emit_expr(e.args[0], buf, env, runtime_indices)
+					} else {
+						emit_instruction(Wasm_I32_Const{value = 0}, buf)
+					}
+					emit_instruction(Wasm_Call{index = u32(runtime_indices[RUNTIME_SCHED_CANCEL])}, buf)
+				} else {
+					emit_instruction(Wasm_Unreachable{}, buf)
+				}
+			} else if effect_str == "Time!" {
+				if op_str == "sleep!" {
+					// camp_sched_timer_insert(ms, task_ptr) -> void
+					// For now, simplified: just call timer_insert with the duration
+					if len(e.args) >= 1 {
+						emit_expr(e.args[0], buf, env, runtime_indices)
+					} else {
+						emit_instruction(Wasm_I32_Const{value = 0}, buf)
+					}
+					// task_ptr placeholder (would need current task context)
+					emit_instruction(Wasm_I32_Const{value = 0}, buf)
+					emit_instruction(Wasm_Call{index = u32(runtime_indices[RUNTIME_SCHED_TIMER_INSERT])}, buf)
+				} else {
+					emit_instruction(Wasm_Unreachable{}, buf)
+				}
+			} else if effect_str == "File!" || effect_str == "Console!" {
+				// I/O effects use camp_sched_block_io for suspension
+				// Full implementation deferred to I/O bridge (Group 6)
+				if op_str == "read!" || op_str == "readln!" {
+					// Simplified: call block_io with placeholder pollable
+					if len(e.args) >= 1 {
+						emit_expr(e.args[0], buf, env, runtime_indices)
+					} else {
+						emit_instruction(Wasm_I32_Const{value = 0}, buf)
+					}
+					emit_instruction(Wasm_I32_Const{value = 0}, buf) // task_ptr placeholder
+					emit_instruction(Wasm_Call{index = u32(runtime_indices[RUNTIME_SCHED_BLOCK_IO])}, buf)
+				} else if op_str == "write!" {
+					if len(e.args) >= 2 {
+						emit_expr(e.args[0], buf, env, runtime_indices)
+						emit_expr(e.args[1], buf, env, runtime_indices)
+					} else {
+						emit_instruction(Wasm_I32_Const{value = 0}, buf)
+						emit_instruction(Wasm_I32_Const{value = 0}, buf)
+					}
+					// Use fd_write for actual write, then block_io if needed
+					emit_instruction(Wasm_Call{index = u32(1)}, buf) // fd_write import
+					emit_instruction(Wasm_Drop{}, buf)
+				} else {
+					emit_instruction(Wasm_Unreachable{}, buf)
+				}
+			} else if effect_str == "Parallel!" {
+				// Parallel! operations delegate to runtime functions
+				if op_str == "map!" && len(e.args) >= 2 {
+					// map!(fn, items) -> camp_parallel_map(fn_idx, fn_env, items_ptr, items_len, chunk_size)
+					fn_local := env.tmp_local_base + env.tmp_count; env.tmp_count += 1
+					emit_expr(e.args[0], buf, env, runtime_indices)
+					emit_instruction(Wasm_Local_Set{index = fn_local}, buf)
+					emit_instruction(Wasm_Local_Get{index = fn_local}, buf)
+					emit_instruction(Wasm_I32_Load{align = 2, offset = u32(CAMP_TAG_FIELDS_OFFSET)}, buf)
+					emit_instruction(Wasm_Local_Get{index = fn_local}, buf)
+					emit_instruction(Wasm_I32_Load{align = 2, offset = u32(CAMP_TAG_FIELDS_OFFSET + 8)}, buf)
+					items_local := env.tmp_local_base + env.tmp_count; env.tmp_count += 1
+					emit_expr(e.args[1], buf, env, runtime_indices)
+					emit_instruction(Wasm_Local_Set{index = items_local}, buf)
+					emit_instruction(Wasm_Local_Get{index = items_local}, buf)
+					emit_instruction(Wasm_I32_Load{align = 2, offset = u32(CAMP_TAG_FIELDS_OFFSET)}, buf)
+					emit_instruction(Wasm_Local_Get{index = items_local}, buf)
+					emit_instruction(Wasm_I32_Load{align = 2, offset = u32(CAMP_TAG_FIELDS_OFFSET + 8)}, buf)
+					emit_instruction(Wasm_I32_Const{value = 0}, buf)
+					emit_instruction(Wasm_Call{index = u32(runtime_indices[RUNTIME_PARALLEL_MAP])}, buf)
+				} else if op_str == "reduce!" && len(e.args) >= 3 {
+					fn_local := env.tmp_local_base + env.tmp_count; env.tmp_count += 1
+					emit_expr(e.args[0], buf, env, runtime_indices)
+					emit_instruction(Wasm_Local_Set{index = fn_local}, buf)
+					emit_instruction(Wasm_Local_Get{index = fn_local}, buf)
+					emit_instruction(Wasm_I32_Load{align = 2, offset = u32(CAMP_TAG_FIELDS_OFFSET)}, buf)
+					emit_instruction(Wasm_Local_Get{index = fn_local}, buf)
+					emit_instruction(Wasm_I32_Load{align = 2, offset = u32(CAMP_TAG_FIELDS_OFFSET + 8)}, buf)
+					items_local := env.tmp_local_base + env.tmp_count; env.tmp_count += 1
+					emit_expr(e.args[1], buf, env, runtime_indices)
+					emit_instruction(Wasm_Local_Set{index = items_local}, buf)
+					emit_instruction(Wasm_Local_Get{index = items_local}, buf)
+					emit_instruction(Wasm_I32_Load{align = 2, offset = u32(CAMP_TAG_FIELDS_OFFSET)}, buf)
+					emit_instruction(Wasm_Local_Get{index = items_local}, buf)
+					emit_instruction(Wasm_I32_Load{align = 2, offset = u32(CAMP_TAG_FIELDS_OFFSET + 8)}, buf)
+					emit_expr(e.args[2], buf, env, runtime_indices)
+					emit_instruction(Wasm_I32_Const{value = 0}, buf)
+					emit_instruction(Wasm_Call{index = u32(runtime_indices[RUNTIME_PARALLEL_REDUCE])}, buf)
+				} else if op_str == "any!" && len(e.args) >= 2 {
+					fn_local := env.tmp_local_base + env.tmp_count; env.tmp_count += 1
+					emit_expr(e.args[0], buf, env, runtime_indices)
+					emit_instruction(Wasm_Local_Set{index = fn_local}, buf)
+					emit_instruction(Wasm_Local_Get{index = fn_local}, buf)
+					emit_instruction(Wasm_I32_Load{align = 2, offset = u32(CAMP_TAG_FIELDS_OFFSET)}, buf)
+					emit_instruction(Wasm_Local_Get{index = fn_local}, buf)
+					emit_instruction(Wasm_I32_Load{align = 2, offset = u32(CAMP_TAG_FIELDS_OFFSET + 8)}, buf)
+					items_local := env.tmp_local_base + env.tmp_count; env.tmp_count += 1
+					emit_expr(e.args[1], buf, env, runtime_indices)
+					emit_instruction(Wasm_Local_Set{index = items_local}, buf)
+					emit_instruction(Wasm_Local_Get{index = items_local}, buf)
+					emit_instruction(Wasm_I32_Load{align = 2, offset = u32(CAMP_TAG_FIELDS_OFFSET)}, buf)
+					emit_instruction(Wasm_Local_Get{index = items_local}, buf)
+					emit_instruction(Wasm_I32_Load{align = 2, offset = u32(CAMP_TAG_FIELDS_OFFSET + 8)}, buf)
+					emit_instruction(Wasm_Call{index = u32(runtime_indices[RUNTIME_PARALLEL_ANY])}, buf)
+				} else if op_str == "all!" && len(e.args) >= 2 {
+					fn_local := env.tmp_local_base + env.tmp_count; env.tmp_count += 1
+					emit_expr(e.args[0], buf, env, runtime_indices)
+					emit_instruction(Wasm_Local_Set{index = fn_local}, buf)
+					emit_instruction(Wasm_Local_Get{index = fn_local}, buf)
+					emit_instruction(Wasm_I32_Load{align = 2, offset = u32(CAMP_TAG_FIELDS_OFFSET)}, buf)
+					emit_instruction(Wasm_Local_Get{index = fn_local}, buf)
+					emit_instruction(Wasm_I32_Load{align = 2, offset = u32(CAMP_TAG_FIELDS_OFFSET + 8)}, buf)
+					items_local := env.tmp_local_base + env.tmp_count; env.tmp_count += 1
+					emit_expr(e.args[1], buf, env, runtime_indices)
+					emit_instruction(Wasm_Local_Set{index = items_local}, buf)
+					emit_instruction(Wasm_Local_Get{index = items_local}, buf)
+					emit_instruction(Wasm_I32_Load{align = 2, offset = u32(CAMP_TAG_FIELDS_OFFSET)}, buf)
+					emit_instruction(Wasm_Local_Get{index = items_local}, buf)
+					emit_instruction(Wasm_I32_Load{align = 2, offset = u32(CAMP_TAG_FIELDS_OFFSET + 8)}, buf)
+					emit_instruction(Wasm_I32_Const{value = 0}, buf)
+					emit_instruction(Wasm_Call{index = u32(runtime_indices[RUNTIME_PARALLEL_ALL])}, buf)
+				} else if op_str == "filter!" && len(e.args) >= 2 {
+					fn_local := env.tmp_local_base + env.tmp_count; env.tmp_count += 1
+					emit_expr(e.args[0], buf, env, runtime_indices)
+					emit_instruction(Wasm_Local_Set{index = fn_local}, buf)
+					emit_instruction(Wasm_Local_Get{index = fn_local}, buf)
+					emit_instruction(Wasm_I32_Load{align = 2, offset = u32(CAMP_TAG_FIELDS_OFFSET)}, buf)
+					emit_instruction(Wasm_Local_Get{index = fn_local}, buf)
+					emit_instruction(Wasm_I32_Load{align = 2, offset = u32(CAMP_TAG_FIELDS_OFFSET + 8)}, buf)
+					items_local := env.tmp_local_base + env.tmp_count; env.tmp_count += 1
+					emit_expr(e.args[1], buf, env, runtime_indices)
+					emit_instruction(Wasm_Local_Set{index = items_local}, buf)
+					emit_instruction(Wasm_Local_Get{index = items_local}, buf)
+					emit_instruction(Wasm_I32_Load{align = 2, offset = u32(CAMP_TAG_FIELDS_OFFSET)}, buf)
+					emit_instruction(Wasm_Local_Get{index = items_local}, buf)
+					emit_instruction(Wasm_I32_Load{align = 2, offset = u32(CAMP_TAG_FIELDS_OFFSET + 8)}, buf)
+					emit_instruction(Wasm_I32_Const{value = 0}, buf)
+					emit_instruction(Wasm_Call{index = u32(runtime_indices[RUNTIME_PARALLEL_FILTER])}, buf)
+				} else if op_str == "for_each!" && len(e.args) >= 2 {
+					fn_local := env.tmp_local_base + env.tmp_count; env.tmp_count += 1
+					emit_expr(e.args[0], buf, env, runtime_indices)
+					emit_instruction(Wasm_Local_Set{index = fn_local}, buf)
+					emit_instruction(Wasm_Local_Get{index = fn_local}, buf)
+					emit_instruction(Wasm_I32_Load{align = 2, offset = u32(CAMP_TAG_FIELDS_OFFSET)}, buf)
+					emit_instruction(Wasm_Local_Get{index = fn_local}, buf)
+					emit_instruction(Wasm_I32_Load{align = 2, offset = u32(CAMP_TAG_FIELDS_OFFSET + 8)}, buf)
+					items_local := env.tmp_local_base + env.tmp_count; env.tmp_count += 1
+					emit_expr(e.args[1], buf, env, runtime_indices)
+					emit_instruction(Wasm_Local_Set{index = items_local}, buf)
+					emit_instruction(Wasm_Local_Get{index = items_local}, buf)
+					emit_instruction(Wasm_I32_Load{align = 2, offset = u32(CAMP_TAG_FIELDS_OFFSET)}, buf)
+					emit_instruction(Wasm_Local_Get{index = items_local}, buf)
+					emit_instruction(Wasm_I32_Load{align = 2, offset = u32(CAMP_TAG_FIELDS_OFFSET + 8)}, buf)
+					emit_instruction(Wasm_I32_Const{value = 0}, buf)
+					emit_instruction(Wasm_Call{index = u32(runtime_indices[RUNTIME_PARALLEL_FOR_EACH])}, buf)
+				} else {
+					emit_instruction(Wasm_Unreachable{}, buf)
+				}
+			} else {
+				emit_instruction(Wasm_Unreachable{}, buf)
+			}
+		} else {
+			emit_instruction(Wasm_Unreachable{}, buf)
+		}
 	case ^IR_Closure:
 		num_fields := len(e.params) + 2
 		total_size := CAMP_TAG_HEADER_SIZE + num_fields * 8
@@ -919,43 +1449,95 @@ emit_expr :: proc(expr: IR_Expr, buf: ^[dynamic]u8, env: ^Codegen_Env, runtime_i
 	case ^IR_Drop_Reuse:
 		if idx, ok := env.local_map[e.value]; ok {
 			emit_instruction(Wasm_Local_Get{index = idx}, buf)
-			emit_instruction(Wasm_Call{index = u32(runtime_indices[RUNTIME_DROP_REUSE])}, buf)
-		}
-		if reuse_idx, ok := env.local_map[e.reuse_as]; ok {
-			emit_instruction(Wasm_Local_Set{index = reuse_idx}, buf)
+			emit_instruction(Wasm_Call{index = u32(runtime_indices[RUNTIME_DROP])}, buf)
 		}
 	case ^IR_Alloc_At:
-		if at_idx, ok := env.local_map[e.at]; ok {
-			emit_instruction(Wasm_Local_Get{index = at_idx}, buf)
+		emit_instruction(Wasm_I32_Const{value = 16}, buf)
+		emit_instruction(Wasm_Call{index = u32(runtime_indices[RUNTIME_ALLOC])}, buf)
+	case ^IR_Crash:
+		emit_expr(e.message, buf, env, runtime_indices)
+		emit_instruction(Wasm_Drop{}, buf)
+		emit_instruction(Wasm_I32_Const{value = 1}, buf)
+		emit_instruction(Wasm_Call{index = u32(runtime_indices[RUNTIME_EXIT])}, buf)
+	case ^IR_Resume:
+		// Load closure from resume_id local
+		if idx, ok := env.local_map[e.resume_id]; ok {
+			emit_instruction(Wasm_Local_Get{index = idx}, buf)
 		} else {
 			emit_instruction(Wasm_I32_Const{value = 0}, buf)
 		}
-		reuse_local := env.next_local
-		env.next_local += 1
-		emit_instruction(Wasm_Local_Set{index = reuse_local}, buf)
-		emit_instruction(Wasm_Local_Get{index = reuse_local}, buf)
-		emit_instruction(Wasm_I32_Const{value = 0}, buf)
+		resume_local := env.tmp_local_base + 2
+		emit_instruction(Wasm_Local_Set{index = resume_local}, buf)
+
+		// One-shot check: load fn_idx, trap if zero (already consumed)
+		emit_instruction(Wasm_Local_Get{index = resume_local}, buf)
+		emit_instruction(Wasm_I32_Load{align = 2, offset = u32(CAMP_TAG_FIELDS_OFFSET)}, buf)
 		emit_instruction(Wasm_I32_Eq{}, buf)
 		emit_instruction(Wasm_If{block_type = .Void}, buf)
-		emit_instruction(Wasm_I32_Const{value = 16}, buf)
-		emit_instruction(Wasm_Call{index = u32(runtime_indices[RUNTIME_ALLOC])}, buf)
-		emit_instruction(Wasm_Else{}, buf)
-		emit_instruction(Wasm_Local_Get{index = reuse_local}, buf)
+		emit_instruction(Wasm_Unreachable{}, buf)
 		emit_instruction(Wasm_End{}, buf)
-		if val_idx, ok := env.local_map[e.value]; ok {
-			emit_instruction(Wasm_Local_Set{index = val_idx}, buf)
+
+		// Zero fn_idx (mark consumed)
+		emit_instruction(Wasm_Local_Get{index = resume_local}, buf)
+		emit_instruction(Wasm_I32_Const{value = 0}, buf)
+		emit_instruction(Wasm_I32_Store{align = 2, offset = u32(CAMP_TAG_FIELDS_OFFSET)}, buf)
+
+		// Load env_ptr, push value arg, load fn_idx, call_indirect
+		emit_instruction(Wasm_Local_Get{index = resume_local}, buf)
+		emit_instruction(Wasm_I32_Load{align = 2, offset = u32(CAMP_TAG_FIELDS_OFFSET + 8)}, buf)
+
+		emit_expr(e.value, buf, env, runtime_indices)
+
+		emit_instruction(Wasm_Local_Get{index = resume_local}, buf)
+		emit_instruction(Wasm_I32_Load{align = 2, offset = u32(CAMP_TAG_FIELDS_OFFSET)}, buf)
+
+		resume_params := make([]Wasm_Value_Type, 2)
+		resume_params[0] = .I32
+		resume_params[1] = ir_wasm_type_to_value_type(ir_expr_wasm_type(e.value))
+		resume_results := make([]Wasm_Value_Type, 1)
+		resume_results[0] = ir_wasm_type_to_value_type(e.type.wasm_type)
+		resume_type_idx := get_or_create_type(env, resume_params, resume_results)
+		delete(resume_params)
+		delete(resume_results)
+
+		emit_instruction(Wasm_Call_Indirect{type_idx = u32(resume_type_idx), table_idx = u32(env.table_idx)}, buf)
+
+	case ^IR_Atomic_Load:
+		emit_expr(e.ptr, buf, env, runtime_indices)
+		emit_atomic_load(e.width, e.offset, buf)
+
+	case ^IR_Atomic_Store:
+		emit_expr(e.ptr, buf, env, runtime_indices)
+		emit_expr(e.value, buf, env, runtime_indices)
+		emit_atomic_store(e.width, e.offset, buf)
+
+	case ^IR_Atomic_RMW:
+		emit_expr(e.ptr, buf, env, runtime_indices)
+		emit_expr(e.value, buf, env, runtime_indices)
+		emit_atomic_rmw(e.op, e.width, e.offset, buf)
+
+	case ^IR_Atomic_Fence:
+		emit_instruction(Wasm_Atomic_Fence{}, buf)
+
+	case ^IR_Wait:
+		emit_expr(e.ptr, buf, env, runtime_indices)
+		emit_expr(e.expected, buf, env, runtime_indices)
+		if e.timeout >= 0 {
+			emit_instruction(Wasm_I64_Const{value = e.timeout}, buf)
+		} else {
+			emit_instruction(Wasm_I64_Const{value = -1}, buf)
 		}
-	case ^IR_Crash:
-		msg_str, is_str := e.message.(^IR_Literal_String)
-		if is_str {
-			emit_instruction(Wasm_I32_Const{value = i32(env.data_offset)}, buf)
-			msg_bytes := transmute([]u8)msg_str.value
-			emit_instruction(Wasm_I32_Const{value = i32(len(msg_bytes))}, buf)
-			emit_instruction(Wasm_Call{index = u32(runtime_indices[RUNTIME_PRINT_STR_STDERR])}, buf)
-			env.data_offset += u32(len(msg_bytes))
+		if e.width == .B8 {
+			emit_instruction(Wasm_Memory_Atomic_Wait64{align = 3, offset = e.offset}, buf)
+		} else {
+			emit_instruction(Wasm_Memory_Atomic_Wait32{align = 2, offset = e.offset}, buf)
 		}
-		emit_instruction(Wasm_I32_Const{value = 1}, buf)
-		emit_instruction(Wasm_Call{index = u32(runtime_indices[RUNTIME_EXIT])}, buf)
+
+	case ^IR_Notify:
+		emit_expr(e.ptr, buf, env, runtime_indices)
+		emit_expr(e.count, buf, env, runtime_indices)
+		emit_instruction(Wasm_Memory_Atomic_Notify{align = 2, offset = e.offset}, buf)
+
 	case:
 		emit_instruction(Wasm_Unreachable{}, buf)
 	}
@@ -1050,6 +1632,11 @@ ir_operand_wasm_type :: proc(expr: IR_Expr) -> IR_Wasm_Type {
 	case ^IR_Construct_Tag: return .I32
 	case ^IR_Construct_Record: return .I32
 	case ^IR_Closure: return .I32
+	case ^IR_Resume: return e.type.wasm_type
+	case ^IR_Atomic_Load: return e.type.wasm_type
+	case ^IR_Atomic_RMW: return e.type.wasm_type
+	case ^IR_Wait: return e.type.wasm_type
+	case ^IR_Notify: return e.type.wasm_type
 	case:
 		return .I32
 	}
@@ -1075,6 +1662,12 @@ ir_expr_wasm_type :: proc(expr: IR_Expr) -> IR_Wasm_Type {
 	case ^IR_BinOp: return e.type.wasm_type
 	case ^IR_Closure: return .I32
 	case ^IR_Closure_Call: return e.type.wasm_type
+	case ^IR_Resume: return e.type.wasm_type
+	case ^IR_Atomic_Load: return e.type.wasm_type
+	case ^IR_Atomic_RMW: return e.type.wasm_type
+	case ^IR_Atomic_Fence: return .Void
+	case ^IR_Wait: return e.type.wasm_type
+	case ^IR_Notify: return e.type.wasm_type
 	case:
 		return .I32
 	}
@@ -1116,4 +1709,84 @@ resolve_call_idx :: proc(callee: Canonical_Name, env: ^Codegen_Env) -> int {
 		return idx
 	}
 	return 0
+}
+
+emit_atomic_load :: proc(width: Atomic_Width, offset: u32, buf: ^[dynamic]u8) {
+	#partial switch width {
+	case .B1:
+		emit_instruction(Wasm_I32_Atomic_Load8U{align = 0, offset = offset}, buf)
+	case .B2:
+		emit_instruction(Wasm_I32_Atomic_Load16U{align = 1, offset = offset}, buf)
+	case .B4:
+		emit_instruction(Wasm_I32_Atomic_Load{align = 2, offset = offset}, buf)
+	case .B8:
+		emit_instruction(Wasm_I64_Atomic_Load{align = 3, offset = offset}, buf)
+	}
+}
+
+emit_atomic_store :: proc(width: Atomic_Width, offset: u32, buf: ^[dynamic]u8) {
+	#partial switch width {
+	case .B1:
+		emit_instruction(Wasm_I32_Atomic_Store8{align = 0, offset = offset}, buf)
+	case .B2:
+		emit_instruction(Wasm_I32_Atomic_Store16{align = 1, offset = offset}, buf)
+	case .B4:
+		emit_instruction(Wasm_I32_Atomic_Store{align = 2, offset = offset}, buf)
+	case .B8:
+		emit_instruction(Wasm_I64_Atomic_Store{align = 3, offset = offset}, buf)
+	}
+}
+
+emit_atomic_rmw :: proc(op: Atomic_Op, width: Atomic_Width, offset: u32, buf: ^[dynamic]u8) {
+	#partial switch op {
+	case .Add:
+		#partial switch width {
+		case .B1: emit_instruction(Wasm_I32_Atomic_RMW8_Add{align = 0, offset = offset}, buf)
+		case .B2: emit_instruction(Wasm_I32_Atomic_RMW16_Add{align = 1, offset = offset}, buf)
+		case .B4: emit_instruction(Wasm_I32_Atomic_RMW_Add{align = 2, offset = offset}, buf)
+		case .B8: emit_instruction(Wasm_I64_Atomic_RMW_Add{align = 3, offset = offset}, buf)
+		}
+	case .Sub:
+		#partial switch width {
+		case .B1: emit_instruction(Wasm_I32_Atomic_RMW8_Sub{align = 0, offset = offset}, buf)
+		case .B2: emit_instruction(Wasm_I32_Atomic_RMW16_Sub{align = 1, offset = offset}, buf)
+		case .B4: emit_instruction(Wasm_I32_Atomic_RMW_Sub{align = 2, offset = offset}, buf)
+		case .B8: emit_instruction(Wasm_I64_Atomic_RMW_Sub{align = 3, offset = offset}, buf)
+		}
+	case .And:
+		#partial switch width {
+		case .B1: emit_instruction(Wasm_I32_Atomic_RMW8_And{align = 0, offset = offset}, buf)
+		case .B2: emit_instruction(Wasm_I32_Atomic_RMW16_And{align = 1, offset = offset}, buf)
+		case .B4: emit_instruction(Wasm_I32_Atomic_RMW_And{align = 2, offset = offset}, buf)
+		case .B8: emit_instruction(Wasm_I64_Atomic_RMW_And{align = 3, offset = offset}, buf)
+		}
+	case .Or:
+		#partial switch width {
+		case .B1: emit_instruction(Wasm_I32_Atomic_RMW8_Or{align = 0, offset = offset}, buf)
+		case .B2: emit_instruction(Wasm_I32_Atomic_RMW16_Or{align = 1, offset = offset}, buf)
+		case .B4: emit_instruction(Wasm_I32_Atomic_RMW_Or{align = 2, offset = offset}, buf)
+		case .B8: emit_instruction(Wasm_I64_Atomic_RMW_Or{align = 3, offset = offset}, buf)
+		}
+	case .Xor:
+		#partial switch width {
+		case .B1: emit_instruction(Wasm_I32_Atomic_RMW8_Xor{align = 0, offset = offset}, buf)
+		case .B2: emit_instruction(Wasm_I32_Atomic_RMW16_Xor{align = 1, offset = offset}, buf)
+		case .B4: emit_instruction(Wasm_I32_Atomic_RMW_Xor{align = 2, offset = offset}, buf)
+		case .B8: emit_instruction(Wasm_I64_Atomic_RMW_Xor{align = 3, offset = offset}, buf)
+		}
+	case .Xchg:
+		#partial switch width {
+		case .B1: emit_instruction(Wasm_I32_Atomic_RMW8_Xchg{align = 0, offset = offset}, buf)
+		case .B2: emit_instruction(Wasm_I32_Atomic_RMW16_Xchg{align = 1, offset = offset}, buf)
+		case .B4: emit_instruction(Wasm_I32_Atomic_RMW_Xchg{align = 2, offset = offset}, buf)
+		case .B8: emit_instruction(Wasm_I64_Atomic_RMW_Xchg{align = 3, offset = offset}, buf)
+		}
+	case .CmpXchg:
+		#partial switch width {
+		case .B1: emit_instruction(Wasm_I32_Atomic_RMW8_CmpXchg{align = 0, offset = offset}, buf)
+		case .B2: emit_instruction(Wasm_I32_Atomic_RMW16_CmpXchg{align = 1, offset = offset}, buf)
+		case .B4: emit_instruction(Wasm_I32_Atomic_RMW_CmpXchg{align = 2, offset = offset}, buf)
+		case .B8: emit_instruction(Wasm_I64_Atomic_RMW_CmpXchg{align = 3, offset = offset}, buf)
+		}
+	}
 }

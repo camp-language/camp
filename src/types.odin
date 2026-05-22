@@ -57,6 +57,7 @@ Inferred_Tag :: enum {
 	Record_Row,
 	Tag_Union_Row,
 	Effect_Row,
+	Handle,
 }
 
 Type_Field_Entry :: struct {
@@ -223,6 +224,12 @@ all_children_at_or_below :: proc(store: ^Type_Store, link: Type_Link, max_level:
 		}
 		child_inner := get_var(store, resolve_var(store, inf.inner_id))
 		if child_inner.level > max_level do return false
+
+	case .Handle:
+		child_inner := get_var(store, resolve_var(store, inf.inner_id))
+		if child_inner.level > max_level do return false
+		child_eff := get_var(store, resolve_var(store, inf.effect_id))
+		if child_eff.level > max_level do return false
 
 	case .Primitive, .Constructor:
 	}

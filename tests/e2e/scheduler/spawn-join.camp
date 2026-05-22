@@ -1,0 +1,9 @@
+main! = || ->{Spawn!} I64 {
+  handle Spawn! in {
+    h = Spawn!.spawn!(|| -> I64 { 42 })
+    Spawn!.join!(h)
+  } with {
+    .spawn!(resume) => resume(0),
+    .join!(resume) => resume(0)
+  }
+}

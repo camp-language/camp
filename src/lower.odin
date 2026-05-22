@@ -111,6 +111,8 @@ lower_type :: proc(store: ^Type_Store, type_var: Type_Var_ID) -> IR_Type {
 			wasm_type = .I32
 		case .Newtype:
 			wasm_type = lower_type(store, inf.inner_id).wasm_type
+		case .Handle:
+			wasm_type = .I32
 		}
 	}
 
