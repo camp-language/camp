@@ -223,16 +223,28 @@ typecheck_decl :: proc(decl: CDecl, env: ^Type_Env, store: ^Type_Store) {
 			}
 			env.bindings[tp.name] = tv
 		}
+		op_sigs := make([dynamic]Effect_Op_Sig, 0, len(d.operations))
 		for op in d.operations {
-			for p in op.params {
+			param_types := make([]Type_Var_ID, len(op.params))
+			for p, i in op.params {
 				if p.type_ann != nil {
-					convert_type_to_var(p.type_ann, store)
+					param_types[i] = convert_type_to_var(p.type_ann, store)
+				} else {
+					param_types[i] = fresh_value_var(store, d.span)
 				}
 			}
+			ret_type := fresh_value_var(store, d.span)
 			if op.return_type != nil {
-				convert_type_to_var(op.return_type, store)
+				ret_type = convert_type_to_var(op.return_type, store)
 			}
+			append(&op_sigs, Effect_Op_Sig{
+				name = op.name,
+				param_count = len(op.params),
+				param_types = param_types,
+				return_type = ret_type,
+			})
 		}
+		store.effect_ops[d.name.name] = op_sigs[:]
 		level := store.current_level
 		exit_level(store)
 		generalize_at_level(store, level)
@@ -450,11 +462,99 @@ typecheck_synth :: proc(expr: CExpr, env: ^Type_Env, store: ^Type_Store) -> Type
 		body_result := typecheck_synth(e.body, env, store)
 		_ = pop(&env.handled_effects)
 
+		// 10.5: Typecheck handler arms and verify against operation signatures
+		op_sigs, has_sigs := store.effect_ops[e.effect.name]
+		for arm in e.arms {
+			arm_env: Type_Env
+			arm_env.bindings = make(map[Intern_ID]Type_Var_ID, len(arm.params) + 4)
+			arm_env.parent = env
+			arm_env.handled_effects = make([dynamic]Intern_ID, 0, 8)
+			arm_env.current_module = env.current_module
+
+			if has_sigs {
+				sig_idx := -1
+				for sig, si in op_sigs {
+					if sig.name == arm.op {
+						sig_idx = si
+						break
+					}
+				}
+				if sig_idx >= 0 {
+					sig := op_sigs[sig_idx]
+					// Create param type vars and bind them
+					for i in 0..<len(arm.params) {
+						pv := fresh_value_var(store, arm.span)
+						arm_env.bindings[arm.params[i]] = pv
+						// The first param is resume (the continuation), rest map to op param types
+						param_sig_idx := i - 1
+						if param_sig_idx >= 0 && param_sig_idx < len(sig.param_types) {
+							inst_param := instantiate(store, sig.param_types[param_sig_idx])
+							unify(store, pv, inst_param)
+						}
+					}
+
+					// Typecheck the arm body
+					arm_result := typecheck_synth(arm.body, &arm_env, store)
+
+					// Unify arm body return type with the operation's return type
+					inst_ret := instantiate(store, sig.return_type)
+					unify(store, arm_result.var_id, inst_ret)
+
+					// Unify arm body effects with the overall result effects
+					unify(store, arm_result.effects, body_result.effects)
+
+					// Verify param count (excluding resume)
+					actual_param_count := len(arm.params) - 1
+					expected_param_count := sig.param_count
+					if actual_param_count != expected_param_count {
+						collector_add_diag(store.collector, diag_internal(fmt.tprintf(
+							"handler arm `{}` has {} parameters, expected {}",
+							intern_get(store.interner, arm.op),
+							actual_param_count,
+							expected_param_count,
+						), arm.span))
+					}
+				} else {
+					effect_str := intern_get(store.interner, e.effect.name)
+					op_str := intern_get(store.interner, arm.op)
+					collector_add_diag(store.collector, diag_internal(fmt.tprintf(
+						"operation `{}` not found in effect `{}`",
+						op_str, effect_str,
+					), arm.span))
+				}
+			} else {
+				// No stored sigs - bind params as fresh vars so they're usable in the arm body
+				for p in arm.params {
+					arm_env.bindings[p] = fresh_value_var(store, arm.span)
+				}
+				arm_result := typecheck_synth(arm.body, &arm_env, store)
+				unify(store, arm_result.effects, body_result.effects)
+			}
+
+			delete(arm_env.bindings)
+			delete(arm_env.handled_effects)
+		}
+
 		result_effects := subtract_effect_from_row(store, body_result.effects, e.effect.name, e.span)
 		return Type_Result{var_id = body_result.var_id, effects = result_effects}
 	}
 	var_id := fresh_value_var(store, Source_Span_ZERO)
 	return Type_Result{var_id = var_id, effects = fresh_effect_row(store, Source_Span_ZERO)}
+}
+
+mark_effect_type_params_in_ctype :: proc(type_params: [dynamic]Type_Param, effects_type: ^CType) {
+	if effects_type == nil do return
+	#partial switch t in effects_type^ {
+	case ^CType_Effect_Row:
+		if t.rest != 0 {
+			for &tp in type_params {
+				if tp.name == t.rest {
+					tp.is_effect = true
+					break
+				}
+			}
+		}
+	}
 }
 
 typecheck_lambda :: proc(e: ^CExpr_Lambda, env: ^Type_Env, store: ^Type_Store) -> Type_Result {
@@ -468,8 +568,16 @@ typecheck_lambda :: proc(e: ^CExpr_Lambda, env: ^Type_Env, store: ^Type_Store) -
 
 	param_ids := store_alloc(store, Type_Var_ID, len(e.params))
 
+	// 10.1: Detect type params that appear in effect row rest position
+	mark_effect_type_params_in_ctype(e.type_params, e.effects)
+
 	for tp in e.type_params {
-		tv := fresh_value_var(store, e.span)
+		tv: Type_Var_ID
+		if tp.is_effect {
+			tv = fresh_effect_row(store, e.span)
+		} else {
+			tv = fresh_value_var(store, e.span)
+		}
 		child_env.bindings[tp.name] = tv
 		store.type_constraints[tv] = tp.constraints[:]
 	}

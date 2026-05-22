@@ -104,6 +104,13 @@ Newtype_Decl_Info :: struct {
 	owned_tags:    []Intern_ID,
 }
 
+Effect_Op_Sig :: struct {
+	name:        Intern_ID,
+	param_count: int,
+	param_types: []Type_Var_ID,
+	return_type: Type_Var_ID,
+}
+
 Type_Store :: struct {
 	vars:             [dynamic]Type_Var,
 	next_id:          Type_Var_ID,
@@ -117,6 +124,7 @@ Type_Store :: struct {
 	trait_impls:      [dynamic]Trait_Impl,
 	type_constraints:  map[Type_Var_ID][]Intern_ID,
 	rec_vars:         map[Type_Var_ID]bool,
+	effect_ops:       map[Intern_ID][]Effect_Op_Sig,
 }
 
 type_store_init :: proc(store: ^Type_Store, interner: ^Intern_Table, collector: ^Diagnostic_Collector) {
@@ -132,6 +140,7 @@ type_store_init :: proc(store: ^Type_Store, interner: ^Intern_Table, collector: 
 	store.trait_impls = make([dynamic]Trait_Impl, 0, 16)
 	store.type_constraints = make(map[Type_Var_ID][]Intern_ID, 32)
 	store.rec_vars = make(map[Type_Var_ID]bool, 4)
+	store.effect_ops = make(map[Intern_ID][]Effect_Op_Sig, 16)
 }
 
 type_store_destroy :: proc(store: ^Type_Store) {
@@ -143,6 +152,7 @@ type_store_destroy :: proc(store: ^Type_Store) {
 	delete(store.trait_impls)
 	delete(store.type_constraints)
 	delete(store.rec_vars)
+	delete(store.effect_ops)
 }
 
 fresh_var :: proc(store: ^Type_Store, kind: Type_Var_Kind, name: Intern_ID, span: Source_Span) -> Type_Var_ID {

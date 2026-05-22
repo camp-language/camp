@@ -1,6 +1,6 @@
-Throw! : { throw!: || -> I64 }
+Throw! : { throw!: (I64) -> I64 }
 main! = || -> -[Throw]-> I64 {
-  handle Throw in Throw.throw!(NotFound) with {
-    .throw!(resume, err) => 1
+  handle Throw in Throw.throw!(0) with {
+    .throw!(resume, code) => 1
   }
 }
