@@ -100,6 +100,13 @@ IR_Expr :: union {
 	^IR_Drop_Reuse,
 	^IR_Alloc_At,
 	^IR_Crash,
+	^IR_Resume,
+	^IR_Atomic_Load,
+	^IR_Atomic_Store,
+	^IR_Atomic_RMW,
+	^IR_Atomic_Fence,
+	^IR_Wait,
+	^IR_Notify,
 }
 
 IR_Literal_Int :: struct { value: i64, type: IR_Type, span: Source_Span }
@@ -243,4 +250,84 @@ IR_Alloc_At :: struct { value: Intern_ID, at: Intern_ID, span: Source_Span }
 IR_Crash :: struct {
 	message: IR_Expr,
 	span:    Source_Span,
+}
+
+Atomic_Width :: enum {
+	B1,
+	B2,
+	B4,
+	B8,
+}
+
+Atomic_Op :: enum {
+	Add,
+	Sub,
+	And,
+	Or,
+	Xor,
+	Xchg,
+	CmpXchg,
+}
+
+Memory_Ordering :: enum {
+	SeqCst,
+}
+
+IR_Resume :: struct {
+	resume_id: Intern_ID,
+	value:     IR_Expr,
+	type:      IR_Type,
+	span:      Source_Span,
+}
+
+IR_Atomic_Load :: struct {
+	ptr:       IR_Expr,
+	offset:    u32,
+	width:     Atomic_Width,
+	ordering:  Memory_Ordering,
+	type:      IR_Type,
+	span:      Source_Span,
+}
+
+IR_Atomic_Store :: struct {
+	ptr:       IR_Expr,
+	offset:    u32,
+	value:     IR_Expr,
+	width:     Atomic_Width,
+	ordering:  Memory_Ordering,
+	span:      Source_Span,
+}
+
+IR_Atomic_RMW :: struct {
+	ptr:       IR_Expr,
+	offset:    u32,
+	value:     IR_Expr,
+	op:        Atomic_Op,
+	width:     Atomic_Width,
+	ordering:  Memory_Ordering,
+	type:      IR_Type,
+	span:      Source_Span,
+}
+
+IR_Atomic_Fence :: struct {
+	ordering:  Memory_Ordering,
+	span:      Source_Span,
+}
+
+IR_Wait :: struct {
+	ptr:       IR_Expr,
+	offset:    u32,
+	expected:  IR_Expr,
+	timeout:   i64,
+	width:     Atomic_Width,
+	type:      IR_Type,
+	span:      Source_Span,
+}
+
+IR_Notify :: struct {
+	ptr:       IR_Expr,
+	offset:    u32,
+	count:     IR_Expr,
+	type:      IR_Type,
+	span:      Source_Span,
 }

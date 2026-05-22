@@ -290,6 +290,20 @@ el_replace_resume :: proc(expr: IR_Expr, resume_id: Intern_ID, resume_param: Int
 		return expr
 	case ^IR_Alloc_At:
 		return expr
+	case ^IR_Resume:
+		return expr
+	case ^IR_Atomic_Load:
+		return expr
+	case ^IR_Atomic_Store:
+		return expr
+	case ^IR_Atomic_RMW:
+		return expr
+	case ^IR_Atomic_Fence:
+		return expr
+	case ^IR_Wait:
+		return expr
+	case ^IR_Notify:
+		return expr
 	case ^IR_Literal_Int, ^IR_Literal_Float, ^IR_Literal_Bool, ^IR_Literal_String:
 		return expr
 	case ^IR_Var:
@@ -659,6 +673,20 @@ el_lower_expr :: proc(expr: IR_Expr, env: ^Effect_Lower_Env) -> IR_Expr {
 		new_crash := new(IR_Crash)
 		new_crash^ = IR_Crash{message = el_lower_expr(e.message, env), span = e.span}
 		return IR_Expr(new_crash)
+	case ^IR_Resume:
+		return expr
+	case ^IR_Atomic_Load:
+		return expr
+	case ^IR_Atomic_Store:
+		return expr
+	case ^IR_Atomic_RMW:
+		return expr
+	case ^IR_Atomic_Fence:
+		return expr
+	case ^IR_Wait:
+		return expr
+	case ^IR_Notify:
+		return expr
 	}
 
 	return expr

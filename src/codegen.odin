@@ -540,6 +540,23 @@ collect_locals :: proc(expr: IR_Expr, locals: ^map[Intern_ID]IR_Type) {
 		collect_locals(e.body, locals)
 	case ^IR_Crash:
 		collect_locals(e.message, locals)
+	case ^IR_Resume:
+		collect_locals(e.value, locals)
+	case ^IR_Atomic_Load:
+		collect_locals(e.ptr, locals)
+	case ^IR_Atomic_Store:
+		collect_locals(e.ptr, locals)
+		collect_locals(e.value, locals)
+	case ^IR_Atomic_RMW:
+		collect_locals(e.ptr, locals)
+		collect_locals(e.value, locals)
+	case ^IR_Atomic_Fence:
+	case ^IR_Wait:
+		collect_locals(e.ptr, locals)
+		collect_locals(e.expected, locals)
+	case ^IR_Notify:
+		collect_locals(e.ptr, locals)
+		collect_locals(e.count, locals)
 	case:
 	}
 }
@@ -885,6 +902,85 @@ emit_expr :: proc(expr: IR_Expr, buf: ^[dynamic]u8, env: ^Codegen_Env, runtime_i
 		emit_instruction(Wasm_Drop{}, buf)
 		emit_instruction(Wasm_I32_Const{value = 1}, buf)
 		emit_instruction(Wasm_Call{index = u32(runtime_indices[RUNTIME_EXIT])}, buf)
+	case ^IR_Resume:
+		// Load closure from resume_id local
+		if idx, ok := env.local_map[e.resume_id]; ok {
+			emit_instruction(Wasm_Local_Get{index = idx}, buf)
+		} else {
+			emit_instruction(Wasm_I32_Const{value = 0}, buf)
+		}
+		resume_local := env.tmp_local_base + 2
+		emit_instruction(Wasm_Local_Set{index = resume_local}, buf)
+
+		// One-shot check: load fn_idx, trap if zero (already consumed)
+		emit_instruction(Wasm_Local_Get{index = resume_local}, buf)
+		emit_instruction(Wasm_I32_Load{align = 2, offset = u32(CAMP_TAG_FIELDS_OFFSET)}, buf)
+		emit_instruction(Wasm_I32_Eq{}, buf)
+		emit_instruction(Wasm_If{block_type = .Void}, buf)
+		emit_instruction(Wasm_Unreachable{}, buf)
+		emit_instruction(Wasm_End{}, buf)
+
+		// Zero fn_idx (mark consumed)
+		emit_instruction(Wasm_Local_Get{index = resume_local}, buf)
+		emit_instruction(Wasm_I32_Const{value = 0}, buf)
+		emit_instruction(Wasm_I32_Store{align = 2, offset = u32(CAMP_TAG_FIELDS_OFFSET)}, buf)
+
+		// Load env_ptr, push value arg, load fn_idx, call_indirect
+		emit_instruction(Wasm_Local_Get{index = resume_local}, buf)
+		emit_instruction(Wasm_I32_Load{align = 2, offset = u32(CAMP_TAG_FIELDS_OFFSET + 8)}, buf)
+
+		emit_expr(e.value, buf, env, runtime_indices)
+
+		emit_instruction(Wasm_Local_Get{index = resume_local}, buf)
+		emit_instruction(Wasm_I32_Load{align = 2, offset = u32(CAMP_TAG_FIELDS_OFFSET)}, buf)
+
+		resume_params := make([]Wasm_Value_Type, 2)
+		resume_params[0] = .I32
+		resume_params[1] = ir_wasm_type_to_value_type(ir_expr_wasm_type(e.value))
+		resume_results := make([]Wasm_Value_Type, 1)
+		resume_results[0] = ir_wasm_type_to_value_type(e.type.wasm_type)
+		resume_type_idx := get_or_create_type(env, resume_params, resume_results)
+		delete(resume_params)
+		delete(resume_results)
+
+		emit_instruction(Wasm_Call_Indirect{type_idx = u32(resume_type_idx), table_idx = u32(env.table_idx)}, buf)
+
+	case ^IR_Atomic_Load:
+		emit_expr(e.ptr, buf, env, runtime_indices)
+		emit_atomic_load(e.width, e.offset, buf)
+
+	case ^IR_Atomic_Store:
+		emit_expr(e.ptr, buf, env, runtime_indices)
+		emit_expr(e.value, buf, env, runtime_indices)
+		emit_atomic_store(e.width, e.offset, buf)
+
+	case ^IR_Atomic_RMW:
+		emit_expr(e.ptr, buf, env, runtime_indices)
+		emit_expr(e.value, buf, env, runtime_indices)
+		emit_atomic_rmw(e.op, e.width, e.offset, buf)
+
+	case ^IR_Atomic_Fence:
+		emit_instruction(Wasm_Atomic_Fence{}, buf)
+
+	case ^IR_Wait:
+		emit_expr(e.ptr, buf, env, runtime_indices)
+		emit_expr(e.expected, buf, env, runtime_indices)
+		if e.timeout >= 0 {
+			emit_instruction(Wasm_I64_Const{value = e.timeout}, buf)
+		} else {
+			emit_instruction(Wasm_I64_Const{value = -1}, buf)
+		}
+		if e.width == .B8 {
+			emit_instruction(Wasm_Memory_Atomic_Wait64{align = 3, offset = e.offset}, buf)
+		} else {
+			emit_instruction(Wasm_Memory_Atomic_Wait32{align = 2, offset = e.offset}, buf)
+		}
+
+	case ^IR_Notify:
+		emit_expr(e.ptr, buf, env, runtime_indices)
+		emit_expr(e.count, buf, env, runtime_indices)
+		emit_instruction(Wasm_Memory_Atomic_Notify{align = 2, offset = e.offset}, buf)
+
 	case:
 		emit_instruction(Wasm_Unreachable{}, buf)
 	}
@@ -979,6 +1075,11 @@ ir_operand_wasm_type :: proc(expr: IR_Expr) -> IR_Wasm_Type {
 	case ^IR_Construct_Tag: return .I32
 	case ^IR_Construct_Record: return .I32
 	case ^IR_Closure: return .I32
+	case ^IR_Resume: return e.type.wasm_type
+	case ^IR_Atomic_Load: return e.type.wasm_type
+	case ^IR_Atomic_RMW: return e.type.wasm_type
+	case ^IR_Wait: return e.type.wasm_type
+	case ^IR_Notify: return e.type.wasm_type
 	case:
 		return .I32
 	}
@@ -1004,6 +1105,12 @@ ir_expr_wasm_type :: proc(expr: IR_Expr) -> IR_Wasm_Type {
 	case ^IR_BinOp: return e.type.wasm_type
 	case ^IR_Closure: return .I32
 	case ^IR_Closure_Call: return e.type.wasm_type
+	case ^IR_Resume: return e.type.wasm_type
+	case ^IR_Atomic_Load: return e.type.wasm_type
+	case ^IR_Atomic_RMW: return e.type.wasm_type
+	case ^IR_Atomic_Fence: return .Void
+	case ^IR_Wait: return e.type.wasm_type
+	case ^IR_Notify: return e.type.wasm_type
 	case:
 		return .I32
 	}
@@ -1045,4 +1152,84 @@ resolve_call_idx :: proc(callee: Canonical_Name, env: ^Codegen_Env) -> int {
 		return idx
 	}
 	return 0
+}
+
+emit_atomic_load :: proc(width: Atomic_Width, offset: u32, buf: ^[dynamic]u8) {
+	#partial switch width {
+	case .B1:
+		emit_instruction(Wasm_I32_Atomic_Load8U{align = 0, offset = offset}, buf)
+	case .B2:
+		emit_instruction(Wasm_I32_Atomic_Load16U{align = 1, offset = offset}, buf)
+	case .B4:
+		emit_instruction(Wasm_I32_Atomic_Load{align = 2, offset = offset}, buf)
+	case .B8:
+		emit_instruction(Wasm_I64_Atomic_Load{align = 3, offset = offset}, buf)
+	}
+}
+
+emit_atomic_store :: proc(width: Atomic_Width, offset: u32, buf: ^[dynamic]u8) {
+	#partial switch width {
+	case .B1:
+		emit_instruction(Wasm_I32_Atomic_Store8{align = 0, offset = offset}, buf)
+	case .B2:
+		emit_instruction(Wasm_I32_Atomic_Store16{align = 1, offset = offset}, buf)
+	case .B4:
+		emit_instruction(Wasm_I32_Atomic_Store{align = 2, offset = offset}, buf)
+	case .B8:
+		emit_instruction(Wasm_I64_Atomic_Store{align = 3, offset = offset}, buf)
+	}
+}
+
+emit_atomic_rmw :: proc(op: Atomic_Op, width: Atomic_Width, offset: u32, buf: ^[dynamic]u8) {
+	#partial switch op {
+	case .Add:
+		#partial switch width {
+		case .B1: emit_instruction(Wasm_I32_Atomic_RMW8_Add{align = 0, offset = offset}, buf)
+		case .B2: emit_instruction(Wasm_I32_Atomic_RMW16_Add{align = 1, offset = offset}, buf)
+		case .B4: emit_instruction(Wasm_I32_Atomic_RMW_Add{align = 2, offset = offset}, buf)
+		case .B8: emit_instruction(Wasm_I64_Atomic_RMW_Add{align = 3, offset = offset}, buf)
+		}
+	case .Sub:
+		#partial switch width {
+		case .B1: emit_instruction(Wasm_I32_Atomic_RMW8_Sub{align = 0, offset = offset}, buf)
+		case .B2: emit_instruction(Wasm_I32_Atomic_RMW16_Sub{align = 1, offset = offset}, buf)
+		case .B4: emit_instruction(Wasm_I32_Atomic_RMW_Sub{align = 2, offset = offset}, buf)
+		case .B8: emit_instruction(Wasm_I64_Atomic_RMW_Sub{align = 3, offset = offset}, buf)
+		}
+	case .And:
+		#partial switch width {
+		case .B1: emit_instruction(Wasm_I32_Atomic_RMW8_And{align = 0, offset = offset}, buf)
+		case .B2: emit_instruction(Wasm_I32_Atomic_RMW16_And{align = 1, offset = offset}, buf)
+		case .B4: emit_instruction(Wasm_I32_Atomic_RMW_And{align = 2, offset = offset}, buf)
+		case .B8: emit_instruction(Wasm_I64_Atomic_RMW_And{align = 3, offset = offset}, buf)
+		}
+	case .Or:
+		#partial switch width {
+		case .B1: emit_instruction(Wasm_I32_Atomic_RMW8_Or{align = 0, offset = offset}, buf)
+		case .B2: emit_instruction(Wasm_I32_Atomic_RMW16_Or{align = 1, offset = offset}, buf)
+		case .B4: emit_instruction(Wasm_I32_Atomic_RMW_Or{align = 2, offset = offset}, buf)
+		case .B8: emit_instruction(Wasm_I64_Atomic_RMW_Or{align = 3, offset = offset}, buf)
+		}
+	case .Xor:
+		#partial switch width {
+		case .B1: emit_instruction(Wasm_I32_Atomic_RMW8_Xor{align = 0, offset = offset}, buf)
+		case .B2: emit_instruction(Wasm_I32_Atomic_RMW16_Xor{align = 1, offset = offset}, buf)
+		case .B4: emit_instruction(Wasm_I32_Atomic_RMW_Xor{align = 2, offset = offset}, buf)
+		case .B8: emit_instruction(Wasm_I64_Atomic_RMW_Xor{align = 3, offset = offset}, buf)
+		}
+	case .Xchg:
+		#partial switch width {
+		case .B1: emit_instruction(Wasm_I32_Atomic_RMW8_Xchg{align = 0, offset = offset}, buf)
+		case .B2: emit_instruction(Wasm_I32_Atomic_RMW16_Xchg{align = 1, offset = offset}, buf)
+		case .B4: emit_instruction(Wasm_I32_Atomic_RMW_Xchg{align = 2, offset = offset}, buf)
+		case .B8: emit_instruction(Wasm_I64_Atomic_RMW_Xchg{align = 3, offset = offset}, buf)
+		}
+	case .CmpXchg:
+		#partial switch width {
+		case .B1: emit_instruction(Wasm_I32_Atomic_RMW8_CmpXchg{align = 0, offset = offset}, buf)
+		case .B2: emit_instruction(Wasm_I32_Atomic_RMW16_CmpXchg{align = 1, offset = offset}, buf)
+		case .B4: emit_instruction(Wasm_I32_Atomic_RMW_CmpXchg{align = 2, offset = offset}, buf)
+		case .B8: emit_instruction(Wasm_I64_Atomic_RMW_CmpXchg{align = 3, offset = offset}, buf)
+		}
+	}
 }

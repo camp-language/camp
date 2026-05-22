@@ -345,6 +345,27 @@ cps_transform_expr :: proc(expr: IR_Expr, k_name: Intern_ID, env: ^CPS_Env) -> I
 		new_crash := new(IR_Crash)
 		new_crash^ = IR_Crash{message = cps_transform_expr(e.message, k_name, env), span = e.span}
 		return IR_Expr(new_crash)
+
+	case ^IR_Resume:
+		return expr
+
+	case ^IR_Atomic_Load:
+		return expr
+
+	case ^IR_Atomic_Store:
+		return expr
+
+	case ^IR_Atomic_RMW:
+		return expr
+
+	case ^IR_Atomic_Fence:
+		return expr
+
+	case ^IR_Wait:
+		return expr
+
+	case ^IR_Notify:
+		return expr
 	}
 
 	return expr
