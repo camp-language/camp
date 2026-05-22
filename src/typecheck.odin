@@ -988,6 +988,14 @@ typecheck_method_call :: proc(e: ^CExpr_Method_Call, env: ^Type_Env, store: ^Typ
 	for a in e.args {
 		arg_result := typecheck_synth(a, env, store)
 		unify(store, eff, arg_result.effects)
+
+		if is_effect_op {
+			arg_resolved := resolve_var(store, arg_result.var_id)
+			arg_var := get_var(store, arg_resolved)
+			if inf, is_inf := arg_var.link.(Inferred_Type); is_inf && inf.tag == .Function {
+				unify(store, eff, inf.effect_id)
+			}
+		}
 	}
 
 	return_var := fresh_value_var(store, e.span)
