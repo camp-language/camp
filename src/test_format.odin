@@ -1046,7 +1046,7 @@ test_format_decl_effect_empty :: proc(t: ^testing.T) {
 	result := doc_resolve(format_decl(Decl(de), &info, &ctx.interner), 0)
 	defer delete(result)
 
-	testing.expectf(t, result == "effect Empty {}", "expected %q, got %q", "effect Empty {}", result)
+	testing.expectf(t, result == "Empty! : {}", "expected %q, got %q", "Empty! : {}", result)
 }
 
 @(test)
@@ -1073,7 +1073,7 @@ test_format_decl_effect_with_ops :: proc(t: ^testing.T) {
 	result := doc_resolve(format_decl(Decl(de), &info, &ctx.interner), 0)
 	defer delete(result)
 
-	expected := "effect IO {\n    println!\n    readln!\n}"
+	expected := "IO! : {\n    println!\n    readln!\n}"
 	testing.expectf(t, result == expected, "expected %q, got %q", expected, result)
 }
 

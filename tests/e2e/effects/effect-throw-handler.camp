@@ -1,4 +1,4 @@
-effect Throw { throw! }
+Throw! : { throw!: || -> I64 }
 main! = || -> -[Throw]-> I64 {
   handle Throw in Throw.throw!(NotFound) with {
     .throw!(resume, err) => 1

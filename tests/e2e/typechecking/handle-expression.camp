@@ -1,2 +1,2 @@
-effect IO { println }
+IO! : { println!: || -> () }
 result = handle IO.println("hi") with { IO.println(s) -> resume(()) }

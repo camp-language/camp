@@ -1,7 +1,7 @@
-effect Ask { read! }
+Ask! : { read!: || -> I64 }
 x = handle Ask in Ask.read!() with { .read!(resume) => resume(42) }
 
-effect State { get! }
+State! : { get!: || -> I64 }
 y = handle Ask in
       handle State in
         Ask.read!()

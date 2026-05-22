@@ -11,7 +11,6 @@ token_kind_display :: proc(kind: Token_Kind) -> string {
 	case .Kw_If:        return "if"
 	case .Kw_Else:      return "else"
 	case .Kw_Match:     return "match"
-	case .Kw_Effect:    return "effect"
 	case .Kw_Is:        return "is"
 	case .Kw_Derives:   return "derives"
 	case .Kw_Handle:    return "handle"

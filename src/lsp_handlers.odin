@@ -184,7 +184,7 @@ symbol_kind_to_string :: proc(kind: Symbol_Kind) -> string {
 	switch kind {
 	case .Function:  return "function"
 	case .Type:      return "type"
-	case .Effect:    return "effect"
+	case .Effect:    return "effect type"
 	case .Parameter: return "parameter"
 	case .Local:     return "local"
 	case:            return "unknown"

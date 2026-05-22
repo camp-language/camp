@@ -183,7 +183,7 @@ test_lower_record :: proc(t: ^testing.T) {
 
 @(test)
 test_lower_effect_decl :: proc(t: ^testing.T) {
-	mod, ctx, store := lower_source("effect IO { println: Str }")
+	mod, ctx, store := lower_source("IO! : { println!: || -> Str }")
 	defer teardown_lower(ctx, &store)
 
 	testing.expect(t, len(mod.effect_defs) == 1)
@@ -227,7 +227,7 @@ test_lower_lambda_as_fn :: proc(t: ^testing.T) {
 @(test)
 test_lower_handle :: proc(t: ^testing.T) {
 	mod, ctx, store := lower_source(
-		"effect IO { println: Str }\nmain! = handle IO in { 42 } with { .println!(resume) => resume({}) }")
+		"IO! : { println!: || -> Str }\nmain! = handle IO in { 42 } with { .println!(resume) => resume({}) }")
 	defer teardown_lower(ctx, &store)
 
 	found_handle := false
@@ -479,7 +479,7 @@ contains_ir_construct_record :: proc(expr: IR_Expr) -> bool {
 @(test)
 test_effect_lower_handle :: proc(t: ^testing.T) {
 	mod, ctx, store := lower_source(
-		"effect IO { println: Str }\nmain! = handle IO in { 42 } with { .println!(resume) => resume({}) }")
+		"IO! : { println!: || -> Str }\nmain! = handle IO in { 42 } with { .println!(resume) => resume({}) }")
 	defer teardown_lower(ctx, &store)
 
 	result := effect_lower(&mod, ctx)
@@ -500,7 +500,7 @@ test_effect_lower_handle :: proc(t: ^testing.T) {
 @(test)
 test_effect_lower_perform :: proc(t: ^testing.T) {
 	mod, ctx, store := lower_source(
-		"effect IO { println: Str }\nmain! = handle IO in { IO.println(\"hi\") } with { .println!(resume) => resume({}) }")
+		"IO! : { println!: || -> Str }\nmain! = handle IO in { IO.println(\"hi\") } with { .println!(resume) => resume({}) }")
 	defer teardown_lower(ctx, &store)
 
 	result := effect_lower(&mod, ctx)
@@ -521,7 +521,7 @@ test_effect_lower_perform :: proc(t: ^testing.T) {
 @(test)
 	test_effect_lower_handler_fns :: proc(t: ^testing.T) {
 	mod, ctx, store := lower_source(
-		"effect IO { println: Str }\nmain! = handle IO in { 42 } with { .println!(resume) => resume({}) }")
+		"IO! : { println!: || -> Str }\nmain! = handle IO in { 42 } with { .println!(resume) => resume({}) }")
 	defer teardown_lower(ctx, &store)
 
 	result := effect_lower(&mod, ctx)
@@ -803,7 +803,7 @@ effect_lower_source :: proc(source: string) -> (IR_Module, ^Compilation_Context,
 @(test)
 test_effect_lower_produces_handler_decls :: proc(t: ^testing.T) {
 	result, ctx, store := effect_lower_source(
-		"effect IO { println: Str }\nmain! = handle IO in { 42 } with { .println!(resume) => resume({}) }")
+		"IO! : { println!: || -> Str }\nmain! = handle IO in { 42 } with { .println!(resume) => resume({}) }")
 	defer teardown_lower(ctx, &store)
 
 	handler_count := 0
@@ -827,7 +827,7 @@ test_effect_lower_produces_handler_decls :: proc(t: ^testing.T) {
 @(test)
 test_effect_lower_perform_dispatches_via_i32_load :: proc(t: ^testing.T) {
 	result, ctx, store := effect_lower_source(
-		"effect IO { println: Str }\nmain! = handle IO in { IO.println(\"hi\") } with { .println!(resume) => resume({}) }")
+		"IO! : { println!: || -> Str }\nmain! = handle IO in { IO.println(\"hi\") } with { .println!(resume) => resume({}) }")
 	defer teardown_lower(ctx, &store)
 
 	found_i32_load := false
@@ -849,7 +849,7 @@ test_effect_lower_perform_dispatches_via_i32_load :: proc(t: ^testing.T) {
 @(test)
 test_effect_lower_handle_evidence_record :: proc(t: ^testing.T) {
 	result, ctx, store := effect_lower_source(
-		"effect IO { println: Str }\nmain! = handle IO in { 42 } with { .println!(resume) => resume({}) }")
+		"IO! : { println!: || -> Str }\nmain! = handle IO in { 42 } with { .println!(resume) => resume({}) }")
 	defer teardown_lower(ctx, &store)
 
 	alloc_id := intern(&ctx.interner, "camp_alloc")
@@ -876,7 +876,7 @@ test_effect_lower_handle_evidence_record :: proc(t: ^testing.T) {
 @(test)
 test_effect_lower_handler_fn_has_env_and_ev_params :: proc(t: ^testing.T) {
 	result, ctx, store := effect_lower_source(
-		"effect IO { println: Str }\nmain! = handle IO in { IO.println(\"hi\") } with { .println!(resume) => resume({}) }")
+		"IO! : { println!: || -> Str }\nmain! = handle IO in { IO.println(\"hi\") } with { .println!(resume) => resume({}) }")
 	defer teardown_lower(ctx, &store)
 
 	found := false
@@ -905,7 +905,7 @@ test_effect_lower_handler_fn_has_env_and_ev_params :: proc(t: ^testing.T) {
 @(test)
 test_effect_lower_handler_fn_count_matches_ops :: proc(t: ^testing.T) {
 	result, ctx, store := effect_lower_source(
-		"effect IO { println: Str, readln: Str }\nmain! = handle IO in { 42 } with { .println!(resume) => resume({}), .readln!(resume) => resume({}) }")
+		"IO! : { println!: || -> Str, readln!: || -> Str }\nmain! = handle IO in { 42 } with { .println!(resume) => resume({}), .readln!(resume) => resume({}) }")
 	defer teardown_lower(ctx, &store)
 
 	handler_count := 0
@@ -1253,7 +1253,7 @@ continuation_lacks_ev_param :: proc(mod: IR_Module, interner: ^Intern_Table) -> 
 @(test)
 test_effect_lower_produces_ir_resume :: proc(t: ^testing.T) {
 	result, ctx, store := effect_lower_source(
-		"effect IO { println: Str }\nmain! = handle IO in { IO.println(\"hi\") } with { .println!(resume) => resume({}) }")
+		"IO! : { println!: || -> Str }\nmain! = handle IO in { IO.println(\"hi\") } with { .println!(resume) => resume({}) }")
 	defer teardown_lower(ctx, &store)
 
 	found_resume := false
@@ -1272,7 +1272,7 @@ test_effect_lower_produces_ir_resume :: proc(t: ^testing.T) {
 @(test)
 test_effect_lower_resume_deep_has_ev :: proc(t: ^testing.T) {
 	result, ctx, store := effect_lower_source(
-		"effect IO { println: Str }\nmain! = handle IO in { IO.println(\"hi\") } with { .println!(resume) => resume({}) }")
+		"IO! : { println!: || -> Str }\nmain! = handle IO in { IO.println(\"hi\") } with { .println!(resume) => resume({}) }")
 	defer teardown_lower(ctx, &store)
 
 	found := false
@@ -1291,7 +1291,7 @@ test_effect_lower_resume_deep_has_ev :: proc(t: ^testing.T) {
 @(test)
 test_effect_lower_deep_continuation_has_ev_param :: proc(t: ^testing.T) {
 	result, ctx, store := effect_lower_source(
-		"effect IO { println: Str }\nmain! = handle IO in { IO.println(\"hi\") } with { .println!(resume) => resume({}) }")
+		"IO! : { println!: || -> Str }\nmain! = handle IO in { IO.println(\"hi\") } with { .println!(resume) => resume({}) }")
 	defer teardown_lower(ctx, &store)
 
 	testing.expect(t, continuation_has_ev_param(result, &ctx.interner))
@@ -1300,7 +1300,7 @@ test_effect_lower_deep_continuation_has_ev_param :: proc(t: ^testing.T) {
 @(test)
 test_effect_lower_resume_shallow_no_ev :: proc(t: ^testing.T) {
 	result, ctx, store := effect_lower_source(
-		"effect IO { println: Str }\nmain! = intercept IO in { IO.println(\"hi\") } with { .println!(resume) => resume({}) }")
+		"IO! : { println!: || -> Str }\nmain! = intercept IO in { IO.println(\"hi\") } with { .println!(resume) => resume({}) }")
 	defer teardown_lower(ctx, &store)
 
 	found := false
@@ -1319,7 +1319,7 @@ test_effect_lower_resume_shallow_no_ev :: proc(t: ^testing.T) {
 @(test)
 test_effect_lower_shallow_continuation_no_ev_param :: proc(t: ^testing.T) {
 	result, ctx, store := effect_lower_source(
-		"effect IO { println: Str }\nmain! = intercept IO in { IO.println(\"hi\") } with { .println!(resume) => resume({}) }")
+		"IO! : { println!: || -> Str }\nmain! = intercept IO in { IO.println(\"hi\") } with { .println!(resume) => resume({}) }")
 	defer teardown_lower(ctx, &store)
 
 	testing.expect(t, continuation_lacks_ev_param(result, &ctx.interner))

@@ -8,7 +8,6 @@ KEYWORDS :map[string]Token_Kind = {
 	"if"        = .Kw_If,
 	"else"      = .Kw_Else,
 	"match"     = .Kw_Match,
-	"effect"    = .Kw_Effect,
 	"is"        = .Kw_Is,
 	"derives"   = .Kw_Derives,
 	"handle"    = .Kw_Handle,

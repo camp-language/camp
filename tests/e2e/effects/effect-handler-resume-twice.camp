@@ -1,4 +1,4 @@
-effect Ask { read! }
+Ask! : { read!: || -> I64 }
 main! = || -> -[Ask]-> I64 {
   handle Ask in Ask.read!() with {
     .read!(resume) => resume(resume(1))

@@ -42,8 +42,8 @@ format_decl_const :: proc(v: ^Decl_Const, info: ^Format_Source_Info, interner: ^
 
 format_decl_effect :: proc(v: ^Decl_Effect, info: ^Format_Source_Info, interner: ^Intern_Table) -> Doc {
 	parts: [dynamic]Doc
-	append(&parts, doc_text("effect "))
 	append(&parts, doc_text(intern_get(interner, v.name)))
+	append(&parts, doc_text("! :"))
 
 	if len(v.operations) == 0 {
 		append(&parts, doc_text(" {}"))

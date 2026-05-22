@@ -69,7 +69,7 @@ test_integration_effect_definition :: proc(t: ^testing.T) {
 	context_init(&ctx)
 	defer context_destroy(&ctx)
 
-	file := parse_camp_source("effect Console { print!: Str }", &ctx)
+	file := parse_camp_source("Console! : { print!: || -> Str }", &ctx)
 	testing.expect(t, !diag_collector_has_errors(&ctx.collector))
 	testing.expect(t, len(file.decls) == 1)
 }

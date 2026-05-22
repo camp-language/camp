@@ -527,7 +527,7 @@ test_typecheck_function_application :: proc(t: ^testing.T) {
 @(test)
 test_effectful_naming_enforcement :: proc(t: ^testing.T) {
 	store, ctx := typecheck_source(
-		"effect IO { println: Str }\nresult = handle IO in { IO.println(\"hi\") } with { .println!(resume) => resume({}) }")
+		"IO! : { println!: || -> Str }\nresult = handle IO in { IO.println(\"hi\") } with { .println!(resume) => resume({}) }")
 	defer context_destroy(ctx)
 	defer free(ctx)
 	defer type_store_destroy(&store)
@@ -538,7 +538,7 @@ test_effectful_naming_enforcement :: proc(t: ^testing.T) {
 @(test)
 test_unhandled_effect_error :: proc(t: ^testing.T) {
 	store, ctx := typecheck_source(
-		"effect IO { println: Str }\nval = IO.println(\"hello\")")
+		"IO! : { println!: || -> Str }\nval = IO.println(\"hello\")")
 	defer context_destroy(ctx)
 	defer free(ctx)
 	defer type_store_destroy(&store)
@@ -552,7 +552,7 @@ test_unhandled_effect_error :: proc(t: ^testing.T) {
 @(test)
 test_handled_effect_ok :: proc(t: ^testing.T) {
 	store, ctx := typecheck_source(
-		"effect IO { println: Str }\nmain! = handle IO in { IO.println(\"hello\") } with { .println!(resume) => resume({}) }")
+		"IO! : { println!: || -> Str }\nmain! = handle IO in { IO.println(\"hello\") } with { .println!(resume) => resume({}) }")
 	defer context_destroy(ctx)
 	defer free(ctx)
 	defer type_store_destroy(&store)

@@ -11,7 +11,6 @@ Token_Kind :: enum {
 	Kw_If,
 	Kw_Else,
 	Kw_Match,
-	Kw_Effect,
 	Kw_Is,
 	Kw_Derives,
 	Kw_Handle,
