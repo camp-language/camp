@@ -756,3 +756,65 @@ The `..` operator SHALL mean "and possibly more" consistently across type annota
 - GIVEN `{ name, .. } = record`
 - WHEN the compiler interprets it
 - THEN it SHALL extract `name` and ignore any additional fields
+
+### Requirement: par Block Syntax
+
+The `par` keyword SHALL introduce parallel computation blocks. `par { e1, e2, e3 }` SHALL desugar to `Parallel!.all!([|| e1, || e2, || e3])` and return a tuple of each expression's result type. `par for x in xs { body }` SHALL desugar to `Parallel!.for_each!(xs, |x| body)`.
+
+#### Scenario: par block with multiple expressions
+
+- GIVEN `par { compute_alpha!(), compute_beta!() }` where alpha returns `Int` and beta returns `Str`
+- WHEN the block executes
+- THEN the result type SHALL be `(Int, Str)` — a tuple preserving each expression's type
+
+#### Scenario: par for loop
+
+- GIVEN `par for r in records { process_record!(r) }`
+- WHEN canonicalization runs
+- THEN it SHALL be equivalent to `Parallel!.for_each!(records, |r| process_record!(r))`
+
+#### Scenario: par block effect row
+
+- GIVEN a `par` block where expressions perform `Console!`
+- WHEN the typechecker infers the effect row
+- THEN the effect row SHALL include `Parallel!` and any effects from the expressions
+
+### Requirement: Expanded Prelude Effects
+
+The compiler SHALL inject the following effect definitions into the prelude before typechecking begins. These effects are available in every Camp module without explicit import.
+
+#### Scenario: Console! effect in prelude
+
+- GIVEN any Camp module
+- WHEN the compiler processes the module
+- THEN `Console!` SHALL be available with operations `println!: |Str| -[Console!]-> {}` and `readln!: -[Console!]-> Str`
+
+#### Scenario: Throw! effect in prelude
+
+- GIVEN any Camp module
+- WHEN the compiler processes the module
+- THEN `Throw!` SHALL be available with operation `throw!: |e| -[Throw!(e)]-> a`
+
+#### Scenario: Parallel! effect in prelude
+
+- GIVEN any Camp module
+- WHEN the compiler processes the module
+- THEN `Parallel!` SHALL be available with operations `map!`, `for_each!`, `filter!`, `reduce!`, `all!`, and `any!`
+
+#### Scenario: Spawn! effect in prelude
+
+- GIVEN any Camp module
+- WHEN the compiler processes the module
+- THEN `Spawn!` SHALL be available with operations `spawn!`, `join!`, and `cancel!`
+
+#### Scenario: Async! effect in prelude
+
+- GIVEN any Camp module
+- WHEN the compiler processes the module
+- THEN `Async!` SHALL be available with operations `yield!`, `spawn!`, `join!`, and `cancel!`
+
+#### Scenario: Additional prelude effects
+
+- GIVEN any Camp module
+- WHEN the compiler processes the module
+- THEN `File!`, `Env!`, `Time!`, `Random!`, `Log!`, and `Crypto.Random!` SHALL be available as effect names
