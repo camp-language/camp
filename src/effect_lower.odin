@@ -101,9 +101,9 @@ el_lower_decl :: proc(decl: IR_Decl, env: ^Effect_Lower_Env, throw_name: Intern_
 		new_fn := new(IR_Decl_Fn)
 		new_fn^ = d^
 		new_fn.body = el_lower_expr(d.body, env)
-		// Clear effects list since effect_lower handles them internally
-		delete(new_fn.effects)
-		new_fn.effects = make([dynamic]Canonical_Name, 0)
+		// Effects list is preserved for codegen's _start evidence allocation.
+		// Effect_lower handles effects internally via evidence records,
+		// but codegen needs the original effects to allocate evidence at the top level.
 		return IR_Decl(new_fn)
 	case ^IR_Decl_Const:
 		new_const := new(IR_Decl_Const)
@@ -478,6 +478,25 @@ el_replace_resume :: proc(expr: IR_Expr, resume_id: Intern_ID, resume_param: Int
 			span = e.span,
 		}
 		return IR_Expr(new_store)
+	case ^IR_Assign:
+		new_assign := new(IR_Assign)
+		new_assign^ = IR_Assign{
+			binding = e.binding,
+			value   = el_replace_resume(e.value, resume_id, resume_param, ev_param, is_shallow, env),
+			type    = e.type,
+			span    = e.span,
+		}
+		return IR_Expr(new_assign)
+	case ^IR_Loop:
+		new_loop := new(IR_Loop)
+		new_loop^ = IR_Loop{
+			var      = e.var,
+			iterable = el_replace_resume(e.iterable, resume_id, resume_param, ev_param, is_shallow, env),
+			body     = el_replace_resume(e.body, resume_id, resume_param, ev_param, is_shallow, env),
+			type     = e.type,
+			span     = e.span,
+		}
+		return IR_Expr(new_loop)
 	}
 
 	return expr
@@ -1181,6 +1200,25 @@ el_lower_expr :: proc(expr: IR_Expr, env: ^Effect_Lower_Env) -> IR_Expr {
 		return IR_Expr(e)
 	case ^IR_Notify:
 		return IR_Expr(e)
+	case ^IR_Assign:
+		new_assign := new(IR_Assign)
+		new_assign^ = IR_Assign{
+			binding = e.binding,
+			value   = el_lower_expr(e.value, env),
+			type    = e.type,
+			span    = e.span,
+		}
+		return IR_Expr(new_assign)
+	case ^IR_Loop:
+		new_loop := new(IR_Loop)
+		new_loop^ = IR_Loop{
+			var      = e.var,
+			iterable = el_lower_expr(e.iterable, env),
+			body     = el_lower_expr(e.body, env),
+			type     = e.type,
+			span     = e.span,
+		}
+		return IR_Expr(new_loop)
 	}
 
 	return expr

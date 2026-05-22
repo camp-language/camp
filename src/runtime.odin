@@ -405,6 +405,89 @@ emit_camp_str_eq_body :: proc() -> Wasm_Code {
 	return Wasm_Code{locals = locals, body = body}
 }
 
+emit_camp_str_concat_body :: proc() -> Wasm_Code {
+	// Concatenate two strings.
+	// Each string is a pointer to a heap block: [len:4][data...].
+	// Returns a pointer to a new heap block.
+	// Params: (str_a: i32, str_b: i32) -> i32
+	buf: [dynamic]u8
+	buf = make([dynamic]u8, 0, 96)
+
+	// Load len_a
+	emit_instruction(Wasm_Local_Get{index = 0}, &buf)
+	emit_instruction(Wasm_I32_Load{align = 2, offset = 0}, &buf)
+
+	// Load len_b
+	emit_instruction(Wasm_Local_Get{index = 1}, &buf)
+	emit_instruction(Wasm_I32_Load{align = 2, offset = 0}, &buf)
+
+	// total_len = len_a + len_b
+	emit_instruction(Wasm_I32_Add{}, &buf)
+
+	// Save total_len in local 2
+	emit_instruction(Wasm_Local_Tee{index = 2}, &buf)
+
+	// Allocate total_len + 4 bytes (4 for length prefix)
+	emit_instruction(Wasm_I32_Const{value = 4}, &buf)
+	emit_instruction(Wasm_I32_Add{}, &buf)
+	emit_instruction(Wasm_Call{index = 0}, &buf)
+
+	// Save result pointer in local 3
+	emit_instruction(Wasm_Local_Set{index = 3}, &buf)
+
+	// Store total length at offset 0 of result
+	emit_instruction(Wasm_Local_Get{index = 3}, &buf)
+	emit_instruction(Wasm_Local_Get{index = 2}, &buf)
+	emit_instruction(Wasm_I32_Store{align = 2, offset = 0}, &buf)
+
+	// memory.copy(dest=result+4, src=str_a+4, len=len_a)
+	emit_instruction(Wasm_Local_Get{index = 3}, &buf)
+	emit_instruction(Wasm_I32_Const{value = 4}, &buf)
+	emit_instruction(Wasm_I32_Add{}, &buf)
+
+	emit_instruction(Wasm_Local_Get{index = 0}, &buf)
+	emit_instruction(Wasm_I32_Const{value = 4}, &buf)
+	emit_instruction(Wasm_I32_Add{}, &buf)
+
+	emit_instruction(Wasm_Local_Get{index = 0}, &buf)
+	emit_instruction(Wasm_I32_Load{align = 2, offset = 0}, &buf)
+
+	emit_instruction(Wasm_Memory_Copy{}, &buf)
+
+	// memory.copy(dest=result+4+len_a, src=str_b+4, len=len_b)
+	emit_instruction(Wasm_Local_Get{index = 3}, &buf)
+	emit_instruction(Wasm_I32_Const{value = 4}, &buf)
+	emit_instruction(Wasm_I32_Add{}, &buf)
+	emit_instruction(Wasm_Local_Get{index = 0}, &buf)
+	emit_instruction(Wasm_I32_Load{align = 2, offset = 0}, &buf)
+	emit_instruction(Wasm_I32_Add{}, &buf)
+
+	emit_instruction(Wasm_Local_Get{index = 1}, &buf)
+	emit_instruction(Wasm_I32_Const{value = 4}, &buf)
+	emit_instruction(Wasm_I32_Add{}, &buf)
+
+	emit_instruction(Wasm_Local_Get{index = 1}, &buf)
+	emit_instruction(Wasm_I32_Load{align = 2, offset = 0}, &buf)
+
+	emit_instruction(Wasm_Memory_Copy{}, &buf)
+
+	// Return result pointer
+	emit_instruction(Wasm_Local_Get{index = 3}, &buf)
+	emit_instruction(Wasm_End{}, &buf)
+
+	locals := make([]Wasm_Local_Decl, 2)
+	locals[0] = Wasm_Local_Decl{count = 1, type = .I32}
+	locals[1] = Wasm_Local_Decl{count = 1, type = .I32}
+
+	body := make([]u8, len(buf))
+	for b, i in buf {
+		body[i] = b
+	}
+	delete(buf)
+
+	return Wasm_Code{locals = locals, body = body}
+}
+
 emit_camp_async_init_body :: proc() -> Wasm_Code {
 	// Initialize async scheduler — no-op for now (scheduler state in linear memory)
 	buf: [dynamic]u8

@@ -232,6 +232,7 @@ codegen :: proc(ir_mod: IR_Module, ctx: ^Compilation_Context) -> Wasm_Module {
 	list_get_type_idx := list_push_type_idx
 	str_len_type_idx := alloc_type_idx
 	str_eq_type_idx := list_push_type_idx
+	str_concat_type_idx := list_push_type_idx
 
 	runtime_func_indices: [RUNTIME_FUNC_COUNT]int
 	alloc_func_idx := add_function(&env, alloc_type_idx)
@@ -261,6 +262,8 @@ codegen :: proc(ir_mod: IR_Module, ctx: ^Compilation_Context) -> Wasm_Module {
 	runtime_func_indices[11] = str_len_func_idx
 	str_eq_func_idx := add_function(&env, str_eq_type_idx)
 	runtime_func_indices[12] = str_eq_func_idx
+	str_concat_func_idx := add_function(&env, str_concat_type_idx)
+	runtime_func_indices[35] = str_concat_func_idx
 
 	async_init_type_idx := get_or_create_type(&env, []Wasm_Value_Type{}, []Wasm_Value_Type{})
 	async_enqueue_type_idx := get_or_create_type(&env, []Wasm_Value_Type{.I32, .I32}, []Wasm_Value_Type{.I32})
@@ -381,6 +384,9 @@ codegen :: proc(ir_mod: IR_Module, ctx: ^Compilation_Context) -> Wasm_Module {
 	camp_str_eq_code := emit_camp_str_eq_body()
 	append(&mod.codes, camp_str_eq_code)
 
+	camp_str_concat_code := emit_camp_str_concat_body()
+	append(&mod.codes, camp_str_concat_code)
+
 	camp_async_init_code := emit_camp_async_init_body()
 	append(&mod.codes, camp_async_init_code)
 
@@ -427,9 +433,22 @@ codegen :: proc(ir_mod: IR_Module, ctx: ^Compilation_Context) -> Wasm_Module {
 		#partial switch d in decl {
 		case ^IR_Decl_Fn:
 			name_str := intern_get(&ctx.interner, d.name.name)
-			params := make([]Wasm_Value_Type, len(d.params))
-			for p, i in d.params {
-				params[i] = ir_wasm_type_to_value_type(p.type.wasm_type)
+			is_main_fn := name_str == "main" || name_str == "main!"
+			params: []Wasm_Value_Type
+			if is_main_fn && d.is_effectful && len(d.effects) > 0 {
+				// Prepend evidence params (i32 pointers) for effectful main
+				params = make([]Wasm_Value_Type, len(d.params) + len(d.effects))
+				for i in 0..<len(d.effects) {
+					params[i] = .I32
+				}
+				for p, i in d.params {
+					params[len(d.effects) + i] = ir_wasm_type_to_value_type(p.type.wasm_type)
+				}
+			} else {
+				params = make([]Wasm_Value_Type, len(d.params))
+				for p, i in d.params {
+					params[i] = ir_wasm_type_to_value_type(p.type.wasm_type)
+				}
 			}
 			results: []Wasm_Value_Type
 			if d.return_type.wasm_type != .Void {
@@ -486,12 +505,14 @@ codegen :: proc(ir_mod: IR_Module, ctx: ^Compilation_Context) -> Wasm_Module {
 			is_main := intern_get(&ctx.interner, d.name.name) == "main" || intern_get(&ctx.interner, d.name.name) == "main!"
 
 			if is_main && d.is_effectful {
+				ev_count := len(d.effects)
 				env.locals = make([dynamic]Wasm_Local_Decl, 0, 32)
 				env.local_map = make(map[Intern_ID]u32, 32)
-				env.next_local = u32(len(d.params))
+				env.next_local = u32(len(d.params) + ev_count)
 
+				// Map params with offset for evidence params at the front
 				for p, i in d.params {
-					env.local_map[p.name] = u32(i)
+					env.local_map[p.name] = u32(ev_count + i)
 				}
 
 				collected_locals: map[Intern_ID]IR_Type
@@ -1037,6 +1058,17 @@ collect_locals :: proc(expr: IR_Expr, locals: ^map[Intern_ID]IR_Type) {
 	case ^IR_Notify:
 		collect_locals(e.base, locals)
 		collect_locals(e.count, locals)
+	case ^IR_Assign:
+		if e.type.wasm_type != .Void {
+			locals^[e.binding] = e.type
+		}
+		collect_locals(e.value, locals)
+	case ^IR_Loop:
+		if e.type.wasm_type != .Void {
+			locals^[e.var] = e.type
+		}
+		collect_locals(e.iterable, locals)
+		collect_locals(e.body, locals)
 	case:
 	}
 }
@@ -1076,7 +1108,8 @@ RUNTIME_PARALLEL_ANY :: 31
 RUNTIME_PARALLEL_ALL :: 32
 RUNTIME_PARALLEL_FILTER :: 33
 RUNTIME_PARALLEL_FOR_EACH :: 34
-RUNTIME_FUNC_COUNT :: 35
+RUNTIME_STR_CONCAT :: 35
+RUNTIME_FUNC_COUNT :: 36
 
 extract_effectful_body :: proc(expr: IR_Expr) -> IR_Expr {
 	#partial switch e in expr {
@@ -1131,7 +1164,113 @@ emit_expr :: proc(expr: IR_Expr, buf: ^[dynamic]u8, env: ^Codegen_Env, runtime_i
 			emit_instruction(Wasm_Drop{}, buf)
 		}
 		emit_expr(e.body, buf, env, runtime_indices)
-		case ^IR_Call:
+	case ^IR_Assign:
+		emit_expr(e.value, buf, env, runtime_indices)
+		if idx, ok := env.local_map[e.binding]; ok {
+			emit_instruction(Wasm_Local_Set{index = idx}, buf)
+		} else {
+			emit_instruction(Wasm_Drop{}, buf)
+		}
+	case ^IR_Loop:
+		// Evaluate iterable, store in tmp local
+		emit_expr(e.iterable, buf, env, runtime_indices)
+		list_local := env.tmp_local_base
+		emit_instruction(Wasm_Local_Set{index = list_local}, buf)
+
+		// block $break (label 1), loop $continue (label 0)
+		emit_instruction(Wasm_Block{block_type = .Void}, buf)
+		emit_instruction(Wasm_Loop{block_type = .Void}, buf)
+
+		// Check if list is empty: tag byte == 0 (Nil)
+		emit_instruction(Wasm_Local_Get{index = list_local}, buf)
+		emit_instruction(Wasm_I32_Load8U{offset = CAMP_TAG_TAG_OFFSET}, buf)
+		emit_instruction(Wasm_I32_Const{value = 0}, buf)
+		emit_instruction(Wasm_I32_Eq{}, buf)
+		emit_instruction(Wasm_Br_If{label = 1}, buf) // break if Nil
+
+		// Get head (Cons payload[0] = head at CAMP_TAG_FIELDS_OFFSET)
+		emit_instruction(Wasm_Local_Get{index = list_local}, buf)
+		emit_instruction(Wasm_I32_Const{value = i32(CAMP_TAG_FIELDS_OFFSET)}, buf)
+		emit_instruction(Wasm_I32_Add{}, buf)
+		emit_instruction(Wasm_I32_Load{align = 2, offset = 0}, buf)
+		if idx, ok := env.local_map[e.var]; ok {
+			emit_instruction(Wasm_Local_Set{index = idx}, buf)
+		} else {
+			emit_instruction(Wasm_Drop{}, buf)
+		}
+
+		// Get tail (Cons payload[1] = tail at CAMP_TAG_FIELDS_OFFSET + 8)
+		emit_instruction(Wasm_Local_Get{index = list_local}, buf)
+		emit_instruction(Wasm_I32_Const{value = i32(CAMP_TAG_FIELDS_OFFSET + 8)}, buf)
+		emit_instruction(Wasm_I32_Add{}, buf)
+		emit_instruction(Wasm_I32_Load{align = 2, offset = 0}, buf)
+		emit_instruction(Wasm_Local_Set{index = list_local}, buf)
+
+		// Emit body
+		emit_expr(e.body, buf, env, runtime_indices)
+
+		// Drop body result (loop returns Unit)
+		emit_instruction(Wasm_Drop{}, buf)
+
+		// Continue loop
+		emit_instruction(Wasm_Br{label = 0}, buf)
+		emit_instruction(Wasm_End{}, buf) // end loop
+		emit_instruction(Wasm_End{}, buf) // end block
+	case ^IR_Call:
+		// Check for intrinsic stdlib calls (recognized by module-qualified name)
+		if e.callee.module != NO_NAME {
+			module_str := intern_get(env.interner, e.callee.module)
+			name_str := intern_get(env.interner, e.callee.name)
+
+			if module_str == "Str" {
+				if name_str == "length" && len(e.args) == 1 {
+					emit_expr(e.args[0], buf, env, runtime_indices)
+					emit_instruction(Wasm_Call{index = u32(runtime_indices[RUNTIME_STR_LEN])}, buf)
+					// Str.length returns I64 in Camp but RUNTIME_STR_LEN returns i32
+					emit_instruction(Wasm_I64_Extend_I32_S{}, buf)
+					break
+				}
+				if name_str == "eq" && len(e.args) == 2 {
+					emit_expr(e.args[0], buf, env, runtime_indices)
+					emit_expr(e.args[1], buf, env, runtime_indices)
+					emit_instruction(Wasm_Call{index = u32(runtime_indices[RUNTIME_STR_EQ])}, buf)
+					break
+				}
+				if name_str == "concat" && len(e.args) == 2 {
+					emit_expr(e.args[0], buf, env, runtime_indices)
+					emit_expr(e.args[1], buf, env, runtime_indices)
+					emit_instruction(Wasm_Call{index = u32(runtime_indices[RUNTIME_STR_CONCAT])}, buf)
+					break
+				}
+			}
+
+			if module_str == "List" {
+				if name_str == "length" && len(e.args) == 1 {
+					emit_expr(e.args[0], buf, env, runtime_indices)
+					emit_instruction(Wasm_Call{index = u32(runtime_indices[RUNTIME_LIST_LEN])}, buf)
+					// List.length returns I64 in Camp but RUNTIME_LIST_LEN returns i32
+					emit_instruction(Wasm_I64_Extend_I32_S{}, buf)
+					break
+				}
+				if name_str == "get" && len(e.args) == 2 {
+					emit_expr(e.args[0], buf, env, runtime_indices)
+					emit_expr(e.args[1], buf, env, runtime_indices)
+					emit_instruction(Wasm_Call{index = u32(runtime_indices[RUNTIME_LIST_GET])}, buf)
+					break
+				}
+				if name_str == "push" && len(e.args) == 2 {
+					emit_expr(e.args[0], buf, env, runtime_indices)
+					emit_expr(e.args[1], buf, env, runtime_indices)
+					emit_instruction(Wasm_Call{index = u32(runtime_indices[RUNTIME_LIST_PUSH])}, buf)
+					break
+				}
+				if name_str == "alloc" && len(e.args) == 0 {
+					emit_instruction(Wasm_Call{index = u32(runtime_indices[RUNTIME_LIST_ALLOC])}, buf)
+					break
+				}
+			}
+		}
+
 		for arg in e.args {
 			emit_expr(arg, buf, env, runtime_indices)
 		}
@@ -1402,6 +1541,10 @@ emit_expr :: proc(expr: IR_Expr, buf: ^[dynamic]u8, env: ^Codegen_Env, runtime_i
 		emit_instruction(Wasm_I32_Add{}, buf)
 		emit_load_for_type(e.type.wasm_type, buf)
 	case ^IR_Method_Call:
+		// Method calls should be resolved by monomorphization.
+		// If one reaches codegen, it's a compiler bug — emit a runtime error.
+		emit_instruction(Wasm_I32_Const{value = 1}, buf)
+		emit_instruction(Wasm_Call{index = u32(runtime_indices[RUNTIME_EXIT])}, buf)
 		emit_instruction(Wasm_Unreachable{}, buf)
 	case ^IR_Handle:
 		if cg_is_scheduler_effect(e.effect, env) {
@@ -1471,7 +1614,10 @@ emit_expr :: proc(expr: IR_Expr, buf: ^[dynamic]u8, env: ^Codegen_Env, runtime_i
 			emit_instruction(Wasm_End{}, buf) // end loop
 			emit_instruction(Wasm_End{}, buf) // end block
 		} else {
-			emit_instruction(Wasm_Unreachable{}, buf)
+			// User-defined effect: just emit the body.
+			// effect_lower transforms handle blocks into let/closure/store chains,
+			// but in the rare case an IR_Handle survives, emit the body.
+			emit_expr(e.body, buf, env, runtime_indices)
 		}
 	case ^IR_Perform:
 		if cg_is_scheduler_effect(e.effect, env) {
@@ -1680,6 +1826,14 @@ emit_expr :: proc(expr: IR_Expr, buf: ^[dynamic]u8, env: ^Codegen_Env, runtime_i
 				emit_instruction(Wasm_Unreachable{}, buf)
 			}
 		} else {
+			// User-defined effect perform: defensive fallback.
+			// effect_lower transforms most performs into IR_Closure_Call,
+			// but if a perform survives, emit args and exit with unhandled effect.
+			for arg in e.args {
+				emit_expr(arg, buf, env, runtime_indices)
+			}
+			emit_instruction(Wasm_I32_Const{value = 1}, buf)
+			emit_instruction(Wasm_Call{index = u32(runtime_indices[RUNTIME_EXIT])}, buf)
 			emit_instruction(Wasm_Unreachable{}, buf)
 		}
 	case ^IR_Resume:
@@ -1944,7 +2098,10 @@ ir_operand_wasm_type :: proc(expr: IR_Expr) -> IR_Wasm_Type {
 	case ^IR_Literal_String: return .I32
 	case ^IR_Var: return e.type.wasm_type
 	case ^IR_BinOp: return e.type.wasm_type
+	case ^IR_Assign: return e.type.wasm_type
+	case ^IR_Loop: return e.type.wasm_type
 	case ^IR_Call: return e.type.wasm_type
+
 	case ^IR_If: return e.type.wasm_type
 	case ^IR_Closure_Call: return e.type.wasm_type
 	case ^IR_Resume: return e.type.wasm_type
@@ -1971,6 +2128,8 @@ ir_expr_wasm_type :: proc(expr: IR_Expr) -> IR_Wasm_Type {
 	case ^IR_Literal_String: return .I32
 	case ^IR_Var: return e.type.wasm_type
 	case ^IR_Let: return e.type.wasm_type
+	case ^IR_Assign: return e.type.wasm_type
+	case ^IR_Loop: return e.type.wasm_type
 	case ^IR_Call: return e.type.wasm_type
 	case ^IR_Tail_Call: return .Void
 	case ^IR_If: return e.type.wasm_type

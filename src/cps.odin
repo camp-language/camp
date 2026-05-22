@@ -373,6 +373,25 @@ cps_transform_expr :: proc(expr: IR_Expr, k_name: Intern_ID, env: ^CPS_Env) -> I
 		return IR_Expr(e)
 	case ^IR_Notify:
 		return IR_Expr(e)
+	case ^IR_Assign:
+		new_assign := new(IR_Assign)
+		new_assign^ = IR_Assign{
+			binding = e.binding,
+			value   = cps_transform_expr(e.value, k_name, env),
+			type    = e.type,
+			span    = e.span,
+		}
+		return IR_Expr(new_assign)
+	case ^IR_Loop:
+		new_loop := new(IR_Loop)
+		new_loop^ = IR_Loop{
+			var      = e.var,
+			iterable = cps_transform_expr(e.iterable, k_name, env),
+			body     = cps_transform_expr(e.body, k_name, env),
+			type     = e.type,
+			span     = e.span,
+		}
+		return IR_Expr(new_loop)
 	}
 
 	return expr

@@ -65,6 +65,33 @@ canonicalize_decl :: proc(decl: Decl, scope: ^Canonicalize_Scope, imports: ^[dyn
 		if d.type_ann != nil {
 			ctype_ann = canonicalize_type(d.type_ann^, scope, ctx)
 		}
+		where_clauses := make([dynamic]Where_Clause, 0, len(d.where_clauses))
+		for wc in d.where_clauses {
+			append(&where_clauses, wc)
+		}
+		// Merge where clause constraints into the lambda's type params
+		// so the existing typecheck constraint machinery handles them.
+		if len(where_clauses) > 0 {
+			if lambda, ok := cbody.(^CExpr_Lambda); ok {
+				for wc in where_clauses {
+					for &tp in lambda.type_params {
+						if tp.name == wc.type_param {
+							found := false
+							for c in tp.constraints {
+								if c == wc.trait_name {
+									found = true
+									break
+								}
+							}
+							if !found {
+								append(&tp.constraints, wc.trait_name)
+							}
+							break
+						}
+					}
+				}
+			}
+		}
 		cdecl := new(CDecl_Const)
 		cdecl^ = CDecl_Const{
 			name = name,
@@ -73,6 +100,7 @@ canonicalize_decl :: proc(decl: Decl, scope: ^Canonicalize_Scope, imports: ^[dyn
 			type_ann = ctype_ann,
 			body = cbody,
 			derive_targets = make([dynamic]Intern_ID, 0, 4),
+			where_clauses = where_clauses,
 			span = d.span,
 		}
 		return cdecl
@@ -647,6 +675,13 @@ canonicalize_expr :: proc(expr: Expr, scope: ^Canonicalize_Scope, ctx: ^Compilat
 			perform^ = CExpr_Perform{effect = parallel_name, op = all_op, args = args, span = e.span}
 			return perform
 		}
+
+	case ^Expr_For:
+		citer := canonicalize_expr(e.iterable, scope, ctx)
+		cbody := canonicalize_expr(e.body, scope, ctx)
+		c := new(CExpr_For)
+		c^ = CExpr_For{var = e.var, iterable = citer, body = cbody, span = e.span}
+		return c
 
 	case ^Expr_Dot_Lambda:
 		dot_lambda_counter += 1

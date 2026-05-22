@@ -130,6 +130,11 @@ rc_collect_uses :: proc(expr: IR_Expr, uses: ^map[Intern_ID]int) {
 	case ^IR_Notify:
 		rc_collect_uses(e.base, uses)
 		rc_collect_uses(e.count, uses)
+	case ^IR_Assign:
+		rc_collect_uses(e.value, uses)
+	case ^IR_Loop:
+		rc_collect_uses(e.iterable, uses)
+		rc_collect_uses(e.body, uses)
 	case:
 	}
 }
@@ -242,6 +247,31 @@ insert_dups :: proc(expr: IR_Expr, binding: Intern_ID, uses_left: ^int, interner
 		new_call := new(IR_Call)
 		new_call^ = IR_Call{callee = e.callee, args = new_args, type = e.type, span = e.span}
 		return IR_Expr(new_call)
+
+	case ^IR_Assign:
+		new_val := insert_dups(e.value, binding, uses_left, interner)
+		new_assign := new(IR_Assign)
+		new_assign^ = IR_Assign{
+			binding = e.binding,
+			value   = new_val,
+			type    = e.type,
+			span    = e.span,
+		}
+		return IR_Expr(new_assign)
+
+	case ^IR_Loop:
+		new_iterable := insert_dups(e.iterable, binding, uses_left, interner)
+		// Don't insert dups for the loop variable (e.var) — it's bound by the loop
+		new_body := e.body // body uses e.var which is bound, not free
+		new_loop := new(IR_Loop)
+		new_loop^ = IR_Loop{
+			var      = e.var,
+			iterable = new_iterable,
+			body     = new_body,
+			type     = e.type,
+			span     = e.span,
+		}
+		return IR_Expr(new_loop)
 
 	case:
 		return expr
@@ -484,6 +514,25 @@ rc_insert_expr_inner :: proc(expr: IR_Expr, remaining: ^map[Intern_ID]int, inter
 		return IR_Expr(e)
 	case ^IR_Notify:
 		return IR_Expr(e)
+	case ^IR_Assign:
+		new_assign := new(IR_Assign)
+		new_assign^ = IR_Assign{
+			binding = e.binding,
+			value   = rc_insert_expr_inner(e.value, remaining, interner),
+			type    = e.type,
+			span    = e.span,
+		}
+		return IR_Expr(new_assign)
+	case ^IR_Loop:
+		new_loop := new(IR_Loop)
+		new_loop^ = IR_Loop{
+			var      = e.var,
+			iterable = rc_insert_expr_inner(e.iterable, remaining, interner),
+			body     = rc_insert_expr_inner(e.body, remaining, interner),
+			type     = e.type,
+			span     = e.span,
+		}
+		return IR_Expr(new_loop)
 	}
 
 	return expr

@@ -520,6 +520,18 @@ annotate_expr :: proc(expr: CExpr, env: ^Annotate_Env) -> TExpr {
 		result.eff_ = eff_ir
 		result.span = e.span
 		return TExpr(result)
+
+	case ^CExpr_For:
+		type_ir := lower_type(env.store, fresh_value_var(env.store, e.span))
+		eff_ir := lower_effect_type(env.store, fresh_effect_row(env.store, e.span))
+		result := new(TExpr_For)
+		result.var = e.var
+		result.iterable = annotate_expr(e.iterable, env)
+		result.body = annotate_expr(e.body, env)
+		result.type_ = type_ir
+		result.eff_ = eff_ir
+		result.span = e.span
+		return TExpr(result)
 	}
 
 	unreachable()

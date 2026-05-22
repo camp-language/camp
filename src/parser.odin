@@ -92,6 +92,7 @@ expr_span_start :: proc(expr: Expr) -> int {
 	case ^Expr_Interpolate:       return e.span.start
 	case ^Expr_Handle:            return e.span.start
 	case ^Expr_Par:               return e.span.start
+	case ^Expr_For:               return e.span.start
 	case ^Expr_Dot_Lambda:        return e.span.start
 	case:                         return 0
 	}
@@ -124,6 +125,7 @@ right_span_end :: proc(expr: Expr) -> int {
 	case ^Expr_Interpolate:       return e.span.end
 	case ^Expr_Handle:            return e.span.end
 	case ^Expr_Par:               return e.span.end
+	case ^Expr_For:               return e.span.end
 	case ^Expr_Dot_Lambda:        return e.span.end
 	case:                         return 0
 	}
@@ -295,11 +297,33 @@ parser_parse_const_decl :: proc(p: ^Parser, is_pub: bool) -> Decl {
 		return decl
 	}
 
-	if is_upper && type_ann != nil && p.current.kind != .Eq {
+	if is_upper && type_ann != nil && p.current.kind != .Eq && p.current.kind != .Kw_Where {
 		delete(type_params)
 		decl := new(Decl_Alias)
 		decl^ = Decl_Alias{name = name_id, is_pub = is_pub, target = type_ann, span = Source_Span{file_id = start_span.file_id, start = start_span.start, end = p.current.span.end}}
 		return decl
+	}
+
+	where_clauses := make([dynamic]Where_Clause, 0, 4)
+	if p.current.kind == .Kw_Where {
+		parser_advance(p)
+		for {
+			type_param_tok := parser_expect(p, .Identifier)
+			type_param_id := intern(p.intern, type_param_tok.text)
+			parser_expect(p, .Kw_Is)
+			trait_tok := parser_expect(p, .Upper_Id)
+			trait_id := intern(p.intern, trait_tok.text)
+			append(&where_clauses, Where_Clause{
+				type_param = type_param_id,
+				trait_name = trait_id,
+				span = Source_Span{file_id = start_span.file_id, start = type_param_tok.span.start, end = trait_tok.span.end},
+			})
+			if p.current.kind == .Comma {
+				parser_advance(p)
+			} else {
+				break
+			}
+		}
 	}
 
 	parser_expect(p, .Eq)
@@ -313,6 +337,7 @@ parser_parse_const_decl :: proc(p: ^Parser, is_pub: bool) -> Decl {
 		is_effectful = is_effectful,
 		body = body,
 		type_ann = type_ann,
+		where_clauses = where_clauses,
 		span = Source_Span{file_id = start_span.file_id, start = start_span.start, end = p.current.span.end},
 	}
 	return decl
@@ -422,6 +447,19 @@ parser_parse_prefix :: proc(p: ^Parser) -> Expr {
 
 	case .Kw_Par:
 		return parser_parse_par(p)
+
+	case .Kw_For:
+		parser_advance(p) // consume 'for'
+		var_tok := parser_expect(p, .Identifier)
+		var_id := intern(p.intern, var_tok.text)
+		parser_expect(p, .Kw_In)
+		iterable := parser_parse_expr(p)
+		parser_expect(p, .LBrace)
+		body := parser_parse_expr(p)
+		parser_expect(p, .RBrace)
+		e := new(Expr_For)
+		e^ = Expr_For{var = var_id, iterable = iterable, body = body, span = tok.span}
+		return e
 
 	case .LParen:
 		parser_advance(p)

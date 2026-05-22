@@ -170,6 +170,17 @@ cc_free_vars :: proc(expr: IR_Expr, bound: ^map[Intern_ID]bool) -> [dynamic]Inte
 		inner := cc_free_vars(e.body, bound)
 		for v in inner { append(&result, v) }
 		delete(inner)
+	case ^IR_Assign:
+		inner := cc_free_vars(e.value, bound)
+		for v in inner { append(&result, v) }
+		delete(inner)
+	case ^IR_Loop:
+		iter := cc_free_vars(e.iterable, bound)
+		for v in iter { append(&result, v) }
+		delete(iter)
+		body := cc_free_vars(e.body, bound)
+		for v in body { append(&result, v) }
+		delete(body)
 	case ^IR_Match:
 		scrut := cc_free_vars(e.scrutinee, bound)
 		for v in scrut { append(&result, v) }
@@ -543,6 +554,25 @@ cc_convert_expr :: proc(expr: IR_Expr, env: ^Closure_Convert_Env) -> IR_Expr {
 		return IR_Expr(e)
 	case ^IR_Notify:
 		return IR_Expr(e)
+	case ^IR_Assign:
+		new_assign := new(IR_Assign)
+		new_assign^ = IR_Assign{
+			binding = e.binding,
+			value   = cc_convert_expr(e.value, env),
+			type    = e.type,
+			span    = e.span,
+		}
+		return IR_Expr(new_assign)
+	case ^IR_Loop:
+		new_loop := new(IR_Loop)
+		new_loop^ = IR_Loop{
+			var      = e.var,
+			iterable = cc_convert_expr(e.iterable, env),
+			body     = cc_convert_expr(e.body, env),
+			type     = e.type,
+			span     = e.span,
+		}
+		return IR_Expr(new_loop)
 	}
 
 	return expr
@@ -693,6 +723,25 @@ rewrite_free_var_access :: proc(expr: IR_Expr, env_map: ^map[Intern_ID]IR_Expr) 
 			span = e.span,
 		}
 		return IR_Expr(new_resume)
+	case ^IR_Assign:
+		new_assign := new(IR_Assign)
+		new_assign^ = IR_Assign{
+			binding = e.binding,
+			value   = rewrite_free_var_access(e.value, env_map),
+			type    = e.type,
+			span    = e.span,
+		}
+		return IR_Expr(new_assign)
+	case ^IR_Loop:
+		new_loop := new(IR_Loop)
+		new_loop^ = IR_Loop{
+			var      = e.var,
+			iterable = rewrite_free_var_access(e.iterable, env_map),
+			body     = rewrite_free_var_access(e.body, env_map),
+			type     = e.type,
+			span     = e.span,
+		}
+		return IR_Expr(new_loop)
 	case:
 		return expr
 	}

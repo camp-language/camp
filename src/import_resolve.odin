@@ -337,6 +337,10 @@ resolve_expr_names :: proc(expr: CExpr, scope: ^Import_Scope, export_tables: ^ma
 			}
 		}
 
+	case ^CExpr_For:
+		resolve_expr_names(e.iterable, scope, export_tables, interner, collector)
+		resolve_expr_names(e.body, scope, export_tables, interner, collector)
+
 	case:
 	}
 }
