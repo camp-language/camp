@@ -690,7 +690,13 @@ parser_parse_lambda :: proc(p: ^Parser) -> Expr {
 	effects: ^Type = nil
 	if p.current.kind == .Arrow {
 		parser_advance(p)
-		if p.current.kind == .Minus {
+		if p.current.kind == .LBrace {
+			// ->{ Eff1, Eff2 } syntax (spec-compliant)
+			parser_advance(p)
+			effects = parser_parse_effect_row_type_brace(p)
+			parser_expect(p, .RBrace)
+		} else if p.current.kind == .Minus {
+			// ->-[ Eff1, Eff2 ]-> syntax (legacy)
 			parser_advance(p)
 			parser_expect(p, .LBrack)
 			effects = parser_parse_effect_row_type(p)
@@ -1218,7 +1224,13 @@ parser_parse_function_type :: proc(p: ^Parser) -> Type {
 	effects: ^Type = nil
 	if p.current.kind == .Arrow {
 		parser_advance(p)
-		if p.current.kind == .Minus {
+		if p.current.kind == .LBrace {
+			// ->{ Eff1, Eff2 } syntax (spec-compliant)
+			parser_advance(p)
+			effects = parser_parse_effect_row_type_brace(p)
+			parser_expect(p, .RBrace)
+		} else if p.current.kind == .Minus {
+			// ->-[ Eff1, Eff2 ]-> syntax (legacy)
 			parser_advance(p)
 			parser_expect(p, .LBrack)
 			effects = parser_parse_effect_row_type(p)
@@ -1352,8 +1364,9 @@ parser_parse_effect_row_type :: proc(p: ^Parser) -> ^Type {
 
 		name_tok := parser_expect(p, .Upper_Id)
 		name_text := name_tok.text
-		// Support Name! syntax for effect names in rows (strip the ! for internal lookup)
+		// Support Name! syntax for effect names in rows
 		if p.current.kind == .Bang {
+			name_text = fmt.tprintf("{}!", name_text)
 			parser_advance(p)
 		}
 		name_id := intern(p.intern, name_text)
@@ -1380,7 +1393,77 @@ parser_parse_effect_row_type :: proc(p: ^Parser) -> ^Type {
 			span = name_tok.span,
 		})
 
-		if p.current.kind == .Pipe {
+		if p.current.kind == .Comma {
+			parser_advance(p)
+			parser_skip_backslashes(p)
+		} else if p.current.kind == .Pipe {
+			parser_advance(p)
+		}
+	}
+
+	row := new(Type_Effect_Row)
+	row^ = Type_Effect_Row{effects = effects, rest = rest, is_open = is_open, span = start}
+	result := new(Type)
+	result^ = row
+	return result
+}
+
+parser_parse_effect_row_type_brace :: proc(p: ^Parser) -> ^Type {
+	start := p.current.span
+
+	effects := make([dynamic]Type_Effect_Entry, 0, 8)
+	rest: Intern_ID = 0
+	is_open := false
+
+	for p.current.kind != .RBrace && p.current.kind != .Eof {
+		if p.current.kind == .Dot_Dot {
+			is_open = true
+			parser_advance(p)
+			if p.current.kind == .Identifier {
+				rest_tok := parser_advance(p)
+				rest = intern(p.intern, rest_tok.text)
+			}
+			if p.current.kind == .Pipe {
+				parser_advance(p)
+			}
+			continue
+		}
+
+		name_tok := parser_expect(p, .Upper_Id)
+		name_text := name_tok.text
+		// Support Name! syntax for effect names
+		if p.current.kind == .Bang {
+			name_text = fmt.tprintf("{}!", name_text)
+			parser_advance(p)
+		}
+		name_id := intern(p.intern, name_text)
+
+		type_args := make([dynamic]Type, 0, 4)
+		// Parse optional type arguments: Name!(Type1, Type2, ...)
+		if p.current.kind == .LParen {
+			parser_advance(p)
+			for p.current.kind != .RParen && p.current.kind != .Eof {
+				if len(type_args) > 0 {
+					parser_expect(p, .Comma)
+					parser_skip_backslashes(p)
+					if p.current.kind == .RParen do break
+				}
+				arg_type := parser_parse_type(p)
+				append(&type_args, arg_type^)
+			}
+			parser_expect(p, .RParen)
+		}
+
+		append(&effects, Type_Effect_Entry{
+			name = name_id,
+			type_args = type_args,
+			span = name_tok.span,
+		})
+
+		if p.current.kind == .Comma {
+			parser_advance(p)
+			parser_skip_backslashes(p)
+		} else if p.current.kind == .Pipe {
 			parser_advance(p)
 		}
 	}
