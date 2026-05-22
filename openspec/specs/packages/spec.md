@@ -298,3 +298,37 @@ The `@derive [Encode, Decode]` annotation SHALL generate format-agnostic impleme
 - Given `@derive [Encode, Decode] User := { name: Str, age: U64 }`
 - When `User` is used with `Json`, `Xml`, and `Csv` formats
 - Then all three formats SHALL encode and decode `User` correctly without separate implementations
+
+### Requirement: Embedded Stdlib Modules
+
+The compiler SHALL embed stdlib `.camp` source files at build time. Stdlib modules SHALL be compiled alongside user modules with the same pipeline (lexing, parsing, canonicalization, typechecking, lowering, codegen). The resolution order SHALL be: user `src/` first, then embedded stdlib. This ensures user modules can shadow stdlib modules of the same name.
+
+#### Scenario: Stdlib module available without explicit import
+
+- Given a Camp project with no `import` statement for `List`
+- When the compiler resolves the name `List`
+- Then it SHALL find the embedded stdlib `List` module
+
+#### Scenario: User module shadows stdlib module
+
+- Given a Camp project with a `List.camp` file in its `src/` directory
+- When the compiler resolves the name `List`
+- Then it SHALL use the user's `List.camp` instead of the embedded stdlib `List`
+
+#### Scenario: Stdlib module compiled through same pipeline
+
+- Given the embedded stdlib `Result.camp` file
+- When the compiler processes it
+- Then it SHALL be lexed, parsed, canonicalized, typechecked, lowered, and codegenned using the same passes as user modules
+
+#### Scenario: Embedded stdlib content inclusion method
+
+- Given the compiler is built from source
+- When the build system compiles the Odin compiler
+- Then all `.camp` files in the `stdlib/` directory SHALL be embedded into the compiler binary using `#embed` or equivalent, making them available without filesystem access at compile time
+
+#### Scenario: Stdlib module listing
+
+- Given the embedded stdlib
+- When the compiler initializes
+- Then the following stdlib modules SHALL be available: `Result`, `Option`, `Bool`, `Int`, `Str`, `List`, `Iter`, `Map`, `Set`, `Eq`, `Ord`, `Hash`, `Fmt`, `Path`, `Console!`, `Throw!`, `File!`, `Env!`, `Time!`, `Random!`, `Log!`, `Crypto.Random!`, `Bytes`, `Serialize`
