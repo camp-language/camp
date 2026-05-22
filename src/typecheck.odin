@@ -169,24 +169,7 @@ typecheck_file :: proc(file: CFile, store: ^Type_Store, current_module: Intern_I
 }
 
 inject_prelude :: proc(store: ^Type_Store) {
-	builtin_types := []struct{name: string, kind: Inferred_Tag}{
-		{"Bool", .Constructor},
-		{"I64", .Primitive},
-		{"I32", .Primitive},
-		{"U64", .Primitive},
-		{"F64", .Primitive},
-		{"F32", .Primitive},
-		{"Str", .Primitive},
-		{"Unit", .Primitive},
-		{"I8", .Primitive},
-		{"I16", .Primitive},
-		{"U8", .Primitive},
-		{"U16", .Primitive},
-		{"U32", .Primitive},
-		{"Bytes", .Primitive},
-	}
-
-	for bt in builtin_types {
+	for bt in PRELUDE_BUILTIN_TYPES {
 		name_id := intern(store.interner, bt.name)
 		var_id := fresh_value_var(store, Source_Span_ZERO)
 		inf := Inferred_Type{tag = bt.kind, primitive_name = name_id}
@@ -197,66 +180,14 @@ inject_prelude :: proc(store: ^Type_Store) {
 		store.bindings[name_id] = var_id
 	}
 
-	// Constructor types with arity
-	constructor_types := []struct{name: string, arity: int}{
-		{"List", 1},
-		{"Iter", 1},
-		{"Map", 2},
-		{"Set", 1},
-		{"Handle", 1},
-		{"Ordering", 0},
-		{"Result", 2},
-		{"Option", 1},
-	}
-
-	for ct in constructor_types {
+	for ct in PRELUDE_CONSTRUCTOR_TYPES {
 		name_id := intern(store.interner, ct.name)
 		var_id := fresh_value_var(store, Source_Span_ZERO)
 		link_var(store, var_id, Inferred_Type{tag = .Constructor, primitive_name = name_id, arity = ct.arity})
 		store.bindings[name_id] = var_id
 	}
 
-	bool_name := intern(store.interner, "Bool")
-	bool_var, _ := store.bindings[bool_name]
-
-	true_name := intern(store.interner, "True")
-	true_var := fresh_value_var(store, Source_Span_ZERO)
-	true_tag_entries := store_alloc(store, Type_Tag_Entry, 1)
-	true_tag_entries[0] = Type_Tag_Entry{name = true_name, payload = nil}
-	true_rest := fresh_tag_row(store, Source_Span_ZERO)
-	link_var(store, true_var, Inferred_Type{
-		tag = .Tag_Union_Row,
-		tag_entries = true_tag_entries,
-		tag_rest = true_rest,
-	})
-	store.bindings[true_name] = true_var
-
-	false_name := intern(store.interner, "False")
-	false_var := fresh_value_var(store, Source_Span_ZERO)
-	false_tag_entries := store_alloc(store, Type_Tag_Entry, 1)
-	false_tag_entries[0] = Type_Tag_Entry{name = false_name, payload = nil}
-	false_rest := fresh_tag_row(store, Source_Span_ZERO)
-	link_var(store, false_var, Inferred_Type{
-		tag = .Tag_Union_Row,
-		tag_entries = false_tag_entries,
-		tag_rest = false_rest,
-	})
-	store.bindings[false_name] = false_var
-
-	// Tag declarations
-	tag_decls := []struct{name: string, has_payload: bool}{
-		{"Ok", true},
-		{"Err", true},
-		{"Some", true},
-		{"None", false},
-		{"Less", false},
-		{"Equal", false},
-		{"Greater", false},
-		{"Nil", false},
-		{"Cons", true},
-	}
-
-	for td in tag_decls {
+	for td in PRELUDE_TAG_DECLS {
 		name_id := intern(store.interner, td.name)
 		var_id := fresh_value_var(store, Source_Span_ZERO)
 		tag_entries := store_alloc(store, Type_Tag_Entry, 1)
@@ -276,86 +207,7 @@ inject_prelude :: proc(store: ^Type_Store) {
 		store.bindings[name_id] = var_id
 	}
 
-	// Console! effect
-	console_name := intern(store.interner, "Console")
-	append(&store.declared_effects, console_name)
-
-	str_id := store.bindings[intern(store.interner, "Str")]
-	void_id := store.bindings[intern(store.interner, "Unit")]
-
-	println_params := make([]Type_Var_ID, 1)
-	println_params[0] = str_id
-
-	console_ops := make([dynamic]Effect_Op_Sig, 0, 2)
-	append(&console_ops, Effect_Op_Sig{name = intern(store.interner, "println!"), param_count = 1, param_types = println_params[:], return_type = void_id})
-	append(&console_ops, Effect_Op_Sig{name = intern(store.interner, "readln!"), param_count = 0, param_types = nil, return_type = str_id})
-	store.effect_ops[console_name] = console_ops[:]
-
-	// Throw! effect
-	throw_name := intern(store.interner, "Throw")
-	append(&store.declared_effects, throw_name)
-
-	err_type_var := fresh_value_var(store, Source_Span_ZERO)
-	result_type_var := fresh_value_var(store, Source_Span_ZERO)
-
-	throw_params := make([]Type_Var_ID, 1)
-	throw_params[0] = err_type_var
-
-	throw_ops := make([dynamic]Effect_Op_Sig, 0, 1)
-	append(&throw_ops, Effect_Op_Sig{name = intern(store.interner, "throw!"), param_count = 1, param_types = throw_params[:], return_type = result_type_var})
-	store.effect_ops[throw_name] = throw_ops[:]
-
-	// Parallel! effect
-	parallel_name := intern(store.interner, "Parallel")
-	append(&store.declared_effects, parallel_name)
-
-	list_id := store.bindings[intern(store.interner, "List")]
-	a_var := fresh_value_var(store, Source_Span_ZERO)
-	b_var := fresh_value_var(store, Source_Span_ZERO)
-	e_var := fresh_effect_row(store, Source_Span_ZERO)
-
-	parallel_ops := make([dynamic]Effect_Op_Sig, 0, 6)
-	append(&parallel_ops, Effect_Op_Sig{name = intern(store.interner, "map!"), param_count = 2, param_types = nil, return_type = list_id})
-	append(&parallel_ops, Effect_Op_Sig{name = intern(store.interner, "for_each!"), param_count = 2, param_types = nil, return_type = void_id})
-	append(&parallel_ops, Effect_Op_Sig{name = intern(store.interner, "filter!"), param_count = 2, param_types = nil, return_type = list_id})
-	append(&parallel_ops, Effect_Op_Sig{name = intern(store.interner, "reduce!"), param_count = 3, param_types = nil, return_type = a_var})
-	append(&parallel_ops, Effect_Op_Sig{name = intern(store.interner, "all!"), param_count = 1, param_types = nil, return_type = list_id})
-	append(&parallel_ops, Effect_Op_Sig{name = intern(store.interner, "any!"), param_count = 1, param_types = nil, return_type = list_id})
-	store.effect_ops[parallel_name] = parallel_ops[:]
-
-	// Spawn! effect
-	spawn_name := intern(store.interner, "Spawn")
-	append(&store.declared_effects, spawn_name)
-
-	handle_id := store.bindings[intern(store.interner, "Handle")]
-
-	spawn_ops := make([dynamic]Effect_Op_Sig, 0, 3)
-	append(&spawn_ops, Effect_Op_Sig{name = intern(store.interner, "spawn!"), param_count = 1, param_types = nil, return_type = handle_id})
-	append(&spawn_ops, Effect_Op_Sig{name = intern(store.interner, "join!"), param_count = 1, param_types = nil, return_type = a_var})
-	append(&spawn_ops, Effect_Op_Sig{name = intern(store.interner, "cancel!"), param_count = 1, param_types = nil, return_type = void_id})
-	store.effect_ops[spawn_name] = spawn_ops[:]
-
-	// Async! effect
-	async_name := intern(store.interner, "Async")
-	append(&store.declared_effects, async_name)
-
-	a_var_async := fresh_value_var(store, Source_Span_ZERO)
-	handle_id_async := store.bindings[intern(store.interner, "Handle")]
-
-	async_ops := make([dynamic]Effect_Op_Sig, 0, 4)
-	append(&async_ops, Effect_Op_Sig{name = intern(store.interner, "spawn!"), param_count = 1, param_types = nil, return_type = handle_id_async})
-	append(&async_ops, Effect_Op_Sig{name = intern(store.interner, "join!"), param_count = 1, param_types = nil, return_type = a_var_async})
-	append(&async_ops, Effect_Op_Sig{name = intern(store.interner, "yield!"), param_count = 0, param_types = nil, return_type = void_id})
-	append(&async_ops, Effect_Op_Sig{name = intern(store.interner, "cancel!"), param_count = 1, param_types = nil, return_type = void_id})
-	store.effect_ops[async_name] = async_ops[:]
-
-	// Future effect name declarations (operations added later)
-	future_effects := []string{"File", "Env", "Time", "Random", "Log", "CryptoRandom"}
-
-	for eff_name in future_effects {
-		name_id := intern(store.interner, eff_name)
-		append(&store.declared_effects, name_id)
-	}
+	inject_prelude_effects_typecheck(store)
 }
 
 typecheck_decl :: proc(decl: CDecl, env: ^Type_Env, store: ^Type_Store) -> TDecl {
@@ -1665,14 +1517,7 @@ typecheck_method_call :: proc(e: ^CExpr_Method_Call, env: ^Type_Env, store: ^Typ
 	args_t := make([dynamic]TExpr, 0, len(e.args))
 
 	if is_effect_op {
-		console_name := intern(store.interner, "Console")
-		throw_name := intern(store.interner, "Throw")
-		parallel_name := intern(store.interner, "Parallel")
-		spawn_name := intern(store.interner, "Spawn")
-		async_name := intern(store.interner, "Async")
-		is_prelude := effect_name == console_name || effect_name == throw_name ||
-		              effect_name == parallel_name || effect_name == spawn_name ||
-		              effect_name == async_name
+		is_prelude := is_prelude_effect(effect_name, store.interner)
 		if !is_prelude && !is_effect_handled(env, effect_name) {
 			effect_str := intern_get(store.interner, effect_name)
 			collector_add_diag(store.collector, diag_unhandled_effect(effect_str, e.span))
@@ -1689,7 +1534,7 @@ typecheck_method_call :: proc(e: ^CExpr_Method_Call, env: ^Type_Env, store: ^Typ
 		})
 		unify(store, eff, row)
 
-		spawn_name = intern(store.interner, "spawn!")
+		spawn_name := intern(store.interner, "spawn!")
 		join_name := intern(store.interner, "join!")
 		is_scheduler := effect_name == intern(store.interner, "Spawn!") ||
 			effect_name == intern(store.interner, "Async!")
