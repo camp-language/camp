@@ -104,3 +104,14 @@ x = [1, 2, 3]
       (integer)
       (integer)
       (integer))))
+
+========
+Backtick raw identifier
+========
+x = `if`
+---
+
+(source_file
+  (const_declaration
+    (identifier)
+    (identifier)))

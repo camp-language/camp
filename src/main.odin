@@ -27,9 +27,9 @@ main :: proc() {
 	remaining_args := args[2:]
 	switch cmd {
 	case .Build: run_build(remaining_args)
-	case .Test:  fmt.println("TODO: camp test")
+	case .Test:  run_test(remaining_args)
 	case .Fmt:   run_fmt(remaining_args)
-	case .Check: fmt.println("TODO: camp check")
+	case .Check: run_check(remaining_args)
 	case .Lsp:   lsp_main()
 	}
 }

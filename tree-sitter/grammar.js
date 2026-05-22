@@ -33,6 +33,7 @@ export default grammar({
       $.effect_declaration,
       $.trait_declaration,
       $.alias_declaration,
+      $.newtype_declaration,
       $.import_declaration,
       $.test_declaration,
       $.expect_declaration,
@@ -42,6 +43,7 @@ export default grammar({
       field("name", $.identifier),
       optional("!"),
       optional(seq(":", field("type_annotation", $.type_annotation))),
+      optional($.where_clause),
       "=",
       field("body", $._expression),
     ),
@@ -111,6 +113,7 @@ export default grammar({
     test_declaration: ($) => seq(
       "test",
       field("name", $.string),
+      "=",
       field("body", $._expression),
     ),
 
@@ -187,6 +190,7 @@ export default grammar({
       $.anonymous_method_expression,
       $.return_expression,
       $.crash_expression,
+      $.par_expression,
     ),
 
     // --- Literals ---
@@ -205,7 +209,10 @@ export default grammar({
     boolean: ($) => choice("true", "false"),
 
     // --- Identifiers ---
-    identifier: ($) => /[_a-z][_a-zA-Z0-9]*/,
+    identifier: ($) => token(choice(
+      /[_a-z][_a-zA-Z0-9]*/,
+      /`[a-zA-Z_][a-zA-Z0-9_]*`/,
+    )),
 
     // --- Identifiers (continued) ---
     type_identifier: ($) => /[A-Z][a-zA-Z0-9]*/,
@@ -495,6 +502,67 @@ export default grammar({
     type_variable: ($) => $.identifier,
 
     type_annotation: ($) => $._type,
+
+    // --- Newtype ---
+    newtype_declaration: ($) => seq(
+      "@",
+      field("name", $.type_identifier),
+      optional(seq(
+        "(",
+        optional(seq($.identifier, repeat(seq(",", $.identifier)))),
+        ")",
+      )),
+      optional(seq(
+        "is",
+        $.type_identifier,
+        repeat(seq(",", $.type_identifier)),
+      )),
+      optional($.derives_clause),
+      ":",
+      optional("pub"),
+      field("inner_type", $._type),
+    ),
+
+    derives_clause: ($) => seq(
+      "derives",
+      $.type_identifier,
+      repeat(seq(",", $.type_identifier)),
+    ),
+
+    // --- Par ---
+    par_expression: ($) => choice(
+      seq(
+        "par",
+        "for",
+        field("var", $.identifier),
+        "in",
+        field("iterable", $._expression),
+        field("body", $.block),
+      ),
+      seq(
+        "par",
+        field("expressions", $.par_block),
+      ),
+    ),
+
+    par_block: ($) => seq(
+      "{",
+      optional(seq($._expression, repeat(seq(",", $._expression)))),
+      "}",
+    ),
+
+    // --- Where clause ---
+    where_clause: ($) => seq(
+      "where",
+      $.where_constraint,
+      repeat(seq(",", $.where_constraint)),
+    ),
+
+    where_constraint: ($) => seq(
+      field("type_param", $.identifier),
+      "is",
+      field("trait", $.type_identifier),
+    ),
 
     // --- Keywords ---
     _if: ($) => "if",

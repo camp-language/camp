@@ -234,15 +234,43 @@ Dot lambda mixed field and method
 x = .record.field.method(y).name
 ---
 (source_file
+  (field_access_expression
+    (method_call_expression
+      (field_access_expression
+        (anonymous_method_expression
+          (identifier))
+        (identifier))
+      (identifier)
+      (arguments
+        (identifier)))
+    (identifier)))
+
+========
+Par block
+========
+x = par { 1, 2, 3 }
+---
+
+(source_file
   (const_declaration
     (identifier)
-    (field_access_expression
-      (method_call_expression
-        (field_access_expression
-          (anonymous_method_expression
-            (identifier))
-          (identifier))
-        (identifier)
-        (arguments
-          (identifier)))
-      (identifier))))
+    (par_expression
+      (par_block
+        (integer)
+        (integer)
+        (integer)))))
+
+========
+Par for
+========
+x = par for item in xs { item }
+---
+
+(source_file
+  (const_declaration
+    (identifier)
+    (par_expression
+      (identifier)
+      (identifier)
+      (block
+        (identifier)))))

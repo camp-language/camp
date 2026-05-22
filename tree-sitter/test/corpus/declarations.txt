@@ -89,7 +89,7 @@ import Std exposing [println, read] as IO
 ========
 Test declaration
 ========
-test "it works" { 42 }
+test "it works" = { 42 }
 ---
 
 (source_file
@@ -111,3 +111,93 @@ expect 1 + 1 == 2
         (integer)
         (integer))
       (integer))))
+
+========
+Newtype declaration simple
+========
+@UserId : U64
+---
+
+(source_file
+  (newtype_declaration
+    (type_identifier)
+    (type_identifier)))
+
+========
+Newtype with trait conformance
+========
+@UserId is Hash : U64
+---
+
+(source_file
+  (newtype_declaration
+    (type_identifier)
+    (type_identifier)
+    (type_identifier)))
+
+========
+Newtype with derives
+========
+@UserId derives Eq, Clone : U64
+---
+
+(source_file
+  (newtype_declaration
+    (type_identifier)
+    (derives_clause
+      (type_identifier)
+      (type_identifier))
+    (type_identifier)))
+
+========
+Newtype with type params
+========
+@Result(a, e) : [Ok(a) | Err(e)]
+---
+
+(source_file
+  (newtype_declaration
+    (type_identifier)
+    (identifier)
+    (identifier)
+    (tag_union_type
+      (tag_union_variant
+        (type_identifier)
+        (type_arguments
+          (identifier)))
+      (tag_union_variant
+        (type_identifier)
+        (type_arguments
+          (identifier))))))
+
+========
+Newtype is and derives
+========
+@UserId is Hash derives Eq : U64
+---
+
+(source_file
+  (newtype_declaration
+    (type_identifier)
+    (type_identifier)
+    (derives_clause
+      (type_identifier))
+    (type_identifier)))
+
+========
+Where clause in const
+========
+identity: T where T is Eq = x
+---
+
+(source_file
+  (const_declaration
+    (identifier)
+    (type_annotation
+      (type_variable
+        (identifier)))
+    (where_clause
+      (where_constraint
+        (identifier)
+        (type_identifier)))
+    (identifier)))
