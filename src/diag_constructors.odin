@@ -273,6 +273,13 @@ diag_unjoined_spawn :: proc(span: Source_Span) -> Diagnostic {
 	return d
 }
 
+diag_shadow :: proc(name: string, span: Source_Span) -> Diagnostic {
+	d := diag_init(.Error, "SHADOWING", span,
+		fmt.tprintf("`{}` shadows a binding from an enclosing scope. All shadowing is forbidden.", name))
+	append(&d.hints, "Use a different name for this binding.")
+	return d
+}
+
 char_display :: proc(ch: u8) -> string {
 	switch ch {
 	case '\n': return "\\n"

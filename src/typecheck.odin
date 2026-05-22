@@ -27,6 +27,13 @@ env_lookup :: proc(env: ^Type_Env, name: Intern_ID) -> (Type_Var_ID, bool) {
 	return Type_Var_ID(-1), false
 }
 
+check_shadow :: proc(env: ^Type_Env, name: Intern_ID, store: ^Type_Store, span: Source_Span) {
+	if _, exists := env_lookup(env, name); exists {
+		name_str := intern_get(store.interner, name)
+		collector_add_diag(store.collector, diag_shadow(name_str, span))
+	}
+}
+
 levenshtein_distance :: proc(a: string, b: string) -> int {
 	if len(a) == 0 do return len(b)
 	if len(b) == 0 do return len(a)
@@ -252,10 +259,10 @@ inject_prelude :: proc(store: ^Type_Store) {
 	println_params := make([]Type_Var_ID, 1)
 	println_params[0] = str_id
 
-	store.effect_ops[console_name] = []Effect_Op_Sig{
-		{name = intern(store.interner, "println!"), param_count = 1, param_types = println_params[:], return_type = void_id},
-		{name = intern(store.interner, "readln!"), param_count = 0, param_types = nil, return_type = str_id},
-	}
+	console_ops := make([dynamic]Effect_Op_Sig, 0, 2)
+	append(&console_ops, Effect_Op_Sig{name = intern(store.interner, "println!"), param_count = 1, param_types = println_params[:], return_type = void_id})
+	append(&console_ops, Effect_Op_Sig{name = intern(store.interner, "readln!"), param_count = 0, param_types = nil, return_type = str_id})
+	store.effect_ops[console_name] = console_ops[:]
 
 	// Throw! effect
 	throw_name := intern(store.interner, "Throw")
@@ -267,9 +274,9 @@ inject_prelude :: proc(store: ^Type_Store) {
 	throw_params := make([]Type_Var_ID, 1)
 	throw_params[0] = err_type_var
 
-	store.effect_ops[throw_name] = []Effect_Op_Sig{
-		{name = intern(store.interner, "throw!"), param_count = 1, param_types = throw_params[:], return_type = result_type_var},
-	}
+	throw_ops := make([dynamic]Effect_Op_Sig, 0, 1)
+	append(&throw_ops, Effect_Op_Sig{name = intern(store.interner, "throw!"), param_count = 1, param_types = throw_params[:], return_type = result_type_var})
+	store.effect_ops[throw_name] = throw_ops[:]
 
 	// Parallel! effect
 	parallel_name := intern(store.interner, "Parallel")
@@ -280,14 +287,14 @@ inject_prelude :: proc(store: ^Type_Store) {
 	b_var := fresh_value_var(store, Source_Span_ZERO)
 	e_var := fresh_effect_row(store, Source_Span_ZERO)
 
-	store.effect_ops[parallel_name] = []Effect_Op_Sig{
-		{name = intern(store.interner, "map!"), param_count = 2, param_types = nil, return_type = list_id},
-		{name = intern(store.interner, "for_each!"), param_count = 2, param_types = nil, return_type = void_id},
-		{name = intern(store.interner, "filter!"), param_count = 2, param_types = nil, return_type = list_id},
-		{name = intern(store.interner, "reduce!"), param_count = 3, param_types = nil, return_type = a_var},
-		{name = intern(store.interner, "all!"), param_count = 1, param_types = nil, return_type = list_id},
-		{name = intern(store.interner, "any!"), param_count = 1, param_types = nil, return_type = list_id},
-	}
+	parallel_ops := make([dynamic]Effect_Op_Sig, 0, 6)
+	append(&parallel_ops, Effect_Op_Sig{name = intern(store.interner, "map!"), param_count = 2, param_types = nil, return_type = list_id})
+	append(&parallel_ops, Effect_Op_Sig{name = intern(store.interner, "for_each!"), param_count = 2, param_types = nil, return_type = void_id})
+	append(&parallel_ops, Effect_Op_Sig{name = intern(store.interner, "filter!"), param_count = 2, param_types = nil, return_type = list_id})
+	append(&parallel_ops, Effect_Op_Sig{name = intern(store.interner, "reduce!"), param_count = 3, param_types = nil, return_type = a_var})
+	append(&parallel_ops, Effect_Op_Sig{name = intern(store.interner, "all!"), param_count = 1, param_types = nil, return_type = list_id})
+	append(&parallel_ops, Effect_Op_Sig{name = intern(store.interner, "any!"), param_count = 1, param_types = nil, return_type = list_id})
+	store.effect_ops[parallel_name] = parallel_ops[:]
 
 	// Spawn! effect
 	spawn_name := intern(store.interner, "Spawn")
@@ -295,11 +302,11 @@ inject_prelude :: proc(store: ^Type_Store) {
 
 	handle_id := store.bindings[intern(store.interner, "Handle")]
 
-	store.effect_ops[spawn_name] = []Effect_Op_Sig{
-		{name = intern(store.interner, "spawn!"), param_count = 1, param_types = nil, return_type = handle_id},
-		{name = intern(store.interner, "join!"), param_count = 1, param_types = nil, return_type = a_var},
-		{name = intern(store.interner, "cancel!"), param_count = 1, param_types = nil, return_type = void_id},
-	}
+	spawn_ops := make([dynamic]Effect_Op_Sig, 0, 3)
+	append(&spawn_ops, Effect_Op_Sig{name = intern(store.interner, "spawn!"), param_count = 1, param_types = nil, return_type = handle_id})
+	append(&spawn_ops, Effect_Op_Sig{name = intern(store.interner, "join!"), param_count = 1, param_types = nil, return_type = a_var})
+	append(&spawn_ops, Effect_Op_Sig{name = intern(store.interner, "cancel!"), param_count = 1, param_types = nil, return_type = void_id})
+	store.effect_ops[spawn_name] = spawn_ops[:]
 
 	// Async! effect
 	async_name := intern(store.interner, "Async")
@@ -308,12 +315,12 @@ inject_prelude :: proc(store: ^Type_Store) {
 	a_var_async := fresh_value_var(store, Source_Span_ZERO)
 	handle_id_async := store.bindings[intern(store.interner, "Handle")]
 
-	store.effect_ops[async_name] = []Effect_Op_Sig{
-		{name = intern(store.interner, "spawn!"), param_count = 1, param_types = nil, return_type = handle_id_async},
-		{name = intern(store.interner, "join!"), param_count = 1, param_types = nil, return_type = a_var_async},
-		{name = intern(store.interner, "yield!"), param_count = 0, param_types = nil, return_type = void_id},
-		{name = intern(store.interner, "cancel!"), param_count = 1, param_types = nil, return_type = void_id},
-	}
+	async_ops := make([dynamic]Effect_Op_Sig, 0, 4)
+	append(&async_ops, Effect_Op_Sig{name = intern(store.interner, "spawn!"), param_count = 1, param_types = nil, return_type = handle_id_async})
+	append(&async_ops, Effect_Op_Sig{name = intern(store.interner, "join!"), param_count = 1, param_types = nil, return_type = a_var_async})
+	append(&async_ops, Effect_Op_Sig{name = intern(store.interner, "yield!"), param_count = 0, param_types = nil, return_type = void_id})
+	append(&async_ops, Effect_Op_Sig{name = intern(store.interner, "cancel!"), param_count = 1, param_types = nil, return_type = void_id})
+	store.effect_ops[async_name] = async_ops[:]
 
 	// Future effect name declarations (operations added later)
 	future_effects := []string{"File", "Env", "Time", "Random", "Log", "CryptoRandom"}
@@ -327,6 +334,7 @@ inject_prelude :: proc(store: ^Type_Store) {
 typecheck_decl :: proc(decl: CDecl, env: ^Type_Env, store: ^Type_Store) {
 	switch d in decl {
 	case ^CDecl_Const:
+		check_shadow(env, d.name.name, store, d.span)
 		self_var := fresh_value_var(store, d.span)
 		env.bindings[d.name.name] = self_var
 		store.rec_vars[self_var] = true
@@ -473,6 +481,7 @@ typecheck_newtype_decl :: proc(d: ^CDecl_Newtype, env: ^Type_Env, store: ^Type_S
 	exit_level(store)
 	generalize_at_level(store, level)
 
+	check_shadow(env, d.name.name, store, d.span)
 	env.bindings[d.name.name] = nt_var
 	store.bindings[d.name.name] = nt_var
 
@@ -572,6 +581,7 @@ typecheck_synth :: proc(expr: CExpr, env: ^Type_Env, store: ^Type_Store) -> Type
 		result := typecheck_synth(e.value, env, store)
 		#partial switch target in e.target {
 		case ^CExpr_Name:
+			check_shadow(env, target.name.name, store, e.span)
 			env.bindings[target.name.name] = result.var_id
 		case:
 		}
@@ -627,6 +637,7 @@ typecheck_synth :: proc(expr: CExpr, env: ^Type_Env, store: ^Type_Store) -> Type
 					// Create param type vars and bind them
 					for i in 0..<len(arm.params) {
 						pv := fresh_value_var(store, arm.span)
+						check_shadow(&arm_env, arm.params[i], store, arm.span)
 						arm_env.bindings[arm.params[i]] = pv
 						// The first param is resume (the continuation), rest map to op param types
 						param_sig_idx := i - 1
@@ -668,6 +679,7 @@ typecheck_synth :: proc(expr: CExpr, env: ^Type_Env, store: ^Type_Store) -> Type
 			} else {
 				// No stored sigs - bind params as fresh vars so they're usable in the arm body
 				for p in arm.params {
+					check_shadow(&arm_env, p, store, arm.span)
 					arm_env.bindings[p] = fresh_value_var(store, arm.span)
 				}
 				arm_result := typecheck_synth(arm.body, &arm_env, store)
@@ -736,6 +748,7 @@ typecheck_lambda :: proc(e: ^CExpr_Lambda, env: ^Type_Env, store: ^Type_Store) -
 		} else {
 			tv = fresh_value_var(store, e.span)
 		}
+		check_shadow(&child_env, tp.name, store, e.span)
 		child_env.bindings[tp.name] = tv
 		store.type_constraints[tv] = tp.constraints[:]
 	}
@@ -747,6 +760,7 @@ typecheck_lambda :: proc(e: ^CExpr_Lambda, env: ^Type_Env, store: ^Type_Store) -
 			ann_var := convert_type_to_var(param.type_ann, store)
 			unify(store, param_var, ann_var)
 		}
+		check_shadow(&child_env, param.name, store, param.span)
 		child_env.bindings[param.name] = param_var
 		param_ids[i] = param_var
 	}
@@ -996,6 +1010,7 @@ typecheck_pattern :: proc(pattern: CPattern, scrutinee_var: Type_Var_ID, env: ^T
 
 	#partial switch p in pattern {
 	case ^CPattern_Identifier:
+		check_shadow(env, p.name, store, p.span)
 		env.bindings[p.name] = scrutinee_var
 		return Type_Result{var_id = scrutinee_var, effects = eff}
 
