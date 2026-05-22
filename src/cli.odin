@@ -208,6 +208,7 @@ run_build_project :: proc(thread_count: int = 1) {
 					name = intern(&ctx.interner, m_exp.name),
 					kind = m_exp.kind,
 					is_pub = m_exp.is_pub,
+					pub_variants = m_exp.pub_variants,
 					type_var = Type_Var_ID(-1),
 				})
 			}

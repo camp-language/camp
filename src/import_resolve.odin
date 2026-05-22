@@ -57,6 +57,12 @@ resolve_imports :: proc(
 				name = d.name.name,
 				is_local = true,
 			}
+		case ^CDecl_Newtype:
+			scope.unqualified[d.name.name] = Canonical_Name{
+				module = module_name,
+				name = d.name.name,
+				is_local = true,
+			}
 		case:
 		}
 	}

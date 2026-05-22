@@ -374,7 +374,15 @@ test_manifest_round_trip :: proc(t: ^testing.T) {
 	exp.name = "map"
 	exp.kind = .Const
 	exp.is_pub = true
+	exp.pub_variants = false
 	append(&manifest.exports, exp)
+
+	nt_exp: Manifest_Export
+	nt_exp.name = "Result"
+	nt_exp.kind = .Newtype
+	nt_exp.is_pub = true
+	nt_exp.pub_variants = true
+	append(&manifest.exports, nt_exp)
 
 	data := serialize_manifest(manifest, ctx.allocator)
 	testing.expect(t, len(data) > 0)
@@ -384,7 +392,7 @@ test_manifest_round_trip :: proc(t: ^testing.T) {
 	testing.expect(t, result.content_hash == "abc123")
 	testing.expect(t, result.module_name == "List")
 	testing.expect(t, len(result.imports) == 1)
-	testing.expect(t, len(result.exports) == 1)
+	testing.expect(t, len(result.exports) == 2)
 
 	if len(result.imports) > 0 {
 		testing.expect(t, result.imports[0].module == "Maybe")
@@ -396,6 +404,14 @@ test_manifest_round_trip :: proc(t: ^testing.T) {
 		testing.expect(t, result.exports[0].name == "map")
 		testing.expect(t, result.exports[0].kind == .Const)
 		testing.expect(t, result.exports[0].is_pub == true)
+		testing.expect(t, result.exports[0].pub_variants == false)
+	}
+
+	if len(result.exports) > 1 {
+		testing.expect(t, result.exports[1].name == "Result")
+		testing.expect(t, result.exports[1].kind == .Newtype)
+		testing.expect(t, result.exports[1].is_pub == true)
+		testing.expect(t, result.exports[1].pub_variants == true)
 	}
 
 	manifest_destroy(&manifest)
@@ -417,4 +433,94 @@ test_manifest_deserialize_bad_magic :: proc(t: ^testing.T) {
 test_cache_has_miss :: proc(t: ^testing.T) {
 	has := cache_has("nonexistent_key_12345", ".manifest")
 	testing.expect(t, !has)
+}
+
+@(test)
+test_export_table_newtype_pub :: proc(t: ^testing.T) {
+	ctx: Compilation_Context
+	context_init(&ctx)
+	defer context_destroy(&ctx)
+
+	store: Type_Store
+	type_store_init(&store, &ctx.interner, &ctx.collector)
+	defer type_store_destroy(&store)
+
+	result_name := intern(&ctx.interner, "Result")
+	nt := CDecl_Newtype{
+		name = Canonical_Name{name = result_name, is_local = true},
+		is_pub = true,
+		pub_variants = true,
+	}
+
+	cfile: CFile
+	cfile.decls = make([dynamic]CDecl, 1)
+	append(&cfile.decls, CDecl(&nt))
+
+	et := collect_exports(cfile, &store)
+	defer export_table_destroy(&et)
+
+	ei, ok := export_lookup(&et, result_name)
+	testing.expect(t, ok)
+	testing.expect(t, ei.kind == .Newtype)
+	testing.expect(t, ei.is_pub)
+	testing.expect(t, ei.pub_variants)
+}
+
+@(test)
+test_export_table_newtype_private :: proc(t: ^testing.T) {
+	ctx: Compilation_Context
+	context_init(&ctx)
+	defer context_destroy(&ctx)
+
+	store: Type_Store
+	type_store_init(&store, &ctx.interner, &ctx.collector)
+	defer type_store_destroy(&store)
+
+	result_name := intern(&ctx.interner, "Result")
+	nt := CDecl_Newtype{
+		name = Canonical_Name{name = result_name, is_local = true},
+		is_pub = false,
+		pub_variants = false,
+	}
+
+	cfile: CFile
+	cfile.decls = make([dynamic]CDecl, 1)
+	append(&cfile.decls, CDecl(&nt))
+
+	et := collect_exports(cfile, &store)
+	defer export_table_destroy(&et)
+
+	_, ok := export_lookup(&et, result_name)
+	testing.expect(t, !ok)
+}
+
+@(test)
+test_export_table_newtype_pub_opaque :: proc(t: ^testing.T) {
+	ctx: Compilation_Context
+	context_init(&ctx)
+	defer context_destroy(&ctx)
+
+	store: Type_Store
+	type_store_init(&store, &ctx.interner, &ctx.collector)
+	defer type_store_destroy(&store)
+
+	userid_name := intern(&ctx.interner, "UserId")
+	nt := CDecl_Newtype{
+		name = Canonical_Name{name = userid_name, is_local = true},
+		is_pub = true,
+		pub_variants = false,
+	}
+
+	cfile: CFile
+	cfile.decls = make([dynamic]CDecl, 1)
+	append(&cfile.decls, CDecl(&nt))
+
+	et := collect_exports(cfile, &store)
+	defer export_table_destroy(&et)
+
+	ei, ok := export_lookup(&et, userid_name)
+	testing.expect(t, ok)
+	testing.expect(t, ei.kind == .Newtype)
+	testing.expect(t, ei.is_pub)
+	testing.expect(t, !ei.pub_variants)
 }

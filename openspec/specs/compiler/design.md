@@ -463,7 +463,7 @@ runtime.
 | Comptime evaluation | §5.7, §10.3 | Not started |
 | Module system (import resolution, multi-file) | §8.1-8.2 | `Deferred_Import` recorded but never resolved; single-file compilation only |
 | `camp.toml` parsing | §8.3 | Not started |
-| `pub` visibility enforcement | §3.15 | Parsed but not checked |
+| `pub` visibility enforcement | §3.15 | Enforced at import resolution and qualified access; newtypes included in export table with `pub_variants` |
 | No-shadowing enforcement | §3.13 | Not implemented |
 | Backtick raw identifiers | §3.16 | Not implemented |
 | String methods (`.len()`, `.slice()`, etc.) | §7.3 | Not implemented |

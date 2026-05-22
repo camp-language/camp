@@ -5,13 +5,15 @@ Export_Kind :: enum {
 	Effect,
 	Trait,
 	Alias,
+	Newtype,
 }
 
 Export_Info :: struct {
-	name:     Intern_ID,
-	kind:     Export_Kind,
-	is_pub:   bool,
-	type_var: Type_Var_ID,
+	name:         Intern_ID,
+	kind:         Export_Kind,
+	is_pub:       bool,
+	pub_variants: bool,
+	type_var:     Type_Var_ID,
 }
 
 Export_Table :: struct {
@@ -69,6 +71,16 @@ collect_exports :: proc(cfile: CFile, store: ^Type_Store) -> Export_Table {
 					name = d.name.name,
 					kind = .Alias,
 					is_pub = true,
+					type_var = Type_Var_ID(-1),
+				}
+			}
+		case ^CDecl_Newtype:
+			if d.is_pub {
+				table.exports[d.name.name] = Export_Info{
+					name = d.name.name,
+					kind = .Newtype,
+					is_pub = true,
+					pub_variants = d.pub_variants,
 					type_var = Type_Var_ID(-1),
 				}
 			}

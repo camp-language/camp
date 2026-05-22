@@ -12,7 +12,7 @@ Cache_Entry :: struct {
 }
 
 MODULE_MANIFEST_MAGIC :u32 : 0x434D4D46
-MODULE_MANIFEST_VERSION :u32 : 1
+MODULE_MANIFEST_VERSION :u32 : 2
 
 Module_Manifest :: struct {
 	content_hash:  string,
@@ -29,9 +29,10 @@ Manifest_Import :: struct {
 }
 
 Manifest_Export :: struct {
-	name:   string,
-	kind:   Export_Kind,
-	is_pub: bool,
+	name:         string,
+	kind:         Export_Kind,
+	is_pub:       bool,
+	pub_variants: bool,
 }
 
 cache_dir :: proc() -> string {
@@ -146,6 +147,7 @@ serialize_manifest :: proc(manifest: Module_Manifest, allocator: mem.Allocator) 
 		write_string(&buf, exp.name)
 		write_u16_le(&buf, u16(int(exp.kind)))
 		append(&buf, bool_to_u8(exp.is_pub))
+		append(&buf, bool_to_u8(exp.pub_variants))
 	}
 
 	return buf[:]
@@ -217,7 +219,7 @@ deserialize_manifest :: proc(data: []byte, allocator: mem.Allocator) -> (Module_
 		exp.name = name_str
 
 		kind_val := int(read_u16_le(data, &pos))
-		if kind_val > int(Export_Kind.Alias) {
+		if kind_val > int(Export_Kind.Newtype) {
 			manifest_destroy(&manifest)
 			return Module_Manifest{}, false
 		}
@@ -225,6 +227,11 @@ deserialize_manifest :: proc(data: []byte, allocator: mem.Allocator) -> (Module_
 
 		if pos < len(data) {
 			exp.is_pub = data[pos] != 0
+			pos += 1
+		}
+
+		if pos < len(data) {
+			exp.pub_variants = data[pos] != 0
 			pos += 1
 		}
 
@@ -260,6 +267,7 @@ build_manifest :: proc(mi: ^Module_Info, interner: ^Intern_Table) -> Module_Mani
 		me.name = intern_get(interner, exp.name)
 		me.kind = exp.kind
 		me.is_pub = exp.is_pub
+		me.pub_variants = exp.pub_variants
 		append(&manifest.exports, me)
 	}
 
