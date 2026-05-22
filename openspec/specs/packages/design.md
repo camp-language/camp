@@ -33,13 +33,13 @@ The Camp package ecosystem is organized in three tiers with increasing freedom a
 | `Bytes` | Pure | Raw byte sequences, hex, base64, encode, decode |
 | `Result` | Pure | Tag union helpers for Ok(a) \| Err(e) |
 | `Option` | Pure | Tag union helpers for Some(a) \| None |
-| `File` | Effect | File I/O: open!, close!, read!, write! |
-| `Console` | Effect | Terminal I/O: print!, printerr!, readln! |
-| `Async` | Effect | Concurrency: yield!, spawn!, join!, cancel! |
-| `Throw` | Effect | Error effect: throw! operation |
-| `Env` | Effect | CLI args, env vars: args!, get_env! |
-| `Time` | Effect | Clock, duration: now!, sleep! |
-| `Random` | Effect | Non-crypto random generation: int!, float!, bytes! |
+| `File!` | Effect | File I/O: open!, close!, read!, write! |
+| `Console!` | Effect | Terminal I/O: print!, printerr!, readln! |
+| `Async!` | Effect | Concurrency: yield!, spawn!, join!, cancel! |
+| `Throw!` | Effect | Error effect: throw! operation |
+| `Env!` | Effect | CLI args, env vars: args!, get_env! |
+| `Time!` | Effect | Clock, duration: now!, sleep! |
+| `Random!` | Effect | Non-crypto random generation: int!, float!, bytes! |
 | `Path` | Pure | File path manipulation: join, split, extension, directory, filename |
 | `Fmt` | Pure | Formatting: Display trait, format function |
 | `Hash` | Pure | Hashing: Hash trait, hash functions (SipHash, FNV) |
@@ -58,13 +58,13 @@ The Camp package ecosystem is organized in three tiers with increasing freedom a
 | `Uri` | Pure | URI/URL parsing and construction: scheme, authority, path, query, fragment, percent encoding |
 | `Duration` | Pure | Duration type with arithmetic: seconds, ms, µs, ns, from_parts, to_parts, add, subtract, multiply, compare |
 | `DateTime` | Pure | Date/time types: Date, Time, DateTime, TimeZone, offset arithmetic, ISO 8601, parsing, formatting |
-| `Log` | Effect | Structured logging: debug!, info!, warn!, error! with key-value context |
+| `Log!` | Effect | Structured logging: debug!, info!, warn!, error! with key-value context |
 
 **Priority 2 — Required for Most REST APIs:**
 
 | Module | Category | Contents |
 |--------|----------|----------|
-| `Crypto.Random` | Effect | Cryptographically secure random: bytes!, int!, uuid! |
+| `Crypto.Random!` | Effect | Cryptographically secure random: bytes!, int!, uuid! |
 | `Base64` | Pure | Base64, Base64URL, Base32, Base16 (Hex) encoding/decoding |
 | `Gzip` | Pure | Gzip/zlib compression and decompression (pure computation on bytes) |
 | `Uuid` | Pure | UUID generation and parsing: v4, v7, parse, from_string, to_string, Nil |
@@ -106,17 +106,17 @@ The Camp package ecosystem is organized in three tiers with increasing freedom a
 ### New Effect Definitions
 
 ```
-effect Log {
-  debug!   : Str ->{ Log } {}
-  info!    : Str ->{ Log } {}
-  warn!    : Str ->{ Log } {}
-  error!   : Str ->{ Log } {}
+effect Log! {
+  debug!   : Str -[Log!]-> {}
+  info!    : Str -[Log!]-> {}
+  warn!    : Str -[Log!]-> {}
+  error!   : Str -[Log!]-> {}
 }
 
-effect Crypto.Random {
-  bytes! : U64 ->{ Crypto.Random } Bytes
-  int!   : Int, Int ->{ Crypto.Random } Int
-  uuid!  : || ->{ Crypto.Random } Uuid
+effect Crypto.Random! {
+  bytes! : U64 -[Crypto.Random!]-> Bytes
+  int!   : Int, Int -[Crypto.Random!]-> Int
+  uuid!  : || -[Crypto.Random!]-> Uuid
 }
 ```
 
@@ -217,23 +217,23 @@ Json.decode : Decode a => Str -> Result(a, DecodeError)
 ### Server Effect
 
 ```
-effect Http.Server {
-  listen!  : Str, U16 ->{ Http.Server } {}
-  route!   : Method, Str, (Request ->{ Http } Response) ->{ Http.Server } {}
-  serve!   : || ->{ Http.Server, Throw(HttpError) } {}
+effect Http.Server! {
+  listen!  : Str, U16 -[Http.Server!]-> {}
+  route!   : Method, Str, (Request -[Http!]-> Response) -[Http.Server!]-> {}
+  serve!   : || -[Http.Server!, Throw!(HttpError)]-> {}
 }
 ```
 
 ### Client Effect
 
 ```
-effect Http.Client {
-  get!     : Str ->{ Http.Client, Throw(HttpError) } Response
-  post!    : Str, Body ->{ Http.Client, Throw(HttpError) } Response
-  put!     : Str, Body ->{ Http.Client, Throw(HttpError) } Response
-  delete!  : Str ->{ Http.Client, Throw(HttpError) } Response
-  patch!   : Str, Body ->{ Http.Client, Throw(HttpError) } Response
-  request! : Request ->{ Http.Client, Throw(HttpError) } Response
+effect Http.Client! {
+  get!     : Str -[Http.Client!, Throw!(HttpError)]-> Response
+  post!    : Str, Body -[Http.Client!, Throw!(HttpError)]-> Response
+  put!     : Str, Body -[Http.Client!, Throw!(HttpError)]-> Response
+  delete!  : Str -[Http.Client!, Throw!(HttpError)]-> Response
+  patch!   : Str, Body -[Http.Client!, Throw!(HttpError)]-> Response
+  request! : Request -[Http.Client!, Throw!(HttpError)]-> Response
 }
 ```
 
@@ -251,16 +251,16 @@ Http.Body     := [Empty | Text(Str) | Binary(Bytes) | Stream(Iter(Bytes))]
 ### Generic Database Interface
 
 ```
-effect Database {
-  query!     : Str, List(Value) ->{ Database, Throw(DbError) } Rows
-  execute!   : Str, List(Value) ->{ Database, Throw(DbError) } Result
-  prepare!   : Str ->{ Database, Throw(DbError) } Statement
-  transaction! : || ->{ Database, Throw(DbError) } a ->{ Database, Throw(DbError) } a
+effect Database! {
+  query!     : Str, List(Value) -[Database!, Throw!(DbError)]-> Rows
+  execute!   : Str, List(Value) -[Database!, Throw!(DbError)]-> Result
+  prepare!   : Str -[Database!, Throw!(DbError)]-> Statement
+  transaction! : || -[Database!, Throw!(DbError)]-> a -[Database!, Throw!(DbError)]-> a
 }
 
-effect Database.Pool {
-  acquire!  : || ->{ Database.Pool } Connection
-  release!  : Connection ->{ Database.Pool } {}
+effect Database.Pool! {
+  acquire!  : || -[Database.Pool!]-> Connection
+  release!  : Connection -[Database.Pool!]-> {}
 }
 ```
 
@@ -293,14 +293,14 @@ The current `Database` effect uses string queries with `List(Value)` parameters.
 
 ## Logging Architecture
 
-### Stdlib: Log Effect (Interface)
+### Stdlib: Log! Effect (Interface)
 
 ```
-effect Log {
-  debug! : Str ->{ Log } {}
-  info!  : Str ->{ Log } {}
-  warn!  : Str ->{ Log } {}
-  error! : Str ->{ Log } {}
+effect Log! {
+  debug! : Str -[Log!]-> {}
+  info!  : Str -[Log!]-> {}
+  warn!  : Str -[Log!]-> {}
+  error! : Str -[Log!]-> {}
 }
 ```
 

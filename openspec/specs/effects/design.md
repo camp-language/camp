@@ -134,7 +134,7 @@ Each slot is 8 bytes (two i32s). The record is allocated via `camp_alloc` and in
 
 ### 4.2 Handler Arm Function Signatures
 
-Each handler arm function receives:
+All handler arm functions — including Throw! — use the same signature format. There is no non-resuming handler variant. A handler that does not wish to resume simply does not call `resume`, but the continuation is still available.
 
 ```
 handler_arm(env: i32, op_args..., resume_fn: i32, resume_env: i32, ev: i32) -> result_type
@@ -152,29 +152,24 @@ handler_arm(env: i32, op_args..., resume_fn: i32, resume_env: i32, ev: i32) -> r
 
 **Shallow handler**: `ev` is **not** passed to the continuation. The resumed computation runs without the current handler.
 
-**Non-resuming handler (Throw)**: `resume_fn` and `resume_env` are omitted. The handler returns a value directly.
-
-```
-handler_throw(env: i32, err: i32, ev: i32) -> result_type
-```
+**All handlers** receive `resume_fn` and `resume_env`. Whether `resume` is called is a handler implementation choice, not a type-level distinction. Throw! handlers that do not resume simply discard the continuation.
 
 ### 4.3 Effect Declaration Mapping
 
-The evidence record maps operation names to arm indices at compile time:
+Effects are type aliases with `!` names. The evidence record maps operation names to arm indices at compile time:
 
 ```
-effect Console {
-    println!: Str       // arm index 0
-    readln!: Str        // arm index 1
-}
+Console! : { println!: |Str| -[Console!]-> {}, readln!: -[Console!]-> Str }
 
-Evidence record for Console handler:
-  [0] = println arm closure (fn_idx, env_ptr)
-  [1] = readln arm closure (fn_idx, env_ptr)
+Evidence record for Console! handler:
+  [0] = println! arm closure (fn_idx, env_ptr)
+  [1] = readln! arm closure (fn_idx, env_ptr)
 
-IR_Perform Console.println!("hello") dispatches to:
+IR_Perform Console!.println!("hello") dispatches to:
   ev[0].fn_idx(ev[0].env_ptr, "hello", resume_fn, resume_env, ev)
 ```
+
+There is no `effect` keyword. Effects are parsed as type aliases whose names end with `!`.
 
 ### 4.4 Effect Propagation Through Function Calls
 
@@ -182,11 +177,11 @@ Every effectful function receives evidence parameters — one `i32` per effect i
 
 ```
 // Before evidence passing:
-read_line! = || -[Console]-> Str { Console.readln!() }
+read_line! = || -[Console!]-> Str { Console!.readln!() }
 
 // After evidence passing:
 read_line! = (ev_Console: i32) -> Str {
-    // Console.readln!() dispatches through ev_Console
+    // Console!.readln!() dispatches through ev_Console
 }
 ```
 
@@ -359,8 +354,8 @@ Instead of replacing effectful `main!` with `unreachable`:
 1. Generate `main!` as a regular function with evidence parameters for each effect in its row
 2. Generate a `_start` function that:
    - Allocates evidence records for each effect in `main!`'s effect row
-   - For `Console`: handler calls WASI `fd_write`
-   - For `Throw([..])`: handler prints tag to stderr + `proc_exit(1)`
+   - For `Console!`: handler calls WASI `fd_write`
+   - For `Throw!([..])`: handler prints tag to stderr + `proc_exit(1)` (does not call resume)
    - For other effects: handler prints "unhandled effect" + `camp_exit(1)`
    - Calls `main!` with evidence arguments
    - Returns result as WASM exit code
@@ -375,13 +370,14 @@ Instead of replacing effectful `main!` with `unreachable`:
 | **0b** | Fix existing bugs | ~325 | 0a | Bugs fixed, CPS + closures working |
 | **1** | Effect row subtraction | ~40 | 0b | Typechecker correctly models handled effects |
 | **2** | Rewrite effect_lower | ~320 | 1 | Evidence passing works, handler records allocated |
-| **5** | Throw (non-resuming) | ~150 | 2 | First working effect: exceptions |
 | **3** | CPS continuation capture | ~230 | 2 | Resume mechanism works |
 | **4** | WASM codegen for effects | ~350 | 3 | Effects execute in WASM |
-| **6** | Console (resuming) | ~50 | 4 | I/O works, deep handlers proven |
-| **7** | Shallow + State | ~50 | 6 | Full effect system working |
+| **5** | Effect `:` syntax migration | ~200 | 4 | No `effect` keyword; effects are type aliases with `!` names |
+| **6** | Parameterized effects + variant widening | ~150 | 5 | Effects can have type parameters; tag union params widen |
+| **7** | Effect polymorphism | ~250 | 6 | Effect row variables as generic parameters; row variable unification |
+| **8** | Console! + Throw! in prelude | ~50 | 7 | Both as normal effects in prelude; Throw! resumable like any other |
 
-**Total estimated scope**: ~1,615 lines
+**Total estimated scope**: ~2,015 lines
 
 ### Phase 0a: Parser Syntax Alignment
 
@@ -416,35 +412,45 @@ Replace the no-op `make_handler` and zero-evidence-variable with real evidence p
 
 **Scope**: ~320 lines across `effect_lower.odin`, `ir.odin`, `lower.odin`
 
-### Phase 5: Throw — First Working Effect
-
-`Throw` handlers never resume, so no CPS continuation capture needed. Handler arm signature omits `resume_fn`/`resume_env`. Perform site dispatches directly. Runtime handler for `Throw([..])` in `main!` renders tag to stderr + exits 1.
-
-**Scope**: ~150 lines in `codegen.odin`, `typecheck.odin`
-
 ### Phase 3: CPS Continuation Capture
 
-Add `IR_Resume` node. CPS transform captures continuation at `IR_Perform` sites. Deep handlers pass `ev` to continuation; shallow handlers do not. One-shot enforcement: zero `fn_idx` on first resume, trap on null.
+Add `IR_Resume` node. CPS transform captures continuation at `IR_Perform` sites. Deep handlers pass `ev` to continuation; shallow handlers do not. One-shot enforcement: zero `fn_idx` on first resume, trap on null. All effects — including Throw! — use the same continuation capture mechanism.
 
 **Scope**: ~230 lines in `cps.odin`, `ir.odin`
 
 ### Phase 4: WASM Codegen for Effects
 
-Handler arm functions → WASM table entries. Evidence record allocation + initialization. Perform → `call_indirect` via evidence. Resume → `call_indirect` on continuation with one-shot check. Effectful main codegen.
+Handler arm functions → WASM table entries. Evidence record allocation + initialization. Perform → `call_indirect` via evidence. Resume → `call_indirect` on continuation with one-shot check. Effectful main codegen. All handlers use the same arm signature (including Throw!).
 
 **Scope**: ~350 lines in `codegen.odin`
 
-### Phase 6: Console Effect + Resuming Handlers
+### Phase 5: Effect `:` Syntax Migration
 
-Console runtime handler maps to WASI `fd_write`. Exercises resuming handlers, deep handler semantics, and continuation capture.
+Remove the `effect` keyword from the lexer and parser. Extend `:` definition parsing to recognize names ending in `!` as effect definitions. Effect operation type annotations become required. Update all e2e tests.
 
-**Scope**: ~50 lines in `codegen.odin`
+**Parser changes**: When parsing a `:` definition, if the name ends with `!` and the body is a record of function signatures, produce `CDecl_Effect`. If the name doesn't end with `!` and the body is a record, produce `CDecl_Trait`. If the body is a type (not a record), produce `CDecl_Alias`.
 
-### Phase 7: Shallow Handlers + State Effect
+**Scope**: ~200 lines in `lexer.odin`, `parser.odin`, `canonicalize.odin`, `format_decl.odin`, e2e tests
 
-Shallow handler evidence difference: `ev` not passed to continuation. State effect as stdlib with `get!` and `put!` operations, handler closures capturing mutable state.
+### Phase 6: Parameterized Effects + General Variant Widening
 
-**Scope**: ~50 lines**
+Effects gain type parameters: `Throw! : { throw!: |e| -[Throw!(e)]-> a }`. Effect rows now track effect names with type arguments: `-[Throw!([NotFound | PermissionDenied])]->`.
+
+**Variant widening is just tag row unification** applied to effect type parameters — no Throw-specific code. When two effect rows both contain `Throw!`, unify their type arguments. If both are tag unions, merge via tag row unification (widening). If both are value types, require exact match (specialization).
+
+**Scope**: ~150 lines in `typecheck.odin`, `unify.odin`, `types.odin`
+
+### Phase 7: Effect Polymorphism
+
+Effect row variables as generic parameters. `Type_Param` gains `is_effect: bool`. Effect row variable unification extending the existing row unification infrastructure. Effect row composition: `-[Parallel! | e]->` unifies with `-[e]->` by adding `Parallel!`. Effect row subtraction with variables: `handle Parallel! in body` where body has row `-[Parallel! | e]->` produces row `-[e]->`.
+
+**Scope**: ~250 lines in `typecheck.odin`, `unify.odin`, `types.odin`
+
+### Phase 8: Console! + Throw! in Prelude
+
+Both Console! and Throw! are defined as normal effects in the prelude (Odin-injected type declarations). Throw! uses the same handler arm signature as all other effects — no special non-resuming path. The default runtime handler for `Throw!([..])` in `main!` simply does not call resume; it prints the tag and exits.
+
+**Scope**: ~50 lines in `typecheck.odin` (prelude injection), `codegen.odin` (default handler)
 
 ---
 

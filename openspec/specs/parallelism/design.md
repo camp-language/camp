@@ -22,9 +22,9 @@ Camp provides three complementary effects for concurrency and parallelism:
 
 | Effect | Purpose | Execution | Memory Model | Overhead |
 |--------|---------|-----------|-------------|----------|
-| `Async` | I/O concurrency | Cooperative coroutines on one thread | Shared linear memory | ~100 bytes/coroutine |
-| `Parallel` | Data parallelism | Sequential or thread pool | Depends on handler | Depends on handler |
-| `Spawn` | Task parallelism | Separate OS threads / WASM instances | Isolated or shared | ~1-8 MB (instance) or ~100 bytes (thread) |
+| `Async!` | I/O concurrency | Cooperative coroutines on one thread | Shared linear memory | ~100 bytes/coroutine |
+| `Parallel!` | Data parallelism | Sequential or thread pool | Depends on handler | Depends on handler |
+| `Spawn!` | Task parallelism | Separate OS threads / WASM instances | Isolated or shared | ~1-8 MB (instance) or ~100 bytes (thread) |
 
 **Key principle**: Effects express *intent*; handlers choose *strategy*. A program that is correct with the sequential handler is also correct with the parallel handler (assuming `reduce!`'s function is associative).
 
@@ -35,13 +35,13 @@ Camp provides three complementary effects for concurrency and parallelism:
 ### Effect Definition
 
 ```camp
-effect Parallel {
-  map! : <a, b>|items: List(a), f: |a| -> b| -[Parallel]-> List(b)
-  for_each! : <a>|items: List(a), f: |a| ->{}| -[Parallel]-> {}
-  filter! : <a>|items: List(a), predicate: |a| -> Bool| -[Parallel]-> List(a)
-  reduce! : <a, b>|items: List(a), init: b, f: |b, a| -> b| -[Parallel]-> b
-  all! : <a>|tasks: List(|| -> a)| -[Parallel]-> List(a)
-  any! : <a, e>|tasks: List(|| -[Throw(e)]-> a)| -[Parallel | Throw(e)]-> a
+effect Parallel! {
+  map! : <a, b>|items: List(a), f: |a| -> b| -[Parallel!]-> List(b)
+  for_each! : <a>|items: List(a), f: |a| ->{}| -[Parallel!]-> {}
+  filter! : <a>|items: List(a), predicate: |a| -> Bool| -[Parallel!]-> List(a)
+  reduce! : <a, b>|items: List(a), init: b, f: |b, a| -> b| -[Parallel!]-> b
+  all! : <a>|tasks: List(|| -> a)| -[Parallel!]-> List(a)
+  any! : <a, e>|tasks: List(|| -[Throw!(e)]-> a)| -[Parallel! | Throw!(e)]-> a
 }
 ```
 
@@ -74,7 +74,7 @@ Camp does NOT enforce associativity at the type level (undecidable). Instead:
 Each operation propagates the inner function's effects into the caller's effect row via effect polymorphism:
 
 ```camp
-apply_all = <a, b, e>|items: List(a), f: |a| -[e]-> b| -[Parallel | e]-> List(b) {
+apply_all = <a, b, e>|items: List(a), f: |a| -[e]-> b| -[Parallel! | e]-> List(b) {
   items.par_map!(f)
 }
 ```
@@ -83,12 +83,12 @@ apply_all = <a, b, e>|items: List(a), f: |a| -[e]-> b| -[Parallel | e]-> List(b)
 
 | Method | Desugars to | Effect Row |
 |--------|------------|------------|
-| `list.par_map!(f)` | `Parallel.map!(list, f)` | `-[Parallel \| ...]->` |
-| `list.par_filter!(p)` | `Parallel.filter!(list, p)` | `-[Parallel]->` |
-| `list.par_reduce!(init, f)` | `Parallel.reduce!(list, init, f)` | `-[Parallel]->` |
-| `list.par_for_each!(f)` | `Parallel.for_each!(list, f)` | `-[Parallel]->` |
+| `list.par_map!(f)` | `Parallel!.map!(list, f)` | `-[Parallel \| ...]->` |
+| `list.par_filter!(p)` | `Parallel!.filter!(list, p)` | `-[Parallel!]->` |
+| `list.par_reduce!(init, f)` | `Parallel!.reduce!(list, init, f)` | `-[Parallel!]->` |
+| `list.par_for_each!(f)` | `Parallel!.for_each!(list, f)` | `-[Parallel!]->` |
 
-Method sugar desugars at canonicalization. Surface AST preserves the method call form for tooling; canonical AST sees the `Parallel.map!` call.
+Method sugar desugars at canonicalization. Surface AST preserves the method call form for tooling; canonical AST sees the `Parallel!.map!` call.
 
 Future: `Map.par_map_values!`, `Set.par_map!`, `Iter.par_collect!` (deferred).
 
@@ -96,15 +96,15 @@ Future: `Map.par_map_values!`, `Set.par_map!`, `Iter.par_collect!` (deferred).
 
 ```camp
 par { e1, e2, e3 }
--- Desugars to: Parallel.all!([|| e1, || e2, || e3])
+-- Desugars to: Parallel!.all!([|| e1, || e2, || e3])
 -- Returns: (T1, T2, T3) — tuple preserving individual types
 
 par for x in xs { body }
--- Desugars to: Parallel.for_each!(xs, |x| body)
+-- Desugars to: Parallel!.for_each!(xs, |x| body)
 -- Returns: {} (unit)
 ```
 
-`par` keyword added to lexer. `par { }` returns a tuple (fixed compile-time count, preserves types). `Parallel.all!` returns `List(a)` (dynamic count, same type). Use `par { }` for 2-10 tasks; `Parallel.all!` for dynamic lists.
+`par` keyword added to lexer. `par { }` returns a tuple (fixed compile-time count, preserves types). `Parallel!.all!` returns `List(a)` (dynamic count, same type). Use `par { }` for 2-10 tasks; `Parallel!.all!` for dynamic lists.
 
 ### Handlers
 
@@ -121,14 +121,14 @@ handle Parallel in { ... } with {
 }
 ```
 
-**Thread-pool handler** (runtime-provided, auto-installed when `Parallel` in `main!`'s effect row):
+**Thread-pool handler** (runtime-provided, auto-installed when `Parallel!` in `main!`'s effect row):
 
 - `map!`: Split into N chunks, spawn each chunk, join, concatenate in order
 - `reduce!`: Split into N chunks, reduce each locally, tree-reduce partial results
 - `all!`: Enqueue each task, workers pick up, collect in input order
 - `any!`: Enqueue all tasks, first success cancels remaining
 
-The thread-pool handler uses `Spawn` under the hood.
+The thread-pool handler uses `Spawn!` under the hood.
 
 ### Handler Guarantees
 
@@ -142,10 +142,10 @@ The thread-pool handler uses `Spawn` under the hood.
 
 ### Type System Rules
 
-- Any function calling `Parallel` operations (directly or transitively) must have `Parallel` in its effect row
+- Any function calling `Parallel!` operations (directly or transitively) must have `Parallel!` in its effect row
 - Effect polymorphism: `f` may carry effect variable `e` that propagates through `par_map!`
-- All `Parallel` operations carry `!` (effectful naming convention)
-- No shared mutation enforcement: functions passed to `Parallel` cannot capture `$`-prefixed mutable bindings (falls out from existing stack-local mutation rules)
+- All `Parallel!` operations carry `!` (effectful naming convention)
+- No shared mutation enforcement: functions passed to `Parallel!` cannot capture `$`-prefixed mutable bindings (falls out from existing stack-local mutation rules)
 
 ---
 
@@ -154,10 +154,10 @@ The thread-pool handler uses `Spawn` under the hood.
 ### Effect Definition
 
 ```camp
-effect Spawn {
-  spawn! : <a>|thunk: || -> a| -[Spawn]-> Handle(a)
-  join! : <a>|handle: Handle(a)| -[Spawn]-> a
-  cancel! : <a>|handle: Handle(a)| -[Spawn]-> {}
+effect Spawn! {
+  spawn! : <a>|thunk: || -> a| -[Spawn!]-> Handle(a)
+  join! : <a>|handle: Handle(a)| -[Spawn!]-> a
+  cancel! : <a>|handle: Handle(a)| -[Spawn!]-> {}
 }
 ```
 
@@ -184,7 +184,7 @@ Handle lifecycle: Created → Pending → Completed → Joined (or Cancelled).
 
 ### Structured Concurrency
 
-Every `Spawn.spawn!` must be followed by exactly one `Spawn.join!` or `Spawn.cancel!` before the handler exits. Unstructured concurrency (fire-and-forget) leads to resource leaks, use-after-free, and unpredictable behavior.
+Every `Spawn!.spawn!` must be followed by exactly one `Spawn!.join!` or `Spawn!.cancel!` before the handler exits. Unstructured concurrency (fire-and-forget) leads to resource leaks, use-after-free, and unpredictable behavior.
 
 Enforcement:
 1. Compiler emits warning (future: error) for unjoined spawns
@@ -196,15 +196,15 @@ When a spawned computation throws in a separate WASM instance: worker catches er
 
 ### Nested Spawn
 
-A spawned computation can call `Spawn.spawn!` if its handler includes `Spawn`. Creates another task in the same thread pool. Enables recursive divide-and-conquer. Pool has max queue depth; excess tasks wait in backlog.
+A spawned computation can call `Spawn!.spawn!` if its handler includes `Spawn!`. Creates another task in the same thread pool. Enables recursive divide-and-conquer. Pool has max queue depth; excess tasks wait in backlog.
 
 ### Spawn + Async Interaction
 
-Spawned computations can use `Async` but must handle it internally. Each worker runs its own coroutine scheduler for `Async` effects. `wasi:io/poll` is thread-safe in wasmtime.
+Spawned computations can use `Async!` but must handle it internally. Each worker runs its own coroutine scheduler for `Async!` effects. `wasi:io/poll` is thread-safe in wasmtime.
 
 ### Effect Row of join!
 
-The Handle type carries the thunk's effect information at the type level. `join!`'s effect row includes `Spawn` plus the thunk's effects.
+The Handle type carries the thunk's effect information at the type level. `join!`'s effect row includes `Spawn!` plus the thunk's effects.
 
 ---
 
@@ -270,7 +270,7 @@ Runtime functions embedded in generated WASM:
 | `camp_async_cancel` | Cancel handle |
 | `camp_async_run` | Main scheduler loop |
 
-When `main!` has `Async` in effect row, `_start` initializes scheduler, enqueues main as coroutine 0, runs scheduler loop, and returns exit code.
+When `main!` has `Async!` in effect row, `_start` initializes scheduler, enqueues main as coroutine 0, runs scheduler loop, and returns exit code.
 
 ### Component Model Async Migration
 
@@ -278,7 +278,7 @@ When `main!` has `Async` in effect row, `_start` initializes scheduler, enqueues
 
 **Future (WASI Preview 3)**: Host-managed event loop, `future<T>`/`stream<T>`, component model async lowering/lifting.
 
-**Migration path**: Runtime change only — `Async` effect API (`spawn!`, `join!`, `yield!`, `cancel!`) stays the same. User code does not change.
+**Migration path**: Runtime change only — `Async!` effect API (`spawn!`, `join!`, `yield!`, `cancel!`) stays the same. User code does not change.
 
 Timeline: Stack-switching in wasmtime ~2026 H2; component model async ~2027; WASI Preview 3 ~2027+.
 
@@ -329,9 +329,9 @@ Serialized Closure Format:
 | 0 | `Throw` | Serialize errors back |
 | 1 | `Console` | WASI fd_write |
 | 2 | `File` | WASI filesystem |
-| 3 | `Async` | Worker's own scheduler |
-| 4 | `Parallel` | Error — not supported in Phase 3 |
-| 5 | `Spawn` | Error — not supported in Phase 3 |
+| 3 | `Async!` | Worker's own scheduler |
+| 4 | `Parallel!` | Error — not supported in Phase 3 |
+| 5 | `Spawn!` | Error — not supported in Phase 3 |
 
 ### Worker Module Generation
 
@@ -357,7 +357,7 @@ Optimization: Emit a single module serving as both main and worker. `_start` onl
 }
 ```
 
-Join blocking: Use host callback (blocks OS thread). Main instance is single-threaded — if waiting on join, can't do other work. Use `Async` for concurrent work; `Spawn` for parallel work where blocking on join is expected.
+Join blocking: Use host callback (blocks OS thread). Main instance is single-threaded — if waiting on join, can't do other work. Use `Async!` for concurrent work; `Spawn!` for parallel work where blocking on join is expected.
 
 ### Parallel Handler via Multi-Instance
 
@@ -368,9 +368,9 @@ Chunk-based work distribution:
   chunk_size = max(1, items.len() / num_threads)
   chunks = split_chunks(items, chunk_size)
   handles = chunks.iter().map(|chunk| {
-    Spawn.spawn!(|| chunk.iter().map(f).collect())
+    Spawn!.spawn!(|| chunk.iter().map(f).collect())
   }).collect()
-  results = handles.iter().map(Spawn.join!).collect()
+  results = handles.iter().map(Spawn!.join!).collect()
   resume(concat(results))
 }
 ```
@@ -561,7 +561,7 @@ COOP/COEP warning emitted for browser targets.
 
 | Step | Description | Scope |
 |------|-------------|-------|
-| 2a | `Parallel` effect definition in Prelude | ~40 Camp |
+| 2a | `Parallel!` effect definition in Prelude | ~40 Camp |
 | 2b | Sequential handler | ~80 Camp |
 | 2c | Typechecker: effect row propagation | ~30 Odin |
 | 2d | Collection method sugar | ~60 Odin |
@@ -569,7 +569,7 @@ COOP/COEP warning emitted for browser targets.
 | 2f | E2E tests | ~200 Camp |
 | 2g | Formatter support | ~30 Odin |
 
-**Total**: ~520 lines. **Exit criterion**: `Parallel.map!` works with sequential handler; effect row includes `Parallel`.
+**Total**: ~520 lines. **Exit criterion**: `Parallel!.map!` works with sequential handler; effect row includes `Parallel!`.
 
 ### Phase 3: Multi-Instance Spawn
 
@@ -594,7 +594,7 @@ COOP/COEP warning emitted for browser targets.
 
 | Step | Description | Scope |
 |------|-------------|-------|
-| 4a | `Parallel` → `Spawn` handler: chunk-based distribution | ~150 Camp |
+| 4a | `Parallel!` → `Spawn!` handler: chunk-based distribution | ~150 Camp |
 | 4b | Auto-install thread-pool handler | ~80 Odin |
 | 4c | Chunk size heuristics | ~60 Camp |
 | 4d | Work-stealing scheduler (optional) | ~400 Camp |
@@ -621,14 +621,14 @@ COOP/COEP warning emitted for browser targets.
 | 5m | Runtime detection + fallback | ~80 Odin |
 | 5n | E2E tests + benchmarks | ~200 Camp |
 
-**Total**: ~1,540 lines. **Exit criterion**: `Spawn.spawn!` and `Parallel.map!` work within single WASM module. No multi-instance overhead.
+**Total**: ~1,540 lines. **Exit criterion**: `Spawn!.spawn!` and `Parallel!.map!` work within single WASM module. No multi-instance overhead.
 
 ### Phase 6: SIMD Optimization (Future)
 
 | Step | Description | Scope |
 |------|-------------|-------|
 | 6a | `Simd` intrinsics module | ~200 Camp |
-| 6b | Auto-vectorization for `Parallel.map!` on numeric data | ~300 Odin |
+| 6b | Auto-vectorization for `Parallel!.map!` on numeric data | ~300 Odin |
 | 6c | `Iter.par_collect!` SIMD fast path | ~100 Odin |
 
 ---
@@ -641,7 +641,7 @@ COOP/COEP warning emitted for browser targets.
 
 ### par Block Tuple vs List Return
 
-**Decision**: `par { e1, e2, e3 }` returns `(T1, T2, T3)` (preserves individual types). `Parallel.all!` returns `List(a)` (dynamically-sized, same type).
+**Decision**: `par { e1, e2, e3 }` returns `(T1, T2, T3)` (preserves individual types). `Parallel!.all!` returns `List(a)` (dynamically-sized, same type).
 
 ### Error Handling in map!
 
@@ -657,7 +657,7 @@ COOP/COEP warning emitted for browser targets.
 
 ### Nested Spawn
 
-**Decision**: Allowed. Nested `Spawn.spawn!` creates tasks in the same thread pool. Enables recursive divide-and-conquer. Max queue depth prevents exhaustion.
+**Decision**: Allowed. Nested `Spawn!.spawn!` creates tasks in the same thread pool. Enables recursive divide-and-conquer. Max queue depth prevents exhaustion.
 
 ### Spawn + Async Interaction
 

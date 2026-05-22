@@ -1,6 +1,7 @@
 #+feature dynamic-literals
 package camp
 
+import "core:fmt"
 import "core:strings"
 
 Binding_Power :: int
@@ -814,8 +815,8 @@ parser_parse_handle :: proc(p: ^Parser) -> Expr {
 	for p.current.kind != .RBrace && p.current.kind != .Eof {
 		parser_expect(p, .Dot)
 		op_tok := parser_expect(p, .Identifier)
-		op_id := intern(p.intern, op_tok.text)
 		parser_expect(p, .Bang)
+		op_id := intern(p.intern, fmt.tprintf("%s!", op_tok.text))
 		parser_expect(p, .LParen)
 		resume_tok := parser_expect(p, .Identifier)
 		resume_id := intern(p.intern, resume_tok.text)

@@ -431,6 +431,56 @@ contains_ir_tail_call :: proc(expr: IR_Expr) -> bool {
 	return false
 }
 
+contains_ir_closure_call :: proc(expr: IR_Expr) -> bool {
+	#partial switch e in expr {
+	case ^IR_Closure_Call:
+		return true
+	case ^IR_Let:
+		return contains_ir_closure_call(e.value) || contains_ir_closure_call(e.body)
+	case ^IR_If:
+		return contains_ir_closure_call(e.condition) || contains_ir_closure_call(e.then_branch) || contains_ir_closure_call(e.else_branch)
+	case ^IR_Block:
+		for stmt in e.statements {
+			if contains_ir_closure_call(stmt) do return true
+		}
+	case ^IR_BinOp:
+		return contains_ir_closure_call(e.left) || contains_ir_closure_call(e.right)
+	case ^IR_Return:
+		return contains_ir_closure_call(e.value)
+	case ^IR_Call:
+		for arg in e.args {
+			if contains_ir_closure_call(arg) do return true
+		}
+	case ^IR_Construct_Record:
+		for f in e.fields {
+			if contains_ir_closure_call(f.value) do return true
+		}
+		return contains_ir_closure_call(e.rest)
+	case ^IR_Construct_Tag:
+		for p in e.payload {
+			if contains_ir_closure_call(p) do return true
+		}
+	case ^IR_Field_Access:
+		return contains_ir_closure_call(e.record)
+	case ^IR_Method_Call:
+		if contains_ir_closure_call(e.receiver) do return true
+		for arg in e.args {
+			if contains_ir_closure_call(arg) do return true
+		}
+	case ^IR_Handle:
+		if contains_ir_closure_call(e.body) do return true
+		for arm in e.arms {
+			if contains_ir_closure_call(arm.body) do return true
+		}
+	case ^IR_Perform:
+		for arg in e.args {
+			if contains_ir_closure_call(arg) do return true
+		}
+	case:
+	}
+	return false
+}
+
 contains_ir_construct_record :: proc(expr: IR_Expr) -> bool {
 	#partial switch e in expr {
 	case ^IR_Construct_Record:
@@ -602,16 +652,16 @@ test_cps_transform_effectful_fn :: proc(t: ^testing.T) {
 }
 
 @(test)
-test_cps_transform_return_becomes_tail_call :: proc(t: ^testing.T) {
-	mod, ctx, store := lower_source("main! = || { 42 }")
-	defer teardown_lower(ctx, &store)
+	test_cps_transform_return_becomes_tail_call :: proc(t: ^testing.T) {
+		mod, ctx, store := lower_source("main! = || { 42 }")
+		defer teardown_lower(ctx, &store)
 
-	result := cps_transform(&mod, ctx)
+		result := cps_transform(&mod, ctx)
 
-	fn_decl := find_decl_fn(result, true)
-	testing.expect(t, fn_decl != nil)
-	testing.expect(t, contains_ir_tail_call(fn_decl.body))
-}
+		fn_decl := find_decl_fn(result, true)
+		testing.expect(t, fn_decl != nil)
+		testing.expect(t, contains_ir_tail_call(fn_decl.body) || contains_ir_closure_call(fn_decl.body))
+	}
 
 @(test)
 test_cps_transform_pure_fn_unchanged :: proc(t: ^testing.T) {

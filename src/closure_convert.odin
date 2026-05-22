@@ -269,15 +269,14 @@ cc_convert_expr :: proc(expr: IR_Expr, env: ^Closure_Convert_Env) -> IR_Expr {
 			body = rewrite_free_var_access(converted_body, &env_access_map),
 			span = e.span,
 		}
-		append(&env.module.decls, IR_Decl(closed_fn))
-		fn_idx_val := len(env.module.decls) - 1
+			append(&env.module.decls, IR_Decl(closed_fn))
 
-		fn_idx_lit := new(IR_Literal_Int)
-		fn_idx_lit^ = IR_Literal_Int{value = i64(fn_idx_val), type = IR_Type{.I32, Type_Var_ID(0)}, span = e.span}
+			fn_idx_var := new(IR_Var)
+			fn_idx_var^ = IR_Var{name = closed_fn_name.name, type = IR_Type{.I32, Type_Var_ID(0)}, span = e.span}
 
-		fields := make([dynamic]IR_Record_Field, 0, len(free) + 1)
-		fn_idx_id := intern(env.interner, "fn_idx")
-		append(&fields, IR_Record_Field{name = fn_idx_id, value = IR_Expr(fn_idx_lit)})
+			fields := make([dynamic]IR_Record_Field, 0, len(free) + 1)
+			fn_idx_id := intern(env.interner, "fn_idx")
+			append(&fields, IR_Record_Field{name = fn_idx_id, value = IR_Expr(fn_idx_var)})
 
 		for fv in free {
 			fv_var := new(IR_Var)

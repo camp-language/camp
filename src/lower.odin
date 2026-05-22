@@ -570,6 +570,36 @@ lower_tcall :: proc(e: ^TExpr_Call, env: ^Lower_Env) -> IR_Expr {
 
 lower_tmethod_call :: proc(e: ^TExpr_Method_Call, env: ^Lower_Env) -> IR_Expr {
 	receiver_ir := lower_texpr(e.receiver, env)
+
+	// Check if this is an effect operation call
+	receiver_effect_name: Intern_ID = NO_NAME
+	receiver_effect_canonical: Canonical_Name
+	#partial switch r in e.receiver {
+	case ^TExpr_Name:
+		receiver_effect_name = r.name.name
+		receiver_effect_canonical = r.name
+	case ^TExpr_Tag:
+		receiver_effect_name = r.name.name
+		receiver_effect_canonical = r.name
+	case:
+	}
+
+	if receiver_effect_name != NO_NAME && is_declared_effect(env.store, receiver_effect_name) {
+		ir_args := make([dynamic]IR_Expr, 0, len(e.args))
+		for arg in e.args {
+			append(&ir_args, lower_texpr(arg, env))
+		}
+		perf := new(IR_Perform)
+		perf^ = IR_Perform{
+			effect = receiver_effect_canonical,
+			op = e.method.name,
+			args = ir_args,
+			type = e.type_,
+			span = e.span,
+		}
+		return IR_Expr(perf)
+	}
+
 	ir_args := make([dynamic]IR_Expr, 0, len(e.args) + 1)
 	append(&ir_args, receiver_ir)
 	for arg in e.args {

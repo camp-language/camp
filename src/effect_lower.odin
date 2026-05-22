@@ -468,6 +468,12 @@ el_lower_expr :: proc(expr: IR_Expr, env: ^Effect_Lower_Env) -> IR_Expr {
 			lit^ = IR_Literal_Int{value = 0, type = e.type, span = e.span}
 			return IR_Expr(lit)
 		}
+		if handler_name.name == NO_NAME {
+			collector_add_diag(env.collector, diag_internal("perform without handler name for op", e.span))
+			lit := new(IR_Literal_Int)
+			lit^ = IR_Literal_Int{value = 0, type = e.type, span = e.span}
+			return IR_Expr(lit)
+		}
 
 		cont_fn_name := Canonical_Name{
 			module = NO_NAME,

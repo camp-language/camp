@@ -90,25 +90,28 @@ cps_transform_decl :: proc(decl: IR_Decl, env: ^CPS_Env) -> IR_Decl {
 		transformed_body := cps_transform_expr(d.body, k_name, env)
 
 		result_name := cps_fresh(env, "_result")
-		k_callee := Canonical_Name{
-			module = NO_NAME,
-			name = k_name,
-			is_local = true,
-		}
 		k_args := make([dynamic]IR_Expr, 0, 1)
 		result_var := new(IR_Var)
 		result_var^ = IR_Var{name = result_name, type = d.return_type, span = d.span}
 		append(&k_args, IR_Expr(result_var))
 
-		tc := new(IR_Tail_Call)
-		tc^ = IR_Tail_Call{callee = k_callee, args = k_args, span = d.span}
+		k_var := new(IR_Var)
+		k_var^ = IR_Var{name = k_name, type = IR_Type{.I32, Type_Var_ID(0)}, span = d.span}
+
+		cc := new(IR_Closure_Call)
+		cc^ = IR_Closure_Call{
+			callee = IR_Expr(k_var),
+			args = k_args,
+			type = d.return_type,
+			span = d.span,
+		}
 
 		let_expr := new(IR_Let)
 		let_expr^ = IR_Let{
 			binding = result_name,
 			type = d.return_type,
 			value = transformed_body,
-			body = IR_Expr(tc),
+			body = IR_Expr(cc),
 			span = d.span,
 		}
 		new_fn.body = IR_Expr(let_expr)
@@ -121,18 +124,25 @@ cps_transform_decl :: proc(decl: IR_Decl, env: ^CPS_Env) -> IR_Decl {
 cps_transform_expr :: proc(expr: IR_Expr, k_name: Intern_ID, env: ^CPS_Env) -> IR_Expr {
 	#partial switch e in expr {
 	case ^IR_Return:
-		k_callee := Canonical_Name{
-			module = NO_NAME,
-			name = k_name,
-			is_local = true,
-		}
+		k_var := new(IR_Var)
+		k_var^ = IR_Var{name = k_name, type = IR_Type{.I32, Type_Var_ID(0)}, span = e.span}
+
+		transformed_value := cps_transform_expr(e.value, k_name, env)
 
 		args := make([dynamic]IR_Expr, 0, 1)
-		append(&args, cps_transform_expr(e.value, k_name, env))
+		append(&args, transformed_value)
 
-		tc := new(IR_Tail_Call)
-		tc^ = IR_Tail_Call{callee = k_callee, args = args, span = e.span}
-		return IR_Expr(tc)
+		// Use the type from the expression being returned
+		ret_type := IR_Type{wasm_type = ir_expr_wasm_type(e.value), type_id = 0}
+
+		cc := new(IR_Closure_Call)
+		cc^ = IR_Closure_Call{
+			callee = IR_Expr(k_var),
+			args = args,
+			type = ret_type,
+			span = e.span,
+		}
+		return IR_Expr(cc)
 
 	case ^IR_Let:
 		#partial switch v in e.value {

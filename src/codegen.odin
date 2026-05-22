@@ -203,12 +203,11 @@ codegen :: proc(ir_mod: IR_Module, ctx: ^Compilation_Context) -> Wasm_Module {
 				params[i] = ir_wasm_type_to_value_type(p.type.wasm_type)
 			}
 			results: []Wasm_Value_Type
-			if d.is_effectful {
-			} else if d.return_type.wasm_type != .Void {
+			if d.return_type.wasm_type != .Void {
 				results = make([]Wasm_Value_Type, 1)
 				results[0] = ir_wasm_type_to_value_type(d.return_type.wasm_type)
 			}
-
+			
 			type_idx := get_or_create_type(&env, params, results)
 			func_idx := add_function(&env, type_idx)
 			if d.name.module != NO_NAME {
@@ -555,7 +554,7 @@ extract_effectful_body :: proc(expr: IR_Expr) -> IR_Expr {
 	#partial switch e in expr {
 	case ^IR_Let:
 		#partial switch b in e.body {
-		case ^IR_Tail_Call:
+		case ^IR_Tail_Call, ^IR_Closure_Call:
 			return e.value
 		case:
 			return expr
@@ -570,7 +569,11 @@ emit_expr :: proc(expr: IR_Expr, buf: ^[dynamic]u8, env: ^Codegen_Env, runtime_i
 
 	#partial switch e in expr {
 	case ^IR_Literal_Int:
-		emit_instruction(Wasm_I64_Const{value = e.value}, buf)
+		if e.type.wasm_type == .I32 {
+			emit_instruction(Wasm_I32_Const{value = i32(e.value)}, buf)
+		} else {
+			emit_instruction(Wasm_I64_Const{value = e.value}, buf)
+		}
 	case ^IR_Literal_Float:
 		emit_instruction(Wasm_F64_Const{value = e.value}, buf)
 	case ^IR_Literal_Bool:
@@ -585,6 +588,8 @@ emit_expr :: proc(expr: IR_Expr, buf: ^[dynamic]u8, env: ^Codegen_Env, runtime_i
 	case ^IR_Var:
 		if idx, ok := env.local_map[e.name]; ok {
 			emit_instruction(Wasm_Local_Get{index = idx}, buf)
+		} else if idx, ok := env.func_map[int(e.name)]; ok {
+			emit_instruction(Wasm_I32_Const{value = i32(idx)}, buf)
 		} else {
 			emit_instruction(Wasm_I64_Const{value = 0}, buf)
 		}
@@ -596,7 +601,7 @@ emit_expr :: proc(expr: IR_Expr, buf: ^[dynamic]u8, env: ^Codegen_Env, runtime_i
 			emit_instruction(Wasm_Drop{}, buf)
 		}
 		emit_expr(e.body, buf, env, runtime_indices)
-	case ^IR_Call:
+		case ^IR_Call:
 		for arg in e.args {
 			emit_expr(arg, buf, env, runtime_indices)
 		}

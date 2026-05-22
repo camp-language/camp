@@ -475,30 +475,33 @@ Function types SHALL include an effect row after `->`; an empty effect row SHALL
 - THEN the effect row SHALL be the empty set
 
 #### Scenario: Effectful function type
-- GIVEN a type `Str ->{ Console } {}`
+- GIVEN a type `Str -[Console!]-> {}`
 - WHEN the compiler interprets it
-- THEN the effect row SHALL contain `Console`
+- THEN the effect row SHALL contain `Console!`
 
 #### Scenario: Parameterized effect
-- GIVEN a type `Str ->{ Throw(NotFound) } Int`
-- WHEN the compiler interprets it
-- THEN the effect row SHALL contain `Throw` parameterized by `NotFound`
 
-### Requirement: Effect Row Properties
+- **GIVEN** a type `Str -[Throw!(NotFound)]-> Int`
+- **WHEN** the compiler interprets it
+- **THEN** the effect row SHALL contain `Throw!` parameterized by `NotFound`
+
+#### Scenario: Effect Row Properties
+
 Effect rows SHALL be sets with insignificant order and deduplication; row variables SHALL enable effect polymorphism.
 
 #### Scenario: Row order insignificance
-- GIVEN two effect rows `{ Console, File }` and `{ File, Console }`
+
+- **GIVEN** two effect rows `-[Console! | File!]->` and `-[File! | Console!]->`
 - WHEN the compiler compares them
 - THEN they SHALL be considered identical
 
 #### Scenario: Effect row composition
-- GIVEN a function `f : a ->{ E1 } b` and `g : b ->{ E2 } c`
+- GIVEN a function `f : a -[E1]-> b` and `g : b -[E2]-> c`
 - WHEN composing `g(f(x))`
-- THEN the composed effect row SHALL be `{ E1, E2 }`
+- THEN the composed effect row SHALL be `-[E1 | E2]->`
 
 #### Scenario: Effect polymorphism via row variable
-- GIVEN a function `map = <a, b, e>|f: |a| ->{ e } b, list: List(a)| ->{ e } List(b)`
+- GIVEN a function `map = <a, b, e>|f: |a| -[e]-> b, list: List(a)| -[e]-> List(b)`
 - WHEN `f` is pure
 - THEN `map` SHALL be pure; when `f` is effectful, `map` SHALL propagate the same effects
 
@@ -506,14 +509,14 @@ Effect rows SHALL be sets with insignificant order and deduplication; row variab
 Unhandled effects SHALL be compile-time errors; a function's effect row MUST be a subset of the effects handled by its caller's context.
 
 #### Scenario: Unhandled effect
-- GIVEN a function that calls `Console.println!` without a handler in scope
+- GIVEN a function that calls `Console!.println!` without a handler in scope
 - WHEN the compiler type-checks the function
-- THEN it SHALL produce an error for the unhandled `Console` effect
+- THEN it SHALL produce an error for the unhandled `Console!` effect
 
 #### Scenario: Main effect row as handler declaration
-- GIVEN `main! = || ->{ Console, Throw([..]) } { ... }`
+- GIVEN `main! = || -[Console! | Throw!([..])]-> { ... }`
 - WHEN the program runs
-- THEN the runtime SHALL provide handlers for `Console` and `Throw([..])`
+- THEN the runtime SHALL provide handlers for `Console!` and `Throw!([..])`
 
 ### Requirement: Inline Type Annotations
 Type annotations SHALL be written inline with `:` on the binding, never as a separate declaration above it.
@@ -632,38 +635,39 @@ Pattern matching SHALL require exhaustive coverage; the wildcard `_` SHALL match
 - THEN the match SHALL be accepted
 
 ### Requirement: Dual Error Model
-The language SHALL provide two error mechanisms: the `Throw` effect for exceptional errors and tag union returns for structural absence; there SHALL be no `?` operator.
+The language SHALL provide two error mechanisms: the `Throw!` effect for exceptional errors and tag union returns for structural absence; there SHALL be no `?` operator.
 
-#### Scenario: Throw effect for exceptional errors
-- GIVEN a function that calls `Throw.throw!(NotFound)`
+#### Scenario: Throw! effect for exceptional errors
+- GIVEN a function that calls `Throw!.throw!(NotFound)`
 - WHEN the compiler infers the effect row
-- THEN the function's effect row SHALL include `Throw(NotFound)`
+- THEN the function's effect row SHALL include `Throw!([NotFound])`
 
 #### Scenario: Tag union return for structural absence
 - GIVEN a function `List.first` returning `Some(a) | None`
 - WHEN the caller uses the result
-- THEN the caller SHALL handle absence via pattern matching, not via `Throw`
+- THEN the caller SHALL handle absence via pattern matching, not via `Throw!`
 
 #### Scenario: No question mark operator
 - GIVEN source code using `?` for error propagation
 - WHEN the compiler parses it
 - THEN it SHALL produce a syntax error
 
-#### Scenario: Handler bridging Throw to tag union
-- GIVEN a handler `handle Throw in { Ok(action()) } with { .throw!(resume, err) => Err(err) }`
+#### Scenario: Handler bridging Throw! to tag union
+- GIVEN a handler `handle Throw! in { Ok(action()) } with { .throw!(resume, err) => Err(err) }`
 - WHEN the handler executes
 - THEN a thrown error SHALL be caught and returned as `Err(err)`
 
-### Requirement: Throw Variant Widening
-The `Throw` effect's parameter SHALL be a tag union that widens as more tag types are thrown.
+### Requirement: Effect Parameter Variant Widening
+
+When an effect has a tag union type parameter, the parameter SHALL widen as more tag types are performed. This is general tag row unification applied to effect type parameters — not specific to any particular effect.
 
 #### Scenario: Multiple throw sites widen the union
 - GIVEN a function that throws `NotFound` in one path and `PermissionDenied` in another
-- WHEN the compiler infers the Throw parameter
-- THEN it SHALL be `Throw(NotFound | PermissionDenied)`
+- WHEN the compiler infers the Throw! parameter
+- THEN it SHALL be `Throw!([NotFound | PermissionDenied])`
 
 #### Scenario: Open throw type
-- GIVEN `Throw([NotFound | ..])` in a function type
+- GIVEN `Throw!([NotFound | ..])` in a function type
 - WHEN the compiler type-checks it
 - THEN the function SHALL be permitted to throw `NotFound` and possibly other tags
 
@@ -684,12 +688,12 @@ Each `resume` in an effect handler SHALL be callable at most once; a second invo
 Handlers SHALL default to deep semantics (re-installed after each resume); `intercept` SHALL provide shallow semantics (handles one operation without re-installing).
 
 #### Scenario: Deep handler handles all operations
-- GIVEN a deep handler for `Async` containing three `Async.yield!()` calls
+- GIVEN a deep handler for `Async!` containing three `Async!.yield!()` calls
 - WHEN the handler executes
 - THEN all three `yield!` calls SHALL be caught by the handler
 
 #### Scenario: Shallow handler handles first operation only
-- GIVEN an `intercept Async` handler containing two `Async.yield!()` calls
+- GIVEN an `intercept Async!` handler containing two `Async!.yield!()` calls
 - WHEN the handler executes
 - THEN only the first `yield!` SHALL be caught; the second SHALL propagate to an outer handler
 
@@ -697,12 +701,12 @@ Handlers SHALL default to deep semantics (re-installed after each resume); `inte
 Effects SHALL compose by set union using aliases, not by inheritance; the `is` keyword SHALL NOT apply to effects.
 
 #### Scenario: Effect alias
-- GIVEN `alias Io = File | Console`
-- WHEN a function declares `->{ Io }` in its effect row
-- THEN it SHALL be equivalent to `->{ File, Console }`
+- GIVEN `alias Io = File! | Console!`
+- WHEN a function declares `-[Io]->` in its effect row
+- THEN it SHALL be equivalent to `-[File! | Console!]->`
 
 #### Scenario: Effect inheritance rejected
-- GIVEN a declaration `effect File is Io`
+- **GIVEN** a declaration `File! is Io!`
 - WHEN the compiler processes it
 - THEN it SHALL produce an error
 

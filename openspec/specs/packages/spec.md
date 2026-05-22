@@ -98,7 +98,7 @@ The stdlib SHALL include a `Duration` type with arithmetic (seconds, millisecond
 
 ### Requirement: Log Effect
 
-The stdlib SHALL include a `Log` effect with `debug!`, `info!`, `warn!`, and `error!` operations accepting a message string and optional key-value context.
+The `Log` effect SHALL include a `Log!` effect with `debug!`, `info!`, `warn!`, and `error!` operations accepting a message string and optional key-value context.
 
 #### Scenario: Structured log message
 
@@ -108,7 +108,7 @@ The stdlib SHALL include a `Log` effect with `debug!`, `info!`, `warn!`, and `er
 
 ### Requirement: Crypto.Random Effect
 
-The stdlib SHALL include a `Crypto.Random` effect separate from the non-cryptographic `Random` effect, providing `bytes!`, `int!`, and `uuid!` operations suitable for token/nonce/key generation.
+The stdlib SHALL include a `Crypto.Random!` effect separate from the non-cryptographic `Random!` effect, providing `bytes!`, `int!`, and `uuid!` operations suitable for token/nonce/key generation.
 
 #### Scenario: Cryptographic random generation
 
@@ -118,9 +118,9 @@ The stdlib SHALL include a `Crypto.Random` effect separate from the non-cryptogr
 
 #### Scenario: Separation from non-crypto Random
 
-- Given `Random.int!(1, 100)` uses a fast PRNG seeded from WASI
-- And `Crypto.Random.int!(1, 100)` uses WASI's `random_get` syscall directly
-- Then `Random` SHALL trade security for speed and `Crypto.Random` SHALL trade speed for security
+- Given `Random!.int!(1, 100)` uses a fast PRNG seeded from WASI
+- And `Crypto.Random!.int!(1, 100)` uses WASI's `random_get` syscall directly
+- Then `Random!` SHALL trade security for speed and `Crypto.Random!` SHALL trade speed for security
 
 ### Requirement: Two Distinct Random Sources
 
@@ -128,16 +128,16 @@ The `Random` effect SHALL use a fast non-cryptographic PRNG and `Crypto.Random` 
 
 #### Scenario: Random is not suitable for secrets
 
-- Given `Random.int!(1, 100)` is used for shuffling a list
+- Given `Random!.int!(1, 100)` is used for shuffling a list
 - Then the result SHALL be fast but MUST NOT be used for token or key generation
 
 ### Requirement: Uuid Module
 
-The stdlib SHALL include a `Uuid` module supporting v4, v7 generation, parsing, and formatting, depending on `Crypto.Random` for generation.
+The stdlib SHALL include a `Uuid` module supporting v4, v7 generation, parsing, and formatting, depending on `Crypto.Random!` for generation.
 
 #### Scenario: UUID v7 generation
 
-- Given a `Crypto.Random` handler is installed
+- Given a `Crypto.Random!` handler is installed
 - When `Uuid.v7!()` is called
 - Then the result SHALL be a time-sortable UUID
 
@@ -173,34 +173,34 @@ Official packages SHALL be maintained by the Camp team, versioned independently 
 
 ### Requirement: HTTP Effect Design
 
-The `Http` package SHALL define `Http.Server` and `Http.Client` effects with `listen!`, `route!`, `serve!` for servers and `get!`, `post!`, `put!`, `delete!`, `patch!`, `request!` for clients.
+The `Http.Server` package SHALL define `Http.Server!` and `Http.Client!` effects with `listen!`, `route!`, `serve!` for servers and `get!`, `post!`, `put!`, `delete!`, `patch!`, `request!` for clients.
 
 #### Scenario: HTTP server route registration
 
-- Given an `Http.Server` handler is installed
-- When `Http.Server.route!(Get, "/api/users", handler_fn)` is called
+- Given an `Http.Server!` handler is installed
+- When `Http.Server!.route!(Get, "/api/users", handler_fn)` is called
 - Then the handler SHALL route GET requests to `/api/users` to `handler_fn`
 
 #### Scenario: HTTP client request
 
-- Given an `Http.Client` handler is installed
-- When `Http.Client.get!("https://example.com/api")` is called
+- Given an `Http.Client!` handler is installed
+- When `Http.Client!.get!("https://example.com/api")` is called
 - Then it SHALL return an `Http.Response` with status, headers, and body
 
 ### Requirement: Database Effect Design
 
-The `Database` package SHALL define a `Database` effect with `query!`, `execute!`, `prepare!`, and `transaction!` operations, and a `Database.Pool` effect with `acquire!` and `release!`.
+The `Database` package SHALL define a `Database!` effect with `query!`, `execute!`, `prepare!`, and `transaction!` operations, and a `Database.Pool!` effect with `acquire!` and `release!`.
 
 #### Scenario: Parameterized query
 
-- Given a `Database` handler connected to PostgreSQL
-- When `Database.query!("SELECT * FROM users WHERE id = $1", [user_id])` is called
+- Given a `Database!` handler connected to PostgreSQL
+- When `Database!.query!("SELECT * FROM users WHERE id = $1", [user_id])` is called
 - Then it SHALL return rows matching the parameterized query
 
 #### Scenario: Transaction execution
 
-- Given a `Database` handler with transaction support
-- When `Database.transaction!(|| { query!(...); execute!(...) })` is called
+- Given a `Database!` handler with transaction support
+- When `Database!.transaction!(|| { query!(...); execute!(...) })` is called
 - Then all operations SHALL execute atomically — either all succeed or all roll back
 
 ### Requirement: Database Drivers
