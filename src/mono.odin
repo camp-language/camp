@@ -112,6 +112,8 @@ format_type_var_for_key :: proc(store: ^Type_Store, v: ^Type_Var, interner: ^Int
 		return intern_get(interner, inf.primitive_name)
 	case .Constructor:
 		return intern_get(interner, inf.primitive_name)
+	case .Handle:
+		return "Handle"
 	case .Record_Row:
 		return "Record"
 	case .Tag_Union_Row:

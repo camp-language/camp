@@ -173,6 +173,8 @@ format_resolved_type :: proc(store: ^Type_Store, var_id: Type_Var_ID) -> string 
 		return cloned
 	case .Constructor, .Newtype:
 		return intern_get(store.interner, inf.primitive_name)
+	case .Handle:
+		return "Handle"
 	case .Record_Row:
 		return "{ ... }"
 	case .Tag_Union_Row:

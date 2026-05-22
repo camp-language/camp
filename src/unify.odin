@@ -151,6 +151,14 @@ unify_inferred :: proc(store: ^Type_Store, a: Inferred_Type, b: Inferred_Type, a
 			return false
 		}
 
+	case .Handle:
+		if !unify(store, a.inner_id, b.inner_id) {
+			return false
+		}
+		if !unify(store, a.effect_id, b.effect_id) {
+			return false
+		}
+
 	case .Primitive, .Constructor:
 	}
 
@@ -497,6 +505,13 @@ occurs_check_inferred :: proc(store: ^Type_Store, target: Type_Var_ID, inf: Infe
 		if occurs_check(store, target, inf.inner_id) {
 			return true
 		}
+	case .Handle:
+		if occurs_check(store, target, inf.inner_id) {
+			return true
+		}
+		if occurs_check(store, target, inf.effect_id) {
+			return true
+		}
 	case .Primitive, .Constructor:
 	}
 	return false
@@ -518,6 +533,8 @@ format_inferred_type :: proc(store: ^Type_Store, t: Inferred_Type) -> string {
 		return "tag union"
 	case .Effect_Row:
 		return "effect row"
+	case .Handle:
+		return fmt.tprintf("Handle({}, {})", format_type_var(store, t.inner_id), format_type_var(store, t.effect_id))
 	case:
 		return "unknown"
 	}

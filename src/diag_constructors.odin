@@ -266,6 +266,13 @@ diag_newtype_opaque_violation :: proc(type_name: string, action: string, span: S
 	return d
 }
 
+diag_unjoined_spawn :: proc(span: Source_Span) -> Diagnostic {
+	d := diag_init(.Warning, "UNJOINED SPAWN", span,
+		"This spawned handle is not joined on all exit paths. Unjoined handles are cancelled when the handler exits, which may silently discard results.")
+	append(&d.hints, "Use `join!` to await the result, or explicitly `cancel!` to discard it.")
+	return d
+}
+
 char_display :: proc(ch: u8) -> string {
 	switch ch {
 	case '\n': return "\\n"
