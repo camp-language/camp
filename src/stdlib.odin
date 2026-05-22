@@ -110,7 +110,7 @@ eq = |a: Str, b: Str| -> Bool {
 }`
 
 LIST_CAMP :: `length = <a>|xs: List(a)| -> I64 {
-  crash "List.length: not yet implemented"
+  match xs { Nil => 0 | Cons(_, t) => 1 + length(t) }
 }
 
 is_empty = <a>|xs: List(a)| -> Bool {
@@ -118,23 +118,173 @@ is_empty = <a>|xs: List(a)| -> Bool {
 }
 
 map = <a, b>|f: |a| -> b, xs: List(a)| -> List(b) {
-  crash "List.map: not yet implemented"
+  match xs { Nil => Nil | Cons(h, t) => Cons(f(h), map(f, t)) }
 }
 
 filter = <a>|pred: |a| -> Bool, xs: List(a)| -> List(a) {
-  crash "List.filter: not yet implemented"
+  match xs {
+    Nil => Nil,
+    Cons(h, t) => if pred(h) { Cons(h, filter(pred, t)) } else { filter(pred, t) }
+  }
 }
 
 fold = <a, b>|f: |b, a| -> b, init: b, xs: List(a)| -> b {
-  crash "List.fold: not yet implemented"
+  match xs { Nil => init | Cons(h, t) => fold(f, f(init, h), t) }
 }
 
 append = <a>|xs: List(a), ys: List(a)| -> List(a) {
-  crash "List.append: not yet implemented"
+  match xs { Nil => ys | Cons(h, t) => Cons(h, append(t, ys)) }
 }
 
 head = <a>|xs: List(a)| -> Option(a) {
-  if is_empty(xs) { None } else { crash "List.head: indexing not yet implemented" }
+  match xs { Nil => None | Cons(h, _) => Some(h) }
+}
+
+alloc = <a>|| -> List(a) {
+  crash "List.alloc: compiler intrinsic"
+}
+
+get = <a>|xs: List(a), i: I64| -> a {
+  crash "List.get: compiler intrinsic"
+}
+
+push = <a>|xs: List(a), x: a| -> List(a) {
+  crash "List.push: compiler intrinsic"
+}`
+
+ITER_CAMP :: `Iter : @{
+  next: || -[e]-> [Some(a) | None],
+}
+
+empty : || -[]-> Iter(a)
+empty = || @{
+  next = || None,
+}
+
+singleton : a -[]-> Iter(a)
+singleton = |x| @{
+  next = ||
+    consumed = True
+    if consumed { None } else { consumed = True; Some(x) },
+}
+
+from_list : List(a) -[]-> Iter(a)
+from_list = |list| @{
+  next = ||
+    match list {
+      Cons(head, rest) => list = rest; Some(head),
+      Nil => None,
+    },
+}
+
+map : Iter(a), |a| -[e]-> b -[]-> Iter(b)
+map = |iter, f| @{
+  next = || match iter.next() {
+    Some(x) => Some(f(x)),
+    None => None,
+  },
+}
+
+filter : Iter(a), |a| -[e]-> Bool -[]-> Iter(a)
+filter = |iter, pred| @{
+  next = ||
+    match iter.next() {
+      Some(x) => if pred(x) { Some(x) } else { iter.next() },
+      None => None,
+    },
+}
+
+fold : Iter(a), b, |b, a| -[e]-> b -[]-> b
+fold = |iter, init, f| {
+  acc = init
+  cur = iter.next()
+  while cur != None {
+    Some(x) = cur
+    acc = f(acc, x)
+    cur = iter.next()
+  }
+  acc
+}
+
+collect : Iter(a) -[]-> List(a)
+collect = |iter| {
+  acc = []
+  cur = iter.next()
+  while cur != None {
+    Some(x) = cur
+    acc = List.append(acc, [x])
+    cur = iter.next()
+  }
+  acc
+}
+
+count : Iter(a) -[]-> I64
+count = |iter| fold(iter, 0, |n, _| n + 1)
+
+for_each : Iter(a), |a| -[e]-> {} -[]-> {}
+for_each = |iter, f| fold(iter, {}, |_, x| f(x))
+
+find : Iter(a), |a| -[]-> Bool -[]-> Option(a)
+find = |iter, pred| {
+  cur = iter.next()
+  while cur != None {
+    Some(x) = cur
+    if pred(x) { return Some(x) }
+    cur = iter.next()
+  }
+  None
+}
+
+chain : Iter(a), Iter(a) -[]-> Iter(a)
+chain = |first, second| @{
+  next = ||
+    match first.next() {
+      Some(x) => Some(x),
+      None => second.next(),
+    },
+}
+
+take : Iter(a), I64 -[]-> Iter(a)
+take = |iter, n| @{
+  remaining = n
+  next = ||
+    if remaining <= 0 { None } else {
+      remaining = remaining - 1
+      iter.next()
+    },
+}
+
+skip : Iter(a), I64 -[]-> Iter(a)
+skip = |iter, n| @{
+  next = ||
+    i = 0
+    while i < n {
+      iter.next()
+      i = i + 1
+    }
+    n = 0
+    iter.next()
+}
+
+enumerate : Iter(a) -[]-> Iter((I64, a))
+enumerate = |iter| @{
+  index = 0
+  next = || match iter.next() {
+    Some(x) => idx = index; index = index + 1; Some((idx, x)),
+    None => None,
+  },
+}
+
+zip : Iter(a), Iter(b) -[]-> Iter((a, b))
+zip = |left, right| @{
+  next = ||
+    match left.next() {
+      Some(a) => match right.next() {
+        Some(b) => Some((a, b)),
+        None => None,
+      },
+      None => None,
+    },
 }`
 
 STDLIB_MODULES: []Stdlib_Module = []Stdlib_Module{
@@ -144,6 +294,7 @@ STDLIB_MODULES: []Stdlib_Module = []Stdlib_Module{
 	{"Int", INT_CAMP, "stdlib/Int.camp"},
 	{"Str", STR_CAMP, "stdlib/Str.camp"},
 	{"List", LIST_CAMP, "stdlib/List.camp"},
+	{"Iter", ITER_CAMP, "stdlib/Iter.camp"},
 }
 
 stdlib_lookup :: proc(name: string) -> (Stdlib_Module, bool) {

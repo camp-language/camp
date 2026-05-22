@@ -159,6 +159,7 @@ Wasm_I64_Load :: struct { align: u32, offset: u32 }
 Wasm_I32_Store :: struct { align: u32, offset: u32 }
 Wasm_I32_Store8 :: struct { align: u32, offset: u32 }
 Wasm_I64_Store :: struct { align: u32, offset: u32 }
+Wasm_Memory_Copy :: struct {}
 Wasm_F64_Store :: struct { align: u32, offset: u32 }
 Wasm_F64_Load :: struct { align: u32, offset: u32 }
 Wasm_Memory_Size :: struct {}
@@ -301,6 +302,7 @@ Wasm_Instruction :: union {
 	Wasm_F64_Load,
 	Wasm_Memory_Size,
 	Wasm_Memory_Grow,
+	Wasm_Memory_Copy,
 	Wasm_Block,
 	Wasm_Loop,
 	Wasm_If,
@@ -554,6 +556,9 @@ emit_instruction :: proc(instr: Wasm_Instruction, buf: ^[dynamic]u8) {
 	case Wasm_Memory_Grow:
 		append(buf, 0x40)
 		append(buf, 0x00)
+	case Wasm_Memory_Copy:
+		append(buf, 0xFC)
+		append(buf, 0x0A)
 	case Wasm_Block:
 		append(buf, 0x02)
 		append(buf, u8(i.block_type))

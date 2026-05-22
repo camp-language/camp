@@ -1164,6 +1164,32 @@ lower_tpattern :: proc(pattern: TPattern, env: ^Lower_Env) -> IR_Pattern {
 }
 
 lower_tbinop :: proc(e: ^TExpr_BinOp, env: ^Lower_Env) -> IR_Expr {
+	// String concatenation: convert `a + b` (when both operands are Str) to Str.concat(a, b)
+	if e.op == .Plus {
+		resolved := resolve_var(env.store, e.type_.type_id)
+		v := get_var(env.store, resolved)
+		if inf, ok := v.link.(Inferred_Type); ok && inf.tag == .Primitive {
+			name_str := intern_get(env.interner, inf.primitive_name)
+			if name_str == "Str" {
+				left_ir := lower_texpr(e.left, env)
+				right_ir := lower_texpr(e.right, env)
+				args := make([dynamic]IR_Expr, 0, 2)
+				append(&args, left_ir)
+				append(&args, right_ir)
+				call := new(IR_Call)
+				str_name := intern(env.interner, "Str")
+				concat_name := intern(env.interner, "concat")
+				call^ = IR_Call{
+					callee = Canonical_Name{module = str_name, name = concat_name},
+					args = args,
+					type = e.type_,
+					span = e.span,
+				}
+				return IR_Expr(call)
+			}
+		}
+	}
+
 	left_ir := lower_texpr(e.left, env)
 	right_ir := lower_texpr(e.right, env)
 	result := new(IR_BinOp)
@@ -1264,17 +1290,21 @@ lower_tinterpolate :: proc(e: ^TExpr_Interpolate, env: ^Lower_Env) -> IR_Expr {
 	}
 
 	result := lower_texpr(e.parts[0], env)
+	str_name := intern(env.interner, "Str")
+	concat_name := intern(env.interner, "concat")
 	for i := 1; i < len(e.parts); i += 1 {
 		right := lower_texpr(e.parts[i], env)
-		binop := new(IR_BinOp)
-		binop^ = IR_BinOp{
-			op = .Plus,
-			left = result,
-			right = right,
+		args := make([dynamic]IR_Expr, 0, 2)
+		append(&args, result)
+		append(&args, right)
+		call := new(IR_Call)
+		call^ = IR_Call{
+			callee = Canonical_Name{module = str_name, name = concat_name},
+			args = args,
 			type = e.type_,
 			span = e.span,
 		}
-		result = IR_Expr(binop)
+		result = IR_Expr(call)
 	}
 	return result
 }
@@ -1719,17 +1749,21 @@ lower_interpolate :: proc(e: ^CExpr_Interpolate, env: ^Lower_Env) -> IR_Expr {
 	}
 
 	result := lower_expr(e.parts[0], env)
+	str_name := intern(env.interner, "Str")
+	concat_name := intern(env.interner, "concat")
 	for i := 1; i < len(e.parts); i += 1 {
 		right := lower_expr(e.parts[i], env)
-		binop := new(IR_BinOp)
-		binop^ = IR_BinOp{
-			op = .Plus,
-			left = result,
-			right = right,
+		args := make([dynamic]IR_Expr, 0, 2)
+		append(&args, result)
+		append(&args, right)
+		call := new(IR_Call)
+		call^ = IR_Call{
+			callee = Canonical_Name{module = str_name, name = concat_name},
+			args = args,
 			type = IR_Type{.I32, Type_Var_ID(-1)},
 			span = e.span,
 		}
-		result = IR_Expr(binop)
+		result = IR_Expr(call)
 	}
 	return result
 }
