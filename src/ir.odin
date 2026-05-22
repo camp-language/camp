@@ -313,7 +313,24 @@ IR_Return :: struct { value: IR_Expr, span: Source_Span }
 
 IR_Block :: struct { statements: [dynamic]IR_Expr, type: IR_Type, span: Source_Span }
 
-IR_BinOp :: struct { op: Token_Kind, left: IR_Expr, right: IR_Expr, type: IR_Type, span: Source_Span }
+IR_BinOp_Kind :: enum {
+	Add,
+	Sub,
+	Mul,
+	Div,
+	Mod,
+	Exp,
+	Eq,
+	Ne,
+	Lt,
+	Gt,
+	Le,
+	Ge,
+	And,
+	Or,
+}
+
+IR_BinOp :: struct { op: IR_BinOp_Kind, left: IR_Expr, right: IR_Expr, type: IR_Type, span: Source_Span }
 
 IR_Dup :: struct { value: Intern_ID, span: Source_Span }
 IR_Drop :: struct { value: Intern_ID, span: Source_Span }

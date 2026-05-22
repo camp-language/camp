@@ -485,67 +485,6 @@ codegen :: proc(ir_mod: IR_Module, ctx: ^Compilation_Context) -> Wasm_Module {
 		case ^IR_Decl_Fn:
 			is_main := intern_get(&ctx.interner, d.name.name) == "main" || intern_get(&ctx.interner, d.name.name) == "main!"
 
-			if is_main && d.is_effectful {
-				env.locals = make([dynamic]Wasm_Local_Decl, 0, 32)
-				env.local_map = make(map[Intern_ID]u32, 32)
-				env.next_local = u32(len(d.params))
-
-				for p, i in d.params {
-					env.local_map[p.name] = u32(i)
-				}
-
-				collected_locals: map[Intern_ID]IR_Type
-				collected_locals = make(map[Intern_ID]IR_Type, 32)
-				collect_locals(d.body, &collected_locals)
-
-				local_groups: map[Wasm_Value_Type][dynamic]Intern_ID
-				local_groups = make(map[Wasm_Value_Type][dynamic]Intern_ID, 8)
-
-				for name, typ in collected_locals {
-					vt := ir_wasm_type_to_value_type(typ.wasm_type)
-					if vt in local_groups {
-						append(&local_groups[vt], name)
-					} else {
-						list: [dynamic]Intern_ID
-						list = make([dynamic]Intern_ID, 0, 8)
-						append(&list, name)
-						local_groups[vt] = list
-					}
-				}
-
-				for vt, names in local_groups {
-					for name in names {
-						env.local_map[name] = env.next_local
-						env.next_local += 1
-					}
-					append(&env.locals, Wasm_Local_Decl{count = u32(len(names)), type = vt})
-					delete(names)
-				}
-				delete(local_groups)
-				delete(collected_locals)
-
-				env.tmp_local_base = env.next_local
-				env.tmp_count = 0
-				append(&env.locals, Wasm_Local_Decl{count = 4, type = .I32})
-				env.next_local += 4
-
-				body_buf: [dynamic]u8
-				body_buf = make([dynamic]u8, 0, 512)
-				emit_expr(d.body, &body_buf, &env, runtime_func_indices[:])
-				emit_instruction(Wasm_End{}, &body_buf)
-
-				locals_copy := make([]Wasm_Local_Decl, len(env.locals))
-				for l, i in env.locals {
-					locals_copy[i] = l
-				}
-
-				append(&mod.codes, Wasm_Code{locals = locals_copy, body = copy_dynamic_bytes(body_buf)})
-				delete(body_buf)
-				delete(env.locals)
-				delete(env.local_map)
-				continue
-			}
-
 			env.locals = make([dynamic]Wasm_Local_Decl, 0, 32)
 			env.local_map = make(map[Intern_ID]u32, 32)
 			env.next_local = u32(len(d.params))
@@ -603,6 +542,10 @@ codegen :: proc(ir_mod: IR_Module, ctx: ^Compilation_Context) -> Wasm_Module {
 			delete(body_buf)
 			delete(env.locals)
 			delete(env.local_map)
+
+			if is_main && d.is_effectful {
+				continue
+			}
 		case:
 		}
 	}
@@ -1862,33 +1805,33 @@ emit_expr :: proc(expr: IR_Expr, buf: ^[dynamic]u8, env: ^Codegen_Env, runtime_i
 	}
 }
 
-emit_binop :: proc(op: Token_Kind, operand_type: IR_Wasm_Type, buf: ^[dynamic]u8) {
+emit_binop :: proc(op: IR_BinOp_Kind, operand_type: IR_Wasm_Type, buf: ^[dynamic]u8) {
 	#partial switch op {
-	case .Plus:
+	case .Add:
 		if operand_type == .I32 {
 			emit_instruction(Wasm_I32_Add{}, buf)
 		} else {
 			emit_instruction(Wasm_I64_Add{}, buf)
 		}
-	case .Minus:
+	case .Sub:
 		if operand_type == .I32 {
 			emit_instruction(Wasm_I32_Sub{}, buf)
 		} else {
 			emit_instruction(Wasm_I64_Sub{}, buf)
 		}
-	case .Star:
+	case .Mul:
 		if operand_type == .I32 {
 			emit_instruction(Wasm_I32_Mul{}, buf)
 		} else {
 			emit_instruction(Wasm_I64_Mul{}, buf)
 		}
-	case .Eq_Eq:
+	case .Eq:
 		if operand_type == .I64 {
 			emit_instruction(Wasm_I64_Eq{}, buf)
 		} else {
 			emit_instruction(Wasm_I32_Eq{}, buf)
 		}
-	case .Bang_Eq:
+	case .Ne:
 		if operand_type == .I64 {
 			emit_instruction(Wasm_I64_Ne{}, buf)
 		} else {
@@ -1906,25 +1849,25 @@ emit_binop :: proc(op: Token_Kind, operand_type: IR_Wasm_Type, buf: ^[dynamic]u8
 		} else {
 			emit_instruction(Wasm_I32_Gt_S{}, buf)
 		}
-	case .Lt_Eq:
+	case .Le:
 		if operand_type == .I64 {
 			emit_instruction(Wasm_I64_Le_S{}, buf)
 		} else {
 			emit_instruction(Wasm_I32_Le_S{}, buf)
 		}
-	case .Gt_Eq:
+	case .Ge:
 		if operand_type == .I64 {
 			emit_instruction(Wasm_I64_Ge_S{}, buf)
 		} else {
 			emit_instruction(Wasm_I32_Ge_S{}, buf)
 		}
-	case .Kw_And:
+	case .And:
 		if operand_type == .I64 {
 			emit_instruction(Wasm_I64_And{}, buf)
 		} else {
 			emit_instruction(Wasm_I32_And{}, buf)
 		}
-	case .Kw_Or:
+	case .Or:
 		if operand_type == .I64 {
 			emit_instruction(Wasm_I64_Or{}, buf)
 		} else {

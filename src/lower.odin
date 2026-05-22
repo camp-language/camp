@@ -680,12 +680,32 @@ lower_tpattern :: proc(pattern: TPattern, env: ^Lower_Env) -> IR_Pattern {
 	return IR_Pattern(nil)
 }
 
+lower_binop_kind :: proc(op: Token_Kind) -> IR_BinOp_Kind {
+	#partial switch op {
+	case .Plus:      return .Add
+	case .Minus:     return .Sub
+	case .Star:      return .Mul
+	case .Slash:     return .Div
+	case .Percent:   return .Mod
+	case .Caret:     return .Exp
+	case .Eq_Eq:     return .Eq
+	case .Bang_Eq:   return .Ne
+	case .Lt:        return .Lt
+	case .Gt:        return .Gt
+	case .Lt_Eq:     return .Le
+	case .Gt_Eq:     return .Ge
+	case .Kw_And:    return .And
+	case .Kw_Or:     return .Or
+	}
+	return .Add
+}
+
 lower_tbinop :: proc(e: ^TExpr_BinOp, env: ^Lower_Env) -> IR_Expr {
 	left_ir := lower_texpr(e.left, env)
 	right_ir := lower_texpr(e.right, env)
 	result := new(IR_BinOp)
 	result^ = IR_BinOp{
-		op = e.op,
+		op = lower_binop_kind(e.op),
 		left = left_ir,
 		right = right_ir,
 		type = e.type_,
@@ -701,12 +721,12 @@ lower_tprefixop :: proc(e: ^TExpr_PrefixOp, env: ^Lower_Env) -> IR_Expr {
 	case .Kw_Not:
 		false_lit := make_ir_lit_bool(false, e.type_, e.span)
 		binop := new(IR_BinOp)
-		binop^ = IR_BinOp{op = .Eq_Eq, left = operand_ir, right = false_lit, type = e.type_, span = e.span}
+		binop^ = IR_BinOp{op = .Eq, left = operand_ir, right = false_lit, type = e.type_, span = e.span}
 		return IR_Expr(binop)
 	case .Minus:
 		zero_lit := make_ir_lit_int(0, e.type_, e.span)
 		binop := new(IR_BinOp)
-		binop^ = IR_BinOp{op = .Minus, left = zero_lit, right = operand_ir, type = e.type_, span = e.span}
+		binop^ = IR_BinOp{op = .Sub, left = zero_lit, right = operand_ir, type = e.type_, span = e.span}
 		return IR_Expr(binop)
 	case:
 		return operand_ir
@@ -785,7 +805,7 @@ lower_tinterpolate :: proc(e: ^TExpr_Interpolate, env: ^Lower_Env) -> IR_Expr {
 		right := lower_texpr(e.parts[i], env)
 		binop := new(IR_BinOp)
 		binop^ = IR_BinOp{
-			op = .Plus,
+			op = .Add,
 			left = result,
 			right = right,
 			type = e.type_,

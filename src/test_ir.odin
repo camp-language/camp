@@ -135,7 +135,7 @@ test_lower_binop :: proc(t: ^testing.T) {
 	case ^IR_Decl_Const:
 		#partial switch expr in decl.value {
 		case ^IR_BinOp:
-			testing.expect(t, expr.op == .Plus)
+			testing.expect(t, expr.op == .Add)
 		case:
 			testing.expect(t, false)
 		}
