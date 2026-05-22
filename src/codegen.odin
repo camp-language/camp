@@ -2,7 +2,7 @@ package camp
 
 WASI_MODULE :: "wasi_snapshot_preview1"
 
-RUNTIME_FUNC_COUNT :: 6
+RUNTIME_FUNC_COUNT :: 7
 
 CAMP_TAG_HEADER_SIZE :: 8
 CAMP_TAG_REFCOUNT_OFFSET :: 0
@@ -162,6 +162,7 @@ codegen :: proc(ir_mod: IR_Module, ctx: ^Compilation_Context) -> Wasm_Module {
 	alloc_type_idx := get_or_create_type(&env, []Wasm_Value_Type{.I32}, []Wasm_Value_Type{.I32})
 	dup_type_idx := get_or_create_type(&env, []Wasm_Value_Type{.I32}, []Wasm_Value_Type{})
 	drop_type_idx := dup_type_idx
+	drop_reuse_type_idx := alloc_type_idx
 	print_str_type_idx := get_or_create_type(&env, []Wasm_Value_Type{.I32, .I32}, []Wasm_Value_Type{})
 	exit_type_idx := dup_type_idx
 	print_str_stderr_type_idx := print_str_type_idx
@@ -179,6 +180,8 @@ codegen :: proc(ir_mod: IR_Module, ctx: ^Compilation_Context) -> Wasm_Module {
 	runtime_func_indices[4] = exit_func_idx
 	print_str_stderr_func_idx := add_function(&env, print_str_stderr_type_idx)
 	runtime_func_indices[5] = print_str_stderr_func_idx
+	drop_reuse_func_idx := add_function(&env, drop_reuse_type_idx)
+	runtime_func_indices[6] = drop_reuse_func_idx
 
 	camp_alloc_code := emit_camp_alloc_body(heap_ptr_global_idx)
 	append(&mod.codes, camp_alloc_code)
@@ -197,6 +200,9 @@ codegen :: proc(ir_mod: IR_Module, ctx: ^Compilation_Context) -> Wasm_Module {
 
 	camp_print_str_stderr_code := emit_camp_print_str_stderr_body()
 	append(&mod.codes, camp_print_str_stderr_code)
+
+	camp_drop_reuse_code := emit_camp_drop_reuse_body()
+	append(&mod.codes, camp_drop_reuse_code)
 
 	main_fn_idx := -1
 	main_decl: ^IR_Decl_Fn = nil
@@ -556,6 +562,7 @@ RUNTIME_DROP :: 2
 RUNTIME_PRINT_STR :: 3
 RUNTIME_EXIT :: 4
 RUNTIME_PRINT_STR_STDERR :: 5
+RUNTIME_DROP_REUSE :: 6
 
 extract_effectful_body :: proc(expr: IR_Expr) -> IR_Expr {
 	#partial switch e in expr {
@@ -882,11 +889,32 @@ emit_expr :: proc(expr: IR_Expr, buf: ^[dynamic]u8, env: ^Codegen_Env, runtime_i
 	case ^IR_Drop_Reuse:
 		if idx, ok := env.local_map[e.value]; ok {
 			emit_instruction(Wasm_Local_Get{index = idx}, buf)
-			emit_instruction(Wasm_Call{index = u32(runtime_indices[RUNTIME_DROP])}, buf)
+			emit_instruction(Wasm_Call{index = u32(runtime_indices[RUNTIME_DROP_REUSE])}, buf)
+		}
+		if reuse_idx, ok := env.local_map[e.reuse_as]; ok {
+			emit_instruction(Wasm_Local_Set{index = reuse_idx}, buf)
 		}
 	case ^IR_Alloc_At:
+		if at_idx, ok := env.local_map[e.at]; ok {
+			emit_instruction(Wasm_Local_Get{index = at_idx}, buf)
+		} else {
+			emit_instruction(Wasm_I32_Const{value = 0}, buf)
+		}
+		reuse_local := env.next_local
+		env.next_local += 1
+		emit_instruction(Wasm_Local_Set{index = reuse_local}, buf)
+		emit_instruction(Wasm_Local_Get{index = reuse_local}, buf)
+		emit_instruction(Wasm_I32_Const{value = 0}, buf)
+		emit_instruction(Wasm_I32_Eq{}, buf)
+		emit_instruction(Wasm_If{block_type = .Void}, buf)
 		emit_instruction(Wasm_I32_Const{value = 16}, buf)
 		emit_instruction(Wasm_Call{index = u32(runtime_indices[RUNTIME_ALLOC])}, buf)
+		emit_instruction(Wasm_Else{}, buf)
+		emit_instruction(Wasm_Local_Get{index = reuse_local}, buf)
+		emit_instruction(Wasm_End{}, buf)
+		if val_idx, ok := env.local_map[e.value]; ok {
+			emit_instruction(Wasm_Local_Set{index = val_idx}, buf)
+		}
 	case ^IR_Crash:
 		msg_str, is_str := e.message.(^IR_Literal_String)
 		if is_str {
