@@ -130,6 +130,7 @@ run_build_project :: proc() {
 	}
 
 	project := discover_project(cwd, &ctx.interner, &ctx.collector, ctx.allocator)
+	register_stdlib_modules(&project, &ctx.interner)
 	ctx.project = project
 
 	if diag_collector_has_errors(&ctx.collector) {
