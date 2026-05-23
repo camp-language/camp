@@ -1,5 +1,5 @@
-main!! = || -> I64 {
-    x = 42
-    "{x} is the answer"
+main! = || -> I64 {
+    name = "World"
+    greeting = "Hello ${name}!"
     0
 }

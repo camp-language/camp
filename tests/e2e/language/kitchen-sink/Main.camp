@@ -248,6 +248,23 @@ logic_demo = || -> I64 {
 -- name: Str = "Camp"
 
 -- ============================================================
+-- SECTION: Strings & Interpolation
+-- Demonstrates: string literals, escape sequences, ${expr}
+-- interpolation, Display trait, raw strings, multiline strings
+-- ============================================================
+
+-- "Hello, World!"                    -- plain string literal
+-- "Hello, ${name}!"                  -- interpolated string (Display required)
+-- "${x + y} items"                   -- expression in interpolation hole
+-- r"C:\Users\${dir}\file"            -- raw string (backslashes literal, ${} active)
+-- """Line 1                         -- multiline string (newlines literal)
+-- Line 2
+-- ${value}!"""
+-- "\${literal}"                      -- escaped ${ produces literal ${
+-- Display trait: Str, I64, I32, F64, Bool implement Display
+-- Non-Display types in ${} are compile errors
+
+-- ============================================================
 -- SECTION: No Shadowing
 -- Demonstrates: all shadowing forbidden, fresh names required
 -- ============================================================

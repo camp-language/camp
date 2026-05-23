@@ -1,0 +1,13 @@
+stdout = """
+canonicalized /tmp/camp-e2e/strings/interpolation-display-error/src/Main.camp: 1 declaration(s), 0 import(s)
+-- DISPLAY NOT IMPLEMENTED --- /tmp/camp-e2e/strings/interpolation-display-error/src/Main.camp
+
+Type `unknown type` does not implement `Display`. Only types that implement
+`Display` can be used in string interpolation.
+   3 |     msg = "Items: ${x}"
+                 ^^^^^^^^^^^^^
+  Implement `Display` for `unknown type`, or convert the value to `Str` before interpolation.
+compilation failed with 1 error(s)
+"""
+stderr = ""
+exit = 1
