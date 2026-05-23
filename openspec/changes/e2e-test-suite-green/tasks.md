@@ -35,11 +35,11 @@
 - [ ] 3.19 Fix `tests/e2e/closures/closure-mutation-simulated/Main.camp`: `() -> I64 { x.val }` → `|| -> I64 { x.val }`
 - [ ] 3.20 Fix `tests/e2e/records/record-as-function-return/Main.camp`: `(a) -> { x: I64 } { ... }` → `|a| -> { x: I64 } { ... }`
 
-## 4. Parser: Generic `<a>|params|` Syntax
+## 4. Parser: Inferred Generic Type Parameters
 
-- [ ] 4.1 Add speculative parsing in `parser_parse_prefix` for `Lt`: save lexer position, try parsing type param list, check if `Pipe` follows, commit or backtrack
-- [ ] 4.2 If `Pipe` follows type params, delegate to `parser_parse_lambda` (skip the initial `|` consumption since it's the boundary between type params and regular params)
-- [ ] 4.3 Verify `generics/basic/Main.camp` (`id = <a>|x: a| -> a { x }`) parses correctly
+- [ ] 4.1 Treat lowercase type variables (e.g., `a`, `b`, `e`) in annotations as auto-generalized type parameters — no explicit `<a>` syntax needed
+- [ ] 4.2 When a lowercase type variable appears in a function's parameter or return type annotation, introduce it as a named type parameter during canonicalization
+- [ ] 4.3 Verify `generics/basic/Main.camp` (`id = |x: a| -> a { x }`) parses correctly
 - [ ] 4.4 Run `odin test src` to confirm unit tests pass
 
 ## 5. Parser: Match Guard Syntax

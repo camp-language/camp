@@ -277,20 +277,9 @@ Decl_Effect :: struct {
 
 **Parser change** (`src/parser.odin`): After the effect name (with `!`), if `<` follows, parse type parameters:
 ```
-Throw! : <e> { throw!: |e| -[Throw!(e)]-> a }
-```
+Throw! : { throw!: |e| -[Throw!(e)]-> a } where e
 
-Wait — the `:` syntax for effects means we need to parse `<e>` between the name and `:`:
-```
-Throw!<e> : { throw!: |e| -[Throw!(e)]-> a }
-```
-
-Or with the current syntax:
-```
-Throw! : { throw!: |e| -[Throw!(e)]-> a }
-```
-
-The type parameter `e` appears in the operation type annotations. The effect definition itself is implicitly parameterized by any type variables used in its operations that aren't bound elsewhere. **Decision**: Explicit type parameters on the effect definition.
+The type parameter `e` appears in the operation type annotations. The effect definition itself is implicitly parameterized by any type variables used in its operations that aren't bound elsewhere. **Decision**: Type parameters are inferred from the operation annotations, with the `where` clause used when needed for disambiguation.
 
 **Canonical change** (`src/canonical.odin`): Add type params to `CDecl_Effect`:
 ```odin
@@ -505,7 +494,7 @@ When typechecking a handler arm, verify the arm's parameter types and return typ
 #### 10.7: E2E tests
 
 ```camp
-map = <a, b, e>|f: |a| -[e]-> b, items: List(a)| -[Parallel! | e]-> List(b) {
+map = |f: |a| -[e]-> b, items: List(a)| -[Parallel! | e]-> List(b) {
   items.par_map!(f)
 }
 ```
@@ -740,30 +729,30 @@ stdlib/
 
 **Result.camp**:
 ```camp
-Result : <a, e> [Ok(a) | Err(e)]
+Result : [Ok(a) | Err(e)] where a, e
 
-is_ok = <a, e>|r: Result(a, e)| -> Bool {
+is_ok = |r: Result(a, e)| -> Bool {
   match r { Ok(_) => True | Err(_) => False }
 }
 
-is_err = <a, e>|r: Result(a, e)| -> Bool {
+is_err = |r: Result(a, e)| -> Bool {
   match r { Ok(_) => False | Err(_) => True }
 }
 
-map = <a, b, e>|f: |a| -> b, r: Result(a, e)| -> Result(b, e) {
+map = |f: |a| -> b, r: Result(a, e)| -> Result(b, e) {
   match r { Ok(v) => Ok(f(v)) | Err(e) => Err(e) }
 }
 ```
 
 **Option.camp**:
 ```camp
-Option : <a> [Some(a) | None]
+Option : [Some(a) | None] where a
 
-is_some = <a>|o: Option(a)| -> Bool {
+is_some = |o: Option(a)| -> Bool {
   match o { Some(_) => True | None => False }
 }
 
-is_none = <a>|o: Option(a)| -> Bool {
+is_none = |o: Option(a)| -> Bool {
   match o { Some(_) => False | None => True }
 }
 ```
@@ -936,7 +925,7 @@ CExpr_Par :: struct {
 
 Each Parallel! operation carries its inner function's effects through effect polymorphism:
 ```camp
-map! : <a, b, e>|items: List(a), f: |a| -[e]-> b| -[Parallel! | e]-> List(b)
+map! : |items: List(a), f: |a| -[e]-> b| -[Parallel! | e]-> List(b) where a, b, e
 ```
 
 The typechecker needs to:

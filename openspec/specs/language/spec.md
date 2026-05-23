@@ -560,7 +560,7 @@ Effect rows SHALL be sets with insignificant order and deduplication; row variab
 - THEN the composed effect row SHALL be `-[E1 | E2]->`
 
 #### Scenario: Effect polymorphism via row variable
-- GIVEN a function `map = <a, b, e>|f: |a| -[e]-> b, list: List(a)| -[e]-> List(b)`
+- GIVEN a function `map = |f: |a| -[e]-> b, list: List(a)| -[e]-> List(b)`
 - WHEN `f` is pure
 - THEN `map` SHALL be pure; when `f` is effectful, `map` SHALL propagate the same effects
 
@@ -770,15 +770,15 @@ Effects SHALL compose by set union using aliases, not by inheritance; the `is` k
 - THEN it SHALL produce an error
 
 ### Requirement: Generic Type Parameters
-Generic type parameters SHALL be declared in angle brackets before the parameter list; trait constraints SHALL use `where` clause syntax.
+Generic type parameters SHALL be inferred from lowercase type variables in annotations; trait constraints SHALL use `where` clause syntax.
 
 #### Scenario: Generic function
-- GIVEN a definition `add = <a>|x: a, y: a| -> a { x + y }`
+- GIVEN a definition `add = |x: a, y: a| -> a { x + y }`
 - WHEN compiled
 - THEN `add` SHALL be a generic function with type parameter `a`
 
 #### Scenario: Trait constraint on type parameter via where clause
-- GIVEN a definition `format = <a>|x: a| -> Str where a is Display { x.display() }`
+- GIVEN a definition `format = |x: a| -> Str where a is Display { x.display() }`
 - WHEN compiled
 - THEN `a` SHALL be constrained to types that satisfy `Display`
 

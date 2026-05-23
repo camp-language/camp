@@ -13,7 +13,7 @@ Current state: 28 e2e tests pass (effects, scheduler, pattern-matching basics, s
 **Goals:**
 - All e2e tests produce the exact output in their `expected.toml`
 - Lexer emits `!` as part of identifier text (up to 2 trailing `!`)
-- Parser correctly handles `!` suffix embedded in tokens, generic `<a>|params|` syntax, match guards, or-patterns, unary `+`, inline type annotations in blocks
+- Parser correctly handles `!` suffix embedded in tokens, inferred generic type parameters, match guards, or-patterns, unary `+`, inline type annotations in blocks
 - Typechecker resolves `True`/`False` to `Bool` primitive type
 - Trait method matching uses `TypeName_methodname` convention
 - E2e test `.camp` files use spec-compliant `|params|` lambda syntax
@@ -45,13 +45,13 @@ Current state: 28 e2e tests pass (effects, scheduler, pattern-matching basics, s
 
 **Alternative considered**: Support both syntaxes. Rejected because the spec explicitly forbids it: "No `fn` or `def` keyword" and "all functions SHALL use `|args| body` syntax."
 
-### Decision 3: Speculative parsing for generic `<a>|params|` syntax
+### Decision 3: Inferred type parameters from lowercase type variables
 
-**Choice**: In `parser_parse_prefix`, when seeing `Lt`, speculatively parse type params and check if `Pipe` follows. If yes, commit to lambda parse. If no, backtrack and treat as less-than.
+**Choice**: Lowercase type variables in function annotations (parameter types, return types) are auto-generalized. No explicit `<a>` syntax, no speculative parsing needed.
 
-**Rationale**: The spec example uses `add = <a>|x: a, y: a| -> a { x + y }` — type params OUTSIDE the pipes. The current parser only supports `|<a> params|` (type params inside). Both forms need to work.
+**Rationale**: The spec now uses `add = |x: a, y: a| -> a { x + y }` — type params are inferred from the `a` in annotations. This eliminates the ambiguous `<` vs less-than parsing problem entirely and matches standard Hindley-Milner inference.
 
-**Alternative considered**: Only support `|<a> params|`. Rejected because the spec example explicitly shows `<a>|...|`.
+**Alternative considered**: Speculative `<a>|` parsing. Rejected because it requires look-ahead, backtracking, and introduces ambiguity with comparison expressions. The inferred approach is simpler and more principled.
 
 ### Decision 4: Match guard as optional `if` after pattern
 
@@ -81,7 +81,7 @@ Current state: 28 e2e tests pass (effects, scheduler, pattern-matching basics, s
 
 **[Risk] `!` absorption breaks effect declaration parsing** → In `parser_parse_const_decl`, the `Bang` check after `Upper_Id` becomes a no-op since `!` is already in the token. The `is_effectful` flag must be set by checking `strings.has_suffix(name.text, "!")` instead. Same for `parser_parse_method_chain`.
 
-**[Risk] Speculative `<a>|` parsing has ambiguous backtracking** → The `<` token could start a type param list OR a comparison. Mitigation: Only try speculative parsing when the token sequence is `<Identifier [, Identifier]*> |`. If the look-ahead fails, backtrack cleanly by restoring lexer position.
+**[Risk] Lowercase type variables could shadow existing names** → A type variable `a` in an annotation could conflict with a concrete type named `a`. Mitigation: Concrete types use `Upper_Camel_Case` naming (per spec), so lowercase identifiers are always available for type variables. This is checked during name resolution.
 
 **[Risk] Or-pattern `|` ambiguous with arm separator** → In `1 | 2 | 3 => body`, the `|` after `1` could be an arm separator. Mitigation: After parsing a pattern, check if `=>` follows. If `|` follows instead, treat it as an or-pattern continuation. If `=>` follows a `|`, it's an arm separator.
 

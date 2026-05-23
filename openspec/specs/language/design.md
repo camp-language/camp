@@ -314,10 +314,10 @@ All functions use `|args| body` syntax — from top-level definitions to anonymo
 
 ```
 -- Named function definition:
-add = <a>|x: a, y: a| -> a { x + y }
+add = |x: a, y: a| -> a { x + y }
 
 -- Type-only declaration (for traits, interfaces):
-add : <a>|a, a| -> a
+add : |a, a| -> a
 
 -- Anonymous function:
 |x: Int, y: Int| -> Int { x + y }
@@ -326,25 +326,25 @@ add : <a>|a, a| -> a
 read_line! = || ->{ Console } Str { Console.readln!() }
 
 -- Generic with trait constraint:
-format = <a is Display>|x: a| -> Str { x.display() }
+format = |x: a| -> Str where a is Display { x.display() }
 ```
 
 **Syntax breakdown**:
 ```
-name = <type_params>|param: type, ...| ->return_type { body }
-      ^^^^^^^^^^^^  ^^^^^^^^^^^^^^^^^   ^^^^^^^^^^^   ^^^^^^
-      generic vars   parameters+types    return type   block body
+name = |param: type, ...| ->return_type { body }
+      ^^^^^^^^^^^^^^^^^^   ^^^^^^^^^^^   ^^^^^^
+      parameters+types     return type   block body
 
-name : <type_params>|type, type, ...| ->return_type
-      ^^^^^^^^^^^^  ^^^^^^^^^^^^^^^^^   ^^^^^^^^^^^
-      generic vars   type-only params    return type
+name : |type, type, ...| ->return_type
+      ^^^^^^^^^^^^^^^^^   ^^^^^^^^^^^
+      type-only params    return type
 ```
 
 **Key design decisions**:
 
 1. **`=` for definitions, `:` for declarations**: ML tradition of `let x = expr`. Binding syntax `add = ...` is consistent with all other value bindings.
 
-2. **Generic params before `|`**: `<a>` comes before the parameter list. Groups type-level information together at the start of the function signature.
+2. **Type params inferred from annotations**: Lowercase type variables in annotations are automatically generalized. No explicit `<a>` needed.
 
 3. **Return type after `|`...`| -> `**: Standard ML-family convention.
 
@@ -493,9 +493,9 @@ add : Int, Int -> Int
 echo! : Str ->{ Console } {}
 
 -- Polymorphic effect propagation:
-map = <a, b, e>|f: |a| ->{ e } b, list: List(a)| ->{ e } List(b) { ... }
+map = |f: |a| ->{ e } b, list: List(a)| ->{ e } List(b) { ... }
 ```
-
+ 
 ### 2.12 Inline Type Annotations
 
 Types annotated inline with `:`, never as a separate declaration above the binding.
@@ -719,7 +719,7 @@ Each `resume` can be called at most once. A second invocation is a runtime error
 `Throw` is Camp's built-in error effect. Its parameter is a tag union (using the same `[..]` syntax) that widens as more tag types are thrown.
 
 ```
-Throw.throw! : <e>[e] ->{ Throw([e]) } a
+Throw.throw! : [e] ->{ Throw([e]) } a where e
 ```
 
 **Throw variant union widening**:
@@ -813,7 +813,7 @@ main! = || -> {} {
 Row variables enable generic effect propagation:
 
 ```
-map = <a, b, e>|f: |a| ->{ e } b, list: List(a)| ->{ e } List(b) { ... }
+map = |f: |a| ->{ e } b, list: List(a)| ->{ e } List(b) { ... }
 ```
 
 `e` is an effect row variable. `map` propagates whatever effects `f` has — if `f` is pure, `map` is pure; if `f` throws, `map` throws.
@@ -1976,7 +1976,7 @@ Pure functions (empty effect row) can be evaluated at compile time when all argu
 **Uses**:
 ```
 -- Generic specialization (comptime monomorphization):
-map = <a, b, e>|f: |a| ->{ e } b, list: List(a)| ->{ e } List(b)
+map = |f: |a| ->{ e } b, list: List(a)| ->{ e } List(b)
 -- When called as map(|x| x + 1, [1, 2, 3]), the compiler
 -- specializes to map_Int_Int_pure at comptime
 
@@ -2295,11 +2295,11 @@ UserId is Hash := U64                   -- newtype with trait
 ### Functions
 
 ```
-add = <a>|x: a, y: a| -> a { x + y }   -- named function definition
-add : <a>|a, a| -> a                    -- type-only declaration
+add = |x: a, y: a| -> a { x + y }   -- named function definition
+add : |a, a| -> a                    -- type-only declaration
 |x: I64, y: I64| -> I64 { x + y }      -- anonymous function
 read_line! = || ->{ Console } Str { … } -- effectful function
-map = <a, b, e>|f: |a| ->{ e } b, list: List(a)| ->{ e } List(b) { … }
+map = |f: |a| ->{ e } b, list: List(a)| ->{ e } List(b) { … }
 ```
 
 ### Effects

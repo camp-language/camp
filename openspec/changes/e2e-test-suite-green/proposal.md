@@ -6,7 +6,7 @@
 
 - **Lexer**: Append trailing `!` (up to 2) to identifier tokens, so `main!`, `main!!`, `IO!`, `println!` lex as single tokens instead of identifier + bang
 - **Parser**: Update `parser_parse_const_decl`, `parser_parse_tag_or_call`, and `parser_parse_method_chain` to detect `!` suffix already embedded in token text (instead of expecting a separate `Bang` token)
-- **Parser**: Add speculative parsing for `<a>|params|` generic lambda syntax (type params outside pipes, matching the spec example `add = <a>|x: a, y: a| -> a { x + y }`)
+- **Parser**: Support inferred generic type parameters — lowercase type variables in annotations are auto-generalized, no explicit `<a>` syntax needed
 - **Parser**: Add match guard support (`pattern if guard =>`) in `parser_parse_match_arm`
 - **Parser**: Add or-pattern support (`A | B =>`) via `Pattern_Or` in match arms
 - **Parser**: Add unary `+` prefix operator for float literals
@@ -21,7 +21,7 @@
 
 ### New Capabilities
 - `match-extensions`: Or-patterns and guards in match expressions (new syntax in pattern-matching)
-- `generic-lambda-syntax`: `<a>|params|` type-parameter syntax before pipe-delimited parameter lists
+- `generic-lambda-syntax`: Inferred type parameters from lowercase type variables in annotations
 
 ### Modified Capabilities
 - `language`: `True`/`False` must resolve to `Bool` primitive (not tag union); inline type annotations `name: Type = value` in block scope

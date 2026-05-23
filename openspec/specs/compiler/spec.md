@@ -121,7 +121,7 @@ The compiler SHALL specialize all generic functions at each concrete type instan
 
 #### Scenario: Generic function specialized at concrete type
 
-- **WHEN** a generic function `identity = <a>|x: a| -> a { x }` is called with `I64` and `Str`
+- **WHEN** a generic function `identity = |x: a| -> a { x }` is called with `I64` and `Str`
 - **THEN** monomorphization SHALL produce two specialized functions with concrete types — no generic type variable `a` shall remain
 
 #### Scenario: Recursive generic instantiation terminates
