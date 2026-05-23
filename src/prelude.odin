@@ -186,6 +186,57 @@ inject_prelude_effects_typecheck :: proc(store: ^Type_Store) {
 		name_id := intern(store.interner, eff_name)
 		append(&store.declared_effects, name_id)
 	}
+
+	// Register Display trait with to_str: (Self) -> Str
+	display_name := intern(store.interner, "Display")
+	to_str_name := intern(store.interner, "to_str")
+
+	if !is_trait_declared(store, display_name) {
+		display_generic_vars: map[int]Type_Var_ID
+		display_generic_vars = make(map[int]Type_Var_ID, 4, store.allocator)
+
+		display_methods := make([dynamic]Trait_Method_Info, 0, 4, store.allocator)
+
+		params := make([]Type_Var_ID, 1, store.allocator)
+		params[0] = fresh_value_var(store, Source_Span_ZERO)
+		return_type := prelude_resolve_type_ref(store, "Str", 0, &display_generic_vars)
+
+		append(&display_methods, Trait_Method_Info{
+			name = to_str_name,
+			param_types = params,
+			return_type = return_type,
+		})
+
+		store.trait_registry[display_name] = Trait_Info{
+			name = display_name,
+			module = NO_NAME,
+			parent = NO_NAME,
+			methods = display_methods[:],
+		}
+
+		delete(display_generic_vars)
+	}
+
+	// Register Display implementations for primitive types
+	primitive_display_types := []struct{name: string, canon: string}{
+		{"Str", "Str_to_str"},
+		{"I64", "I64_to_str"},
+		{"I32", "I32_to_str"},
+		{"F64", "F64_to_str"},
+		{"Bool", "Bool_to_str"},
+	}
+
+	for pdt in primitive_display_types {
+		type_id := intern(store.interner, pdt.name)
+		method_map := make(map[Intern_ID]Canonical_Name, 1, store.allocator)
+		method_map[to_str_name] = Canonical_Name{module = NO_NAME, name = intern(store.interner, pdt.canon)}
+		append(&store.trait_impls, Trait_Impl{
+			trait_name  = display_name,
+			type_name   = type_id,
+			type_module = NO_NAME,
+			methods     = method_map,
+		})
+	}
 }
 
 inject_prelude_effects_lower :: proc(mod: ^IR_Module, store: ^Type_Store) {

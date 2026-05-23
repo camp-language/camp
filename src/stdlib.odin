@@ -287,6 +287,10 @@ zip = |left, right| @{
     },
 }`
 
+DISPLAY_CAMP :: `Display : {
+  to_str: (Self) -> Str,
+}`
+
 STDLIB_MODULES: []Stdlib_Module = []Stdlib_Module{
 	{"Result", RESULT_CAMP, "stdlib/Result.camp"},
 	{"Option", OPTION_CAMP, "stdlib/Option.camp"},
@@ -295,6 +299,7 @@ STDLIB_MODULES: []Stdlib_Module = []Stdlib_Module{
 	{"Str", STR_CAMP, "stdlib/Str.camp"},
 	{"List", LIST_CAMP, "stdlib/List.camp"},
 	{"Iter", ITER_CAMP, "stdlib/Iter.camp"},
+	{"Display", DISPLAY_CAMP, "stdlib/Display.camp"},
 }
 
 stdlib_lookup :: proc(name: string) -> (Stdlib_Module, bool) {

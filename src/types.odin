@@ -395,6 +395,12 @@ find_trait_impl :: proc(store: ^Type_Store, trait_name: Intern_ID, type_name: In
 	return Trait_Impl{}, false
 }
 
+implements_display :: proc(store: ^Type_Store, type_name: Intern_ID) -> bool {
+	display_name := intern(store.interner, "Display")
+	_, found := find_trait_impl(store, display_name, type_name)
+	return found
+}
+
 find_trait_impl_by_method :: proc(store: ^Type_Store, type_name: Intern_ID, method_name: Intern_ID) -> (Trait_Impl, bool) {
 	for impl in store.trait_impls {
 		if impl.type_name == type_name {

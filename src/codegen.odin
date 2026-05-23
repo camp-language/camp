@@ -233,6 +233,10 @@ codegen :: proc(ir_mod: IR_Module, ctx: ^Compilation_Context) -> Wasm_Module {
 	str_len_type_idx := alloc_type_idx
 	str_eq_type_idx := list_push_type_idx
 	str_concat_type_idx := list_push_type_idx
+	i64_to_str_type_idx := get_or_create_type(&env, []Wasm_Value_Type{.I64}, []Wasm_Value_Type{.I32})
+	i32_to_str_type_idx := alloc_type_idx
+	f64_to_str_type_idx := get_or_create_type(&env, []Wasm_Value_Type{.F64}, []Wasm_Value_Type{.I32})
+	bool_to_str_type_idx := alloc_type_idx
 
 	runtime_func_indices: [RUNTIME_FUNC_COUNT]int
 	alloc_func_idx := add_function(&env, alloc_type_idx)
@@ -264,6 +268,14 @@ codegen :: proc(ir_mod: IR_Module, ctx: ^Compilation_Context) -> Wasm_Module {
 	runtime_func_indices[12] = str_eq_func_idx
 	str_concat_func_idx := add_function(&env, str_concat_type_idx)
 	runtime_func_indices[35] = str_concat_func_idx
+	i64_to_str_func_idx := add_function(&env, i64_to_str_type_idx)
+	runtime_func_indices[36] = i64_to_str_func_idx
+	i32_to_str_func_idx := add_function(&env, i32_to_str_type_idx)
+	runtime_func_indices[37] = i32_to_str_func_idx
+	f64_to_str_func_idx := add_function(&env, f64_to_str_type_idx)
+	runtime_func_indices[38] = f64_to_str_func_idx
+	bool_to_str_func_idx := add_function(&env, bool_to_str_type_idx)
+	runtime_func_indices[39] = bool_to_str_func_idx
 
 	async_init_type_idx := get_or_create_type(&env, []Wasm_Value_Type{}, []Wasm_Value_Type{})
 	async_enqueue_type_idx := get_or_create_type(&env, []Wasm_Value_Type{.I32, .I32}, []Wasm_Value_Type{.I32})
@@ -386,6 +398,15 @@ codegen :: proc(ir_mod: IR_Module, ctx: ^Compilation_Context) -> Wasm_Module {
 
 	camp_str_concat_code := emit_camp_str_concat_body()
 	append(&mod.codes, camp_str_concat_code)
+
+	camp_i64_to_str_code := emit_camp_i64_to_str_body()
+	append(&mod.codes, camp_i64_to_str_code)
+	camp_i32_to_str_code := emit_camp_i32_to_str_body()
+	append(&mod.codes, camp_i32_to_str_code)
+	camp_f64_to_str_code := emit_camp_f64_to_str_body()
+	append(&mod.codes, camp_f64_to_str_code)
+	camp_bool_to_str_code := emit_camp_bool_to_str_body()
+	append(&mod.codes, camp_bool_to_str_code)
 
 	camp_async_init_code := emit_camp_async_init_body()
 	append(&mod.codes, camp_async_init_code)
@@ -1054,7 +1075,11 @@ RUNTIME_PARALLEL_ALL :: 32
 RUNTIME_PARALLEL_FILTER :: 33
 RUNTIME_PARALLEL_FOR_EACH :: 34
 RUNTIME_STR_CONCAT :: 35
-RUNTIME_FUNC_COUNT :: 36
+RUNTIME_I64_TO_STR :: 36
+RUNTIME_I32_TO_STR :: 37
+RUNTIME_F64_TO_STR :: 38
+RUNTIME_BOOL_TO_STR :: 39
+RUNTIME_FUNC_COUNT :: 40
 
 extract_effectful_body :: proc(expr: IR_Expr) -> IR_Expr {
 	#partial switch e in expr {
