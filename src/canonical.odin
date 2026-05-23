@@ -197,12 +197,13 @@ CExpr_Method_Call :: struct {
 }
 
 CExpr_Lambda :: struct {
-	type_params: [dynamic]Type_Param,
-	params:      [dynamic]CFunc_Param,
-	return_type: ^CType,
-	effects:     ^CType,
-	body:        CExpr,
-	span:        Source_Span,
+	type_params:    [dynamic]Type_Param,
+	params:         [dynamic]CFunc_Param,
+	return_type:    ^CType,
+	effects:        ^CType,
+	where_clauses:  [dynamic]Where_Clause,
+	body:           CExpr,
+	span:           Source_Span,
 }
 
 CFunc_Param :: struct {
