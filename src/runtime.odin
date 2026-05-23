@@ -283,9 +283,7 @@ emit_camp_list_push_body :: proc() -> Wasm_Code {
 	buf: [dynamic]u8
 	buf = make([dynamic]u8, 0, 128)
 
-	emit_instruction(Wasm_Local_Get{index = 0}, &buf)
-	emit_instruction(Wasm_I32_Load{align = 2, offset = 0}, &buf)
-
+	// data_ptr + len * 8
 	emit_instruction(Wasm_Local_Get{index = 0}, &buf)
 	emit_instruction(Wasm_I32_Load{align = 2, offset = 8}, &buf)
 

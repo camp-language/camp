@@ -10,11 +10,11 @@
 - [x] 2.3 Update `lower_tlist()` to call `resolve_tag_index()` for Nil/Cons tag indices
 
 ## 3. Literal Pattern Lowering
-- [ ] 3.1 Update `lower_tpattern()` to create `IR_Pat_Bool`, `IR_Pat_Int`, `IR_Pat_String`
+- [x] 3.1 Update `lower_tpattern()` to create `IR_Pat_Bool`, `IR_Pat_Int`, `IR_Pat_String`
 
 ## 4. WASM Encoding Fixes
-- [ ] 4.1 Fix `Wasm_Memory_Copy` in `src/wasm.odin`: append `0x00 0x00` memidx bytes
-- [ ] 4.2 Fix `emit_camp_list_push_body()` in `src/runtime.odin`: remove redundant load, reorder address computation
+- [x] 4.1 Fix `Wasm_Memory_Copy` in `src/wasm.odin`: append `0x00 0x00` memidx bytes
+- [x] 4.2 Fix `emit_camp_list_push_body()` in `src/runtime.odin`: remove redundant load, reorder address computation
 
 ## 5. Codegen Env Extensions
 - [ ] 5.1 Add `local_types` and `store` to `Codegen_Env` in `src/codegen.odin`

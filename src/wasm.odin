@@ -559,6 +559,8 @@ emit_instruction :: proc(instr: Wasm_Instruction, buf: ^[dynamic]u8) {
 	case Wasm_Memory_Copy:
 		append(buf, 0xFC)
 		append(buf, 0x0A)
+		append(buf, 0x00)
+		append(buf, 0x00)
 	case Wasm_Block:
 		append(buf, 0x02)
 		append(buf, u8(i.block_type))
