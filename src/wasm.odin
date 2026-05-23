@@ -2,9 +2,7 @@ package camp
 
 copy_dynamic_bytes :: proc(buf: [dynamic]u8) -> []u8 {
 	result := make([]u8, len(buf))
-	for b, i in buf {
-		result[i] = b
-	}
+	copy(result, buf[:])
 	return result
 }
 
@@ -141,8 +139,17 @@ Wasm_I32_Shr_U :: struct {}
 Wasm_I32_Div_S :: struct {}
 Wasm_I32_Div_U :: struct {}
 Wasm_I32_Rem_S :: struct {}
+Wasm_I32_Rem_U :: struct {}
 Wasm_I64_And :: struct {}
 Wasm_I64_Or :: struct {}
+Wasm_I64_Xor :: struct {}
+Wasm_I64_Shl :: struct {}
+Wasm_I64_Shr_S :: struct {}
+Wasm_I64_Shr_U :: struct {}
+Wasm_I64_Div_S :: struct {}
+Wasm_I64_Div_U :: struct {}
+Wasm_I64_Rem_S :: struct {}
+Wasm_I64_Rem_U :: struct {}
 Wasm_Call :: struct { index: u32 }
 Wasm_Call_Indirect :: struct { type_idx: u32, table_idx: u32 }
 Wasm_Return_Call :: struct { index: u32 }
@@ -280,8 +287,17 @@ Wasm_Instruction :: union {
 	Wasm_I32_Div_S,
 	Wasm_I32_Div_U,
 	Wasm_I32_Rem_S,
+	Wasm_I32_Rem_U,
 	Wasm_I64_And,
 	Wasm_I64_Or,
+	Wasm_I64_Xor,
+	Wasm_I64_Shl,
+	Wasm_I64_Shr_S,
+	Wasm_I64_Shr_U,
+	Wasm_I64_Div_S,
+	Wasm_I64_Div_U,
+	Wasm_I64_Rem_S,
+	Wasm_I64_Rem_U,
 	Wasm_Call,
 	Wasm_Call_Indirect,
 	Wasm_Return_Call,
@@ -478,10 +494,28 @@ emit_instruction :: proc(instr: Wasm_Instruction, buf: ^[dynamic]u8) {
 		append(buf, 0x6E)
 	case Wasm_I32_Rem_S:
 		append(buf, 0x6F)
+	case Wasm_I32_Rem_U:
+		append(buf, 0x70)
 	case Wasm_I64_And:
-		append(buf, 0x7B)
+		append(buf, 0x83)
 	case Wasm_I64_Or:
-		append(buf, 0x7C)
+		append(buf, 0x84)
+	case Wasm_I64_Xor:
+		append(buf, 0x85)
+	case Wasm_I64_Shl:
+		append(buf, 0x86)
+	case Wasm_I64_Shr_S:
+		append(buf, 0x87)
+	case Wasm_I64_Shr_U:
+		append(buf, 0x88)
+	case Wasm_I64_Div_S:
+		append(buf, 0x7F)
+	case Wasm_I64_Div_U:
+		append(buf, 0x80)
+	case Wasm_I64_Rem_S:
+		append(buf, 0x81)
+	case Wasm_I64_Rem_U:
+		append(buf, 0x82)
 	case Wasm_Call:
 		append(buf, 0x10)
 		encode_u32_leb128(i.index, buf)
@@ -545,9 +579,6 @@ emit_instruction :: proc(instr: Wasm_Instruction, buf: ^[dynamic]u8) {
 		encode_u32_leb128(i.offset, buf)
 	case Wasm_F64_Load:
 		append(buf, 0x2B)
-		encode_u32_leb128(i.align, buf)
-		encode_u32_leb128(i.offset, buf)
-		append(buf, 0x37)
 		encode_u32_leb128(i.align, buf)
 		encode_u32_leb128(i.offset, buf)
 	case Wasm_Memory_Size:

@@ -1,15 +1,17 @@
-abs = |n: I64| -> I64 {
+pub abs = |n: I64| -> I64 {
   if n < 0 { 0 - n } else { n }
 }
 
-clamp = |lo: I64, hi: I64, n: I64| -> I64 {
+pub clamp = |lo: I64, hi: I64, n: I64| -> I64 {
   if n < lo { lo } else if n > hi { hi } else { n }
 }
 
-max = |a: I64, b: I64| -> I64 {
+pub max = |a: I64, b: I64| -> I64 {
   if a > b { a } else { b }
 }
 
-min = |a: I64, b: I64| -> I64 {
+pub min = |a: I64, b: I64| -> I64 {
   if a < b { a } else { b }
 }
+
+-- TODO: add I8/I16/I32/U8/U16/U32/U64/F32/F64 variants

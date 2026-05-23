@@ -273,18 +273,6 @@ test_lower_string_table :: proc(t: ^testing.T) {
 	testing.expect(t, len(mod.string_table) >= 1)
 }
 
-make_midend_ctx :: proc() -> (ctx: ^Compilation_Context, alloc: mem.Allocator) {
-	ctx = new(Compilation_Context)
-	alloc = context_init(ctx)
-	context.allocator = alloc
-	return
-}
-
-teardown_midend :: proc(ctx: ^Compilation_Context) {
-	context_destroy(ctx)
-	free(ctx)
-}
-
 contains_ir_let :: proc(expr: IR_Expr) -> bool {
 	#partial switch e in expr {
 	case ^IR_Let:
@@ -519,7 +507,7 @@ test_effect_lower_perform :: proc(t: ^testing.T) {
 }
 
 @(test)
-	test_effect_lower_handler_fns :: proc(t: ^testing.T) {
+test_effect_lower_handler_fns :: proc(t: ^testing.T) {
 	mod, ctx, store := lower_source(
 		"IO! : { println!: || -> Str }\nmain! = handle IO in { 42 } with { .println!(resume) => resume({}) }")
 	defer teardown_lower(ctx, &store)
@@ -922,24 +910,6 @@ test_effect_lower_handler_fn_count_matches_ops :: proc(t: ^testing.T) {
 	testing.expect(t, handler_count >= 2)
 }
 
-find_closure_in_expr :: proc(expr: IR_Expr) -> ^IR_Closure {
-	#partial switch e in expr {
-	case ^IR_Closure:
-		return e
-	case ^IR_Let:
-		r := find_closure_in_expr(e.value)
-		if r != nil do return r
-		return find_closure_in_expr(e.body)
-	case ^IR_Call:
-		for arg in e.args {
-			r := find_closure_in_expr(arg)
-			if r != nil do return r
-		}
-	case:
-	}
-	return nil
-}
-
 @(test)
 test_closure_convert_closure :: proc(t: ^testing.T) {
 	mod, ctx, store := lower_source("f = |x| |y| x")
@@ -984,16 +954,16 @@ test_cps_transform_effectful_fn :: proc(t: ^testing.T) {
 }
 
 @(test)
-	test_cps_transform_return_becomes_tail_call :: proc(t: ^testing.T) {
-		mod, ctx, store := lower_source("main! = || { 42 }")
-		defer teardown_lower(ctx, &store)
+test_cps_transform_return_becomes_tail_call :: proc(t: ^testing.T) {
+	mod, ctx, store := lower_source("main! = || { 42 }")
+	defer teardown_lower(ctx, &store)
 
-		result := cps_transform(&mod, ctx)
+	result := cps_transform(&mod, ctx)
 
-		fn_decl := find_decl_fn(result, true)
-		testing.expect(t, fn_decl != nil)
-		testing.expect(t, contains_ir_tail_call(fn_decl.body) || contains_ir_closure_call(fn_decl.body))
-	}
+	fn_decl := find_decl_fn(result, true)
+	testing.expect(t, fn_decl != nil)
+	testing.expect(t, contains_ir_tail_call(fn_decl.body) || contains_ir_closure_call(fn_decl.body))
+}
 
 @(test)
 test_cps_transform_pure_fn_unchanged :: proc(t: ^testing.T) {
@@ -1440,20 +1410,11 @@ cps_source :: proc(source: string) -> (IR_Module, ^Compilation_Context, Type_Sto
 	return result, ctx, store
 }
 
-full_pipeline_source :: proc(source: string) -> (IR_Module, ^Compilation_Context, Type_Store) {
-	mod, ctx, store := lower_source(source)
-	mod = effect_lower(&mod, ctx)
-	mod = closure_convert(&mod, ctx)
-	mod = cps_transform(&mod, ctx)
-	rc_insert(&mod, ctx)
-	return mod, ctx, store
-}
-
 find_decl_fn_by_name :: proc(mod: IR_Module, name_str: string, interner: ^Intern_Table) -> ^IR_Decl_Fn {
 	for decl in mod.decls {
 		#partial switch d in decl {
 		case ^IR_Decl_Fn:
-			if strings.has_prefix(intern_get(interner, d.name.name), name_str) {
+			if intern_get(interner, d.name.name) == name_str {
 				return d
 			}
 		case:

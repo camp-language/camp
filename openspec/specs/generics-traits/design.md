@@ -97,7 +97,7 @@ When the typechecker processes `<a is Display>`:
 
 ### 3.4 Self Resolution
 
-`Self` is not a special type variable. In trait method signatures, the first parameter represents the implementing type. During `is` verification:
+`Self` is a built-in type variable in trait method signatures. During `is` verification, Self is unified with the implementing type. It is not a free type variable — it is always resolved to the implementing type.
 
 1. The trait method has `param_types[0]` pointing to a placeholder type var
 2. When verifying `UserId is Display`, unify `param_types[0]` with `UserId`'s type var

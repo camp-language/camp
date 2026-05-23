@@ -116,9 +116,15 @@ topological_sort :: proc(graph: ^Module_Graph, interner: ^Intern_Table, collecto
 	return nil, false
 }
 
+DFS_Color :: enum int {
+	White = 0,
+	Gray  = 1,
+	Black = 2,
+}
+
 find_cycle :: proc(graph: ^Module_Graph, interner: ^Intern_Table) -> string {
-	white: map[Intern_ID]int
-	white = make(map[Intern_ID]int, len(graph.all_nodes))
+	white: map[Intern_ID]DFS_Color
+	white = make(map[Intern_ID]DFS_Color, len(graph.all_nodes))
 	defer delete(white)
 
 	parent: map[Intern_ID]Intern_ID
@@ -130,7 +136,7 @@ find_cycle :: proc(graph: ^Module_Graph, interner: ^Intern_Table) -> string {
 	defer delete(path)
 
 	for start in graph.all_nodes {
-		if white[start] != 0 do continue
+		if white[start] != .White do continue
 
 		stack: [dynamic]Intern_ID
 		stack = make([dynamic]Intern_ID, 0, 16)
@@ -140,16 +146,16 @@ find_cycle :: proc(graph: ^Module_Graph, interner: ^Intern_Table) -> string {
 		for len(stack) > 0 {
 			node := pop(&stack)
 
-			if white[node] == 0 {
-				white[node] = 1
+			if white[node] == .White {
+				white[node] = .Gray
 				append(&stack, node)
 
 				if edges, ok := graph.edges[node]; ok {
 					for to in edges {
-						if white[to] == 0 {
+						if white[to] == .White {
 							parent[to] = node
 							append(&stack, to)
-						} else if white[to] == 1 {
+						} else if white[to] == .Gray {
 							cycle_start := to
 							clear(&path)
 							cur: Intern_ID = node
@@ -176,8 +182,8 @@ find_cycle :: proc(graph: ^Module_Graph, interner: ^Intern_Table) -> string {
 						}
 					}
 				}
-			} else if white[node] == 1 {
-				white[node] = 2
+			} else if white[node] == .Gray {
+				white[node] = .Black
 			}
 		}
 	}

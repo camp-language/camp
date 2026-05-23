@@ -1,24 +1,18 @@
 package camp
 
-import "core:fmt"
-
 CPS_Env :: struct {
 	interner:      ^Intern_Table,
 	module:        ^IR_Module,
 	effectful_fns: map[Canonical_Name]bool,
-	fresh:         int,
+	fresh_state:   Fresh_State,
 }
 
-cps_fresh :: proc(env: ^CPS_Env, prefix: string) -> Intern_ID {
-	name := fmt.tprintf("{}_{}", prefix, env.fresh)
-	env.fresh += 1
-	return intern(env.interner, name)
-}
+
 
 cps_make_continuation :: proc(body: IR_Expr, param_name: Intern_ID, return_type: IR_Type, k_name: Intern_ID, env: ^CPS_Env) -> Canonical_Name {
 	cont_name := Canonical_Name{
 		module = NO_NAME,
-		name = cps_fresh(env, "_kc"),
+		name = fresh_id(&env.fresh_state, "_kc"),
 		is_local = true,
 	}
 
@@ -55,7 +49,7 @@ cps_transform :: proc(mod: ^IR_Module, ctx: ^Compilation_Context) -> IR_Module {
 	env: CPS_Env
 	env.interner = &ctx.interner
 	env.module = &result
-	env.fresh = 0
+	env.fresh_state = Fresh_State{counter = 0, interner = &ctx.interner}
 
 	for decl in mod.decls {
 		#partial switch d in decl {
@@ -85,12 +79,12 @@ cps_transform_decl :: proc(decl: IR_Decl, env: ^CPS_Env) -> IR_Decl {
 		new_fn := new(IR_Decl_Fn)
 		new_fn^ = d^
 
-		k_name := cps_fresh(env, "_k")
+		k_name := fresh_id(&env.fresh_state, "_k")
 		append(&new_fn.params, IR_Param{name = k_name, type = IR_Type{.I32, Type_Var_ID(0)}})
 
 		transformed_body := cps_transform_expr(d.body, k_name, env)
 
-		result_name := cps_fresh(env, "_result")
+		result_name := fresh_id(&env.fresh_state, "_result")
 		k_args := make([dynamic]IR_Expr, 0, 1)
 		result_var := new(IR_Var)
 		result_var^ = IR_Var{name = result_name, type = d.return_type, span = d.span}
@@ -149,7 +143,7 @@ cps_transform_expr :: proc(expr: IR_Expr, k_name: Intern_ID, env: ^CPS_Env) -> I
 		#partial switch v in e.value {
 		case ^IR_Call:
 			if v.callee in env.effectful_fns {
-				result_name := cps_fresh(env, "_r")
+				result_name := fresh_id(&env.fresh_state, "_r")
 				result_type := v.type
 
 				cont_name := cps_make_continuation(

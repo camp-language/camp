@@ -5,3 +5,5 @@ compiled /tmp/camp-e2e/pattern-matching/match-bool/src/Main.camp -> /tmp/camp-e2
 """
 stderr = ""
 exit = 0
+wasm_exit = 1
+wasm_stdout = ""

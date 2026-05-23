@@ -26,6 +26,7 @@ format_decl :: proc(d: Decl, info: ^Format_Source_Info, interner: ^Intern_Table)
 
 format_decl_const :: proc(v: ^Decl_Const, info: ^Format_Source_Info, interner: ^Intern_Table) -> Doc {
 	parts: [dynamic]Doc
+	defer delete(parts)
 	if v.is_pub {
 		append(&parts, doc_text("pub "))
 	}
@@ -56,6 +57,7 @@ format_decl_const :: proc(v: ^Decl_Const, info: ^Format_Source_Info, interner: ^
 
 format_decl_effect :: proc(v: ^Decl_Effect, info: ^Format_Source_Info, interner: ^Intern_Table) -> Doc {
 	parts: [dynamic]Doc
+	defer delete(parts)
 	append(&parts, doc_text(intern_get(interner, v.name)))
 	if len(v.type_params) > 0 {
 		append(&parts, doc_text("<"))
@@ -83,6 +85,7 @@ format_decl_effect :: proc(v: ^Decl_Effect, info: ^Format_Source_Info, interner:
 
 format_effect_ops :: proc(ops: []Effect_Op, info: ^Format_Source_Info, interner: ^Intern_Table) -> Doc {
 	op_parts: [dynamic]Doc
+	defer delete(op_parts)
 	append(&op_parts, doc_line())
 	for op, i in ops {
 		if i > 0 {
@@ -117,6 +120,7 @@ format_effect_ops :: proc(ops: []Effect_Op, info: ^Format_Source_Info, interner:
 
 format_decl_trait :: proc(v: ^Decl_Trait, info: ^Format_Source_Info, interner: ^Intern_Table) -> Doc {
 	parts: [dynamic]Doc
+	defer delete(parts)
 	append(&parts, doc_text(intern_get(interner, v.name)))
 	if v.parent != 0 {
 		append(&parts, doc_text(" is "))
@@ -137,6 +141,7 @@ format_decl_trait :: proc(v: ^Decl_Trait, info: ^Format_Source_Info, interner: ^
 
 format_trait_methods :: proc(methods: []Trait_Method, info: ^Format_Source_Info, interner: ^Intern_Table) -> Doc {
 	m_parts: [dynamic]Doc
+	defer delete(m_parts)
 	append(&m_parts, doc_line())
 	for m, i in methods {
 		if i > 0 {
@@ -165,6 +170,7 @@ format_trait_methods :: proc(methods: []Trait_Method, info: ^Format_Source_Info,
 
 format_decl_alias :: proc(v: ^Decl_Alias, info: ^Format_Source_Info, interner: ^Intern_Table) -> Doc {
 	parts: [dynamic]Doc
+	defer delete(parts)
 	append(&parts, doc_text(intern_get(interner, v.name)))
 	append(&parts, doc_text(" : "))
 	append(&parts, format_type(v.target, info, interner))
@@ -173,6 +179,7 @@ format_decl_alias :: proc(v: ^Decl_Alias, info: ^Format_Source_Info, interner: ^
 
 format_decl_newtype :: proc(v: ^Decl_Newtype, info: ^Format_Source_Info, interner: ^Intern_Table) -> Doc {
 	parts: [dynamic]Doc
+	defer delete(parts)
 	if v.is_pub {
 		append(&parts, doc_text("pub "))
 	}
@@ -216,6 +223,7 @@ format_decl_newtype :: proc(v: ^Decl_Newtype, info: ^Format_Source_Info, interne
 
 format_decl_import :: proc(v: ^Decl_Import, info: ^Format_Source_Info, interner: ^Intern_Table) -> Doc {
 	parts: [dynamic]Doc
+	defer delete(parts)
 	append(&parts, doc_text("import "))
 	append(&parts, doc_text(v.module))
 
@@ -248,6 +256,7 @@ format_decl_import :: proc(v: ^Decl_Import, info: ^Format_Source_Info, interner:
 
 format_exposing_list_multiline :: proc(names: []Intern_ID, interner: ^Intern_Table) -> Doc {
 	inner: [dynamic]Doc
+	defer delete(inner)
 	append(&inner, doc_line())
 	for name, i in names {
 		if i > 0 {
@@ -262,6 +271,7 @@ format_exposing_list_multiline :: proc(names: []Intern_ID, interner: ^Intern_Tab
 
 format_decl_test :: proc(v: ^Decl_Test, info: ^Format_Source_Info, interner: ^Intern_Table) -> Doc {
 	parts: [dynamic]Doc
+	defer delete(parts)
 	append(&parts, doc_text("test "))
 	append(&parts, doc_text(v.name))
 	append(&parts, doc_text(" = "))
@@ -271,6 +281,7 @@ format_decl_test :: proc(v: ^Decl_Test, info: ^Format_Source_Info, interner: ^In
 
 format_decl_expect :: proc(v: ^Decl_Expect, info: ^Format_Source_Info, interner: ^Intern_Table) -> Doc {
 	parts: [dynamic]Doc
+	defer delete(parts)
 	append(&parts, doc_text("expect "))
 	append(&parts, format_expr(v.condition, info, interner))
 	return doc_concat(parts[:])
@@ -282,6 +293,7 @@ format_file :: proc(f: File, info: ^Format_Source_Info, interner: ^Intern_Table)
 	}
 
 	parts: [dynamic]Doc
+	defer delete(parts)
 	for decl, i in f.decls {
 		if i > 0 {
 			append(&parts, doc_line())

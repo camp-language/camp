@@ -2,10 +2,6 @@ package camp
 
 import "core:fmt"
 
-RC_Var_Info :: struct {
-	uses: [dynamic]Source_Span,
-}
-
 rc_insert :: proc(mod: ^IR_Module, ctx: ^Compilation_Context) {
 	for &decl in mod.decls {
 		#partial switch d in decl {
@@ -163,119 +159,6 @@ copy_remaining :: proc(src: ^map[Intern_ID]int) -> map[Intern_ID]int {
 		dst[k] = v
 	}
 	return dst
-}
-
-insert_dups :: proc(expr: IR_Expr, binding: Intern_ID, uses_left: ^int, interner: ^Intern_Table) -> IR_Expr {
-	#partial switch e in expr {
-	case ^IR_Var:
-		if e.name != binding do return expr
-		uses_left^ -= 1
-		if uses_left^ > 0 {
-			dup := new(IR_Dup)
-			dup^ = IR_Dup{value = binding, span = e.span}
-			block := new(IR_Block)
-			block^ = IR_Block{
-				statements = make_ir_duo(IR_Expr(dup), expr),
-				type = e.type,
-				span = e.span,
-			}
-			return IR_Expr(block)
-		}
-		return expr
-
-	case ^IR_Let:
-		new_val := insert_dups(e.value, binding, uses_left, interner)
-		new_body := insert_dups(e.body, binding, uses_left, interner)
-		new_let := new(IR_Let)
-		new_let^ = IR_Let{
-			binding = e.binding,
-			type = e.type,
-			value = new_val,
-			body = new_body,
-			span = e.span,
-		}
-		return IR_Expr(new_let)
-
-	case ^IR_Return:
-		new_val := insert_dups(e.value, binding, uses_left, interner)
-		new_ret := new(IR_Return)
-		new_ret^ = IR_Return{value = new_val, span = e.span}
-		return IR_Expr(new_ret)
-
-	case ^IR_If:
-		then_left := uses_left^
-		else_left := uses_left^
-		new_then := insert_dups(e.then_branch, binding, &then_left, interner)
-		new_else := insert_dups(e.else_branch, binding, &else_left, interner)
-		new_if := new(IR_If)
-		new_if^ = IR_If{
-			condition = e.condition,
-			then_branch = new_then,
-			else_branch = new_else,
-			type = e.type,
-			span = e.span,
-		}
-		return IR_Expr(new_if)
-
-	case ^IR_Block:
-		new_stmts := make([dynamic]IR_Expr, 0, len(e.statements))
-		for stmt in e.statements {
-			append(&new_stmts, insert_dups(stmt, binding, uses_left, interner))
-		}
-		new_block := new(IR_Block)
-		new_block^ = IR_Block{statements = new_stmts, type = e.type, span = e.span}
-		return IR_Expr(new_block)
-
-	case ^IR_BinOp:
-		new_left := insert_dups(e.left, binding, uses_left, interner)
-		new_right := insert_dups(e.right, binding, uses_left, interner)
-		new_binop := new(IR_BinOp)
-		new_binop^ = IR_BinOp{
-			op = e.op,
-			left = new_left,
-			right = new_right,
-			type = e.type,
-			span = e.span,
-		}
-		return IR_Expr(new_binop)
-
-	case ^IR_Call:
-		new_args := make([dynamic]IR_Expr, 0, len(e.args))
-		for arg in e.args {
-			append(&new_args, insert_dups(arg, binding, uses_left, interner))
-		}
-		new_call := new(IR_Call)
-		new_call^ = IR_Call{callee = e.callee, args = new_args, type = e.type, span = e.span}
-		return IR_Expr(new_call)
-
-	case ^IR_Assign:
-		new_val := insert_dups(e.value, binding, uses_left, interner)
-		new_assign := new(IR_Assign)
-		new_assign^ = IR_Assign{
-			binding = e.binding,
-			value   = new_val,
-			type    = e.type,
-			span    = e.span,
-		}
-		return IR_Expr(new_assign)
-
-	case ^IR_Loop:
-		new_iterable := insert_dups(e.iterable, binding, uses_left, interner)
-		// Don't insert dups for the loop variable (e.var) — it's bound by the loop
-		new_body := e.body // body uses e.var which is bound, not free
-		new_loop := new(IR_Loop)
-		new_loop^ = IR_Loop{
-			var      = e.var,
-			iterable = new_iterable,
-			body     = new_body,
-			type     = e.type,
-			span     = e.span,
-		}
-		return IR_Expr(new_loop)
-
-	case:
-		return expr
-	}
 }
 
 make_ir_duo :: proc(a: IR_Expr, b: IR_Expr) -> [dynamic]IR_Expr {

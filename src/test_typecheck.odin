@@ -1,7 +1,6 @@
 package camp
 
 import "core:fmt"
-import "core:strings"
 import "core:testing"
 
 setup_type_store :: proc() -> (Type_Store, ^Diagnostic_Collector) {
@@ -543,10 +542,7 @@ test_unhandled_effect_error :: proc(t: ^testing.T) {
 	defer free(ctx)
 	defer type_store_destroy(&store)
 
-	testing.expect(t, ctx.collector.error_count > 0, fmt.tprintf("error_count = {}, diagnostics len = {}", ctx.collector.error_count, len(ctx.collector.diagnostics)))
-	for d in ctx.collector.diagnostics {
-		fmt.printfln("Error: {} at {}", d.message, d.span)
-	}
+	testing.expect(t, diag_collector_has_errors(&ctx.collector))
 }
 
 @(test)

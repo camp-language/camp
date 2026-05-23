@@ -1,7 +1,6 @@
 package camp
 
 import "core:testing"
-import "core:mem"
 
 compile_source :: proc(source: string) -> ([]u8, ^Compilation_Context) {
 	ctx: ^Compilation_Context = new(Compilation_Context)
@@ -44,6 +43,7 @@ teardown_codegen :: proc(ctx: ^Compilation_Context) {
 @(test)
 test_codegen_simple :: proc(t: ^testing.T) {
 	wasm_bytes, ctx := compile_source("main! = || -> I64 { 42 }")
+	defer delete(wasm_bytes)
 	defer teardown_codegen(ctx)
 
 	testing.expect(t, len(wasm_bytes) >= 8)
@@ -60,6 +60,7 @@ test_codegen_simple :: proc(t: ^testing.T) {
 @(test)
 test_codegen_has_type_section :: proc(t: ^testing.T) {
 	wasm_bytes, ctx := compile_source("main! = || -> I64 { 42 }")
+	defer delete(wasm_bytes)
 	defer teardown_codegen(ctx)
 
 	testing.expect(t, len(wasm_bytes) > 9)
@@ -76,6 +77,7 @@ test_codegen_has_type_section :: proc(t: ^testing.T) {
 @(test)
 test_codegen_has_export_section :: proc(t: ^testing.T) {
 	wasm_bytes, ctx := compile_source("main! = || -> I64 { 42 }")
+	defer delete(wasm_bytes)
 	defer teardown_codegen(ctx)
 
 	found_export := false

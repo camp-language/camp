@@ -917,33 +917,15 @@ canonicalize_type :: proc(t: Type, scope: ^Canonicalize_Scope, ctx: ^Compilation
 }
 
 sort_record_fields_by_name :: proc(fields: ^[dynamic]CRecord_Field) {
-	for i := 0; i < len(fields) - 1; i += 1 {
-		for j := i + 1; j < len(fields); j += 1 {
-			if int(fields[j].name) < int(fields[i].name) {
-				fields[i], fields[j] = fields[j], fields[i]
-			}
-		}
-	}
+	slice.sort_by(fields[:], proc(a, b: CRecord_Field) -> bool { return int(a.name) < int(b.name) })
 }
 
 sort_pattern_fields_by_name :: proc(fields: ^[dynamic]CPattern_Field) {
-	for i := 0; i < len(fields) - 1; i += 1 {
-		for j := i + 1; j < len(fields); j += 1 {
-			if int(fields[j].name) < int(fields[i].name) {
-				fields[i], fields[j] = fields[j], fields[i]
-			}
-		}
-	}
+	slice.sort_by(fields[:], proc(a, b: CPattern_Field) -> bool { return int(a.name) < int(b.name) })
 }
 
 sort_type_fields_by_name :: proc(fields: ^[dynamic]CType_Field) {
-	for i := 0; i < len(fields) - 1; i += 1 {
-		for j := i + 1; j < len(fields); j += 1 {
-			if int(fields[j].name) < int(fields[i].name) {
-				fields[i], fields[j] = fields[j], fields[i]
-			}
-		}
-	}
+	slice.sort_by(fields[:], proc(a, b: CType_Field) -> bool { return int(a.name) < int(b.name) })
 }
 
 generate_derive_stubs :: proc(d: ^CDecl_Newtype, scope: ^Canonicalize_Scope, ctx: ^Compilation_Context) -> [dynamic]CDecl {

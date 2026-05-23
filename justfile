@@ -34,3 +34,7 @@ update-snapshots: build build-e2e
 
 test-filter pattern: build build-e2e
     CAMP_BIN="$(pwd)/camp" ./camp-e2e --filter {{pattern}}
+
+clean:
+    git clean -fdX tests/e2e/
+    -rm -f /tmp/camp-cmd-stdout-* /tmp/camp-cmd-stderr-* /tmp/camp-e2e-*

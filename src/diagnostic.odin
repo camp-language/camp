@@ -14,12 +14,13 @@ Span_Label :: struct {
 }
 
 Diagnostic :: struct {
-	category: Diagnostic_Category,
-	span:     Source_Span,
-	message:  string,
-	title:    string,
-	labels:   [dynamic]Span_Label,
-	hints:    [dynamic]string,
+	category:      Diagnostic_Category,
+	span:          Source_Span,
+	message:       string,
+	title:         string,
+	labels:        [dynamic]Span_Label,
+	hints:         [dynamic]string,
+	shadowed_name: Intern_ID,
 }
 
 Lex_Unexpected_Char :: struct {
@@ -180,12 +181,6 @@ Unused_Assignment :: struct {
 	assign_no: int,
 	hint:      string,
 }
-Generic_Ambiguous_Type :: proc(name: string, span: Source_Span) -> Diagnostic {
-	d := diag_init(.Error, "AMBIGUOUS TYPE", span,
-		fmt.tprintf("Cannot determine type for generic parameter `{}`. Provide a type annotation.", name))
-	return d
-}
-
 Diagnostic_Collector :: struct {
 	diagnostics:    [dynamic]Diagnostic,
 	warning_count:  int,

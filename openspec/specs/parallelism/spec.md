@@ -105,7 +105,7 @@ The `Parallel!` effect SHALL propagate inner function effects through its operat
 
 ### Requirement: par Block Syntax
 
-The `par { e1, e2, e3 }` block SHALL desugar to `Parallel!.all!([|| e1, || e2, || e3])` and return a tuple of each expression's result type. The `par for x in xs { body }` block SHALL desugar to `Parallel!.for_each!(xs, |x| body)`.
+The `par { e1, e2, e3 }` block SHALL be syntactic sugar that returns a tuple of each expression's result type. Note: `par` blocks and `Parallel!.all!` are separate mechanisms — `par` blocks are syntactic (return heterogeneous tuples with fixed compile-time arity), while `Parallel!.all!` is a library function (returns homogeneous `List(a)` with dynamic count). Use `par { }` for 2-10 heterogeneous tasks; `Parallel!.all!` for dynamic lists of the same type. The `par for x in xs { body }` block SHALL desugar to `Parallel!.for_each!(xs, |x| body)`.
 
 #### Scenario: par block returns typed tuple
 

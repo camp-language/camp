@@ -12,7 +12,7 @@ The compiler SHALL accept Camp source text and produce valid WASM/WASI modules.
 
 #### Scenario: Compile a simple program
 
-- **WHEN** Camp source `"main() { 42 }"` is compiled
+- **WHEN** Camp source `"main! = || -> I64 { 42 }"` is compiled
 - **THEN** the compiler SHALL produce a valid WASM/WASI module that exits with code 42
 
 ### Requirement: No Silent Crashes
@@ -39,7 +39,7 @@ The compiler SHALL correctly capture free variables in closures. A closure SHALL
 
 #### Scenario: Closure captures free variable
 
-- **WHEN** Camp source defines `let make_adder(n) { fun(x) { x + n } }`
+- **WHEN** Camp source defines `make_adder = |n| { |x| x + n }`
 - **THEN** the resulting closure record SHALL contain `n` in its environment and `fn_idx` SHALL point to a real function index in the WASM table
 
 ### Requirement: Higher-Order Calls
@@ -48,7 +48,7 @@ The compiler SHALL use WASM `call_indirect` for all calls where the callee is no
 
 #### Scenario: Higher-order function call
 
-- **WHEN** Camp source defines `let apply(f, x) { f(x) }`
+- **WHEN** Camp source defines `apply = |f, x| { f(x) }`
 - **THEN** the call to `f` SHALL use `call_indirect` with the closure's `fn_idx` and `env_ptr`
 
 ### Requirement: Perceus Reference Counting
@@ -66,7 +66,7 @@ The compiler SHALL generate continuation functions for every effectful sub-expre
 
 #### Scenario: CPS generates continuations
 
-- **WHEN** Camp source contains `let y = perform Foo.get! in y + 1`
+- **WHEN** Camp source contains `y = Foo!.get!() in y + 1` (within a handler block)
 - **THEN** CPS transformation SHALL create a continuation function `fun(y) { y + 1 }` and pass it as an extra argument to the `perform`
 
 ### Requirement: Effect Lowering Evidence

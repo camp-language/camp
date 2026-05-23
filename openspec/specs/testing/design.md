@@ -192,7 +192,7 @@ Hook is opt-in (manually installed). Snapshots are committed to the repo so `git
 
 ### TDD Target Categories
 
-**strings/**: string-literal, string-concat, string-interpolation, string-print
+**strings/**: interpolation-basic, interpolation-int, interpolation-multiline, interpolation-multiple, interpolation-raw
 
 **records/**: record-construct, record-field-access, record-nested-access, record-modify, record-as-function-return, record-field-mismatch
 
@@ -200,11 +200,11 @@ Hook is opt-in (manually installed). Snapshots are committed to the repo so `git
 
 **pattern-matching/**: match-int-literal, match-bool, match-with-guard, match-or-pattern, match-variable-bind, match-record-pattern, match-string-literal
 
-**effects/**: effect-declare-and-handle, effect-perform-return-value, effect-multiple-operations, effect-deep-handler, effect-shallow-handler, effect-multiple-effects, effect-unhandled, effect-handler-resume-twice
+**effects/**: effect-declare-and-handle, effect-perform-return-value, effect-multiple-operations, effect-shallow-handler, effect-multiple-effects, effect-unhandled, effect-handler-resume-twice
 
 **closures/**: closure-free-var, closure-nested, closure-mutation-simulated, higher-order-map, higher-order-filter, function-composition, partial-application, recursive-closure
 
-**generics/**: identity-function, generic-pair, generic-list-map, generic-function-compose, generic-with-constraint
+**generics/**: generic-list-map
 
 ## TDD Workflow
 

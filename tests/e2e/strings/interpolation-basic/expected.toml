@@ -5,3 +5,5 @@ compiled /tmp/camp-e2e/strings/string-interpolation/src/Main.camp -> /tmp/camp-e
 """
 stderr = ""
 exit = 0
+wasm_exit = 0
+wasm_stdout = ""

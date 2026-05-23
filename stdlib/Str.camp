@@ -1,15 +1,17 @@
-length = |s: Str| -> I64 {
+pub length = |s: Str| -> I64 {
   crash "Str.length: not yet implemented"
 }
 
-is_empty = |s: Str| -> Bool {
+pub is_empty = |s: Str| -> Bool {
   length(s) == 0
 }
 
-concat = |a: Str, b: Str| -> Str {
+pub concat = |a: Str, b: Str| -> Str {
   crash "Str.concat: not yet implemented"
 }
 
-eq = |a: Str, b: Str| -> Bool {
+pub eq = |a: Str, b: Str| -> Bool {
   crash "Str.eq: not yet implemented"
 }
+
+-- TODO: Str should derive Eq; remove standalone eq when trait system supports it

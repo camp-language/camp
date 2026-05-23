@@ -36,12 +36,12 @@ Camp provides three complementary effects for concurrency and parallelism:
 
 ```camp
 effect Parallel! {
-  map! : |items: List(a), f: |a| -> b| -[Parallel!]-> List(b) where a, b
-  for_each! : |items: List(a), f: |a| ->{}| -[Parallel!]-> {}
+  map! : |items: List(a), f: |a| -> b| -[Parallel!]-> List(b)
+  for_each! : |items: List(a), f: |a| -> {}| -[Parallel!]-> {}
   filter! : |items: List(a), predicate: |a| -> Bool| -[Parallel!]-> List(a)
-  reduce! : |items: List(a), init: b, f: |b, a| -> b| -[Parallel!]-> List(b) where a, b
+  reduce! : |items: List(a), init: b, f: |b, a| -> b| -[Parallel!]-> b
   all! : |tasks: List(|| -> a)| -[Parallel!]-> List(a)
-  any! : |tasks: List(|| -[Throw!(e)]-> a)| -[Parallel! | Throw!(e)]-> a where a, e
+  any! : |tasks: List(|| -[Throw!(e)]-> a)| -[Parallel! | Throw!(e)]-> a
 }
 ```
 
@@ -96,7 +96,6 @@ Future: `Map.par_map_values!`, `Set.par_map!`, `Iter.par_collect!` (deferred).
 
 ```camp
 par { e1, e2, e3 }
--- Desugars to: Parallel!.all!([|| e1, || e2, || e3])
 -- Returns: (T1, T2, T3) — tuple preserving individual types
 
 par for x in xs { body }
@@ -104,7 +103,7 @@ par for x in xs { body }
 -- Returns: {} (unit)
 ```
 
-`par` keyword added to lexer. `par { }` returns a tuple (fixed compile-time count, preserves types). `Parallel!.all!` returns `List(a)` (dynamic count, same type). Use `par { }` for 2-10 tasks; `Parallel!.all!` for dynamic lists.
+`par` keyword added to lexer. `par { }` returns a tuple (fixed compile-time count, preserves types). `Par` blocks and `Parallel!.all!` are separate mechanisms — `par` blocks are syntactic (return heterogeneous tuples with fixed arity), while `Parallel!.all!` is a library function (returns homogeneous `List(a)` with dynamic count). Use `par { }` for 2-10 heterogeneous tasks; `Parallel!.all!` for dynamic lists of the same type.
 
 ### Handlers
 

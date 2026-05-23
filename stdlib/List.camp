@@ -1,27 +1,30 @@
-length = <a>|xs: List(a)| -> I64 {
+pub length = <a>|xs: List(a)| -> I64 {
   crash "List.length: not yet implemented"
 }
 
-is_empty = <a>|xs: List(a)| -> Bool {
+pub is_empty = <a>|xs: List(a)| -> Bool {
   length(xs) == 0
 }
 
-map = <a, b>|f: |a| -> b, xs: List(a)| -> List(b) {
+pub map = <a, b>|f: |a| -> b, xs: List(a)| -> List(b) {
   crash "List.map: not yet implemented"
 }
 
-filter = <a>|pred: |a| -> Bool, xs: List(a)| -> List(a) {
+pub filter = <a>|pred: |a| -> Bool, xs: List(a)| -> List(a) {
   crash "List.filter: not yet implemented"
 }
 
-fold = <a, b>|f: |b, a| -> b, init: b, xs: List(a)| -> b {
+pub fold = <a, b>|f: |b, a| -> b, init: b, xs: List(a)| -> b {
   crash "List.fold: not yet implemented"
 }
 
-append = <a>|xs: List(a), ys: List(a)| -> List(a) {
+pub append = <a>|xs: List(a), ys: List(a)| -> List(a) {
   crash "List.append: not yet implemented"
 }
 
-head = <a>|xs: List(a)| -> Option(a) {
-  if is_empty(xs) { None } else { crash "List.head: indexing not yet implemented" }
+pub head = <a>|xs: List(a)| -> Option(a) {
+  match xs {
+    Cons(h, _) => Some(h),
+    Nil => None,
+  }
 }

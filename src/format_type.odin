@@ -31,6 +31,7 @@ format_type_applied :: proc(t: ^Type_Applied, info: ^Format_Source_Info, interne
 	multiline := info.first_separator_break[t.span.start]
 
 	parts: [dynamic]Doc
+	defer delete(parts)
 	append(&parts, doc_text(name))
 	append(&parts, doc_text("("))
 
@@ -50,6 +51,7 @@ format_type_applied :: proc(t: ^Type_Applied, info: ^Format_Source_Info, interne
 
 format_type_function :: proc(t: ^Type_Function, info: ^Format_Source_Info, interner: ^Intern_Table) -> Doc {
 	parts: [dynamic]Doc
+	defer delete(parts)
 
 	append(&parts, doc_text("|"))
 
@@ -82,6 +84,7 @@ format_type_record :: proc(t: ^Type_Record, info: ^Format_Source_Info, interner:
 
 format_record_flat :: proc(t: ^Type_Record, info: ^Format_Source_Info, interner: ^Intern_Table) -> Doc {
 	parts: [dynamic]Doc
+	defer delete(parts)
 	append(&parts, doc_text("{ "))
 
 	for field, i in t.fields {
@@ -107,6 +110,7 @@ format_record_flat :: proc(t: ^Type_Record, info: ^Format_Source_Info, interner:
 
 format_record_multiline :: proc(t: ^Type_Record, info: ^Format_Source_Info, interner: ^Intern_Table) -> Doc {
 	fields_parts: [dynamic]Doc
+	defer delete(fields_parts)
 	append(&fields_parts, doc_line())
 
 	for field, i in t.fields {
@@ -132,6 +136,7 @@ format_record_multiline :: proc(t: ^Type_Record, info: ^Format_Source_Info, inte
 	append(&fields_parts, doc_line())
 
 	parts: [dynamic]Doc
+	defer delete(parts)
 	append(&parts, doc_text("{"))
 	append(&parts, doc_nest(4, doc_group(fields_parts[:])))
 	append(&parts, doc_text("}"))
@@ -142,6 +147,7 @@ format_type_tag_union :: proc(t: ^Type_Tag_Union, info: ^Format_Source_Info, int
 	multiline := info.first_separator_break[t.span.start]
 
 	parts: [dynamic]Doc
+	defer delete(parts)
 	append(&parts, doc_text("["))
 
 	if len(t.tags) > 0 {
@@ -160,6 +166,7 @@ format_type_tag_union :: proc(t: ^Type_Tag_Union, info: ^Format_Source_Info, int
 
 format_tags_flat :: proc(tags: []Type_Tag, info: ^Format_Source_Info, interner: ^Intern_Table) -> Doc {
 	parts: [dynamic]Doc
+	defer delete(parts)
 	for tag, i in tags {
 		if i > 0 {
 			append(&parts, doc_text(" | "))
@@ -171,6 +178,7 @@ format_tags_flat :: proc(tags: []Type_Tag, info: ^Format_Source_Info, interner: 
 
 format_tags_multiline :: proc(tags: []Type_Tag, info: ^Format_Source_Info, interner: ^Intern_Table) -> Doc {
 	inner_parts: [dynamic]Doc
+	defer delete(inner_parts)
 	append(&inner_parts, doc_line())
 
 	for tag, i in tags {
@@ -194,6 +202,7 @@ format_tag :: proc(tag: ^Type_Tag, info: ^Format_Source_Info, interner: ^Intern_
 	}
 
 	parts: [dynamic]Doc
+	defer delete(parts)
 	append(&parts, doc_text(name))
 	append(&parts, doc_text("("))
 	for payload, i in tag.payload {
@@ -218,6 +227,7 @@ format_type_effect_row :: proc(t: ^Type_Effect_Row, info: ^Format_Source_Info, i
 
 format_effect_row_flat :: proc(t: ^Type_Effect_Row, info: ^Format_Source_Info, interner: ^Intern_Table) -> Doc {
 	parts: [dynamic]Doc
+	defer delete(parts)
 	for entry, i in t.effects {
 		if i > 0 {
 			append(&parts, doc_text(" | "))
@@ -251,6 +261,7 @@ format_effect_row_flat :: proc(t: ^Type_Effect_Row, info: ^Format_Source_Info, i
 
 format_effect_row_multiline :: proc(t: ^Type_Effect_Row, info: ^Format_Source_Info, interner: ^Intern_Table) -> Doc {
 	inner: [dynamic]Doc
+	defer delete(inner)
 	append(&inner, doc_line())
 
 	for entry, i in t.effects {
@@ -290,6 +301,7 @@ format_effect_row_multiline :: proc(t: ^Type_Effect_Row, info: ^Format_Source_In
 
 format_comma_types_flat :: proc(types: []Type, info: ^Format_Source_Info, interner: ^Intern_Table) -> Doc {
 	parts: [dynamic]Doc
+	defer delete(parts)
 	for type, i in types {
 		if i > 0 {
 			append(&parts, doc_text(", "))
@@ -301,6 +313,7 @@ format_comma_types_flat :: proc(types: []Type, info: ^Format_Source_Info, intern
 
 format_comma_types_multiline :: proc(types: []Type, info: ^Format_Source_Info, interner: ^Intern_Table) -> Doc {
 	inner: [dynamic]Doc
+	defer delete(inner)
 	append(&inner, doc_line())
 
 	for type, i in types {

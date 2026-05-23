@@ -1,6 +1,7 @@
 package camp
 
 import "core:fmt"
+import "core:strings"
 
 LSP_Position :: struct {
 	line:      uint,
@@ -12,6 +13,11 @@ LSP_Range :: struct {
 	end:   LSP_Position,
 }
 
+LSP_Location :: struct {
+	uri:   string,
+	range: LSP_Range,
+}
+
 LSP_DiagnosticSeverity :: enum int {
 	Error       = 1,
 	Warning     = 2,
@@ -20,7 +26,7 @@ LSP_DiagnosticSeverity :: enum int {
 }
 
 LSP_DiagnosticRelatedInfo :: struct {
-	location: LSP_Range,
+	location: LSP_Location,
 	message:  string,
 }
 
@@ -31,7 +37,7 @@ LSP_Diagnostic :: struct {
 	related:  [dynamic]LSP_DiagnosticRelatedInfo,
 }
 
-lsp_from_diagnostic :: proc(d: Diagnostic, source: string) -> LSP_Diagnostic {
+lsp_from_diagnostic :: proc(d: Diagnostic, source: string, uri: string) -> LSP_Diagnostic {
 	line, col := diag_span_to_line_col(source, d.span)
 	end_line, end_col := span_end_to_line_col(source, d.span)
 	result: LSP_Diagnostic
@@ -42,19 +48,26 @@ lsp_from_diagnostic :: proc(d: Diagnostic, source: string) -> LSP_Diagnostic {
 	case .Warning:  result.severity = .Warning
 	case .Internal: result.severity = .Error
 	}
-	msg := d.message
+	b: strings.Builder
+	strings.builder_init_len_cap(&b, 0, len(d.message) + 100)
+	strings.write_string(&b, d.message)
 	for hint in d.hints {
-		msg = fmt.tprintf("{}\n\n{}", msg, hint)
+		strings.write_string(&b, "\n\n")
+		strings.write_string(&b, hint)
 	}
-	result.message = msg
+	result.message = strings.to_string(b)
+	strings.builder_destroy(&b)
 	result.related = make([dynamic]LSP_DiagnosticRelatedInfo, 0, len(d.labels))
 	for label in d.labels {
 		ll, lc := diag_span_to_line_col(source, label.span)
 		el, ec := span_end_to_line_col(source, label.span)
 		append(&result.related, LSP_DiagnosticRelatedInfo{
-			location = LSP_Range{
-				start = LSP_Position{line = uint(ll - 1), character = uint(lc - 1)},
-				end   = LSP_Position{line = uint(el - 1), character = uint(ec - 1)},
+			location = LSP_Location{
+				uri = uri,
+				range = LSP_Range{
+					start = LSP_Position{line = uint(ll - 1), character = uint(lc - 1)},
+					end   = LSP_Position{line = uint(el - 1), character = uint(ec - 1)},
+				},
 			},
 			message = label.label,
 		})

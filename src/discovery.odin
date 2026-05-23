@@ -55,6 +55,7 @@ find_project_root :: proc(start_dir: string, allocator: mem.Allocator) -> string
 	for {
 		src_path, _ := filepath.join({dir, "src"}, allocator)
 		ok := dir_has_camp_files(src_path, allocator)
+		delete(src_path, allocator)
 		if ok {
 			return dir
 		}
@@ -138,15 +139,19 @@ walk_dir_recursive :: proc(current_dir: string, src_dir: string, interner: ^Inte
 		if fi.type == .Directory && fi.name != "." && fi.name != ".." {
 			sub_path, _ := filepath.join({current_dir, fi.name}, allocator)
 			walk_dir_recursive(sub_path, src_dir, interner, collector, allocator, modules, module_names)
+			delete(sub_path, allocator)
 		}
 	}
 }
 
 path_to_module_name :: proc(file_path: string, src_dir: string, interner: ^Intern_Table) -> Intern_ID {
 	prefix := src_dir
+	owns_prefix := false
 	if !strings.has_suffix(prefix, "/") {
 		prefix = fmt.tprintf("{}/", prefix)
+		owns_prefix = true
 	}
+	defer if owns_prefix do delete(prefix)
 
 	rel := file_path
 	if strings.has_prefix(file_path, prefix) {

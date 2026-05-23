@@ -1,33 +1,33 @@
-Result : <a, e> [Ok(a) | Err(e)]
+pub @Result : <a, e> [Ok(a) | Err(e)]
 
-is_ok = <a, e>|r: Result(a, e)| -> Bool {
+pub is_ok = <a, e>|r: Result(a, e)| -> Bool {
   match r { Ok(_) => True | Err(_) => False }
 }
 
-is_err = <a, e>|r: Result(a, e)| -> Bool {
+pub is_err = <a, e>|r: Result(a, e)| -> Bool {
   match r { Ok(_) => False | Err(_) => True }
 }
 
-map = <a, b, e>|f: |a| -> b, r: Result(a, e)| -> Result(b, e) {
+pub map = <a, b, e>|f: |a| -> b, r: Result(a, e)| -> Result(b, e) {
   match r { Ok(v) => Ok(f(v)) | Err(e) => Err(e) }
 }
 
-map_err = <a, e, f>|f: |e| -> f, r: Result(a, e)| -> Result(a, f) {
+pub map_err = <a, e, f>|f: |e| -> f, r: Result(a, e)| -> Result(a, f) {
   match r { Ok(v) => Ok(v) | Err(e) => Err(f(e)) }
 }
 
-and_then = <a, b, e>|f: |a| -> Result(b, e), r: Result(a, e)| -> Result(b, e) {
+pub and_then = <a, b, e>|f: |a| -> Result(b, e), r: Result(a, e)| -> Result(b, e) {
   match r { Ok(v) => f(v) | Err(e) => Err(e) }
 }
 
-or_else = <a, e, f>|f: || -> Result(a, f), r: Result(a, e)| -> Result(a, e) {
+pub or_else = <a, e, f>|f: || -> Result(a, f), r: Result(a, e)| -> Result(a, e | f) {
   match r { Ok(v) => Ok(v) | Err(_) => f() }
 }
 
-unwrap = <a, e>|r: Result(a, e)| -> a {
+pub unwrap = <a, e>|r: Result(a, e)| -> a {
   match r { Ok(v) => v | Err(_) => crash "unwrap on Err" }
 }
 
-unwrap_or = <a, e>|default: a, r: Result(a, e)| -> a {
+pub unwrap_or = <a, e>|default: a, r: Result(a, e)| -> a {
   match r { Ok(v) => v | Err(_) => default }
 }

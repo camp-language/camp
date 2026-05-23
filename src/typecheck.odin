@@ -50,7 +50,7 @@ env_lookup :: proc(env: ^Type_Env, name: Intern_ID) -> (Type_Var_ID, bool) {
 check_shadow :: proc(env: ^Type_Env, name: Intern_ID, store: ^Type_Store, span: Source_Span) {
 	if _, exists := env_lookup(env, name); exists {
 		name_str := intern_get(store.interner, name)
-		collector_add_diag(store.collector, diag_shadow(name_str, span))
+		collector_add_diag(store.collector, diag_shadow(name, name_str, span))
 	}
 }
 
@@ -91,7 +91,7 @@ levenshtein_distance :: proc(a: string, b: string) -> int {
 	return dist[a_len][b_len]
 }
 
-find_similar_names :: proc(name: string, env: ^Type_Env, interner: ^Intern_Table) -> []string {
+find_similar_names :: proc(name: string, env: ^Type_Env, interner: ^Intern_Table) -> [dynamic]string {
 	names: [dynamic]string
 	current := env
 	for current != nil {
@@ -103,7 +103,7 @@ find_similar_names :: proc(name: string, env: ^Type_Env, interner: ^Intern_Table
 		}
 		current = current.parent
 	}
-	return names[:]
+	return names
 }
 
 format_effect_row :: proc(store: ^Type_Store, effects: Type_Var_ID) -> string {
@@ -562,7 +562,8 @@ typecheck_synth :: proc(expr: CExpr, env: ^Type_Env, store: ^Type_Store) -> Synt
 		var_id := fresh_value_var(store, e.span)
 		name_str := intern_get(store.interner, e.name.name)
 		similar := find_similar_names(name_str, env, store.interner)
-		collector_add_diag(store.collector, diag_undefined_name(name_str, similar, e.span))
+		defer delete(similar)
+		collector_add_diag(store.collector, diag_undefined_name(name_str, similar[:], e.span))
 		eff := fresh_effect_row(store, e.span)
 		t := new(TExpr_Name)
 		t^ = TExpr_Name{name = e.name, type_ = tc_ir_type(store, var_id), eff_ = tc_eff_type(store, eff), span = e.span}

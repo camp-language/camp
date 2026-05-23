@@ -1,17 +1,17 @@
 stdout = """
--- SYNTAX ERROR --- /tmp/camp-e2e/errors/arity-mismatch/src/Main.camp
+-- SYNTAX ERROR --- /tmp/camp-e2e/errors/syntax-multi-arg-call/src/Main.camp
 
 I expected `=` here, but I got `(` instead.
    2 | f(1, 2)
         ^
 
--- SYNTAX ERROR --- /tmp/camp-e2e/errors/arity-mismatch/src/Main.camp
+-- SYNTAX ERROR --- /tmp/camp-e2e/errors/syntax-multi-arg-call/src/Main.camp
 
 I expected `=` here, but I got `2` instead.
    2 | f(1, 2)
             ^
 
--- SYNTAX ERROR --- /tmp/camp-e2e/errors/arity-mismatch/src/Main.camp
+-- SYNTAX ERROR --- /tmp/camp-e2e/errors/syntax-multi-arg-call/src/Main.camp
 
 I was not expecting `)` here.
    2 | f(1, 2)

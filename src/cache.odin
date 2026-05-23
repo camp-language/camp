@@ -160,13 +160,13 @@ deserialize_manifest :: proc(data: []byte, allocator: mem.Allocator) -> (Module_
 
 	pos: int = 0
 
-	magic := read_u32_le(data, &pos)
-	if magic != MODULE_MANIFEST_MAGIC {
+	magic, ok := read_u32_le(data, &pos)
+	if !ok || magic != MODULE_MANIFEST_MAGIC {
 		return Module_Manifest{}, false
 	}
 
-	version := read_u32_le(data, &pos)
-	if version != MODULE_MANIFEST_VERSION {
+	version_val, ok2 := read_u32_le(data, &pos)
+	if !ok2 || version_val != MODULE_MANIFEST_VERSION {
 		return Module_Manifest{}, false
 	}
 
@@ -174,15 +174,17 @@ deserialize_manifest :: proc(data: []byte, allocator: mem.Allocator) -> (Module_
 	manifest.imports = make([dynamic]Manifest_Import, 0, 8)
 	manifest.exports = make([dynamic]Manifest_Export, 0, 8)
 
-	content_hash, ok1 := read_string(data, &pos, allocator)
-	module_name, ok2 := read_string(data, &pos, allocator)
-	if !ok1 || !ok2 {
+	content_hash, str_ok1 := read_string(data, &pos, allocator)
+	module_name, str_ok2 := read_string(data, &pos, allocator)
+	if !str_ok1 || !str_ok2 {
 		return Module_Manifest{}, false
 	}
 	manifest.content_hash = content_hash
 	manifest.module_name = module_name
 
-	num_imports := int(read_u32_le(data, &pos))
+	num_imports_val, imp_cnt_ok := read_u32_le(data, &pos)
+	if !imp_cnt_ok { manifest_destroy(&manifest); return Module_Manifest{}, false }
+	num_imports := int(num_imports_val)
 	for i := 0; i < num_imports; i += 1 {
 		imp: Manifest_Import
 		imp.exposing = make([dynamic]string, 0, 8)
@@ -191,7 +193,9 @@ deserialize_manifest :: proc(data: []byte, allocator: mem.Allocator) -> (Module_
 		if !mod_ok { manifest_destroy(&manifest); return Module_Manifest{}, false }
 		imp.module = mod_str
 
-		num_exposing := int(read_u32_le(data, &pos))
+		num_exposing_val, exp_cnt_ok := read_u32_le(data, &pos)
+		if !exp_cnt_ok { manifest_destroy(&manifest); return Module_Manifest{}, false }
+		num_exposing := int(num_exposing_val)
 		for j := 0; j < num_exposing; j += 1 {
 			exp_str, exp_ok := read_string(data, &pos, allocator)
 			if !exp_ok { manifest_destroy(&manifest); return Module_Manifest{}, false }
@@ -210,7 +214,9 @@ deserialize_manifest :: proc(data: []byte, allocator: mem.Allocator) -> (Module_
 		append(&manifest.imports, imp)
 	}
 
-	num_exports := int(read_u32_le(data, &pos))
+	num_exports_val, exp_cnt_ok2 := read_u32_le(data, &pos)
+	if !exp_cnt_ok2 { manifest_destroy(&manifest); return Module_Manifest{}, false }
+	num_exports := int(num_exports_val)
 	for i := 0; i < num_exports; i += 1 {
 		exp: Manifest_Export
 
@@ -218,7 +224,9 @@ deserialize_manifest :: proc(data: []byte, allocator: mem.Allocator) -> (Module_
 		if !name_ok { manifest_destroy(&manifest); return Module_Manifest{}, false }
 		exp.name = name_str
 
-		kind_val := int(read_u16_le(data, &pos))
+		kind_val_u16, kind_ok := read_u16_le(data, &pos)
+		if !kind_ok { manifest_destroy(&manifest); return Module_Manifest{}, false }
+		kind_val := int(kind_val_u16)
 		if kind_val > int(Export_Kind.Newtype) {
 			manifest_destroy(&manifest)
 			return Module_Manifest{}, false
@@ -309,26 +317,26 @@ write_u16_le :: proc(buf: ^[dynamic]u8, val: u16) {
 	append(buf, u8((val >> 8) & 0xff))
 }
 
-read_u32_le :: proc(data: []u8, pos: ^int) -> u32 {
+read_u32_le :: proc(data: []u8, pos: ^int) -> (value: u32, ok: bool) {
 	if pos^ + 4 > len(data) {
-		return 0
+		return 0, false
 	}
 	result :u32 = u32(data[pos^])
 	result |= u32(data[pos^ + 1]) << 8
 	result |= u32(data[pos^ + 2]) << 16
 	result |= u32(data[pos^ + 3]) << 24
 	pos^ += 4
-	return result
+	return result, true
 }
 
-read_u16_le :: proc(data: []u8, pos: ^int) -> u16 {
+read_u16_le :: proc(data: []u8, pos: ^int) -> (value: u16, ok: bool) {
 	if pos^ + 2 > len(data) {
-		return 0
+		return 0, false
 	}
 	result :u16 = u16(data[pos^])
 	result |= u16(data[pos^ + 1]) << 8
 	pos^ += 2
-	return result
+	return result, true
 }
 
 write_string :: proc(buf: ^[dynamic]u8, s: string) {
@@ -342,7 +350,9 @@ read_string :: proc(data: []u8, pos: ^int, allocator: mem.Allocator) -> (string,
 	if pos^ + 4 > len(data) {
 		return "", false
 	}
-	length := int(read_u32_le(data, pos))
+	length_val, ok := read_u32_le(data, pos)
+	if !ok { return "", false }
+	length := int(length_val)
 	if length > 4096 || pos^ + length > len(data) {
 		return "", false
 	}

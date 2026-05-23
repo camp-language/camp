@@ -1,7 +1,6 @@
 package camp
 
 import "core:fmt"
-import "core:strings"
 
 // Use-site categories for tracking how a binding is consumed
 Use_Kind :: enum {
@@ -625,26 +624,26 @@ check_unused_imports :: proc(analysis: ^Unused_Analysis) {
 	}
 }
 
-check_immutable_binding :: proc(analysis: ^Unused_Analysis, name: Intern_ID, bi: Binding_Info) -> bool {
+check_immutable_binding :: proc(analysis: ^Unused_Analysis, name: Intern_ID, bi: Binding_Info) {
 	name_str := intern_get(analysis.interner, name)
 
 	has_essential_use := binding_has_essential_use(bi)
 
 	if !has_essential_use {
 		// _-prefixed bindings are exempt from unused errors
-		if bi.is_underscore_prefixed do return false
+		if bi.is_underscore_prefixed do return
 
 		if bi.is_top_level {
 			if !bi.is_pub && !bi.is_effectful {
 				collector_add_diag(analysis.collector,
 					diag_unused_binding(name_str, "", bi.span))
 			}
-			return false
+			return
 		}
 
 		collector_add_diag(analysis.collector,
 			diag_unused_binding(name_str, "", bi.span))
-		return false
+		return
 	}
 
 	// Check for pointless evaluation: _ = pureExpr
@@ -653,10 +652,11 @@ check_immutable_binding :: proc(analysis: ^Unused_Analysis, name: Intern_ID, bi:
 			if use.kind == .Discard {
 				// Pipeline integration will use Type_Store to determine
 				// if the RHS is pure vs effectful for the pointless eval warning
+				// TODO: implement pointless evaluation diagnostic
 			}
 		}
 	}
-	return true
+	return
 }
 
 binding_has_essential_use :: proc(bi: Binding_Info) -> bool {
@@ -769,20 +769,8 @@ run_unused_analysis :: proc(cfile: CFile, interner: ^Intern_Table, collector: ^D
 	// (shadowing errors are emitted during typecheck; we need to suppress
 	// unused-binding errors for shadowed names)
 	for &diag in collector.diagnostics {
-		if diag.title == "SHADOWING" {
-			// Extract the name from the message pattern: "`name` shadows..."
-			msg := diag.message
-			if len(msg) > 2 {
-				start := strings.index(msg, "`")
-				if start >= 0 {
-					end := strings.index(msg[start+1:], "`")
-					if end >= 0 {
-						shadowed_name_str := msg[start+1:start+1+end]
-						shadowed_id := intern(interner, shadowed_name_str)
-						analysis.shadowed_names[shadowed_id] = true
-					}
-				}
-			}
+		if diag.title == "SHADOWING" && diag.shadowed_name != NO_NAME {
+			analysis.shadowed_names[diag.shadowed_name] = true
 		}
 	}
 

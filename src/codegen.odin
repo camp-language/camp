@@ -58,15 +58,9 @@ Codegen_Env :: struct {
 }
 
 cg_is_scheduler_effect :: proc(effect: Canonical_Name, env: ^Codegen_Env) -> bool {
-	name := effect.name
-	if name == env.async_id do return true
-	if name == env.spawn_id do return true
-	if name == env.parallel_id do return true
-	if name == env.file_id do return true
-	if name == env.console_id do return true
-	if name == env.time_id do return true
-	return false
+	return is_scheduler_effect_by_ids(effect.name, env.async_id, env.spawn_id, env.parallel_id, env.file_id, env.console_id, env.time_id)
 }
+
 
 hash_func_type :: proc(params: []Wasm_Value_Type, results: []Wasm_Value_Type) -> int {
 	h: int = 0x9E3779B9

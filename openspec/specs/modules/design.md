@@ -219,11 +219,9 @@ The compiler injects builtin types and values directly into the type checker env
 
 When a stdlib exists in Camp source code, many builtins can migrate to `src/Camp.camp`. The compiler would auto-inject `import Camp exposing [...]` at the top of every file. `import Camp exposing []` opts out. For now, direct injection is simpler.
 
-### 7.4 Bool as Newtype
+### 7.4 Bool as Primitive
 
-`Bool` is implemented as a newtype wrapping a tag union: `Bool := [True | False]`. This makes it consistent with the newtype system — `True` and `False` are tags owned by `Bool`. They require qualification (`Bool.True`) unless imported unqualified via the prelude.
-
-The prelude auto-exposes `True` and `False`, so they're available unqualified by default.
+`Bool` is a built-in primitive type per the language spec. It is not defined as a newtype. `True` and `False` are compiler-known tag constructors injected into the type environment alongside `Bool`.
 
 ---
 

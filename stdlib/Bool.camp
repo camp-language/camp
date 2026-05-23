@@ -1,7 +1,7 @@
-not = |b: Bool| -> Bool {
+pub not = |b: Bool| -> Bool {
   match b { True => False | False => True }
 }
 
-xor = |a: Bool, b: Bool| -> Bool {
+pub xor = |a: Bool, b: Bool| -> Bool {
   match a { True => not(b) | False => b }
 }

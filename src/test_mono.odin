@@ -1,6 +1,5 @@
 package camp
 
-import "core:fmt"
 import "core:testing"
 
 @(test)
@@ -53,7 +52,7 @@ test_mono_annotate_list_expr :: proc(t: ^testing.T) {
 }
 
 @(test)
-test_mono_annotate_record_expr :: proc(t: ^testing.T) {
+test_mono_annotate_let_binding :: proc(t: ^testing.T) {
 	store, ctx, canon, annot_tfile := typecheck_source_full("r = 1")
 	defer context_destroy(ctx)
 	defer free(ctx)
@@ -79,7 +78,7 @@ test_mono_annotate_binop_expr :: proc(t: ^testing.T) {
 }
 
 @(test)
-test_mono_annotate_field_access :: proc(t: ^testing.T) {
+test_mono_annotate_simple_binding :: proc(t: ^testing.T) {
 	store, ctx, canon, annot_tfile := typecheck_source_full("x = 5")
 	defer context_destroy(ctx)
 	defer free(ctx)
@@ -139,7 +138,7 @@ test_mono_annotate_block_expr :: proc(t: ^testing.T) {
 }
 
 @(test)
-test_mono_annotate_match_expr :: proc(t: ^testing.T) {
+test_mono_annotate_value_binding :: proc(t: ^testing.T) {
 	store, ctx, canon, annot_tfile := typecheck_source_full("val = 1")
 	defer context_destroy(ctx)
 	defer free(ctx)

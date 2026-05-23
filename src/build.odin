@@ -8,6 +8,8 @@ import "core:path/filepath"
 import "core:strings"
 import "core:time"
 
+run_command_counter: int
+
 old_allocator_save :: proc() -> mem.Allocator {
 	return context.allocator
 }
@@ -101,7 +103,12 @@ run_build_single :: proc(file_path: string, thread_count: int = 1) {
 	stem := filepath.stem(file_path)
 	output_path := fmt.tprintf("{}/{}.wasm", dir, stem)
 
-	_ = os.write_entire_file_from_bytes(output_path, wasm_bytes)
+	write_err := os.write_entire_file_from_bytes(output_path, wasm_bytes)
+	if write_err != nil {
+		collector_add_diag(&ctx.collector, diag_file_write_failed(output_path, fmt.tprintf("{}", write_err)))
+		render_all(&ctx.collector, file_path, source)
+		os.exit(1)
+	}
 	fmt.printfln("compiled {} -> {}", file_path, output_path)
 }
 
@@ -445,7 +452,6 @@ compile_test_canon :: proc(orig_canon: CFile, test_body: CExpr, output_path: str
 	ctx_for_lower: Compilation_Context
 	ctx_for_lower.allocator = alloc
 	ctx_for_lower.interner = interner^
-	ctx_for_lower.collector = collector
 	ctx_for_lower.type_store = &store
 
 	ir_mod := lower_tfile(mono_tfile, &store)
@@ -475,9 +481,11 @@ run_wasmtime_proc :: proc(wasm_path: string) -> (stdout: string, stderr: string,
 }
 
 run_command :: proc(command: []string) -> (stdout: string, stderr: string, exit_code: int) {
+	run_command_counter += 1
+	unique := run_command_counter
 	pid := os.get_pid()
-	stdout_path := fmt.tprintf("/tmp/camp-cmd-stdout-{}", pid)
-	stderr_path := fmt.tprintf("/tmp/camp-cmd-stderr-{}", pid)
+	stdout_path := fmt.tprintf("/tmp/camp-cmd-stdout-{}-{}", pid, unique)
+	stderr_path := fmt.tprintf("/tmp/camp-cmd-stderr-{}-{}", pid, unique)
 
 	stdout_f, open_err := os.open(stdout_path, os.O_CREATE | os.O_WRONLY | os.O_TRUNC)
 	if open_err != nil {
