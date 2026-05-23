@@ -1,7 +1,0 @@
-stdout = """
-canonicalized /tmp/camp-e2e/effects/effect-deep-handler/src/Main.camp: 2 declaration(s), 0 import(s)
-typecheck passed for /tmp/camp-e2e/effects/effect-deep-handler/src/Main.camp
-compiled /tmp/camp-e2e/effects/effect-deep-handler/src/Main.camp -> /tmp/camp-e2e/effects/effect-deep-handler/src/Main.wasm
-"""
-stderr = ""
-exit = 0

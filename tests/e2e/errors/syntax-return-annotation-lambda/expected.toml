@@ -1,0 +1,22 @@
+stdout = """
+-- SYNTAX ERROR --- /tmp/camp-e2e/errors/syntax-return-annotation-lambda/src/Main.camp
+
+I expected `=` here, but I got `(` instead.
+   2 | f(1)
+        ^
+
+-- SYNTAX ERROR --- /tmp/camp-e2e/errors/syntax-return-annotation-lambda/src/Main.camp
+
+I expected `=` here, but I got `` instead.
+   3 | 
+       ^
+
+-- SYNTAX ERROR --- /tmp/camp-e2e/errors/syntax-return-annotation-lambda/src/Main.camp
+
+I was not expecting `` here.
+   3 | 
+       ^
+compilation failed with 3 error(s)
+"""
+stderr = ""
+exit = 1

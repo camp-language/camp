@@ -5,3 +5,5 @@ compiled /tmp/camp-e2e/pattern-matching/match-record-pattern/src/Main.camp -> /t
 """
 stderr = ""
 exit = 0
+wasm_exit = 3
+wasm_stdout = ""

@@ -5,3 +5,5 @@ compiled /tmp/camp-e2e/scheduler/async-yield/src/Main.camp -> /tmp/camp-e2e/sche
 """
 stderr = ""
 exit = 0
+wasm_exit = 42
+wasm_stdout = ""

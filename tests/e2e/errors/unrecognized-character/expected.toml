@@ -1,11 +1,11 @@
 stdout = """
--- UNEXPECTED CHARACTER --- /tmp/camp-e2e/errors/missing-else/src/Main.camp
+-- UNEXPECTED CHARACTER --- /tmp/camp-e2e/errors/unrecognized-character/src/Main.camp
 
 I don't recognize the character `?`.
    1 | x = if True 1 else ?
                           ^
 
--- SYNTAX ERROR --- /tmp/camp-e2e/errors/missing-else/src/Main.camp
+-- SYNTAX ERROR --- /tmp/camp-e2e/errors/unrecognized-character/src/Main.camp
 
 I was not expecting `` here.
    1 | x = if True 1 else ?

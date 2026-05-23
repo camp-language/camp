@@ -324,10 +324,11 @@ diag_non_exhaustive_int_string :: proc(type_name: string, span: Source_Span) -> 
 	return d
 }
 
-diag_shadow :: proc(name: string, span: Source_Span) -> Diagnostic {
+diag_shadow :: proc(name_id: Intern_ID, name: string, span: Source_Span) -> Diagnostic {
 	d := diag_init(.Error, "SHADOWING", span,
 		fmt.tprintf("`{}` shadows a binding from an enclosing scope. All shadowing is forbidden.", name))
 	append(&d.hints, "Use a different name for this binding.")
+	d.shadowed_name = name_id
 	return d
 }
 

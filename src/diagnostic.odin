@@ -14,12 +14,13 @@ Span_Label :: struct {
 }
 
 Diagnostic :: struct {
-	category: Diagnostic_Category,
-	span:     Source_Span,
-	message:  string,
-	title:    string,
-	labels:   [dynamic]Span_Label,
-	hints:    [dynamic]string,
+	category:      Diagnostic_Category,
+	span:          Source_Span,
+	message:       string,
+	title:         string,
+	labels:        [dynamic]Span_Label,
+	hints:         [dynamic]string,
+	shadowed_name: Intern_ID,
 }
 
 Lex_Unexpected_Char :: struct {

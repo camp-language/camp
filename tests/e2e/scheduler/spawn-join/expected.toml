@@ -5,3 +5,5 @@ compiled /tmp/camp-e2e/scheduler/spawn-join/src/Main.camp -> /tmp/camp-e2e/sched
 """
 stderr = ""
 exit = 0
+wasm_exit = 0
+wasm_stdout = ""
