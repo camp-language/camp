@@ -1,7 +1,5 @@
 package camp
 
-import "core:fmt"
-
 Effect_Evidence :: struct {
 	effect:      Canonical_Name,
 	ev_var:      Intern_ID,
@@ -15,7 +13,7 @@ Effect_Lower_Env :: struct {
 	module:         ^IR_Module,
 	interner:       ^Intern_Table,
 	collector:      ^Diagnostic_Collector,
-	fresh:          int,
+	fresh_state:    Fresh_State,
 	evidence_stack: [dynamic]Effect_Evidence,
 	async_id:       Intern_ID,
 	spawn_id:       Intern_ID,
@@ -28,21 +26,18 @@ Effect_Lower_Env :: struct {
 	camp_dealloc_id: Intern_ID,
 }
 
-is_scheduler_effect :: proc(effect: Canonical_Name, env: ^Effect_Lower_Env) -> bool {
-	name := effect.name
-	if name == env.async_id do return true
-	if name == env.spawn_id do return true
-	if name == env.parallel_id do return true
-	if name == env.file_id do return true
-	if name == env.console_id do return true
-	if name == env.time_id do return true
+is_scheduler_effect_by_ids :: proc(effect_name: Intern_ID, async_id, spawn_id, parallel_id, file_id, console_id, time_id: Intern_ID) -> bool {
+	if effect_name == async_id do return true
+	if effect_name == spawn_id do return true
+	if effect_name == parallel_id do return true
+	if effect_name == file_id do return true
+	if effect_name == console_id do return true
+	if effect_name == time_id do return true
 	return false
 }
 
-el_fresh :: proc(env: ^Effect_Lower_Env, prefix: string) -> Intern_ID {
-	name := fmt.tprintf("{}_{}", prefix, env.fresh)
-	env.fresh += 1
-	return intern(env.interner, name)
+is_scheduler_effect :: proc(effect: Canonical_Name, env: ^Effect_Lower_Env) -> bool {
+	return is_scheduler_effect_by_ids(effect.name, env.async_id, env.spawn_id, env.parallel_id, env.file_id, env.console_id, env.time_id)
 }
 
 effect_lower :: proc(mod: ^IR_Module, ctx: ^Compilation_Context) -> IR_Module {
@@ -60,7 +55,7 @@ effect_lower :: proc(mod: ^IR_Module, ctx: ^Compilation_Context) -> IR_Module {
 	env: Effect_Lower_Env
 	env.module = &result
 	env.interner = &ctx.interner
-	env.fresh = 0
+	env.fresh_state = Fresh_State{counter = 0, interner = &ctx.interner}
 	env.evidence_stack = make([dynamic]Effect_Evidence, 0, 8)
 	env.collector = &ctx.collector
 	env.async_id = intern(&ctx.interner, "Async!")
@@ -143,8 +138,8 @@ el_wrap_throw_handler :: proc(body: IR_Expr, fn_decl: ^IR_Decl_Fn, throw_name: I
 	}
 
 	throw_op_name := intern(env.interner, "throw!")
-	resume_id := el_fresh(env, "_resume")
-	tag_param := el_fresh(env, "_tag")
+	resume_id := fresh_id(&env.fresh_state, "_resume")
+	tag_param := fresh_id(&env.fresh_state, "_tag")
 
 	crash_msg := new(IR_Literal_String)
 	crash_msg^ = IR_Literal_String{value = "Unhandled tag\n", type = IR_Type{.I32, Type_Var_ID(0)}, span = fn_decl.span}
@@ -600,14 +595,14 @@ el_lower_let_perform :: proc(let_expr: ^IR_Let, perform: ^IR_Perform, env: ^Effe
 
 	cont_fn_name := Canonical_Name{
 		module = NO_NAME,
-		name = el_fresh(env, "_kc"),
+		name = fresh_id(&env.fresh_state, "_kc"),
 		is_local = true,
 	}
 	cont_params := make([dynamic]IR_Param, 0, 2)
 	ev_param_for_cont: Intern_ID = NO_NAME
 	append(&cont_params, IR_Param{name = let_expr.binding, type = let_expr.type})
 	if !is_shallow {
-		ev_param_for_cont = el_fresh(env, "_ev")
+		ev_param_for_cont = fresh_id(&env.fresh_state, "_ev")
 		append(&cont_params, IR_Param{name = ev_param_for_cont, type = IR_Type{.I32, Type_Var_ID(0)}})
 	}
 
@@ -702,12 +697,12 @@ el_lower_expr :: proc(expr: IR_Expr, env: ^Effect_Lower_Env) -> IR_Expr {
 			return IR_Expr(new_handle)
 		}
 
-		ev_var := el_fresh(env, "_ev")
+		ev_var := fresh_id(&env.fresh_state, "_ev")
 
 		effect_ops := el_find_effect_ops(e.effect, env)
-		resume_param := el_fresh(env, "_resume")
-		ev_param := el_fresh(env, "_ev_arm")
-		env_param := el_fresh(env, "_env")
+		resume_param := fresh_id(&env.fresh_state, "_resume")
+		ev_param := fresh_id(&env.fresh_state, "_ev_arm")
+		env_param := fresh_id(&env.fresh_state, "_env")
 
 		num_arms := len(e.arms)
 
@@ -716,7 +711,7 @@ el_lower_expr :: proc(expr: IR_Expr, env: ^Effect_Lower_Env) -> IR_Expr {
 		arm_handler_names := make([dynamic]Canonical_Name, 0, num_arms)
 
 		for arm, arm_idx in e.arms {
-			handler_name_id := el_fresh(env, "handler")
+			handler_name_id := fresh_id(&env.fresh_state, "handler")
 			handler_name := Canonical_Name{
 				module = NO_NAME,
 				name = handler_name_id,
@@ -844,13 +839,13 @@ el_lower_expr :: proc(expr: IR_Expr, env: ^Effect_Lower_Env) -> IR_Expr {
 				span = e.span,
 			}
 
-			closure_binding := el_fresh(env, "_hcl")
+			closure_binding := fresh_id(&env.fresh_state, "_hcl")
 
 			closure_var := new(IR_Var)
 			closure_var^ = IR_Var{name = closure_binding, type = IR_Type{.I32, Type_Var_ID(0)}, span = e.span}
 
 			store_expr := el_make_i32_store(ev_var, arm_idx * 4, IR_Expr(closure_var), e.span)
-			store_binding := el_fresh(env, "_store")
+			store_binding := fresh_id(&env.fresh_state, "_store")
 
 			result = el_make_let_void(store_binding, store_expr, result, e.span)
 
@@ -914,10 +909,10 @@ el_lower_expr :: proc(expr: IR_Expr, env: ^Effect_Lower_Env) -> IR_Expr {
 
 		cont_fn_name := Canonical_Name{
 			module = NO_NAME,
-			name = el_fresh(env, "_kc"),
+			name = fresh_id(&env.fresh_state, "_kc"),
 			is_local = true,
 		}
-		cont_result := el_fresh(env, "_kr")
+		cont_result := fresh_id(&env.fresh_state, "_kr")
 
 		handle_type := el_find_handle_type(e.effect, env)
 		perf_type := e.type
@@ -928,7 +923,7 @@ el_lower_expr :: proc(expr: IR_Expr, env: ^Effect_Lower_Env) -> IR_Expr {
 		cont_params := make([dynamic]IR_Param, 0, 2)
 		append(&cont_params, IR_Param{name = cont_result, type = perf_type})
 		if !is_shallow {
-			ev_param_for_cont := el_fresh(env, "_ev")
+			ev_param_for_cont := fresh_id(&env.fresh_state, "_ev")
 			append(&cont_params, IR_Param{name = ev_param_for_cont, type = IR_Type{.I32, Type_Var_ID(0)}})
 		}
 

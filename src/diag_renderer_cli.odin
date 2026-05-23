@@ -15,7 +15,9 @@ ANSI_CYAN :: "\x1b[36m"
 ANSI_GREEN :: "\x1b[32m"
 
 is_color_tty :: proc() -> bool {
-	if os.get_env("NO_COLOR", context.allocator) != "" do return false
+	no_color_val := os.get_env("NO_COLOR", context.allocator)
+	defer delete(no_color_val, context.allocator)
+	if no_color_val != "" do return false
 	if os.is_tty(os.stderr) do return true
 	return false
 }
@@ -199,7 +201,7 @@ render_snippet :: proc(source: string, span: Source_Span, marker: string, label:
 	span_len := span.end - span.start
 	if span_len < 1 do span_len = 1
 
-	fmt.print(strings_repeat(" ", gutter_width + 3 + col - 1))
+	fmt.print(char_repeat(" ", gutter_width + 3 + col - 1))
 	fmt.print(marker_color)
 	for i in 0..<span_len {
 		fmt.print(marker)
@@ -211,7 +213,7 @@ render_snippet :: proc(source: string, span: Source_Span, marker: string, label:
 	fmt.println(colors.reset)
 }
 
-strings_repeat :: proc(s: string, count: int) -> string {
+char_repeat :: proc(s: string, count: int) -> string {
 	if count <= 0 do return ""
 	result := make([]u8, count)
 	for i in 0..<count {

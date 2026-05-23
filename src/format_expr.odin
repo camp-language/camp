@@ -129,6 +129,7 @@ format_expr_tag :: proc(e: ^Expr_Tag, info: ^Format_Source_Info, interner: ^Inte
 	}
 
 	parts: [dynamic]Doc
+	defer delete(parts)
 	append(&parts, doc_text(name))
 	append(&parts, doc_text("("))
 
@@ -146,6 +147,7 @@ format_expr_tag :: proc(e: ^Expr_Tag, info: ^Format_Source_Info, interner: ^Inte
 
 format_expr_record :: proc(e: ^Expr_Record, info: ^Format_Source_Info, interner: ^Intern_Table) -> Doc {
 	parts: [dynamic]Doc
+	defer delete(parts)
 	append(&parts, doc_text("{"))
 
 	all_name_puns := true
@@ -191,6 +193,7 @@ format_expr_record :: proc(e: ^Expr_Record, info: ^Format_Source_Info, interner:
 
 format_record_fields_multiline :: proc(fields: []Record_Field, all_name_puns: bool, info: ^Format_Source_Info, interner: ^Intern_Table) -> Doc {
 	inner: [dynamic]Doc
+	defer delete(inner)
 
 	for field, i in fields {
 		if i > 0 {
@@ -222,6 +225,7 @@ is_name_pun :: proc(field: Record_Field, interner: ^Intern_Table) -> bool {
 
 format_expr_list :: proc(e: ^Expr_List, info: ^Format_Source_Info, interner: ^Intern_Table) -> Doc {
 	parts: [dynamic]Doc
+	defer delete(parts)
 	append(&parts, doc_text("["))
 
 	multiline := info.first_separator_break[e.span.start]
@@ -238,6 +242,7 @@ format_expr_list :: proc(e: ^Expr_List, info: ^Format_Source_Info, interner: ^In
 
 format_expr_call :: proc(e: ^Expr_Call, info: ^Format_Source_Info, interner: ^Intern_Table) -> Doc {
 	parts: [dynamic]Doc
+	defer delete(parts)
 	append(&parts, format_expr(e.callee, info, interner))
 	append(&parts, doc_text("("))
 
@@ -258,6 +263,7 @@ format_expr_method_call :: proc(e: ^Expr_Method_Call, info: ^Format_Source_Info,
 
 	if multiline {
 		parts: [dynamic]Doc
+		defer delete(parts)
 		append(&parts, format_expr(e.receiver, info, interner))
 		append(&parts, doc_line())
 		append(&parts, doc_text("."))
@@ -269,6 +275,7 @@ format_expr_method_call :: proc(e: ^Expr_Method_Call, info: ^Format_Source_Info,
 	}
 
 	parts: [dynamic]Doc
+	defer delete(parts)
 	append(&parts, format_expr(e.receiver, info, interner))
 	append(&parts, doc_text("."))
 	append(&parts, doc_text(intern_get(interner, e.method)))
@@ -280,6 +287,7 @@ format_expr_method_call :: proc(e: ^Expr_Method_Call, info: ^Format_Source_Info,
 
 format_expr_lambda :: proc(e: ^Expr_Lambda, info: ^Format_Source_Info, interner: ^Intern_Table) -> Doc {
 	parts: [dynamic]Doc
+	defer delete(parts)
 	append(&parts, doc_text("|"))
 
 	for param, i in e.params {
@@ -315,6 +323,7 @@ format_expr_lambda :: proc(e: ^Expr_Lambda, info: ^Format_Source_Info, interner:
 
 format_expr_block :: proc(e: ^Expr_Block, info: ^Format_Source_Info, interner: ^Intern_Table) -> Doc {
 	parts: [dynamic]Doc
+	defer delete(parts)
 	append(&parts, doc_text("{"))
 	append(&parts, doc_nest(4, format_block_statements(e.statements[:], info, interner)))
 	append(&parts, doc_line())
@@ -324,6 +333,7 @@ format_expr_block :: proc(e: ^Expr_Block, info: ^Format_Source_Info, interner: ^
 
 format_block_statements :: proc(statements: []Expr, info: ^Format_Source_Info, interner: ^Intern_Table) -> Doc {
 	parts: [dynamic]Doc
+	defer delete(parts)
 	append(&parts, doc_line())
 	for stmt, i in statements {
 		if i > 0 {
@@ -343,6 +353,7 @@ format_expr_if :: proc(e: ^Expr_If, info: ^Format_Source_Info, interner: ^Intern
 
 	if multiline || has_braces {
 		parts: [dynamic]Doc
+		defer delete(parts)
 		append(&parts, doc_text("if "))
 		append(&parts, format_expr(e.condition, info, interner))
 		append(&parts, doc_text(" {"))
@@ -366,6 +377,7 @@ format_expr_if :: proc(e: ^Expr_If, info: ^Format_Source_Info, interner: ^Intern
 	}
 
 	parts: [dynamic]Doc
+	defer delete(parts)
 	append(&parts, doc_text("if "))
 	append(&parts, format_expr(e.condition, info, interner))
 	append(&parts, doc_text(" "))
@@ -377,6 +389,7 @@ format_expr_if :: proc(e: ^Expr_If, info: ^Format_Source_Info, interner: ^Intern
 
 format_expr_match :: proc(e: ^Expr_Match, info: ^Format_Source_Info, interner: ^Intern_Table) -> Doc {
 	parts: [dynamic]Doc
+	defer delete(parts)
 	append(&parts, doc_text("match "))
 	append(&parts, format_expr(e.scrutinee, info, interner))
 	append(&parts, doc_text(" {"))
@@ -389,6 +402,7 @@ format_expr_match :: proc(e: ^Expr_Match, info: ^Format_Source_Info, interner: ^
 
 format_match_arms :: proc(arms: []Match_Arm, info: ^Format_Source_Info, interner: ^Intern_Table) -> Doc {
 	arm_parts: [dynamic]Doc
+	defer delete(arm_parts)
 	for arm, i in arms {
 		if i > 0 {
 			append(&arm_parts, doc_line())
@@ -424,6 +438,7 @@ format_pattern :: proc(p: Pattern, info: ^Format_Source_Info, interner: ^Intern_
 		return format_pattern_destructure(v, info, interner)
 	case ^Pattern_Or:
 		parts: [dynamic]Doc
+		defer delete(parts)
 		for alt, i in v.alternatives {
 			if i > 0 {
 				append(&parts, doc_text(" | "))
@@ -442,6 +457,7 @@ format_pattern_tag :: proc(p: ^Pattern_Tag, info: ^Format_Source_Info, interner:
 	}
 
 	parts: [dynamic]Doc
+	defer delete(parts)
 	append(&parts, doc_text(name))
 	append(&parts, doc_text("("))
 	for payload, i in p.payload {
@@ -456,6 +472,7 @@ format_pattern_tag :: proc(p: ^Pattern_Tag, info: ^Format_Source_Info, interner:
 
 format_pattern_record :: proc(p: ^Pattern_Record, info: ^Format_Source_Info, interner: ^Intern_Table) -> Doc {
 	parts: [dynamic]Doc
+	defer delete(parts)
 	append(&parts, doc_text("{ "))
 	for field, i in p.fields {
 		if i > 0 {
@@ -479,6 +496,7 @@ format_pattern_record :: proc(p: ^Pattern_Record, info: ^Format_Source_Info, int
 
 format_pattern_list :: proc(p: ^Pattern_List, info: ^Format_Source_Info, interner: ^Intern_Table) -> Doc {
 	parts: [dynamic]Doc
+	defer delete(parts)
 	append(&parts, doc_text("["))
 	for element, i in p.elements {
 		if i > 0 {
@@ -492,6 +510,7 @@ format_pattern_list :: proc(p: ^Pattern_List, info: ^Format_Source_Info, interne
 
 format_pattern_destructure :: proc(p: ^Pattern_Destructure, info: ^Format_Source_Info, interner: ^Intern_Table) -> Doc {
 	parts: [dynamic]Doc
+	defer delete(parts)
 	append(&parts, doc_text(intern_get(interner, p.type_name)))
 	append(&parts, doc_text("("))
 	append(&parts, format_pattern(p.inner, info, interner))
@@ -505,6 +524,7 @@ format_expr_binop :: proc(e: ^Expr_BinOp, info: ^Format_Source_Info, interner: ^
 
 	if multiline {
 		parts: [dynamic]Doc
+		defer delete(parts)
 		append(&parts, format_expr(e.left, info, interner))
 		append(&parts, doc_line())
 		append(&parts, doc_text(op_str))
@@ -540,6 +560,7 @@ format_expr_field_access :: proc(e: ^Expr_Field_Access, info: ^Format_Source_Inf
 
 format_expr_record_update :: proc(e: ^Expr_Record_Update, info: ^Format_Source_Info, interner: ^Intern_Table) -> Doc {
 	parts: [dynamic]Doc
+	defer delete(parts)
 	append(&parts, doc_text("{ "))
 	append(&parts, doc_text(".."))
 	append(&parts, format_expr(e.rest, info, interner))
@@ -567,6 +588,7 @@ format_expr_record_update :: proc(e: ^Expr_Record_Update, info: ^Format_Source_I
 
 format_update_fields_multiline :: proc(fields: []Record_Field, info: ^Format_Source_Info, interner: ^Intern_Table) -> Doc {
 	inner: [dynamic]Doc
+	defer delete(inner)
 	for field, i in fields {
 		if i > 0 {
 			append(&inner, doc_text(","))
@@ -604,6 +626,7 @@ format_expr_crash :: proc(e: ^Expr_Crash, info: ^Format_Source_Info, interner: ^
 
 format_expr_interpolated_string :: proc(e: ^Expr_Interpolated_String, info: ^Format_Source_Info, interner: ^Intern_Table) -> Doc {
 	parts: [dynamic]Doc
+	defer delete(parts)
 
 	open_delim := "\""
 	close_delim := "\""
@@ -633,6 +656,7 @@ format_expr_interpolated_string :: proc(e: ^Expr_Interpolated_String, info: ^For
 
 format_expr_handle :: proc(e: ^Expr_Handle, info: ^Format_Source_Info, interner: ^Intern_Table) -> Doc {
 	parts: [dynamic]Doc
+	defer delete(parts)
 
 	if e.is_shallow {
 		append(&parts, doc_text("intercept "))
@@ -653,6 +677,7 @@ format_expr_handle :: proc(e: ^Expr_Handle, info: ^Format_Source_Info, interner:
 
 format_handler_arms :: proc(arms: []Handler_Arm, info: ^Format_Source_Info, interner: ^Intern_Table) -> Doc {
 	arm_parts: [dynamic]Doc
+	defer delete(arm_parts)
 	for arm, i in arms {
 		if i > 0 {
 			append(&arm_parts, doc_line())
@@ -676,6 +701,7 @@ format_handler_arms :: proc(arms: []Handler_Arm, info: ^Format_Source_Info, inte
 
 format_expr_par :: proc(e: ^Expr_Par, info: ^Format_Source_Info, interner: ^Intern_Table) -> Doc {
 	parts: [dynamic]Doc
+	defer delete(parts)
 
 	if e.for_var != Intern_ID(0) {
 		// par for x in xs { body }
@@ -702,6 +728,7 @@ format_expr_par :: proc(e: ^Expr_Par, info: ^Format_Source_Info, interner: ^Inte
 
 format_exprs_comma_multiline_inner :: proc(exprs: []Expr, info: ^Format_Source_Info, interner: ^Intern_Table) -> Doc {
 	parts: [dynamic]Doc
+	defer delete(parts)
 	for expr, i in exprs {
 		if i > 0 {
 			append(&parts, doc_text(","))
@@ -725,6 +752,7 @@ format_exprs_comma_flat :: proc(parts: ^[dynamic]Doc, exprs: []Expr, info: ^Form
 
 format_exprs_comma_multiline :: proc(parts: ^[dynamic]Doc, exprs: []Expr, info: ^Format_Source_Info, interner: ^Intern_Table) {
 	inner: [dynamic]Doc
+	defer delete(inner)
 	append(&inner, doc_line())
 	for expr, i in exprs {
 		if i > 0 {

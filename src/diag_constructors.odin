@@ -394,3 +394,9 @@ plural_s :: proc(n: int) -> string {
 	if n == 1 do return ""
 	return "s"
 }
+
+diag_ambiguous_type :: proc(name: string, span: Source_Span) -> Diagnostic {
+	d := diag_init(.Error, "AMBIGUOUS TYPE", span,
+		fmt.tprintf("Cannot determine type for generic parameter `{}`. Provide a type annotation.", name))
+	return d
+}

@@ -99,6 +99,12 @@ prelude_lower_type_ref :: proc(store: ^Type_Store, ref: string) -> IR_Type {
 	return IR_Type{wasm_type = .I32, type_id = 0}
 }
 
+// NOTE: inject_prelude_effects_typecheck and inject_prelude_effects_lower
+// are nearly identical in structure (same switch on eff_name, same per-effect
+// operations). They differ in the type resolution function (prelude_resolve_type_ref
+// vs prelude_lower_type_ref) and the target storage (store.effect_ops vs mod.effect_defs).
+// Consider extracting the effect data (names, operations, signatures) into a shared table.
+
 inject_prelude_effects_typecheck :: proc(store: ^Type_Store) {
 	for eff_name in PRELUDE_EFFECT_FULL {
 		name_id := intern(store.interner, eff_name)

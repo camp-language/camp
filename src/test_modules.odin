@@ -1,6 +1,5 @@
 package camp
 
-import "core:fmt"
 import "core:testing"
 
 @(test)

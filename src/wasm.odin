@@ -2,9 +2,7 @@ package camp
 
 copy_dynamic_bytes :: proc(buf: [dynamic]u8) -> []u8 {
 	result := make([]u8, len(buf))
-	for b, i in buf {
-		result[i] = b
-	}
+	copy(result, buf[:])
 	return result
 }
 

@@ -181,12 +181,6 @@ Unused_Assignment :: struct {
 	assign_no: int,
 	hint:      string,
 }
-Generic_Ambiguous_Type :: proc(name: string, span: Source_Span) -> Diagnostic {
-	d := diag_init(.Error, "AMBIGUOUS TYPE", span,
-		fmt.tprintf("Cannot determine type for generic parameter `{}`. Provide a type annotation.", name))
-	return d
-}
-
 Diagnostic_Collector :: struct {
 	diagnostics:    [dynamic]Diagnostic,
 	warning_count:  int,

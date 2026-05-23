@@ -3,16 +3,12 @@ package camp
 import "core:fmt"
 
 Closure_Convert_Env :: struct {
-	module:   ^IR_Module,
-	interner: ^Intern_Table,
-	fresh:    int,
+	module:     ^IR_Module,
+	interner:   ^Intern_Table,
+	fresh_state: Fresh_State,
 }
 
-cc_fresh :: proc(env: ^Closure_Convert_Env, prefix: string) -> Intern_ID {
-	name := fmt.tprintf("{}_{}", prefix, env.fresh)
-	env.fresh += 1
-	return intern(env.interner, name)
-}
+
 
 cc_free_vars :: proc(expr: IR_Expr, bound: ^map[Intern_ID]bool) -> [dynamic]Intern_ID {
 	result: [dynamic]Intern_ID
@@ -228,7 +224,7 @@ closure_convert :: proc(mod: ^IR_Module, ctx: ^Compilation_Context) -> IR_Module
 	env: Closure_Convert_Env
 	env.module = &result
 	env.interner = &ctx.interner
-	env.fresh = 0
+	env.fresh_state = Fresh_State{counter = 0, interner = &ctx.interner}
 
 	for decl in mod.decls {
 		transformed := cc_convert_decl(decl, &env)
@@ -285,7 +281,7 @@ cc_convert_expr :: proc(expr: IR_Expr, env: ^Closure_Convert_Env) -> IR_Expr {
 			return IR_Expr(rec)
 		}
 
-		env_param_name := cc_fresh(env, "_cenv")
+		env_param_name := fresh_id(&env.fresh_state, "_cenv")
 
 		bound: map[Intern_ID]bool
 		bound = make(map[Intern_ID]bool, 8)
@@ -304,7 +300,7 @@ cc_convert_expr :: proc(expr: IR_Expr, env: ^Closure_Convert_Env) -> IR_Expr {
 
 		closed_fn_name := Canonical_Name{
 			module = NO_NAME,
-			name = cc_fresh(env, "closed"),
+			name = fresh_id(&env.fresh_state, "closed"),
 			is_local = true,
 		}
 
