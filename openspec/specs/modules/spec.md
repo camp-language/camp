@@ -180,17 +180,17 @@ The `pub` keyword SHALL mark declarations as exported from their defining module
 
 #### Scenario: Newtype with pub tags
 
-- GIVEN a `pub` newtype `Result(a, e) := [Ok(a) | Err(e)]`
+- GIVEN a `pub` nominal type `@Result(a, e) : [Ok(a) | Err(e)]`
 - WHEN another module imports `Result exposing [Ok, Err]`
 - THEN `Ok(42)` SHALL be valid without the `Result.` qualifier
 
 ### Requirement: Unified Namespace per Module
 
-Each module SHALL have one namespace for functions, values, types, traits, effects, newtypes, and aliases. A module SHALL NOT define both a type and a function with the same name.
+Each module SHALL have one namespace for functions, values, types, traits, effects, nominal types, and aliases. A module SHALL NOT define both a type and a function with the same name.
 
 #### Scenario: Type and function name conflict within module
 
-- GIVEN a module that defines both a newtype `Result` and a function `Result`
+- GIVEN a module that defines both a nominal type `Result` and a function `Result`
 - WHEN the compiler processes the module
 - THEN it SHALL produce an error: "name 'Result' is already defined in this module"
 
@@ -208,7 +208,7 @@ Every Camp file SHALL implicitly import builtin types and operations before proc
 
 - GIVEN the builtin `Bool` type
 - WHEN the compiler processes `True and False`
-- THEN `Bool` SHALL be a distinct type with tags `True` and `False`
+- THEN `Bool` SHALL be a primitive type with literal values `True` and `False`
 
 #### Scenario: Prelude opt-out
 
@@ -262,7 +262,7 @@ Phases 1–3 (parse, canonicalize, typecheck) SHALL be per-file and cacheable. M
 
 ### Requirement: Cross-Module Type Compatibility
 
-Types SHALL unify across module boundaries. Structural types (records, tag unions) SHALL unify by shape regardless of which module defines them. Nominal types (newtypes) SHALL only unify with themselves.
+Types SHALL unify across module boundaries. Structural types (records, tag unions) SHALL unify by shape regardless of which module defines them. Nominal types SHALL only unify with themselves.
 
 #### Scenario: Structural record unification across modules
 
@@ -270,9 +270,9 @@ Types SHALL unify across module boundaries. Structural types (records, tag union
 - WHEN the compiler checks cross-module compatibility
 - THEN the types SHALL unify successfully
 
-#### Scenario: Nominal newtype distinctness across modules
+#### Scenario: Nominal type distinctness across modules
 
-- GIVEN module A defines `UserId := U64` and module B defines `OrderId := U64`
+- GIVEN module A defines `@UserId : U64` and module B defines `@OrderId : U64`
 - WHEN the compiler checks cross-module compatibility
 - THEN `UserId` SHALL NOT unify with `OrderId`
 

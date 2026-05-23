@@ -32,7 +32,7 @@ The stdlib SHALL provide format-agnostic `Encode` and `Decode` traits parameteri
 
 #### Scenario: Type derives Encode and Decode for multiple formats
 
-- Given a Camp type `User := { name: Str, age: U64 }` with `@derive [Encode, Decode]`
+- Given a Camp type `@User : { name: Str, age: U64 }` with `derives Encode, Decode`
 - When the `User` type is used with `Json.encode` and `Csv.encode`
 - Then both formats SHALL produce correctly formatted output from the same derived implementation
 
@@ -56,7 +56,7 @@ The stdlib SHALL include a `Json` module providing parsing, stringification, a `
 
 #### Scenario: Encode derived type to JSON
 
-- Given a type `User := { name: Str, age: U64 }` with `@derive [Encode, Decode]`
+- Given a type `@User : { name: Str, age: U64 }` with `derives Encode, Decode`
 - When `Json.encode(user)` is called
 - Then it SHALL produce `{"name":"Ada","age":36}`
 
@@ -291,11 +291,11 @@ Package dependencies SHALL initially be git-based with no central registry. When
 
 ### Requirement: Derive Integration for Encode/Decode
 
-The `@derive [Encode, Decode]` annotation SHALL generate format-agnostic implementations that work for every format providing `EncoderFormatting`/`DecoderFormatting` instances. Per-field override SHALL be supported.
+The `derives` clause SHALL generate format-agnostic implementations that work for every format providing `EncoderFormatting`/`DecoderFormatting` instances. Per-field override SHALL be supported.
 
 #### Scenario: Derived codec works for all formats
 
-- Given `@derive [Encode, Decode] User := { name: Str, age: U64 }`
+- Given `@User derives Encode, Decode : { name: Str, age: U64 }`
 - When `User` is used with `Json`, `Xml`, and `Csv` formats
 - Then all three formats SHALL encode and decode `User` correctly without separate implementations
 
@@ -331,4 +331,4 @@ The compiler SHALL embed stdlib `.camp` source files at build time. Stdlib modul
 
 - Given the embedded stdlib
 - When the compiler initializes
-- Then the following stdlib modules SHALL be available: `Result`, `Option`, `Bool`, `Int`, `Str`, `List`, `Iter`, `Map`, `Set`, `Eq`, `Ord`, `Hash`, `Fmt`, `Path`, `Console!`, `Throw!`, `File!`, `Env!`, `Time!`, `Random!`, `Log!`, `Crypto.Random!`, `Bytes`, `Serialize`
+- Then the following stdlib modules SHALL be available: `Result`, `Option`, `Bool`, `Int`, `Str`, `List`, `Iter`, `Map`, `Set`, `Eq`, `Ord`, `Hash`, `Fmt`, `Path`, `Console!`, `Throw!`, `File!`, `Env!`, `Time!`, `Random!`, `Log!`, `Crypto.Random!`, `Bytes`, `Encode`, `Decode`

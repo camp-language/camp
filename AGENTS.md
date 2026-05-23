@@ -60,6 +60,9 @@ You are an AI assistant helping develop the Camp programming language - a strict
 | Packages | `openspec/specs/packages/spec.md` |
 | Parallelism | `openspec/specs/parallelism/spec.md` |
 | Doc Comments & Doctests | `openspec/specs/doc-comments/spec.md` |
+| Modules | `openspec/specs/modules/spec.md` |
+| String Interpolation | `openspec/specs/string-interpolation/spec.md` |
+| Unused Analysis | `openspec/specs/unused-analysis/spec.md` |
 
 ## Kitchen Sink Test
 
