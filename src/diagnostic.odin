@@ -147,6 +147,39 @@ Newtype_Opaque_Violation :: struct {
 	type_name: string,
 	action:    string,
 }
+
+Unused_Binding :: struct {
+	name: string,
+	hint:  string,
+}
+
+Unused_Record_Field :: struct {
+	field_name:  string,
+	record_span: Source_Span,
+}
+
+Unused_Import :: struct {
+	name:        string,
+	module_name: string,
+}
+
+Pointless_Evaluation :: struct {
+	kind: string,
+}
+
+Contradictory_Prefix :: struct {
+	name: string,
+}
+
+Noop_Assignment :: struct {
+	name: string,
+}
+
+Unused_Assignment :: struct {
+	name:      string,
+	assign_no: int,
+	hint:      string,
+}
 Generic_Ambiguous_Type :: proc(name: string, span: Source_Span) -> Diagnostic {
 	d := diag_init(.Error, "AMBIGUOUS TYPE", span,
 		fmt.tprintf("Cannot determine type for generic parameter `{}`. Provide a type annotation.", name))
