@@ -164,6 +164,19 @@ run_build_project :: proc(thread_count: int = 1) {
 
 	fmt.printfln("typecheck passed for all modules")
 
+	// Run unused binding analysis on each module
+	for mod_id in sorted {
+		mi_ua, mi_ua_ok := project.modules[mod_id]
+		if !mi_ua_ok do continue
+		if mi_ua.cfile == nil do continue
+		run_unused_analysis(mi_ua.cfile^, &ctx.interner, &ctx.collector)
+	}
+
+	if diag_collector_has_errors(&ctx.collector) {
+		render_all(&ctx.collector, "", "")
+		os.exit(1)
+	}
+
 	context.allocator = ctx.allocator
 	ctx.type_store = &ctx.module_stores[project.entry_point]
 	combined_ir := combine_module_irs(sorted, &project, &ctx)
