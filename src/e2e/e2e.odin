@@ -4,6 +4,7 @@ import "core:fmt"
 import "core:mem"
 import "core:mem/virtual"
 import "core:os"
+import "core:strings"
 import "core:sync"
 import "core:thread"
 
@@ -37,6 +38,13 @@ run_test_worker :: proc(ctx_ptr: rawptr) {
 		report := run_test(test, ctx.update)
 
 		context.allocator = old_alloc
+
+		// Clone arena-allocated strings before destroying the arena,
+		// otherwise the report's string fields become dangling pointers.
+		report.actual_stdout, _ = strings.clone(report.actual_stdout, old_alloc)
+		report.actual_stderr, _ = strings.clone(report.actual_stderr, old_alloc)
+		report.diff, _ = strings.clone(report.diff, old_alloc)
+
 		virtual.arena_destroy(&test_arena)
 
 		sync.mutex_lock(ctx.mutex)

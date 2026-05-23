@@ -65,35 +65,28 @@ discover_tests :: proc(root: string, filter: string, allocator: mem.Allocator) -
 
 			expected_path, ep_err := filepath.join({test_dir_path, "expected.toml"}, allocator)
 			if ep_err != nil {
-				delete(test_dir_path, allocator)
 				continue
 			}
+			defer delete(expected_path, allocator)
 
 			if !os.exists(expected_path) {
-				delete(expected_path, allocator)
-				delete(test_dir_path, allocator)
 				continue
 			}
 
 			main_camp_path, mc_err := filepath.join({test_dir_path, "Main.camp"}, allocator)
 			if mc_err != nil {
-				delete(expected_path, allocator)
-				delete(test_dir_path, allocator)
 				continue
 			}
+			defer delete(main_camp_path, allocator)
 
 			if !os.exists(main_camp_path) {
-				delete(main_camp_path, allocator)
-				delete(expected_path, allocator)
-				delete(test_dir_path, allocator)
 				continue
 			}
-			delete(main_camp_path, allocator)
 
 			category_name := fmt.tprintf("{}/{}", category, test_name)
-			if filter != "" && !strings.contains(category_name, filter) {
-				delete(expected_path, allocator)
-				delete(test_dir_path, allocator)
+			should_skip := filter != "" && !strings.contains(category_name, filter)
+
+			if should_skip {
 				continue
 			}
 
