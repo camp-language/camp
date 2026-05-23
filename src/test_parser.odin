@@ -369,7 +369,7 @@ test_parser_dot_lambda_mixed :: proc(t: ^testing.T) {
 	testing.expect(t, !diag_collector_has_errors(&ctx.collector))
 	#partial switch e in expr {
 	case ^Expr_Dot_Lambda:
-		testing.expect(t, true)
+		testing.expect(t, e.body != nil)
 	case:
 		testing.expect(t, false)
 	}
