@@ -1,38 +1,38 @@
-Iter : @{
+pub Iter : @{
   next: || -[e]-> [Some(a) | None],
 }
 
-empty : || -[]-> Iter(a)
-empty = || @{
+pub empty : || -[]-> Iter(a)
+pub empty = || @{
   next = || None,
 }
 
-singleton : a -[]-> Iter(a)
-singleton = |x| @{
+pub singleton : a -[]-> Iter(a)
+pub singleton = |x| @{
   next = ||
-    consumed = True
-    if consumed { None } else { consumed = True; Some(x) },
+    $consumed = False
+    if $consumed { None } else { $consumed = True; Some(x) },
 }
 
-from_list : List(a) -[]-> Iter(a)
-from_list = |list| @{
+pub from_list : List(a) -[]-> Iter(a)
+pub from_list = |$list| @{
   next = ||
-    match list {
-      Cons(head, rest) => list = rest; Some(head),
+    match $list {
+      Cons(head, rest) => $list = rest; Some(head),
       Nil => None,
     },
 }
 
-map : Iter(a), |a| -[e]-> b -[]-> Iter(b)
-map = |iter, f| @{
+pub map : Iter(a), |a| -[e]-> b -[]-> Iter(b)
+pub map = |iter, f| @{
   next = || match iter.next() {
     Some(x) => Some(f(x)),
     None => None,
   },
 }
 
-filter : Iter(a), |a| -[e]-> Bool -[]-> Iter(a)
-filter = |iter, pred| @{
+pub filter : Iter(a), |a| -[e]-> Bool -[]-> Iter(a)
+pub filter = |iter, pred| @{
   next = ||
     match iter.next() {
       Some(x) => if pred(x) { Some(x) } else { iter.next() },
@@ -40,49 +40,49 @@ filter = |iter, pred| @{
     },
 }
 
-fold : Iter(a), b, |b, a| -[e]-> b -[]-> b
-fold = |iter, init, f| {
-  acc = init
-  cur = iter.next()
-  while cur != None {
-    Some(x) = cur
-    acc = f(acc, x)
-    cur = iter.next()
+pub fold : Iter(a), b, |b, a| -[e]-> b -[]-> b
+pub fold = |iter, init, f| {
+  $acc = init
+  $cur = iter.next()
+  while $cur != None {
+    Some(x) = $cur
+    $acc = f($acc, x)
+    $cur = iter.next()
   }
-  acc
+  $acc
 }
 
-collect : Iter(a) -[]-> List(a)
-collect = |iter| {
-  acc = []
-  cur = iter.next()
-  while cur != None {
-    Some(x) = cur
-    acc = List.append(acc, [x])
-    cur = iter.next()
+pub collect : Iter(a) -[]-> List(a)
+pub collect = |iter| {
+  $acc = []
+  $cur = iter.next()
+  while $cur != None {
+    Some(x) = $cur
+    $acc = List.append($acc, [x])
+    $cur = iter.next()
   }
-  acc
+  $acc
 }
 
-count : Iter(a) -[]-> I64
-count = |iter| fold(iter, 0, |n, _| n + 1)
+pub count : Iter(a) -[]-> I64
+pub count = |iter| fold(iter, 0, |n, _| n + 1)
 
-for_each : Iter(a), |a| -[e]-> {} -[]-> {}
-for_each = |iter, f| fold(iter, {}, |_, x| f(x))
+pub for_each : Iter(a), |a| -[e]-> {} -[]-> {}
+pub for_each = |iter, f| fold(iter, {}, |_, x| f(x))
 
-find : Iter(a), |a| -[]-> Bool -[]-> Option(a)
-find = |iter, pred| {
-  cur = iter.next()
-  while cur != None {
-    Some(x) = cur
+pub find : Iter(a), |a| -[]-> Bool -[]-> Option(a)
+pub find = |iter, pred| {
+  $cur = iter.next()
+  while $cur != None {
+    Some(x) = $cur
     if pred(x) { return Some(x) }
-    cur = iter.next()
+    $cur = iter.next()
   }
   None
 }
 
-chain : Iter(a), Iter(a) -[]-> Iter(a)
-chain = |first, second| @{
+pub chain : Iter(a), Iter(a) -[]-> Iter(a)
+pub chain = |first, second| @{
   next = ||
     match first.next() {
       Some(x) => Some(x),
@@ -90,39 +90,39 @@ chain = |first, second| @{
     },
 }
 
-take : Iter(a), I64 -[]-> Iter(a)
-take = |iter, n| @{
-  remaining = n
+pub take : Iter(a), I64 -[]-> Iter(a)
+pub take = |iter, n| @{
+  $remaining = n
   next = ||
-    if remaining <= 0 { None } else {
-      remaining = remaining - 1
+    if $remaining <= 0 { None } else {
+      $remaining = $remaining - 1
       iter.next()
     },
 }
 
-skip : Iter(a), I64 -[]-> Iter(a)
-skip = |iter, n| @{
+pub skip : Iter(a), I64 -[]-> Iter(a)
+pub skip = |iter, $n| @{
   next = ||
-    i = 0
-    while i < n {
+    $i = 0
+    while $i < $n {
       iter.next()
-      i = i + 1
+      $i = $i + 1
     }
-    n = 0
+    $n = 0
     iter.next()
 }
 
-enumerate : Iter(a) -[]-> Iter((I64, a))
-enumerate = |iter| @{
-  index = 0
+pub enumerate : Iter(a) -[]-> Iter((I64, a))
+pub enumerate = |iter| @{
+  $index = 0
   next = || match iter.next() {
-    Some(x) => idx = index; index = index + 1; Some((idx, x)),
+    Some(x) => idx = $index; $index = $index + 1; Some((idx, x)),
     None => None,
   },
 }
 
-zip : Iter(a), Iter(b) -[]-> Iter((a, b))
-zip = |left, right| @{
+pub zip : Iter(a), Iter(b) -[]-> Iter((a, b))
+pub zip = |left, right| @{
   next = ||
     match left.next() {
       Some(a) => match right.next() {
