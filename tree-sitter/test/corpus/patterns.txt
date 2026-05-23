@@ -2,7 +2,7 @@
 Wildcard pattern
 ========
 x = match y {
-  _ -> 0
+  _ => 0
 }
 ---
 (source_file
@@ -19,7 +19,7 @@ x = match y {
 Or pattern
 ========
 x = match y {
-  1 | 2 -> 0
+  1 | 2 => 0
 }
 ---
 (source_file
@@ -38,7 +38,7 @@ x = match y {
 Tag pattern
 ========
 x = match y {
-  Ok(v) -> v
+  Ok(v) => v
 }
 ---
 (source_file
@@ -58,7 +58,7 @@ x = match y {
 Record pattern
 ========
 x = match y {
-  { x: 1 } -> 0
+  { x: 1 } => 0
 }
 ---
 (source_file
@@ -79,7 +79,7 @@ x = match y {
 List pattern
 ========
 x = match y {
-  [1, 2] -> 0
+  [1, 2] => 0
 }
 ---
 (source_file
@@ -92,4 +92,4 @@ x = match y {
           (list_pattern
             (integer)
             (integer))
-          (integer))))))
+          (integer)))))
