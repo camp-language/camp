@@ -5,9 +5,9 @@
 - [x] 1.2 Add `string_table` field population for string patterns in `src/lower.odin` `lower_tpattern()`
 
 ## 2. Tag Index Resolution
-- [ ] 2.1 Add `resolve_tag_index()` in `src/lower.odin`
-- [ ] 2.2 Update `lower_ttag()` to call `resolve_tag_index()`
-- [ ] 2.3 Update `lower_tlist()` to call `resolve_tag_index()` for Nil/Cons tag indices
+- [x] 2.1 Add `resolve_tag_index()` in `src/lower.odin`
+- [x] 2.2 Update `lower_ttag()` to call `resolve_tag_index()`
+- [x] 2.3 Update `lower_tlist()` to call `resolve_tag_index()` for Nil/Cons tag indices
 
 ## 3. Literal Pattern Lowering
 - [ ] 3.1 Update `lower_tpattern()` to create `IR_Pat_Bool`, `IR_Pat_Int`, `IR_Pat_String`

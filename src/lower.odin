@@ -840,15 +840,36 @@ lower_tprefixop :: proc(e: ^TExpr_PrefixOp, env: ^Lower_Env) -> IR_Expr {
 	}
 }
 
+resolve_tag_index :: proc(store: ^Type_Store, type_var: Type_Var_ID, tag_name: Intern_ID) -> int {
+	resolved := resolve_var(store, type_var)
+	v := get_var(store, resolved)
+	inf, is_inf := v.link.(Inferred_Type)
+	if !is_inf {
+		return 0
+	}
+	if inf.tag == .Newtype {
+		return resolve_tag_index(store, inf.inner_id, tag_name)
+	}
+	if inf.tag == .Tag_Union_Row {
+		for entry, i in inf.tag_entries {
+			if entry.name == tag_name {
+				return i
+			}
+		}
+	}
+	return 0
+}
+
 lower_ttag :: proc(e: ^TExpr_Tag, env: ^Lower_Env) -> IR_Expr {
 	payload := make([dynamic]IR_Expr, 0, len(e.payload))
 	for p in e.payload {
 		append(&payload, lower_texpr(p, env))
 	}
+	tag_index := resolve_tag_index(env.store, e.type_.type_id, e.name.name)
 	result := new(IR_Construct_Tag)
 	result^ = IR_Construct_Tag{
 		tag_name = e.name.name,
-		tag_index = 0,
+		tag_index = tag_index,
 		payload = payload,
 		type = e.type_,
 		span = e.span,
@@ -948,10 +969,15 @@ lower_thandle :: proc(e: ^TExpr_Handle, env: ^Lower_Env) -> IR_Expr {
 }
 
 lower_tlist :: proc(e: ^TExpr_List, env: ^Lower_Env) -> IR_Expr {
+	nil_name := intern(env.interner, "Nil")
+	cons_name := intern(env.interner, "Cons")
+	nil_index := resolve_tag_index(env.store, e.type_.type_id, nil_name)
+	cons_index := resolve_tag_index(env.store, e.type_.type_id, cons_name)
+
 	nil_tag := new(IR_Construct_Tag)
 	nil_tag^ = IR_Construct_Tag{
-		tag_name = intern(env.interner, "Nil"),
-		tag_index = 0,
+		tag_name = nil_name,
+		tag_index = nil_index,
 		payload = make([dynamic]IR_Expr, 0),
 		type = e.type_,
 		span = e.span,
@@ -965,8 +991,8 @@ lower_tlist :: proc(e: ^TExpr_List, env: ^Lower_Env) -> IR_Expr {
 		append(&cons_payload, result)
 		cons_tag := new(IR_Construct_Tag)
 		cons_tag^ = IR_Construct_Tag{
-			tag_name = intern(env.interner, "Cons"),
-			tag_index = 0,
+			tag_name = cons_name,
+			tag_index = cons_index,
 			payload = cons_payload,
 			type = e.type_,
 			span = e.span,
