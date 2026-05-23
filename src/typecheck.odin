@@ -639,6 +639,8 @@ typecheck_synth :: proc(expr: CExpr, env: ^Type_Env, store: ^Type_Store) -> Synt
 		str_name := intern(store.interner, "Str")
 		str_var := make_primitive_type(store, str_name, e.span)
 		eff := fresh_effect_row(store, e.span)
+		display_name := intern(store.interner, "Display")
+		to_str_name := intern(store.interner, "to_str")
 		parts_t := make([dynamic]TExpr_String_Part, 0, len(e.parts))
 		for part in e.parts {
 			switch p in part {
@@ -653,9 +655,46 @@ typecheck_synth :: proc(expr: CExpr, env: ^Type_Env, store: ^Type_Store) -> Synt
 				append(&parts_t, TExpr_String_Part(clit))
 			case CExpr:
 				part_result := typecheck_synth(p, env, store)
-				unify(store, part_result.var_id, str_var)
 				unify(store, eff, part_result.effects)
-				append(&parts_t, TExpr_String_Part(part_result.texpr))
+
+				expr_part := new(TExpr_String_Expr)
+				expr_part.expr = part_result.texpr
+
+				resolved := resolve_var(store, part_result.var_id)
+				v := get_var(store, resolved)
+				type_name: Intern_ID = NO_NAME
+				if inf, ok := v.link.(Inferred_Type); ok {
+					type_name = inf.primitive_name
+				}
+
+				if type_name == str_name {
+					expr_part.needs_to_str = false
+					expr_part.display_impl = Canonical_Name{}
+				} else if type_name != NO_NAME {
+					impl, found := find_trait_impl(store, display_name, type_name)
+					if found {
+						if to_str_impl, has := impl.methods[to_str_name]; has {
+							expr_part.needs_to_str = true
+							expr_part.display_impl = to_str_impl
+						} else {
+							type_str := intern_get(store.interner, type_name)
+							collector_add_diag(store.collector, diag_display_not_implemented(type_str, e.span))
+							expr_part.needs_to_str = false
+							expr_part.display_impl = Canonical_Name{}
+						}
+					} else {
+						type_str := intern_get(store.interner, type_name)
+						collector_add_diag(store.collector, diag_display_not_implemented(type_str, e.span))
+						expr_part.needs_to_str = false
+						expr_part.display_impl = Canonical_Name{}
+					}
+				} else {
+					collector_add_diag(store.collector, diag_display_not_implemented("unknown type", e.span))
+					expr_part.needs_to_str = false
+					expr_part.display_impl = Canonical_Name{}
+				}
+
+				append(&parts_t, TExpr_String_Part(expr_part))
 			}
 		}
 		t := new(TExpr_Interpolated_String)

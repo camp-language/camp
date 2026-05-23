@@ -290,7 +290,7 @@ TExpr_Interpolated_String :: struct {
 
 TExpr_String_Part :: union {
 	^TExpr_String_Literal,
-	TExpr,
+	^TExpr_String_Expr,
 }
 
 TExpr_String_Literal :: struct {
@@ -298,6 +298,12 @@ TExpr_String_Literal :: struct {
 	type_: IR_Type,
 	eff_:  IR_Type,
 	span:  Source_Span,
+}
+
+TExpr_String_Expr :: struct {
+	expr:          TExpr,
+	needs_to_str:  bool,
+	display_impl:  Canonical_Name,
 }
 
 TExpr_Handle :: struct {

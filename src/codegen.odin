@@ -1241,6 +1241,35 @@ emit_expr :: proc(expr: IR_Expr, buf: ^[dynamic]u8, env: ^Codegen_Env, runtime_i
 			}
 		}
 
+		// Check for Display.to_str intrinsic calls (unqualified name)
+		if e.callee.module == NO_NAME {
+			name_str := intern_get(env.interner, e.callee.name)
+			if name_str == "I64_to_str" && len(e.args) == 1 {
+				emit_expr(e.args[0], buf, env, runtime_indices)
+				emit_instruction(Wasm_Call{index = u32(runtime_indices[RUNTIME_I64_TO_STR])}, buf)
+				break
+			}
+			if name_str == "I32_to_str" && len(e.args) == 1 {
+				emit_expr(e.args[0], buf, env, runtime_indices)
+				emit_instruction(Wasm_Call{index = u32(runtime_indices[RUNTIME_I32_TO_STR])}, buf)
+				break
+			}
+			if name_str == "F64_to_str" && len(e.args) == 1 {
+				emit_expr(e.args[0], buf, env, runtime_indices)
+				emit_instruction(Wasm_Call{index = u32(runtime_indices[RUNTIME_F64_TO_STR])}, buf)
+				break
+			}
+			if name_str == "Bool_to_str" && len(e.args) == 1 {
+				emit_expr(e.args[0], buf, env, runtime_indices)
+				emit_instruction(Wasm_Call{index = u32(runtime_indices[RUNTIME_BOOL_TO_STR])}, buf)
+				break
+			}
+			if name_str == "Str_to_str" && len(e.args) == 1 {
+				emit_expr(e.args[0], buf, env, runtime_indices)
+				break
+			}
+		}
+
 		for arg in e.args {
 			emit_expr(arg, buf, env, runtime_indices)
 		}

@@ -292,6 +292,13 @@ diag_unexpected_tokens_after_interpolation :: proc(tok: Token) -> Diagnostic {
 	return d
 }
 
+diag_display_not_implemented :: proc(type_name: string, span: Source_Span) -> Diagnostic {
+	d := diag_init(.Error, "DISPLAY NOT IMPLEMENTED", span,
+		fmt.tprintf("Type `{}` does not implement `Display`. Only types that implement `Display` can be used in string interpolation.", type_name))
+	append(&d.hints, fmt.tprintf("Implement `Display` for `{}`, or convert the value to `Str` before interpolation.", type_name))
+	return d
+}
+
 diag_shadow :: proc(name: string, span: Source_Span) -> Diagnostic {
 	d := diag_init(.Error, "SHADOWING", span,
 		fmt.tprintf("`{}` shadows a binding from an enclosing scope. All shadowing is forbidden.", name))
