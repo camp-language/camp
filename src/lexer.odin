@@ -98,6 +98,9 @@ lexer_next :: proc(l: ^Lexer) -> Token {
 	}
 
 	if ch == '"' {
+		if l.pos + 2 < len(l.source) && l.source[l.pos + 1] == '"' && l.source[l.pos + 2] == '"' {
+			return lexer_lex_multiline_string(l, start)
+		}
 		return lexer_lex_string(l, start)
 	}
 
@@ -120,6 +123,10 @@ lexer_next :: proc(l: ^Lexer) -> Token {
 		inner_text := l.source[start+1:l.pos-1]
 		// Return as a regular Identifier token
 		return Token{kind = .Identifier, text = inner_text, span = lexer_make_span(l, start)}
+	}
+
+	if ch == 'r' && l.pos + 1 < len(l.source) && l.source[l.pos + 1] == '"' {
+		return lexer_lex_raw_string(l, start)
 	}
 
 	if is_identifier_start(ch) {
@@ -260,9 +267,13 @@ lexer_lex_number :: proc(l: ^Lexer, start: int) -> Token {
 lexer_lex_string :: proc(l: ^Lexer, start: int) -> Token {
 	l.pos += 1
 
+	has_interpolation := false
+
 	for l.pos < len(l.source) && l.source[l.pos] != '"' {
 		if l.source[l.pos] == '\\' {
 			l.pos += 1
+		} else if l.source[l.pos] == '$' && l.pos + 1 < len(l.source) && l.source[l.pos + 1] == '{' {
+			has_interpolation = true
 		}
 		l.pos += 1
 	}
@@ -274,7 +285,66 @@ lexer_lex_string :: proc(l: ^Lexer, start: int) -> Token {
 	}
 
 	text := l.source[start:l.pos]
-	return Token{kind = .String_Literal, text = text, span = lexer_make_span(l, start)}
+	kind := Token_Kind.String_Literal
+	if has_interpolation {
+		kind = .Interpolated_String_Literal
+	}
+	return Token{kind = kind, text = text, span = lexer_make_span(l, start)}
+}
+
+lexer_lex_raw_string :: proc(l: ^Lexer, start: int) -> Token {
+	l.pos += 1 // skip 'r'
+	l.pos += 1 // skip opening '"'
+
+	has_interpolation := false
+
+	for l.pos < len(l.source) && l.source[l.pos] != '"' {
+		if l.source[l.pos] == '\\' && l.pos + 1 < len(l.source) && l.source[l.pos + 1] == '$' {
+			l.pos += 2 // skip \$ — the $ is escaped from interpolation
+		} else {
+			if l.source[l.pos] == '$' && l.pos + 1 < len(l.source) && l.source[l.pos + 1] == '{' {
+				has_interpolation = true
+			}
+			l.pos += 1
+		}
+	}
+
+	if l.pos < len(l.source) {
+		l.pos += 1
+	} else {
+		collector_add_diag(l.collector, diag_unterminated_string(lexer_make_span(l, start)))
+	}
+
+	text := l.source[start:l.pos]
+	return Token{kind = .Raw_String_Literal, text = text, span = lexer_make_span(l, start)}
+}
+
+lexer_lex_multiline_string :: proc(l: ^Lexer, start: int) -> Token {
+	l.pos += 3 // skip opening """
+
+	has_interpolation := false
+	found_close := false
+
+	for l.pos < len(l.source) {
+		if l.pos + 2 < len(l.source) && l.source[l.pos] == '"' && l.source[l.pos + 1] == '"' && l.source[l.pos + 2] == '"' {
+			l.pos += 3 // skip closing """
+			found_close = true
+			break
+		}
+		if l.source[l.pos] == '\\' {
+			l.pos += 1
+		} else if l.source[l.pos] == '$' && l.pos + 1 < len(l.source) && l.source[l.pos + 1] == '{' {
+			has_interpolation = true
+		}
+		l.pos += 1
+	}
+
+	if !found_close {
+		collector_add_diag(l.collector, diag_unterminated_string(lexer_make_span(l, start)))
+	}
+
+	text := l.source[start:l.pos]
+	return Token{kind = .Multiline_String_Literal, text = text, span = lexer_make_span(l, start)}
 }
 
 lexer_lex_identifier :: proc(l: ^Lexer, start: int) -> Token {

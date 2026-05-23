@@ -4,6 +4,9 @@ Token_Kind :: enum {
 	Int_Literal,
 	Float_Literal,
 	String_Literal,
+	Interpolated_String_Literal,
+	Raw_String_Literal,
+	Multiline_String_Literal,
 
 	Identifier,
 	Upper_Id,

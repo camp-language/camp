@@ -265,3 +265,120 @@ test_lexer_colon_vs_colon_eq :: proc(t: ^testing.T) {
 	testing.expect(t, tokens[0].kind == .Colon)
 	testing.expect(t, tokens[1].kind == .Colon_Eq)
 }
+
+@(test)
+test_interpolated_string_literal :: proc(t: ^testing.T) {
+	ctx: Compilation_Context
+	context_init(&ctx)
+	defer context_destroy(&ctx)
+
+	tokens := lex_all("\"Hello ${name}!\"", &ctx)
+	defer delete(tokens)
+
+	testing.expect(t, len(tokens) == 2)
+	testing.expect(t, tokens[0].kind == .Interpolated_String_Literal)
+}
+
+@(test)
+test_plain_string_no_interpolation :: proc(t: ^testing.T) {
+	ctx: Compilation_Context
+	context_init(&ctx)
+	defer context_destroy(&ctx)
+
+	tokens := lex_all("\"Hello world\"", &ctx)
+	defer delete(tokens)
+
+	testing.expect(t, len(tokens) == 2)
+	testing.expect(t, tokens[0].kind == .String_Literal)
+}
+
+@(test)
+test_escaped_dollar_in_string :: proc(t: ^testing.T) {
+	ctx: Compilation_Context
+	context_init(&ctx)
+	defer context_destroy(&ctx)
+
+	tokens := lex_all("\"Var: \\${HOME}\"", &ctx)
+	defer delete(tokens)
+
+	testing.expect(t, len(tokens) == 2)
+	testing.expect(t, tokens[0].kind == .String_Literal)
+}
+
+@(test)
+test_dollar_without_brace :: proc(t: ^testing.T) {
+	ctx: Compilation_Context
+	context_init(&ctx)
+	defer context_destroy(&ctx)
+
+	tokens := lex_all("\"Price: $5\"", &ctx)
+	defer delete(tokens)
+
+	testing.expect(t, len(tokens) == 2)
+	testing.expect(t, tokens[0].kind == .String_Literal)
+}
+
+@(test)
+test_raw_string :: proc(t: ^testing.T) {
+	ctx: Compilation_Context
+	context_init(&ctx)
+	defer context_destroy(&ctx)
+
+	tokens := lex_all("r\"C:\\Users\"", &ctx)
+	defer delete(tokens)
+
+	testing.expect(t, len(tokens) == 2)
+	testing.expect(t, tokens[0].kind == .Raw_String_Literal)
+}
+
+@(test)
+test_raw_string_with_interpolation :: proc(t: ^testing.T) {
+	ctx: Compilation_Context
+	context_init(&ctx)
+	defer context_destroy(&ctx)
+
+	tokens := lex_all("r\"C:\\${dir}\"", &ctx)
+	defer delete(tokens)
+
+	testing.expect(t, len(tokens) == 2)
+	testing.expect(t, tokens[0].kind == .Raw_String_Literal)
+}
+
+@(test)
+test_raw_string_escaped_dollar :: proc(t: ^testing.T) {
+	ctx: Compilation_Context
+	context_init(&ctx)
+	defer context_destroy(&ctx)
+
+	tokens := lex_all("r\"Var: \\${HOME}\"", &ctx)
+	defer delete(tokens)
+
+	testing.expect(t, len(tokens) == 2)
+	testing.expect(t, tokens[0].kind == .Raw_String_Literal)
+}
+
+@(test)
+test_multiline_string :: proc(t: ^testing.T) {
+	ctx: Compilation_Context
+	context_init(&ctx)
+	defer context_destroy(&ctx)
+
+	tokens := lex_all("\"\"\"Line 1\\nLine 2\"\"\"", &ctx)
+	defer delete(tokens)
+
+	testing.expect(t, len(tokens) == 2)
+	testing.expect(t, tokens[0].kind == .Multiline_String_Literal)
+}
+
+@(test)
+test_multiline_string_with_interpolation :: proc(t: ^testing.T) {
+	ctx: Compilation_Context
+	context_init(&ctx)
+	defer context_destroy(&ctx)
+
+	tokens := lex_all("\"\"\"Hello ${name}!\"\"\"", &ctx)
+	defer delete(tokens)
+
+	testing.expect(t, len(tokens) == 2)
+	testing.expect(t, tokens[0].kind == .Multiline_String_Literal)
+}
