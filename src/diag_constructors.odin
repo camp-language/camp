@@ -273,6 +273,26 @@ diag_unjoined_spawn :: proc(span: Source_Span) -> Diagnostic {
 	return d
 }
 
+diag_redundant_pattern :: proc(span: Source_Span) -> Diagnostic {
+	d := diag_init(.Warning, "REDUNDANT PATTERN", span,
+		"This pattern is redundant — it is already covered by an earlier arm.")
+	append(&d.hints, "Remove this arm or reorder patterns so this one comes first.")
+	return d
+}
+
+diag_non_exhaustive_bool :: proc(missing: string, span: Source_Span) -> Diagnostic {
+	d := diag_init(.Error, "NON-EXHAUSTIVE MATCH", span,
+		fmt.tprintf("This match on Bool is non-exhaustive: missing branch for `{}`.", missing))
+	return d
+}
+
+diag_non_exhaustive_int_string :: proc(type_name: string, span: Source_Span) -> Diagnostic {
+	d := diag_init(.Warning, "NON-EXHAUSTIVE MATCH", span,
+		fmt.tprintf("This match on {} can never be exhaustive without a wildcard pattern.", type_name))
+	append(&d.hints, "Add a wildcard `_` or variable pattern to handle remaining values.")
+	return d
+}
+
 diag_shadow :: proc(name: string, span: Source_Span) -> Diagnostic {
 	d := diag_init(.Error, "SHADOWING", span,
 		fmt.tprintf("`{}` shadows a binding from an enclosing scope. All shadowing is forbidden.", name))

@@ -1344,12 +1344,41 @@ typecheck_pattern :: proc(pattern: CPattern, scrutinee_var: Type_Var_ID, env: ^T
 	return Pat_Result{var_id = scrutinee_var, effects = eff, tpat = TPattern(tp)}
 }
 
-collect_covered_tags :: proc(pattern: CPattern, tags: ^map[Intern_ID]bool, saturated: ^bool) {
+Match_Coverage :: struct {
+	tags:          map[Intern_ID]bool,
+	bool_values:   map[bool]bool,
+	int_values:    map[i64]bool,
+	string_values: map[string]bool,
+	saturated:     bool,
+}
+
+match_coverage_init :: proc(cov: ^Match_Coverage, capacity: int) {
+	cov.tags = make(map[Intern_ID]bool, capacity)
+	cov.bool_values = make(map[bool]bool, 2)
+	cov.int_values = make(map[i64]bool, capacity)
+	cov.string_values = make(map[string]bool, capacity)
+	cov.saturated = false
+}
+
+match_coverage_destroy :: proc(cov: ^Match_Coverage) {
+	delete(cov.tags)
+	delete(cov.bool_values)
+	delete(cov.int_values)
+	delete(cov.string_values)
+}
+
+collect_pattern_coverage :: proc(pattern: CPattern, cov: ^Match_Coverage) {
 	#partial switch p in pattern {
 	case ^CPattern_Wildcard, ^CPattern_Identifier:
-		saturated^ = true
+		cov.saturated = true
 	case ^CPattern_Tag:
-		tags^[p.name.name] = true
+		cov.tags[p.name.name] = true
+	case ^CPattern_Bool:
+		cov.bool_values[p.value] = true
+	case ^CPattern_Int:
+		cov.int_values[p.value] = true
+	case ^CPattern_String:
+		cov.string_values[p.value] = true
 	case:
 	}
 }
@@ -1382,10 +1411,19 @@ typecheck_match :: proc(e: ^CExpr_Match, env: ^Type_Env, store: ^Type_Store) -> 
 	effect_row := fresh_effect_row(store, e.span)
 	unify(store, effect_row, scrutinee_result.effects)
 
-	covered_tags: map[Intern_ID]bool
-	covered_tags = make(map[Intern_ID]bool, len(e.arms))
-	defer delete(covered_tags)
-	saturated := false
+	cov: Match_Coverage
+	match_coverage_init(&cov, len(e.arms))
+	defer match_coverage_destroy(&cov)
+
+	// Track per-arm coverage for redundancy detection
+	arm_coverages := make([dynamic]Match_Coverage, len(e.arms))
+	for i in 0..<len(e.arms) {
+		match_coverage_init(&arm_coverages[i], 1)
+	}
+	defer for i in 0..<len(arm_coverages) {
+		match_coverage_destroy(&arm_coverages[i])
+	}
+	defer delete(arm_coverages)
 
 	arms_t := make([dynamic]TMatch_Arm, len(e.arms))
 
@@ -1401,7 +1439,38 @@ typecheck_match :: proc(e: ^CExpr_Match, env: ^Type_Env, store: ^Type_Store) -> 
 
 		pat_result := typecheck_pattern(arm.pattern, scrutinee_result.var_id, env, store)
 		unify(store, effect_row, pat_result.effects)
-		collect_covered_tags(arm.pattern, &covered_tags, &saturated)
+
+		// Check redundancy: is this pattern already covered by earlier arms?
+		is_redundant := false
+		if cov.saturated {
+			is_redundant = true
+		} else {
+			#partial switch p in arm.pattern {
+			case ^CPattern_Bool:
+				if cov.bool_values[p.value] {
+					is_redundant = true
+				}
+			case ^CPattern_Int:
+				if cov.int_values[p.value] {
+					is_redundant = true
+				}
+			case ^CPattern_String:
+				if cov.string_values[p.value] {
+					is_redundant = true
+				}
+			case ^CPattern_Tag:
+				if cov.tags[p.name.name] {
+					is_redundant = true
+				}
+			case:
+			}
+		}
+		if is_redundant {
+			collector_add_diag(store.collector, diag_redundant_pattern(arm.span))
+		}
+
+		collect_pattern_coverage(arm.pattern, &cov)
+		collect_pattern_coverage(arm.pattern, &arm_coverages[i])
 
 		arm_result := typecheck_synth(arm.body, env, store)
 		unify(store, result_var, arm_result.var_id)
@@ -1410,15 +1479,16 @@ typecheck_match :: proc(e: ^CExpr_Match, env: ^Type_Env, store: ^Type_Store) -> 
 		arms_t[i] = TMatch_Arm{pattern = pat_result.tpat, body = arm_result.texpr, span = arm.span}
 	}
 
+	// Exhaustiveness checking
 	resolved_scrut := get_var(store, resolve_var(store, scrutinee_result.var_id))
 	#partial switch inf in resolved_scrut.link {
 	case Inferred_Type:
-		if inf.tag == .Tag_Union_Row && len(inf.tag_entries) > 0 && !saturated {
+		if inf.tag == .Tag_Union_Row && len(inf.tag_entries) > 0 && !cov.saturated {
 			missing_list: [dynamic]string
 			missing_list = make([dynamic]string, 0, len(inf.tag_entries))
 			defer delete(missing_list)
 			for te in inf.tag_entries {
-				if !covered_tags[te.name] {
+				if !cov.tags[te.name] {
 					append(&missing_list, intern_get(store.interner, te.name))
 				}
 			}
@@ -1430,6 +1500,31 @@ typecheck_match :: proc(e: ^CExpr_Match, env: ^Type_Env, store: ^Type_Store) -> 
 				collector_add_diag(store.collector, diag_internal(
 					fmt.tprintf("non-exhaustive match: missing branch for {}", missing),
 					e.span))
+			}
+		}
+		// Bool exhaustiveness: must cover both true and false
+		if inf.tag == .Primitive && inf.primitive_name == intern(store.interner, "Bool") && !cov.saturated {
+			if !cov.bool_values[true] || !cov.bool_values[false] {
+				missing: string
+				if !cov.bool_values[true] && !cov.bool_values[false] {
+					missing = "true and false"
+				} else if !cov.bool_values[true] {
+					missing = "true"
+				} else {
+					missing = "false"
+				}
+				collector_add_diag(store.collector, diag_non_exhaustive_bool(missing, e.span))
+			}
+		}
+		// Int/String exhaustiveness: can never be exhaustive without wildcard
+		if inf.tag == .Primitive && !cov.saturated {
+			prim_name := intern_get(store.interner, inf.primitive_name)
+			if prim_name == "I64" || prim_name == "I32" || prim_name == "I16" || prim_name == "I8" ||
+			   prim_name == "U64" || prim_name == "U32" || prim_name == "U16" || prim_name == "U8" {
+				collector_add_diag(store.collector, diag_non_exhaustive_int_string(prim_name, e.span))
+			}
+			if prim_name == "Str" {
+				collector_add_diag(store.collector, diag_non_exhaustive_int_string(prim_name, e.span))
 			}
 		}
 	case:
