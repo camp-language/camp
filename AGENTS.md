@@ -31,7 +31,7 @@ You are an AI assistant helping develop the Camp programming language - a strict
 4. **Propose approach** - Outline your implementation plan
 5. **Implement** - Write code following existing patterns
 6. **Test** - Ensure `odin test src` passes
-7. **Update specs** - If behavior changes, update the relevant spec.md
+7. **Update specs** - If behavior changes, update the relevant spec.md — each requirement lives in exactly one spec; cross-reference instead of duplicating
 
 ## Implementation Workflow
 
