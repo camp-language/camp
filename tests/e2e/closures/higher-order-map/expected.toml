@@ -1,16 +1,5 @@
 stdout = """
--- SYNTAX ERROR --- /tmp/camp-e2e/closures/higher-order-map/src/Main.camp
-
-I expected `)` here, but I got `,` instead.
-   1 | map = (f, xs) { match xs { Nil => Nil | Cons(h, t) => Cons(f(h), map(f, t)) } }
-               ^
-
--- SYNTAX ERROR --- /tmp/camp-e2e/closures/higher-order-map/src/Main.camp
-
-I expected `=` here, but I got `)` instead.
-   1 | map = (f, xs) { match xs { Nil => Nil | Cons(h, t) => Cons(f(h), map(f, t)) } }
-                   ^
-compilation failed with 2 error(s)
+canonicalized /tmp/camp-e2e/closures/higher-order-map/src/Main.camp: 1 declaration(s), 0 import(s)
 """
 stderr = ""
-exit = 1
+exit = 11

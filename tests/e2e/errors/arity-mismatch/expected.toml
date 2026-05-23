@@ -1,12 +1,6 @@
 stdout = """
 -- SYNTAX ERROR --- /tmp/camp-e2e/errors/arity-mismatch/src/Main.camp
 
-I expected `=` here, but I got `I64` instead.
-   1 | f = (x) -> I64 { x }
-                  ^^^
-
--- SYNTAX ERROR --- /tmp/camp-e2e/errors/arity-mismatch/src/Main.camp
-
 I expected `=` here, but I got `(` instead.
    2 | f(1, 2)
         ^
@@ -22,7 +16,7 @@ I expected `=` here, but I got `2` instead.
 I was not expecting `)` here.
    2 | f(1, 2)
              ^
-compilation failed with 4 error(s)
+compilation failed with 3 error(s)
 """
 stderr = ""
 exit = 1

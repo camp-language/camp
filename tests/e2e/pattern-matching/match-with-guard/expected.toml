@@ -1,64 +1,20 @@
 stdout = """
--- SYNTAX ERROR --- /tmp/camp-e2e/pattern-matching/match-with-guard/src/Main.camp
+canonicalized /tmp/camp-e2e/pattern-matching/match-with-guard/src/Main.camp: 1 declaration(s), 0 import(s)
+typecheck passed for /tmp/camp-e2e/pattern-matching/match-with-guard/src/Main.camp
+-- REDUNDANT PATTERN --- /tmp/camp-e2e/pattern-matching/match-with-guard/src/Main.camp
 
-I expected `=>` here, but I got `if` instead.
-   1 | main! = || -> I64 { x = 5 match x { n if n > 0 => 1 | _ => 0 } }
-                                             ^^
-
--- SYNTAX ERROR --- /tmp/camp-e2e/pattern-matching/match-with-guard/src/Main.camp
-
-I expected `=>` here, but I got `1` instead.
-   1 | main! = || -> I64 { x = 5 match x { n if n > 0 => 1 | _ => 0 } }
-                                                         ^
-
--- SYNTAX ERROR --- /tmp/camp-e2e/pattern-matching/match-with-guard/src/Main.camp
-
-I expected `identifier` here, but I got `=>` instead.
-   1 | main! = || -> I64 { x = 5 match x { n if n > 0 => 1 | _ => 0 } }
-                                                               ^^
-
--- SYNTAX ERROR --- /tmp/camp-e2e/pattern-matching/match-with-guard/src/Main.camp
-
-I expected `identifier` here, but I got `0` instead.
-   1 | main! = || -> I64 { x = 5 match x { n if n > 0 => 1 | _ => 0 } }
-                                                                  ^
-
--- SYNTAX ERROR --- /tmp/camp-e2e/pattern-matching/match-with-guard/src/Main.camp
-
-I expected `identifier` here, but I got `}` instead.
+This pattern is redundant — it is already covered by an earlier arm.
    1 | main! = || -> I64 { x = 5 match x { n if n > 0 => 1 | _ => 0 } }
                                                                     ^
+  Remove this arm or reorder patterns so this one comes first.
 
--- SYNTAX ERROR --- /tmp/camp-e2e/pattern-matching/match-with-guard/src/Main.camp
+-- UNUSED BINDING --- /tmp/camp-e2e/pattern-matching/match-with-guard/src/Main.camp
 
-I expected `identifier` here, but I got `}` instead.
+Binding `n` is never used. 
    1 | main! = || -> I64 { x = 5 match x { n if n > 0 => 1 | _ => 0 } }
-                                                                      ^
-
--- SYNTAX ERROR --- /tmp/camp-e2e/pattern-matching/match-with-guard/src/Main.camp
-
-I expected `|` here, but I got `` instead.
-   2 | 
-       ^
-
--- SYNTAX ERROR --- /tmp/camp-e2e/pattern-matching/match-with-guard/src/Main.camp
-
-I was not expecting `` here.
-   2 | 
-       ^
-
--- SYNTAX ERROR --- /tmp/camp-e2e/pattern-matching/match-with-guard/src/Main.camp
-
-I expected `}` here, but I got `` instead.
-   2 | 
-       ^
-
--- SYNTAX ERROR --- /tmp/camp-e2e/pattern-matching/match-with-guard/src/Main.camp
-
-I expected `}` here, but I got `` instead.
-   2 | 
-       ^
-compilation failed with 10 error(s)
+                                           ^
+  Prefix with `_` to mark as intentionally unused: `_n
+compilation failed with 1 error(s)
 """
 stderr = ""
 exit = 1

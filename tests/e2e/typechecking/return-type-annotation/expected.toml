@@ -1,10 +1,20 @@
 stdout = """
--- SYNTAX ERROR --- /tmp/camp-e2e/typechecking/return-type-annotation/src/Main.camp
+canonicalized /tmp/camp-e2e/typechecking/return-type-annotation/src/Main.camp: 1 declaration(s), 0 import(s)
+typecheck passed for /tmp/camp-e2e/typechecking/return-type-annotation/src/Main.camp
+-- UNUSED BINDING --- /tmp/camp-e2e/typechecking/return-type-annotation/src/Main.camp
 
-I expected `=` here, but I got `I64` instead.
-   1 | f = (x) -> I64 { x }
-                  ^^^
-compilation failed with 1 error(s)
+Binding `f` is never used. 
+   1 | f = |x| -> I64 { x }
+       ^^^^^^^^^^^^^^^^^^^^^
+  Prefix with `_` to mark as intentionally unused: `_f
+
+-- UNUSED BINDING --- /tmp/camp-e2e/typechecking/return-type-annotation/src/Main.camp
+
+Binding `x` is never used. 
+   1 | f = |x| -> I64 { x }
+                        ^
+  Prefix with `_` to mark as intentionally unused: `_x
+compilation failed with 2 error(s)
 """
 stderr = ""
 exit = 1

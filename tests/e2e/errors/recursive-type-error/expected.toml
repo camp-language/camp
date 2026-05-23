@@ -1,22 +1,7 @@
 stdout = """
--- SYNTAX ERROR --- /tmp/camp-e2e/errors/recursive-type-error/src/Main.camp
-
-I expected `=` here, but I got `f` instead.
-   1 | f = (x) { f(x) }
-                 ^
-
--- SYNTAX ERROR --- /tmp/camp-e2e/errors/recursive-type-error/src/Main.camp
-
-I expected `=` here, but I got `` instead.
-   2 | 
-       ^
-
--- SYNTAX ERROR --- /tmp/camp-e2e/errors/recursive-type-error/src/Main.camp
-
-I was not expecting `` here.
-   2 | 
-       ^
-compilation failed with 3 error(s)
+canonicalized /tmp/camp-e2e/errors/recursive-type-error/src/Main.camp: 1 declaration(s), 0 import(s)
+typecheck passed for /tmp/camp-e2e/errors/recursive-type-error/src/Main.camp
+compiled /tmp/camp-e2e/errors/recursive-type-error/src/Main.camp -> /tmp/camp-e2e/errors/recursive-type-error/src/Main.wasm
 """
 stderr = ""
-exit = 1
+exit = 0

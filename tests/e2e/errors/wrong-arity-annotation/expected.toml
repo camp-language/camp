@@ -1,34 +1,22 @@
 stdout = """
 -- SYNTAX ERROR --- /tmp/camp-e2e/errors/wrong-arity-annotation/src/Main.camp
 
-I expected `)` here, but I got `,` instead.
-   1 | f = (x, y) -> I64 { x + y }
-             ^
-
--- SYNTAX ERROR --- /tmp/camp-e2e/errors/wrong-arity-annotation/src/Main.camp
-
-I expected `=` here, but I got `)` instead.
-   1 | f = (x, y) -> I64 { x + y }
-                ^
-
--- SYNTAX ERROR --- /tmp/camp-e2e/errors/wrong-arity-annotation/src/Main.camp
-
-I was not expecting `->` here.
-   1 | f = (x, y) -> I64 { x + y }
-                  ^^
-
--- SYNTAX ERROR --- /tmp/camp-e2e/errors/wrong-arity-annotation/src/Main.camp
-
-I expected `=` here, but I got `{` instead.
-   1 | f = (x, y) -> I64 { x + y }
-                         ^
-
--- SYNTAX ERROR --- /tmp/camp-e2e/errors/wrong-arity-annotation/src/Main.camp
-
-I expected `=` here, but I got `f` instead.
+I expected `=` here, but I got `(` instead.
    2 | f(1)
+        ^
+
+-- SYNTAX ERROR --- /tmp/camp-e2e/errors/wrong-arity-annotation/src/Main.camp
+
+I expected `=` here, but I got `` instead.
+   3 | 
        ^
-compilation failed with 5 error(s)
+
+-- SYNTAX ERROR --- /tmp/camp-e2e/errors/wrong-arity-annotation/src/Main.camp
+
+I was not expecting `` here.
+   3 | 
+       ^
+compilation failed with 3 error(s)
 """
 stderr = ""
 exit = 1

@@ -538,6 +538,18 @@ parser_parse_tag_or_call :: proc(p: ^Parser) -> Expr {
 	start := p.current.span
 	name_tok := parser_advance(p)
 
+	// True/False are Bool literals, not tag constructors
+	if name_tok.text == "True" {
+		e := new(Expr_Bool)
+		e^ = Expr_Bool{value = true, span = start}
+		return e
+	}
+	if name_tok.text == "False" {
+		e := new(Expr_Bool)
+		e^ = Expr_Bool{value = false, span = start}
+		return e
+	}
+
 	// Effect names may include ! (e.g., Spawn!, Parallel!, Async!)
 	// The ! is already absorbed into the token text by the lexer
 	name_id := intern(p.intern, name_tok.text)
@@ -1197,6 +1209,19 @@ parser_parse_pattern :: proc(p: ^Parser) -> Pattern {
 	#partial switch p.current.kind {
 	case .Upper_Id:
 		name_tok := parser_advance(p)
+
+		// True/False are Bool patterns, not tag patterns
+		if name_tok.text == "True" {
+			pat := new(Pattern_Bool)
+			pat^ = Pattern_Bool{value = true, span = name_tok.span}
+			return pat
+		}
+		if name_tok.text == "False" {
+			pat := new(Pattern_Bool)
+			pat^ = Pattern_Bool{value = false, span = name_tok.span}
+			return pat
+		}
+
 		name_id := intern(p.intern, name_tok.text)
 
 		pat := new(Pattern_Tag)
