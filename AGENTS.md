@@ -74,11 +74,13 @@ Choose the `<kebab-slug>` from the task description (e.g., "add pattern matching
 | LSP | `openspec/specs/lsp/spec.md` |
 | Diagnostics | `openspec/specs/diagnostics/spec.md` |
 | Testing | `openspec/specs/testing/spec.md` |
+| Testing Language | `openspec/specs/testing-language/spec.md` |
 | Formatter | `openspec/specs/formatter/spec.md` |
 | Tree-sitter | `openspec/specs/tree-sitter/spec.md` |
 | Packages | `openspec/specs/packages/spec.md` |
+| Standard Library | `openspec/specs/stdlib/spec.md` |
 | Parallelism | `openspec/specs/parallelism/spec.md` |
-| Doc Comments & Doctests | `openspec/specs/doc-comments/spec.md` |
+| Doc Comments | `openspec/specs/doc-comments/spec.md` |
 | Modules | `openspec/specs/modules/spec.md` |
 | String Interpolation | `openspec/specs/string-interpolation/spec.md` |
 | Unused Analysis | `openspec/specs/unused-analysis/spec.md` |

@@ -34,21 +34,9 @@ Functions and nominal types SHALL support type parameters inferred from lowercas
 - WHEN called as `identity()` with no argument
 - THEN the compiler SHALL produce an error because `a` cannot be determined
 
-### Requirement: Monomorphization
+### Requirement: Monomorphization Guarantee
 
-The compiler SHALL specialize every generic function and type at each concrete instantiation site. After monomorphization, no generic type variables SHALL remain in the program. Specialized functions SHALL be named with a `$` separator followed by the concrete type arguments.
-
-#### Scenario: Monomorphization generates specialized functions
-
-- GIVEN a generic function `identity = |x: a| -> a { x }` called with `I64` and `Str`
-- WHEN the compiler monomorphizes
-- THEN two specialized functions SHALL exist: `identity$I64` and `identity$Str`
-
-#### Scenario: Recursive generic instantiation terminates
-
-- GIVEN a generic function `List.map = |f: |a| -> b, list: List(a)| -> List(b)` whose body calls itself at a different type
-- WHEN the compiler monomorphizes
-- THEN the worklist-driven BFS SHALL discover all required instantiations and terminate — each unique (function, type-args) pair SHALL be specialized exactly once
+After monomorphization, no generic type variables SHALL remain in the program. Each unique (function, type-args) pair SHALL be specialized exactly once. For the monomorphization algorithm (worklist-driven BFS, specialization naming, typed IR), see `openspec/specs/compiler/spec.md`.
 
 #### Scenario: No generic code in output
 

@@ -7,6 +7,17 @@ WASM/WASI. This specification defines the behavioral requirements of the Camp
 language — what programs SHALL do and what the compiler SHALL enforce — without
 prescribing implementation strategy.
 
+This spec covers core language semantics unique to Camp. Requirements that are
+shared with or elaborated by other specs are referenced here and defined in
+full in their authoritative spec:
+
+- **Effects** (effect rows, handlers, effect safety, prelude effects): `openspec/specs/effects/spec.md`
+- **Generics & Traits** (trait definitions, conformance, UFCS, type parameters, inheritance): `openspec/specs/generics-traits/spec.md`
+- **String Interpolation** (Display trait, string literal kinds, interpolation escape): `openspec/specs/string-interpolation/spec.md`
+- **Unused Analysis** (underscore/dollar prefix rules, discard semantics, contradictory prefix, top-level unused): `openspec/specs/unused-analysis/spec.md`
+- **Parallelism** (par block syntax, Parallel!/Spawn!/Async! effects): `openspec/specs/parallelism/spec.md`
+- **Modules** (visibility, unified namespace, import conflicts): `openspec/specs/modules/spec.md`
+
 ## Requirements
 
 ### Requirement: Primitive Types
@@ -310,7 +321,7 @@ A function with a non-empty effect row SHALL be named with a `!` suffix; a funct
 - THEN the compiler SHALL produce an error
 
 ### Requirement: Naming Conventions
-Types and tags SHALL use UpperCamelCase; functions and variables SHALL use lowercase identifiers; type and effect variables SHALL use lowercase. Bindings prefixed with a single underscore (`_name`) SHALL be recognized as intentionally unused and exempt from unused-binding analysis. Double underscores (`__name`) SHALL be reserved and SHALL NOT qualify as unused markers. Bare underscore (`_`) SHALL be a valid discard pattern.
+Types and tags SHALL use UpperCamelCase; functions and variables SHALL use lowercase identifiers; type and effect variables SHALL use lowercase. For underscore and dollar prefix rules (unused markers, discard semantics, contradictory prefixes, top-level unused rules), see `openspec/specs/unused-analysis/spec.md`.
 
 #### Scenario: Type name casing
 - GIVEN a type definition `UserId`
@@ -321,65 +332,6 @@ Types and tags SHALL use UpperCamelCase; functions and variables SHALL use lower
 - GIVEN a function definition `map`
 - WHEN the compiler checks the identifier
 - THEN it SHALL accept lowercase and reject UpperCamelCase function names
-
-#### Scenario: Single underscore prefix marks unused
-- GIVEN a binding `_count = items.length`
-- WHEN the compiler checks for unused bindings
-- THEN it SHALL exempt `_count` from unused-binding errors
-
-#### Scenario: Double underscore is reserved
-- GIVEN a binding `__foo = 42`
-- WHEN the compiler checks for unused bindings
-- THEN it SHALL NOT exempt `__foo` (double underscore is reserved, not an unused marker)
-
-#### Scenario: Bare underscore is a discard
-- GIVEN a binding `_ = perform Op`
-- WHEN the compiler checks for unused bindings
-- THEN it SHALL treat `_` as an explicit discard and SHALL NOT produce an unused-binding error
-
-### Requirement: Underscore Discard Semantics
-A binding `_ = expr` SHALL evaluate the right-hand side for its effects and discard the result. The compiler SHALL emit a warning if the right-hand side is pure (no effects), since the evaluation serves no purpose.
-
-#### Scenario: Discard with effectful expression
-- GIVEN a binding `_ = perform Op`
-- WHEN the compiler processes the binding
-- THEN it SHALL evaluate the expression for effects and silently discard the result
-
-#### Scenario: Discard with pure expression
-- GIVEN a binding `_ = 42` or `_ = pureCompute()`
-- WHEN the compiler processes the binding
-- THEN it SHALL emit a warning about pointless evaluation
-
-### Requirement: Contradictory Prefix Restriction
-A binding name that combines `_` and `$` prefixes (in any order: `_$x` or `$_x`) SHALL be a compile error. The `_` prefix means "I intentionally ignore this value" and `$` means "each assignment's value matters" — these intents are contradictory.
-
-#### Scenario: Underscore before dollar
-- GIVEN a binding `_$x = 5`
-- WHEN the compiler processes the binding
-- THEN it SHALL produce a dedicated error stating that reassignable variables cannot be marked as unused
-
-#### Scenario: Dollar before underscore
-- GIVEN a binding `$_x = 5`
-- WHEN the compiler processes the binding
-- THEN it SHALL produce the same dedicated error
-
-### Requirement: Top-Level Binding Unused Rules
-Private top-level bindings that are never referenced SHALL produce a hard error. The `_` prefix SHALL NOT provide an exemption for top-level bindings. Public top-level bindings SHALL be exempt from unused checking because they may be consumed by external modules.
-
-#### Scenario: Unused private top-level binding
-- GIVEN a private module-level binding `helper = |x| x + 1` that is never referenced within the module
-- WHEN the compiler checks for unused bindings
-- THEN it SHALL produce an error
-
-#### Scenario: Underscore prefix does not exempt top-level
-- GIVEN a private module-level binding `_helper = |x| x + 1` that is never referenced
-- WHEN the compiler checks for unused bindings
-- THEN it SHALL still produce an error (top-levels cannot be `_`-exempted)
-
-#### Scenario: Public top-level binding exempt
-- GIVEN a public module-level binding `pub greet = |name| "Hello"` that is not referenced within the module
-- WHEN the compiler checks for unused bindings
-- THEN it SHALL NOT produce an error
 
 ### Requirement: Mutable Variable Syntax
 Mutable bindings SHALL use a `$` prefix at declaration and at every use site, and SHALL be stack-local only.
@@ -455,128 +407,6 @@ A leading `.` followed by a method/field chain SHALL create an anonymous functio
 - WHEN the compiler parses it
 - THEN it SHALL be interpreted as the spread operator, never as two dot lambdas
 
-### Requirement: Trait Definitions
-Traits SHALL be defined as structural record type aliases. A trait definition `Eq : { eq: |Self, Self| -> Bool }` SHALL define a record type with a built-in `Self` type variable. Constrained traits SHALL use `is` for parent requirements: `Ord is Eq : { ord: |Self| -> Ordering }`.
-
-#### Scenario: Unconstrained trait definition
-- GIVEN a definition `Eq : { eq: |Self, Self| -> Bool }`
-- WHEN the compiler processes it
-- THEN `Eq` SHALL be a record type alias with a `Self` type variable
-
-#### Scenario: Constrained trait definition
-- GIVEN a definition `Ord is Eq : { ord: |Self| -> Ordering }`
-- WHEN the compiler processes it
-- THEN `Ord` SHALL require any implementing type to also satisfy `Eq`
-
-#### Scenario: Self is a built-in type variable
-- GIVEN a trait definition `Eq : { eq: |Self, Self| -> Bool }`
-- WHEN the compiler type-checks implementations
-- THEN `Self` SHALL refer to the type implementing the trait
-
-### Requirement: Nominal Type Trait Conformance
-Nominal types SHALL declare trait conformance via `is` and `derives` clauses on the type definition. The `is` clause MUST appear before `derives` if both are present. `is` asserts manual conformance; `derives` auto-generates implementations for built-in traits only.
-
-#### Scenario: Manual trait conformance with is
-- GIVEN a definition `@UserId is Eq : U64`
-- WHEN the compiler processes it
-- THEN `UserId` SHALL be required to have a standalone `eq` function in the same module matching `Eq`'s signature
-
-#### Scenario: Auto-derived trait with derives
-- GIVEN a definition `@UserId derives Eq, Hash : U64`
-- WHEN the compiler processes it
-- THEN the compiler SHALL auto-generate `eq` and `hash` implementations for `UserId`
-
-#### Scenario: Both is and derives on the same type
-- GIVEN a definition `@UserId is Ord derives Eq, Hash : U64`
-- WHEN the compiler processes it
-- THEN `is` SHALL appear before `derives`; the compiler SHALL check manual `Ord` conformance and auto-generate `Eq` and `Hash`
-
-#### Scenario: Manual provision as standalone functions
-- GIVEN a nominal type `@UserId is Eq : U64` in module `UserId`
-- WHEN the compiler checks conformance
-- THEN it SHALL look for a standalone function `eq` in the same module whose type matches `|UserId, UserId| -> Bool`
-
-### Requirement: Trait Structural Verification
-Traits SHALL be structurally verified — the compiler checks that a type's methods match the trait's required signatures by shape — but types MUST explicitly declare `is Trait` to satisfy the trait.
-
-#### Scenario: Nominal opt-in required
-- GIVEN a type whose methods match trait `Display` by shape but without an `is Display` declaration
-- WHEN the type is used where `Display` is required
-- THEN the compiler SHALL produce an error
-
-#### Scenario: Structural verification upon opt-in
-- GIVEN a type declared `is Display`
-- WHEN the compiler verifies the declaration
-- THEN it SHALL check that the type's methods match `Display`'s required signatures by shape
-
-### Requirement: Trait Orphan Rule
-An `is` declaration SHALL appear only in the module that defines the type or the module that defines the trait.
-
-#### Scenario: Orphan implementation in third module
-- GIVEN module A defines type `T`, module B defines trait `Foo`, and module C declares `T is Foo`
-- WHEN the compiler processes module C
-- THEN it SHALL produce an error
-
-### Requirement: UFCS Dispatch
-Method calls SHALL use Uniform Function Call Syntax: `x.display()` SHALL desugar to `Display.display(x)`.
-
-#### Scenario: Trait method call via dot syntax
-- GIVEN a value `x` of type `UserId is Display`
-- WHEN `x.display()` is called
-- THEN it SHALL desugar to `Display.display(x)`
-
-### Requirement: Effect Row Syntax
-Function types SHALL include an effect row after `->`; an empty effect row SHALL be elided.
-
-#### Scenario: Pure function type
-- GIVEN a type `Int -> Int` with no effect row
-- WHEN the compiler interprets it
-- THEN the effect row SHALL be the empty set
-
-#### Scenario: Effectful function type
-- GIVEN a type `Str -[Console!]-> {}`
-- WHEN the compiler interprets it
-- THEN the effect row SHALL contain `Console!`
-
-#### Scenario: Parameterized effect
-
-- **GIVEN** a type `Str -[Throw!(NotFound)]-> Int`
-- **WHEN** the compiler interprets it
-- **THEN** the effect row SHALL contain `Throw!` parameterized by `NotFound`
-
-#### Scenario: Effect Row Properties
-
-Effect rows SHALL be sets with insignificant order and deduplication; row variables SHALL enable effect polymorphism.
-
-#### Scenario: Row order insignificance
-
-- **GIVEN** two effect rows `-[Console! | File!]->` and `-[File! | Console!]->`
-- WHEN the compiler compares them
-- THEN they SHALL be considered identical
-
-#### Scenario: Effect row composition
-- GIVEN a function `f : a -[E1]-> b` and `g : b -[E2]-> c`
-- WHEN composing `g(f(x))`
-- THEN the composed effect row SHALL be `-[E1 | E2]->`
-
-#### Scenario: Effect polymorphism via row variable
-- GIVEN a function `map = |f: |a| -[e]-> b, list: List(a)| -[e]-> List(b)`
-- WHEN `f` is pure
-- THEN `map` SHALL be pure; when `f` is effectful, `map` SHALL propagate the same effects
-
-### Requirement: Effect Safety
-Unhandled effects SHALL be compile-time errors; a function's effect row MUST be a subset of the effects handled by its caller's context.
-
-#### Scenario: Unhandled effect
-- GIVEN a function that calls `Console!.println!` without a handler in scope
-- WHEN the compiler type-checks the function
-- THEN it SHALL produce an error for the unhandled `Console!` effect
-
-#### Scenario: Main effect row as handler declaration
-- GIVEN `main! = || -[Console! | Throw!([..])]-> { ... }`
-- WHEN the program runs
-- THEN the runtime SHALL provide handlers for `Console!` and `Throw!([..])`
-
 ### Requirement: Inline Type Annotations
 Type annotations SHALL be written inline with `:` on the binding, never as a separate declaration above it.
 
@@ -614,7 +444,7 @@ All shadowing SHALL be forbidden — a binding name SHALL NOT be reused in the s
 - THEN it SHALL produce an error
 
 ### Requirement: Unified Namespace
-Each module SHALL have one namespace for functions, values, types, traits, effects, and aliases.
+Each module SHALL have one namespace for functions, values, types, traits, effects, and aliases. For visibility rules and import conflict detection, see `openspec/specs/modules/spec.md`.
 
 #### Scenario: Type and function name conflict
 - GIVEN a module that defines both a type `Result` and a function `Result`
@@ -627,7 +457,7 @@ Each module SHALL have one namespace for functions, values, types, traits, effec
 - THEN it SHALL be resolved as a function call because the function and the field share one namespace
 
 ### Requirement: Visibility
-The `pub` keyword SHALL mark module exports; all other definitions SHALL be private to the module.
+The `pub` keyword SHALL mark module exports; all other definitions SHALL be private to the module. For full visibility enforcement rules, see `openspec/specs/modules/spec.md`.
 
 #### Scenario: Public export
 - GIVEN a definition `pub greet = |name| "Hello, ${name}!"`
@@ -694,7 +524,7 @@ Pattern matching SHALL require exhaustive coverage; the wildcard `_` SHALL match
 - THEN the match SHALL be accepted
 
 ### Requirement: Dual Error Model
-The language SHALL provide two error mechanisms: the `Throw!` effect for exceptional errors and tag union returns for structural absence; there SHALL be no `?` operator.
+The language SHALL provide two error mechanisms: the `Throw!` effect for exceptional errors and tag union returns for structural absence; there SHALL be no `?` operator. For full effect semantics, handler behavior, and prelude effect definitions, see `openspec/specs/effects/spec.md`.
 
 #### Scenario: Throw! effect for exceptional errors
 - GIVEN a function that calls `Throw!.throw!(NotFound)`
@@ -716,88 +546,6 @@ The language SHALL provide two error mechanisms: the `Throw!` effect for excepti
 - WHEN the handler executes
 - THEN a thrown error SHALL be caught and returned as `Err(err)`
 
-### Requirement: Effect Parameter Variant Widening
-
-When an effect has a tag union type parameter, the parameter SHALL widen as more tag types are performed. This is general tag row unification applied to effect type parameters — not specific to any particular effect.
-
-#### Scenario: Multiple throw sites widen the union
-- GIVEN a function that throws `NotFound` in one path and `PermissionDenied` in another
-- WHEN the compiler infers the Throw! parameter
-- THEN it SHALL be `Throw!([NotFound | PermissionDenied])`
-
-#### Scenario: Open throw type
-- GIVEN `Throw!([NotFound | ..])` in a function type
-- WHEN the compiler type-checks it
-- THEN the function SHALL be permitted to throw `NotFound` and possibly other tags
-
-### Requirement: One-Shot Continuations
-Each `resume` in an effect handler SHALL be callable at most once; a second invocation SHALL be a runtime error.
-
-#### Scenario: Resume called once
-- GIVEN a handler that calls `resume({})` once
-- WHEN the handler executes
-- THEN execution SHALL continue after the effect operation call
-
-#### Scenario: Resume called twice
-- GIVEN a handler that calls `resume({})` twice
-- WHEN the second call executes
-- THEN a runtime error SHALL occur
-
-### Requirement: Deep and Shallow Handlers
-Handlers SHALL default to deep semantics (re-installed after each resume); `intercept` SHALL provide shallow semantics (handles one operation without re-installing).
-
-#### Scenario: Deep handler handles all operations
-- GIVEN a deep handler for `Async!` containing three `Async!.yield!()` calls
-- WHEN the handler executes
-- THEN all three `yield!` calls SHALL be caught by the handler
-
-#### Scenario: Shallow handler handles first operation only
-- GIVEN an `intercept Async!` handler containing two `Async!.yield!()` calls
-- WHEN the handler executes
-- THEN only the first `yield!` SHALL be caught; the second SHALL propagate to an outer handler
-
-### Requirement: Effect Composition via Aliases
-Effects SHALL compose by set union using aliases, not by inheritance; the `is` keyword SHALL NOT apply to effects.
-
-#### Scenario: Effect alias
-- GIVEN `alias Io = File! | Console!`
-- WHEN a function declares `-[Io]->` in its effect row
-- THEN it SHALL be equivalent to `-[File! | Console!]->`
-
-#### Scenario: Effect inheritance rejected
-- **GIVEN** a declaration `File! is Io!`
-- WHEN the compiler processes it
-- THEN it SHALL produce an error
-
-### Requirement: Generic Type Parameters
-Generic type parameters SHALL be inferred from lowercase type variables in annotations; trait constraints SHALL use `where` clause syntax.
-
-#### Scenario: Generic function
-- GIVEN a definition `add = |x: a, y: a| -> a { x + y }`
-- WHEN compiled
-- THEN `add` SHALL be a generic function with type parameter `a`
-
-#### Scenario: Trait constraint on type parameter via where clause
-- GIVEN a definition `format = |x: a| -> Str where a is Display { x.display() }`
-- WHEN compiled
-- THEN `a` SHALL be constrained to types that satisfy `Display`
-
-### Requirement: Trait Tree Inheritance
-Traits SHALL support single inheritance via `is`; a type that `is Ord is Eq` MUST also implement `Eq`.
-
-#### Scenario: Trait inheritance requirement
-- GIVEN a trait `Ord is Eq` and a type declared `is Ord`
-- WHEN the compiler verifies conformance
-- THEN the type SHALL also be required to implement `Eq`
-
-### Requirement: No Higher-Kinded Types
-Type parameters SHALL always be kind `*`; type constructor parameters SHALL NOT be supported.
-
-#### Scenario: Higher-kinded type parameter rejected
-- GIVEN a function signature using a type constructor parameter like `<f: * -> *>`
-- WHEN the compiler processes it
-- THEN it SHALL produce an error
-
 ### Requirement: Consistent Dot-Dot Syntax
 The `..` operator SHALL mean "and possibly more" consistently across type annotations, destructuring, and record update.
 
@@ -816,133 +564,17 @@ The `..` operator SHALL mean "and possibly more" consistently across type annota
 - WHEN the compiler interprets it
 - THEN it SHALL extract `name` and ignore any additional fields
 
-### Requirement: par Block Syntax
+### Requirement: Effects, Handlers, and Prelude Effects
+Effect row syntax, effect safety, effect polymorphism, parameterized effects with variant widening, one-shot continuations, deep and shallow handlers, effect composition via aliases, and prelude effect definitions (Console!, Throw!, Parallel!, Spawn!, Async!, File!, Env!, Time!, Random!, Log!, Crypto.Random!) are defined in `openspec/specs/effects/spec.md`.
 
-The `par` keyword SHALL introduce parallel computation blocks. `par { e1, e2, e3 }` SHALL desugar to `Parallel!.all!([|| e1, || e2, || e3])` and return a tuple of each expression's result type. `par for x in xs { body }` SHALL desugar to `Parallel!.for_each!(xs, |x| body)`.
+### Requirement: Traits, Generics, and UFCS
+Trait definitions, nominal type trait conformance (`is`/`derives`), trait structural verification, trait orphan rule, UFCS dispatch, generic type parameters with `where` clause constraints, trait tree inheritance, and the prohibition on higher-kinded types are defined in `openspec/specs/generics-traits/spec.md`.
 
-#### Scenario: par block with multiple expressions
+### Requirement: String Interpolation and Display
+The Display trait, interpolated string literal kinds (plain, interpolated, raw, multiline), string interpolation escape (`\$`), and the Display constraint on interpolation holes are defined in `openspec/specs/string-interpolation/spec.md`.
 
-- GIVEN `par { compute_alpha!(), compute_beta!() }` where alpha returns `Int` and beta returns `Str`
-- WHEN the block executes
-- THEN the result type SHALL be `(Int, Str)` — a tuple preserving each expression's type
+### Requirement: Parallelism and par Blocks
+The `par` block syntax (`par { e1, e2 }` and `par for x in xs { body }`), Parallel!/Spawn!/Async! effect operations, and parallel method sugar are defined in `openspec/specs/parallelism/spec.md`.
 
-#### Scenario: par for loop
-
-- GIVEN `par for r in records { process_record!(r) }`
-- WHEN canonicalization runs
-- THEN it SHALL be equivalent to `Parallel!.for_each!(records, |r| process_record!(r))`
-
-#### Scenario: par block effect row
-
-- GIVEN a `par` block where expressions perform `Console!`
-- WHEN the typechecker infers the effect row
-- THEN the effect row SHALL include `Parallel!` and any effects from the expressions
-
-### Requirement: Expanded Prelude Effects
-
-The compiler SHALL inject the following effect definitions into the prelude before typechecking begins. These effects are available in every Camp module without explicit import.
-
-#### Scenario: Console! effect in prelude
-
-- GIVEN any Camp module
-- WHEN the compiler processes the module
-- THEN `Console!` SHALL be available with operations `println!: |Str| -[Console!]-> {}` and `readln!: -[Console!]-> Str`
-
-#### Scenario: Throw! effect in prelude
-
-- GIVEN any Camp module
-- WHEN the compiler processes the module
-- THEN `Throw!` SHALL be available with operation `throw!: |e| -[Throw!(e)]-> a`
-
-#### Scenario: Parallel! effect in prelude
-
-- GIVEN any Camp module
-- WHEN the compiler processes the module
-- THEN `Parallel!` SHALL be available with operations `map!`, `for_each!`, `filter!`, `reduce!`, `all!`, and `any!`
-
-#### Scenario: Spawn! effect in prelude
-
-- GIVEN any Camp module
-- WHEN the compiler processes the module
-- THEN `Spawn!` SHALL be available with operations `spawn!`, `join!`, and `cancel!`
-
-#### Scenario: Async! effect in prelude
-
-- GIVEN any Camp module
-- WHEN the compiler processes the module
-- THEN `Async!` SHALL be available with operations `yield!`, `spawn!`, `join!`, and `cancel!`
-
-#### Scenario: Additional prelude effects
-
-- GIVEN any Camp module
-- WHEN the compiler processes the module
-- THEN `File!`, `Env!`, `Time!`, `Random!`, `Log!`, and `Crypto.Random!` SHALL be available as effect names
-
-### Requirement: Display Trait
-The language SHALL provide a `Display` trait in the prelude defining a `to_str : Self -> Str` method. Types that implement `Display` SHALL be usable inside string interpolation holes without explicit conversion.
-
-#### Scenario: Display trait definition
-- **GIVEN** any Camp module
-- **WHEN** the compiler processes the module
-- **THEN** the `Display` trait SHALL be available with signature `to_str : Self -> Str`
-
-#### Scenario: Str implements Display
-- **GIVEN** the `Display` trait in the prelude
-- **WHEN** a value of type `Str` is used in an interpolation hole
-- **THEN** it SHALL be accepted without explicit `to_str` call; `Display.to_str` on `Str` SHALL be the identity function
-
-#### Scenario: I64 implements Display
-- **GIVEN** the `Display` trait in the prelude
-- **WHEN** a value of type `I64` is used in an interpolation hole
-- **THEN** it SHALL be accepted; `Display.to_str` SHALL produce the decimal string representation
-
-#### Scenario: F64 implements Display
-- **GIVEN** the `Display` trait in the prelude
-- **WHEN** a value of type `F64` is used in an interpolation hole
-- **THEN** it SHALL be accepted; `Display.to_str` SHALL produce the decimal string representation
-
-#### Scenario: Bool implements Display
-- **GIVEN** the `Display` trait in the prelude
-- **WHEN** a value of type `Bool` is used in an interpolation hole
-- **THEN** it SHALL be accepted; `Display.to_str(True)` SHALL produce `"True"` and `Display.to_str(False)` SHALL produce `"False"`
-
-### Requirement: Interpolated String Literal Kinds
-The language SHALL support four string literal kinds: plain (`"..."`), interpolated (auto-detected `${` in `"..."`), raw interpolated (`r"..."`), and multiline interpolated (`"""..."""`).
-
-#### Scenario: Plain string
-- **GIVEN** the expression `"Hello"`
-- **WHEN** the compiler processes it
-- **THEN** it SHALL be a plain string literal with escape processing and no interpolation
-
-#### Scenario: Interpolated string
-- **GIVEN** the expression `"Hello ${name}"`
-- **WHEN** the compiler processes it
-- **THEN** it SHALL be an interpolated string with escape processing and `Display.to_str(name)` inserted
-
-#### Scenario: Raw interpolated string
-- **GIVEN** the expression `r"C:\${dir}"`
-- **WHEN** the compiler processes it
-- **THEN** it SHALL be a raw string with no escape processing (except `\$`) and `Display.to_str(dir)` inserted
-
-#### Scenario: Multiline interpolated string
-- **GIVEN** the expression `"""Line 1\n${val}"""`
-- **WHEN** the compiler processes it
-- **THEN** it SHALL be a multiline string with escape processing, newlines allowed in the body, and `Display.to_str(val)` inserted
-
-### Requirement: String Interpolation Escape
-The `\$` escape sequence SHALL produce a literal `$` character in all string kinds. A `$` not followed by `{` SHALL be literal without escaping.
-
-#### Scenario: Escaped dollar-brace in interpolated string
-- **GIVEN** the expression `"Var: \${HOME}"`
-- **WHEN** evaluated
-- **THEN** the result SHALL be `"Var: ${HOME}"`
-
-#### Scenario: Dollar without brace is literal
-- **GIVEN** the expression `"Price: $5"`
-- **WHEN** evaluated
-- **THEN** the result SHALL be `"Price: $5"`
-
-#### Scenario: Escaped dollar in raw string
-- **GIVEN** the expression `r"Escaped: \${var}"`
-- **WHEN** evaluated
-- **THEN** the result SHALL be `"Escaped: ${var}"`
+### Requirement: Unused Binding Analysis
+Underscore prefix rules for unused markers, underscore discard semantics, contradictory underscore-dollar prefix restriction, and top-level binding unused rules are defined in `openspec/specs/unused-analysis/spec.md`.
