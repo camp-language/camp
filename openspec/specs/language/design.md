@@ -323,7 +323,7 @@ add : <a>|a, a| -> a
 |x: Int, y: Int| -> Int { x + y }
 
 -- Effectful function:
-read_line! = || ->{ Console } Str { Console.readln!() }
+read_line! = || -[Console!]-> Str { Console!.readln!() }
 
 -- Generic with trait constraint:
 format = <a is Display>|x: a| -> Str { x.display() }
@@ -350,7 +350,7 @@ name : <type_params>|type, type, ...| ->return_type
 
 4. **Block body required for typed function definitions**: A function with a return type annotation must use `{ }` for its body. Eliminates ambiguity about where the type signature ends and the body begins. Anonymous functions without type annotations can have expression bodies: `|x| x + 1`.
 
-5. **Effect row in the return type**: `->{ Eff1, Eff2 }` comes after `->`. The presence of effects after the arrow implies effectfulness — no need for a separate thick arrow (`=>`) as in Roc. One arrow form, with the effect row as an optional component.
+5. **Effect row in the return type**: `-[Eff1 | Eff2]->` comes after `->`. The presence of effects after the arrow implies effectfulness — no need for a separate thick arrow (`=>`) as in Roc. One arrow form, with the effect row as an optional component.
 
 6. **`!` suffix for effectful names**: The compiler enforces that a function named with `!` has a non-empty effect row, and vice versa. Effectfulness visible at every call site without a separate keyword.
 
@@ -362,7 +362,7 @@ name : <type_params>|type, type, ...| ->return_type
 | Separate type annotation | `add : Int, Int -> Int` on one line, `add = \|x, y\| x + y` on next | Two statements per function; breaks single-definition pattern |
 | Roc-style separate annotation | `add : Int, Int -> Int` above `add = \|x, y\| x + y` | Same issue — Roc is moving away from this |
 | Thick arrow `=>` | `echo! : Str => Str` | Redundant — `!` suffix and effect row already communicate effectfulness |
-| `do` keyword for effect calls | `do Async.yield!()` | `!` suffix on function name already marks call as effectful; `do` adds no information |
+| `do` keyword for effect calls | `do Async!.yield!()` | `!` suffix on function name already marks call as effectful; `do` adds no information |
 
 ### 2.7 Logic Operators
 
@@ -440,7 +440,7 @@ trait Ord is Eq {
   compare : Self, Self -> Ordering
 }
 
-UserId is Hash := U64
+@UserId is Hash : U64
 ```
 
 **Key properties**:
@@ -464,7 +464,7 @@ lookup = <a is Hash, b>|key: a, map: Map(a, b)| -> Some(b) | None { ... }
 
 **Alternative considered — full Rust-style traits**: Complete type class system with associated types, overlapping instances via specialization, and coherence through orphan rules. Rejected — significantly more complex type inference, slower compilation, and Camp's structural verification + nominal opt-in covers 90% of use cases.
 
-**Alternative considered — Roc-style `where` clauses**: `stringify : a -> Str where [a.to_str : a -> Str]`. Rejected — no named abstractions, method resolution by name only (less precise than trait dispatch), no derivation target (`@derive` needs a named trait).
+**Alternative considered — Roc-style `where` clauses**: `stringify : a -> Str where [a.to_str : a -> Str]`. Rejected — no named abstractions, method resolution by name only (less precise than trait dispatch), no derivation target (`derives` needs a named trait).
 
 ### 2.11 Effect Rows
 
@@ -473,16 +473,16 @@ Every function type includes an effect row — a set of effects that the functio
 **Syntax**:
 ```
 a -> b                      -- pure (empty effect row, elided)
-a ->{ Eff1, Eff2 } b        -- effectful (explicit effect row)
-a ->{ e } b                 -- effect row variable (polymorphic)
-a ->{ Throw(NotFound) } b   -- parameterized effect
+a -[Eff1 | Eff2]-> b        -- effectful (explicit effect row)
+a -[e]-> b                 -- effect row variable (polymorphic)
+a -[Throw!(NotFound)]-> b   -- parameterized effect
 ```
 
 **Effect row properties**:
 - Rows are sets — order insignificant, duplicates removed
-- Empty row is elided: `Int -> Int` means `Int ->{} Int`
+- Empty row is elided: `Int -> Int` means `Int -> Int`
 - Row variables (`e`, `rho`) enable effect polymorphism
-- Effect rows compose: if `f : a ->{ E1 } b` and `g : b ->{ E2 } c`, then `g(f(x)) : a ->{ E1, E2 } c`
+- Effect rows compose: if `f : a -[E1]-> b` and `g : b -[E2]-> c`, then `g(f(x)) : a -[E1 | E2]-> c`
 
 **Effect row in function definitions**:
 ```
@@ -490,10 +490,10 @@ a ->{ Throw(NotFound) } b   -- parameterized effect
 add : Int, Int -> Int
 
 -- Effectful function (explicit row):
-echo! : Str ->{ Console } {}
+echo! : Str -[Console!]-> {}
 
 -- Polymorphic effect propagation:
-map = <a, b, e>|f: |a| ->{ e } b, list: List(a)| ->{ e } List(b) { ... }
+map = <a, b, e>|f: |a| -[e]-> b, list: List(a)| -[e]-> List(b) { ... }
 ```
 
 ### 2.12 Inline Type Annotations
@@ -504,7 +504,7 @@ Types annotated inline with `:`, never as a separate declaration above the bindi
 x: Int = 3
 name: Str = "Camp"
 items: List(Int) = [1, 2, 3]
-handler: Handle(Int) = Async.spawn!(|| { 42 })
+handler: Handle(Int) = Async!.spawn!(|| { 42 })
 ```
 
 **Design decision**: Roc and Haskell use separate type annotation lines. Camp uses inline annotations for: single statement per binding, no ambiguity about which annotation applies to which binding, consistent with Rust's `let x: i32 = 3`, works naturally with function signatures embedded in arg block.
@@ -593,57 +593,57 @@ Camp's effect system is its central abstraction mechanism, following Koka's desi
 An effect declares a namespace of operations. Each operation is a function signature. Operations that perform effects carry `!` in their name.
 
 ```
-effect Async {
-  yield!    : || ->{ Async } {}
-  spawn!    : |thunk: || ->{ Async } a| ->{ Async } Handle(a)
-  join!     : Handle(a) ->{ Async } a
-  cancel!   : Handle(a) ->{ Async } {}
+Async! : {
+  yield!    : || -[Async!]-> {}
+  spawn!    : |thunk: || -[Async!]-> a| -[Async!]-> Handle(a)
+  join!     : Handle(a) -[Async!]-> a
+  cancel!   : Handle(a) -[Async!]-> {}
 }
 ```
 
-**Self-referential types**: An effect's operations include the effect itself in their effect row. `yield! : || ->{ Async } {}` means "calling `yield!` performs the `Async` effect." Consistent — the effect row tells you what calling this function will do.
+**Self-referential types**: An effect's operations include the effect itself in their effect row. `yield! : || -[Async!]-> {}` means "calling `yield!` performs the `Async` effect." Consistent — the effect row tells you what calling this function will do.
 
-**Operations are just functions**: No `perform` keyword. Effect operations called like any other function: `Async.yield!()`. The `!` suffix and effect row already communicate effectfulness.
+**Operations are just functions**: No `perform` keyword. Effect operations called like any other function: `Async!.yield!()`. The `!` suffix and effect row already communicate effectfulness.
 
-**Design decision — no `perform`/`do` keyword**: Most algebraic effect languages invoke operations as plain function calls (Koka, Unison, Links). Only OCaml 5/Eff use `perform`, and Effekt uses `do`. Camp chose implicit because `!` suffix already marks effectful calls, effect operations are qualified by effect name (`Async.yield!`), no new syntax category needed, and it's consistent with Koka and Unison.
+**Design decision — no `perform`/`do` keyword**: Most algebraic effect languages invoke operations as plain function calls (Koka, Unison, Links). Only OCaml 5/Eff use `perform`, and Effekt uses `do`. Camp chose implicit because `!` suffix already marks effectful calls, effect operations are qualified by effect name (`Async!.yield!`), no new syntax category needed, and it's consistent with Koka and Unison.
 
 **Invocation alternatives considered**:
 
 | Syntax | Language | Camp assessment |
 |--------|----------|----------------|
-| Bare call: `Async.yield()` | Koka, Unison, Links | Almost adopted, but `!` suffix makes `Async.yield!()` more consistent |
-| `perform Async.yield()` | OCaml 5, Eff | Too verbose; `perform` adds no information the type doesn't already provide |
-| `do Async.yield()` | Effekt | Short but `do` is a common variable name; requires raw identifier escape |
+| Bare call: `Async!.yield!()` | Koka, Unison, Links | Almost adopted, but `!` suffix makes `Async!.yield!()` more consistent |
+| `perform Async!.yield!()` | OCaml 5, Eff | Too verbose; `perform` adds no information the type doesn't already provide |
+| `do Async!.yield!()` | Effekt | Short but `do` is a common variable name; requires raw identifier escape |
 | `!Async.yield()` | — | `!` as prefix conflicts with "not" operator in many languages |
-| `Async.yield!()` | Camp | The `!` suffix follows Camp's own convention; no new keyword needed |
+| `Async!.yield!()` | Camp | The `!` suffix follows Camp's own convention; no new keyword needed |
 
 ### 3.3 Effect Composition (No Inheritance)
 
 Effects compose via aliases, not inheritance. This is a deliberate departure from the initial design, which considered `effect File is Io`.
 
-**Problem with effect inheritance**: If `File is Io` and both define a `read!` operation, which `read!` does `File.read!` refer to? The collision is unavoidable when operations share names across an inheritance hierarchy.
+**Problem with effect inheritance**: If `File is Io` and both define a `read!` operation, which `read!` does `File!.read!` refer to? The collision is unavoidable when operations share names across an inheritance hierarchy.
 
 **Research finding**: No mainstream effect language supports effect inheritance (Koka, Unison, Effekt, OCaml 5, Eff all use flat effect composition). Effects compose by set union in the type, not by subtyping.
 
 **Solution — aliases for effect grouping**:
 ```
-effect File {
-  open!   : Str ->{ File, Throw(NotFound | PermissionDenied) } Handle
-  close!  : Handle ->{ File } {}
-  read!   : Handle ->{ File, Throw(Eof) } Str
-  write!  : Handle, Str ->{ File } {}
+File! : {
+  open!   : Str -[File! | Throw!(NotFound | PermissionDenied)]-> Handle
+  close!  : Handle -[File!]-> {}
+  read!   : Handle -[File! | Throw!(Eof)]-> Str
+  write!  : Handle, Str -[File!]-> {}
 }
 
-effect Console {
-  print!    : Str ->{ Console } {}
-  printerr! : Str ->{ Console } {}
-  readln!   : || ->{ Console } Str
+Console! : {
+  print!    : Str -[Console!]-> {}
+  printerr! : Str -[Console!]-> {}
+  readln!   : || -[Console!]-> Str
 }
 
 alias Io = File | Console
 ```
 
-`Io` is a type alias for the union `File | Console`. Functions can use `->{ Io }` as shorthand for `->{ File, Console }`. Operations are always qualified by their defining effect: `File.read!`, `Console.print!` — no ambiguity.
+`Io` is a type alias for the union `File | Console`. Functions can use `-[Io!]->` as shorthand for `-[File! | Console!]->`. Operations are always qualified by their defining effect: `File!.read!`, `Console!.print!` — no ambiguity.
 
 **Why `is` still applies to traits but not effects**: Traits define method signatures on types — inheritance means "this trait requires all methods of the parent trait." Effects define operations in a namespace — inheritance would mean "this effect's operations include the parent's," which creates collision. The `is` keyword applies to traits (where it makes sense) and trait constraints in type parameters, but not to effect composition.
 
@@ -656,10 +656,10 @@ Handlers are lexically scoped — they only affect code within their `in { ... }
 A deep handler is re-installed after each `resume`. It handles all operations of its effect type that occur in the scoped block, including after resumptions.
 
 ```
-handle Async in {
-  Async.yield!()
-  Async.yield!()
-  Async.yield!()
+handle Async! in {
+  Async!.yield!()
+  Async!.yield!()
+  Async!.yield!()
 } with {
   .yield!(resume) => {
     count = count + 1
@@ -679,9 +679,9 @@ Each `yield!` call is caught by the handler. The handler increments `count` and 
 A shallow handler handles one operation and does not re-install itself. Only the first matching operation is caught; subsequent operations propagate to an outer handler (if any).
 
 ```
-intercept Async in {
-  Async.yield!()    -- caught by this handler
-  Async.yield!()    -- NOT caught — propagates to outer handler
+intercept Async! in {
+  Async!.yield!()    -- caught by this handler
+  Async!.yield!()    -- NOT caught — propagates to outer handler
 } with {
   .yield!(resume) => resume({})
 }
@@ -719,17 +719,17 @@ Each `resume` can be called at most once. A second invocation is a runtime error
 `Throw` is Camp's built-in error effect. Its parameter is a tag union (using the same `[..]` syntax) that widens as more tag types are thrown.
 
 ```
-Throw.throw! : <e>[e] ->{ Throw([e]) } a
+Throw!.throw! : <e>[e] -[Throw!([e])]-> a
 ```
 
 **Throw variant union widening**:
 ```
-parse_int! : Str ->{ Throw(NotFound) } Int
+parse_int! : Str -[Throw!(NotFound)]-> Int
 
-find_user! : UserId ->{ Throw(NotFound | PermissionDenied) } User
+find_user! : UserId -[Throw!(NotFound | PermissionDenied)]-> User
 
 -- A function calling both:
-process! : Str ->{ Throw(NotFound | PermissionDenied | BadNumStr) } User
+process! : Str -[Throw!(NotFound | PermissionDenied | BadNumStr)]-> User
 ```
 
 **Open vs closed Throw types**:
@@ -744,10 +744,10 @@ Throw([..])                               -- fully open: can throw any tag (the 
 
 **Throwing tags**:
 ```
-parse_int! = |s: Str| ->{ Throw(BadNumStr) } Int {
+parse_int! = |s: Str| -[Throw!(BadNumStr)]-> Int {
   match Int.from_str(s) {
     Some(n) => n
-    None => Throw.throw!(BadNumStr)
+    None => Throw!.throw!(BadNumStr)
   }
 }
 ```
@@ -770,8 +770,8 @@ Camp uses a dual error model, following Koka and Unison:
 
 **Handlers bridge the two worlds**: A handler can convert Throw to a tag union at boundaries:
 ```
-to_result = |action: || ->{ Throw(e) } a| -> [Ok(a) | Err(e)] {
-  handle Throw in {
+to_result = |action: || -[Throw!(e)]-> a| -> [Ok(a) | Err(e)] {
+  handle Throw! in {
     Ok(action())
   } with {
     .throw!(resume, err) => Err(err)
@@ -795,8 +795,8 @@ Compile-time enforcement. Unhandled effects are errors. A function's effect row 
 
 ```
 -- A program that can print to console and throw errors:
-main! = || ->{ Console, Throw([..]) } {
-  Console.println!("Hello, Camp!")
+main! = || -[Console! | Throw!([..])]-> {
+  Console!.println!("Hello, Camp!")
   {}
 }
 
@@ -813,7 +813,7 @@ main! = || -> {} {
 Row variables enable generic effect propagation:
 
 ```
-map = <a, b, e>|f: |a| ->{ e } b, list: List(a)| ->{ e } List(b) { ... }
+map = <a, b, e>|f: |a| -[e]-> b, list: List(a)| -[e]-> List(b) { ... }
 ```
 
 `e` is an effect row variable. `map` propagates whatever effects `f` has — if `f` is pure, `map` is pure; if `f` throws, `map` throws.
@@ -1042,7 +1042,7 @@ Expr :: union {
 **Scope**: Per-file, cacheable by file content hash
 
 **What it does**:
-1. Expand `@derive` annotations into trait implementation stubs
+1. Expand `derives` annotations into trait implementation stubs
 2. Normalize syntax (desugar, normalize record field order)
 3. Resolve what's possible from the file alone (local bindings, local types)
 4. Record deferred imports — assume imported items exist, mark them as unresolved
@@ -1092,12 +1092,12 @@ Expr :: union {
 1. Translate each effect operation call into a continuation invocation
 2. Deep handlers become continuation constructors that re-install themselves after resume
 3. Shallow (`intercept`) handlers become single-shot continuation constructors
-4. `Throw.throw!` becomes a parameterized effect operation with variant union tracking
+4. `Throw!.throw!` becomes a parameterized effect operation with variant union tracking
 
 **Key transformation**:
 ```
 -- Before effect lowering:
-Console.println!("Hello")
+Console!.println!("Hello")
 -- The type system knows this performs Console
 
 -- After effect lowering:
@@ -1136,7 +1136,7 @@ handle_Console_println("Hello", current_continuation)
 ┌──────────────────────────────────────────────────────────────┐
 │  Effect operation call                                       │
 │  ┌─────────────────┐                                        │
-│  │  Async.yield!()  │                                        │
+│  │  Async!.yield!()  │                                        │
 │  └────────┬────────┘                                        │
 │           │                                                  │
 │    ┌──────▼──────┐                                          │
@@ -1245,7 +1245,7 @@ Pure functions (empty effect row) can be evaluated at compile time when all argu
 **Uses**:
 - **Generic specialization**: Monomorphize generic functions at compile time
 - **Type introspection**: `type_info(UserId)` returns field names, types, offsets at compile time
-- **Derive macro expansion**: `@derive [Display]` runs a comptime function that generates the trait implementation
+- **Derive macro expansion**: `derives [Display]` runs a comptime function that generates the trait implementation
 - **Compile-time constants**: `const MAX_SIZE = compute_max_size!()` where `compute_max_size` is pure
 
 **Purity requirement**: Comptime functions must have an empty effect row. The compiler verifies this. If a comptime function's effect row is non-empty, compile error. Ensures comptime evaluation is deterministic and side-effect-free.
@@ -1440,40 +1440,40 @@ All collection operations live in `Iter`. `List`, `Map`, `Set` implement `iter()
 ### 6.4 Stdlib Effect Definitions
 
 ```
-effect File {
-  open!   : Str ->{ File, Throw(NotFound | PermissionDenied) } Handle
-  close!  : Handle ->{ File } {}
-  read!   : Handle ->{ File, Throw(Eof) } Str
-  write!  : Handle, Str ->{ File } {}
+File! : {
+  open!   : Str -[File! | Throw!(NotFound | PermissionDenied)]-> Handle
+  close!  : Handle -[File!]-> {}
+  read!   : Handle -[File! | Throw!(Eof)]-> Str
+  write!  : Handle, Str -[File!]-> {}
 }
 
-effect Console {
-  print!    : Str ->{ Console } {}
-  printerr! : Str ->{ Console } {}
-  readln!   : || ->{ Console } Str
+Console! : {
+  print!    : Str -[Console!]-> {}
+  printerr! : Str -[Console!]-> {}
+  readln!   : || -[Console!]-> Str
 }
 
-effect Async {
-  yield!  : || ->{ Async } {}
-  spawn!  : |thunk: || ->{ Async } a| ->{ Async } Handle(a)
-  join!   : Handle(a) ->{ Async } a
-  cancel! : Handle(a) ->{ Async } {}
+Async! : {
+  yield!  : || -[Async!]-> {}
+  spawn!  : |thunk: || -[Async!]-> a| -[Async!]-> Handle(a)
+  join!   : Handle(a) -[Async!]-> a
+  cancel! : Handle(a) -[Async!]-> {}
 }
 
-effect Env {
-  args!    : || ->{ Env } List(Str)
-  get_env! : Str ->{ Env, Throw(NotFound) } Str
+Env! : {
+  args!    : || -[Env!]-> List(Str)
+  get_env! : Str -[Env! | Throw!(NotFound)]-> Str
 }
 
-effect Time {
-  now!   : || ->{ Time } U64
-  sleep! : U64 ->{ Time } {}
+Time! : {
+  now!   : || -[Time!]-> U64
+  sleep! : U64 -[Time!]-> {}
 }
 
-effect Random {
-  int!   : Int, Int ->{ Random } Int
-  float! : || ->{ Random } F64
-  bytes! : U64 ->{ Random } Bytes
+Random! : {
+  int!   : Int, Int -[Random!]-> Int
+  float! : || -[Random!]-> F64
+  bytes! : U64 -[Random!]-> Bytes
 }
 
 alias Io = File | Console
@@ -1514,7 +1514,7 @@ The Camp runtime is minimal:
 
 - **One file per module**: `List.camp` defines the `List` module
 - **File name = module name**: `List.camp` → module `List`
-- **Multiple types per module**: A module can define multiple types, functions, traits, effects, and aliases
+- **One nominal type per module**: A module defines at most one nominal type. The module name IS the type name. This aligns with the `is`/`derives` system where trait conformance is unambiguous.
 - **No nested modules**: Modules are flat — no `List::Iter` or `Collections::Map`
 - **No interface files**: No `.campi` files — `pub` controls visibility
 
@@ -1615,8 +1615,8 @@ Every Camp file automatically imports the **Prelude** — commonly used types, t
 | **Types** | `Bool`, `List`, `Str`, `I8`..`I64`, `U8`..`U64`, `F32`, `F64`, `Bytes`, `Map`, `Set`, `Iter`, `Handle`, `Ordering` |
 | **Tags** | `True`, `False`, `Ok`, `Err`, `Some`, `None`, `Less`, `Equal`, `Greater` |
 | **Traits** | `Display`, `Hash`, `Eq`, `Ord`, `Clone`, `Serialize`, `Deserialize` |
-| **Effects** | `Throw`, `Async`, `Console`, `File`, `Env`, `Time`, `Random` |
-| **Aliases** | `Io = File \| Console` |
+| **Effects** | `Throw!`, `Async!`, `Console!`, `File!`, `Env!`, `Time!`, `Random!` |
+| **Aliases** | `Io = File! \| Console!` |
 | **Functions** | `identity`, `always`, `compose`, `flip`; basic operations on `Int`, `Str`, `List`, `Iter` |
 
 **Disabling the prelude**: `import Camp exposing []` opts out of the prelude. Useful for modules that want to avoid name collisions with prelude items.
@@ -1637,8 +1637,8 @@ The `unsafe` keyword signals: this is not the normal way. Raw imports bypass Cam
 `main!` in `Main.camp`. Its effect row is the declaration:
 
 ```
-main! = || ->{ Console, Throw([..]) } {
-  Console.println!("Hello, Camp!")
+main! = || -[Console! | Throw!([..])]-> {
+  Console!.println!("Hello, Camp!")
   {}
 }
 ```
@@ -1660,16 +1660,16 @@ Camp uses stackless coroutines modeled via the `Async` effect, compiled using CP
 │  Camp Source              CPS Compilation         Runtime    │
 │  ───────────              ──────────────         ───────    │
 │                                                             │
-│  Async.spawn!(|| {     →  State machine S1     →  wasmtime  │
+│  Async!.spawn!(|| {     →  State machine S1     →  wasmtime  │
 │    long_task!()           with live vars           schedules│
 │  })                        as struct fields       S1.resume │
 │                                                             │
-│  Async.yield!()        →  S1 suspends:         →  host     │
+│  Async!.yield!()        →  S1 suspends:         →  host     │
 │                          capture continuation     decides   │
 │                          defer to handler          when to   │
 │                                                   resume    │
 │                                                             │
-│  Async.join!(handle)   →  S1 completes:        →  host      │
+│  Async!.join!(handle)   →  S1 completes:        →  host      │
 │                          resume caller with       returns    │
 │                          return value             result    │
 └─────────────────────────────────────────────────────────────┘
@@ -1692,11 +1692,11 @@ Camp uses stackless coroutines modeled via the `Async` effect, compiled using CP
 ### 8.3 Async Effect
 
 ```
-effect Async {
-  yield!  : || ->{ Async } {}
-  spawn!  : |thunk: || ->{ Async } a| ->{ Async } Handle(a)
-  join!   : Handle(a) ->{ Async } a
-  cancel! : Handle(a) ->{ Async } {}
+Async! : {
+  yield!  : || -[Async!]-> {}
+  spawn!  : |thunk: || -[Async!]-> a| -[Async!]-> Handle(a)
+  join!   : Handle(a) -[Async!]-> a
+  cancel! : Handle(a) -[Async!]-> {}
 }
 ```
 
@@ -1712,11 +1712,11 @@ CPS transform turns coroutines into state machines:
 
 ```
 -- Source:
-fetch_two! = || ->{ Async, File, Throw(IoError) } (Str, Str) {
-  h1 = Async.spawn!(|| { File.read!("a.txt") })
-  h2 = Async.spawn!(|| { File.read!("b.txt") })
-  a = Async.join!(h1)
-  b = Async.join!(h2)
+fetch_two! = || -[Async! | File! | Throw!(IoError)]-> (Str, Str) {
+  h1 = Async!.spawn!(|| { File!.read!("a.txt") })
+  h2 = Async!.spawn!(|| { File!.read!("b.txt") })
+  a = Async!.join!(h1)
+  b = Async!.join!(h2)
   (a, b)
 }
 
@@ -1743,10 +1743,10 @@ The WASM component model (Preview 2+) defines async function types that can yiel
 ┌────────────────────────────────────────────────────┐
 │  Camp Async          →    WASM Component Async      │
 │                                                    │
-│  Async.yield!()     →    yield to host             │
+│  Async!.yield!()     →    yield to host             │
 │  handler resumes    →    host calls resume         │
-│  Async.spawn!(f)    →    create new async context  │
-│  Async.join!(h)     →    await on async context    │
+│  Async!.spawn!(f)    →    create new async context  │
+│  Async!.join!(h)     →    await on async context    │
 │                                                    │
 │  The handler is compiled as a WASM async function  │
 │  that manages the coroutine state machine.         │
@@ -1774,9 +1774,9 @@ This eliminates data races by construction — no locks, no atomics, no mutex ne
 ### 8.8 Channel Effect (Future Stdlib)
 
 ```
-effect Channel {
-  send!    : Handle(a), a ->{ Channel } {}
-  receive! : Handle(a) ->{ Channel } a
+Channel! : {
+  send!    : Handle(a), a -[Channel!]-> {}
+  receive! : Handle(a) -[Channel!]-> a
 }
 ```
 
@@ -1786,7 +1786,7 @@ Channels are a stdlib abstraction, not a language primitive. A handler manages a
 
 No blocking I/O. All I/O effects handled by the runtime, which integrates with `wasi:io/poll`. A coroutine waiting on I/O yields; the host resumes it when data is available.
 
-**No preemption**: Coroutines run until they `yield!` or perform an I/O operation. Cooperative scheduling — the runtime doesn't preempt running coroutines. For CPU-intensive work, insert `Async.yield!()` periodically.
+**No preemption**: Coroutines run until they `yield!` or perform an I/O operation. Cooperative scheduling — the runtime doesn't preempt running coroutines. For CPU-intensive work, insert `Async!.yield!()` periodically.
 
 ---
 
@@ -1821,7 +1821,7 @@ Decl_Newtype :: struct {
     type_params: []Intern_ID,   -- type variables (empty for simple newtypes)
     traits:      []Intern_ID,   -- trait names from is clause
     target:      ^Type,         -- the wrapped type
-    annotations: []Annotation,  -- @derive etc.
+    annotations: []Annotation,  -- derives etc.
     span:        Source_Span,
 }
 ```
@@ -1956,11 +1956,11 @@ Metaprogramming is a Pandora's box — it breaks compilation speed, error messag
 ### 9.2 Derive Macros
 
 ```
-@derive [Display, Hash, Eq, Serialize]
-UserId := U64
+derives [Display, Hash, Eq, Serialize]
+@UserId : U64
 ```
 
-**How it works**: `@derive` triggers a comptime function that generates trait implementations. The derive function receives type information at compile time and produces the trait method implementations as AST nodes.
+**How it works**: `derives` triggers a comptime function that generates trait implementations. The derive function receives type information at compile time and produces the trait method implementations as AST nodes.
 
 **Scope**: Derive macros can ONLY generate trait implementations. They cannot:
 - Add new functions or values to the module
@@ -1976,7 +1976,7 @@ Pure functions (empty effect row) can be evaluated at compile time when all argu
 **Uses**:
 ```
 -- Generic specialization (comptime monomorphization):
-map = <a, b, e>|f: |a| ->{ e } b, list: List(a)| ->{ e } List(b)
+map = <a, b, e>|f: |a| -[e]-> b, list: List(a)| -[e]-> List(b)
 -- When called as map(|x| x + 1, [1, 2, 3]), the compiler
 -- specializes to map_Int_Int_pure at comptime
 
@@ -1989,8 +1989,8 @@ max_size: U64 = comptime compute_max_size()
 -- compute_max_size must be pure (empty effect row)
 
 -- Derive expansion:
--- @derive [Display] on UserId generates:
---   UserId is Display := U64 {
+-- derives [Display] on UserId generates:
+--   @UserId is Display : U64 {
 --     display = |self| self.inner().display()
 --   }
 ```
@@ -2195,7 +2195,7 @@ Every major design decision, its alternatives, and the rationale for the chosen 
 | 12 | Parsing | Pratt parsing | Recursive descent | Simpler, handles precedence naturally |
 | 13 | Type inference | Level (PLDI'25) bidirectional | Hindley-Milner, Algorithm W | Handles effect rows and row polymorphism correctly |
 | 14 | Effect invocation | No keyword (bare call with `!`) | `perform`, `do`, `^` prefix | `!` suffix already marks effectful calls; consistent with function naming |
-| 15 | Effect composition | Aliases (`alias Io = File \| Console`) | Inheritance (`effect File is Io`) | No operation name collisions; matches all mainstream effect languages |
+| 15 | Effect composition | Aliases (`alias Io = File! \| Console!`) | Inheritance (`effect File! is Io!`) | No operation name collisions; matches all mainstream effect languages |
 | 16 | Handler types | Deep (default) + shallow (`intercept`) | Deep only, shallow only | Deep covers 90%; shallow needed for stateful protocols |
 | 17 | Continuations | One-shot | Multi-shot | Faster, simpler, safer with linear resources; backtracking via explicit state |
 | 18 | Error model | Dual (Throw + tag unions) | Throw-only, Result-only | Matches Koka/Unison pattern; Throw for exceptional, tag unions for structural |
@@ -2280,7 +2280,7 @@ Handle(a)              -- async coroutine handle
 { name: Str, age: U64 }  -- closed record
 { name: Str, .. }     -- open record (at least name, possibly more)
 { name: Str, ..rest } -- open record with row variable
-UserId := U64          -- newtype
+@UserId : U64          -- newtype
 ```
 
 ### Bindings
@@ -2288,8 +2288,8 @@ UserId := U64          -- newtype
 ```
 x: I64 = 3                             -- constant binding
 $count: I64 = 0                         -- mutable binding (function body only, no var keyword)
-UserId is Hash := U64                   -- newtype with trait
-@derive [Display, Hash] OrderId := U64  -- newtype with derived traits
+@UserId is Hash : U64                   -- newtype with trait
+@OrderId derives [Display, Hash] : U64  -- newtype with derived traits
 ```
 
 ### Functions
@@ -2298,19 +2298,19 @@ UserId is Hash := U64                   -- newtype with trait
 add = <a>|x: a, y: a| -> a { x + y }   -- named function definition
 add : <a>|a, a| -> a                    -- type-only declaration
 |x: I64, y: I64| -> I64 { x + y }      -- anonymous function
-read_line! = || ->{ Console } Str { … } -- effectful function
-map = <a, b, e>|f: |a| ->{ e } b, list: List(a)| ->{ e } List(b) { … }
+read_line! = || -[Console!]-> Str { … } -- effectful function
+map = <a, b, e>|f: |a| -[e]-> b, list: List(a)| -[e]-> List(b) { … }
 ```
 
 ### Effects
 
 ```
-effect Async {
-  yield! : || ->{ Async } {}
+Async! : {
+  yield! : || -[Async!]-> {}
 }
 
-handle Async in { … } with { .yield!(resume) => resume({}) }
-intercept Async in { … } with { .yield!(resume) => resume({}) }
+handle Async! in { … } with { .yield!(resume) => resume({}) }
+intercept Async! in { … } with { .yield!(resume) => resume({}) }
 ```
 
 ### Pattern Matching
@@ -2340,13 +2340,13 @@ map.get(key)                            -- → Some(v) | None
 ### Error Handling
 
 ```
-Throw.throw!(NotFound)                  -- throw an error
-parse! : Str ->{ Throw(BadNumStr) } I64 -- throw in type signature
-main! : || ->{ Console, Throw([..]) } {} -- main can throw any tag
+Throw!.throw!(NotFound)                  -- throw an error
+parse! : Str -[Throw!(BadNumStr)]-> I64 -- throw in type signature
+main! : || -[Console! | Throw!([..])]-> {} -- main can throw any tag
 
 -- Handler bridges Throw to tag union:
-to_result = |action: || ->{ Throw(e) } a| -> [Ok(a) | Err(e)] {
-  handle Throw in {
+to_result = |action: || -[Throw!(e)]-> a| -> [Ok(a) | Err(e)] {
+  handle Throw! in {
     Ok(action())
   } with {
     .throw!(resume, err) => Err(err)
@@ -2357,10 +2357,10 @@ to_result = |action: || ->{ Throw(e) } a| -> [Ok(a) | Err(e)] {
 ### Concurrency
 
 ```
-task = Async.spawn!(|| { long_computation!() })
-result = Async.join!(task)
-Async.yield!()                          -- cooperative yield
-Async.cancel!(task)                     -- cancel a coroutine
+task = Async!.spawn!(|| { long_computation!() })
+result = Async!.join!(task)
+Async!.yield!()                          -- cooperative yield
+Async!.cancel!(task)                     -- cancel a coroutine
 ```
 
 ### Imports and Modules
@@ -2385,8 +2385,8 @@ expect list.len() == 3                  -- inline assertion
 ### Misc
 
 ```
-Console.println!("Hello!")              -- effectful I/O
-File.read!("data.txt")                  -- effectful file read
+Console!.println!("Hello!")              -- effectful I/O
+File!.read!("data.txt")                  -- effectful file read
 `do`                                    -- raw identifier (backtick-wrapped)
 { name, age } = record                  -- record destructuring (closed)
 { name, .. } = record                   -- record destructuring (open, allows extra fields)

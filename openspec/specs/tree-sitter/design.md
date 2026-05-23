@@ -108,11 +108,12 @@ anonymous_method_expression       prec.left(9)
 - `!` suffix on binding names: `f!` is a const_declaration with is_effectful = true.
 - `$` prefix: `$x` is a dollar_identifier (mutable reference).
 
-## No External Scanner
+## External Scanner
 
-Camp's lexer is simple enough for pure grammar.js:
+Camp's lexer is mostly handled by pure grammar.js, with an external scanner (C) for string interpolation:
 - `--` line comments (til EOL)
 - Basic `"..."` strings with escape sequences
+- **External scanner**: Handles interpolated strings (`"Hello ${name}!"`) — brace-depth tracking to match interpolation holes
 - No indentation sensitivity
 - Identifiers: `[a-z_][a-zA-Z0-9_]*` (lowercase/underscore) and `[A-Z][a-zA-Z0-9_]*` (uppercase for constructors/types)
 

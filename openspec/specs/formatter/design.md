@@ -74,10 +74,10 @@ f(                    // multi-line (break at first comma)
 
 `|`-separated lists (tag unions, effect rows) — break before `|`:
 ```camp
--[Console | IO]->     // single-line
+-[Console! | IO!]->     // single-line
 -[                    // multi-line
-    Console
-    | IO
+    Console!
+    | IO!
 ]->
 ```
 
@@ -128,7 +128,7 @@ If any sub-group is multi-line, the parent brackets use multiline style: opening
 ### Top-Level
 
 - `pub` stays on same line: `pub greet = |name| "Hello"`
-- `@derive` on its own line before the declaration
+- `derives` on its own line before the declaration
 - Blank lines between declarations preserved (single blank line; multiple collapse to one)
 - No blank line added or removed between adjacent declarations
 
@@ -143,9 +143,9 @@ name! = body
 ### Effect Declarations
 
 ```camp
-effect Empty {}
+Empty! : {}
 
-effect IO {
+IO! : {
     println!
     readln!
 }
@@ -154,11 +154,11 @@ effect IO {
 ### Trait Declarations
 
 ```camp
-trait Display {
+Display : {
     display: Self -> Str
 }
 
-trait Ord is Eq {
+Ord is Eq : {
     compare: Self, Self -> Ordering
 }
 ```
@@ -178,7 +178,7 @@ import List exposing [
 ### Newtype, Test, Expect
 
 ```camp
-UserId is Hash := U64
+@UserId is Hash : U64
 test "addition works" = { ... }
 expect 1 + 1 == 2
 ```
@@ -272,7 +272,7 @@ Follow first-`|` rule with break-before-`|`:
 
 ### Effect Row Types
 
-`-[Console | IO]->` — follow first-`|` rule. Open rows: `-[e]->`, `-[Console | ..]->`.
+`-[Console! | IO!]->` — follow first-`|` rule. Open rows: `-[e]->`, `-[Console! | ..]->`.
 
 ### Record Types
 
