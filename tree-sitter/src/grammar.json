@@ -3767,6 +3767,10 @@
       "tag_pattern"
     ],
     [
+      "effect_row",
+      "record_type"
+    ],
+    [
       "anonymous_method_expression",
       "field_access_expression",
       "method_call_expression"

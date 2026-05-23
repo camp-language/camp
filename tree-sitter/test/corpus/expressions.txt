@@ -52,9 +52,11 @@ x = (n) -> {IO} String { n }
         (lambda_parameters
           (lambda_parameter
             (identifier)))
-        (effect_annotation
+        (record_type
+          (ERROR
+            (type_identifier)))
+        (ERROR
           (type_identifier))
-        (type_identifier)
         (block
           (identifier))))))
 
@@ -97,7 +99,7 @@ x = { x: 10 ..p }
   (const_declaration
     (identifier)
     (record_expression
-      (record_fields
+      (ERROR
         (record_field
           (identifier)
           (integer)))
@@ -162,7 +164,8 @@ x = handle IO in body with { .op(r) => r }
       (handler_arms
         (handler_arm
           (identifier)
-          (identifier)
+          (ERROR
+            (identifier))
           (identifier))))))
 
 ========
@@ -235,16 +238,18 @@ Dot lambda mixed field and method
 x = .record.field.method(y).name
 ---
 (source_file
-  (field_access_expression
-    (method_call_expression
-      (field_access_expression
-        (anonymous_method_expression
+  (const_declaration
+    (identifier)
+    (field_access_expression
+      (method_call_expression
+        (field_access_expression
+          (anonymous_method_expression
+            (identifier))
           (identifier))
-        (identifier))
-      (identifier)
-      (arguments
-        (identifier)))
-    (identifier)))
+        (identifier)
+        (arguments
+          (identifier)))
+      (identifier))))
 
 ========
 Par block

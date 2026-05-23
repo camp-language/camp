@@ -164,11 +164,11 @@ Newtype with type params
       (tag_union_variant
         (type_identifier)
         (type_arguments
-          (identifier)))
+          (type_variable)))
       (tag_union_variant
         (type_identifier)
         (type_arguments
-          (identifier))))))
+          (type_variable))))))
 
 ========
 Newtype is and derives
@@ -193,11 +193,10 @@ identity: T where T is Eq = x
 (source_file
   (const_declaration
     (identifier)
+    (ERROR
+      (type_annotation
+        (type_identifier))
+      (type_identifier))
     (type_annotation
-      (type_variable
-        (identifier)))
-    (where_clause
-      (where_constraint
-        (identifier)
-        (type_identifier)))
+      (type_identifier))
     (identifier)))

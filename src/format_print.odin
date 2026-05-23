@@ -67,10 +67,11 @@ doc_resolve_inner :: proc(d: Doc, indent: int, mode: Doc_Mode) -> string {
 doc_resolve_children :: proc(children: [dynamic]Doc, indent: int, mode: Doc_Mode) -> string {
 	b: strings.Builder
 	strings.builder_init_none(&b, context.allocator)
+	defer strings.builder_destroy(&b)
 	for child in children {
 		strings.write_string(&b, doc_resolve_inner(child, indent, mode))
 	}
-	return strings.to_string(b)
+	return strings.clone(strings.to_string(b))
 }
 
 doc_newline_with_indent :: proc(indent: int) -> string {
@@ -81,5 +82,5 @@ doc_newline_with_indent :: proc(indent: int) -> string {
 	for _ in 0 ..< indent {
 		strings.write_byte(&b, ' ')
 	}
-	return strings.to_string(b)
+	return strings.clone(strings.to_string(b))
 }
