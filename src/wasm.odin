@@ -590,7 +590,7 @@ emit_instruction :: proc(instr: Wasm_Instruction, buf: ^[dynamic]u8) {
 		encode_u32_leb128(i.index, buf)
 	case Wasm_Atomic_Fence:
 		append(buf, 0xFE)
-		append(buf, 0x50)
+		append(buf, 0x03)
 		encode_u32_leb128(0, buf) // ordering: 0 = SeqCst
 	case Wasm_I32_Atomic_Load:
 		append(buf, 0xFE)
@@ -909,17 +909,17 @@ emit_instruction :: proc(instr: Wasm_Instruction, buf: ^[dynamic]u8) {
 		encode_u32_leb128(i.offset, buf)
 	case Wasm_Memory_Atomic_Wait32:
 		append(buf, 0xFE)
-		append(buf, 0x52)
+		append(buf, 0x01)
 		encode_u32_leb128(i.align, buf)
 		encode_u32_leb128(i.offset, buf)
 	case Wasm_Memory_Atomic_Wait64:
 		append(buf, 0xFE)
-		append(buf, 0x53)
+		append(buf, 0x02)
 		encode_u32_leb128(i.align, buf)
 		encode_u32_leb128(i.offset, buf)
 	case Wasm_Memory_Atomic_Notify:
 		append(buf, 0xFE)
-		append(buf, 0x54)
+		append(buf, 0x00)
 		encode_u32_leb128(i.align, buf)
 		encode_u32_leb128(i.offset, buf)
 	}

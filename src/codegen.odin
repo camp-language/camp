@@ -8,6 +8,26 @@ CAMP_TAG_TAG_OFFSET :: 4
 CAMP_TAG_SCAN_SIZE_OFFSET :: 5
 CAMP_TAG_FIELDS_OFFSET :: 8
 
+Match_Kind :: enum {
+	Tag_Union,
+	Bool,
+	Int,
+	String,
+}
+
+determine_match_kind :: proc(arms: []IR_Match_Arm) -> Match_Kind {
+	for arm in arms {
+		#partial switch p in arm.pattern {
+		case ^IR_Pat_Tag: return .Tag_Union
+		case ^IR_Pat_Bool: return .Bool
+		case ^IR_Pat_Int: return .Int
+		case ^IR_Pat_String: return .String
+		case:
+		}
+	}
+	return .Tag_Union
+}
+
 Codegen_Env :: struct {
 	mod:            ^Wasm_Module,
 	interner:       ^Intern_Table,
@@ -193,12 +213,8 @@ codegen :: proc(ir_mod: IR_Module, ctx: ^Compilation_Context) -> Wasm_Module {
 	emit_wasi_imports(&env)
 	emit_runtime_types(&env)
 
-	// Memory: shared when threads > 1, with maximum for WASM threads
-	if ctx.thread_count > 1 {
-		append(&mod.memories, Wasm_Memory{min = 1, max = 65536, has_max = true, shared = true})
-	} else {
-		append(&mod.memories, Wasm_Memory{min = 1})
-	}
+	// Memory: always shared with max — runtime uses atomic instructions for Perceus RC
+	append(&mod.memories, Wasm_Memory{min = 1, max = 65536, has_max = true, shared = true})
 
 	env.table_idx = len(mod.tables)
 	append(&mod.tables, Wasm_Table{
@@ -372,7 +388,7 @@ codegen :: proc(ir_mod: IR_Module, ctx: ^Compilation_Context) -> Wasm_Module {
 	camp_print_err_code := emit_camp_print_err_body()
 	append(&mod.codes, camp_print_err_code)
 
-	camp_list_alloc_code := emit_camp_list_alloc_body()
+	camp_list_alloc_code := emit_camp_list_alloc_body(alloc_func_idx)
 	append(&mod.codes, camp_list_alloc_code)
 
 	camp_list_push_code := emit_camp_list_push_body()
@@ -390,7 +406,7 @@ codegen :: proc(ir_mod: IR_Module, ctx: ^Compilation_Context) -> Wasm_Module {
 	camp_str_eq_code := emit_camp_str_eq_body()
 	append(&mod.codes, camp_str_eq_code)
 
-	camp_str_concat_code := emit_camp_str_concat_body()
+	camp_str_concat_code := emit_camp_str_concat_body(alloc_func_idx)
 	append(&mod.codes, camp_str_concat_code)
 
 	camp_async_init_code := emit_camp_async_init_body()
@@ -958,6 +974,7 @@ collect_locals :: proc(expr: IR_Expr, locals: ^map[Intern_ID]IR_Type) {
 	case ^IR_Match:
 		collect_locals(e.scrutinee, locals)
 		for arm in e.arms {
+			collect_pattern_locals(arm.pattern, e.scrutinee, locals)
 			collect_locals(arm.body, locals)
 		}
 	case ^IR_BinOp:
@@ -1035,6 +1052,30 @@ collect_locals :: proc(expr: IR_Expr, locals: ^map[Intern_ID]IR_Type) {
 		}
 		collect_locals(e.iterable, locals)
 		collect_locals(e.body, locals)
+	case:
+	}
+}
+
+collect_pattern_locals :: proc(pattern: IR_Pattern, scrutinee: IR_Expr, locals: ^map[Intern_ID]IR_Type) {
+	if pattern == nil do return
+
+	scrutinee_type := ir_expr_wasm_type(scrutinee)
+
+	#partial switch p in pattern {
+	case ^IR_Pat_Tag:
+		for name in p.payload {
+			locals^[name] = IR_Type{wasm_type = .I32, type_id = Type_Var_ID(0)}
+		}
+	case ^IR_Pat_Var:
+		locals^[p.name] = IR_Type{wasm_type = scrutinee_type, type_id = Type_Var_ID(0)}
+	case ^IR_Pat_Record:
+		for f in p.fields {
+			locals^[f.binding] = IR_Type{wasm_type = .I32, type_id = Type_Var_ID(0)}
+		}
+	case ^IR_Pat_Wildcard:
+	case ^IR_Pat_Bool:
+	case ^IR_Pat_Int:
+	case ^IR_Pat_String:
 	case:
 	}
 }
@@ -1364,65 +1405,226 @@ emit_expr :: proc(expr: IR_Expr, buf: ^[dynamic]u8, env: ^Codegen_Env, runtime_i
 			}
 		}
 	case ^IR_Match:
-		emit_instruction(Wasm_Block{block_type = ir_wasm_type_to_block_type(e.type.wasm_type)}, buf)
+		match_kind := determine_match_kind(e.arms[:])
+		block_type := ir_wasm_type_to_block_type(e.type.wasm_type)
 
-		emit_expr(e.scrutinee, buf, env, runtime_indices)
-		scrutinee_local := env.tmp_local_base + 2
-		emit_instruction(Wasm_Local_Set{index = scrutinee_local}, buf)
+		switch match_kind {
+		case .Tag_Union:
+			emit_instruction(Wasm_Block{block_type = block_type}, buf)
 
-		emit_instruction(Wasm_Local_Get{index = scrutinee_local}, buf)
-		emit_instruction(Wasm_I32_Load8U{offset = CAMP_TAG_TAG_OFFSET}, buf)
+			emit_expr(e.scrutinee, buf, env, runtime_indices)
+			scrutinee_local := env.tmp_local_base + 2
+			emit_instruction(Wasm_Local_Set{index = scrutinee_local}, buf)
 
-		num_arms := len(e.arms)
-		default_target := u32(num_arms - 1)
-		targets := make([]u32, num_arms)
-		for i in 0..<num_arms {
-			targets[i] = u32(i)
-			#partial switch p in e.arms[i].pattern {
-			case ^IR_Pat_Wildcard:
-				default_target = u32(i)
-			case:
+			emit_instruction(Wasm_Local_Get{index = scrutinee_local}, buf)
+			emit_instruction(Wasm_I32_Load8U{offset = CAMP_TAG_TAG_OFFSET}, buf)
+
+			num_arms := len(e.arms)
+			default_target := u32(num_arms - 1)
+			targets := make([]u32, num_arms)
+			for i in 0..<num_arms {
+				targets[i] = u32(i)
+				#partial switch p in e.arms[i].pattern {
+				case ^IR_Pat_Wildcard:
+					default_target = u32(i)
+				case:
+				}
 			}
-		}
 
-		emit_instruction(Wasm_BrTable{targets = targets, default_idx = default_target}, buf)
+			emit_instruction(Wasm_BrTable{targets = targets, default_idx = default_target}, buf)
 
-		for arm_idx in 0..<len(e.arms) {
-			arm := e.arms[arm_idx]
-			emit_instruction(Wasm_Block{block_type = ir_wasm_type_to_block_type(e.type.wasm_type)}, buf)
+			scrutinee_type_id := ir_expr_type_id(e.scrutinee)
 
-			#partial switch p in arm.pattern {
-			case ^IR_Pat_Tag:
-				for j in 0..<len(p.payload) {
-					payload_name := p.payload[j]
+			for arm_idx in 0..<len(e.arms) {
+				arm := e.arms[arm_idx]
+				emit_instruction(Wasm_Block{block_type = block_type}, buf)
+
+				#partial switch p in arm.pattern {
+				case ^IR_Pat_Tag:
+					payload_wasm_types := resolve_tag_payload_wasm_types(env.store, scrutinee_type_id, p.name)
+					for j in 0..<len(p.payload) {
+						payload_name := p.payload[j]
+						emit_instruction(Wasm_Local_Get{index = scrutinee_local}, buf)
+						emit_instruction(Wasm_I32_Const{value = i32(CAMP_TAG_FIELDS_OFFSET + j * 8)}, buf)
+						emit_instruction(Wasm_I32_Add{}, buf)
+						wt : IR_Wasm_Type = .I32
+						if j < len(payload_wasm_types) {
+							wt = payload_wasm_types[j]
+						}
+						emit_load_for_type(wt, buf)
+						if local_idx, ok := env.local_map[payload_name]; ok {
+							emit_instruction(Wasm_Local_Set{index = local_idx}, buf)
+						} else {
+							emit_instruction(Wasm_Drop{}, buf)
+						}
+					}
+				case ^IR_Pat_Var:
 					emit_instruction(Wasm_Local_Get{index = scrutinee_local}, buf)
-					emit_instruction(Wasm_I32_Const{value = i32(CAMP_TAG_FIELDS_OFFSET + j * 8)}, buf)
-					emit_instruction(Wasm_I32_Add{}, buf)
-					emit_instruction(Wasm_I32_Load{align = 2, offset = 0}, buf)
-					if local_idx, ok := env.local_map[payload_name]; ok {
+					if local_idx, ok := env.local_map[p.name]; ok {
 						emit_instruction(Wasm_Local_Set{index = local_idx}, buf)
 					} else {
 						emit_instruction(Wasm_Drop{}, buf)
 					}
+				case ^IR_Pat_Wildcard:
+				case ^IR_Pat_Record:
+				case:
 				}
-			case ^IR_Pat_Var:
-				emit_instruction(Wasm_Local_Get{index = scrutinee_local}, buf)
-				if local_idx, ok := env.local_map[p.name]; ok {
-					emit_instruction(Wasm_Local_Set{index = local_idx}, buf)
-				} else {
-					emit_instruction(Wasm_Drop{}, buf)
-				}
-			case ^IR_Pat_Wildcard:
-			case ^IR_Pat_Record:
+
+				emit_expr(arm.body, buf, env, runtime_indices)
+				emit_instruction(Wasm_Br{label = 1}, buf)
+				emit_instruction(Wasm_End{}, buf)
 			}
 
-			emit_expr(arm.body, buf, env, runtime_indices)
-			emit_instruction(Wasm_Br{label = 1}, buf)
+			emit_instruction(Wasm_Unreachable{}, buf)
+			emit_instruction(Wasm_End{}, buf)
+
+		case .Bool:
+			emit_instruction(Wasm_Block{block_type = block_type}, buf)
+
+			emit_expr(e.scrutinee, buf, env, runtime_indices)
+			scrutinee_local := env.tmp_local_base + 2
+			emit_instruction(Wasm_Local_Set{index = scrutinee_local}, buf)
+
+			for arm_idx in 0..<len(e.arms) {
+				arm := e.arms[arm_idx]
+				is_last := arm_idx == len(e.arms) - 1
+
+				if !is_last {
+					#partial switch p in arm.pattern {
+					case ^IR_Pat_Bool:
+						emit_instruction(Wasm_Local_Get{index = scrutinee_local}, buf)
+						emit_instruction(Wasm_I32_Const{value = i32(p.value)}, buf)
+						emit_instruction(Wasm_I32_Eq{}, buf)
+					case ^IR_Pat_Wildcard, ^IR_Pat_Var:
+						emit_instruction(Wasm_I32_Const{value = 1}, buf)
+					case:
+						emit_instruction(Wasm_I32_Const{value = 1}, buf)
+					}
+					emit_instruction(Wasm_If{block_type = .Void}, buf)
+				}
+
+				#partial switch p in arm.pattern {
+				case ^IR_Pat_Var:
+					emit_instruction(Wasm_Local_Get{index = scrutinee_local}, buf)
+					if local_idx, ok := env.local_map[p.name]; ok {
+						emit_instruction(Wasm_Local_Set{index = local_idx}, buf)
+					} else {
+						emit_instruction(Wasm_Drop{}, buf)
+					}
+				case:
+				}
+
+				emit_expr(arm.body, buf, env, runtime_indices)
+				emit_instruction(Wasm_Br{label = 1}, buf)
+
+				if !is_last {
+					emit_instruction(Wasm_End{}, buf)
+				}
+			}
+
+			emit_instruction(Wasm_Unreachable{}, buf)
+			emit_instruction(Wasm_End{}, buf)
+
+		case .Int:
+			emit_instruction(Wasm_Block{block_type = block_type}, buf)
+
+			emit_expr(e.scrutinee, buf, env, runtime_indices)
+			scrutinee_local := env.next_local
+			append(&env.locals, Wasm_Local_Decl{count = 1, type = .I64})
+			env.next_local += 1
+			emit_instruction(Wasm_Local_Set{index = scrutinee_local}, buf)
+
+			for arm_idx in 0..<len(e.arms) {
+				arm := e.arms[arm_idx]
+				is_last := arm_idx == len(e.arms) - 1
+
+				if !is_last {
+					#partial switch p in arm.pattern {
+					case ^IR_Pat_Int:
+						emit_instruction(Wasm_Local_Get{index = scrutinee_local}, buf)
+						emit_instruction(Wasm_I64_Const{value = p.value}, buf)
+						emit_instruction(Wasm_I64_Eq{}, buf)
+					case ^IR_Pat_Wildcard, ^IR_Pat_Var:
+						emit_instruction(Wasm_I32_Const{value = 1}, buf)
+					case:
+						emit_instruction(Wasm_I32_Const{value = 1}, buf)
+					}
+					emit_instruction(Wasm_If{block_type = .Void}, buf)
+				}
+
+				#partial switch p in arm.pattern {
+				case ^IR_Pat_Var:
+					emit_instruction(Wasm_Local_Get{index = scrutinee_local}, buf)
+					if local_idx, ok := env.local_map[p.name]; ok {
+						emit_instruction(Wasm_Local_Set{index = local_idx}, buf)
+					} else {
+						emit_instruction(Wasm_Drop{}, buf)
+					}
+				case:
+				}
+
+				emit_expr(arm.body, buf, env, runtime_indices)
+				emit_instruction(Wasm_Br{label = 1}, buf)
+
+				if !is_last {
+					emit_instruction(Wasm_End{}, buf)
+				}
+			}
+
+			emit_instruction(Wasm_Unreachable{}, buf)
+			emit_instruction(Wasm_End{}, buf)
+
+		case .String:
+			emit_instruction(Wasm_Block{block_type = block_type}, buf)
+
+			emit_expr(e.scrutinee, buf, env, runtime_indices)
+			scrutinee_local := env.tmp_local_base + 2
+			emit_instruction(Wasm_Local_Set{index = scrutinee_local}, buf)
+
+			for arm_idx in 0..<len(e.arms) {
+				arm := e.arms[arm_idx]
+				is_last := arm_idx == len(e.arms) - 1
+
+				if !is_last {
+					#partial switch p in arm.pattern {
+					case ^IR_Pat_String:
+						emit_instruction(Wasm_Local_Get{index = scrutinee_local}, buf)
+						str_offset, ok := env.string_offsets[p.string_id]
+						if !ok {
+							str_offset = 0
+						}
+						emit_instruction(Wasm_I32_Const{value = i32(str_offset)}, buf)
+						emit_instruction(Wasm_Call{index = u32(runtime_indices[RUNTIME_STR_EQ])}, buf)
+					case ^IR_Pat_Wildcard, ^IR_Pat_Var:
+						emit_instruction(Wasm_I32_Const{value = 1}, buf)
+					case:
+						emit_instruction(Wasm_I32_Const{value = 1}, buf)
+					}
+					emit_instruction(Wasm_If{block_type = .Void}, buf)
+				}
+
+				#partial switch p in arm.pattern {
+				case ^IR_Pat_Var:
+					emit_instruction(Wasm_Local_Get{index = scrutinee_local}, buf)
+					if local_idx, ok := env.local_map[p.name]; ok {
+						emit_instruction(Wasm_Local_Set{index = local_idx}, buf)
+					} else {
+						emit_instruction(Wasm_Drop{}, buf)
+					}
+				case:
+				}
+
+				emit_expr(arm.body, buf, env, runtime_indices)
+				emit_instruction(Wasm_Br{label = 1}, buf)
+
+				if !is_last {
+					emit_instruction(Wasm_End{}, buf)
+				}
+			}
+
+			emit_instruction(Wasm_Unreachable{}, buf)
 			emit_instruction(Wasm_End{}, buf)
 		}
-
-		emit_instruction(Wasm_Unreachable{}, buf)
-		emit_instruction(Wasm_End{}, buf)
 
 	case ^IR_Construct_Tag:
 		num_fields := len(e.payload)
@@ -2132,6 +2334,54 @@ emit_load_for_type :: proc(wasm_type: IR_Wasm_Type, buf: ^[dynamic]u8) {
 	case .F64: emit_instruction(Wasm_F64_Load{align = 3, offset = 0}, buf)
 	case: emit_instruction(Wasm_I32_Load{align = 2, offset = 0}, buf)
 	}
+}
+
+ir_expr_type_id :: proc(expr: IR_Expr) -> Type_Var_ID {
+	if expr == nil do return Type_Var_ID(0)
+	#partial switch e in expr {
+	case ^IR_Literal_Int: return e.type.type_id
+	case ^IR_Literal_Float: return e.type.type_id
+	case ^IR_Literal_Bool: return e.type.type_id
+	case ^IR_Literal_String: return e.type.type_id
+	case ^IR_Var: return e.type.type_id
+	case ^IR_Let: return e.type.type_id
+	case ^IR_Assign: return e.type.type_id
+	case ^IR_Loop: return e.type.type_id
+	case ^IR_Call: return e.type.type_id
+	case ^IR_If: return e.type.type_id
+	case ^IR_Match: return e.type.type_id
+	case ^IR_Field_Access: return e.type.type_id
+	case ^IR_BinOp: return e.type.type_id
+	case ^IR_Closure_Call: return e.type.type_id
+	case ^IR_Resume: return e.type.type_id
+	case:
+		return Type_Var_ID(0)
+	}
+	return Type_Var_ID(0)
+}
+
+resolve_tag_payload_wasm_types :: proc(store: ^Type_Store, scrutinee_type_id: Type_Var_ID, tag_name: Intern_ID) -> []IR_Wasm_Type {
+	resolved := resolve_var(store, scrutinee_type_id)
+	v := get_var(store, resolved)
+	inf, is_inf := v.link.(Inferred_Type)
+	if !is_inf {
+		return nil
+	}
+	if inf.tag == .Newtype {
+		return resolve_tag_payload_wasm_types(store, inf.inner_id, tag_name)
+	}
+	if inf.tag == .Tag_Union_Row {
+		for entry in inf.tag_entries {
+			if entry.name == tag_name {
+				types := make([]IR_Wasm_Type, len(entry.payload))
+				for i in 0..<len(entry.payload) {
+					types[i] = lower_type(store, entry.payload[i]).wasm_type
+				}
+				return types
+			}
+		}
+	}
+	return nil
 }
 
 emit_handler_into_evidence :: proc(buf: ^[dynamic]u8, env: ^Codegen_Env, ev_local_idx: int, slot_offset: int, fn_idx: int, runtime_indices: []int) {
