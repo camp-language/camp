@@ -1,0 +1,12 @@
+stdout = """
+canonicalized /tmp/camp-e2e/effects/effect-unhandled/src/Main.camp: 2 declaration(s), 0 import(s)
+-- UNHANDLED EFFECT --- /tmp/camp-e2e/effects/effect-unhandled/src/Main.camp
+
+This expression performs effect `Ask`, but there is no `handle` block around it.
+   3 |   Ask.read!()
+             ^^^^
+  Try wrapping it with a `handle` block.
+compilation failed with 1 error(s)
+"""
+stderr = ""
+exit = 1

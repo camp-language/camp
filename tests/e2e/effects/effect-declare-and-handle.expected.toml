@@ -1,7 +1,0 @@
-stdout = """
-canonicalized /tmp/camp-e2e/effects/effect-declare-and-handle/effect-declare-and-handle.camp: 2 declaration(s), 0 import(s)
-typecheck passed for /tmp/camp-e2e/effects/effect-declare-and-handle/effect-declare-and-handle.camp
-compiled /tmp/camp-e2e/effects/effect-declare-and-handle/effect-declare-and-handle.camp -> /tmp/camp-e2e/effects/effect-declare-and-handle/effect-declare-and-handle.wasm
-"""
-stderr = ""
-exit = 0

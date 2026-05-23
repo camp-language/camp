@@ -1,7 +1,0 @@
-stdout = """
-canonicalized /tmp/camp-e2e/pattern-matching/match-int-literal/match-int-literal.camp: 1 declaration(s), 0 import(s)
-typecheck passed for /tmp/camp-e2e/pattern-matching/match-int-literal/match-int-literal.camp
-compiled /tmp/camp-e2e/pattern-matching/match-int-literal/match-int-literal.camp -> /tmp/camp-e2e/pattern-matching/match-int-literal/match-int-literal.wasm
-"""
-stderr = ""
-exit = 0

@@ -59,10 +59,20 @@ You are an AI assistant helping develop the Camp programming language - a strict
 | Packages | `openspec/specs/packages/spec.md` | `openspec/specs/packages/design.md` |
 | Parallelism | `openspec/specs/parallelism/spec.md` | `openspec/specs/parallelism/design.md` |
 
+## Kitchen Sink Test
+
+`tests/e2e/language/kitchen-sink/Main.camp` is the **living example** of every Camp language feature. It MUST stay up to date as the language evolves.
+
+- When adding a language feature, update the kitchen-sink test to exercise it
+- When changing syntax, update the kitchen-sink test to match
+- The test currently expects compiler errors (spec syntax not yet fully implemented); as the compiler catches up, update `expected.toml` via `just update-snapshots`
+- The test covers: primitives, tag unions, records, nominal types, type aliases, functions, generics, traits, UFCS, effects, handlers, Throw!, pattern matching, mutable variables, logic operators, dot lambdas, strings, inline annotations, visibility, raw identifiers, par blocks, prelude effects, and main!
+
 ## File Locations
 
 - Compiler: `src/` (Odin)
-- Tests: `tests/` and `src/*/test.odin`
+- Tests: `tests/e2e/` (directory-based: `<category>/<name>/Main.camp` + `expected.toml`)
+- Kitchen Sink: `tests/e2e/language/kitchen-sink/Main.camp`
 - Grammar: `tree-sitter/`
 - Specs: `openspec/specs/`
 - Build: `justfile` for common commands
@@ -86,8 +96,16 @@ just test-e2e
 just update-snapshots
 ```
 
-## Retry Discipline
+## E2E Test Format
 
+Each e2e test is a directory under `tests/e2e/<category>/<name>/` containing:
+- `Main.camp` — entry point (must define `main!`)
+- `expected.toml` — expected compiler/runtime output
+- Additional `.camp` files for multi-module tests
+
+Single-module tests use `camp build src/Main.camp`. Multi-module tests use `camp build` in project mode (the runner auto-detects).
+
+## Retry Discipline
 If a command returns unexpected or ambiguous output **more than twice**, stop and investigate the cause instead of blindly retrying. Changing nothing and re-running is never productive.
 
 ## When in Doubt

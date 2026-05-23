@@ -1,0 +1,46 @@
+stdout = """
+-- SYNTAX ERROR --- /tmp/camp-e2e/execution/multi-decl/src/Main.camp
+
+I expected `=` here, but I got `!` instead.
+   3 | main!! = || -> I64 {
+            ^
+
+-- SYNTAX ERROR --- /tmp/camp-e2e/execution/multi-decl/src/Main.camp
+
+I was not expecting `=` here.
+   3 | main!! = || -> I64 {
+              ^
+
+-- SYNTAX ERROR --- /tmp/camp-e2e/execution/multi-decl/src/Main.camp
+
+I expected `=` here, but I got `|` instead.
+   3 | main!! = || -> I64 {
+                 ^
+
+-- SYNTAX ERROR --- /tmp/camp-e2e/execution/multi-decl/src/Main.camp
+
+I was not expecting `->` here.
+   3 | main!! = || -> I64 {
+                   ^^
+
+-- SYNTAX ERROR --- /tmp/camp-e2e/execution/multi-decl/src/Main.camp
+
+I expected `=` here, but I got `{` instead.
+   3 | main!! = || -> I64 {
+                          ^
+
+-- SYNTAX ERROR --- /tmp/camp-e2e/execution/multi-decl/src/Main.camp
+
+I expected `=` here, but I got `` instead.
+   5 | }
+        ^
+
+-- SYNTAX ERROR --- /tmp/camp-e2e/execution/multi-decl/src/Main.camp
+
+I was not expecting `` here.
+   5 | }
+        ^
+compilation failed with 7 error(s)
+"""
+stderr = ""
+exit = 1

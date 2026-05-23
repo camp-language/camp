@@ -1,0 +1,7 @@
+stdout = """
+canonicalized /tmp/camp-e2e/scheduler/parallel-map/src/Main.camp: 1 declaration(s), 0 import(s)
+typecheck passed for /tmp/camp-e2e/scheduler/parallel-map/src/Main.camp
+compiled /tmp/camp-e2e/scheduler/parallel-map/src/Main.camp -> /tmp/camp-e2e/scheduler/parallel-map/src/Main.wasm
+"""
+stderr = ""
+exit = 0

@@ -1,0 +1,5 @@
+stdout = """
+canonicalized /tmp/camp-e2e/generics/generic-list-map/src/Main.camp: 1 declaration(s), 0 import(s)
+"""
+stderr = ""
+exit = 11

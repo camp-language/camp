@@ -1,0 +1,28 @@
+stdout = """
+-- SYNTAX ERROR --- /tmp/camp-e2e/generics/generic-with-constraint/src/Main.camp
+
+I expected `=` here, but I got `x` instead.
+   1 | f = (x) { x + 1 }
+                 ^
+
+-- SYNTAX ERROR --- /tmp/camp-e2e/generics/generic-with-constraint/src/Main.camp
+
+I was not expecting `+` here.
+   1 | f = (x) { x + 1 }
+                   ^
+
+-- SYNTAX ERROR --- /tmp/camp-e2e/generics/generic-with-constraint/src/Main.camp
+
+I expected `=` here, but I got `}` instead.
+   1 | f = (x) { x + 1 }
+                       ^
+
+-- SYNTAX ERROR --- /tmp/camp-e2e/generics/generic-with-constraint/src/Main.camp
+
+I was not expecting `` here.
+   2 | 
+       ^
+compilation failed with 4 error(s)
+"""
+stderr = ""
+exit = 1

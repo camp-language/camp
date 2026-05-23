@@ -1,0 +1,16 @@
+stdout = """
+-- SYNTAX ERROR --- /tmp/camp-e2e/closures/closure-free-var/src/Main.camp
+
+I was not expecting `)` here.
+   1 | main! = || -> I64 { x = 10 f = () -> I64 { x } f() }
+                                       ^
+
+-- SYNTAX ERROR --- /tmp/camp-e2e/closures/closure-free-var/src/Main.camp
+
+I expected `)` here, but I got `->` instead.
+   1 | main! = || -> I64 { x = 10 f = () -> I64 { x } f() }
+                                         ^^
+compilation failed with 2 error(s)
+"""
+stderr = ""
+exit = 1

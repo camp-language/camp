@@ -1,0 +1,34 @@
+stdout = """
+-- SYNTAX ERROR --- /tmp/camp-e2e/generics/generic-function-compose/src/Main.camp
+
+I expected `)` here, but I got `,` instead.
+   1 | compose = (f, g, x) { f(g(x)) }
+                   ^
+
+-- SYNTAX ERROR --- /tmp/camp-e2e/generics/generic-function-compose/src/Main.camp
+
+I expected `=` here, but I got `,` instead.
+   1 | compose = (f, g, x) { f(g(x)) }
+                      ^
+
+-- SYNTAX ERROR --- /tmp/camp-e2e/generics/generic-function-compose/src/Main.camp
+
+I expected `=` here, but I got `{` instead.
+   1 | compose = (f, g, x) { f(g(x)) }
+                           ^
+
+-- SYNTAX ERROR --- /tmp/camp-e2e/generics/generic-function-compose/src/Main.camp
+
+I expected `=` here, but I got `` instead.
+   2 | 
+       ^
+
+-- SYNTAX ERROR --- /tmp/camp-e2e/generics/generic-function-compose/src/Main.camp
+
+I was not expecting `` here.
+   2 | 
+       ^
+compilation failed with 5 error(s)
+"""
+stderr = ""
+exit = 1

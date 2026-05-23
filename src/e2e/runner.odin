@@ -10,8 +10,9 @@ import "core:time"
 E2E_Test :: struct {
 	category:      string,
 	name:          string,
-	camp_path:     string,
+	test_dir:      string,
 	expected_path: string,
+	is_multi_module: bool,
 }
 
 Test_Result :: enum {
@@ -49,50 +50,119 @@ discover_tests :: proc(root: string, filter: string, allocator: mem.Allocator) -
 		if cat_err2 != nil { continue }
 		defer delete(cat_path, allocator)
 
-		files, file_err := os.read_all_directory_by_path(cat_path, allocator)
-		if file_err != nil { continue }
-		defer os.file_info_slice_delete(files, allocator)
+		test_dirs, td_err := os.read_all_directory_by_path(cat_path, allocator)
+		if td_err != nil { continue }
+		defer os.file_info_slice_delete(test_dirs, allocator)
 
-		for fi in files {
-			if fi.type != .Regular { continue }
-			if filepath.ext(fi.name) != ".camp" { continue }
+		for fi in test_dirs {
+			if fi.type != .Directory { continue }
+			test_name := fi.name
+			if test_name == "." || test_name == ".." { continue }
 
-			name := filepath.stem(fi.name)
-			expected_name := fmt.tprintf("{}.expected.toml", name)
-			expected_path, ep_err := filepath.join({cat_path, expected_name}, allocator)
-			if ep_err != nil { continue }
+			test_dir_path, tdpe_err := filepath.join({cat_path, test_name}, allocator)
+			if tdpe_err != nil { continue }
+			defer delete(test_dir_path, allocator)
+
+			expected_path, ep_err := filepath.join({test_dir_path, "expected.toml"}, allocator)
+			if ep_err != nil {
+				delete(test_dir_path, allocator)
+				continue
+			}
 
 			if !os.exists(expected_path) {
 				delete(expected_path, allocator)
+				delete(test_dir_path, allocator)
 				continue
 			}
 
-			camp_file_path, cp_err := filepath.join({cat_path, fi.name}, allocator)
-			if cp_err != nil {
+			main_camp_path, mc_err := filepath.join({test_dir_path, "Main.camp"}, allocator)
+			if mc_err != nil {
 				delete(expected_path, allocator)
+				delete(test_dir_path, allocator)
 				continue
 			}
 
-			category_name := fmt.tprintf("{}/{}", category, name)
+			if !os.exists(main_camp_path) {
+				delete(main_camp_path, allocator)
+				delete(expected_path, allocator)
+				delete(test_dir_path, allocator)
+				continue
+			}
+			delete(main_camp_path, allocator)
+
+			category_name := fmt.tprintf("{}/{}", category, test_name)
 			if filter != "" && !strings.contains(category_name, filter) {
-				delete(camp_file_path, allocator)
 				delete(expected_path, allocator)
+				delete(test_dir_path, allocator)
 				continue
 			}
 
 			cat_clone, _ := strings.clone(category, allocator)
-			name_clone, _ := strings.clone(name, allocator)
+			name_clone, _ := strings.clone(test_name, allocator)
+			dir_clone, _ := strings.clone(test_dir_path, allocator)
+			exp_clone, _ := strings.clone(expected_path, allocator)
+
+			is_multi := count_camp_files(test_dir_path, allocator) > 1
 
 			append(&tests, E2E_Test{
-				category      = cat_clone,
-				name          = name_clone,
-				camp_path     = camp_file_path,
-				expected_path = expected_path,
+				category       = cat_clone,
+				name           = name_clone,
+				test_dir       = dir_clone,
+				expected_path  = exp_clone,
+				is_multi_module = is_multi,
 			})
 		}
 	}
 
 	return tests
+}
+
+copy_dir_recursive :: proc(dst: string, src: string) -> os.Error {
+	infos, err := os.read_all_directory_by_path(src, context.allocator)
+	if err != nil {
+		return err
+	}
+	defer os.file_info_slice_delete(infos, context.allocator)
+
+	os.make_directory_all(dst)
+
+	for fi in infos {
+		if fi.name == "." || fi.name == ".." { continue }
+
+		src_path, sp_err := filepath.join({src, fi.name}, context.allocator)
+		if sp_err != nil { return sp_err }
+		defer delete(src_path, context.allocator)
+
+		dst_path, dp_err := filepath.join({dst, fi.name}, context.allocator)
+		if dp_err != nil { return dp_err }
+		defer delete(dst_path, context.allocator)
+
+		if fi.type == .Directory {
+			copy_err := copy_dir_recursive(dst_path, src_path)
+			if copy_err != nil { return copy_err }
+		} else if fi.type == .Regular {
+			copy_err := os.copy_file(dst_path, src_path)
+			if copy_err != nil { return copy_err }
+		}
+	}
+
+	return nil
+}
+
+count_camp_files :: proc(dir: string, allocator: mem.Allocator) -> int {
+	infos, err := os.read_all_directory_by_path(dir, allocator)
+	if err != nil {
+		return 0
+	}
+	defer os.file_info_slice_delete(infos, allocator)
+
+	count := 0
+	for fi in infos {
+		if fi.type == .Regular && strings.has_suffix(fi.name, ".camp") {
+			count += 1
+		}
+	}
+	return count
 }
 
 run_test :: proc(test: E2E_Test, update: bool) -> Test_Report {
@@ -107,18 +177,17 @@ run_test :: proc(test: E2E_Test, update: bool) -> Test_Report {
 	}
 	os.make_directory_all(tmp_base)
 
-	camp_filename := fmt.tprintf("{}.camp", test.name)
-	tmp_camp, tc_err := filepath.join({tmp_base, camp_filename}, context.allocator)
-	if tc_err != nil {
+	tmp_src, ts_err := filepath.join({tmp_base, "src"}, context.allocator)
+	if ts_err != nil {
 		report.result = .Fail
-		report.diff = "  setup: could not build camp temp path"
+		report.diff = "  setup: could not build src temp path"
 		return report
 	}
 
-	copy_err := os.copy_file(tmp_camp, test.camp_path)
+	copy_err := copy_dir_recursive(tmp_src, test.test_dir)
 	if copy_err != nil {
 		report.result = .Fail
-		report.diff = fmt.tprintf("  setup: could not copy camp file: {}", copy_err)
+		report.diff = fmt.tprintf("  setup: could not copy test directory: {}", copy_err)
 		return report
 	}
 
@@ -142,12 +211,22 @@ run_test :: proc(test: E2E_Test, update: bool) -> Test_Report {
 	if has_args {
 		#partial switch a in args_val {
 		case string:
-			stdout_str, stderr_str, exit_code = run_special_command(a, tmp_base, camp_filename, unique_prefix)
+			stdout_str, stderr_str, exit_code = run_special_command(a, tmp_base, unique_prefix)
 		}
 	}
 
 	if !has_args {
-		stdout_str, stderr_str, exit_code = run_camp_build(tmp_camp, unique_prefix)
+		if test.is_multi_module {
+			stdout_str, stderr_str, exit_code = run_camp_project(tmp_base, unique_prefix)
+		} else {
+			tmp_main, tm_err := filepath.join({tmp_src, "Main.camp"}, context.allocator)
+			if tm_err != nil {
+				report.result = .Fail
+				report.diff = "  setup: could not build Main.camp path"
+				return report
+			}
+			stdout_str, stderr_str, exit_code = run_camp_build(tmp_main, unique_prefix)
+		}
 	}
 
 	report.actual_stdout = stdout_str
@@ -163,12 +242,17 @@ run_test :: proc(test: E2E_Test, update: bool) -> Test_Report {
 	_, has_wasm_exit := toml_get(&expected_dict, "wasm_exit")
 	if has_wasm_exit && exit_code == 0 {
 		has_wasm = true
-		wasm_filename := fmt.tprintf("{}.wasm", test.name)
-		tmp_wasm, tw_err := filepath.join({tmp_base, wasm_filename}, context.allocator)
+		wasm_path: string
+		tw_err: os.Error
+		if test.is_multi_module {
+			wasm_path, tw_err = filepath.join({tmp_base, "a.wasm"}, context.allocator)
+		} else {
+			wasm_path, tw_err = filepath.join({tmp_src, "Main.wasm"}, context.allocator)
+		}
 		if tw_err != nil {
 			has_wasm = false
 		} else {
-			wasm_stdout, wasm_stderr, wasm_exit, wasm_available = run_wasmtime(tmp_wasm, unique_prefix)
+			wasm_stdout, wasm_stderr, wasm_exit, wasm_available = run_wasmtime(wasm_path, unique_prefix)
 		}
 	}
 
@@ -282,7 +366,7 @@ run_command :: proc(command: []string) -> (stdout: string, stderr: string, exit_
 	return run_command_prefixed(command, "")
 }
 
-run_command_prefixed :: proc(command: []string, prefix: string) -> (stdout: string, stderr: string, exit_code: int) {
+run_command_prefixed :: proc(command: []string, prefix: string, cwd: string = "") -> (stdout: string, stderr: string, exit_code: int) {
 	pid := os.get_pid()
 	stdout_path: string
 	stderr_path: string
@@ -307,6 +391,7 @@ run_command_prefixed :: proc(command: []string, prefix: string) -> (stdout: stri
 	defer os.close(stderr_f)
 
 	start_proc, start_err := os.process_start(os.Process_Desc{
+		working_dir = cwd,
 		command = command,
 		stdout = stdout_f,
 		stderr = stderr_f,
@@ -345,6 +430,17 @@ run_command_prefixed :: proc(command: []string, prefix: string) -> (stdout: stri
 	return
 }
 
+run_camp_project :: proc(project_dir: string, unique_prefix: string) -> (stdout: string, stderr: string, exit_code: int) {
+	camp_env := os.get_env("CAMP_BIN", context.allocator)
+	camp_bin: string
+	if len(camp_env) > 0 {
+		camp_bin = camp_env
+	} else {
+		camp_bin = "./camp"
+	}
+	return run_command_prefixed({camp_bin, "build"}, unique_prefix, cwd = project_dir)
+}
+
 run_camp_build :: proc(camp_path: string, unique_prefix: string) -> (stdout: string, stderr: string, exit_code: int) {
 	camp_env := os.get_env("CAMP_BIN", context.allocator)
 	camp_bin: string
@@ -375,7 +471,7 @@ run_wasmtime :: proc(wasm_path: string, unique_prefix: string) -> (stdout: strin
 	return
 }
 
-run_special_command :: proc(args: string, tmp_base: string, camp_filename: string, unique_prefix: string) -> (stdout: string, stderr: string, exit_code: int) {
+run_special_command :: proc(args: string, tmp_base: string, unique_prefix: string) -> (stdout: string, stderr: string, exit_code: int) {
 	switch args {
 	case "no-args":
 		return run_command_prefixed({"./camp"}, fmt.tprintf("{}-noargs", unique_prefix))
@@ -384,7 +480,7 @@ run_special_command :: proc(args: string, tmp_base: string, camp_filename: strin
 		return run_command_prefixed({"./camp", "foo"}, fmt.tprintf("{}-unknown", unique_prefix))
 
 	case "build-non-camp":
-		txt_path, tp_err := filepath.join({tmp_base, "test.txt"}, context.allocator)
+		txt_path, tp_err := filepath.join({tmp_base, "src", "test.txt"}, context.allocator)
 		if tp_err != nil {
 			return "", fmt.tprintf("failed to build path: {}", tp_err), 1
 		}

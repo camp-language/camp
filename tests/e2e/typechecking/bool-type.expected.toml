@@ -1,7 +1,0 @@
-stdout = """
-canonicalized /tmp/camp-e2e/typechecking/bool-type/bool-type.camp: 2 declaration(s), 0 import(s)
-typecheck passed for /tmp/camp-e2e/typechecking/bool-type/bool-type.camp
-compiled /tmp/camp-e2e/typechecking/bool-type/bool-type.camp -> /tmp/camp-e2e/typechecking/bool-type/bool-type.wasm
-"""
-stderr = ""
-exit = 0

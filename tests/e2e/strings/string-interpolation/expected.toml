@@ -1,0 +1,52 @@
+stdout = """
+-- SYNTAX ERROR --- /tmp/camp-e2e/strings/string-interpolation/src/Main.camp
+
+I expected `=` here, but I got `!` instead.
+   1 | main!! = || -> I64 {
+            ^
+
+-- SYNTAX ERROR --- /tmp/camp-e2e/strings/string-interpolation/src/Main.camp
+
+I was not expecting `=` here.
+   1 | main!! = || -> I64 {
+              ^
+
+-- SYNTAX ERROR --- /tmp/camp-e2e/strings/string-interpolation/src/Main.camp
+
+I expected `=` here, but I got `|` instead.
+   1 | main!! = || -> I64 {
+                 ^
+
+-- SYNTAX ERROR --- /tmp/camp-e2e/strings/string-interpolation/src/Main.camp
+
+I was not expecting `->` here.
+   1 | main!! = || -> I64 {
+                   ^^
+
+-- SYNTAX ERROR --- /tmp/camp-e2e/strings/string-interpolation/src/Main.camp
+
+I expected `=` here, but I got `{` instead.
+   1 | main!! = || -> I64 {
+                          ^
+
+-- SYNTAX ERROR --- /tmp/camp-e2e/strings/string-interpolation/src/Main.camp
+
+I expected `=` here, but I got `42` instead.
+   2 |     x = 42
+               ^^
+
+-- SYNTAX ERROR --- /tmp/camp-e2e/strings/string-interpolation/src/Main.camp
+
+I expected `=` here, but I got `}` instead.
+   5 | }
+       ^
+
+-- SYNTAX ERROR --- /tmp/camp-e2e/strings/string-interpolation/src/Main.camp
+
+I was not expecting `` here.
+   5 | }
+        ^
+compilation failed with 8 error(s)
+"""
+stderr = ""
+exit = 1

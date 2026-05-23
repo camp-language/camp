@@ -1,7 +1,0 @@
-stdout = """
-canonicalized /tmp/camp-e2e/pattern-matching/match-bool/match-bool.camp: 1 declaration(s), 0 import(s)
-typecheck passed for /tmp/camp-e2e/pattern-matching/match-bool/match-bool.camp
-compiled /tmp/camp-e2e/pattern-matching/match-bool/match-bool.camp -> /tmp/camp-e2e/pattern-matching/match-bool/match-bool.wasm
-"""
-stderr = ""
-exit = 0

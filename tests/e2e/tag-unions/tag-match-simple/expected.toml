@@ -1,0 +1,16 @@
+stdout = """
+-- SYNTAX ERROR --- /tmp/camp-e2e/tag-unions/tag-match-simple/src/Main.camp
+
+I expected `=>` here, but I got `->` instead.
+   1 | main! = || -> I64 { x = Ok(42) match x { Ok(v) -> v | Error(e) -> 0 } }
+                                                      ^^
+
+-- SYNTAX ERROR --- /tmp/camp-e2e/tag-unions/tag-match-simple/src/Main.camp
+
+I expected `=>` here, but I got `->` instead.
+   1 | main! = || -> I64 { x = Ok(42) match x { Ok(v) -> v | Error(e) -> 0 } }
+                                                                      ^^
+compilation failed with 2 error(s)
+"""
+stderr = ""
+exit = 1

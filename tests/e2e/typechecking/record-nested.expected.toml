@@ -1,7 +1,0 @@
-stdout = """
-canonicalized /tmp/camp-e2e/typechecking/record-nested/record-nested.camp: 1 declaration(s), 0 import(s)
-typecheck passed for /tmp/camp-e2e/typechecking/record-nested/record-nested.camp
-compiled /tmp/camp-e2e/typechecking/record-nested/record-nested.camp -> /tmp/camp-e2e/typechecking/record-nested/record-nested.wasm
-"""
-stderr = ""
-exit = 0

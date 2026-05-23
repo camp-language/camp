@@ -1,0 +1,58 @@
+stdout = """
+-- SYNTAX ERROR --- /tmp/camp-e2e/closures/partial-application/src/Main.camp
+
+I expected `)` here, but I got `,` instead.
+   1 | add = (a, b) -> I64 { a + b }
+               ^
+
+-- SYNTAX ERROR --- /tmp/camp-e2e/closures/partial-application/src/Main.camp
+
+I expected `=` here, but I got `)` instead.
+   1 | add = (a, b) -> I64 { a + b }
+                  ^
+
+-- SYNTAX ERROR --- /tmp/camp-e2e/closures/partial-application/src/Main.camp
+
+I was not expecting `->` here.
+   1 | add = (a, b) -> I64 { a + b }
+                    ^^
+
+-- SYNTAX ERROR --- /tmp/camp-e2e/closures/partial-application/src/Main.camp
+
+I expected `=` here, but I got `{` instead.
+   1 | add = (a, b) -> I64 { a + b }
+                           ^
+
+-- SYNTAX ERROR --- /tmp/camp-e2e/closures/partial-application/src/Main.camp
+
+I expected `=` here, but I got `inc` instead.
+   2 | inc = add(1, _)
+       ^^^
+
+-- SYNTAX ERROR --- /tmp/camp-e2e/closures/partial-application/src/Main.camp
+
+I was not expecting `=` here.
+   2 | inc = add(1, _)
+           ^
+
+-- SYNTAX ERROR --- /tmp/camp-e2e/closures/partial-application/src/Main.camp
+
+I expected `=` here, but I got `(` instead.
+   2 | inc = add(1, _)
+                ^
+
+-- SYNTAX ERROR --- /tmp/camp-e2e/closures/partial-application/src/Main.camp
+
+I expected `=` here, but I got `_` instead.
+   2 | inc = add(1, _)
+                    ^
+
+-- SYNTAX ERROR --- /tmp/camp-e2e/closures/partial-application/src/Main.camp
+
+I was not expecting `)` here.
+   2 | inc = add(1, _)
+                     ^
+compilation failed with 9 error(s)
+"""
+stderr = ""
+exit = 1

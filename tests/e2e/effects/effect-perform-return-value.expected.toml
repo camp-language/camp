@@ -1,7 +1,0 @@
-stdout = """
-canonicalized /tmp/camp-e2e/effects/effect-perform-return-value/effect-perform-return-value.camp: 2 declaration(s), 0 import(s)
-typecheck passed for /tmp/camp-e2e/effects/effect-perform-return-value/effect-perform-return-value.camp
-compiled /tmp/camp-e2e/effects/effect-perform-return-value/effect-perform-return-value.camp -> /tmp/camp-e2e/effects/effect-perform-return-value/effect-perform-return-value.wasm
-"""
-stderr = ""
-exit = 0

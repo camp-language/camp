@@ -1,7 +1,0 @@
-stdout = """
-canonicalized /tmp/camp-e2e/typechecking/record-literal/record-literal.camp: 1 declaration(s), 0 import(s)
-typecheck passed for /tmp/camp-e2e/typechecking/record-literal/record-literal.camp
-compiled /tmp/camp-e2e/typechecking/record-literal/record-literal.camp -> /tmp/camp-e2e/typechecking/record-literal/record-literal.wasm
-"""
-stderr = ""
-exit = 0

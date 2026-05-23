@@ -1,7 +1,0 @@
-stdout = """
-canonicalized /tmp/camp-e2e/effects/effect-handler-resume-twice/effect-handler-resume-twice.camp: 2 declaration(s), 0 import(s)
-typecheck passed for /tmp/camp-e2e/effects/effect-handler-resume-twice/effect-handler-resume-twice.camp
-compiled /tmp/camp-e2e/effects/effect-handler-resume-twice/effect-handler-resume-twice.camp -> /tmp/camp-e2e/effects/effect-handler-resume-twice/effect-handler-resume-twice.wasm
-"""
-stderr = ""
-exit = 0

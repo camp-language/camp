@@ -1,0 +1,16 @@
+stdout = """
+-- SYNTAX ERROR --- /tmp/camp-e2e/typechecking/higher-order-function/src/Main.camp
+
+I expected `)` here, but I got `,` instead.
+   1 | apply = (f, x) { f(x) }
+                 ^
+
+-- SYNTAX ERROR --- /tmp/camp-e2e/typechecking/higher-order-function/src/Main.camp
+
+I expected `=` here, but I got `)` instead.
+   1 | apply = (f, x) { f(x) }
+                    ^
+compilation failed with 2 error(s)
+"""
+stderr = ""
+exit = 1

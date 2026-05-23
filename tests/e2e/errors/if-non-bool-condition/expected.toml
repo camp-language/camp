@@ -1,0 +1,13 @@
+stdout = """
+canonicalized /tmp/camp-e2e/errors/if-non-bool-condition/src/Main.camp: 1 declaration(s), 0 import(s)
+-- TYPE MISMATCH --- /tmp/camp-e2e/errors/if-non-bool-condition/src/Main.camp
+
+`I64` does not match `Bool`.
+   1 | x = if 42 1 else 0
+              ^^
+   1 | x = if 42 1 else 0
+           ~~ this has type `Bool`
+compilation failed with 1 error(s)
+"""
+stderr = ""
+exit = 1

@@ -1,0 +1,16 @@
+stdout = """
+-- SYNTAX ERROR --- /tmp/camp-e2e/generics/basic/src/Main.camp
+
+I was not expecting `<` here.
+   1 | id = <a>|x: a| -> a { x }
+            ^
+
+-- SYNTAX ERROR --- /tmp/camp-e2e/generics/basic/src/Main.camp
+
+I expected `=` here, but I got `>` instead.
+   1 | id = <a>|x: a| -> a { x }
+              ^
+compilation failed with 2 error(s)
+"""
+stderr = ""
+exit = 1

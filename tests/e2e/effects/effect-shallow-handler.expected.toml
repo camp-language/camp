@@ -1,7 +1,0 @@
-stdout = """
-canonicalized /tmp/camp-e2e/effects/effect-shallow-handler/effect-shallow-handler.camp: 2 declaration(s), 0 import(s)
-typecheck passed for /tmp/camp-e2e/effects/effect-shallow-handler/effect-shallow-handler.camp
-compiled /tmp/camp-e2e/effects/effect-shallow-handler/effect-shallow-handler.camp -> /tmp/camp-e2e/effects/effect-shallow-handler/effect-shallow-handler.wasm
-"""
-stderr = ""
-exit = 0

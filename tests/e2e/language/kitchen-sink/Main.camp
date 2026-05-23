@@ -1,0 +1,323 @@
+-- kitchen-sink/Main.camp
+-- The living example of every Camp language feature.
+-- This file MUST compile and pass as the compiler implements each feature.
+-- When adding a language feature, update this file to exercise it.
+-- See AGENTS.md for the maintenance contract.
+
+-- ============================================================
+-- SECTION: Primitive Types
+-- Demonstrates: I8, I16, I32, I64, U8, U16, U32, U64, F32, F64, Bool
+-- Integer literal default: I64. Float literal default: F64.
+-- Explicit type override on literal.
+-- ============================================================
+
+primitives_demo = || -> I64 {
+  i8_val: I8 = 127
+  i16_val: I16 = 32767
+  i32_val: I32 = 2147483647
+  i64_val: I64 = 42
+  u8_val: U8 = 255
+  u16_val: U16 = 65535
+  u32_val: U32 = 4294967295
+  u64_val: U64 = 100
+  f32_val: F32 = 3.14
+  f64_val: F64 = 2.718281828
+  bool_val: Bool = True
+  i64_val
+}
+
+-- ============================================================
+-- SECTION: Tag Unions (Structural, Roc-style)
+-- Demonstrates: tags with/without payload, closed/open/fully-open
+-- union types, variant set inference, case-based disambiguation
+-- ============================================================
+
+-- Tag construction: bare UpperCamelCase, no # prefix
+Ok(42)
+Err("fail")
+None
+True
+
+-- Closed tag union type: [Ok(a) | Err(e)]
+-- Open tag union type: [Ok(a) | Err(e) | ..rest]
+-- Fully open tag union type: [..]
+
+-- ============================================================
+-- SECTION: Nominal Types
+-- Demonstrates: @ prefix, construction, destruction, tag ownership,
+-- pub variants, parameterized nominal types, one per module,
+-- is/derives clauses, encapsulation
+-- ============================================================
+
+-- @UserId : U64                              -- simple nominal type
+-- @UserId is Eq : U64                        -- with trait conformance
+-- @UserId is Ord derives Eq, Hash : U64     -- is before derives
+-- @Result(a, e) : [Ok(a) | Err(e)]          -- parameterized, wrapping tag union
+-- @Result(a, e) : pub [Ok(a) | Err(e)]      -- pub exposes variants
+-- @User : { name: Str, age: U64 }            -- wrapping a record
+
+-- Construction: @UserId(42)
+-- Destruction: match uid { @UserId(n) => n }
+-- Type annotation: x : UserId (NOT x : @UserId)
+
+-- ============================================================
+-- SECTION: Type Aliases (Transparent)
+-- Demonstrates: : syntax, no @ prefix, structural unification
+-- ============================================================
+
+-- IntList : List(I64)
+-- Coords : { x: F64, y: F64 }
+-- Maybe(a) : [Just(a) | Nothing]
+
+-- ============================================================
+-- SECTION: Records (Structural, Row-Polymorphic)
+-- Demonstrates: construction, field access, functional update,
+-- row polymorphism, open/closed, field order insignificance
+-- ============================================================
+
+-- { name: Str, age: U64 }           -- closed type
+-- { name: Str, .. }                 -- open type
+-- { name: Str, ..rest }             -- open with row variable
+-- { name: "Camp", age: 1 }         -- construction
+-- { ..record, name: "new" }         -- functional update
+-- { name, age } = record            -- closed destructuring
+-- { name, .. } = record             -- open destructuring
+-- record.name                        -- field access
+
+-- Row polymorphism: greet = |person: { name: Str, .. }| -> Str { ... }
+
+-- ============================================================
+-- SECTION: Functions
+-- Demonstrates: |args| body syntax, named/anonymous, block bodies,
+-- ! suffix for effectful, generic type params
+-- ============================================================
+
+add = |x: I64, y: I64| -> I64 { x + y }
+
+-- Anonymous lambda: |x| x + 1
+-- Effectful function: read_line! = || -> -[Console!]-> Str { ... }
+-- Generic: add = <a>|x: a, y: a| -> a { x + y }
+
+-- ============================================================
+-- SECTION: Effectful Function Naming
+-- Demonstrates: ! suffix on effectful names, enforced by compiler
+-- ============================================================
+
+-- A function with non-empty effect row MUST have ! in its name
+-- A function named without ! MUST have empty effect row
+-- Effect type names also end with !: Console!, Throw!, Async!
+
+-- ============================================================
+-- SECTION: Logic Operators
+-- Demonstrates: and/or keywords, no && or ||
+-- ============================================================
+
+logic_demo = || -> I64 {
+  t: Bool = True and True
+  f: Bool = True and False
+  o: Bool = False or True
+  match t and o {
+    True => 1,
+    False => 0,
+  }
+}
+
+-- ============================================================
+-- SECTION: Mutable Variables
+-- Demonstrates: $ prefix at declaration and every use site,
+-- stack-local only, no shadowing across scopes
+-- ============================================================
+
+-- $total = 0          -- declaration
+-- $total = $total + 1 -- reassignment
+-- $ prefix banned on immutable bindings
+
+-- ============================================================
+-- SECTION: Dot Lambdas
+-- Demonstrates: .field, .method(args), effect row propagation
+-- ============================================================
+
+-- .name           desugars to |a| a.name
+-- .foo(x)         desugars to |a| a.foo(x)
+-- .read!()        desugars to |a| a.read!()  (effectful)
+-- .. is spread, not double dot lambda
+
+-- ============================================================
+-- SECTION: Traits
+-- Demonstrates: structural record type aliases, is declaration,
+-- derives, tree inheritance, orphan rule, UFCS dispatch
+-- ============================================================
+
+-- Eq : { eq: |Self, Self| -> Bool }
+-- Ord is Eq : { compare: |Self, Self| -> Ordering }
+-- @UserId is Eq : U64
+-- @UserId derives Eq, Hash : U64
+-- @UserId is Ord derives Eq, Hash : U64  -- is before derives
+
+-- UFCS: x.display() desugars to Display.display(x)
+-- Orphan rule: is only in type's module or trait's module
+
+-- ============================================================
+-- SECTION: Effect Rows
+-- Demonstrates: -[E1 | E2]-> syntax, row variables,
+-- effect polymorphism, composition
+-- ============================================================
+
+-- a -> b                      -- pure (empty row, elided)
+-- a -[Console!]-> b            -- effectful
+-- a -[e]-> b                   -- row variable (polymorphic)
+-- a -[Throw!(NotFound)]-> b    -- parameterized effect
+
+-- Row properties: sets (order insignificant, dedup)
+-- Composition: g(f(x)) composes rows
+-- Polymorphism: map = <a, b, e>|f: |a| -[e]-> b, ...| -[e]-> ...
+
+-- ============================================================
+-- SECTION: Effect Handlers
+-- Demonstrates: deep (handle) and shallow (intercept),
+-- resume, one-shot continuations, handler arms
+-- ============================================================
+
+-- Deep handler (default): re-installed after each resume
+-- handle Console! in { ... } with { .println!(resume, msg) => ... }
+
+-- Shallow handler: handles one operation, does NOT re-install
+-- intercept Console! in { ... } with { .println!(resume, msg) => ... }
+
+-- One-shot: resume called at most once, second call = runtime error
+
+-- ============================================================
+-- SECTION: Throw! Effect
+-- Demonstrates: Throw! as prelude effect, tag union widening,
+-- handler bridging Throw -> tag union, open/closed throw types
+-- ============================================================
+
+-- Throw! : { throw!: |e| -[Throw!(e)]-> a }
+-- Throw!([NotFound])                           -- closed
+-- Throw!([NotFound | PermissionDenied])        -- closed, widened
+-- Throw!([NotFound | ..])                      -- open
+-- Throw!([..])                                 -- fully open (main!)
+
+-- Bridge: to_result = |action: || -[Throw!(e)]-> a| -> [Ok(a) | Err(e)] {
+--   handle Throw! in { Ok(action()) } with { .throw!(resume, err) => Err(err) }
+-- }
+
+-- ============================================================
+-- SECTION: Effect Safety
+-- Demonstrates: unhandled effects = compile-time error,
+-- main! effect row as handler declaration
+-- ============================================================
+
+-- main! = || -[Console! | Throw!([..])]-> { ... }
+-- Runtime provides handlers for effects in main!'s row
+
+-- ============================================================
+-- SECTION: Effect Composition
+-- Demonstrates: aliases for grouping, no inheritance
+-- ============================================================
+
+-- alias Io = File! | Console!
+-- No: effect File! is Io!  -- error
+
+-- ============================================================
+-- SECTION: Pattern Matching
+-- Demonstrates: tag, record, literal, variable, or-patterns,
+-- guards, wildcard _, exhaustiveness
+-- ============================================================
+
+-- match result {
+--   Ok(value) => value
+--   Err(msg) => handle_error(msg)
+-- }
+-- match status {
+--   s if s < 200 => "informational"
+--   200 => "ok"
+--   _ => "other"
+-- }
+-- match m {
+--   Get | Head | Options => True
+--   _ => False
+-- }
+
+-- ============================================================
+-- SECTION: Inline Type Annotations
+-- Demonstrates: name: Type = value, never separate declaration
+-- ============================================================
+
+-- x: Int = 3
+-- name: Str = "Camp"
+
+-- ============================================================
+-- SECTION: No Shadowing
+-- Demonstrates: all shadowing forbidden, fresh names required
+-- ============================================================
+
+-- x = 1; x = 2           -- ERROR: same-scope rebinding
+-- x = 1; if True { x = 2 } -- ERROR: nested-scope shadowing
+
+-- ============================================================
+-- SECTION: Visibility
+-- Demonstrates: pub marks exports, everything else private
+-- ============================================================
+
+-- pub greet = |name| "Hello, ${name}!"
+-- helper = |x| x + 1  -- private, not accessible from other modules
+
+-- ============================================================
+-- SECTION: Raw Identifiers
+-- Demonstrates: backtick-wrapped identifiers escape keywords
+-- ============================================================
+
+-- `do` = 42
+-- `is` = "keyword as name"
+-- r#type rejected -- only backtick style
+
+-- ============================================================
+-- SECTION: par Blocks
+-- Demonstrates: par { e1, e2 } -> tuple, par for x in xs { body }
+-- ============================================================
+
+-- par { compute_alpha!(), compute_beta!() }
+-- par for r in records { process_record!(r) }
+
+-- ============================================================
+-- SECTION: Prelude Effects
+-- Demonstrates: Console!, Throw!, Parallel!, Spawn!, Async!
+-- ============================================================
+
+-- Console!.println!("hello")
+-- Console!.readln!()
+-- Throw!.throw!(NotFound)
+-- Parallel!.map!(...)
+-- Spawn!.spawn!(|| { ... })
+-- Async!.yield!()
+
+-- ============================================================
+-- SECTION: Dual Error Model
+-- Demonstrates: Throw! for exceptional, tag union for structural
+-- No ? operator
+-- ============================================================
+
+-- Exceptional: Throw!.throw!(NotFound) -- propagates far
+-- Structural: List.first -> Some(a) | None -- handled locally
+-- No ? operator -- Throw propagates via effect rows
+
+-- ============================================================
+-- SECTION: Consistent .. Syntax
+-- Demonstrates: "and possibly more" across all contexts
+-- ============================================================
+
+-- { name: Str, .. }        -- open record type
+-- [Ok(a) | ..]             -- open tag union type
+-- { name, .. } = record    -- open destructuring
+-- { ..record, name: "new" } -- record update
+-- Throw!([..])             -- can throw any tag
+
+-- ============================================================
+-- SECTION: main! Entry Point
+-- Demonstrates: effect row as handler declaration
+-- ============================================================
+
+main! = || -> I64 {
+  primitives_demo()
+}

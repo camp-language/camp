@@ -1,0 +1,40 @@
+stdout = """
+-- SYNTAX ERROR --- /tmp/camp-e2e/typechecking/function-type-annotation/src/Main.camp
+
+I expected `)` here, but I got `:` instead.
+   1 | f = (x: I64) -> I64 { x + 1 }
+             ^
+
+-- SYNTAX ERROR --- /tmp/camp-e2e/typechecking/function-type-annotation/src/Main.camp
+
+I expected `=` here, but I got `)` instead.
+   1 | f = (x: I64) -> I64 { x + 1 }
+                  ^
+
+-- SYNTAX ERROR --- /tmp/camp-e2e/typechecking/function-type-annotation/src/Main.camp
+
+I was not expecting `->` here.
+   1 | f = (x: I64) -> I64 { x + 1 }
+                    ^^
+
+-- SYNTAX ERROR --- /tmp/camp-e2e/typechecking/function-type-annotation/src/Main.camp
+
+I expected `=` here, but I got `{` instead.
+   1 | f = (x: I64) -> I64 { x + 1 }
+                           ^
+
+-- SYNTAX ERROR --- /tmp/camp-e2e/typechecking/function-type-annotation/src/Main.camp
+
+I expected `=` here, but I got `` instead.
+   2 | 
+       ^
+
+-- SYNTAX ERROR --- /tmp/camp-e2e/typechecking/function-type-annotation/src/Main.camp
+
+I was not expecting `` here.
+   2 | 
+       ^
+compilation failed with 6 error(s)
+"""
+stderr = ""
+exit = 1

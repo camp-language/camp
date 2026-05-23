@@ -1,7 +1,0 @@
-stdout = """
-canonicalized /tmp/camp-e2e/newtype/basic/basic.camp: 2 declaration(s), 0 import(s)
-typecheck passed for /tmp/camp-e2e/newtype/basic/basic.camp
-compiled /tmp/camp-e2e/newtype/basic/basic.camp -> /tmp/camp-e2e/newtype/basic/basic.wasm
-"""
-stderr = ""
-exit = 0

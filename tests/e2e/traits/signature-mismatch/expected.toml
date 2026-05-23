@@ -1,0 +1,13 @@
+stdout = """
+canonicalized /tmp/camp-e2e/traits/signature-mismatch/src/Main.camp: 3 declaration(s), 0 import(s)
+-- TRAIT METHOD SIGNATURE MISMATCH --- /tmp/camp-e2e/traits/signature-mismatch/src/Main.camp
+
+`UserId`'s `eq` method has wrong signature for trait `Eq`.
+   2 | @UserId is Eq : U64
+       ^
+   2 | @UserId is Eq : U64
+       ~ expected `(2 params) -> Bool`, got `(2 params) -> I64`
+compilation failed with 1 error(s)
+"""
+stderr = ""
+exit = 1
