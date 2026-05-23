@@ -58,6 +58,7 @@ You are an AI assistant helping develop the Camp programming language - a strict
 | Tree-sitter | `openspec/specs/tree-sitter/spec.md` | `openspec/specs/tree-sitter/design.md` |
 | Packages | `openspec/specs/packages/spec.md` | `openspec/specs/packages/design.md` |
 | Parallelism | `openspec/specs/parallelism/spec.md` | `openspec/specs/parallelism/design.md` |
+| Doc Comments & Doctests | `openspec/specs/doc-comments/spec.md` | `openspec/specs/doc-comments/design.md` |
 
 ## Kitchen Sink Test
 
