@@ -1,7 +1,11 @@
 stdout = """
 canonicalized /tmp/camp-e2e/traits/orphan-rule/src/Main.camp: 3 declaration(s), 0 import(s)
-typecheck passed for /tmp/camp-e2e/traits/orphan-rule/src/Main.camp
-compiled /tmp/camp-e2e/traits/orphan-rule/src/Main.camp -> /tmp/camp-e2e/traits/orphan-rule/src/Main.wasm
+-- MISSING TRAIT METHOD --- /tmp/camp-e2e/traits/orphan-rule/src/Main.camp
+
+`UserId` does not implement method `eq` required by trait `Eq`.
+   2 | @UserId is Eq : U64
+       ^
+compilation failed with 1 error(s)
 """
 stderr = ""
-exit = 0
+exit = 1

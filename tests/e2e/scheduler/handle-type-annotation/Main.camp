@@ -3,7 +3,7 @@ main! = || ->{Spawn!} I64 {
     $h: Handle = Spawn!.spawn!(|| -> I64 { 42 })
     Spawn!.join!(h)
   } with {
-    .spawn!(resume, f) => resume(0),
-    .join!(resume, h_ref) => resume(0)
+    .spawn!(resume, _f) => resume(0),
+    .join!(resume, _h_ref) => resume(0)
   }
 }

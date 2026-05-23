@@ -1,7 +1,14 @@
 stdout = """
 canonicalized /tmp/camp-e2e/typechecking/tag-union-type/src/Main.camp: 1 declaration(s), 0 import(s)
 typecheck passed for /tmp/camp-e2e/typechecking/tag-union-type/src/Main.camp
-compiled /tmp/camp-e2e/typechecking/tag-union-type/src/Main.camp -> /tmp/camp-e2e/typechecking/tag-union-type/src/Main.wasm
+-- UNUSED BINDING --- /tmp/camp-e2e/typechecking/tag-union-type/src/Main.camp
+
+Binding `_x` is never used. Top-level bindings cannot be marked as unused with
+`_`.
+   1 | _x : [Ok(I64) | Error(String)] = Ok(42)
+       ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  Prefix with `_` to mark as intentionally unused: `__x
+compilation failed with 1 error(s)
 """
 stderr = ""
-exit = 0
+exit = 1

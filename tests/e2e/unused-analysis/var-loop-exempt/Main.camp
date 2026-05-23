@@ -1,0 +1,8 @@
+main! = || -> I64 {
+  $count = 0
+  for item in items.iter() {
+    $count = $count + 1
+    Console.println!($count)
+  }
+  $count
+}

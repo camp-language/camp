@@ -1,0 +1,22 @@
+stdout = """
+-- SYNTAX ERROR --- /tmp/camp-e2e/unused-analysis/var-loop-pure-unused/src/Main.camp
+
+I expected `=` here, but I got `}` instead.
+   9 | }
+       ^
+
+-- SYNTAX ERROR --- /tmp/camp-e2e/unused-analysis/var-loop-pure-unused/src/Main.camp
+
+I was not expecting `` here.
+  10 | 
+       ^
+
+-- SYNTAX ERROR --- /tmp/camp-e2e/unused-analysis/var-loop-pure-unused/src/Main.camp
+
+I expected `}` here, but I got `` instead.
+  10 | 
+       ^
+compilation failed with 3 error(s)
+"""
+stderr = ""
+exit = 1

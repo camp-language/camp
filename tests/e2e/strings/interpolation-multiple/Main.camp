@@ -1,6 +1,6 @@
 main! = || -> I64 {
     a = "hello"
     b = "world"
-    result = "${a} and ${b}"
+    _result = "${a} and ${b}"
     0
 }

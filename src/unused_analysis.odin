@@ -34,6 +34,7 @@ Binding_Info :: struct {
 	is_top_level:           bool,
 	is_pub:                 bool,
 	is_contradictory:       bool,
+	is_effectful:           bool,
 	assignments:            [dynamic]Assignment_Info,
 	use_sites:              [dynamic]Use_Site,
 	field_accesses:         map[Intern_ID][dynamic]Source_Span,
@@ -125,7 +126,7 @@ is_reassignable_name :: proc(name: Intern_ID, interner: ^Intern_Table) -> bool {
 }
 
 // Register a binding in the analysis
-register_binding :: proc(analysis: ^Unused_Analysis, name: Intern_ID, span: Source_Span, is_top_level: bool, is_pub: bool) {
+register_binding :: proc(analysis: ^Unused_Analysis, name: Intern_ID, span: Source_Span, is_top_level: bool, is_pub: bool, is_effectful: bool = false) {
 	name_str := intern_get(analysis.interner, name)
 
 	bi: Binding_Info
@@ -137,6 +138,7 @@ register_binding :: proc(analysis: ^Unused_Analysis, name: Intern_ID, span: Sour
 	bi.is_top_level = is_top_level
 	bi.is_pub = is_pub
 	bi.is_contradictory = is_contradictory_prefix(name, analysis.interner)
+	bi.is_effectful = is_effectful
 	bi.assignments = make([dynamic]Assignment_Info, 0, 4)
 	bi.use_sites = make([dynamic]Use_Site, 0, 8)
 	bi.field_accesses = make(map[Intern_ID][dynamic]Source_Span, 4)
@@ -240,7 +242,7 @@ collect_uses_cfile :: proc(analysis: ^Unused_Analysis, cfile: CFile) {
 collect_uses_decl :: proc(analysis: ^Unused_Analysis, decl: CDecl) {
 	#partial switch d in decl {
 	case ^CDecl_Const:
-		register_binding(analysis, d.name.name, d.span, is_top_level = true, is_pub = d.is_pub)
+		register_binding(analysis, d.name.name, d.span, is_top_level = true, is_pub = d.is_pub, is_effectful = d.is_effectful)
 		collect_uses_expr(analysis, d.body)
 	case ^CDecl_Test:
 		collect_uses_expr(analysis, d.body)
@@ -564,8 +566,32 @@ check_unused :: proc(analysis: ^Unused_Analysis) {
 	// Check imports
 	check_unused_imports(analysis)
 
-	// Check bindings
+	// Collect bindings into a sorted slice for deterministic output order
+	binding_keys: [dynamic]Intern_ID
+	binding_keys.allocator = context.allocator
 	for name, bi in analysis.bindings {
+		append(&binding_keys, name)
+	}
+
+	// Sort by source span start position for deterministic output
+	for i in 1..<len(binding_keys) {
+		key := binding_keys[i]
+		bi_i := analysis.bindings[key]
+		j := i - 1
+		for j >= 0 {
+			bi_j := analysis.bindings[binding_keys[j]]
+			if bi_i.span.start < bi_j.span.start {
+				binding_keys[j + 1] = binding_keys[j]
+				j -= 1
+			} else {
+				break
+			}
+		}
+		binding_keys[j + 1] = key
+	}
+
+	for name in binding_keys {
+		bi := analysis.bindings[name]
 		if bi.is_contradictory do continue
 		if bi.is_bare_wildcard do continue
 
@@ -578,6 +604,7 @@ check_unused :: proc(analysis: ^Unused_Analysis) {
 			check_immutable_binding(analysis, name, bi)
 		}
 	}
+	delete(binding_keys)
 
 	// Check record fields
 	check_unused_record_fields(analysis)
@@ -594,7 +621,7 @@ check_unused_imports :: proc(analysis: ^Unused_Analysis) {
 	}
 }
 
-check_immutable_binding :: proc(analysis: ^Unused_Analysis, name: Intern_ID, bi: Binding_Info) {
+check_immutable_binding :: proc(analysis: ^Unused_Analysis, name: Intern_ID, bi: Binding_Info) -> bool {
 	name_str := intern_get(analysis.interner, name)
 
 	has_essential_use := binding_has_essential_use(bi)
@@ -602,18 +629,19 @@ check_immutable_binding :: proc(analysis: ^Unused_Analysis, name: Intern_ID, bi:
 	if !has_essential_use {
 		// Top-level bindings: _ prefix does NOT exempt
 		if bi.is_top_level {
-			if !bi.is_pub {
+			if !bi.is_pub && !bi.is_effectful {
 				collector_add_diag(analysis.collector,
 					diag_unused_binding(name_str, "Top-level bindings cannot be marked as unused with `_`.", bi.span))
 			}
-			return
+			return false
 		}
 
 		// _-prefixed bindings are exempt from unused errors
-		if bi.is_underscore_prefixed do return
+		if bi.is_underscore_prefixed do return false
 
 		collector_add_diag(analysis.collector,
 			diag_unused_binding(name_str, "", bi.span))
+		return false
 	}
 
 	// Check for pointless evaluation: _ = pureExpr
@@ -625,6 +653,7 @@ check_immutable_binding :: proc(analysis: ^Unused_Analysis, name: Intern_ID, bi:
 			}
 		}
 	}
+	return true
 }
 
 binding_has_essential_use :: proc(bi: Binding_Info) -> bool {

@@ -1,5 +1,5 @@
 main! = || -> I64 {
-    dir = "home"
-    path = r"C:\${dir}\file"
+    _dir = "home"
+    _path = r"C:\${dir}\file"
     0
 }

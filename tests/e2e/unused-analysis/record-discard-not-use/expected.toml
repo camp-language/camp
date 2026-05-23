@@ -1,0 +1,7 @@
+stdout = """
+canonicalized /tmp/camp-e2e/unused-analysis/record-discard-not-use/src/Main.camp: 1 declaration(s), 0 import(s)
+typecheck passed for /tmp/camp-e2e/unused-analysis/record-discard-not-use/src/Main.camp
+compiled /tmp/camp-e2e/unused-analysis/record-discard-not-use/src/Main.camp -> /tmp/camp-e2e/unused-analysis/record-discard-not-use/src/Main.wasm
+"""
+stderr = ""
+exit = 0

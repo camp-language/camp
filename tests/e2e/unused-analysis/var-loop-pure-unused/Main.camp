@@ -1,0 +1,9 @@
+main! = || -> I64 {
+  $count = 0
+  for item in items.iter() {
+    if matches(item) {
+      $count = $count + 1
+    }
+  }
+  $count
+}

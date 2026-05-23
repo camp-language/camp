@@ -1,0 +1,6 @@
+import Module.{ foo, bar }
+
+main! = || -> I64 {
+  foo()
+  42
+}

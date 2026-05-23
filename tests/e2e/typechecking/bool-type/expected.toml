@@ -1,7 +1,22 @@
 stdout = """
 canonicalized /tmp/camp-e2e/typechecking/bool-type/src/Main.camp: 2 declaration(s), 0 import(s)
 typecheck passed for /tmp/camp-e2e/typechecking/bool-type/src/Main.camp
-compiled /tmp/camp-e2e/typechecking/bool-type/src/Main.camp -> /tmp/camp-e2e/typechecking/bool-type/src/Main.wasm
+-- UNUSED BINDING --- /tmp/camp-e2e/typechecking/bool-type/src/Main.camp
+
+Binding `_b` is never used. Top-level bindings cannot be marked as unused with
+`_`.
+   1 | _b = True
+       ^^^^^^^^^^^^^
+  Prefix with `_` to mark as intentionally unused: `__b
+
+-- UNUSED BINDING --- /tmp/camp-e2e/typechecking/bool-type/src/Main.camp
+
+Binding `_b2` is never used. Top-level bindings cannot be marked as unused with
+`_`.
+   2 | _b2 = False
+       ^^^^^^^^^^^
+  Prefix with `_` to mark as intentionally unused: `__b2
+compilation failed with 2 error(s)
 """
 stderr = ""
-exit = 0
+exit = 1

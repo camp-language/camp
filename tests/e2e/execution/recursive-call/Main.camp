@@ -1,6 +1,6 @@
 loop = |n| -> I64 {
     n - 5
 }
-main = || -> I64 {
+_main = || -> I64 {
     loop(5)
 }

@@ -1,0 +1,11 @@
+stdout = """
+canonicalized /tmp/camp-e2e/unused-analysis/self-assignment/src/Main.camp: 1 declaration(s), 0 import(s)
+-- UNDEFINED NAME --- /tmp/camp-e2e/unused-analysis/self-assignment/src/Main.camp
+
+I cannot find `x`.
+   2 |   $x = $x
+              ^
+compilation failed with 1 error(s)
+"""
+stderr = ""
+exit = 1
