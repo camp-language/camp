@@ -54,9 +54,10 @@ parser_expect :: proc(p: ^Parser, kind: Token_Kind) -> Token {
 	if p.current.kind == kind {
 		return parser_advance(p)
 	}
-	collector_add_diag(p.collector, diag_expected_token(kind, p.current, p.current.span))
+	expected_span := p.current.span
+	collector_add_diag(p.collector, diag_expected_token(kind, p.current, expected_span))
 	parser_advance(p)
-	return Token{kind = kind, span = p.current.span}
+	return Token{kind = kind, span = expected_span}
 }
 
 parser_skip_backslashes :: proc(p: ^Parser) {

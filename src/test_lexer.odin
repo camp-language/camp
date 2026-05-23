@@ -5,6 +5,7 @@ import "core:testing"
 lex_all :: proc(source: string, ctx: ^Compilation_Context) -> []Token {
 	old_allocator := context.allocator
 	context.allocator = ctx.allocator
+	defer context.allocator = old_allocator
 	file := Source_File{path = "<test>", contents = source, id = 0}
 	lexer: Lexer
 	lexer_init(&lexer, file, &ctx.collector, &ctx.interner)

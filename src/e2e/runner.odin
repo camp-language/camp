@@ -64,22 +64,24 @@ discover_tests :: proc(root: string, filter: string, allocator: mem.Allocator) -
 			defer delete(test_dir_path, allocator)
 
 			expected_path, ep_err := filepath.join({test_dir_path, "expected.toml"}, allocator)
+			defer delete(expected_path, allocator)
 			if ep_err != nil {
 				continue
 			}
-			defer delete(expected_path, allocator)
 
 			if !os.exists(expected_path) {
+				delete(expected_path, allocator)
 				continue
 			}
 
 			main_camp_path, mc_err := filepath.join({test_dir_path, "Main.camp"}, allocator)
+			defer delete(main_camp_path, allocator)
 			if mc_err != nil {
 				continue
 			}
-			defer delete(main_camp_path, allocator)
 
 			if !os.exists(main_camp_path) {
+				delete(main_camp_path, allocator)
 				continue
 			}
 

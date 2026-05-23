@@ -4,6 +4,7 @@ import "core:encoding/json"
 import "core:fmt"
 import "core:mem"
 import "core:os"
+import "core:strings"
 
 LSP_Server :: struct {
 	transport: Transport,
@@ -214,10 +215,42 @@ analyze_dirty_documents :: proc(server: ^LSP_Server) {
 }
 
 uri_to_file_path :: proc(uri: string) -> string {
-	if len(uri) > 7 && uri[:7] == "file://" {
-		return uri[7:]
+	path := uri
+	if strings.has_prefix(path, "file:///") {
+		path = path[7:]
+	} else if strings.has_prefix(path, "file://") {
+		path = path[7:]
 	}
-	return uri
+	return url_decode(path)
+}
+
+url_decode :: proc(s: string) -> string {
+	b: strings.Builder
+	strings.builder_init_none(&b, context.allocator)
+	i := 0
+	for i < len(s) {
+		if s[i] == '%' && i + 2 < len(s) {
+			hi := hex_val(s[i + 1])
+			lo := hex_val(s[i + 2])
+			if hi >= 0 && lo >= 0 {
+				strings.write_byte(&b, u8(hi << 4 | lo))
+				i += 3
+				continue
+			}
+		}
+		strings.write_byte(&b, s[i])
+		i += 1
+	}
+	return strings.to_string(b)
+}
+
+hex_val :: proc(ch: u8) -> int {
+	switch ch {
+	case '0'..='9': return int(ch - '0')
+	case 'a'..='f': return int(ch - 'a' + 10)
+	case 'A'..='F': return int(ch - 'A' + 10)
+	}
+	return -1
 }
 
 send_response :: proc(server: ^LSP_Server, id: int, result: json.Value, err: ^JSON_RPC_Error) {

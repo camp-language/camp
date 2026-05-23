@@ -54,6 +54,7 @@ lexer_peek :: proc(l: ^Lexer) -> u8 {
 }
 
 lexer_advance :: proc(l: ^Lexer) -> u8 {
+	if l.pos >= len(l.source) { return 0 }
 	ch := l.source[l.pos]
 	l.pos += 1
 	return ch
