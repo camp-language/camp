@@ -8,17 +8,17 @@ Define the behavioral requirements for Camp's generic type parameters and trait 
 
 ### Requirement: Generic Type Parameters
 
-Functions and nominal types SHALL support type parameters declared in angle brackets before the parameter list. Type parameters SHALL be substituted with concrete types via monomorphization at compile time.
+Functions and nominal types SHALL support type parameters inferred from lowercase type variables in annotations. Type parameters SHALL be substituted with concrete types via monomorphization at compile time.
 
 #### Scenario: Generic function declaration
 
-- GIVEN a definition `add = <a>|x: a, y: a| -> a { x + y }`
+- GIVEN a definition `add = |x: a, y: a| -> a { x + y }`
 - WHEN compiled
 - THEN `add` SHALL be a generic function with type parameter `a`
 
 #### Scenario: Generic function instantiation
 
-- GIVEN a generic function `add = <a>|x: a, y: a| -> a`
+- GIVEN a generic function `add = |x: a, y: a| -> a`
 - WHEN called as `add(1, 2)`
 - THEN the type parameter `a` SHALL be instantiated as `I64` and the call SHALL type-check
 
@@ -30,7 +30,7 @@ Functions and nominal types SHALL support type parameters declared in angle brac
 
 #### Scenario: Ambiguous type parameter rejected
 
-- GIVEN a generic function `identity = <a>|x: a| -> a { x }`
+- GIVEN a generic function `identity = |x: a| -> a { x }`
 - WHEN called as `identity()` with no argument
 - THEN the compiler SHALL produce an error because `a` cannot be determined
 
@@ -40,13 +40,13 @@ The compiler SHALL specialize every generic function and type at each concrete i
 
 #### Scenario: Monomorphization generates specialized functions
 
-- GIVEN a generic function `identity = <a>|x: a| -> a { x }` called with `I64` and `Str`
+- GIVEN a generic function `identity = |x: a| -> a { x }` called with `I64` and `Str`
 - WHEN the compiler monomorphizes
 - THEN two specialized functions SHALL exist: `identity$I64` and `identity$Str`
 
 #### Scenario: Recursive generic instantiation terminates
 
-- GIVEN a generic function `List.map = <a, b>|f: |a| -> b, list: List(a)| -> List(b)` whose body calls itself at a different type
+- GIVEN a generic function `List.map = |f: |a| -> b, list: List(a)| -> List(b)` whose body calls itself at a different type
 - WHEN the compiler monomorphizes
 - THEN the worklist-driven BFS SHALL discover all required instantiations and terminate — each unique (function, type-args) pair SHALL be specialized exactly once
 
@@ -167,7 +167,7 @@ Type parameters SHALL support trait constraints using `where` clause syntax. Whe
 
 #### Scenario: Constrained type parameter via where clause
 
-- GIVEN a definition `format = <a>|x: a| -> Str where a is Display { x.display() }`
+- GIVEN a definition `format = |x: a| -> Str where a is Display { x.display() }`
 - WHEN compiled
 - THEN `a` SHALL be constrained to types that satisfy `Display`
 
@@ -185,7 +185,7 @@ Type parameters SHALL support trait constraints using `where` clause syntax. Whe
 
 #### Scenario: Multiple constraints
 
-- GIVEN a definition `sort = <a>|list: List(a)| -> List(a) where a is Ord { ... }`
+- GIVEN a definition `sort = |list: List(a)| -> List(a) where a is Ord { ... }`
 - WHEN the compiler processes the constraint
 - THEN `a` SHALL be required to satisfy `Ord` (which transitively requires `Eq`)
 

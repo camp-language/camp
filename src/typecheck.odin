@@ -226,7 +226,7 @@ typecheck_decl :: proc(decl: CDecl, env: ^Type_Env, store: ^Type_Store) -> TDecl
 		delete_key(&store.rec_vars, self_var)
 
 		if d.type_ann != nil {
-			ann_var := convert_type_to_var(d.type_ann, store)
+			ann_var := convert_type_to_var(d.type_ann, store, env)
 			unify(store, result.var_id, ann_var)
 		}
 
@@ -275,7 +275,7 @@ typecheck_decl :: proc(decl: CDecl, env: ^Type_Env, store: ^Type_Store) -> TDecl
 			params_t := make([dynamic]TFunc_Param, len(op.params))
 			for p, j in op.params {
 				if p.type_ann != nil {
-					param_types[j] = convert_type_to_var(p.type_ann, store)
+					param_types[j] = convert_type_to_var(p.type_ann, store, env)
 				} else {
 					param_types[j] = fresh_value_var(store, d.span)
 				}
@@ -288,7 +288,7 @@ typecheck_decl :: proc(decl: CDecl, env: ^Type_Env, store: ^Type_Store) -> TDecl
 			}
 			ret_type := fresh_value_var(store, d.span)
 			if op.return_type != nil {
-				ret_type = convert_type_to_var(op.return_type, store)
+				ret_type = convert_type_to_var(op.return_type, store, env)
 			}
 			append(&op_sigs, Effect_Op_Sig{
 				name = op.name,
@@ -349,7 +349,7 @@ typecheck_decl :: proc(decl: CDecl, env: ^Type_Env, store: ^Type_Store) -> TDecl
 			}
 			for p, j in m.params {
 				if p.type_ann != nil {
-					pv := convert_type_to_var(p.type_ann, store)
+					pv := convert_type_to_var(p.type_ann, store, env)
 					td.methods[i].params[j] = TFunc_Param{
 						name = p.name,
 						type_ = tc_ir_type(store, pv),
@@ -369,7 +369,7 @@ typecheck_decl :: proc(decl: CDecl, env: ^Type_Env, store: ^Type_Store) -> TDecl
 		return TDecl(td)
 
 	case ^CDecl_Alias:
-		convert_type_to_var(d.target, store)
+		convert_type_to_var(d.target, store, env)
 		td := new(TDecl_Alias)
 		td^ = TDecl_Alias{
 			name = d.name,
@@ -378,7 +378,7 @@ typecheck_decl :: proc(decl: CDecl, env: ^Type_Env, store: ^Type_Store) -> TDecl
 			span = d.span,
 		}
 		if d.target != nil && ctype_contains_self(d.target^) {
-			methods := extract_trait_methods_from_ctype(d.target, store)
+			methods := extract_trait_methods_from_ctype(d.target, store, env)
 			trait_module := d.name.module
 			if trait_module == NO_NAME {
 				trait_module = env.current_module
@@ -458,7 +458,7 @@ typecheck_newtype_decl :: proc(d: ^CDecl_Newtype, env: ^Type_Env, store: ^Type_S
 		env.bindings[tp] = tv
 	}
 
-	inner_type_var := convert_type_to_var(d.inner_type, store)
+	inner_type_var := convert_type_to_var(d.inner_type, store, env)
 
 	owned_tags := make([dynamic]Intern_ID, 0, 8)
 	inner_resolved := get_var(store, resolve_var(store, inner_type_var))
@@ -909,7 +909,7 @@ typecheck_lambda :: proc(e: ^CExpr_Lambda, env: ^Type_Env, store: ^Type_Store) -
 		param := e.params[i]
 		param_var := fresh_value_var(store, param.span)
 		if param.type_ann != nil {
-			ann_var := convert_type_to_var(param.type_ann, store)
+			ann_var := convert_type_to_var(param.type_ann, store, &child_env)
 			unify(store, param_var, ann_var)
 		}
 		check_shadow(&child_env, param.name, store, param.span)
@@ -928,13 +928,13 @@ typecheck_lambda :: proc(e: ^CExpr_Lambda, env: ^Type_Env, store: ^Type_Store) -
 	effect_id := fresh_effect_row(store, e.span)
 	unify(store, effect_id, body_result.effects)
 	if e.effects != nil {
-		ann_effects := convert_type_to_var(e.effects, store)
+		ann_effects := convert_type_to_var(e.effects, store, &child_env)
 		unify(store, effect_id, ann_effects)
 	}
 
 	return_id := fresh_value_var(store, e.span)
 	if e.return_type != nil {
-		ann_return := convert_type_to_var(e.return_type, store)
+		ann_return := convert_type_to_var(e.return_type, store, &child_env)
 		unify(store, return_id, ann_return)
 		unify(store, body_result.var_id, ann_return)
 	} else {
@@ -2013,16 +2013,19 @@ typecheck_qualified_tag_construct :: proc(receiver: ^CExpr_Tag, e: ^CExpr_Method
 	return Synth_Result{var_id = inst_binding, effects = eff, texpr = TExpr(t)}
 }
 
-convert_type_to_var :: proc(t: ^CType, store: ^Type_Store) -> Type_Var_ID {
-	return convert_type_to_var_val(t^, store)
+convert_type_to_var :: proc(t: ^CType, store: ^Type_Store, env: ^Type_Env) -> Type_Var_ID {
+	return convert_type_to_var_val(t^, store, env)
 }
 
-convert_type_to_var_val :: proc(t: CType, store: ^Type_Store) -> Type_Var_ID {
+convert_type_to_var_val :: proc(t: CType, store: ^Type_Store, env: ^Type_Env) -> Type_Var_ID {
 	switch ty in t {
 	case ^CType_Primitive:
 		return make_primitive_type(store, ty.name, ty.span)
 
 	case ^CType_Variable:
+		if existing, ok := env_lookup(env, ty.name); ok {
+			return existing
+		}
 		return fresh_value_var(store, ty.span)
 
 	case ^CType_Wildcard:
@@ -2035,12 +2038,12 @@ convert_type_to_var_val :: proc(t: CType, store: ^Type_Store) -> Type_Var_ID {
 		ft := ty
 		param_ids := store_alloc(store, Type_Var_ID, len(ft.params))
 		for i in 0..<len(ft.params) {
-			param_ids[i] = convert_type_to_var_val(ft.params[i], store)
+			param_ids[i] = convert_type_to_var_val(ft.params[i], store, env)
 		}
-		return_id := convert_type_to_var_val(ft.return_, store)
+		return_id := convert_type_to_var_val(ft.return_, store, env)
 		effect_id := fresh_effect_row(store, ft.span)
 		if ft.effects != nil {
-			effect_id = convert_type_to_var(ft.effects, store)
+			effect_id = convert_type_to_var(ft.effects, store, env)
 		}
 		vid := fresh_value_var(store, ft.span)
 		link_var(store, vid, Inferred_Type{
@@ -2054,7 +2057,7 @@ convert_type_to_var_val :: proc(t: CType, store: ^Type_Store) -> Type_Var_ID {
 	case ^CType_Applied:
 		arg_ids := store_alloc(store, Type_Var_ID, len(ty.args))
 		for &a, i in ty.args {
-			arg_ids[i] = convert_type_to_var_val(a, store)
+			arg_ids[i] = convert_type_to_var_val(a, store, env)
 		}
 		vid := fresh_value_var(store, ty.span)
 		handle_name := intern(store.interner, "Handle")
@@ -2079,7 +2082,7 @@ convert_type_to_var_val :: proc(t: CType, store: ^Type_Store) -> Type_Var_ID {
 		for i in 0..<len(rt.fields) {
 			record_fields[i] = Type_Field_Entry{
 				name = rt.fields[i].name,
-				var  = convert_type_to_var_val(rt.fields[i].type, store),
+				var  = convert_type_to_var_val(rt.fields[i].type, store, env),
 			}
 		}
 		record_rest := fresh_record_row(store, rt.span)
@@ -2098,7 +2101,7 @@ convert_type_to_var_val :: proc(t: CType, store: ^Type_Store) -> Type_Var_ID {
 			tg := tt.tags[i]
 			payload := store_alloc(store, Type_Var_ID, len(tg.payload))
 			for j in 0..<len(tg.payload) {
-				payload[j] = convert_type_to_var_val(tg.payload[j], store)
+				payload[j] = convert_type_to_var_val(tg.payload[j], store, env)
 			}
 			tag_entries[i] = Type_Tag_Entry{
 				name    = tg.name,
@@ -2124,7 +2127,7 @@ convert_type_to_var_val :: proc(t: CType, store: ^Type_Store) -> Type_Var_ID {
 			ce := ert.effects[i]
 			type_args := store_alloc(store, Type_Var_ID, len(ce.type_args))
 			for j in 0..<len(ce.type_args) {
-				type_args[j] = convert_type_to_var(&ce.type_args[j], store)
+				type_args[j] = convert_type_to_var(&ce.type_args[j], store, env)
 			}
 			effect_entries[i] = Effect_Row_Entry{name = ce.name, type_args = type_args}
 		}
@@ -2627,7 +2630,7 @@ typecheck_trait_decl :: proc(d: ^CDecl_Trait, env: ^Type_Env, store: ^Type_Store
 
 		for p in m.params {
 			if p.type_ann != nil {
-				param_var := convert_type_to_var(p.type_ann, store)
+				param_var := convert_type_to_var(p.type_ann, store, env)
 				append(&param_types, param_var)
 			} else {
 				param_var := fresh_value_var(store, p.span)
@@ -2637,7 +2640,7 @@ typecheck_trait_decl :: proc(d: ^CDecl_Trait, env: ^Type_Env, store: ^Type_Store
 
 		return_type := fresh_value_var(store, m.span)
 		if m.return_type != nil {
-			return_type = convert_type_to_var(m.return_type, store)
+			return_type = convert_type_to_var(m.return_type, store, env)
 		}
 
 		methods[i] = Trait_Method_Info{
@@ -2826,17 +2829,17 @@ ctype_contains_self :: proc(t: CType) -> bool {
 	return false
 }
 
-convert_ctype_self_aware :: proc(t: CType, self_var: Type_Var_ID, store: ^Type_Store) -> Type_Var_ID {
+convert_ctype_self_aware :: proc(t: CType, self_var: Type_Var_ID, store: ^Type_Store, env: ^Type_Env) -> Type_Var_ID {
 	#partial switch ty in t {
 	case ^CType_Self:
 		return self_var
 	case:
-		return convert_type_to_var_val(t, store)
+		return convert_type_to_var_val(t, store, env)
 	}
 	return fresh_value_var(store, Source_Span_ZERO)
 }
 
-extract_trait_methods_from_ctype :: proc(t: ^CType, store: ^Type_Store) -> []Trait_Method_Info {
+extract_trait_methods_from_ctype :: proc(t: ^CType, store: ^Type_Store, env: ^Type_Env) -> []Trait_Method_Info {
 	#partial switch ty in t^ {
 	case ^CType_Record:
 		methods := make([]Trait_Method_Info, len(ty.fields))
@@ -2847,12 +2850,12 @@ extract_trait_methods_from_ctype :: proc(t: ^CType, store: ^Type_Store) -> []Tra
 			#partial switch ft in f.type {
 			case ^CType_Function:
 				for p in ft.params {
-					append(&param_types, convert_ctype_self_aware(p, self_var, store))
+					append(&param_types, convert_ctype_self_aware(p, self_var, store, env))
 				}
 				methods[i] = Trait_Method_Info{
 					name = f.name,
 					param_types = param_types[:],
-					return_type = convert_ctype_self_aware(ft.return_, self_var, store),
+					return_type = convert_ctype_self_aware(ft.return_, self_var, store, env),
 				}
 			case:
 				methods[i] = Trait_Method_Info{

@@ -433,48 +433,6 @@ parser_parse_prefix :: proc(p: ^Parser) -> Expr {
 		e^ = Expr_Dollar_Identifier{name = intern(p.intern, name.text), span = tok.span}
 		return e
 
-	case .Lt:
-		// Speculative parsing for <a>|params| generic lambda syntax
-		saved_pos := p.lexer.pos
-		saved_tok := p.current
-		parser_advance(p) // consume <
-
-		is_generic_lambda := false
-		type_param_names := make([dynamic]string, 0, 4)
-		for p.current.kind == .Identifier {
-			append(&type_param_names, p.current.text)
-			parser_advance(p)
-			if p.current.kind == .Comma {
-				parser_advance(p)
-				parser_skip_backslashes(p)
-			} else {
-				break
-			}
-		}
-
-		if p.current.kind == .Gt {
-			parser_advance(p) // consume >
-			if p.current.kind == .Pipe {
-				is_generic_lambda = true
-			}
-		}
-
-		if is_generic_lambda {
-			// Commit: parse the lambda starting from |
-			// Build type_params from saved names
-			type_params := make([dynamic]Type_Param, 0, len(type_param_names))
-			for name in type_param_names {
-				append(&type_params, Type_Param{name = intern(p.intern, name)})
-			}
-			return parser_parse_lambda_with_type_params(p, type_params)
-		}
-
-		// Backtrack: restore lexer position and treat < as less-than
-		p.lexer.pos = saved_pos
-		p.current = saved_tok
-		// Fall through to binary operator handling in expr_bp
-		return parser_parse_expr_bp(p, 0)
-
 	case .Pipe:
 		return parser_parse_lambda(p)
 
@@ -714,37 +672,6 @@ parser_parse_lambda :: proc(p: ^Parser) -> Expr {
 	type_params := make([dynamic]Type_Param, 0, 4)
 	params := make([dynamic]Func_Param, 0, 4)
 
-	if p.current.kind == .Lt {
-		parser_advance(p)
-		for p.current.kind != .Gt && p.current.kind != .Eof {
-			if p.current.kind != .Identifier {
-				collector_add_diag(p.collector, diag_expected_token(.Identifier, p.current, p.current.span))
-				parser_advance(p)
-				break
-			}
-			name_tok := parser_advance(p)
-			tp := Type_Param{name = intern(p.intern, name_tok.text)}
-			if p.current.kind == .Kw_Is {
-				parser_advance(p)
-				for {
-					trait_tok := parser_expect(p, .Upper_Id)
-					append(&tp.constraints, intern(p.intern, trait_tok.text))
-					if p.current.kind == .Comma {
-						parser_advance(p)
-					} else {
-						break
-					}
-				}
-			}
-			append(&type_params, tp)
-			if p.current.kind == .Comma {
-				parser_advance(p)
-				parser_skip_backslashes(p)
-			}
-		}
-		parser_expect(p, .Gt)
-	}
-
 	for p.current.kind != .Pipe && p.current.kind != .Eof {
 		param := Func_Param{span = p.current.span}
 		if p.current.kind == .Dot_Dot {
@@ -786,74 +713,6 @@ parser_parse_lambda :: proc(p: ^Parser) -> Expr {
 			parser_expect(p, .RBrace)
 		} else if p.current.kind == .Minus {
 			// ->-[ Eff1, Eff2 ]-> syntax (legacy)
-			parser_advance(p)
-			parser_expect(p, .LBrack)
-			effects = parser_parse_effect_row_type(p)
-			parser_expect(p, .RBrack)
-			parser_expect(p, .Arrow)
-		}
-		return_type = parser_parse_type(p)
-	}
-
-	body := parser_parse_expr(p)
-
-	e := new(Expr_Lambda)
-	e^ = Expr_Lambda{
-		type_params = type_params,
-		params = params,
-		return_type = return_type,
-		effects = effects,
-		body = body,
-		span = start,
-	}
-	return e
-}
-
-parser_parse_lambda_with_type_params :: proc(p: ^Parser, type_params: [dynamic]Type_Param) -> Expr {
-	start := p.current.span
-	parser_advance(p) // consume |
-
-	params := make([dynamic]Func_Param, 0, 4)
-
-	for p.current.kind != .Pipe && p.current.kind != .Eof {
-		param := Func_Param{span = p.current.span}
-		if p.current.kind == .Dot_Dot {
-			parser_advance(p)
-			if p.current.kind == .Comma {
-				parser_advance(p)
-				parser_skip_backslashes(p)
-			}
-			continue
-		}
-
-		if p.current.kind == .Identifier || p.current.kind == .Upper_Id {
-			name_tok := parser_advance(p)
-			param.name = intern(p.intern, name_tok.text)
-			if p.current.kind == .Colon {
-				parser_advance(p)
-				param.type_ann = parser_parse_type(p)
-			}
-		} else {
-			collector_add_diag(p.collector, diag_expected_token(.Identifier, p.current, p.current.span))
-			parser_advance(p)
-		}
-		append(&params, param)
-		if p.current.kind == .Comma {
-			parser_advance(p)
-			parser_skip_backslashes(p)
-		}
-	}
-	parser_expect(p, .Pipe)
-
-	return_type: ^Type = nil
-	effects: ^Type = nil
-	if p.current.kind == .Arrow {
-		parser_advance(p)
-		if p.current.kind == .LBrace {
-			parser_advance(p)
-			effects = parser_parse_effect_row_type_brace(p)
-			parser_expect(p, .RBrace)
-		} else if p.current.kind == .Minus {
 			parser_advance(p)
 			parser_expect(p, .LBrack)
 			effects = parser_parse_effect_row_type(p)

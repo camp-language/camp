@@ -96,7 +96,7 @@ add = |x: I64, y: I64| -> I64 { x + y }
 
 -- Anonymous lambda: |x| x + 1
 -- Effectful function: read_line! = || -> -[Console!]-> Str { ... }
--- Generic: add = <a>|x: a, y: a| -> a { x + y }
+-- Generic: add = |x: a, y: a| -> a { x + y }
 
 -- ============================================================
 -- SECTION: Effectful Function Naming
@@ -170,7 +170,7 @@ logic_demo = || -> I64 {
 
 -- Row properties: sets (order insignificant, dedup)
 -- Composition: g(f(x)) composes rows
--- Polymorphism: map = <a, b, e>|f: |a| -[e]-> b, ...| -[e]-> ...
+-- Polymorphism: map = |f: |a| -[e]-> b, ...| -[e]-> ... where a, b, e
 
 -- ============================================================
 -- SECTION: Effect Handlers

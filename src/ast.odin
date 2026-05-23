@@ -195,12 +195,13 @@ Expr_Method_Call :: struct {
 }
 
 Expr_Lambda :: struct {
-	type_params: [dynamic]Type_Param,
-	params:     [dynamic]Func_Param,
-	return_type: ^Type,
-	effects:    ^Type,
-	body:       Expr,
-	span:       Source_Span,
+	type_params:   [dynamic]Type_Param,
+	params:        [dynamic]Func_Param,
+	return_type:   ^Type,
+	effects:       ^Type,
+	where_clauses: [dynamic]Where_Clause,
+	body:          Expr,
+	span:          Source_Span,
 }
 
 Type_Param :: struct {

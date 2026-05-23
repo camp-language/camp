@@ -36,12 +36,12 @@ Camp provides three complementary effects for concurrency and parallelism:
 
 ```camp
 effect Parallel! {
-  map! : <a, b>|items: List(a), f: |a| -> b| -[Parallel!]-> List(b)
-  for_each! : <a>|items: List(a), f: |a| ->{}| -[Parallel!]-> {}
-  filter! : <a>|items: List(a), predicate: |a| -> Bool| -[Parallel!]-> List(a)
-  reduce! : <a, b>|items: List(a), init: b, f: |b, a| -> b| -[Parallel!]-> b
-  all! : <a>|tasks: List(|| -> a)| -[Parallel!]-> List(a)
-  any! : <a, e>|tasks: List(|| -[Throw!(e)]-> a)| -[Parallel! | Throw!(e)]-> a
+  map! : |items: List(a), f: |a| -> b| -[Parallel!]-> List(b) where a, b
+  for_each! : |items: List(a), f: |a| ->{}| -[Parallel!]-> {}
+  filter! : |items: List(a), predicate: |a| -> Bool| -[Parallel!]-> List(a)
+  reduce! : |items: List(a), init: b, f: |b, a| -> b| -[Parallel!]-> List(b) where a, b
+  all! : |tasks: List(|| -> a)| -[Parallel!]-> List(a)
+  any! : |tasks: List(|| -[Throw!(e)]-> a)| -[Parallel! | Throw!(e)]-> a where a, e
 }
 ```
 
@@ -74,7 +74,7 @@ Camp does NOT enforce associativity at the type level (undecidable). Instead:
 Each operation propagates the inner function's effects into the caller's effect row via effect polymorphism:
 
 ```camp
-apply_all = <a, b, e>|items: List(a), f: |a| -[e]-> b| -[Parallel! | e]-> List(b) {
+apply_all = |items: List(a), f: |a| -[e]-> b| -[Parallel! | e]-> List(b) {
   items.par_map!(f)
 }
 ```
@@ -155,9 +155,9 @@ The thread-pool handler uses `Spawn!` under the hood.
 
 ```camp
 effect Spawn! {
-  spawn! : <a>|thunk: || -> a| -[Spawn!]-> Handle(a)
-  join! : <a>|handle: Handle(a)| -[Spawn!]-> a
-  cancel! : <a>|handle: Handle(a)| -[Spawn!]-> {}
+  spawn! : |thunk: || -> a| -[Spawn!]-> Handle(a)
+  join! : |handle: Handle(a)| -[Spawn!]-> a
+  cancel! : |handle: Handle(a)| -[Spawn!]-> {}
 }
 ```
 

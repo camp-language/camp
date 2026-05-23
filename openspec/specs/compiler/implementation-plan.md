@@ -661,7 +661,7 @@ is safer than silent `unreachable`.
 
 **Add `where` parsing** after type annotation in const declarations:
 ```
-name = <a>|x: a| -> Str where a is Display { ... }
+name = |x: a| -> Str where a is Display { ... }
 ```
 
 **Parser changes**:

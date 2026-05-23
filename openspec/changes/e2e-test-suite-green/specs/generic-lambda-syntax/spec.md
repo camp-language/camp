@@ -1,16 +1,16 @@
 ## ADDED Requirements
 
-### Requirement: Type parameters before pipe-delimited parameters
-A lambda expression SHALL support declaring type parameters in angle brackets before the pipe-delimited parameter list, as in `<a>|x: a| -> a { x }`.
+### Requirement: Inferred type parameters from annotations
+Type parameters SHALL be inferred from lowercase type variables in function annotations. No explicit `<a>` syntax is needed — any lowercase type variable in the parameter or return type annotations is automatically generalized.
 
 #### Scenario: Generic identity function
-- **WHEN** a function is defined as `id = <a>|x: a| -> a { x }`
+- **WHEN** a function is defined as `id = |x: a| -> a { x }`
 - **THEN** the compiler SHALL accept it as a generic function with type parameter `a`
 
-#### Scenario: Type parameters followed by pipe
-- **WHEN** the token sequence `<identifier>` appears before `|`
-- **THEN** the parser SHALL interpret the angle brackets as type parameter declarations, not as a less-than comparison
+#### Scenario: Type variable in annotations
+- **WHEN** a function uses a lowercase type variable like `a` in its parameter or return type annotation
+- **THEN** the compiler SHALL treat `a` as an auto-generalized type parameter
 
-#### Scenario: Multiple type parameters
-- **WHEN** a function is defined as `f = <a, b>|x: a, y: b| -> a { x }`
+#### Scenario: Multiple type variables
+- **WHEN** a function is defined as `f = |x: a, y: b| -> a { x }`
 - **THEN** the compiler SHALL accept it as a generic function with type parameters `a` and `b`

@@ -12,7 +12,7 @@ The compiler SHALL inject built-in type constructors, tags, effect names, and op
 
 #### Scenario: .camp file provides module logic
 
-- **GIVEN** a `stdlib/List.camp` file defining `map = <a, b>|f: |a| -> b, xs: List(a)| -> List(b) { ... }`
+- **GIVEN** a `stdlib/List.camp` file defining `map = |f: |a| -> b, xs: List(a)| -> List(b) { ... }`
 - **WHEN** a user writes `import List` and calls `List.map(f, xs)`
 - **THEN** the compiler SHALL resolve `map` from the embedded stdlib module
 

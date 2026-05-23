@@ -74,6 +74,7 @@ canonicalize_decl :: proc(decl: Decl, scope: ^Canonicalize_Scope, imports: ^[dyn
 		if len(where_clauses) > 0 {
 			if lambda, ok := cbody.(^CExpr_Lambda); ok {
 				for wc in where_clauses {
+					found_param := false
 					for &tp in lambda.type_params {
 						if tp.name == wc.type_param {
 							found := false
@@ -86,8 +87,16 @@ canonicalize_decl :: proc(decl: Decl, scope: ^Canonicalize_Scope, imports: ^[dyn
 							if !found {
 								append(&tp.constraints, wc.trait_name)
 							}
+							found_param = true
 							break
 						}
+					}
+					// If the where clause references a type variable not in annotations,
+					// add it as a new type param
+					if !found_param {
+						constraints := make([dynamic]Intern_ID, 0, 1)
+						append(&constraints, wc.trait_name)
+						append(&lambda.type_params, Type_Param{name = wc.type_param, constraints = constraints})
 					}
 				}
 			}
@@ -448,13 +457,17 @@ canonicalize_expr :: proc(expr: Expr, scope: ^Canonicalize_Scope, ctx: ^Compilat
 		return c
 
 	case ^Expr_Lambda:
-		type_params := make([dynamic]Type_Param, 0, len(e.type_params))
+		existing_type_params := make([dynamic]Type_Param, 0, len(e.type_params))
 		for tp in e.type_params {
 			constraints := make([dynamic]Intern_ID, 0, len(tp.constraints))
 			for c in tp.constraints {
 				append(&constraints, c)
 			}
-			append(&type_params, Type_Param{name = tp.name, constraints = constraints, is_effect = tp.is_effect})
+			append(&existing_type_params, Type_Param{name = tp.name, constraints = constraints, is_effect = tp.is_effect})
+		}
+		where_clauses := make([dynamic]Where_Clause, 0, len(e.where_clauses))
+		for wc in e.where_clauses {
+			append(&where_clauses, wc)
 		}
 		params := make([dynamic]CFunc_Param, 0, len(e.params))
 		for p in e.params {
@@ -468,6 +481,8 @@ canonicalize_expr :: proc(expr: Expr, scope: ^Canonicalize_Scope, ctx: ^Compilat
 		if e.effects != nil {
 			ceffects = canonicalize_type(e.effects^, scope, ctx)
 		}
+		// Infer type params from lowercase type variables in annotations
+		type_params := infer_type_params(params[:], creturn_type, ceffects, existing_type_params, where_clauses)
 		cbody := canonicalize_expr(e.body, scope, ctx)
 		c := new(CExpr_Lambda)
 		c^ = CExpr_Lambda{
@@ -475,6 +490,7 @@ canonicalize_expr :: proc(expr: Expr, scope: ^Canonicalize_Scope, ctx: ^Compilat
 			params = params,
 			return_type = creturn_type,
 			effects = ceffects,
+			where_clauses = where_clauses,
 			body = cbody,
 			span = e.span,
 		}
@@ -643,6 +659,7 @@ canonicalize_expr :: proc(expr: Expr, scope: ^Canonicalize_Scope, ctx: ^Compilat
 				params = params,
 				return_type = nil,
 				effects = nil,
+				where_clauses = make([dynamic]Where_Clause, 0),
 				body = cbody,
 				span = e.span,
 			}
@@ -668,6 +685,7 @@ canonicalize_expr :: proc(expr: Expr, scope: ^Canonicalize_Scope, ctx: ^Compilat
 					params = make([dynamic]CFunc_Param, 0),
 					return_type = nil,
 					effects = nil,
+					where_clauses = make([dynamic]Where_Clause, 0),
 					body = cexpr,
 					span = e.span,
 				}
@@ -713,6 +731,7 @@ canonicalize_expr :: proc(expr: Expr, scope: ^Canonicalize_Scope, ctx: ^Compilat
 			params = params,
 			return_type = nil,
 			effects = nil,
+			where_clauses = make([dynamic]Where_Clause, 0),
 			body = cbody,
 			span = e.span,
 		}
@@ -1055,6 +1074,7 @@ make_derive_method_decl :: proc(
 		params = params,
 		return_type = nil,
 		effects = nil,
+		where_clauses = make([dynamic]Where_Clause, 0),
 		body = body_expr,
 		span = d.span,
 	}
@@ -1109,4 +1129,124 @@ desugar_parallel_method :: proc(method_str: string, receiver: CExpr, args: [dyna
 	perform := new(CExpr_Perform)
 	perform^ = CExpr_Perform{effect = parallel_name, op = op_id, args = perform_args, span = span}
 	return perform
+}
+
+// Collect lowercase type variable names from a CType tree.
+// Used to infer generic type parameters from type annotations.
+collect_type_variable_names :: proc(t: CType, seen: ^map[Intern_ID]bool, names: ^[dynamic]Intern_ID) {
+	switch ty in t {
+	case ^CType_Variable:
+		if _, exists := seen[ty.name]; !exists {
+			seen[ty.name] = true
+			append(names, ty.name)
+		}
+	case ^CType_Primitive:
+	case ^CType_Wildcard:
+	case ^CType_Self:
+	case ^CType_Function:
+		for p in ty.params {
+			collect_type_variable_names(p, seen, names)
+		}
+		collect_type_variable_names(ty.return_, seen, names)
+		if ty.effects != nil {
+			collect_type_variable_names(ty.effects^, seen, names)
+		}
+	case ^CType_Record:
+		for f in ty.fields {
+			collect_type_variable_names(f.type, seen, names)
+		}
+	case ^CType_Tag_Union:
+		for tag in ty.tags {
+			for p in tag.payload {
+				collect_type_variable_names(p, seen, names)
+			}
+		}
+	case ^CType_Applied:
+		for a in ty.args {
+			collect_type_variable_names(a, seen, names)
+		}
+	case ^CType_Effect_Row:
+		for e in ty.effects {
+			for a in e.type_args {
+				collect_type_variable_names(a, seen, names)
+			}
+		}
+	case:
+	}
+}
+
+// Infer type_params from type annotations and merge where clause constraints.
+// Lowercase type variables in annotations become implicit type parameters.
+infer_type_params :: proc(
+	params: []CFunc_Param,
+	return_type: ^CType,
+	effects: ^CType,
+	existing_type_params: [dynamic]Type_Param,
+	where_clauses: [dynamic]Where_Clause,
+) -> [dynamic]Type_Param {
+	seen := make(map[Intern_ID]bool)
+	inferred_names := make([dynamic]Intern_ID, 0, 4)
+	defer delete(seen)
+	defer delete(inferred_names)
+
+	// Mark names already in existing type_params as seen
+	for tp in existing_type_params {
+		seen[tp.name] = true
+	}
+
+	// Scan param type annotations
+	for p in params {
+		if p.type_ann != nil {
+			collect_type_variable_names(p.type_ann^, &seen, &inferred_names)
+		}
+	}
+
+	// Scan return type
+	if return_type != nil {
+		collect_type_variable_names(return_type^, &seen, &inferred_names)
+	}
+
+	// Scan effect type
+	if effects != nil {
+		collect_type_variable_names(effects^, &seen, &inferred_names)
+	}
+
+	// Also mark where clause type params as seen (they may not appear in annotations
+	// but should still be type params)
+	for wc in where_clauses {
+		if _, exists := seen[wc.type_param]; !exists {
+			seen[wc.type_param] = true
+			append(&inferred_names, wc.type_param)
+		}
+	}
+
+	// Build result: existing type params + inferred ones
+	result := make([dynamic]Type_Param, 0, len(existing_type_params) + len(inferred_names))
+	for tp in existing_type_params {
+		append(&result, tp)
+	}
+	for name in inferred_names {
+		append(&result, Type_Param{name = name})
+	}
+
+	// Merge where clause constraints into type params
+	for wc in where_clauses {
+		for &tp in result {
+			if tp.name == wc.type_param {
+				found := false
+				for c in tp.constraints {
+					if c == wc.trait_name {
+						found = true
+						break
+					}
+				}
+				if !found {
+					append(&tp.constraints, wc.trait_name)
+				}
+				break
+			}
+		}
+	}
+
+	return result
 }

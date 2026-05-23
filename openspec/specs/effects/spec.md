@@ -96,7 +96,7 @@ Effect row variables SHALL be generic type parameters that can be instantiated a
 
 #### Scenario: Effect polymorphism through map
 
-- **GIVEN** `map = <a, b, e>|f: |a| -[e]-> b, items: List(a)| -[Parallel! | e]-> List(b)`
+- **GIVEN** `map = |f: |a| -[e]-> b, items: List(a)| -[Parallel! | e]-> List(b)`
 - **WHEN** `map` is called with a pure function `|x| x + 1`
 - **THEN** the effect row SHALL be `-[Parallel!]->` only
 

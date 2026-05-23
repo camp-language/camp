@@ -6,13 +6,13 @@ Effect row variables SHALL be usable as generic type parameters in function sign
 
 #### Scenario: Effect-polymorphic map function
 
-- **GIVEN** a function `map = <a, b, e>|f: |a| -[e]-> b, items: List(a)| -[Parallel! | e]-> List(b)`
+- **GIVEN** a function `map = |f: |a| -[e]-> b, items: List(a)| -[Parallel! | e]-> List(b)`
 - **WHEN** `map` is called with a pure function `|x| x + 1`
 - **THEN** the effect row SHALL be `-[Parallel!]->` only
 
 #### Scenario: Effect-polymorphic map with effectful callback
 
-- **GIVEN** a function `map = <a, b, e>|f: |a| -[e]-> b, items: List(a)| -[Parallel! | e]-> List(b)`
+- **GIVEN** a function `map = |f: |a| -[e]-> b, items: List(a)| -[Parallel! | e]-> List(b)`
 - **WHEN** `map` is called with `|x| Throw!.throw!(x)`
 - **THEN** the effect row SHALL be `-[Parallel! | Throw!(a)]->`
 
@@ -58,6 +58,6 @@ When a `handle` expression handles an effect from a row containing a row variabl
 
 #### Scenario: Effect type parameter in generic function
 
-- **GIVEN** a function `<a, e>|f: |a| -[e]-> b|` where `e` appears in effect row position
+- **GIVEN** a function `|f: |a| -[e]-> b|` where `e` appears in effect row position
 - **WHEN** the typechecker processes the type parameter
 - **THEN** `a` SHALL have `is_effect = false` and `e` SHALL have `is_effect = true`

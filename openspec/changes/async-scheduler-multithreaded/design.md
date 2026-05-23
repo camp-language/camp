@@ -69,9 +69,9 @@ Camp currently has three concurrency effects (`Async!`, `Spawn!`, `Parallel!`) w
 
 ```camp
 effect Spawn! {
-  spawn! : <a, e>|thunk: || -[e]-> a| -[Spawn!]-> Handle(a, e)
-  join!  : <a, e>|handle: Handle(a, e)| -[Spawn! | e]-> a
-  cancel! : <a, e>|handle: Handle(a, e)| -[Spawn!]-> {}
+  spawn! : |thunk: || -[e]-> a| -[Spawn!]-> Handle(a, e)
+  join!  : |handle: Handle(a, e)| -[Spawn! | e]-> a
+  cancel! : |handle: Handle(a, e)| -[Spawn!]-> {}
 }
 ```
 
