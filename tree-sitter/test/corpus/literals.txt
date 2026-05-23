@@ -115,3 +115,69 @@ x = `if`
   (const_declaration
     (identifier)
     (identifier)))
+
+========
+Interpolated string simple
+========
+x = "Hello ${name}!"
+---
+(source_file
+  (const_declaration
+    (identifier)
+    (interpolated_string
+      (string_content)
+      (expression (identifier))
+      (string_content))))
+
+========
+Interpolated string multiple holes
+========
+x = "${a} and ${b}"
+---
+(source_file
+  (const_declaration
+    (identifier)
+    (interpolated_string
+      (expression (identifier))
+      (string_content)
+      (expression (identifier)))))
+
+========
+Raw interpolated string
+========
+x = r"C:\${dir}"
+---
+(source_file
+  (const_declaration
+    (identifier)
+    (interpolated_string
+      (string_content)
+      (expression (identifier)))))
+
+========
+Multiline interpolated string
+========
+x = """Hello
+${name}!"""
+---
+(source_file
+  (const_declaration
+    (identifier)
+    (interpolated_string
+      (string_content)
+      (expression (identifier))
+      (string_content))))
+
+========
+Interpolated string with nested braces
+========
+x = "${record.{name}}"
+---
+(source_file
+  (const_declaration
+    (identifier)
+    (interpolated_string
+      (expression
+        (field_access_expression
+          (identifier)
+          (identifier))))))

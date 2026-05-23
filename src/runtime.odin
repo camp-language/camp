@@ -1457,3 +1457,59 @@ emit_camp_parallel_map_body :: proc(runtime_indices: [RUNTIME_FUNC_COUNT]int) ->
 	delete(buf)
 	return Wasm_Code{locals = locals, body = body}
 }
+
+emit_camp_i64_to_str_body :: proc() -> Wasm_Code {
+	// camp_i64_to_str(val: i64) -> i32 (Str pointer)
+	// Stub: returns null — real implementation later
+	buf: [dynamic]u8
+	buf = make([dynamic]u8, 0, 8)
+	emit_instruction(Wasm_I32_Const{value = 0}, &buf)
+	emit_instruction(Wasm_End{}, &buf)
+	locals := make([]Wasm_Local_Decl, 0)
+	body := make([]u8, len(buf))
+	for b, i in buf { body[i] = b }
+	delete(buf)
+	return Wasm_Code{locals = locals, body = body}
+}
+
+emit_camp_i32_to_str_body :: proc() -> Wasm_Code {
+	// camp_i32_to_str(val: i32) -> i32 (Str pointer)
+	// Stub: returns null — real implementation later
+	buf: [dynamic]u8
+	buf = make([dynamic]u8, 0, 8)
+	emit_instruction(Wasm_I32_Const{value = 0}, &buf)
+	emit_instruction(Wasm_End{}, &buf)
+	locals := make([]Wasm_Local_Decl, 0)
+	body := make([]u8, len(buf))
+	for b, i in buf { body[i] = b }
+	delete(buf)
+	return Wasm_Code{locals = locals, body = body}
+}
+
+emit_camp_f64_to_str_body :: proc() -> Wasm_Code {
+	// camp_f64_to_str(val: f64) -> i32 (Str pointer)
+	// Stub: returns null — real implementation later
+	buf: [dynamic]u8
+	buf = make([dynamic]u8, 0, 8)
+	emit_instruction(Wasm_I32_Const{value = 0}, &buf)
+	emit_instruction(Wasm_End{}, &buf)
+	locals := make([]Wasm_Local_Decl, 0)
+	body := make([]u8, len(buf))
+	for b, i in buf { body[i] = b }
+	delete(buf)
+	return Wasm_Code{locals = locals, body = body}
+}
+
+emit_camp_bool_to_str_body :: proc() -> Wasm_Code {
+	// camp_bool_to_str(val: i32) -> i32 (Str pointer)
+	// Stub: returns null — real implementation later
+	buf: [dynamic]u8
+	buf = make([dynamic]u8, 0, 8)
+	emit_instruction(Wasm_I32_Const{value = 0}, &buf)
+	emit_instruction(Wasm_End{}, &buf)
+	locals := make([]Wasm_Local_Decl, 0)
+	body := make([]u8, len(buf))
+	for b, i in buf { body[i] = b }
+	delete(buf)
+	return Wasm_Code{locals = locals, body = body}
+}

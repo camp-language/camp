@@ -372,3 +372,131 @@ test_parser_dot_lambda_mixed :: proc(t: ^testing.T) {
 		testing.expect(t, false)
 	}
 }
+
+@(test)
+test_parse_simple_interpolation :: proc(t: ^testing.T) {
+	ctx: Compilation_Context
+	context_init(&ctx)
+	defer context_destroy(&ctx)
+
+	expr := parse_expr("\"Hello ${name}!\"", &ctx)
+	testing.expect(t, !diag_collector_has_errors(&ctx.collector))
+	#partial switch e in expr {
+	case ^Expr_Interpolated_String:
+		testing.expect(t, len(e.parts) == 3)
+		testing.expect(t, !e.is_raw)
+		testing.expect(t, !e.is_multiline)
+		#partial switch p0 in e.parts[0] {
+		case ^String_Segment:
+			testing.expect(t, p0.text == "Hello ")
+		case:
+			testing.expect(t, false)
+		}
+		#partial switch p1 in e.parts[1] {
+		case Expr:
+			#partial switch inner in p1 {
+			case ^Expr_Identifier:
+				// name — success
+			case:
+				testing.expect(t, false)
+			}
+		case:
+			testing.expect(t, false)
+		}
+		#partial switch p2 in e.parts[2] {
+		case ^String_Segment:
+			testing.expect(t, p2.text == "!")
+		case:
+			testing.expect(t, false)
+		}
+	case:
+		testing.expect(t, false)
+	}
+}
+
+@(test)
+test_parse_expression_interpolation :: proc(t: ^testing.T) {
+	ctx: Compilation_Context
+	context_init(&ctx)
+	defer context_destroy(&ctx)
+
+	expr := parse_expr("\"${x + y}\"", &ctx)
+	testing.expect(t, !diag_collector_has_errors(&ctx.collector))
+	#partial switch e in expr {
+	case ^Expr_Interpolated_String:
+		testing.expect(t, len(e.parts) == 1)
+		testing.expect(t, !e.is_raw)
+		testing.expect(t, !e.is_multiline)
+		#partial switch p0 in e.parts[0] {
+		case Expr:
+			#partial switch inner in p0 {
+			case ^Expr_BinOp:
+				testing.expect(t, inner.op == .Plus)
+			case:
+				testing.expect(t, false)
+			}
+		case:
+			testing.expect(t, false)
+		}
+	case:
+		testing.expect(t, false)
+	}
+}
+
+@(test)
+test_parse_raw_string_interpolation :: proc(t: ^testing.T) {
+	ctx: Compilation_Context
+	context_init(&ctx)
+	defer context_destroy(&ctx)
+
+	expr := parse_expr("r\"Hello ${name}!\"", &ctx)
+	testing.expect(t, !diag_collector_has_errors(&ctx.collector))
+	#partial switch e in expr {
+	case ^Expr_Interpolated_String:
+		testing.expect(t, e.is_raw)
+		testing.expect(t, !e.is_multiline)
+		testing.expect(t, len(e.parts) == 3)
+		#partial switch p1 in e.parts[1] {
+		case Expr:
+			#partial switch inner in p1 {
+			case ^Expr_Identifier:
+				// name — success
+			case:
+				testing.expect(t, false)
+			}
+		case:
+			testing.expect(t, false)
+		}
+	case:
+		testing.expect(t, false)
+	}
+}
+
+@(test)
+test_parse_multiline_string_interpolation :: proc(t: ^testing.T) {
+	ctx: Compilation_Context
+	context_init(&ctx)
+	defer context_destroy(&ctx)
+
+	expr := parse_expr("\"\"\"Hello ${name}!\"\"\"", &ctx)
+	testing.expect(t, !diag_collector_has_errors(&ctx.collector))
+	#partial switch e in expr {
+	case ^Expr_Interpolated_String:
+		testing.expect(t, !e.is_raw)
+		testing.expect(t, e.is_multiline)
+		testing.expect(t, len(e.parts) == 3)
+		#partial switch p1 in e.parts[1] {
+		case Expr:
+			#partial switch inner in p1 {
+			case ^Expr_Identifier:
+				// name — success
+			case:
+				testing.expect(t, false)
+			}
+		case:
+			testing.expect(t, false)
+		}
+	case:
+		testing.expect(t, false)
+	}
+}

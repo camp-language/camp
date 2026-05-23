@@ -989,6 +989,68 @@ test_mono_method_dispatch :: proc(t: ^testing.T) {
 	testing.expect(t, impl_found)
 }
 
+@(test)
+test_display_trait_registered :: proc(t: ^testing.T) {
+	store, collector := setup_type_store()
+	defer teardown_type_store(&store, collector)
+
+	inject_prelude_effects_typecheck(&store)
+
+	display_name := intern(store.interner, "Display")
+	_, found := store.trait_registry[display_name]
+	testing.expect(t, found, "Display trait should be registered after prelude injection")
+
+	if found {
+		info := store.trait_registry[display_name]
+		testing.expect(t, len(info.methods) == 1, "Display should have exactly 1 method")
+		if len(info.methods) == 1 {
+			to_str_name := intern(store.interner, "to_str")
+			testing.expect(t, info.methods[0].name == to_str_name, "Display method should be 'to_str'")
+		}
+	}
+}
+
+@(test)
+test_display_impl_for_primitives :: proc(t: ^testing.T) {
+	store, collector := setup_type_store()
+	defer teardown_type_store(&store, collector)
+
+	inject_prelude_effects_typecheck(&store)
+
+	display_name := intern(store.interner, "Display")
+
+	types := []string{"Str", "I64", "I32", "F64", "Bool"}
+	for type_name in types {
+		type_id := intern(store.interner, type_name)
+		_, found := find_trait_impl(&store, display_name, type_id)
+		testing.expect(t, found, fmt.tprintf("Display impl should exist for {}", type_name))
+	}
+}
+
+@(test)
+test_implements_display_helper :: proc(t: ^testing.T) {
+	store, collector := setup_type_store()
+	defer teardown_type_store(&store, collector)
+
+	inject_prelude_effects_typecheck(&store)
+
+	str_name := intern(store.interner, "Str")
+	i64_name := intern(store.interner, "I64")
+	i32_name := intern(store.interner, "I32")
+	f64_name := intern(store.interner, "F64")
+	bool_name := intern(store.interner, "Bool")
+	u64_name := intern(store.interner, "U64")
+	bytes_name := intern(store.interner, "Bytes")
+
+	testing.expect(t, implements_display(&store, str_name), "Str should implement Display")
+	testing.expect(t, implements_display(&store, i64_name), "I64 should implement Display")
+	testing.expect(t, implements_display(&store, i32_name), "I32 should implement Display")
+	testing.expect(t, implements_display(&store, f64_name), "F64 should implement Display")
+	testing.expect(t, implements_display(&store, bool_name), "Bool should implement Display")
+	testing.expect(t, !implements_display(&store, u64_name), "U64 should NOT implement Display")
+	testing.expect(t, !implements_display(&store, bytes_name), "Bytes should NOT implement Display")
+}
+
 check_method_call_resolved :: proc(expr: TExpr, found: ^bool) {
 	#partial switch e in expr {
 	case ^TExpr_Call:

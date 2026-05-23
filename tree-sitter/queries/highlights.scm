@@ -22,6 +22,14 @@
 ;; String
 (string) @string
 
+;; Interpolated strings
+(interpolated_string) @string
+(interpolated_string
+  "${" @punctuation.special)
+(interpolated_string
+  "}" @punctuation.special)
+(interpolated_string (expression) @embedded)
+
 ;; Integer
 (integer) @number
 

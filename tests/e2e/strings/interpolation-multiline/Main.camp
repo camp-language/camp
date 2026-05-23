@@ -1,0 +1,6 @@
+main! = || -> I64 {
+    val = "test"
+    msg = """Hello
+${val}!"""
+    0
+}

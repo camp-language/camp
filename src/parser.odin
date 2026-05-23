@@ -89,7 +89,7 @@ expr_span_start :: proc(expr: Expr) -> int {
 	case ^Expr_Assign:            return e.span.start
 	case ^Expr_Return:            return e.span.start
 	case ^Expr_Crash:             return e.span.start
-	case ^Expr_Interpolate:       return e.span.start
+	case ^Expr_Interpolated_String: return e.span.start
 	case ^Expr_Handle:            return e.span.start
 	case ^Expr_Par:               return e.span.start
 	case ^Expr_For:               return e.span.start
@@ -122,7 +122,7 @@ right_span_end :: proc(expr: Expr) -> int {
 	case ^Expr_Assign:            return e.span.end
 	case ^Expr_Return:            return e.span.end
 	case ^Expr_Crash:             return e.span.end
-	case ^Expr_Interpolate:       return e.span.end
+	case ^Expr_Interpolated_String: return e.span.end
 	case ^Expr_Handle:            return e.span.end
 	case ^Expr_Par:               return e.span.end
 	case ^Expr_For:               return e.span.end
@@ -401,6 +401,18 @@ parser_parse_prefix :: proc(p: ^Parser) -> Expr {
 		e := new(Expr_String)
 		e^ = Expr_String{value = tok.text, span = tok.span}
 		return e
+
+	case .Interpolated_String_Literal:
+		parser_advance(p)
+		return parser_parse_interpolated_string(p, tok)
+
+	case .Raw_String_Literal:
+		parser_advance(p)
+		return parser_parse_interpolated_string(p, tok)
+
+	case .Multiline_String_Literal:
+		parser_advance(p)
+		return parser_parse_interpolated_string(p, tok)
 
 	case .Kw_True:
 		parser_advance(p)
@@ -1696,4 +1708,118 @@ parser_parse_expect_decl :: proc(p: ^Parser) -> Decl {
 	decl := new(Decl_Expect)
 	decl^ = Decl_Expect{condition = condition, span = start}
 	return decl
+}
+
+parser_parse_interpolated_string :: proc(p: ^Parser, tok: Token) -> Expr {
+	raw_text := tok.text
+	is_raw := tok.kind == .Raw_String_Literal
+	is_multiline := tok.kind == .Multiline_String_Literal
+
+	inner_text: string
+	if is_raw {
+		inner_text = raw_text[2:len(raw_text)-1]
+	} else if is_multiline {
+		inner_text = raw_text[3:len(raw_text)-3]
+	} else {
+		inner_text = raw_text[1:len(raw_text)-1]
+	}
+
+	parts := make([dynamic]String_Part, 0, 8)
+	i := 0
+	seg_start := 0
+
+	for i < len(inner_text) {
+		if inner_text[i] == '\\' && i + 1 < len(inner_text) && inner_text[i + 1] == '$' {
+			i += 2
+		} else if inner_text[i] == '$' && i + 1 < len(inner_text) && inner_text[i + 1] == '{' {
+			if i > seg_start {
+				seg := new(String_Segment)
+				seg^ = String_Segment{
+					text = inner_text[seg_start:i],
+					span = tok.span,
+				}
+				append(&parts, String_Part(seg))
+			}
+
+			i += 2
+			brace_depth := 1
+			expr_start := i
+
+			for brace_depth > 0 && i < len(inner_text) {
+				if inner_text[i] == '{' {
+					brace_depth += 1
+				} else if inner_text[i] == '}' {
+					brace_depth -= 1
+				}
+				i += 1
+			}
+
+			if brace_depth != 0 {
+				collector_add_diag(p.collector, diag_unterminated_interpolation(tok))
+				e := new(Expr_Interpolated_String)
+				e^ = Expr_Interpolated_String{
+					parts = parts,
+					is_raw = is_raw,
+					is_multiline = is_multiline,
+					span = tok.span,
+				}
+				return e
+			}
+
+			expr_text := inner_text[expr_start:i-1]
+
+			has_newline := false
+			for j := 0; j < len(expr_text); j += 1 {
+				if expr_text[j] == '\n' || expr_text[j] == '\r' {
+					has_newline = true
+					break
+				}
+			}
+			if has_newline {
+				collector_add_diag(p.collector, diag_multiline_interpolation(tok))
+			}
+
+			expr := parse_interpolation_expr(expr_text, tok.span, p)
+			append(&parts, String_Part(expr))
+
+			seg_start = i
+		} else {
+			i += 1
+		}
+	}
+
+	if seg_start < len(inner_text) {
+		seg := new(String_Segment)
+		seg^ = String_Segment{
+			text = inner_text[seg_start:],
+			span = tok.span,
+		}
+		append(&parts, String_Part(seg))
+	}
+
+	e := new(Expr_Interpolated_String)
+	e^ = Expr_Interpolated_String{
+		parts = parts,
+		is_raw = is_raw,
+		is_multiline = is_multiline,
+		span = tok.span,
+	}
+	return e
+}
+
+parse_interpolation_expr :: proc(text: string, span: Source_Span, p: ^Parser) -> Expr {
+	file := Source_File{path = "<interpolation>", contents = text, id = span.file_id}
+	lex: Lexer
+	lexer_init(&lex, file, p.collector, p.intern)
+
+	sub: Parser
+	parser_init(&sub, &lex, p.collector, p.intern)
+
+	result := parser_parse_expr(&sub)
+
+	if sub.current.kind != .Eof {
+		collector_add_diag(p.collector, diag_unexpected_tokens_after_interpolation(tok = sub.current))
+	}
+
+	return result
 }

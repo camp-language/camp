@@ -119,7 +119,7 @@ Expr :: union {
 	^Expr_Assign,
 	^Expr_Return,
 	^Expr_Crash,
-	^Expr_Interpolate,
+	^Expr_Interpolated_String,
 	^Expr_Handle,
 	^Expr_Par,
 	^Expr_Dot_Lambda,
@@ -345,9 +345,21 @@ Expr_Crash :: struct {
 	span:    Source_Span,
 }
 
-Expr_Interpolate :: struct {
-	parts: [dynamic]Expr,
-	span:  Source_Span,
+Expr_Interpolated_String :: struct {
+	parts:        [dynamic]String_Part,
+	is_raw:       bool,
+	is_multiline: bool,
+	span:         Source_Span,
+}
+
+String_Part :: union {
+	^String_Segment,
+	Expr,
+}
+
+String_Segment :: struct {
+	text: string,
+	span: Source_Span,
 }
 
 Expr_Handle :: struct {

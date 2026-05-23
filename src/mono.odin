@@ -469,13 +469,33 @@ substitute_types_in_expr :: proc(expr: TExpr, type_args: map[Intern_ID]Type_Var_
 		result.span = e.span
 		return TExpr(result)
 
-	case ^TExpr_Interpolate:
-		parts_t := make([dynamic]TExpr, len(e.parts))
-		for i in 0..<len(e.parts) {
-			parts_t[i] = substitute_types_in_expr(e.parts[i], type_args, env)
+	case ^TExpr_Interpolated_String:
+		tparts := make([dynamic]TExpr_String_Part, 0, len(e.parts))
+		for part in e.parts {
+			switch p in part {
+			case ^TExpr_String_Literal:
+				clit := new(TExpr_String_Literal)
+				clit^ = TExpr_String_Literal{
+					value = p.value,
+					type_ = substitute_ir_type(p.type_, type_args, env),
+					eff_ = substitute_ir_type(p.eff_, type_args, env),
+					span = p.span,
+				}
+				append(&tparts, TExpr_String_Part(clit))
+			case ^TExpr_String_Expr:
+				sexpr := new(TExpr_String_Expr)
+				sexpr^ = TExpr_String_Expr{
+					expr = substitute_types_in_expr(p.expr, type_args, env),
+					needs_to_str = p.needs_to_str,
+					display_impl = p.display_impl,
+				}
+				append(&tparts, TExpr_String_Part(sexpr))
+			}
 		}
-		result := new(TExpr_Interpolate)
-		result.parts = parts_t
+		result := new(TExpr_Interpolated_String)
+		result.parts = tparts
+		result.is_raw = e.is_raw
+		result.is_multiline = e.is_multiline
 		result.type_ = substitute_ir_type(e.type_, type_args, env)
 		result.eff_ = substitute_ir_type(e.eff_, type_args, env)
 		result.span = e.span
@@ -604,7 +624,7 @@ get_expr_ir_type :: proc(expr: TExpr) -> IR_Type {
 		return e.type_
 	case ^TExpr_Crash:
 		return e.type_
-	case ^TExpr_Interpolate:
+	case ^TExpr_Interpolated_String:
 		return e.type_
 	case ^TExpr_Handle:
 		return e.type_
@@ -766,9 +786,13 @@ walk_expr_for_call_sites :: proc(expr: TExpr, env: ^Mono_Env) {
 		walk_expr_for_call_sites(e.value, env)
 	case ^TExpr_Crash:
 		walk_expr_for_call_sites(e.message, env)
-	case ^TExpr_Interpolate:
+	case ^TExpr_Interpolated_String:
 		for part in e.parts {
-			walk_expr_for_call_sites(part, env)
+			switch p in part {
+			case ^TExpr_String_Literal:
+			case ^TExpr_String_Expr:
+				walk_expr_for_call_sites(p.expr, env)
+			}
 		}
 	case ^TExpr_Handle:
 		walk_expr_for_call_sites(e.body, env)
@@ -886,9 +910,13 @@ rewrite_calls_in_expr :: proc(expr: TExpr, specializations: map[string]Canonical
 		e.value = rewrite_calls_in_expr(e.value, specializations, env)
 	case ^TExpr_Crash:
 		e.message = rewrite_calls_in_expr(e.message, specializations, env)
-	case ^TExpr_Interpolate:
+	case ^TExpr_Interpolated_String:
 		for i in 0..<len(e.parts) {
-			e.parts[i] = rewrite_calls_in_expr(e.parts[i], specializations, env)
+			switch p in e.parts[i] {
+			case ^TExpr_String_Literal:
+			case ^TExpr_String_Expr:
+				p.expr = rewrite_calls_in_expr(p.expr, specializations, env)
+			}
 		}
 	case ^TExpr_Handle:
 		e.body = rewrite_calls_in_expr(e.body, specializations, env)

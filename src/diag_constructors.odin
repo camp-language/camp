@@ -273,6 +273,32 @@ diag_unjoined_spawn :: proc(span: Source_Span) -> Diagnostic {
 	return d
 }
 
+diag_unterminated_interpolation :: proc(tok: Token) -> Diagnostic {
+	d := diag_init(.Error, "UNTERMINATED INTERPOLATION", tok.span,
+		"This string interpolation expression is missing a closing `}`.")
+	return d
+}
+
+diag_multiline_interpolation :: proc(tok: Token) -> Diagnostic {
+	d := diag_init(.Error, "MULTILINE INTERPOLATION", tok.span,
+		"String interpolation expressions must be on a single line.")
+	append(&d.hints, "Try extracting the expression into a variable defined before the string.")
+	return d
+}
+
+diag_unexpected_tokens_after_interpolation :: proc(tok: Token) -> Diagnostic {
+	d := diag_init(.Error, "UNEXPECTED TOKENS IN INTERPOLATION", tok.span,
+		"I found extra tokens after the expression in this string interpolation.")
+	return d
+}
+
+diag_display_not_implemented :: proc(type_name: string, span: Source_Span) -> Diagnostic {
+	d := diag_init(.Error, "DISPLAY NOT IMPLEMENTED", span,
+		fmt.tprintf("Type `{}` does not implement `Display`. Only types that implement `Display` can be used in string interpolation.", type_name))
+	append(&d.hints, fmt.tprintf("Implement `Display` for `{}`, or convert the value to `Str` before interpolation.", type_name))
+	return d
+}
+
 diag_shadow :: proc(name: string, span: Source_Span) -> Diagnostic {
 	d := diag_init(.Error, "SHADOWING", span,
 		fmt.tprintf("`{}` shadows a binding from an enclosing scope. All shadowing is forbidden.", name))
