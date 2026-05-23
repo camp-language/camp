@@ -8,6 +8,16 @@ export default grammar({
 
   word: ($) => $.identifier,
 
+  externals: ($) => [
+    $._string_start,
+    $._string_start_r,
+    $._string_start_triple,
+    $._string_content,
+    $._interpolation_start,
+    $._interpolation_end,
+    $._string_end,
+  ],
+
   conflicts: ($) => [
     [$.block, $.record_expression],
     [$._primary_expression, $.lambda_parameter],
@@ -174,6 +184,7 @@ export default grammar({
       $.integer,
       $.float,
       $.string,
+      $.interpolated_string,
       $.boolean,
       $.dollar_identifier,
       $.identifier,
@@ -202,6 +213,23 @@ export default grammar({
       '"',
       repeat(choice(/[^\\"\n]+/, $.escape_sequence)),
       '"',
+    ),
+
+    interpolated_string: ($) => seq(
+      field("open", choice(
+        alias($._string_start, '"'),
+        alias($._string_start_r, 'r"'),
+        alias($._string_start_triple, '"""'),
+      )),
+      repeat(choice(
+        alias($._string_content, $.string_content),
+        seq(
+          alias($._interpolation_start, '${'),
+          field("expression", $._expression),
+          alias($._interpolation_end, '}'),
+        ),
+      )),
+      field("close", alias($._string_end, '"')),
     ),
 
     escape_sequence: ($) => token(seq("\\", /[nrt"\\]/)),
