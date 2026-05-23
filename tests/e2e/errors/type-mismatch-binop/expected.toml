@@ -2,11 +2,11 @@ stdout = """
 canonicalized /tmp/camp-e2e/errors/type-mismatch-binop/src/Main.camp: 2 declaration(s), 0 import(s)
 -- TYPE MISMATCH --- /tmp/camp-e2e/errors/type-mismatch-binop/src/Main.camp
 
-`I64` does not match `tag union`.
+`I64` does not match `Bool`.
    1 | x = 42
            ^^
    2 | y = x + True
-               ~~~~ this has type `tag union`
+               ~~~~ this has type `Bool`
 compilation failed with 1 error(s)
 """
 stderr = ""

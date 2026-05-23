@@ -1,52 +1,7 @@
 stdout = """
--- SYNTAX ERROR --- /tmp/camp-e2e/execution/not-operator/src/Main.camp
-
-I expected `=` here, but I got `!` instead.
-   1 | main!! = || -> I64 {
-            ^
-
--- SYNTAX ERROR --- /tmp/camp-e2e/execution/not-operator/src/Main.camp
-
-I was not expecting `=` here.
-   1 | main!! = || -> I64 {
-              ^
-
--- SYNTAX ERROR --- /tmp/camp-e2e/execution/not-operator/src/Main.camp
-
-I expected `=` here, but I got `|` instead.
-   1 | main!! = || -> I64 {
-                 ^
-
--- SYNTAX ERROR --- /tmp/camp-e2e/execution/not-operator/src/Main.camp
-
-I was not expecting `->` here.
-   1 | main!! = || -> I64 {
-                   ^^
-
--- SYNTAX ERROR --- /tmp/camp-e2e/execution/not-operator/src/Main.camp
-
-I expected `=` here, but I got `{` instead.
-   1 | main!! = || -> I64 {
-                          ^
-
--- UNEXPECTED CHARACTER --- /tmp/camp-e2e/execution/not-operator/src/Main.camp
-
-I don't recognize the character `?`.
-   2 |     if ?False 1 else 0
-              ^
-
--- SYNTAX ERROR --- /tmp/camp-e2e/execution/not-operator/src/Main.camp
-
-I expected `=` here, but I got `` instead.
-   3 | }
-        ^
-
--- SYNTAX ERROR --- /tmp/camp-e2e/execution/not-operator/src/Main.camp
-
-I was not expecting `` here.
-   3 | }
-        ^
-compilation failed with 8 error(s)
+canonicalized /tmp/camp-e2e/execution/not-operator/src/Main.camp: 1 declaration(s), 0 import(s)
+typecheck passed for /tmp/camp-e2e/execution/not-operator/src/Main.camp
+compiled /tmp/camp-e2e/execution/not-operator/src/Main.camp -> /tmp/camp-e2e/execution/not-operator/src/Main.wasm
 """
 stderr = ""
-exit = 1
+exit = 0

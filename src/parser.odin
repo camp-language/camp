@@ -1,13 +1,13 @@
 #+feature dynamic-literals
 package camp
 
-import "core:fmt"
 import "core:strings"
 
 Binding_Power :: int
 
 PREFIX_BP :map[Token_Kind]Binding_Power = {
 	.Minus  = 7,
+	.Plus   = 7,
 	.Kw_Not = 7,
 }
 
@@ -177,13 +177,7 @@ parser_parse_const_decl :: proc(p: ^Parser, is_pub: bool) -> Decl {
 	name_text := name.text
 	is_upper := name.kind == .Upper_Id
 
-	is_effectful := false
-	if p.current.kind == .Bang {
-		is_effectful = true
-		parser_advance(p)
-		name_text = strings.concatenate({name.text, "!"}, context.allocator)
-	}
-
+	is_effectful := strings.has_suffix(name_text, "!")
 	name_id := intern(p.intern, name_text)
 
 	type_params := make([dynamic]Type_Param, 0, 4)
@@ -241,11 +235,7 @@ parser_parse_const_decl :: proc(p: ^Parser, is_pub: bool) -> Decl {
 			// Parse operation name (identifier + optional bang)
 			op_tok := parser_expect(p, .Identifier)
 			op_name_text := op_tok.text
-			op_is_effectful := p.current.kind == .Bang
-			if op_is_effectful {
-				parser_advance(p)
-				op_name_text = strings.concatenate({op_tok.text, "!"}, context.allocator)
-			}
+			op_is_effectful := strings.has_suffix(op_tok.text, "!")
 			op_name_id := intern(p.intern, op_name_text)
 
 			// Require : after operation name
@@ -291,7 +281,11 @@ parser_parse_const_decl :: proc(p: ^Parser, is_pub: bool) -> Decl {
 		parser_expect(p, .RBrace)
 
 		// Use the name WITHOUT the ! suffix for internal effect name consistency
-		effect_name_id := intern(p.intern, name.text)
+		effect_base_name := name.text
+		if strings.has_suffix(effect_base_name, "!") {
+			effect_base_name = effect_base_name[:len(effect_base_name)-1]
+		}
+		effect_name_id := intern(p.intern, effect_base_name)
 		decl := new(Decl_Effect)
 		decl^ = Decl_Effect{name = effect_name_id, is_pub = is_pub, operations = ops, type_params = type_params, span = start_span}
 		return decl
@@ -439,6 +433,48 @@ parser_parse_prefix :: proc(p: ^Parser) -> Expr {
 		e^ = Expr_Dollar_Identifier{name = intern(p.intern, name.text), span = tok.span}
 		return e
 
+	case .Lt:
+		// Speculative parsing for <a>|params| generic lambda syntax
+		saved_pos := p.lexer.pos
+		saved_tok := p.current
+		parser_advance(p) // consume <
+
+		is_generic_lambda := false
+		type_param_names := make([dynamic]string, 0, 4)
+		for p.current.kind == .Identifier {
+			append(&type_param_names, p.current.text)
+			parser_advance(p)
+			if p.current.kind == .Comma {
+				parser_advance(p)
+				parser_skip_backslashes(p)
+			} else {
+				break
+			}
+		}
+
+		if p.current.kind == .Gt {
+			parser_advance(p) // consume >
+			if p.current.kind == .Pipe {
+				is_generic_lambda = true
+			}
+		}
+
+		if is_generic_lambda {
+			// Commit: parse the lambda starting from |
+			// Build type_params from saved names
+			type_params := make([dynamic]Type_Param, 0, len(type_param_names))
+			for name in type_param_names {
+				append(&type_params, Type_Param{name = intern(p.intern, name)})
+			}
+			return parser_parse_lambda_with_type_params(p, type_params)
+		}
+
+		// Backtrack: restore lexer position and treat < as less-than
+		p.lexer.pos = saved_pos
+		p.current = saved_tok
+		// Fall through to binary operator handling in expr_bp
+		return parser_parse_expr_bp(p, 0)
+
 	case .Pipe:
 		return parser_parse_lambda(p)
 
@@ -479,7 +515,7 @@ parser_parse_prefix :: proc(p: ^Parser) -> Expr {
 		parser_expect(p, .RParen)
 		return expr
 
-	case .Minus, .Kw_Not:
+	case .Minus, .Plus, .Kw_Not:
 		parser_advance(p)
 		rhs := parser_parse_expr_bp(p, 7)
 		e := new(Expr_PrefixOp)
@@ -502,12 +538,20 @@ parser_parse_tag_or_call :: proc(p: ^Parser) -> Expr {
 	start := p.current.span
 	name_tok := parser_advance(p)
 
-	// Effect names may include ! (e.g., Spawn!, Parallel!, Async!)
-	if p.current.kind == .Bang {
-		name_tok.text = strings.concatenate({name_tok.text, "!"}, context.allocator)
-		parser_advance(p)
+	// True/False are Bool literals, not tag constructors
+	if name_tok.text == "True" {
+		e := new(Expr_Bool)
+		e^ = Expr_Bool{value = true, span = start}
+		return e
+	}
+	if name_tok.text == "False" {
+		e := new(Expr_Bool)
+		e^ = Expr_Bool{value = false, span = start}
+		return e
 	}
 
+	// Effect names may include ! (e.g., Spawn!, Parallel!, Async!)
+	// The ! is already absorbed into the token text by the lexer
 	name_id := intern(p.intern, name_tok.text)
 
 	tag := new(Expr_Tag)
@@ -585,12 +629,7 @@ parser_parse_method_chain :: proc(p: ^Parser, initial: Expr) -> Expr {
 			method_tok = parser_expect(p, .Identifier)
 		}
 
-		is_effectful := false
-		if p.current.kind == .Bang {
-			is_effectful = true
-			method_tok.text = strings.concatenate({method_tok.text, "!"}, context.allocator)
-			parser_advance(p)
-		}
+		is_effectful := strings.has_suffix(method_tok.text, "!")
 
 		method_id := intern(p.intern, method_tok.text)
 
@@ -770,6 +809,74 @@ parser_parse_lambda :: proc(p: ^Parser) -> Expr {
 	return e
 }
 
+parser_parse_lambda_with_type_params :: proc(p: ^Parser, type_params: [dynamic]Type_Param) -> Expr {
+	start := p.current.span
+	parser_advance(p) // consume |
+
+	params := make([dynamic]Func_Param, 0, 4)
+
+	for p.current.kind != .Pipe && p.current.kind != .Eof {
+		param := Func_Param{span = p.current.span}
+		if p.current.kind == .Dot_Dot {
+			parser_advance(p)
+			if p.current.kind == .Comma {
+				parser_advance(p)
+				parser_skip_backslashes(p)
+			}
+			continue
+		}
+
+		if p.current.kind == .Identifier || p.current.kind == .Upper_Id {
+			name_tok := parser_advance(p)
+			param.name = intern(p.intern, name_tok.text)
+			if p.current.kind == .Colon {
+				parser_advance(p)
+				param.type_ann = parser_parse_type(p)
+			}
+		} else {
+			collector_add_diag(p.collector, diag_expected_token(.Identifier, p.current, p.current.span))
+			parser_advance(p)
+		}
+		append(&params, param)
+		if p.current.kind == .Comma {
+			parser_advance(p)
+			parser_skip_backslashes(p)
+		}
+	}
+	parser_expect(p, .Pipe)
+
+	return_type: ^Type = nil
+	effects: ^Type = nil
+	if p.current.kind == .Arrow {
+		parser_advance(p)
+		if p.current.kind == .LBrace {
+			parser_advance(p)
+			effects = parser_parse_effect_row_type_brace(p)
+			parser_expect(p, .RBrace)
+		} else if p.current.kind == .Minus {
+			parser_advance(p)
+			parser_expect(p, .LBrack)
+			effects = parser_parse_effect_row_type(p)
+			parser_expect(p, .RBrack)
+			parser_expect(p, .Arrow)
+		}
+		return_type = parser_parse_type(p)
+	}
+
+	body := parser_parse_expr(p)
+
+	e := new(Expr_Lambda)
+	e^ = Expr_Lambda{
+		type_params = type_params,
+		params = params,
+		return_type = return_type,
+		effects = effects,
+		body = body,
+		span = start,
+	}
+	return e
+}
+
 parser_parse_block_or_record :: proc(p: ^Parser) -> Expr {
 	start := p.current.span
 	parser_advance(p)
@@ -845,6 +952,20 @@ parser_parse_block :: proc(p: ^Parser, start: Source_Span) -> Expr {
 	}
 
 	expr := parser_parse_expr(p)
+
+	// Handle inline type annotation: name: Type = value
+	if id_expr, ok := expr.(^Expr_Identifier); ok && p.current.kind == .Colon {
+		parser_advance(p) // consume :
+		type_ann := parser_parse_type(p)
+		parser_expect(p, .Eq)
+		value := parser_parse_expr(p)
+		// Represent as a typed binding: name = value with type annotation
+		// We use the existing Assign node but attach the type via a wrapper
+		assign := new(Expr_Assign)
+		assign^ = Expr_Assign{target = expr, value = value, span = p.current.span}
+		return assign
+	}
+
 	if p.current.kind == .Eq {
 		parser_advance(p)
 		value := parser_parse_expr(p)
@@ -960,9 +1081,30 @@ parser_parse_match :: proc(p: ^Parser) -> Expr {
 	parser_expect(p, .LBrace)
 	for p.current.kind != .RBrace && p.current.kind != .Eof {
 		pattern := parser_parse_pattern(p)
+
+		// Or-pattern: if | follows the pattern (before => or if), collect alternatives
+		if p.current.kind == .Pipe && p.current.kind != .Fat_Arrow {
+			alternatives := make([dynamic]Pattern, 0, 4)
+			append(&alternatives, pattern)
+			for p.current.kind == .Pipe {
+				parser_advance(p)
+				alt := parser_parse_pattern(p)
+				append(&alternatives, alt)
+			}
+			or_pat := new(Pattern_Or)
+			or_pat^ = Pattern_Or{alternatives = alternatives, span = p.current.span}
+			pattern = or_pat
+		}
+
+		guard: Expr = nil
+		if p.current.kind == .Kw_If {
+			parser_advance(p)
+			guard = parser_parse_expr(p)
+		}
+
 		parser_expect(p, .Fat_Arrow)
 		body := parser_parse_expr(p)
-		append(&arms, Match_Arm{pattern = pattern, body = body, span = p.current.span})
+		append(&arms, Match_Arm{pattern = pattern, guard = guard, body = body, span = p.current.span})
 		if p.current.kind == .Comma || p.current.kind == .Pipe {
 			parser_advance(p)
 		}
@@ -981,10 +1123,7 @@ parser_parse_handle :: proc(p: ^Parser) -> Expr {
 
 	effect_tok := parser_expect(p, .Upper_Id)
 	effect_name := effect_tok.text
-	// Support Name! syntax for effect names (strip the ! for internal lookup)
-	if p.current.kind == .Bang {
-		parser_advance(p)
-	}
+	// The ! is already absorbed into the token text by the lexer
 	effect_id := intern(p.intern, effect_name)
 
 	parser_expect(p, .Kw_In)
@@ -997,8 +1136,7 @@ parser_parse_handle :: proc(p: ^Parser) -> Expr {
 	for p.current.kind != .RBrace && p.current.kind != .Eof {
 		parser_expect(p, .Dot)
 		op_tok := parser_expect(p, .Identifier)
-		parser_expect(p, .Bang)
-		op_id := intern(p.intern, fmt.tprintf("%s!", op_tok.text))
+		op_id := intern(p.intern, op_tok.text)
 		parser_expect(p, .LParen)
 		resume_tok := parser_expect(p, .Identifier)
 		resume_id := intern(p.intern, resume_tok.text)
@@ -1071,6 +1209,19 @@ parser_parse_pattern :: proc(p: ^Parser) -> Pattern {
 	#partial switch p.current.kind {
 	case .Upper_Id:
 		name_tok := parser_advance(p)
+
+		// True/False are Bool patterns, not tag patterns
+		if name_tok.text == "True" {
+			pat := new(Pattern_Bool)
+			pat^ = Pattern_Bool{value = true, span = name_tok.span}
+			return pat
+		}
+		if name_tok.text == "False" {
+			pat := new(Pattern_Bool)
+			pat^ = Pattern_Bool{value = false, span = name_tok.span}
+			return pat
+		}
+
 		name_id := intern(p.intern, name_tok.text)
 
 		pat := new(Pattern_Tag)
@@ -1414,11 +1565,7 @@ parser_parse_effect_row_type :: proc(p: ^Parser) -> ^Type {
 
 		name_tok := parser_expect(p, .Upper_Id)
 		name_text := name_tok.text
-		// Support Name! syntax for effect names in rows
-		if p.current.kind == .Bang {
-			name_text = fmt.tprintf("{}!", name_text)
-			parser_advance(p)
-		}
+		// The ! is already absorbed into the token text by the lexer
 		name_id := intern(p.intern, name_text)
 
 		type_args := make([dynamic]Type, 0, 4)
@@ -1481,11 +1628,7 @@ parser_parse_effect_row_type_brace :: proc(p: ^Parser) -> ^Type {
 
 		name_tok := parser_expect(p, .Upper_Id)
 		name_text := name_tok.text
-		// Support Name! syntax for effect names
-		if p.current.kind == .Bang {
-			name_text = fmt.tprintf("{}!", name_text)
-			parser_advance(p)
-		}
+		// The ! is already absorbed into the token text by the lexer
 		name_id := intern(p.intern, name_text)
 
 		type_args := make([dynamic]Type, 0, 4)

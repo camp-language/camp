@@ -326,6 +326,7 @@ CHandler_Arm :: struct {
 
 CMatch_Arm :: struct {
 	pattern: CPattern,
+	guard:   CExpr,
 	body:    CExpr,
 	span:    Source_Span,
 }
@@ -340,6 +341,7 @@ CPattern :: union {
 	^CPattern_Identifier,
 	^CPattern_Wildcard,
 	^CPattern_Destructure,
+	^CPattern_Or,
 }
 
 CPattern_Tag :: struct {
@@ -393,6 +395,11 @@ CPattern_Destructure :: struct {
 	type_name: Canonical_Name,
 	inner:     CPattern,
 	span:      Source_Span,
+}
+
+CPattern_Or :: struct {
+	alternatives: [dynamic]CPattern,
+	span:         Source_Span,
 }
 
 CType :: union {

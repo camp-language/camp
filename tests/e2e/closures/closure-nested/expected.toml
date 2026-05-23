@@ -1,28 +1,13 @@
 stdout = """
--- SYNTAX ERROR --- /tmp/camp-e2e/closures/closure-nested/src/Main.camp
+canonicalized /tmp/camp-e2e/closures/closure-nested/src/Main.camp: 1 declaration(s), 0 import(s)
+typecheck passed for /tmp/camp-e2e/closures/closure-nested/src/Main.camp
+-- UNUSED BINDING --- /tmp/camp-e2e/closures/closure-nested/src/Main.camp
 
-I was not expecting `)` here.
-   1 | main! = || -> I64 { x = 1 f = () -> I64 { g = () -> I64 { x } g() } f() }
-                                      ^
-
--- SYNTAX ERROR --- /tmp/camp-e2e/closures/closure-nested/src/Main.camp
-
-I expected `)` here, but I got `->` instead.
-   1 | main! = || -> I64 { x = 1 f = () -> I64 { g = () -> I64 { x } g() } f() }
-                                        ^^
-
--- SYNTAX ERROR --- /tmp/camp-e2e/closures/closure-nested/src/Main.camp
-
-I was not expecting `)` here.
-   1 | main! = || -> I64 { x = 1 f = () -> I64 { g = () -> I64 { x } g() } f() }
-                                                      ^
-
--- SYNTAX ERROR --- /tmp/camp-e2e/closures/closure-nested/src/Main.camp
-
-I expected `)` here, but I got `->` instead.
-   1 | main! = || -> I64 { x = 1 f = () -> I64 { g = () -> I64 { x } g() } f() }
-                                                        ^^
-compilation failed with 4 error(s)
+Binding `x` is never used. 
+   1 | main! = || -> I64 { x = 1 f = || -> I64 { g = || -> I64 { x } g() } f() }
+                                                                 ^
+  Prefix with `_` to mark as intentionally unused: `_x
+compilation failed with 1 error(s)
 """
 stderr = ""
 exit = 1

@@ -1,46 +1,7 @@
 stdout = """
--- SYNTAX ERROR --- /tmp/camp-e2e/execution/negation/src/Main.camp
-
-I expected `=` here, but I got `!` instead.
-   1 | main!! = || -> I64 {
-            ^
-
--- SYNTAX ERROR --- /tmp/camp-e2e/execution/negation/src/Main.camp
-
-I was not expecting `=` here.
-   1 | main!! = || -> I64 {
-              ^
-
--- SYNTAX ERROR --- /tmp/camp-e2e/execution/negation/src/Main.camp
-
-I expected `=` here, but I got `|` instead.
-   1 | main!! = || -> I64 {
-                 ^
-
--- SYNTAX ERROR --- /tmp/camp-e2e/execution/negation/src/Main.camp
-
-I was not expecting `->` here.
-   1 | main!! = || -> I64 {
-                   ^^
-
--- SYNTAX ERROR --- /tmp/camp-e2e/execution/negation/src/Main.camp
-
-I expected `=` here, but I got `{` instead.
-   1 | main!! = || -> I64 {
-                          ^
-
--- SYNTAX ERROR --- /tmp/camp-e2e/execution/negation/src/Main.camp
-
-I expected `=` here, but I got `` instead.
-   3 | }
-        ^
-
--- SYNTAX ERROR --- /tmp/camp-e2e/execution/negation/src/Main.camp
-
-I was not expecting `` here.
-   3 | }
-        ^
-compilation failed with 7 error(s)
+canonicalized /tmp/camp-e2e/execution/negation/src/Main.camp: 1 declaration(s), 0 import(s)
+typecheck passed for /tmp/camp-e2e/execution/negation/src/Main.camp
+compiled /tmp/camp-e2e/execution/negation/src/Main.camp -> /tmp/camp-e2e/execution/negation/src/Main.wasm
 """
 stderr = ""
-exit = 1
+exit = 0

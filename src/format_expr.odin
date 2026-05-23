@@ -425,6 +425,15 @@ format_pattern :: proc(p: Pattern, info: ^Format_Source_Info, interner: ^Intern_
 		return doc_text("_")
 	case ^Pattern_Destructure:
 		return format_pattern_destructure(v, info, interner)
+	case ^Pattern_Or:
+		parts: [dynamic]Doc
+		for alt, i in v.alternatives {
+			if i > 0 {
+				append(&parts, doc_text(" | "))
+			}
+			append(&parts, format_pattern(alt, info, interner))
+		}
+		return doc_group(parts[:])
 	}
 	return doc_text("?")
 }

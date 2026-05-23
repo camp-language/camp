@@ -757,6 +757,14 @@ lower_tpattern :: proc(pattern: TPattern, env: ^Lower_Env) -> IR_Pattern {
 		result := new(IR_Pat_Var)
 		result.name = Intern_ID(0)
 		return IR_Pattern(result)
+
+	case ^TPattern_Or:
+		// For now, just lower the first alternative
+		// Full or-pattern support requires IR patching
+		if len(p.alternatives) > 0 {
+			return lower_tpattern(p.alternatives[0], env)
+		}
+		return IR_Pattern(nil)
 	}
 	return IR_Pattern(nil)
 }

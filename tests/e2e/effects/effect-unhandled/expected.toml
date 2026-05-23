@@ -4,7 +4,7 @@ canonicalized /tmp/camp-e2e/effects/effect-unhandled/src/Main.camp: 2 declaratio
 
 This expression performs effect `Ask`, but there is no `handle` block around it.
    3 |   Ask.read!()
-             ^^^^
+             ^^^^^
   Try wrapping it with a `handle` block.
 compilation failed with 1 error(s)
 """

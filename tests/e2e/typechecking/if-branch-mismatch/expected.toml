@@ -2,20 +2,12 @@ stdout = """
 canonicalized /tmp/camp-e2e/typechecking/if-branch-mismatch/src/Main.camp: 1 declaration(s), 0 import(s)
 -- TYPE MISMATCH --- /tmp/camp-e2e/typechecking/if-branch-mismatch/src/Main.camp
 
-`tag union` does not match `Bool`.
-   1 | x = if True 1 else "no"
-              ^^^^
-   1 | x = if True 1 else "no"
-           ~~ this has type `Bool`
-
--- TYPE MISMATCH --- /tmp/camp-e2e/typechecking/if-branch-mismatch/src/Main.camp
-
 `I64` does not match `Str`.
    1 | x = if True 1 else "no"
                    ^
    1 | x = if True 1 else "no"
                           ~~~~ this has type `Str`
-compilation failed with 2 error(s)
+compilation failed with 1 error(s)
 """
 stderr = ""
 exit = 1

@@ -479,6 +479,10 @@ collect_uses_pattern :: proc(analysis: ^Unused_Analysis, pattern: CPattern) {
 		collect_uses_pattern(analysis, p.inner)
 	case ^CPattern_Int, ^CPattern_String, ^CPattern_Bool:
 		{}
+	case ^CPattern_Or:
+		for alt in p.alternatives {
+			collect_uses_pattern(analysis, alt)
+		}
 	}
 }
 
@@ -627,17 +631,16 @@ check_immutable_binding :: proc(analysis: ^Unused_Analysis, name: Intern_ID, bi:
 	has_essential_use := binding_has_essential_use(bi)
 
 	if !has_essential_use {
-		// Top-level bindings: _ prefix does NOT exempt
+		// _-prefixed bindings are exempt from unused errors
+		if bi.is_underscore_prefixed do return false
+
 		if bi.is_top_level {
 			if !bi.is_pub && !bi.is_effectful {
 				collector_add_diag(analysis.collector,
-					diag_unused_binding(name_str, "Top-level bindings cannot be marked as unused with `_`.", bi.span))
+					diag_unused_binding(name_str, "", bi.span))
 			}
 			return false
 		}
-
-		// _-prefixed bindings are exempt from unused errors
-		if bi.is_underscore_prefixed do return false
 
 		collector_add_diag(analysis.collector,
 			diag_unused_binding(name_str, "", bi.span))

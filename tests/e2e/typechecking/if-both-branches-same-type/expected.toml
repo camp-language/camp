@@ -1,12 +1,12 @@
 stdout = """
 canonicalized /tmp/camp-e2e/typechecking/if-both-branches-same-type/src/Main.camp: 1 declaration(s), 0 import(s)
--- TYPE MISMATCH --- /tmp/camp-e2e/typechecking/if-both-branches-same-type/src/Main.camp
+typecheck passed for /tmp/camp-e2e/typechecking/if-both-branches-same-type/src/Main.camp
+-- UNUSED BINDING --- /tmp/camp-e2e/typechecking/if-both-branches-same-type/src/Main.camp
 
-`tag union` does not match `Bool`.
+Binding `x` is never used. 
    1 | x = if True 1 else 2
-              ^^^^
-   1 | x = if True 1 else 2
-           ~~ this has type `Bool`
+       ^^^^^^^^^^^^^^^^^^^^
+  Prefix with `_` to mark as intentionally unused: `_x
 compilation failed with 1 error(s)
 """
 stderr = ""

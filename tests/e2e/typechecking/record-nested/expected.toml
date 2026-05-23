@@ -1,14 +1,7 @@
 stdout = """
 canonicalized /tmp/camp-e2e/typechecking/record-nested/src/Main.camp: 1 declaration(s), 0 import(s)
 typecheck passed for /tmp/camp-e2e/typechecking/record-nested/src/Main.camp
--- UNUSED BINDING --- /tmp/camp-e2e/typechecking/record-nested/src/Main.camp
-
-Binding `_p` is never used. Top-level bindings cannot be marked as unused with
-`_`.
-   1 | _p = { inner: { x: 1 } }
-       ^^^^^^^^^^^^^^^^^^^^^^^^
-  Prefix with `_` to mark as intentionally unused: `__p
-compilation failed with 1 error(s)
+compiled /tmp/camp-e2e/typechecking/record-nested/src/Main.camp -> /tmp/camp-e2e/typechecking/record-nested/src/Main.wasm
 """
 stderr = ""
-exit = 1
+exit = 0

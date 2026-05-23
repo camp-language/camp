@@ -1372,6 +1372,16 @@ typecheck_pattern :: proc(pattern: CPattern, scrutinee_var: Type_Var_ID, env: ^T
 		tp^ = TPattern_Record{fields = fields_t, is_open = p.is_open, span = p.span}
 		return Pat_Result{var_id = rec_var, effects = eff, tpat = TPattern(tp)}
 
+	case ^CPattern_Or:
+		alternatives := make([dynamic]TPattern, 0, len(p.alternatives))
+		for alt in p.alternatives {
+			pat_result := typecheck_pattern(alt, scrutinee_var, env, store)
+			append(&alternatives, pat_result.tpat)
+		}
+		tp := new(TPattern_Or)
+		tp^ = TPattern_Or{alternatives = alternatives, span = p.span}
+		return Pat_Result{var_id = scrutinee_var, effects = eff, tpat = TPattern(tp)}
+
 	case ^CPattern_Destructure:
 		if is_declared_newtype(store, p.type_name.name) {
 			nt_info, nt_ok := store.newtype_decls[p.type_name.name]
@@ -1437,6 +1447,10 @@ collect_pattern_coverage :: proc(pattern: CPattern, cov: ^Match_Coverage) {
 		cov.int_values[p.value] = true
 	case ^CPattern_String:
 		cov.string_values[p.value] = true
+	case ^CPattern_Or:
+		for alt in p.alternatives {
+			collect_pattern_coverage(alt, cov)
+		}
 	case:
 	}
 }

@@ -1,5 +1,7 @@
 package camp
 
+import "core:strings"
+
 format_decl :: proc(d: Decl, info: ^Format_Source_Info, interner: ^Intern_Table) -> Doc {
 	#partial switch v in d {
 	case ^Decl_Const:
@@ -27,8 +29,9 @@ format_decl_const :: proc(v: ^Decl_Const, info: ^Format_Source_Info, interner: ^
 	if v.is_pub {
 		append(&parts, doc_text("pub "))
 	}
-	append(&parts, doc_text(intern_get(interner, v.name)))
-	if v.is_effectful {
+	name_str := intern_get(interner, v.name)
+	append(&parts, doc_text(name_str))
+	if v.is_effectful && !strings.has_suffix(name_str, "!") {
 		append(&parts, doc_text("!"))
 	}
 	if v.type_ann != nil {
@@ -85,8 +88,9 @@ format_effect_ops :: proc(ops: []Effect_Op, info: ^Format_Source_Info, interner:
 		if i > 0 {
 			append(&op_parts, doc_line())
 		}
-		append(&op_parts, doc_text(intern_get(interner, op.name)))
-		if op.is_effectful {
+		op_name := intern_get(interner, op.name)
+		append(&op_parts, doc_text(op_name))
+		if op.is_effectful && !strings.has_suffix(op_name, "!") {
 			append(&op_parts, doc_text("!"))
 		}
 		if len(op.params) > 0 {

@@ -3,8 +3,7 @@ canonicalized /tmp/camp-e2e/derive/basic/src/Main.camp: 3 declaration(s), 0 impo
 typecheck passed for /tmp/camp-e2e/derive/basic/src/Main.camp
 -- UNUSED BINDING --- /tmp/camp-e2e/derive/basic/src/Main.camp
 
-Binding `UserId_eq` is never used. Top-level bindings cannot be marked as unused
-with `_`.
+Binding `UserId_eq` is never used. 
    2 | @UserId derives Eq : U64
        ^
   Prefix with `_` to mark as intentionally unused: `_UserId_eq

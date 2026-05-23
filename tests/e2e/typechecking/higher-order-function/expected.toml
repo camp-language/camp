@@ -1,16 +1,13 @@
 stdout = """
--- SYNTAX ERROR --- /tmp/camp-e2e/typechecking/higher-order-function/src/Main.camp
+canonicalized /tmp/camp-e2e/typechecking/higher-order-function/src/Main.camp: 1 declaration(s), 0 import(s)
+typecheck passed for /tmp/camp-e2e/typechecking/higher-order-function/src/Main.camp
+-- UNUSED BINDING --- /tmp/camp-e2e/typechecking/higher-order-function/src/Main.camp
 
-I expected `)` here, but I got `,` instead.
-   1 | apply = (f, x) { f(x) }
-                 ^
-
--- SYNTAX ERROR --- /tmp/camp-e2e/typechecking/higher-order-function/src/Main.camp
-
-I expected `=` here, but I got `)` instead.
-   1 | apply = (f, x) { f(x) }
-                    ^
-compilation failed with 2 error(s)
+Binding `apply` is never used. 
+   1 | apply = |f, x| { f(x) }
+       ^^^^^^^^^^^^^^^^^^^^^^^^
+  Prefix with `_` to mark as intentionally unused: `_apply
+compilation failed with 1 error(s)
 """
 stderr = ""
 exit = 1

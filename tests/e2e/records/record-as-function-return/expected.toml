@@ -1,63 +1,51 @@
 stdout = """
 -- SYNTAX ERROR --- /tmp/camp-e2e/records/record-as-function-return/src/Main.camp
 
-I expected `=` here, but I got `{` instead.
-   1 | mk = (a) -> { x: I64 } { { x: a } }
-                   ^
+I expected `uppercase identifier` here, but I got `x` instead.
+   1 | mk = |a| -> { x: I64 } { { x: a } }
+                     ^
 
 -- SYNTAX ERROR --- /tmp/camp-e2e/records/record-as-function-return/src/Main.camp
 
-I expected `=` here, but I got `I64` instead.
-   1 | mk = (a) -> { x: I64 } { { x: a } }
-                        ^^^
+I expected `uppercase identifier` here, but I got `:` instead.
+   1 | mk = |a| -> { x: I64 } { { x: a } }
+                      ^
 
 -- SYNTAX ERROR --- /tmp/camp-e2e/records/record-as-function-return/src/Main.camp
 
-I was not expecting `}` here.
-   1 | mk = (a) -> { x: I64 } { { x: a } }
-                            ^
-
--- SYNTAX ERROR --- /tmp/camp-e2e/records/record-as-function-return/src/Main.camp
-
-I expected `=` here, but I got `{` instead.
-   1 | mk = (a) -> { x: I64 } { { x: a } }
+I expected `identifier` here, but I got `{` instead.
+   1 | mk = |a| -> { x: I64 } { { x: a } }
                                 ^
 
 -- SYNTAX ERROR --- /tmp/camp-e2e/records/record-as-function-return/src/Main.camp
 
-I expected `=` here, but I got `a` instead.
-   1 | mk = (a) -> { x: I64 } { { x: a } }
-                                     ^
+I expected `:` here, but I got `x` instead.
+   1 | mk = |a| -> { x: I64 } { { x: a } }
+                                  ^
 
 -- SYNTAX ERROR --- /tmp/camp-e2e/records/record-as-function-return/src/Main.camp
 
-I was not expecting `}` here.
-   1 | mk = (a) -> { x: I64 } { { x: a } }
+I was expecting a type here, but I found `:` instead.
+   1 | mk = |a| -> { x: I64 } { { x: a } }
+                                   ^
+
+-- SYNTAX ERROR --- /tmp/camp-e2e/records/record-as-function-return/src/Main.camp
+
+I expected `:` here, but I got `}` instead.
+   1 | mk = |a| -> { x: I64 } { { x: a } }
                                        ^
 
 -- SYNTAX ERROR --- /tmp/camp-e2e/records/record-as-function-return/src/Main.camp
 
-I expected `=` here, but I got `main` instead.
-   2 | main! = || -> I64 { mk(42).x }
-       ^^^^
+I was expecting a type here, but I found `}` instead.
+   1 | mk = |a| -> { x: I64 } { { x: a } }
+                                         ^
 
 -- SYNTAX ERROR --- /tmp/camp-e2e/records/record-as-function-return/src/Main.camp
 
-I was not expecting `!` here.
+I expected `:` here, but I got `=` instead.
    2 | main! = || -> I64 { mk(42).x }
-           ^
-
--- SYNTAX ERROR --- /tmp/camp-e2e/records/record-as-function-return/src/Main.camp
-
-I expected `=` here, but I got `|` instead.
-   2 | main! = || -> I64 { mk(42).x }
-               ^
-
--- SYNTAX ERROR --- /tmp/camp-e2e/records/record-as-function-return/src/Main.camp
-
-I expected `identifier` here, but I got `->` instead.
-   2 | main! = || -> I64 { mk(42).x }
-                  ^^
+             ^
 
 -- SYNTAX ERROR --- /tmp/camp-e2e/records/record-as-function-return/src/Main.camp
 
@@ -67,21 +55,15 @@ I expected `identifier` here, but I got `{` instead.
 
 -- SYNTAX ERROR --- /tmp/camp-e2e/records/record-as-function-return/src/Main.camp
 
-I expected `identifier` here, but I got `(` instead.
+I expected `:` here, but I got `mk` instead.
    2 | main! = || -> I64 { mk(42).x }
-                             ^
+                           ^^
 
 -- SYNTAX ERROR --- /tmp/camp-e2e/records/record-as-function-return/src/Main.camp
 
-I expected `identifier` here, but I got `42` instead.
+I was expecting a type here, but I found `42` instead.
    2 | main! = || -> I64 { mk(42).x }
                               ^^
-
--- SYNTAX ERROR --- /tmp/camp-e2e/records/record-as-function-return/src/Main.camp
-
-I expected `identifier` here, but I got `)` instead.
-   2 | main! = || -> I64 { mk(42).x }
-                                ^
 
 -- SYNTAX ERROR --- /tmp/camp-e2e/records/record-as-function-return/src/Main.camp
 
@@ -91,13 +73,19 @@ I expected `identifier` here, but I got `.` instead.
 
 -- SYNTAX ERROR --- /tmp/camp-e2e/records/record-as-function-return/src/Main.camp
 
-I expected `identifier` here, but I got `}` instead.
+I expected `:` here, but I got `x` instead.
+   2 | main! = || -> I64 { mk(42).x }
+                                  ^
+
+-- SYNTAX ERROR --- /tmp/camp-e2e/records/record-as-function-return/src/Main.camp
+
+I was expecting a type here, but I found `}` instead.
    2 | main! = || -> I64 { mk(42).x }
                                     ^
 
 -- SYNTAX ERROR --- /tmp/camp-e2e/records/record-as-function-return/src/Main.camp
 
-I expected `|` here, but I got `` instead.
+I expected `}` here, but I got `` instead.
    3 | 
        ^
 
@@ -106,7 +94,7 @@ I expected `|` here, but I got `` instead.
 I was not expecting `` here.
    3 | 
        ^
-compilation failed with 18 error(s)
+compilation failed with 16 error(s)
 """
 stderr = ""
 exit = 1

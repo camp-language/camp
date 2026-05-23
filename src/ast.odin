@@ -235,6 +235,7 @@ Expr_Match :: struct {
 
 Match_Arm :: struct {
 	pattern: Pattern,
+	guard:   Expr,
 	body:    Expr,
 	span:    Source_Span,
 }
@@ -249,6 +250,7 @@ Pattern :: union {
 	^Pattern_Identifier,
 	^Pattern_Wildcard,
 	^Pattern_Destructure,
+	^Pattern_Or,
 }
 
 Pattern_Tag :: struct {
@@ -302,6 +304,11 @@ Pattern_Destructure :: struct {
 	type_name: Intern_ID,
 	inner:     Pattern,
 	span:      Source_Span,
+}
+
+Pattern_Or :: struct {
+	alternatives: [dynamic]Pattern,
+	span:         Source_Span,
 }
 
 Expr_BinOp :: struct {

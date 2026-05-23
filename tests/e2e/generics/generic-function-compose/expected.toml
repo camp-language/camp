@@ -1,34 +1,13 @@
 stdout = """
--- SYNTAX ERROR --- /tmp/camp-e2e/generics/generic-function-compose/src/Main.camp
+canonicalized /tmp/camp-e2e/generics/generic-function-compose/src/Main.camp: 1 declaration(s), 0 import(s)
+typecheck passed for /tmp/camp-e2e/generics/generic-function-compose/src/Main.camp
+-- UNUSED BINDING --- /tmp/camp-e2e/generics/generic-function-compose/src/Main.camp
 
-I expected `)` here, but I got `,` instead.
-   1 | compose = (f, g, x) { f(g(x)) }
-                   ^
-
--- SYNTAX ERROR --- /tmp/camp-e2e/generics/generic-function-compose/src/Main.camp
-
-I expected `=` here, but I got `,` instead.
-   1 | compose = (f, g, x) { f(g(x)) }
-                      ^
-
--- SYNTAX ERROR --- /tmp/camp-e2e/generics/generic-function-compose/src/Main.camp
-
-I expected `=` here, but I got `{` instead.
-   1 | compose = (f, g, x) { f(g(x)) }
-                           ^
-
--- SYNTAX ERROR --- /tmp/camp-e2e/generics/generic-function-compose/src/Main.camp
-
-I expected `=` here, but I got `` instead.
-   2 | 
-       ^
-
--- SYNTAX ERROR --- /tmp/camp-e2e/generics/generic-function-compose/src/Main.camp
-
-I was not expecting `` here.
-   2 | 
-       ^
-compilation failed with 5 error(s)
+Binding `compose` is never used. 
+   1 | compose = |f, g, x| { f(g(x)) }
+       ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  Prefix with `_` to mark as intentionally unused: `_compose
+compilation failed with 1 error(s)
 """
 stderr = ""
 exit = 1

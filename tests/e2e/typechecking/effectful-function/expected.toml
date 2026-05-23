@@ -1,16 +1,13 @@
 stdout = """
--- SYNTAX ERROR --- /tmp/camp-e2e/typechecking/effectful-function/src/Main.camp
+canonicalized /tmp/camp-e2e/typechecking/effectful-function/src/Main.camp: 1 declaration(s), 0 import(s)
+typecheck passed for /tmp/camp-e2e/typechecking/effectful-function/src/Main.camp
+-- UNUSED BINDING --- /tmp/camp-e2e/typechecking/effectful-function/src/Main.camp
 
-I expected `=` here, but I got `-` instead.
-   1 | greet! = (name) -> -[IO]-> String { name }
-                          ^
-
--- SYNTAX ERROR --- /tmp/camp-e2e/typechecking/effectful-function/src/Main.camp
-
-I expected `=` here, but I got `String` instead.
-   1 | greet! = (name) -> -[IO]-> String { name }
-                                  ^^^^^^
-compilation failed with 2 error(s)
+Binding `name` is never used. 
+   1 | greet! = |name| -> -[IO]-> String { name }
+                                           ^^^^
+  Prefix with `_` to mark as intentionally unused: `_name
+compilation failed with 1 error(s)
 """
 stderr = ""
 exit = 1

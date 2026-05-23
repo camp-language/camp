@@ -1,16 +1,27 @@
 stdout = """
--- SYNTAX ERROR --- /tmp/camp-e2e/typechecking/let-polymorphism/src/Main.camp
+canonicalized /tmp/camp-e2e/typechecking/let-polymorphism/src/Main.camp: 3 declaration(s), 0 import(s)
+typecheck passed for /tmp/camp-e2e/typechecking/let-polymorphism/src/Main.camp
+-- UNUSED BINDING --- /tmp/camp-e2e/typechecking/let-polymorphism/src/Main.camp
 
-I expected `=` here, but I got `x` instead.
-   1 | id = (x) { x }
+Binding `x` is never used. 
+   1 | id = |x| { x }
                   ^
+  Prefix with `_` to mark as intentionally unused: `_x
 
--- SYNTAX ERROR --- /tmp/camp-e2e/typechecking/let-polymorphism/src/Main.camp
+-- UNUSED BINDING --- /tmp/camp-e2e/typechecking/let-polymorphism/src/Main.camp
 
-I was not expecting `}` here.
-   1 | id = (x) { x }
-                    ^
-compilation failed with 2 error(s)
+Binding `a` is never used. 
+   2 | a = id(1)
+       ^^^^^^^^^^^
+  Prefix with `_` to mark as intentionally unused: `_a
+
+-- UNUSED BINDING --- /tmp/camp-e2e/typechecking/let-polymorphism/src/Main.camp
+
+Binding `b` is never used. 
+   3 | b = id(true)
+       ^^^^^^^^^^^^^
+  Prefix with `_` to mark as intentionally unused: `_b
+compilation failed with 3 error(s)
 """
 stderr = ""
 exit = 1
