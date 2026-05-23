@@ -1,2 +1,2 @@
-x : Ok(I64) | Error(I64) = Ok(1)
-y = match x { Ok(v) -> v | Error(e) -> e }
+x : [Ok(I64) | Error(I64)] = Ok(1)
+y = match x { Ok(v) => v | Error(e) => e }

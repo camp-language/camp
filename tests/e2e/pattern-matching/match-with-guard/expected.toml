@@ -2,37 +2,37 @@ stdout = """
 -- SYNTAX ERROR --- /tmp/camp-e2e/pattern-matching/match-with-guard/src/Main.camp
 
 I expected `=>` here, but I got `if` instead.
-   1 | main! = || -> I64 { x = 5 match x { n if n > 0 -> 1 | _ -> 0 } }
+   1 | main! = || -> I64 { x = 5 match x { n if n > 0 => 1 | _ => 0 } }
                                              ^^
 
 -- SYNTAX ERROR --- /tmp/camp-e2e/pattern-matching/match-with-guard/src/Main.camp
 
 I expected `=>` here, but I got `1` instead.
-   1 | main! = || -> I64 { x = 5 match x { n if n > 0 -> 1 | _ -> 0 } }
+   1 | main! = || -> I64 { x = 5 match x { n if n > 0 => 1 | _ => 0 } }
                                                          ^
 
 -- SYNTAX ERROR --- /tmp/camp-e2e/pattern-matching/match-with-guard/src/Main.camp
 
-I expected `identifier` here, but I got `->` instead.
-   1 | main! = || -> I64 { x = 5 match x { n if n > 0 -> 1 | _ -> 0 } }
+I expected `identifier` here, but I got `=>` instead.
+   1 | main! = || -> I64 { x = 5 match x { n if n > 0 => 1 | _ => 0 } }
                                                                ^^
 
 -- SYNTAX ERROR --- /tmp/camp-e2e/pattern-matching/match-with-guard/src/Main.camp
 
 I expected `identifier` here, but I got `0` instead.
-   1 | main! = || -> I64 { x = 5 match x { n if n > 0 -> 1 | _ -> 0 } }
+   1 | main! = || -> I64 { x = 5 match x { n if n > 0 => 1 | _ => 0 } }
                                                                   ^
 
 -- SYNTAX ERROR --- /tmp/camp-e2e/pattern-matching/match-with-guard/src/Main.camp
 
 I expected `identifier` here, but I got `}` instead.
-   1 | main! = || -> I64 { x = 5 match x { n if n > 0 -> 1 | _ -> 0 } }
+   1 | main! = || -> I64 { x = 5 match x { n if n > 0 => 1 | _ => 0 } }
                                                                     ^
 
 -- SYNTAX ERROR --- /tmp/camp-e2e/pattern-matching/match-with-guard/src/Main.camp
 
 I expected `identifier` here, but I got `}` instead.
-   1 | main! = || -> I64 { x = 5 match x { n if n > 0 -> 1 | _ -> 0 } }
+   1 | main! = || -> I64 { x = 5 match x { n if n > 0 => 1 | _ => 0 } }
                                                                       ^
 
 -- SYNTAX ERROR --- /tmp/camp-e2e/pattern-matching/match-with-guard/src/Main.camp

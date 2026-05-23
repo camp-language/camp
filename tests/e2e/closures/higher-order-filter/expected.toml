@@ -2,27 +2,15 @@ stdout = """
 -- SYNTAX ERROR --- /tmp/camp-e2e/closures/higher-order-filter/src/Main.camp
 
 I expected `)` here, but I got `,` instead.
-   1 | filter = (pred, xs) { match xs { Nil -> Nil | Cons(h, t) -> if pred(h) Cons(h, filter(pred, t)) else filter(pred, t) } }
+   1 | filter = (pred, xs) { match xs { Nil => Nil | Cons(h, t) => if pred(h) Cons(h, filter(pred, t)) else filter(pred, t) } }
                      ^
 
 -- SYNTAX ERROR --- /tmp/camp-e2e/closures/higher-order-filter/src/Main.camp
 
 I expected `=` here, but I got `)` instead.
-   1 | filter = (pred, xs) { match xs { Nil -> Nil | Cons(h, t) -> if pred(h) Cons(h, filter(pred, t)) else filter(pred, t) } }
+   1 | filter = (pred, xs) { match xs { Nil => Nil | Cons(h, t) => if pred(h) Cons(h, filter(pred, t)) else filter(pred, t) } }
                          ^
-
--- SYNTAX ERROR --- /tmp/camp-e2e/closures/higher-order-filter/src/Main.camp
-
-I expected `=>` here, but I got `->` instead.
-   1 | filter = (pred, xs) { match xs { Nil -> Nil | Cons(h, t) -> if pred(h) Cons(h, filter(pred, t)) else filter(pred, t) } }
-                                            ^^
-
--- SYNTAX ERROR --- /tmp/camp-e2e/closures/higher-order-filter/src/Main.camp
-
-I expected `=>` here, but I got `->` instead.
-   1 | filter = (pred, xs) { match xs { Nil -> Nil | Cons(h, t) -> if pred(h) Cons(h, filter(pred, t)) else filter(pred, t) } }
-                                                                ^^
-compilation failed with 4 error(s)
+compilation failed with 2 error(s)
 """
 stderr = ""
 exit = 1

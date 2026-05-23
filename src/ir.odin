@@ -244,6 +244,9 @@ IR_Pattern :: union {
 	^IR_Pat_Record,
 	^IR_Pat_Var,
 	^IR_Pat_Wildcard,
+	^IR_Pat_Bool,
+	^IR_Pat_Int,
+	^IR_Pat_String,
 }
 
 IR_Pat_Tag :: struct { name: Intern_ID, payload: [dynamic]Intern_ID }
@@ -251,6 +254,9 @@ IR_Pat_Record :: struct { fields: [dynamic]IR_Pat_Field, is_open: bool }
 IR_Pat_Field :: struct { name: Intern_ID, binding: Intern_ID }
 IR_Pat_Var :: struct { name: Intern_ID }
 IR_Pat_Wildcard :: struct {}
+IR_Pat_Bool :: struct { value: bool }
+IR_Pat_Int :: struct { value: i64 }
+IR_Pat_String :: struct { string_id: Intern_ID }
 
 IR_Construct_Tag :: struct {
 	tag_name:  Intern_ID,

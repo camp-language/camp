@@ -1,1 +1,1 @@
-x : Ok(I64) | Error(String) = Ok(42)
+x : [Ok(I64) | Error(String)] = Ok(42)

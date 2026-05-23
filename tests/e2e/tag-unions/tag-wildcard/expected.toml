@@ -1,16 +1,7 @@
 stdout = """
--- SYNTAX ERROR --- /tmp/camp-e2e/tag-unions/tag-wildcard/src/Main.camp
-
-I expected `=>` here, but I got `->` instead.
-   1 | main! = || -> I64 { x = Ok(42) match x { Ok(v) -> v | _ -> 0 } }
-                                                      ^^
-
--- SYNTAX ERROR --- /tmp/camp-e2e/tag-unions/tag-wildcard/src/Main.camp
-
-I expected `=>` here, but I got `->` instead.
-   1 | main! = || -> I64 { x = Ok(42) match x { Ok(v) -> v | _ -> 0 } }
-                                                               ^^
-compilation failed with 2 error(s)
+canonicalized /tmp/camp-e2e/tag-unions/tag-wildcard/src/Main.camp: 1 declaration(s), 0 import(s)
+typecheck passed for /tmp/camp-e2e/tag-unions/tag-wildcard/src/Main.camp
+compiled /tmp/camp-e2e/tag-unions/tag-wildcard/src/Main.camp -> /tmp/camp-e2e/tag-unions/tag-wildcard/src/Main.wasm
 """
 stderr = ""
-exit = 1
+exit = 0

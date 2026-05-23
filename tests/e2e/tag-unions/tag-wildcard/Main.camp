@@ -1,1 +1,1 @@
-main! = || -> I64 { x = Ok(42) match x { Ok(v) -> v | _ -> 0 } }
+main! = || -> I64 { x = Ok(42) match x { Ok(v) => v | _ => 0 } }
