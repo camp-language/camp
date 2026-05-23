@@ -502,8 +502,13 @@ canonicalize_expr :: proc(expr: Expr, scope: ^Canonicalize_Scope, ctx: ^Compilat
 	case ^Expr_Match:
 		arms := make([dynamic]CMatch_Arm, 0, len(e.arms))
 		for a in e.arms {
+			cguard: CExpr = nil
+			if a.guard != nil {
+				cguard = canonicalize_expr(a.guard, scope, ctx)
+			}
 			append(&arms, CMatch_Arm{
 				pattern = canonicalize_pattern(a.pattern, scope, ctx),
+				guard = cguard,
 				body = canonicalize_expr(a.body, scope, ctx),
 				span = a.span,
 			})
@@ -782,6 +787,15 @@ canonicalize_pattern :: proc(pat: Pattern, scope: ^Canonicalize_Scope, ctx: ^Com
 			inner = canonicalize_pattern(p.inner, scope, ctx),
 			span = p.span,
 		}
+		return c
+
+	case ^Pattern_Or:
+		alternatives := make([dynamic]CPattern, 0, len(p.alternatives))
+		for alt in p.alternatives {
+			append(&alternatives, canonicalize_pattern(alt, scope, ctx))
+		}
+		c := new(CPattern_Or)
+		c^ = CPattern_Or{alternatives = alternatives, span = p.span}
 		return c
 	}
 	c := new(CPattern_Wildcard)

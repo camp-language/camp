@@ -1,1 +1,1 @@
-filter = (pred, xs) { match xs { Nil => Nil | Cons(h, t) => if pred(h) Cons(h, filter(pred, t)) else filter(pred, t) } }
+filter = |pred, xs| { match xs { Nil => Nil | Cons(h, t) => if pred(h) Cons(h, filter(pred, t)) else filter(pred, t) } }

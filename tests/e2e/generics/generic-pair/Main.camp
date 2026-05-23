@@ -1,1 +1,1 @@
-pair = (a, b) { { fst: a, snd: b } }
+pair = |a, b| { { fst: a, snd: b } }

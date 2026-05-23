@@ -169,6 +169,7 @@ TPattern :: union {
 	^TPattern_Identifier,
 	^TPattern_Wildcard,
 	^TPattern_Destructure,
+	^TPattern_Or,
 }
 
 TPattern_Tag :: struct {
@@ -222,6 +223,11 @@ TPattern_Destructure :: struct {
 	type_name: Canonical_Name,
 	inner:     TPattern,
 	span:      Source_Span,
+}
+
+TPattern_Or :: struct {
+	alternatives: [dynamic]TPattern,
+	span:         Source_Span,
 }
 
 TExpr_BinOp :: struct {

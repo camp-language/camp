@@ -479,6 +479,10 @@ collect_uses_pattern :: proc(analysis: ^Unused_Analysis, pattern: CPattern) {
 		collect_uses_pattern(analysis, p.inner)
 	case ^CPattern_Int, ^CPattern_String, ^CPattern_Bool:
 		{}
+	case ^CPattern_Or:
+		for alt in p.alternatives {
+			collect_uses_pattern(analysis, alt)
+		}
 	}
 }
 
