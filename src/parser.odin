@@ -1,7 +1,6 @@
 #+feature dynamic-literals
 package camp
 
-import "core:fmt"
 import "core:strings"
 
 Binding_Power :: int
@@ -177,13 +176,7 @@ parser_parse_const_decl :: proc(p: ^Parser, is_pub: bool) -> Decl {
 	name_text := name.text
 	is_upper := name.kind == .Upper_Id
 
-	is_effectful := false
-	if p.current.kind == .Bang {
-		is_effectful = true
-		parser_advance(p)
-		name_text = strings.concatenate({name.text, "!"}, context.allocator)
-	}
-
+	is_effectful := strings.has_suffix(name_text, "!")
 	name_id := intern(p.intern, name_text)
 
 	type_params := make([dynamic]Type_Param, 0, 4)
@@ -241,11 +234,7 @@ parser_parse_const_decl :: proc(p: ^Parser, is_pub: bool) -> Decl {
 			// Parse operation name (identifier + optional bang)
 			op_tok := parser_expect(p, .Identifier)
 			op_name_text := op_tok.text
-			op_is_effectful := p.current.kind == .Bang
-			if op_is_effectful {
-				parser_advance(p)
-				op_name_text = strings.concatenate({op_tok.text, "!"}, context.allocator)
-			}
+			op_is_effectful := strings.has_suffix(op_tok.text, "!")
 			op_name_id := intern(p.intern, op_name_text)
 
 			// Require : after operation name
@@ -291,7 +280,11 @@ parser_parse_const_decl :: proc(p: ^Parser, is_pub: bool) -> Decl {
 		parser_expect(p, .RBrace)
 
 		// Use the name WITHOUT the ! suffix for internal effect name consistency
-		effect_name_id := intern(p.intern, name.text)
+		effect_base_name := name.text
+		if strings.has_suffix(effect_base_name, "!") {
+			effect_base_name = effect_base_name[:len(effect_base_name)-1]
+		}
+		effect_name_id := intern(p.intern, effect_base_name)
 		decl := new(Decl_Effect)
 		decl^ = Decl_Effect{name = effect_name_id, is_pub = is_pub, operations = ops, type_params = type_params, span = start_span}
 		return decl
@@ -503,11 +496,7 @@ parser_parse_tag_or_call :: proc(p: ^Parser) -> Expr {
 	name_tok := parser_advance(p)
 
 	// Effect names may include ! (e.g., Spawn!, Parallel!, Async!)
-	if p.current.kind == .Bang {
-		name_tok.text = strings.concatenate({name_tok.text, "!"}, context.allocator)
-		parser_advance(p)
-	}
-
+	// The ! is already absorbed into the token text by the lexer
 	name_id := intern(p.intern, name_tok.text)
 
 	tag := new(Expr_Tag)
@@ -585,12 +574,7 @@ parser_parse_method_chain :: proc(p: ^Parser, initial: Expr) -> Expr {
 			method_tok = parser_expect(p, .Identifier)
 		}
 
-		is_effectful := false
-		if p.current.kind == .Bang {
-			is_effectful = true
-			method_tok.text = strings.concatenate({method_tok.text, "!"}, context.allocator)
-			parser_advance(p)
-		}
+		is_effectful := strings.has_suffix(method_tok.text, "!")
 
 		method_id := intern(p.intern, method_tok.text)
 
@@ -981,10 +965,7 @@ parser_parse_handle :: proc(p: ^Parser) -> Expr {
 
 	effect_tok := parser_expect(p, .Upper_Id)
 	effect_name := effect_tok.text
-	// Support Name! syntax for effect names (strip the ! for internal lookup)
-	if p.current.kind == .Bang {
-		parser_advance(p)
-	}
+	// The ! is already absorbed into the token text by the lexer
 	effect_id := intern(p.intern, effect_name)
 
 	parser_expect(p, .Kw_In)
@@ -997,8 +978,7 @@ parser_parse_handle :: proc(p: ^Parser) -> Expr {
 	for p.current.kind != .RBrace && p.current.kind != .Eof {
 		parser_expect(p, .Dot)
 		op_tok := parser_expect(p, .Identifier)
-		parser_expect(p, .Bang)
-		op_id := intern(p.intern, fmt.tprintf("%s!", op_tok.text))
+		op_id := intern(p.intern, op_tok.text)
 		parser_expect(p, .LParen)
 		resume_tok := parser_expect(p, .Identifier)
 		resume_id := intern(p.intern, resume_tok.text)
@@ -1414,11 +1394,7 @@ parser_parse_effect_row_type :: proc(p: ^Parser) -> ^Type {
 
 		name_tok := parser_expect(p, .Upper_Id)
 		name_text := name_tok.text
-		// Support Name! syntax for effect names in rows
-		if p.current.kind == .Bang {
-			name_text = fmt.tprintf("{}!", name_text)
-			parser_advance(p)
-		}
+		// The ! is already absorbed into the token text by the lexer
 		name_id := intern(p.intern, name_text)
 
 		type_args := make([dynamic]Type, 0, 4)
@@ -1481,11 +1457,7 @@ parser_parse_effect_row_type_brace :: proc(p: ^Parser) -> ^Type {
 
 		name_tok := parser_expect(p, .Upper_Id)
 		name_text := name_tok.text
-		// Support Name! syntax for effect names
-		if p.current.kind == .Bang {
-			name_text = fmt.tprintf("{}!", name_text)
-			parser_advance(p)
-		}
+		// The ! is already absorbed into the token text by the lexer
 		name_id := intern(p.intern, name_text)
 
 		type_args := make([dynamic]Type, 0, 4)
