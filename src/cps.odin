@@ -1,12 +1,12 @@
 package camp
 
+
 CPS_Env :: struct {
 	interner:      ^Intern_Table,
 	module:        ^IR_Module,
 	effectful_fns: map[Canonical_Name]bool,
 	fresh_state:   Fresh_State,
 }
-
 
 
 cps_make_continuation :: proc(body: IR_Expr, param_name: Intern_ID, return_type: IR_Type, k_name: Intern_ID, env: ^CPS_Env) -> Canonical_Name {

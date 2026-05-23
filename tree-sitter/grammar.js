@@ -26,6 +26,7 @@ export default grammar({
     [$.arguments, $.parenthesized_expression],
     [$._type, $.applied_type],
     [$._pattern, $.tag_pattern],
+    [$.effect_row, $.record_type],
     [$.anonymous_method_expression, $.field_access_expression, $.method_call_expression],
     [$.anonymous_method_expression],
     [$.anonymous_method_expression, $.method_call_expression],
@@ -609,5 +610,6 @@ export default grammar({
       "is",
       field("trait", $.type_identifier),
     ),
+
   },
 });

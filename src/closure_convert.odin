@@ -9,7 +9,6 @@ Closure_Convert_Env :: struct {
 }
 
 
-
 cc_free_vars :: proc(expr: IR_Expr, bound: ^map[Intern_ID]bool) -> [dynamic]Intern_ID {
 	result: [dynamic]Intern_ID
 	result = make([dynamic]Intern_ID, 0, 8)
