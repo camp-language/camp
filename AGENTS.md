@@ -33,6 +33,25 @@ You are an AI assistant helping develop the Camp programming language - a strict
 6. **Test** - Ensure `odin test src` passes
 7. **Update specs** - If behavior changes, update the relevant spec.md
 
+## Implementation Workflow
+
+Once a plan is approved and ready to implement, follow this workflow — do not wait to be told. This describes execution mechanics only; it does not auto-approve plans.
+
+1. **Create a worktree** — `wa <kebab-slug>` (expands to `wt switch --create smores/<kebab-slug>`)
+2. **Implement step by step** — after each meaningful step (one logical change, tests passing):
+   - `git add` the relevant files
+   - Commit with a conventional commit message
+   - Push immediately (`git push`)
+3. **Merge to main** — when all steps are complete and tests pass:
+   - Switch to the canonical checkout: `cd /home/smores/code/github.com/camp-language/camp`
+   - Merge the branch: `git merge smores/<kebab-slug>`
+   - Push main: `git push`
+4. **Clean up** — delete the worktree and branch:
+   - `wt remove` (from inside the worktree, or `wt remove <branch>` from elsewhere)
+   - `git branch -d smores/<kebab-slug>` (if not auto-deleted)
+
+Choose the `<kebab-slug>` from the task description (e.g., "add pattern matching" → `add-pattern-matching`).
+
 ## Key Design Decisions
 
 | Aspect | Decision | Rationale |
