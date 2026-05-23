@@ -17,11 +17,11 @@
 - [x] 4.2 Fix `emit_camp_list_push_body()` in `src/runtime.odin`: remove redundant load, reorder address computation
 
 ## 5. Codegen Env Extensions
-- [ ] 5.1 Add `local_types` and `store` to `Codegen_Env` in `src/codegen.odin`
-- [ ] 5.2 Set `env.store = &ctx.type_store` in `codegen()` initialization
-- [ ] 5.3 Populate `env.local_types` in Camp function local collection
-- [ ] 5.4 Populate `env.local_types` in _start function local collection
-- [ ] 5.5 Add `delete(env.local_types)` cleanup
+- [x] 5.1 Add `local_types` and `store` to `Codegen_Env` in `src/codegen.odin`
+- [x] 5.2 Set `env.store = &ctx.type_store` in `codegen()` initialization
+- [x] 5.3 Populate `env.local_types` in Camp function local collection
+- [x] 5.4 Populate `env.local_types` in _start function local collection
+- [x] 5.5 Add `delete(env.local_types)` cleanup
 
 ## 6. _start Function Fix
 - [ ] 6.1 Set `env.tmp_local_base = 0` and `env.tmp_count = 0` before _start

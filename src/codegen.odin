@@ -19,6 +19,7 @@ Codegen_Env :: struct {
 	data_offset:    u32,
 	locals:         [dynamic]Wasm_Local_Decl,
 	local_map:      map[Intern_ID]u32,
+	local_types:    map[Intern_ID]IR_Type,
 	next_local:     u32,
 	tmp_local_base: u32,
 	tmp_count:      u32,
@@ -32,6 +33,8 @@ Codegen_Env :: struct {
 	console_id:     Intern_ID,
 	time_id:        Intern_ID,
 	decl_to_wasm_fn_idx: map[int]int,
+	store:          ^Type_Store,
+	string_offsets: map[Intern_ID]u32,
 }
 
 cg_is_scheduler_effect :: proc(effect: Canonical_Name, env: ^Codegen_Env) -> bool {
@@ -174,6 +177,9 @@ codegen :: proc(ir_mod: IR_Module, ctx: ^Compilation_Context) -> Wasm_Module {
 	env.data_offset = 0
 	env.locals = make([dynamic]Wasm_Local_Decl, 0, 32)
 	env.local_map = make(map[Intern_ID]u32, 32)
+	env.local_types = make(map[Intern_ID]IR_Type, 32)
+	env.store = ctx.type_store
+	env.string_offsets = make(map[Intern_ID]u32, 16)
 	env.table_idx = -1
 	env.func_type_indices = make([dynamic]u32, 0, 64)
 	env.next_scope_id = 1
@@ -510,6 +516,7 @@ codegen :: proc(ir_mod: IR_Module, ctx: ^Compilation_Context) -> Wasm_Module {
 			}
 			env.locals = make([dynamic]Wasm_Local_Decl, 0, 32)
 			env.local_map = make(map[Intern_ID]u32, 32)
+			env.local_types = make(map[Intern_ID]IR_Type, 32)
 			env.next_local = u32(len(d.params) + ev_count)
 
 			for p, i in d.params {
@@ -525,6 +532,7 @@ codegen :: proc(ir_mod: IR_Module, ctx: ^Compilation_Context) -> Wasm_Module {
 
 			for name, typ in collected_locals {
 				vt := ir_wasm_type_to_value_type(typ.wasm_type)
+				env.local_types[name] = typ
 				if vt in local_groups {
 					append(&local_groups[vt], name)
 				} else {
@@ -565,6 +573,7 @@ codegen :: proc(ir_mod: IR_Module, ctx: ^Compilation_Context) -> Wasm_Module {
 			delete(body_buf)
 			delete(env.locals)
 			delete(env.local_map)
+			delete(env.local_types)
 
 			if is_main && d.is_effectful {
 				continue
@@ -785,12 +794,14 @@ codegen :: proc(ir_mod: IR_Module, ctx: ^Compilation_Context) -> Wasm_Module {
 			main_body := extract_effectful_body(main_decl.body)
 
 			env.local_map = make(map[Intern_ID]u32, 32)
+			env.local_types = make(map[Intern_ID]IR_Type, 32)
 
 			collected_locals: map[Intern_ID]IR_Type
 			collected_locals = make(map[Intern_ID]IR_Type, 32)
 			collect_locals(main_body, &collected_locals)
 			for name, typ in collected_locals {
 				env.local_map[name] = env.next_local
+				env.local_types[name] = typ
 				env.next_local += 1
 			}
 
@@ -814,6 +825,7 @@ codegen :: proc(ir_mod: IR_Module, ctx: ^Compilation_Context) -> Wasm_Module {
 			append(&mod.codes, Wasm_Code{locals = start_locals[:], body = copy_dynamic_bytes(code_buf)})
 			delete(collected_locals)
 			delete(env.local_map)
+			delete(env.local_types)
 		}
 
 		delete(code_buf)
@@ -870,6 +882,7 @@ codegen :: proc(ir_mod: IR_Module, ctx: ^Compilation_Context) -> Wasm_Module {
 	env.data_offset = 0
 	for entry in ir_mod.string_table {
 		offset := env.data_offset
+		env.string_offsets[entry.id] = offset
 		bytes := transmute([]u8)entry.value
 		env.data_offset += u32(len(bytes))
 
@@ -890,6 +903,7 @@ codegen :: proc(ir_mod: IR_Module, ctx: ^Compilation_Context) -> Wasm_Module {
 	delete(env.func_map)
 	delete(env.func_type_indices)
 	delete(env.decl_to_wasm_fn_idx)
+	delete(env.string_offsets)
 	return mod
 }
 
