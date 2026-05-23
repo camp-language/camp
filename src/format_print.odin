@@ -76,7 +76,6 @@ doc_resolve_children :: proc(children: [dynamic]Doc, indent: int, mode: Doc_Mode
 doc_newline_with_indent :: proc(indent: int) -> string {
 	b: strings.Builder
 	strings.builder_init_none(&b, context.allocator)
-	defer strings.builder_destroy(&b)
 	strings.write_byte(&b, '\n')
 	for _ in 0 ..< indent {
 		strings.write_byte(&b, ' ')
