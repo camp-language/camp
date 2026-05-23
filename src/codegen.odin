@@ -615,6 +615,8 @@ codegen :: proc(ir_mod: IR_Module, ctx: ^Compilation_Context) -> Wasm_Module {
 
 	if start_func_idx >= 0 && main_decl != nil {
 		env.next_local = 4
+		env.tmp_local_base = 0
+		env.tmp_count = 0
 
 		code_buf: [dynamic]u8
 		code_buf = make([dynamic]u8, 0, 256)
@@ -795,6 +797,7 @@ codegen :: proc(ir_mod: IR_Module, ctx: ^Compilation_Context) -> Wasm_Module {
 
 			env.local_map = make(map[Intern_ID]u32, 32)
 			env.local_types = make(map[Intern_ID]IR_Type, 32)
+			env.locals = make([dynamic]Wasm_Local_Decl, 0, 8)
 
 			collected_locals: map[Intern_ID]IR_Type
 			collected_locals = make(map[Intern_ID]IR_Type, 32)
@@ -822,10 +825,14 @@ codegen :: proc(ir_mod: IR_Module, ctx: ^Compilation_Context) -> Wasm_Module {
 			for _, typ in collected_locals {
 				append(&start_locals, Wasm_Local_Decl{count = 1, type = ir_wasm_type_to_value_type(typ.wasm_type)})
 			}
+			for l in env.locals {
+				append(&start_locals, l)
+			}
 			append(&mod.codes, Wasm_Code{locals = start_locals[:], body = copy_dynamic_bytes(code_buf)})
 			delete(collected_locals)
 			delete(env.local_map)
 			delete(env.local_types)
+			delete(env.locals)
 		}
 
 		delete(code_buf)

@@ -24,9 +24,9 @@
 - [x] 5.5 Add `delete(env.local_types)` cleanup
 
 ## 6. _start Function Fix
-- [ ] 6.1 Set `env.tmp_local_base = 0` and `env.tmp_count = 0` before _start
-- [ ] 6.2 Initialize `env.locals` before _start non-effectful main path
-- [ ] 6.3 Include `env.locals` in _start's final `start_locals` declarations
+- [x] 6.1 Set `env.tmp_local_base = 0` and `env.tmp_count = 0` before _start
+- [x] 6.2 Initialize `env.locals` before _start non-effectful main path
+- [x] 6.3 Include `env.locals` in _start's final `start_locals` declarations
 
 ## 7. Type-Aware Match Codegen
 - [ ] 7.1 Add `Match_Kind` enum and `determine_match_kind()` helper
