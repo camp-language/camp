@@ -40,18 +40,18 @@ just test                 # Build and test
 
 Specifications are organized using [OpenSpec](https://github.com/Fission-AI/OpenSpec) in the `openspec/` directory:
 
-| Domain | Spec | Design |
-|--------|------|--------|
-| Language | [spec](openspec/specs/language/spec.md) | [design](openspec/specs/language/design.md) |
-| Effects | [spec](openspec/specs/effects/spec.md) | [design](openspec/specs/effects/design.md) |
-| Compiler | [spec](openspec/specs/compiler/spec.md) | [design](openspec/specs/compiler/design.md) |
-| LSP | [spec](openspec/specs/lsp/spec.md) | [design](openspec/specs/lsp/design.md) |
-| Diagnostics | [spec](openspec/specs/diagnostics/spec.md) | [design](openspec/specs/diagnostics/design.md) |
-| Testing | [spec](openspec/specs/testing/spec.md) | [design](openspec/specs/testing/design.md) |
-| Formatter | [spec](openspec/specs/formatter/spec.md) | [design](openspec/specs/formatter/design.md) |
-| Tree-sitter | [spec](openspec/specs/tree-sitter/spec.md) | [design](openspec/specs/tree-sitter/design.md) |
-| Packages | [spec](openspec/specs/packages/spec.md) | [design](openspec/specs/packages/design.md) |
-| Parallelism | [spec](openspec/specs/parallelism/spec.md) | [design](openspec/specs/parallelism/design.md) |
+| Domain | Spec |
+|--------|------|
+| Language | [spec](openspec/specs/language/spec.md) |
+| Effects | [spec](openspec/specs/effects/spec.md) |
+| Compiler | [spec](openspec/specs/compiler/spec.md) |
+| LSP | [spec](openspec/specs/lsp/spec.md) |
+| Diagnostics | [spec](openspec/specs/diagnostics/spec.md) |
+| Testing | [spec](openspec/specs/testing/spec.md) |
+| Formatter | [spec](openspec/specs/formatter/spec.md) |
+| Tree-sitter | [spec](openspec/specs/tree-sitter/spec.md) |
+| Packages | [spec](openspec/specs/packages/spec.md) |
+| Parallelism | [spec](openspec/specs/parallelism/spec.md) |
 
 ## AI Development
 

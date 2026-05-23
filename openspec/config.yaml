@@ -13,17 +13,9 @@ context: |
 rules:
   proposal:
     - Identify which spec domains are affected
-    - List current implementation status from compiler/spec
+    - List current implementation status from code
   specs:
     - Use Given/When/Then format for scenarios
     - Use SHALL/MUST/SHOULD per RFC 2119
-    - Keep behavioral requirements separate from implementation details (put those in design.md)
-  design:
-    - Reference relevant spec requirements
-    - Include Odin code for compiler changes
-    - Include Camp code examples for language features
-    - Cite research papers where applicable
-  tasks:
-    - Group related tasks under headings
-    - Use hierarchical numbering (1.1, 1.2, etc.)
-    - Keep tasks small enough to complete in one session
+    - Keep behavioral requirements separate from implementation details
+    - Code is the source of truth; specs define what SHOULD happen, code shows what DOES happen
