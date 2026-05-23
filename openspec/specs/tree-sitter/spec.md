@@ -72,15 +72,15 @@ The grammar SHALL correctly disambiguate ambiguous Camp constructs.
 - When parsed by tree-sitter
 - Then it SHALL be a const_declaration with `is_effectful = true`
 
-### Requirement: No External Scanner
+### Requirement: External Scanner for Interpolation
 
-The grammar SHALL be implemented entirely in `grammar.js` without an external C scanner.
+The grammar SHALL use an external C scanner for handling string interpolation brace-depth tracking. The previous requirement that the grammar be implemented entirely in `grammar.js` without an external scanner SHALL be modified to allow an external scanner for interpolated string support.
 
-#### Scenario: Pure grammar.js
+#### Scenario: External scanner for interpolation
 
-- Given Camp's lexer rules (line comments, basic strings, no indentation sensitivity, alphanumeric identifiers)
-- When the grammar is compiled
-- Then it SHALL produce a working parser without an external scanner
+- Given Camp source containing an interpolated string `"${record.{name}}"`
+- When tree-sitter parses it
+- Then the external scanner SHALL track brace depth to correctly match the interpolation-closing `}`
 
 ### Requirement: Corpus Tests
 
@@ -147,3 +147,41 @@ The tree-sitter grammar SHALL stay synchronized with Camp's compiler parser.
 - Given new syntax is added to Camp
 - When e2e `.camp` files use the new syntax
 - Then `tree-sitter-validate` SHALL fail if tree-sitter cannot parse the new syntax
+
+### Requirement: Interpolated String Grammar
+
+The tree-sitter grammar SHALL include rules for interpolated strings, raw strings, and multiline strings with interpolation support.
+
+#### Scenario: Interpolated string parse tree
+
+- Given Camp source `"Hello ${name}!"`
+- When tree-sitter parses it
+- Then it SHALL produce an `interpolated_string` node containing `string_content` and `interpolation` child nodes
+
+#### Scenario: Interpolation node structure
+
+- Given Camp source `"${expr}"`
+- When tree-sitter parses it
+- Then it SHALL produce an `interpolation` node containing `${`, the expression, and `}`
+
+#### Scenario: Raw string parse tree
+
+- Given Camp source `r"C:\${dir}"`
+- When tree-sitter parses it
+- Then it SHALL produce a `raw_string` node with interpolation support
+
+#### Scenario: Multiline string parse tree
+
+- Given Camp source `"""Line 1\n${x}"""`
+- When tree-sitter parses it
+- Then it SHALL produce a `multiline_string` node with interpolation support
+
+### Requirement: Interpolation Highlighting
+
+The tree-sitter highlights query SHALL provide distinct highlighting for interpolation delimiters (`${` and `}`) and the embedded expression.
+
+#### Scenario: Highlighting interpolation delimiters
+
+- Given Camp source `"Hello ${name}!"`
+- When `highlights.scm` is applied
+- Then `${` and `}` SHALL be captured as `@punctuation.special` and the expression SHALL be captured as `@embedded`
