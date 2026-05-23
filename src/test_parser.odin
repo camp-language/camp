@@ -91,7 +91,9 @@ test_parser_if_else :: proc(t: ^testing.T) {
 	testing.expect(t, !diag_collector_has_errors(&ctx.collector))
 	#partial switch e in expr {
 	case ^Expr_If:
-		testing.expect(t, true)
+		testing.expect(t, e.condition != nil)
+		testing.expect(t, e.then_branch != nil)
+		testing.expect(t, e.else_branch != nil)
 	case:
 		testing.expect(t, false)
 	}
@@ -139,7 +141,7 @@ test_parser_method_call :: proc(t: ^testing.T) {
 	testing.expect(t, !diag_collector_has_errors(&ctx.collector))
 	#partial switch e in expr {
 	case ^Expr_Method_Call:
-		testing.expect(t, true)
+		testing.expect(t, e.method != NO_NAME)
 	case:
 		testing.expect(t, false)
 	}
@@ -228,7 +230,7 @@ test_parser_dot_lambda_field :: proc(t: ^testing.T) {
 	case ^Expr_Dot_Lambda:
 		#partial switch body in e.body {
 		case ^Expr_Field_Access:
-			testing.expect(t, true)
+			testing.expect(t, body.field != NO_NAME)
 		case:
 			testing.expect(t, false)
 		}
@@ -249,7 +251,7 @@ test_parser_dot_lambda_chained :: proc(t: ^testing.T) {
 	case ^Expr_Dot_Lambda:
 		#partial switch body in e.body {
 		case ^Expr_Method_Call:
-			testing.expect(t, true)
+			testing.expect(t, body.method != NO_NAME)
 		case:
 			testing.expect(t, false)
 		}

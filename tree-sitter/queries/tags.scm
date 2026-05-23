@@ -13,3 +13,7 @@
 ;; Alias definitions
 (alias_declaration
   name: (type_identifier) @name) @definition.type
+
+;; Newtype definitions
+(newtype_declaration
+  name: (type_identifier) @name) @definition.type

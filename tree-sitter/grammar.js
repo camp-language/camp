@@ -26,7 +26,7 @@ export default grammar({
     [$.arguments, $.parenthesized_expression],
     [$._type, $.applied_type],
     [$._pattern, $.tag_pattern],
-    [$.effect_annotation, $.record_type],
+    [$.effect_row, $.record_type],
     [$.anonymous_method_expression, $.field_access_expression, $.method_call_expression],
     [$.anonymous_method_expression],
     [$.anonymous_method_expression, $.method_call_expression],
@@ -50,6 +50,7 @@ export default grammar({
     ),
 
     const_declaration: ($) => seq(
+      optional("pub"),
       field("name", $.identifier),
       optional("!"),
       optional(seq(":", field("type_annotation", $.type_annotation))),
@@ -68,6 +69,7 @@ export default grammar({
 
     effect_operation: ($) => seq(
       field("name", $.identifier),
+      optional("!"),
       optional(seq("(", optional(field("parameters", $.effect_parameters)), ")")),
       optional(seq("->", field("return_type", $._type))),
     ),
@@ -100,6 +102,7 @@ export default grammar({
     alias_declaration: ($) => seq(
       "alias",
       field("name", $.type_identifier),
+      optional(field("type_parameters", $.type_parameters)),
       "=",
       field("target", $._type),
     ),
@@ -205,9 +208,9 @@ export default grammar({
     ),
 
     // --- Literals ---
-    integer: ($) => /[0-9][0-9_]*/,
+    integer: ($) => /[1-9][0-9_]*|0/,
 
-    float: ($) => /[0-9][0-9_]*\.[0-9][0-9_]*/,
+    float: ($) => /[1-9][0-9_]*\.[0-9][0-9_]*|0\.[0-9][0-9_]*/,
 
     string: ($) => seq(
       '"',
@@ -249,6 +252,7 @@ export default grammar({
 
     // --- Expressions ---
     tag_expression: ($) => prec(9, seq(
+      optional("@"),
       field("name", $.type_identifier),
       field("arguments", $.arguments),
     )),
@@ -284,7 +288,7 @@ export default grammar({
         optional(field("parameters", $.lambda_parameters)),
       )),
       "|",
-      optional(seq("->", optional($.effect_annotation), field("return_type", $._type))),
+      optional(seq("->", optional($.effect_row), field("return_type", $._type))),
       field("body", $._expression),
     ),
 
@@ -311,16 +315,16 @@ export default grammar({
       ")",
       optional(seq(
         "->",
-        optional($.effect_annotation),
+        optional($.effect_row),
         field("return_type", $._type),
       )),
       field("body", $._expression),
     ),
 
-    effect_annotation: ($) => seq(
-      "{",
-      optional(seq($.type_identifier, repeat(seq(",", $.type_identifier)))),
-      "}",
+    effect_row: ($) => seq(
+      "-[",
+      optional(seq($.type_identifier, repeat(seq("|", $.type_identifier)))),
+      "]->",
     ),
 
     // --- Block ---
@@ -336,8 +340,8 @@ export default grammar({
     // --- Record ---
     record_expression: ($) => seq(
       "{",
+      optional(seq("..", field("spread", $._expression), optional(","))),
       optional(field("fields", $.record_fields)),
-      optional(seq("..", field("spread", $._expression))),
       "}",
     ),
 
@@ -378,13 +382,16 @@ export default grammar({
 
     match_arm: ($) => seq(
       field("pattern", $._pattern),
-      "->",
+      optional(seq("if", field("guard", $._expression))),
+      "=>",
       field("body", $._expression),
     ),
 
     // --- Handle ---
     handle_expression: ($) => seq(
       choice("handle", "intercept"),
+      field("effect", $.type_identifier),
+      "in",
       field("body", $._expression),
       "with",
       "{",
@@ -395,14 +402,21 @@ export default grammar({
     handler_arms: ($) => repeat1($.handler_arm),
 
     handler_arm: ($) => seq(
-      field("operation", $.type_identifier),
       ".",
       field("name", $.identifier),
-      "(",
-      field("resume_param", $.identifier),
-      ")",
-      "->",
+      optional(seq("!",
+        "(",
+        field("resume_param", $.identifier),
+        optional(seq(",", field("extra_params", $.identifier_list))),
+        ")",
+      )),
+      "=>",
       field("body", $._expression),
+    ),
+
+    identifier_list: ($) => seq(
+      $.identifier,
+      repeat(seq(",", $.identifier)),
     ),
 
     // --- Return/Crash ---
@@ -439,6 +453,7 @@ export default grammar({
     )),
 
     tag_pattern: ($) => seq(
+      optional("@"),
       field("name", $.type_identifier),
       optional(field("arguments", $.pattern_arguments)),
     ),
@@ -452,6 +467,7 @@ export default grammar({
     record_pattern: ($) => seq(
       "{",
       optional(seq(field("fields", $.record_pattern_fields), optional(","))),
+      optional(seq("..", optional(field("rest", $.identifier)))),
       "}",
     ),
 
@@ -484,8 +500,8 @@ export default grammar({
 
     function_type: ($) => seq(
       optional(seq("(", optional(seq($._type, repeat(seq(",", $._type)))), ")")),
+      optional($.effect_row),
       "->",
-      optional($.effect_annotation),
       $._type,
     ),
 
@@ -494,6 +510,7 @@ export default grammar({
       $.tag_union_variant,
       repeat(seq("|", $.tag_union_variant)),
       optional(seq("|", $.wildcard_type)),
+      optional(seq("|", "..", optional(field("rest", $.identifier)))),
       "]",
     ),
 
@@ -505,6 +522,7 @@ export default grammar({
     record_type: ($) => seq(
       "{",
       optional(seq($.record_type_field, repeat(seq(",", $.record_type_field)), optional(","))),
+      optional(seq(",", "..", optional(field("rest", $.identifier)))),
       "}",
     ),
 
@@ -527,9 +545,9 @@ export default grammar({
 
     wildcard_type: ($) => "_",
 
-    type_variable: ($) => $.identifier,
+    type_variable: ($) => alias($.identifier, "type_variable"),
 
-    type_annotation: ($) => $._type,
+    type_annotation: ($) => alias($._type, "type_annotation"),
 
     // --- Newtype ---
     newtype_declaration: ($) => seq(
@@ -592,27 +610,5 @@ export default grammar({
       field("trait", $.type_identifier),
     ),
 
-    // --- Keywords ---
-    _if: ($) => "if",
-    _else: ($) => "else",
-    _match: ($) => "match",
-    _effect: ($) => "effect",
-    _trait: ($) => "trait",
-    _is: ($) => "is",
-    _alias: ($) => "alias",
-    _handle: ($) => "handle",
-    _intercept: ($) => "intercept",
-    _in: ($) => "in",
-    _with: ($) => "with",
-    _import: ($) => "import",
-    _exposing: ($) => "exposing",
-    _as: ($) => "as",
-    _unsafe: ($) => "unsafe",
-    _for: ($) => "for",
-    _and: ($) => "and",
-    _or: ($) => "or",
-    _not: ($) => "not",
-    _expect: ($) => "expect",
-    _test: ($) => "test",
   },
 });

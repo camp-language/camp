@@ -3,7 +3,8 @@
   "if" "else" "match" "effect" "trait" "is" "alias"
   "handle" "intercept" "with" "import" "exposing"
   "as" "and" "or" "not" "expect" "test"
-  "return" "crash"
+  "return" "crash" "pub" "derives" "par" "for"
+  "unsafe" "alias"
 ] @keyword
 
 ;; Types
@@ -28,7 +29,7 @@
   "${" @punctuation.special)
 (interpolated_string
   "}" @punctuation.special)
-(interpolated_string (expression) @embedded)
+(interpolated_string expression: (_) @embedded)
 
 ;; Integer
 (integer) @number

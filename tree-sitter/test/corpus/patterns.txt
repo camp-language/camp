@@ -2,8 +2,7 @@
 Wildcard pattern
 ========
 x = match y {
-  _ -> 0
-}
+  _ => 0
 ---
 (source_file
   (const_declaration
@@ -15,11 +14,30 @@ x = match y {
           (wildcard_pattern)
           (integer))))))
 
-========
+=======
 Or pattern
-========
+=======
 x = match y {
-  1 | 2 -> 0
+  1 | 2 => 0
+}
+---
+(source_file
+  (const_declaration
+    (identifier)
+    (match_expression
+      (identifier)
+      (match_arms
+        (match_arm
+          (or_pattern
+            (integer)
+            (integer))
+          (integer))))))
+
+=======
+Tag pattern
+=======
+x = match y {
+  Ok(v) => v
 }
 ---
 (source_file
@@ -58,8 +76,7 @@ x = match y {
 Record pattern
 ========
 x = match y {
-  { x: 1 } -> 0
-}
+  { x: 1 } => 0
 ---
 (source_file
   (const_declaration
@@ -75,11 +92,11 @@ x = match y {
                 (integer))))
           (integer))))))
 
-========
+=======
 List pattern
-========
+=======
 x = match y {
-  [1, 2] -> 0
+  [1, 2] => 0
 }
 ---
 (source_file

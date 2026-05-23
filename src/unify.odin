@@ -200,6 +200,12 @@ unify_inferred :: proc(store: ^Type_Store, a: Inferred_Type, b: Inferred_Type, a
 	return true
 }
 
+// NOTE: unify_effect_rows, unify_record_rows, and unify_tag_union_rows
+// share the same structural pattern (compute a_only/b_only, unify rests via shared rest).
+// They differ in entry types, field names, rest field names, fresh row functions,
+// and inner unification logic (tag_union has arity checking).
+// Extracting a common helper would require Odin generics or function pointer dispatch.
+
 unify_effect_rows :: proc(store: ^Type_Store, a: Inferred_Type, b: Inferred_Type) -> bool {
 	a_only: [dynamic]Effect_Row_Entry
 	a_only = make([dynamic]Effect_Row_Entry, 0, len(a.effects))

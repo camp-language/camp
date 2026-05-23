@@ -70,7 +70,11 @@ discover_tests :: proc(root: string, filter: string, allocator: mem.Allocator) -
 			defer delete(expected_path, allocator)
 
 			if !os.exists(expected_path) {
+<<<<<<< Updated upstream
 				continue
+=======
+				continue  // deferred delete handles cleanup
+>>>>>>> Stashed changes
 			}
 
 			main_camp_path, mc_err := filepath.join({test_dir_path, "Main.camp"}, allocator)
@@ -80,7 +84,11 @@ discover_tests :: proc(root: string, filter: string, allocator: mem.Allocator) -
 			defer delete(main_camp_path, allocator)
 
 			if !os.exists(main_camp_path) {
+<<<<<<< Updated upstream
 				continue
+=======
+				continue  // deferred delete handles cleanup
+>>>>>>> Stashed changes
 			}
 
 			category_name := fmt.tprintf("{}/{}", category, test_name)
@@ -370,6 +378,8 @@ run_command_prefixed :: proc(command: []string, prefix: string, cwd: string = ""
 		stdout_path = fmt.tprintf("/tmp/camp-e2e-stdout-{}", pid)
 		stderr_path = fmt.tprintf("/tmp/camp-e2e-stderr-{}", pid)
 	}
+	defer os.remove(stdout_path)
+	defer os.remove(stderr_path)
 
 	stdout_f, open_err := os.open(stdout_path, os.O_CREATE | os.O_WRONLY | os.O_TRUNC)
 	if open_err != nil {

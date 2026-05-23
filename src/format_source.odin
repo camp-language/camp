@@ -209,26 +209,28 @@ source_text_analysis :: proc(source: string, tokens: []Token, info: ^Format_Sour
 						span = Source_Span{start = comment.start, end = comment.end},
 						is_doc = comment.is_doc,
 					}
-					existing := info.comments_before[next.span.start]
-					new_slice := make([]Comment_Info, len(existing) + 1)
-					copy(new_slice, existing)
-					new_slice[len(existing)] = ci
-					info.comments_before[next.span.start] = new_slice
-				}
-			} else if next_token_idx >= 0 {
-				// No previous token → comment before the first token
-				next := tokens[next_token_idx]
-				if next.kind == .Eof do continue
-				ci := Comment_Info{
-					text = comment.text,
-					span = Source_Span{start = comment.start, end = comment.end},
-					is_doc = comment.is_doc,
-				}
 				existing := info.comments_before[next.span.start]
 				new_slice := make([]Comment_Info, len(existing) + 1)
 				copy(new_slice, existing)
 				new_slice[len(existing)] = ci
+				delete(existing)
 				info.comments_before[next.span.start] = new_slice
+			}
+		} else if next_token_idx >= 0 {
+			// No previous token → comment before the first token
+			next := tokens[next_token_idx]
+			if next.kind == .Eof do continue
+			ci := Comment_Info{
+				text = comment.text,
+				span = Source_Span{start = comment.start, end = comment.end},
+				is_doc = comment.is_doc,
+			}
+			existing := info.comments_before[next.span.start]
+			new_slice := make([]Comment_Info, len(existing) + 1)
+			copy(new_slice, existing)
+			new_slice[len(existing)] = ci
+			delete(existing)
+			info.comments_before[next.span.start] = new_slice
 			}
 		}
 	}

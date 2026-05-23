@@ -65,68 +65,40 @@ parser_skip_backslashes :: proc(p: ^Parser) {
 	}
 }
 
-expr_span_start :: proc(expr: Expr) -> int {
-	switch e in expr {
-	case ^Expr_Int:               return e.span.start
-	case ^Expr_Float:             return e.span.start
-	case ^Expr_String:            return e.span.start
-	case ^Expr_Bool:              return e.span.start
-	case ^Expr_Identifier:        return e.span.start
-	case ^Expr_Dollar_Identifier: return e.span.start
-	case ^Expr_PrefixOp:          return e.span.start
-	case ^Expr_BinOp:             return e.span.start
-	case ^Expr_Lambda:            return e.span.start
-	case ^Expr_Block:             return e.span.start
-	case ^Expr_If:                return e.span.start
-	case ^Expr_Match:             return e.span.start
-	case ^Expr_Tag:               return e.span.start
-	case ^Expr_Call:              return e.span.start
-	case ^Expr_Field_Access:      return e.span.start
-	case ^Expr_Method_Call:       return e.span.start
-	case ^Expr_Record:            return e.span.start
-	case ^Expr_Record_Update:     return e.span.start
-	case ^Expr_List:              return e.span.start
-	case ^Expr_Assign:            return e.span.start
-	case ^Expr_Return:            return e.span.start
-	case ^Expr_Crash:             return e.span.start
-	case ^Expr_Interpolated_String: return e.span.start
-	case ^Expr_Handle:            return e.span.start
-	case ^Expr_Par:               return e.span.start
-	case ^Expr_For:               return e.span.start
-	case ^Expr_Dot_Lambda:        return e.span.start
-	case:                         return 0
-	}
+Span_End :: enum {
+	Start,
+	End,
 }
 
-right_span_end :: proc(expr: Expr) -> int {
+expr_span :: proc(expr: Expr, which: Span_End) -> int {
 	switch e in expr {
-	case ^Expr_Int:               return e.span.end
-	case ^Expr_Float:             return e.span.end
-	case ^Expr_String:            return e.span.end
-	case ^Expr_Bool:              return e.span.end
-	case ^Expr_Identifier:        return e.span.end
-	case ^Expr_Dollar_Identifier: return e.span.end
-	case ^Expr_PrefixOp:          return e.span.end
-	case ^Expr_BinOp:             return e.span.end
-	case ^Expr_Lambda:            return e.span.end
-	case ^Expr_Block:             return e.span.end
-	case ^Expr_If:                return e.span.end
-	case ^Expr_Match:             return e.span.end
-	case ^Expr_Tag:               return e.span.end
-	case ^Expr_Call:              return e.span.end
-	case ^Expr_Field_Access:      return e.span.end
-	case ^Expr_Method_Call:       return e.span.end
-	case ^Expr_Record:            return e.span.end
-	case ^Expr_Record_Update:     return e.span.end
-	case ^Expr_List:              return e.span.end
-	case ^Expr_Assign:            return e.span.end
-	case ^Expr_Return:            return e.span.end
-	case ^Expr_Crash:             return e.span.end
-	case ^Expr_Interpolated_String: return e.span.end
-	case ^Expr_Handle:            return e.span.end
-	case ^Expr_Par:               return e.span.end
-	case ^Expr_For:               return e.span.end
-	case ^Expr_Dot_Lambda:        return e.span.end
+	case ^Expr_Int:               return e.span.start if which == .Start else e.span.end
+	case ^Expr_Float:             return e.span.start if which == .Start else e.span.end
+	case ^Expr_String:            return e.span.start if which == .Start else e.span.end
+	case ^Expr_Bool:              return e.span.start if which == .Start else e.span.end
+	case ^Expr_Identifier:        return e.span.start if which == .Start else e.span.end
+	case ^Expr_Dollar_Identifier: return e.span.start if which == .Start else e.span.end
+	case ^Expr_PrefixOp:          return e.span.start if which == .Start else e.span.end
+	case ^Expr_BinOp:             return e.span.start if which == .Start else e.span.end
+	case ^Expr_Lambda:            return e.span.start if which == .Start else e.span.end
+	case ^Expr_Block:             return e.span.start if which == .Start else e.span.end
+	case ^Expr_If:                return e.span.start if which == .Start else e.span.end
+	case ^Expr_Match:             return e.span.start if which == .Start else e.span.end
+	case ^Expr_Tag:               return e.span.start if which == .Start else e.span.end
+	case ^Expr_Call:              return e.span.start if which == .Start else e.span.end
+	case ^Expr_Field_Access:      return e.span.start if which == .Start else e.span.end
+	case ^Expr_Method_Call:       return e.span.start if which == .Start else e.span.end
+	case ^Expr_Record:            return e.span.start if which == .Start else e.span.end
+	case ^Expr_Record_Update:     return e.span.start if which == .Start else e.span.end
+	case ^Expr_List:              return e.span.start if which == .Start else e.span.end
+	case ^Expr_Assign:            return e.span.start if which == .Start else e.span.end
+	case ^Expr_Return:            return e.span.start if which == .Start else e.span.end
+	case ^Expr_Crash:             return e.span.start if which == .Start else e.span.end
+	case ^Expr_Interpolated_String: return e.span.start if which == .Start else e.span.end
+	case ^Expr_Handle:            return e.span.start if which == .Start else e.span.end
+	case ^Expr_Par:               return e.span.start if which == .Start else e.span.end
+	case ^Expr_For:               return e.span.start if which == .Start else e.span.end
+	case ^Expr_Dot_Lambda:        return e.span.start if which == .Start else e.span.end
 	case:                         return 0
 	}
 }
@@ -365,7 +337,7 @@ parser_parse_expr_bp :: proc(p: ^Parser, min_bp: Binding_Power) -> Expr {
 			op = op.kind,
 			left = left,
 			right = right,
-			span = Source_Span{file_id = op.span.file_id, start = expr_span_start(left), end = right_span_end(right)},
+			span = Source_Span{file_id = op.span.file_id, start = expr_span(left, .Start), end = expr_span(right, .End)},
 		}
 		left = binop
 	}
@@ -1401,14 +1373,14 @@ parser_parse_tag_union_type :: proc(p: ^Parser) -> Type {
 	return tag_union
 }
 
-parser_parse_effect_row_type :: proc(p: ^Parser) -> ^Type {
+parser_parse_effect_row_type_inner :: proc(p: ^Parser, terminator: Token_Kind) -> ^Type {
 	start := p.current.span
 
 	effects := make([dynamic]Type_Effect_Entry, 0, 8)
 	rest: Intern_ID = 0
 	is_open := false
 
-	for p.current.kind != .RBrack && p.current.kind != .Eof {
+	for p.current.kind != terminator && p.current.kind != .Eof {
 		if p.current.kind == .Dot_Dot {
 			is_open = true
 			parser_advance(p)
@@ -1464,67 +1436,12 @@ parser_parse_effect_row_type :: proc(p: ^Parser) -> ^Type {
 	return result
 }
 
+parser_parse_effect_row_type :: proc(p: ^Parser) -> ^Type {
+	return parser_parse_effect_row_type_inner(p, .RBrack)
+}
+
 parser_parse_effect_row_type_brace :: proc(p: ^Parser) -> ^Type {
-	start := p.current.span
-
-	effects := make([dynamic]Type_Effect_Entry, 0, 8)
-	rest: Intern_ID = 0
-	is_open := false
-
-	for p.current.kind != .RBrace && p.current.kind != .Eof {
-		if p.current.kind == .Dot_Dot {
-			is_open = true
-			parser_advance(p)
-			if p.current.kind == .Identifier {
-				rest_tok := parser_advance(p)
-				rest = intern(p.intern, rest_tok.text)
-			}
-			if p.current.kind == .Pipe {
-				parser_advance(p)
-			}
-			continue
-		}
-
-		name_tok := parser_expect(p, .Upper_Id)
-		name_text := name_tok.text
-		// The ! is already absorbed into the token text by the lexer
-		name_id := intern(p.intern, name_text)
-
-		type_args := make([dynamic]Type, 0, 4)
-		// Parse optional type arguments: Name!(Type1, Type2, ...)
-		if p.current.kind == .LParen {
-			parser_advance(p)
-			for p.current.kind != .RParen && p.current.kind != .Eof {
-				if len(type_args) > 0 {
-					parser_expect(p, .Comma)
-					parser_skip_backslashes(p)
-					if p.current.kind == .RParen do break
-				}
-				arg_type := parser_parse_type(p)
-				append(&type_args, arg_type^)
-			}
-			parser_expect(p, .RParen)
-		}
-
-		append(&effects, Type_Effect_Entry{
-			name = name_id,
-			type_args = type_args,
-			span = name_tok.span,
-		})
-
-		if p.current.kind == .Comma {
-			parser_advance(p)
-			parser_skip_backslashes(p)
-		} else if p.current.kind == .Pipe {
-			parser_advance(p)
-		}
-	}
-
-	row := new(Type_Effect_Row)
-	row^ = Type_Effect_Row{effects = effects, rest = rest, is_open = is_open, span = start}
-	result := new(Type)
-	result^ = row
-	return result
+	return parser_parse_effect_row_type_inner(p, .RBrace)
 }
 
 parser_parse_trait_decl :: proc(p: ^Parser, is_pub: bool) -> Decl {

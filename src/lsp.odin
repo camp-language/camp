@@ -37,6 +37,9 @@ server_loop :: proc(server: ^LSP_Server) {
 			send_error(server, 0, int(JSON_RPC_Error_Code.ParseError), "parse error")
 			continue
 		}
+		// NOTE: json.parse allocates a value tree that is never freed.
+		// There is no json.value_destroy in this Odin version, so this leaks.
+		// To fix: iterate parsed.Object and free nested values manually.
 
 		method_val, has_method := json_get_string(parsed, "method")
 		if !has_method {

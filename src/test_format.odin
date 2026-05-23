@@ -195,10 +195,10 @@ test_analyze_single_line_call :: proc(t: ^testing.T) {
 	defer destroy_format_source_info(&info)
 
 	// Expect exactly one separator (the first comma) tracked
-	testing.expectf(t, len(info.first_separator_break) == 1, "expected 1 separator break entry, got %d", len(info.first_separator_break))
+	testing.expectf(t, len(info.first_separator_break) == 1, "expected 1 separator break entry, got {}", len(info.first_separator_break))
 
 	for pos, has_break in info.first_separator_break {
-		testing.expectf(t, !has_break, "expected no break after separator at position %d in single-line call %q", pos, source)
+		testing.expectf(t, !has_break, "expected no break after separator at position {} in single-line call {}", pos, source)
 		_ = pos
 	}
 }
@@ -216,7 +216,7 @@ test_analyze_multi_line_list :: proc(t: ^testing.T) {
 	testing.expectf(t, len(info.first_separator_break) > 0, "expected at least one separator break entry in multi-line list")
 
 	for pos, has_break in info.first_separator_break {
-		testing.expectf(t, has_break, "expected break after separator at position %d in multi-line list", pos)
+		testing.expectf(t, has_break, "expected break after separator at position {} in multi-line list", pos)
 	}
 }
 
@@ -233,11 +233,11 @@ test_analyze_nested_groups :: proc(t: ^testing.T) {
 	// With 3 groups (outer list + 2 calls), we expect 3 first-separator entries
 	// All should be false since everything is on one line
 	testing.expectf(t, len(info.first_separator_break) == 3,
-		"expected 3 first-separator entries (list + 2 calls), got %d",
+		"expected 3 first-separator entries (list + 2 calls), got {}",
 		len(info.first_separator_break))
 
 	for pos, has_break in info.first_separator_break {
-		testing.expectf(t, !has_break, "expected no break at position %d in single-line nested groups", pos)
+		testing.expectf(t, !has_break, "expected no break at position {} in single-line nested groups", pos)
 	}
 }
 
@@ -261,7 +261,7 @@ test_analyze_blank_line :: proc(t: ^testing.T) {
 			break
 		}
 	}
-	testing.expectf(t, found, "expected a blank line entry in %q", source)
+	testing.expectf(t, found, "expected a blank line entry in {}", source)
 }
 
 @(test)
@@ -275,11 +275,11 @@ test_analyze_trailing_comment :: proc(t: ^testing.T) {
 	defer destroy_format_source_info(&info)
 
 	testing.expectf(t, len(info.trailing_comments) == 1,
-		"expected 1 trailing comment, got %d", len(info.trailing_comments))
+		"expected 1 trailing comment, got {}", len(info.trailing_comments))
 
 	for _, ci in info.trailing_comments {
 		testing.expectf(t, ci.text == "trailing",
-			"expected comment text 'trailing', got %q", ci.text)
+			"expected comment text 'trailing', got {}", ci.text)
 	}
 }
 
@@ -302,7 +302,7 @@ test_analyze_comment_before :: proc(t: ^testing.T) {
 			}
 		}
 	}
-	testing.expectf(t, found, "expected a 'comment' in comments_before in %q", source)
+	testing.expectf(t, found, "expected a 'comment' in comments_before in {}", source)
 }
 
 @(test)
@@ -323,7 +323,7 @@ test_analyze_doc_comment :: proc(t: ^testing.T) {
 			}
 		}
 	}
-	testing.expectf(t, found_doc, "expected a doc comment 'doc comment' in comments_before in %q", source)
+	testing.expectf(t, found_doc, "expected a doc comment 'doc comment' in comments_before in {}", source)
 }
 
 @(test)
@@ -338,7 +338,7 @@ test_analyze_multiple_separators :: proc(t: ^testing.T) {
 
 	// No delimiters → depth never > 0 → no separators tracked
 	testing.expectf(t, len(info.first_separator_break) == 0,
-		"expected 0 separators (no grouping delimiters), got %d",
+		"expected 0 separators (no grouping delimiters), got {}",
 		len(info.first_separator_break))
 }
 
@@ -357,7 +357,7 @@ test_analyze_pipe_separator :: proc(t: ^testing.T) {
 	// Actually the pipe starts its arm, so the newline is between the pipe-arm
 	// and the next arm. The first pipe at depth 1 should have a break.
 	testing.expectf(t, len(info.first_separator_break) >= 1,
-		"expected at least 1 separator (pipe) in match expression, got %d",
+		"expected at least 1 separator (pipe) in match expression, got {}",
 		len(info.first_separator_break))
 }
 
@@ -397,7 +397,7 @@ test_format_type_primitive :: proc(t: ^testing.T) {
 	result := doc_resolve(format_type(&type_val, &info, &ctx.interner), 0)
 	defer delete(result)
 
-	testing.expectf(t, result == "Int", "expected %q, got %q", "Int", result)
+	testing.expectf(t, result == "Int", "expected {}, got {}", "Int", result)
 }
 
 @(test)
@@ -425,7 +425,7 @@ test_format_type_applied_single_line :: proc(t: ^testing.T) {
 	result := doc_resolve(format_type(&type_val, &info, &ctx.interner), 0)
 	defer delete(result)
 
-	testing.expectf(t, result == "List(a)", "expected %q, got %q", "List(a)", result)
+	testing.expectf(t, result == "List(a)", "expected {}, got {}", "List(a)", result)
 }
 
 @(test)
@@ -477,7 +477,7 @@ test_format_type_tag_union_single_line :: proc(t: ^testing.T) {
 	result := doc_resolve(format_type(&type_val, &info, &ctx.interner), 0)
 	defer delete(result)
 
-	testing.expectf(t, result == "[Ok(a) | Err(e)]", "expected %q, got %q", "[Ok(a) | Err(e)]", result)
+	testing.expectf(t, result == "[Ok(a) | Err(e)]", "expected {}, got {}", "[Ok(a) | Err(e)]", result)
 }
 
 @(test)
@@ -525,7 +525,7 @@ test_format_type_record_single_line :: proc(t: ^testing.T) {
 	result := doc_resolve(format_type(&type_val, &info, &ctx.interner), 0)
 	defer delete(result)
 
-	testing.expectf(t, result == "{ name: Str, age: U64 }", "expected %q, got %q", "{ name: Str, age: U64 }", result)
+	testing.expectf(t, result == "{ name: Str, age: U64 }", "expected {}, got {}", "{ name: Str, age: U64 }", result)
 }
 
 // --- Expression Formatting Tests ---
@@ -544,7 +544,7 @@ test_format_expr_int :: proc(t: ^testing.T) {
 	result := doc_resolve(format_expr(Expr(e), &info, &ctx.interner), 0)
 	defer delete(result)
 
-	testing.expectf(t, result == "42", "expected %q, got %q", "42", result)
+	testing.expectf(t, result == "42", "expected {}, got {}", "42", result)
 }
 
 @(test)
@@ -561,7 +561,7 @@ test_format_expr_string :: proc(t: ^testing.T) {
 	result := doc_resolve(format_expr(Expr(e), &info, &ctx.interner), 0)
 	defer delete(result)
 
-	testing.expectf(t, result == "hello", "expected %q, got %q", "hello", result)
+	testing.expectf(t, result == "hello", "expected {}, got {}", "hello", result)
 }
 
 @(test)
@@ -578,7 +578,7 @@ test_format_expr_bool :: proc(t: ^testing.T) {
 	result := doc_resolve(format_expr(Expr(e), &info, &ctx.interner), 0)
 	defer delete(result)
 
-	testing.expectf(t, result == "True", "expected %q, got %q", "True", result)
+	testing.expectf(t, result == "True", "expected {}, got {}", "True", result)
 
 	e2 := new(Expr_Bool)
 	e2.value = false
@@ -587,7 +587,7 @@ test_format_expr_bool :: proc(t: ^testing.T) {
 	result2 := doc_resolve(format_expr(Expr(e2), &info, &ctx.interner), 0)
 	defer delete(result2)
 
-	testing.expectf(t, result2 == "False", "expected %q, got %q", "False", result2)
+	testing.expectf(t, result2 == "False", "expected {}, got {}", "False", result2)
 }
 
 @(test)
@@ -606,7 +606,7 @@ test_format_expr_identifier :: proc(t: ^testing.T) {
 	result := doc_resolve(format_expr(Expr(e), &info, &ctx.interner), 0)
 	defer delete(result)
 
-	testing.expectf(t, result == "myVar", "expected %q, got %q", "myVar", result)
+	testing.expectf(t, result == "myVar", "expected {}, got {}", "myVar", result)
 }
 
 @(test)
@@ -642,7 +642,7 @@ test_format_expr_call_single_line :: proc(t: ^testing.T) {
 	result := doc_resolve(format_expr(Expr(call), &info, &ctx.interner), 0)
 	defer delete(result)
 
-	testing.expectf(t, result == "f(a, b)", "expected %q, got %q", "f(a, b)", result)
+	testing.expectf(t, result == "f(a, b)", "expected {}, got {}", "f(a, b)", result)
 }
 
 @(test)
@@ -683,7 +683,7 @@ test_format_expr_record_single_line :: proc(t: ^testing.T) {
 	result := doc_resolve(format_expr(Expr(rec), &info, &ctx.interner), 0)
 	defer delete(result)
 
-	testing.expectf(t, result == "{ name: \"Camp\", age: 1 }", "expected %q, got %q", "{ name: \"Camp\", age: 1 }", result)
+	testing.expectf(t, result == "{ name: \"Camp\", age: 1 }", "expected {}, got {}", "{ name: \"Camp\", age: 1 }", result)
 }
 
 @(test)
@@ -715,7 +715,7 @@ test_format_expr_list_single_line :: proc(t: ^testing.T) {
 	result := doc_resolve(format_expr(Expr(list), &info, &ctx.interner), 0)
 	defer delete(result)
 
-	testing.expectf(t, result == "[1, 2, 3]", "expected %q, got %q", "[1, 2, 3]", result)
+	testing.expectf(t, result == "[1, 2, 3]", "expected {}, got {}", "[1, 2, 3]", result)
 }
 
 @(test)
@@ -757,7 +757,7 @@ test_format_expr_lambda_simple :: proc(t: ^testing.T) {
 	result := doc_resolve(format_expr(Expr(lam), &info, &ctx.interner), 0)
 	defer delete(result)
 
-	testing.expectf(t, result == "|x| x + 1", "expected %q, got %q", "|x| x + 1", result)
+	testing.expectf(t, result == "|x| x + 1", "expected {}, got {}", "|x| x + 1", result)
 }
 
 @(test)
@@ -824,7 +824,7 @@ test_format_expr_block :: proc(t: ^testing.T) {
 	defer delete(result)
 
 	expected := "{\n    x = 1\n    y = 2\n    x + y\n}"
-	testing.expectf(t, result == expected, "expected %q, got %q", expected, result)
+	testing.expectf(t, result == expected, "expected {}, got {}", expected, result)
 }
 
 @(test)
@@ -854,7 +854,7 @@ test_format_expr_binop :: proc(t: ^testing.T) {
 	result := doc_resolve(format_expr(Expr(binop), &info, &ctx.interner), 0)
 	defer delete(result)
 
-	testing.expectf(t, result == "x + y", "expected %q, got %q", "x + y", result)
+	testing.expectf(t, result == "x + y", "expected {}, got {}", "x + y", result)
 }
 
 @(test)
@@ -905,7 +905,7 @@ test_format_expr_if_braceless :: proc(t: ^testing.T) {
 	result := doc_resolve(format_expr(Expr(if_expr), &info, &ctx.interner), 0)
 	defer delete(result)
 
-	testing.expectf(t, result == "if x > 0 x else 0", "expected %q, got %q", "if x > 0 x else 0", result)
+	testing.expectf(t, result == "if x > 0 x else 0", "expected {}, got {}", "if x > 0 x else 0", result)
 }
 
 // --- Declaration Formatting Tests ---
@@ -938,7 +938,7 @@ test_format_decl_const_simple :: proc(t: ^testing.T) {
 	result := doc_resolve(format_decl(Decl(dc), &info, &ctx.interner), 0)
 	defer delete(result)
 
-	testing.expectf(t, result == "greet = |x| x", "expected %q, got %q", "greet = |x| x", result)
+	testing.expectf(t, result == "greet = |x| x", "expected {}, got {}", "greet = |x| x", result)
 }
 
 @(test)
@@ -969,7 +969,7 @@ test_format_decl_const_with_type :: proc(t: ^testing.T) {
 	result := doc_resolve(format_decl(Decl(dc), &info, &ctx.interner), 0)
 	defer delete(result)
 
-	testing.expectf(t, result == "x: Int = 42", "expected %q, got %q", "x: Int = 42", result)
+	testing.expectf(t, result == "x: Int = 42", "expected {}, got {}", "x: Int = 42", result)
 }
 
 @(test)
@@ -994,7 +994,7 @@ test_format_decl_const_effectful :: proc(t: ^testing.T) {
 	result := doc_resolve(format_decl(Decl(dc), &info, &ctx.interner), 0)
 	defer delete(result)
 
-	testing.expectf(t, result == "x! = 42", "expected %q, got %q", "x! = 42", result)
+	testing.expectf(t, result == "x! = 42", "expected {}, got {}", "x! = 42", result)
 }
 
 @(test)
@@ -1026,7 +1026,7 @@ test_format_decl_const_pub :: proc(t: ^testing.T) {
 	result := doc_resolve(format_decl(Decl(dc), &info, &ctx.interner), 0)
 	defer delete(result)
 
-	testing.expectf(t, result == "pub greet = |x| x", "expected %q, got %q", "pub greet = |x| x", result)
+	testing.expectf(t, result == "pub greet = |x| x", "expected {}, got {}", "pub greet = |x| x", result)
 }
 
 @(test)
@@ -1046,7 +1046,7 @@ test_format_decl_effect_empty :: proc(t: ^testing.T) {
 	result := doc_resolve(format_decl(Decl(de), &info, &ctx.interner), 0)
 	defer delete(result)
 
-	testing.expectf(t, result == "Empty! : {}", "expected %q, got %q", "Empty! : {}", result)
+	testing.expectf(t, result == "Empty! : {}", "expected {}, got {}", "Empty! : {}", result)
 }
 
 @(test)
@@ -1074,7 +1074,7 @@ test_format_decl_effect_with_ops :: proc(t: ^testing.T) {
 	defer delete(result)
 
 	expected := "IO! : {\n    println!\n    readln!\n}"
-	testing.expectf(t, result == expected, "expected %q, got %q", expected, result)
+	testing.expectf(t, result == expected, "expected {}, got {}", expected, result)
 }
 
 @(test)
@@ -1091,7 +1091,7 @@ test_format_decl_import_simple :: proc(t: ^testing.T) {
 	result := doc_resolve(format_decl(Decl(di), &info, &ctx.interner), 0)
 	defer delete(result)
 
-	testing.expectf(t, result == "import List", "expected %q, got %q", "import List", result)
+	testing.expectf(t, result == "import List", "expected {}, got {}", "import List", result)
 }
 
 @(test)
@@ -1114,7 +1114,7 @@ test_format_decl_import_exposing :: proc(t: ^testing.T) {
 	result := doc_resolve(format_decl(Decl(di), &info, &ctx.interner), 0)
 	defer delete(result)
 
-	testing.expectf(t, result == "import List exposing [map, filter]", "expected %q, got %q", "import List exposing [map, filter]", result)
+	testing.expectf(t, result == "import List exposing [map, filter]", "expected {}, got {}", "import List exposing [map, filter]", result)
 }
 
 @(test)
@@ -1140,7 +1140,7 @@ test_format_decl_alias :: proc(t: ^testing.T) {
 	result := doc_resolve(format_decl(Decl(da), &info, &ctx.interner), 0)
 	defer delete(result)
 
-	testing.expectf(t, result == "MyInt : Int", "expected %q, got %q", "MyInt : Int", result)
+	testing.expectf(t, result == "MyInt : Int", "expected {}, got {}", "MyInt : Int", result)
 }
 
 @(test)
@@ -1161,7 +1161,7 @@ test_format_decl_test :: proc(t: ^testing.T) {
 	result := doc_resolve(format_decl(Decl(dt), &info, &ctx.interner), 0)
 	defer delete(result)
 
-	testing.expectf(t, result == "test \"addition works\" = 1", "expected %q, got %q", "test \"addition works\" = 1", result)
+	testing.expectf(t, result == "test \"addition works\" = 1", "expected {}, got {}", "test \"addition works\" = 1", result)
 }
 
 @(test)
@@ -1195,7 +1195,7 @@ test_format_decl_expect :: proc(t: ^testing.T) {
 	result := doc_resolve(format_decl(Decl(de), &info, &ctx.interner), 0)
 	defer delete(result)
 
-	testing.expectf(t, result == "expect x == 1", "expected %q, got %q", "expect x == 1", result)
+	testing.expectf(t, result == "expect x == 1", "expected {}, got {}", "expect x == 1", result)
 }
 
 @(test)
@@ -1214,7 +1214,7 @@ test_format_file_empty :: proc(t: ^testing.T) {
 	result := doc_resolve(format_file(file, &info, &ctx.interner), 0)
 	defer delete(result)
 
-	testing.expectf(t, result == "", "expected empty string, got %q", result)
+	testing.expectf(t, result == "", "expected empty string, got {}", result)
 }
 
 @(test)
@@ -1260,7 +1260,7 @@ test_format_file_with_blank_line :: proc(t: ^testing.T) {
 	result := doc_resolve(format_file(file, &info, &ctx.interner), 0)
 	defer delete(result)
 
-	testing.expectf(t, result == "a = 1\n\nb = 2", "expected %q, got %q", "a = 1\n\nb = 2", result)
+	testing.expectf(t, result == "a = 1\n\nb = 2", "expected {}, got {}", "a = 1\n\nb = 2", result)
 }
 
 @(test)
@@ -1302,7 +1302,7 @@ test_format_file_no_blank_line :: proc(t: ^testing.T) {
 	result := doc_resolve(format_file(file, &info, &ctx.interner), 0)
 	defer delete(result)
 
-	testing.expectf(t, result == "a = 1\nb = 2", "expected %q, got %q", "a = 1\nb = 2", result)
+	testing.expectf(t, result == "a = 1\nb = 2", "expected {}, got {}", "a = 1\nb = 2", result)
 }
 
 // --- Integration tests for format() function ---
@@ -1322,9 +1322,9 @@ test_format_simple_decl :: proc(t: ^testing.T) {
 	defer cleanup_format_result(&result)
 
 	testing.expectf(t, len(result.diagnostics) == 0,
-		"expected no diagnostics, got %d", len(result.diagnostics))
+		"expected no diagnostics, got {}", len(result.diagnostics))
 	testing.expectf(t, result.output == "x = 1",
-		"expected %q, got %q", "x = 1", result.output)
+		"expected {}, got {}", "x = 1", result.output)
 }
 
 @(test)
@@ -1334,7 +1334,7 @@ test_format_refuse_syntax_error :: proc(t: ^testing.T) {
 	defer cleanup_format_result(&result)
 
 	testing.expectf(t, result.output == "",
-		"expected empty output for syntax error, got %q", result.output)
+		"expected empty output for syntax error, got {}", result.output)
 	testing.expectf(t, len(result.diagnostics) > 0,
 		"expected diagnostics for syntax error")
 }
@@ -1346,15 +1346,15 @@ test_format_idempotent_simple :: proc(t: ^testing.T) {
 	defer cleanup_format_result(&result1)
 
 	testing.expectf(t, len(result1.diagnostics) == 0,
-		"expected no diagnostics on first format, got %d", len(result1.diagnostics))
+		"expected no diagnostics on first format, got {}", len(result1.diagnostics))
 
 	result2 := format(result1.output, "test.camp", context.allocator)
 	defer cleanup_format_result(&result2)
 
 	testing.expectf(t, len(result2.diagnostics) == 0,
-		"expected no diagnostics on second format, got %d", len(result2.diagnostics))
+		"expected no diagnostics on second format, got {}", len(result2.diagnostics))
 	testing.expectf(t, result2.output == result1.output,
-		"expected idempotent format: first=%q second=%q", result1.output, result2.output)
+		"expected idempotent format: first={} second={}", result1.output, result2.output)
 }
 
 @(test)
@@ -1364,15 +1364,15 @@ test_format_idempotent_lambda :: proc(t: ^testing.T) {
 	defer cleanup_format_result(&result1)
 
 	testing.expectf(t, len(result1.diagnostics) == 0,
-		"first format had errors: %d", len(result1.diagnostics))
+		"first format had errors: {}", len(result1.diagnostics))
 
 	result2 := format(result1.output, "test.camp", context.allocator)
 	defer cleanup_format_result(&result2)
 
 	testing.expectf(t, len(result2.diagnostics) == 0,
-		"second format had errors: %d", len(result2.diagnostics))
+		"second format had errors: {}", len(result2.diagnostics))
 	testing.expectf(t, result2.output == result1.output,
-		"not idempotent: first=%q second=%q", result1.output, result2.output)
+		"not idempotent: first={} second={}", result1.output, result2.output)
 }
 
 @(test)
@@ -1382,15 +1382,15 @@ test_format_idempotent_list :: proc(t: ^testing.T) {
 	defer cleanup_format_result(&result1)
 
 	testing.expectf(t, len(result1.diagnostics) == 0,
-		"first format had errors: %d", len(result1.diagnostics))
+		"first format had errors: {}", len(result1.diagnostics))
 
 	result2 := format(result1.output, "test.camp", context.allocator)
 	defer cleanup_format_result(&result2)
 
 	testing.expectf(t, len(result2.diagnostics) == 0,
-		"second format had errors: %d", len(result2.diagnostics))
+		"second format had errors: {}", len(result2.diagnostics))
 	testing.expectf(t, result2.output == result1.output,
-		"not idempotent: first=%q second=%q", result1.output, result2.output)
+		"not idempotent: first={} second={}", result1.output, result2.output)
 }
 
 @(test)
@@ -1400,15 +1400,15 @@ test_format_idempotent_record :: proc(t: ^testing.T) {
 	defer cleanup_format_result(&result1)
 
 	testing.expectf(t, len(result1.diagnostics) == 0,
-		"first format had errors: %d", len(result1.diagnostics))
+		"first format had errors: {}", len(result1.diagnostics))
 
 	result2 := format(result1.output, "test.camp", context.allocator)
 	defer cleanup_format_result(&result2)
 
 	testing.expectf(t, len(result2.diagnostics) == 0,
-		"second format had errors: %d", len(result2.diagnostics))
+		"second format had errors: {}", len(result2.diagnostics))
 	testing.expectf(t, result2.output == result1.output,
-		"not idempotent: first=%q second=%q", result1.output, result2.output)
+		"not idempotent: first={} second={}", result1.output, result2.output)
 }
 
 @(test)
@@ -1418,15 +1418,15 @@ test_format_idempotent_blank_line :: proc(t: ^testing.T) {
 	defer cleanup_format_result(&result1)
 
 	testing.expectf(t, len(result1.diagnostics) == 0,
-		"first format had errors: %d", len(result1.diagnostics))
+		"first format had errors: {}", len(result1.diagnostics))
 
 	result2 := format(result1.output, "test.camp", context.allocator)
 	defer cleanup_format_result(&result2)
 
 	testing.expectf(t, len(result2.diagnostics) == 0,
-		"second format had errors: %d", len(result2.diagnostics))
+		"second format had errors: {}", len(result2.diagnostics))
 	testing.expectf(t, result2.output == result1.output,
-		"not idempotent: first=%q second=%q", result1.output, result2.output)
+		"not idempotent: first={} second={}", result1.output, result2.output)
 }
 
 @(test)
@@ -1436,9 +1436,9 @@ test_format_edge_empty :: proc(t: ^testing.T) {
 	defer cleanup_format_result(&result)
 
 	testing.expectf(t, len(result.diagnostics) == 0,
-		"expected no diagnostics for empty source, got %d", len(result.diagnostics))
+		"expected no diagnostics for empty source, got {}", len(result.diagnostics))
 	testing.expectf(t, result.output == "",
-		"expected empty output for empty source, got %q", result.output)
+		"expected empty output for empty source, got {}", result.output)
 }
 
 @(test)
@@ -1448,9 +1448,9 @@ test_format_edge_single_decl :: proc(t: ^testing.T) {
 	defer cleanup_format_result(&result)
 
 	testing.expectf(t, len(result.diagnostics) == 0,
-		"expected no diagnostics, got %d", len(result.diagnostics))
+		"expected no diagnostics, got {}", len(result.diagnostics))
 	testing.expectf(t, result.output == "y = 42",
-		"expected %q, got %q", "y = 42", result.output)
+		"expected {}, got {}", "y = 42", result.output)
 }
 
 @(test)
@@ -1464,10 +1464,10 @@ test_format_multiline_list :: proc(t: ^testing.T) {
 		diag_titles = strings.concatenate({diag_titles, d.title, ", "}, context.allocator)
 	}
 	testing.expectf(t, len(result.diagnostics) == 0,
-		"expected no diagnostics, got %d: %s", len(result.diagnostics), diag_titles)
+		"expected no diagnostics, got {}: %s", len(result.diagnostics), diag_titles)
 
 	testing.expectf(t, strings.contains(result.output, "\n"),
-		"expected multiline output, got %q", result.output)
+		"expected multiline output, got {}", result.output)
 }
 
 @(test)
@@ -1477,9 +1477,9 @@ test_format_preserves_blank_line :: proc(t: ^testing.T) {
 	defer cleanup_format_result(&result)
 
 	testing.expectf(t, len(result.diagnostics) == 0,
-		"expected no diagnostics, got %d", len(result.diagnostics))
+		"expected no diagnostics, got {}", len(result.diagnostics))
 	testing.expectf(t, strings.contains(result.output, "\n\n"),
-		"expected blank line in output, got %q", result.output)
+		"expected blank line in output, got {}", result.output)
 }
 
 @(test)
@@ -1489,7 +1489,7 @@ test_format_decl_newtype_pub_variants :: proc(t: ^testing.T) {
 	defer cleanup_format_result(&result)
 
 	testing.expectf(t, len(result.diagnostics) == 0,
-		"expected no diagnostics, got %d", len(result.diagnostics))
+		"expected no diagnostics, got {}", len(result.diagnostics))
 	testing.expectf(t, result.output == "@Result(a, e) : pub [Ok(a) | Err(e)]",
-		"expected %q, got %q", "@Result(a, e) : pub [Ok(a) | Err(e)]", result.output)
+		"expected {}, got {}", "@Result(a, e) : pub [Ok(a) | Err(e)]", result.output)
 }
