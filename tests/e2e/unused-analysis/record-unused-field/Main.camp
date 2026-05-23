@@ -1,0 +1,4 @@
+main! = || -> I64 {
+  r = { x: 1, y: expensive() }
+  r.x
+}

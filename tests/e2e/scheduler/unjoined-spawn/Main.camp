@@ -3,6 +3,6 @@ main! = || ->{Spawn!} I64 {
     Spawn!.spawn!(|| -> I64 { 42 })
     0
   } with {
-    .spawn!(resume, f) => resume(0)
+    .spawn!(resume, _f) => resume(0)
   }
 }

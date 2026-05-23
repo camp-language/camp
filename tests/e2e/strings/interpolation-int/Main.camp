@@ -1,5 +1,5 @@
 main! = || -> I64 {
     count = 42
-    msg = "Count: ${count}"
+    _msg = "Count: ${count}"
     0
 }

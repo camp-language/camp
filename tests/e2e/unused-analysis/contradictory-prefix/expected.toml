@@ -1,0 +1,11 @@
+stdout = """
+canonicalized /tmp/camp-e2e/unused-analysis/contradictory-prefix/src/Main.camp: 1 declaration(s), 0 import(s)
+-- UNDEFINED NAME --- /tmp/camp-e2e/unused-analysis/contradictory-prefix/src/Main.camp
+
+I cannot find `_`.
+   2 |   _$x = 5
+         ^
+compilation failed with 1 error(s)
+"""
+stderr = ""
+exit = 1

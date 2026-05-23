@@ -232,3 +232,12 @@ The parser SHALL split interpolated string tokens into literal text segments and
 - **GIVEN** an interpolated string token `"${name"` with no closing `}`
 - **WHEN** the parser processes it
 - **THEN** it SHALL produce a parse error for the unterminated interpolation hole
+
+### Requirement: Unused Binding Analysis Pass
+
+The compiler SHALL run an unused binding analysis pass after typechecking and before lowering. The pass SHALL detect unused bindings, unused record fields, unused imports, pointless evaluations, contradictory prefixes, no-op assignments, and unused assignments. The pass SHALL emit appropriate diagnostics for each detected issue.
+
+#### Scenario: Unused binding analysis in pipeline
+
+- **WHEN** the compiler processes a Camp source file
+- **THEN** it SHALL run the unused binding analysis after typechecking and before lowering, emitting diagnostics for any detected issues

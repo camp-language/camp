@@ -326,6 +326,54 @@ diag_shadow :: proc(name: string, span: Source_Span) -> Diagnostic {
 	return d
 }
 
+diag_unused_binding :: proc(name: string, hint: string, span: Source_Span) -> Diagnostic {
+	d := diag_init(.Error, "UNUSED BINDING", span,
+		fmt.tprintf("Binding `{}` is never used. {}", name, hint))
+	append(&d.hints, fmt.tprintf("Prefix with `_` to mark as intentionally unused: `_{}", name))
+	return d
+}
+
+diag_unused_record_field :: proc(field_name: string, record_span: Source_Span, span: Source_Span) -> Diagnostic {
+	d := diag_init(.Error, "UNUSED RECORD FIELD", span,
+		fmt.tprintf("Record field `{}` is never accessed locally.", field_name))
+	if record_span != Source_Span_ZERO {
+		append(&d.labels, Span_Label{span = record_span, label = "this record literal"})
+	}
+	return d
+}
+
+diag_unused_import :: proc(name: string, module_name: string, span: Source_Span) -> Diagnostic {
+	d := diag_init(.Error, "UNUSED IMPORT", span,
+		fmt.tprintf("`{}` imported from `{}` is never used.", name, module_name))
+	return d
+}
+
+diag_pointless_evaluation :: proc(kind: string, span: Source_Span) -> Diagnostic {
+	d := diag_init(.Warning, "POINTLESS EVALUATION", span,
+		fmt.tprintf("Pure expression discarded with `_`. {}", kind))
+	append(&d.hints, "Remove this binding, or use the result.")
+	return d
+}
+
+diag_contradictory_prefix :: proc(name: string, span: Source_Span) -> Diagnostic {
+	d := diag_init(.Error, "CONTRADICTORY PREFIX", span,
+		fmt.tprintf("`{}` combines `_` (ignore) and `$` (each value matters) — these are contradictory.", name))
+	append(&d.hints, "Reassignable variables cannot be marked as unused. Remove the `_` prefix.")
+	return d
+}
+
+diag_noop_assignment :: proc(name: string, span: Source_Span) -> Diagnostic {
+	d := diag_init(.Error, "NO-OP ASSIGNMENT", span,
+		fmt.tprintf("`{}` is assigned to itself — this has no effect.", name))
+	return d
+}
+
+diag_unused_assignment :: proc(name: string, assign_no: int, hint: string, span: Source_Span) -> Diagnostic {
+	d := diag_init(.Error, "UNUSED ASSIGNMENT", span,
+		fmt.tprintf("Assignment #{} to `${}` is unused. {}", assign_no, name, hint))
+	return d
+}
+
 char_display :: proc(ch: u8) -> string {
 	switch ch {
 	case '\n': return "\\n"

@@ -1,7 +1,14 @@
 stdout = """
 canonicalized /tmp/camp-e2e/tag-unions/tag-type-mismatch/src/Main.camp: 2 declaration(s), 0 import(s)
 typecheck passed for /tmp/camp-e2e/tag-unions/tag-type-mismatch/src/Main.camp
-compiled /tmp/camp-e2e/tag-unions/tag-type-mismatch/src/Main.camp -> /tmp/camp-e2e/tag-unions/tag-type-mismatch/src/Main.wasm
+-- UNUSED BINDING --- /tmp/camp-e2e/tag-unions/tag-type-mismatch/src/Main.camp
+
+Binding `_y` is never used. Top-level bindings cannot be marked as unused with
+`_`.
+   2 | _y = match x { Ok(v) => v | Error(e) => e + 1 }
+       ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  Prefix with `_` to mark as intentionally unused: `__y
+compilation failed with 1 error(s)
 """
 stderr = ""
-exit = 0
+exit = 1

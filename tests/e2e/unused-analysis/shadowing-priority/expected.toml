@@ -1,0 +1,12 @@
+stdout = """
+canonicalized /tmp/camp-e2e/unused-analysis/shadowing-priority/src/Main.camp: 1 declaration(s), 0 import(s)
+-- SHADOWING --- /tmp/camp-e2e/unused-analysis/shadowing-priority/src/Main.camp
+
+`x` shadows a binding from an enclosing scope. All shadowing is forbidden.
+   4 |   x
+         ^
+  Use a different name for this binding.
+compilation failed with 1 error(s)
+"""
+stderr = ""
+exit = 1

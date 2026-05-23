@@ -171,3 +171,8 @@ The diagnostic system SHALL define constructors for all error variants: lexer er
 
 - Given invalid file extensions, missing files, or unknown commands
 - Then `diag_invalid_extension`, `diag_file_not_found`, and `diag_unknown_command` SHALL produce diagnostics without source snippets
+
+#### Scenario: Unused analysis errors
+
+- Given unused bindings, unused record fields, unused imports, pointless evaluations, contradictory prefixes, no-op assignments, or unused assignments
+- Then `diag_unused_binding`, `diag_unused_record_field`, `diag_unused_import`, `diag_pointless_evaluation`, `diag_contradictory_prefix`, `diag_noop_assignment`, and `diag_unused_assignment` SHALL produce diagnostics with appropriate messages and hints

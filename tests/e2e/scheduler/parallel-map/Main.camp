@@ -2,6 +2,6 @@ main! = || ->{Parallel!} I64 {
   handle Parallel! in {
     Parallel!.map!(|x| x, [1, 2, 3])
   } with {
-    .map!(resume, f, xs) => resume(0)
+    .map!(resume, _f, _xs) => resume(0)
   }
 }

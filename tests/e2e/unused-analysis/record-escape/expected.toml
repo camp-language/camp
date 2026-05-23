@@ -1,0 +1,17 @@
+stdout = """
+canonicalized /tmp/camp-e2e/unused-analysis/record-escape/src/Main.camp: 1 declaration(s), 0 import(s)
+-- UNDEFINED NAME --- /tmp/camp-e2e/unused-analysis/record-escape/src/Main.camp
+
+I cannot find `expensive`.
+   2 |   r = { x: 1, y: expensive() }
+                        ^^^^^^^^^
+
+-- UNDEFINED NAME --- /tmp/camp-e2e/unused-analysis/record-escape/src/Main.camp
+
+I cannot find `process`.
+   3 |   process(r)
+         ^^^^^^^
+compilation failed with 2 error(s)
+"""
+stderr = ""
+exit = 1

@@ -1,8 +1,8 @@
 Ask! : { read!: || -> I64 }
-x = handle Ask in Ask.read!() with { .read!(resume) => resume(42) }
+_x = handle Ask in Ask.read!() with { .read!(resume) => resume(42) }
 
 State! : { get!: || -> I64 }
-y = handle Ask in
+_y = handle Ask in
       handle State in
         Ask.read!()
       with { .get!(resume) => resume(0) }

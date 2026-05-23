@@ -71,6 +71,14 @@ run_build_single :: proc(file_path: string, thread_count: int = 1) {
 
 	fmt.printfln("typecheck passed for {}", file_path)
 
+	// Run unused binding analysis after typecheck, before lowering
+	run_unused_analysis(canon, &ctx.interner, &ctx.collector)
+
+	if diag_collector_has_errors(&ctx.collector) {
+		render_all(&ctx.collector, file_path, source)
+		os.exit(1)
+	}
+
 	context.allocator = ctx.allocator
 	mono_tfile := mono(tfile, &store, &ctx.interner)
 	context.allocator = old_allocator
@@ -161,6 +169,9 @@ run_check :: proc(args: []string) {
 	tfile := typecheck_file(canon, &store)
 	context.allocator = old_allocator
 	defer type_store_destroy(&store)
+
+	// Run unused binding analysis after typecheck
+	run_unused_analysis(canon, &ctx.interner, &ctx.collector)
 
 	has_errors := diag_collector_has_errors(&ctx.collector)
 	has_warnings := ctx.collector.warning_count > 0
@@ -415,6 +426,13 @@ compile_test_canon :: proc(orig_canon: CFile, test_body: CExpr, output_path: str
 	defer type_store_destroy(&store)
 	inject_prelude(&store)
 	tfile := typecheck_file(cf, &store)
+
+	if diag_collector_has_errors(&collector) {
+		return false
+	}
+
+	// Run unused binding analysis after typecheck
+	run_unused_analysis(cf, interner, &collector)
 
 	if diag_collector_has_errors(&collector) {
 		return false

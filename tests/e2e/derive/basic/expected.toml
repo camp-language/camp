@@ -1,7 +1,14 @@
 stdout = """
 canonicalized /tmp/camp-e2e/derive/basic/src/Main.camp: 3 declaration(s), 0 import(s)
 typecheck passed for /tmp/camp-e2e/derive/basic/src/Main.camp
-compiled /tmp/camp-e2e/derive/basic/src/Main.camp -> /tmp/camp-e2e/derive/basic/src/Main.wasm
+-- UNUSED BINDING --- /tmp/camp-e2e/derive/basic/src/Main.camp
+
+Binding `UserId_eq` is never used. Top-level bindings cannot be marked as unused
+with `_`.
+   2 | @UserId derives Eq : U64
+       ^
+  Prefix with `_` to mark as intentionally unused: `_UserId_eq
+compilation failed with 1 error(s)
 """
 stderr = ""
-exit = 0
+exit = 1

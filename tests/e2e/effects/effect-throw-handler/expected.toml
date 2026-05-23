@@ -1,7 +1,13 @@
 stdout = """
 canonicalized /tmp/camp-e2e/effects/effect-throw-handler/src/Main.camp: 2 declaration(s), 0 import(s)
 typecheck passed for /tmp/camp-e2e/effects/effect-throw-handler/src/Main.camp
-compiled /tmp/camp-e2e/effects/effect-throw-handler/src/Main.camp -> /tmp/camp-e2e/effects/effect-throw-handler/src/Main.wasm
+-- UNUSED BINDING --- /tmp/camp-e2e/effects/effect-throw-handler/src/Main.camp
+
+Binding `resume` is never used. 
+   4 |     .throw!(resume, _code) => 1
+            ^^^^^
+  Prefix with `_` to mark as intentionally unused: `_resume
+compilation failed with 1 error(s)
 """
 stderr = ""
-exit = 0
+exit = 1

@@ -1,0 +1,4 @@
+main! = || -> I64 {
+  _count = items.length
+  42
+}
