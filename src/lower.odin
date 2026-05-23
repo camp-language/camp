@@ -727,9 +727,21 @@ lower_tpattern :: proc(pattern: TPattern, env: ^Lower_Env) -> IR_Pattern {
 		}
 		return pat
 
-	case ^TPattern_Int, ^TPattern_String, ^TPattern_Bool:
-		result := new(IR_Pat_Var)
-		result.name = Intern_ID(0)
+	case ^TPattern_Bool:
+		result := new(IR_Pat_Bool)
+		result.value = p.value
+		return IR_Pattern(result)
+
+	case ^TPattern_Int:
+		result := new(IR_Pat_Int)
+		result.value = p.value
+		return IR_Pattern(result)
+
+	case ^TPattern_String:
+		string_id := fresh_ir_name(env)
+		append(&env.module.string_table, String_Table_Entry{id = string_id, value = p.value})
+		result := new(IR_Pat_String)
+		result.string_id = string_id
 		return IR_Pattern(result)
 
 	case ^TPattern_Identifier:
