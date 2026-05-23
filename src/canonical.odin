@@ -126,7 +126,7 @@ CExpr :: union {
 	^CExpr_Assign,
 	^CExpr_Return,
 	^CExpr_Crash,
-	^CExpr_Interpolate,
+	^CExpr_Interpolated_String,
 	^CExpr_Handle,
 	^CExpr_Perform,
 	^CExpr_Par,
@@ -270,8 +270,20 @@ CExpr_Crash :: struct {
 	span:    Source_Span,
 }
 
-CExpr_Interpolate :: struct {
-	parts: [dynamic]CExpr,
+CExpr_Interpolated_String :: struct {
+	parts:        [dynamic]CExpr_String_Part,
+	is_raw:       bool,
+	is_multiline: bool,
+	span:         Source_Span,
+}
+
+CExpr_String_Part :: union {
+	^CExpr_String_Literal,
+	CExpr,
+}
+
+CExpr_String_Literal :: struct {
+	value: string,
 	span:  Source_Span,
 }
 

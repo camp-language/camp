@@ -22,7 +22,7 @@ TExpr :: union {
 	^TExpr_Assign,
 	^TExpr_Return,
 	^TExpr_Crash,
-	^TExpr_Interpolate,
+	^TExpr_Interpolated_String,
 	^TExpr_Handle,
 	^TExpr_Perform,
 	^TExpr_For,
@@ -279,8 +279,22 @@ TExpr_Crash :: struct {
 	span:    Source_Span,
 }
 
-TExpr_Interpolate :: struct {
-	parts: [dynamic]TExpr,
+TExpr_Interpolated_String :: struct {
+	parts:        [dynamic]TExpr_String_Part,
+	is_raw:       bool,
+	is_multiline: bool,
+	type_:        IR_Type,
+	eff_:         IR_Type,
+	span:         Source_Span,
+}
+
+TExpr_String_Part :: union {
+	^TExpr_String_Literal,
+	TExpr,
+}
+
+TExpr_String_Literal :: struct {
+	value: string,
 	type_: IR_Type,
 	eff_:  IR_Type,
 	span:  Source_Span,

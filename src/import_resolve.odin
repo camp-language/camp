@@ -304,9 +304,13 @@ resolve_expr_names :: proc(expr: CExpr, scope: ^Import_Scope, export_tables: ^ma
 	case ^CExpr_Crash:
 		resolve_expr_names(e.message, scope, export_tables, interner, collector)
 
-	case ^CExpr_Interpolate:
+	case ^CExpr_Interpolated_String:
 		for &part in e.parts {
-			resolve_expr_names(part, scope, export_tables, interner, collector)
+			switch p in part {
+			case ^CExpr_String_Literal:
+			case CExpr:
+				resolve_expr_names(p, scope, export_tables, interner, collector)
+			}
 		}
 
 	case ^CExpr_Handle:

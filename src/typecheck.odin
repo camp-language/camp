@@ -635,19 +635,38 @@ typecheck_synth :: proc(expr: CExpr, env: ^Type_Env, store: ^Type_Store) -> Synt
 		t^ = TExpr_Crash{message = msg_result.texpr, type_ = tc_ir_type(store, var_id), eff_ = tc_eff_type(store, eff), span = e.span}
 		return Synth_Result{var_id = var_id, effects = eff, texpr = TExpr(t)}
 
-	case ^CExpr_Interpolate:
+	case ^CExpr_Interpolated_String:
 		str_name := intern(store.interner, "Str")
 		str_var := make_primitive_type(store, str_name, e.span)
 		eff := fresh_effect_row(store, e.span)
-		parts_t := make([dynamic]TExpr, len(e.parts))
-		for part, i in e.parts {
-			part_result := typecheck_synth(part, env, store)
-			unify(store, part_result.var_id, str_var)
-			unify(store, eff, part_result.effects)
-			parts_t[i] = part_result.texpr
+		parts_t := make([dynamic]TExpr_String_Part, 0, len(e.parts))
+		for part in e.parts {
+			switch p in part {
+			case ^CExpr_String_Literal:
+				clit := new(TExpr_String_Literal)
+				clit^ = TExpr_String_Literal{
+					value = p.value,
+					type_ = tc_ir_type(store, str_var),
+					eff_ = tc_eff_type(store, eff),
+					span = p.span,
+				}
+				append(&parts_t, TExpr_String_Part(clit))
+			case CExpr:
+				part_result := typecheck_synth(p, env, store)
+				unify(store, part_result.var_id, str_var)
+				unify(store, eff, part_result.effects)
+				append(&parts_t, TExpr_String_Part(part_result.texpr))
+			}
 		}
-		t := new(TExpr_Interpolate)
-		t^ = TExpr_Interpolate{parts = parts_t, type_ = tc_ir_type(store, str_var), eff_ = tc_eff_type(store, eff), span = e.span}
+		t := new(TExpr_Interpolated_String)
+		t^ = TExpr_Interpolated_String{
+			parts = parts_t,
+			is_raw = e.is_raw,
+			is_multiline = e.is_multiline,
+			type_ = tc_ir_type(store, str_var),
+			eff_ = tc_eff_type(store, eff),
+			span = e.span,
+		}
 		return Synth_Result{var_id = str_var, effects = eff, texpr = TExpr(t)}
 
 	case ^CExpr_Method_Call:

@@ -587,13 +587,21 @@ canonicalize_expr :: proc(expr: Expr, scope: ^Canonicalize_Scope, ctx: ^Compilat
 		}
 		return c
 
-	case ^Expr_Interpolate:
-		parts := make([dynamic]CExpr, 0, len(e.parts))
-		for p in e.parts {
-			append(&parts, canonicalize_expr(p, scope, ctx))
+	case ^Expr_Interpolated_String:
+		cparts := make([dynamic]CExpr_String_Part, 0, len(e.parts))
+		for part in e.parts {
+			switch p in part {
+			case ^String_Segment:
+				clit := new(CExpr_String_Literal)
+				clit^ = CExpr_String_Literal{value = p.text, span = p.span}
+				append(&cparts, CExpr_String_Part(clit))
+			case Expr:
+				cexpr := canonicalize_expr(p, scope, ctx)
+				append(&cparts, CExpr_String_Part(cexpr))
+			}
 		}
-		c := new(CExpr_Interpolate)
-		c^ = CExpr_Interpolate{parts = parts, span = e.span}
+		c := new(CExpr_Interpolated_String)
+		c^ = CExpr_Interpolated_String{parts = cparts, is_raw = e.is_raw, is_multiline = e.is_multiline, span = e.span}
 		return c
 
 	case ^Expr_Handle:

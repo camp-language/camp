@@ -111,8 +111,8 @@ format_expr :: proc(e: Expr, info: ^Format_Source_Info, interner: ^Intern_Table)
 		return format_expr_return(v, info, interner)
 	case ^Expr_Crash:
 		return format_expr_crash(v, info, interner)
-	case ^Expr_Interpolate:
-		return format_expr_interpolate(v, info, interner)
+	case ^Expr_Interpolated_String:
+		return format_expr_interpolated_string(v, info, interner)
 	case ^Expr_Handle:
 		return format_expr_handle(v, info, interner)
 	case ^Expr_Par:
@@ -596,11 +596,32 @@ format_expr_crash :: proc(e: ^Expr_Crash, info: ^Format_Source_Info, interner: ^
 	})
 }
 
-format_expr_interpolate :: proc(e: ^Expr_Interpolate, info: ^Format_Source_Info, interner: ^Intern_Table) -> Doc {
+format_expr_interpolated_string :: proc(e: ^Expr_Interpolated_String, info: ^Format_Source_Info, interner: ^Intern_Table) -> Doc {
 	parts: [dynamic]Doc
-	for part in e.parts {
-		append(&parts, format_expr(part, info, interner))
+
+	open_delim := "\""
+	close_delim := "\""
+	if e.is_raw {
+		open_delim = "r\""
+		close_delim = "\""
+	} else if e.is_multiline {
+		open_delim = "\"\"\""
+		close_delim = "\"\"\""
 	}
+	append(&parts, doc_text(open_delim))
+
+	for part in e.parts {
+		switch p in part {
+		case ^String_Segment:
+			append(&parts, doc_text(p.text))
+		case Expr:
+			append(&parts, doc_text("${"))
+			append(&parts, format_expr(p, info, interner))
+			append(&parts, doc_text("}"))
+		}
+	}
+
+	append(&parts, doc_text(close_delim))
 	return doc_concat(parts[:])
 }
 

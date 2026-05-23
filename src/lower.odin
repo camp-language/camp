@@ -279,8 +279,8 @@ lower_texpr :: proc(expr: TExpr, env: ^Lower_Env) -> IR_Expr {
 		crash^ = IR_Crash{message = msg_expr, span = e.span}
 		return IR_Expr(crash)
 
-	case ^TExpr_Interpolate:
-		return lower_tinterpolate(e, env)
+	case ^TExpr_Interpolated_String:
+		return lower_tinterpolated_string(e, env)
 
 	case ^TExpr_Handle:
 		return lower_thandle(e, env)
@@ -888,18 +888,29 @@ lower_trecord_update :: proc(e: ^TExpr_Record_Update, env: ^Lower_Env) -> IR_Exp
 	return IR_Expr(result)
 }
 
-lower_tinterpolate :: proc(e: ^TExpr_Interpolate, env: ^Lower_Env) -> IR_Expr {
+lower_tinterpolated_string :: proc(e: ^TExpr_Interpolated_String, env: ^Lower_Env) -> IR_Expr {
 	if len(e.parts) == 0 {
 		lit := new(IR_Literal_String)
 		lit^ = IR_Literal_String{value = "", type = e.type_, span = e.span}
 		return IR_Expr(lit)
 	}
 
-	result := lower_texpr(e.parts[0], env)
-	str_name := intern(env.interner, "Str")
-	concat_name := intern(env.interner, "concat")
+	lower_part :: proc(part: TExpr_String_Part, env: ^Lower_Env) -> IR_Expr {
+		switch p in part {
+		case ^TExpr_String_Literal:
+			lit := new(IR_Literal_String)
+			lit^ = IR_Literal_String{value = p.value, type = p.type_, span = p.span}
+			append(&env.module.string_table, String_Table_Entry{id = fresh_ir_name(env), value = p.value})
+			return IR_Expr(lit)
+		case TExpr:
+			return lower_texpr(p, env)
+		}
+		return make_ir_lit_int(0, IR_Type{.I64, Type_Var_ID(-1)}, Source_Span_ZERO)
+	}
+
+	result := lower_part(e.parts[0], env)
 	for i := 1; i < len(e.parts); i += 1 {
-		right := lower_texpr(e.parts[i], env)
+		right := lower_part(e.parts[i], env)
 		binop := new(IR_BinOp)
 		binop^ = IR_BinOp{
 			op = .Add,
