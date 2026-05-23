@@ -1,20 +1,7 @@
 stdout = """
 canonicalized /tmp/camp-e2e/pattern-matching/match-with-guard/src/Main.camp: 1 declaration(s), 0 import(s)
 typecheck passed for /tmp/camp-e2e/pattern-matching/match-with-guard/src/Main.camp
--- REDUNDANT PATTERN --- /tmp/camp-e2e/pattern-matching/match-with-guard/src/Main.camp
-
-This pattern is redundant — it is already covered by an earlier arm.
-   1 | main! = || -> I64 { x = 5 match x { n if n > 0 => 1 | _ => 0 } }
-                                                                    ^
-  Remove this arm or reorder patterns so this one comes first.
-
--- UNUSED BINDING --- /tmp/camp-e2e/pattern-matching/match-with-guard/src/Main.camp
-
-Binding `n` is never used. 
-   1 | main! = || -> I64 { x = 5 match x { n if n > 0 => 1 | _ => 0 } }
-                                           ^
-  Prefix with `_` to mark as intentionally unused: `_n
-compilation failed with 1 error(s)
+compiled /tmp/camp-e2e/pattern-matching/match-with-guard/src/Main.camp -> /tmp/camp-e2e/pattern-matching/match-with-guard/src/Main.wasm
 """
 stderr = ""
-exit = 1
+exit = 0

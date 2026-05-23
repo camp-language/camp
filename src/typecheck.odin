@@ -522,6 +522,7 @@ typecheck_synth :: proc(expr: CExpr, env: ^Type_Env, store: ^Type_Store) -> Synt
 	case ^CExpr_Int:
 		name := intern(store.interner, "I64")
 		var_id := make_primitive_type(store, name, e.span)
+		store.literal_int_values[var_id] = i128(e.value)
 		eff := fresh_effect_row(store, e.span)
 		t := new(TExpr_Int)
 		t^ = TExpr_Int{value = e.value, type_ = tc_ir_type(store, var_id), eff_ = tc_eff_type(store, eff), span = e.span}
@@ -530,6 +531,7 @@ typecheck_synth :: proc(expr: CExpr, env: ^Type_Env, store: ^Type_Store) -> Synt
 	case ^CExpr_Float:
 		name := intern(store.interner, "F64")
 		var_id := make_primitive_type(store, name, e.span)
+		store.literal_float_values[var_id] = e.value
 		eff := fresh_effect_row(store, e.span)
 		t := new(TExpr_Float)
 		t^ = TExpr_Float{value = e.value, type_ = tc_ir_type(store, var_id), eff_ = tc_eff_type(store, eff), span = e.span}
@@ -607,6 +609,10 @@ typecheck_synth :: proc(expr: CExpr, env: ^Type_Env, store: ^Type_Store) -> Synt
 
 	case ^CExpr_Assign:
 		result := typecheck_synth(e.value, env, store)
+		if e.type_ann != nil {
+			ann_var := convert_type_to_var(e.type_ann, store, env)
+			unify(store, result.var_id, ann_var)
+		}
 		target_t: TExpr
 		#partial switch target in e.target {
 		case ^CExpr_Name:

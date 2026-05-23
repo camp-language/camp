@@ -1,13 +1,7 @@
 stdout = """
 canonicalized /tmp/camp-e2e/execution/let-binding/src/Main.camp: 1 declaration(s), 0 import(s)
 typecheck passed for /tmp/camp-e2e/execution/let-binding/src/Main.camp
--- UNUSED BINDING --- /tmp/camp-e2e/execution/let-binding/src/Main.camp
-
-Binding `y` is never used. 
-   4 |     y
-           ^
-  Prefix with `_` to mark as intentionally unused: `_y
-compilation failed with 1 error(s)
+compiled /tmp/camp-e2e/execution/let-binding/src/Main.camp -> /tmp/camp-e2e/execution/let-binding/src/Main.wasm
 """
 stderr = ""
-exit = 1
+exit = 0

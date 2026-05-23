@@ -1,9 +1,16 @@
 stdout = """
-canonicalized /tmp/camp-e2e/strings/string-interpolation/src/Main.camp: 1 declaration(s), 0 import(s)
-typecheck passed for /tmp/camp-e2e/strings/string-interpolation/src/Main.camp
-compiled /tmp/camp-e2e/strings/string-interpolation/src/Main.camp -> /tmp/camp-e2e/strings/string-interpolation/src/Main.wasm
+canonicalized /tmp/camp-e2e/strings/interpolation-basic/src/Main.camp: 1 declaration(s), 0 import(s)
+typecheck passed for /tmp/camp-e2e/strings/interpolation-basic/src/Main.camp
+compiled /tmp/camp-e2e/strings/interpolation-basic/src/Main.camp -> /tmp/camp-e2e/strings/interpolation-basic/src/Main.wasm
 """
 stderr = ""
 exit = 0
-wasm_exit = 0
+wasm_exit = 1
 wasm_stdout = ""
+wasm_stderr = """
+Error: failed to parse WebAssembly module
+
+Caused by:
+    invalid flags byte in data segment (at offset 0x9a0)
+
+"""

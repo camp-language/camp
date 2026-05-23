@@ -1,5 +1,5 @@
 stdout = """
-canonicalized /tmp/camp-e2e/effects/effect-multiple-effects/src/Main.camp: 2 declaration(s), 0 import(s)
+canonicalized /tmp/camp-e2e/effects/effect-multiple-effects/src/Main.camp: 3 declaration(s), 0 import(s)
 typecheck passed for /tmp/camp-e2e/effects/effect-multiple-effects/src/Main.camp
 compiled /tmp/camp-e2e/effects/effect-multiple-effects/src/Main.camp -> /tmp/camp-e2e/effects/effect-multiple-effects/src/Main.wasm
 """

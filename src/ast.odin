@@ -338,9 +338,10 @@ Expr_Record_Update :: struct {
 }
 
 Expr_Assign :: struct {
-	target: Expr,
-	value:  Expr,
-	span:   Source_Span,
+	target:   Expr,
+	value:    Expr,
+	type_ann: ^Type,
+	span:     Source_Span,
 }
 
 Expr_Return :: struct {

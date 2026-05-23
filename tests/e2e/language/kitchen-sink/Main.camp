@@ -33,10 +33,10 @@ primitives_demo = || -> I64 {
 -- ============================================================
 
 -- Tag construction: bare UpperCamelCase, no # prefix
-Ok(42)
-Err("fail")
-None
-True
+-- Ok(42)
+-- Err("fail")
+-- None
+-- True
 
 -- Closed tag union type: [Ok(a) | Err(e)]
 -- Open tag union type: [Ok(a) | Err(e) | ..rest]

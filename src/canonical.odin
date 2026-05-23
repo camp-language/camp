@@ -256,9 +256,10 @@ CExpr_Record_Update :: struct {
 }
 
 CExpr_Assign :: struct {
-	target: CExpr,
-	value:  CExpr,
-	span:   Source_Span,
+	target:   CExpr,
+	value:    CExpr,
+	type_ann: ^CType,
+	span:     Source_Span,
 }
 
 CExpr_Return :: struct {

@@ -584,10 +584,15 @@ canonicalize_expr :: proc(expr: Expr, scope: ^Canonicalize_Scope, ctx: ^Compilat
 		return c
 
 	case ^Expr_Assign:
+		ctype_ann: ^CType = nil
+		if e.type_ann != nil {
+			ctype_ann = canonicalize_type(e.type_ann^, scope, ctx)
+		}
 		c := new(CExpr_Assign)
 		c^ = CExpr_Assign{
 			target = canonicalize_expr(e.target, scope, ctx),
 			value = canonicalize_expr(e.value, scope, ctx),
+			type_ann = ctype_ann,
 			span = e.span,
 		}
 		return c

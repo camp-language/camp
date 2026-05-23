@@ -720,13 +720,50 @@ parser_parse_block_or_record :: proc(p: ^Parser) -> Expr {
 	if p.current.kind == .Identifier || p.current.kind == .Upper_Id {
 		saved_pos := p.lexer.pos
 		saved_tok := p.current
-		next := lexer_next(p.lexer)
-		is_record := next.kind == .Colon
+
+		depth := 0
+		is_record := false
+		is_block := false
+		saw_colon := false
+
+		for {
+			next := lexer_next(p.lexer)
+			if next.kind == .Eof {
+				break
+			}
+			if next.kind == .LParen || next.kind == .LBrack || next.kind == .LBrace {
+				depth += 1
+			} else if next.kind == .RParen || next.kind == .RBrack || next.kind == .RBrace {
+				depth -= 1
+				if depth < 0 {
+					break
+				}
+			} else if depth == 0 {
+				if next.kind == .Colon {
+					saw_colon = true
+				}
+				if next.kind == .Eq || next.kind == .Fat_Arrow {
+					is_block = true
+					break
+				}
+				if next.kind == .Comma {
+					is_record = true
+					break
+				}
+				if next.kind == .RBrace {
+					is_record = true
+					break
+				}
+			}
+		}
 
 		p.lexer.pos = saved_pos
 		p.current = saved_tok
 
-		if is_record {
+		if is_block {
+			return parser_parse_block(p, start)
+		}
+		if is_record || saw_colon {
 			return parser_parse_record_expr(p, start)
 		}
 	}
@@ -791,10 +828,8 @@ parser_parse_block :: proc(p: ^Parser, start: Source_Span) -> Expr {
 		type_ann := parser_parse_type(p)
 		parser_expect(p, .Eq)
 		value := parser_parse_expr(p)
-		// Represent as a typed binding: name = value with type annotation
-		// We use the existing Assign node but attach the type via a wrapper
 		assign := new(Expr_Assign)
-		assign^ = Expr_Assign{target = expr, value = value, span = p.current.span}
+		assign^ = Expr_Assign{target = expr, value = value, type_ann = type_ann, span = p.current.span}
 		return assign
 	}
 
