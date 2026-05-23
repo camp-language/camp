@@ -179,6 +179,11 @@ diag_import_ambiguous :: proc(name: string, mod_a: string, mod_b: string, span: 
 	return d
 }
 
+diag_file_write_failed :: proc(path: string, reason: string) -> Diagnostic {
+	return diag_init(.Error, "FILE WRITE FAILED", Source_Span_ZERO,
+		fmt.tprintf("Failed to write output file `{}`: {}", path, reason))
+}
+
 diag_entry_point_not_found :: proc() -> Diagnostic {
 	d := diag_init(.Error, "ENTRY POINT NOT FOUND", Source_Span_ZERO,
 		"entry point not found — expected src/Main.camp with pub main!")
@@ -327,14 +332,14 @@ diag_shadow :: proc(name: string, span: Source_Span) -> Diagnostic {
 }
 
 diag_unused_binding :: proc(name: string, hint: string, span: Source_Span) -> Diagnostic {
-	d := diag_init(.Error, "UNUSED BINDING", span,
+	d := diag_init(.Warning, "UNUSED BINDING", span,
 		fmt.tprintf("Binding `{}` is never used. {}", name, hint))
-	append(&d.hints, fmt.tprintf("Prefix with `_` to mark as intentionally unused: `_{}", name))
+	append(&d.hints, fmt.tprintf("Prefix with `_` to mark as intentionally unused: `_{}`", name))
 	return d
 }
 
 diag_unused_record_field :: proc(field_name: string, record_span: Source_Span, span: Source_Span) -> Diagnostic {
-	d := diag_init(.Error, "UNUSED RECORD FIELD", span,
+	d := diag_init(.Warning, "UNUSED RECORD FIELD", span,
 		fmt.tprintf("Record field `{}` is never accessed locally.", field_name))
 	if record_span != Source_Span_ZERO {
 		append(&d.labels, Span_Label{span = record_span, label = "this record literal"})
@@ -343,7 +348,7 @@ diag_unused_record_field :: proc(field_name: string, record_span: Source_Span, s
 }
 
 diag_unused_import :: proc(name: string, module_name: string, span: Source_Span) -> Diagnostic {
-	d := diag_init(.Error, "UNUSED IMPORT", span,
+	d := diag_init(.Warning, "UNUSED IMPORT", span,
 		fmt.tprintf("`{}` imported from `{}` is never used.", name, module_name))
 	return d
 }
@@ -369,7 +374,7 @@ diag_noop_assignment :: proc(name: string, span: Source_Span) -> Diagnostic {
 }
 
 diag_unused_assignment :: proc(name: string, assign_no: int, hint: string, span: Source_Span) -> Diagnostic {
-	d := diag_init(.Error, "UNUSED ASSIGNMENT", span,
+	d := diag_init(.Warning, "UNUSED ASSIGNMENT", span,
 		fmt.tprintf("Assignment #{} to `${}` is unused. {}", assign_no, name, hint))
 	return d
 }

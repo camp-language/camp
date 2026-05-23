@@ -20,7 +20,7 @@ pub and_then = <a, b, e>|f: |a| -> Result(b, e), r: Result(a, e)| -> Result(b, e
   match r { Ok(v) => f(v) | Err(e) => Err(e) }
 }
 
-pub or_else = <a, e, f>|f: || -> Result(a, f), r: Result(a, e)| -> Result(a, e) {
+pub or_else = <a, e, f>|f: || -> Result(a, f), r: Result(a, e)| -> Result(a, e | f) {
   match r { Ok(v) => Ok(v) | Err(_) => f() }
 }
 

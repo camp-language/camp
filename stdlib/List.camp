@@ -23,5 +23,8 @@ pub append = <a>|xs: List(a), ys: List(a)| -> List(a) {
 }
 
 pub head = <a>|xs: List(a)| -> Option(a) {
-  if is_empty(xs) { None } else { crash "List.head: indexing not yet implemented" }
+  match xs {
+    Cons(h, _) => Some(h),
+    Nil => None,
+  }
 }

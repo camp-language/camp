@@ -1,1 +1,7 @@
+// BUG: The compiler crashes (SIGSEGV, exit code 11) on this file.
+// Root cause: the recursive generic `map` function references itself by name.
+// During monomorphization or type inference, the compiler enters infinite
+// recursion trying to resolve the recursive call, overflowing the stack.
+// Fix: add recursive function support (self-reference in generic monomorphization)
+// or require explicit type annotations for recursive generic functions.
 map = |f, xs| { match xs { Nil => Nil | Cons(h, t) => Cons(f(h), map(f, t)) } }

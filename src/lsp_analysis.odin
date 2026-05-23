@@ -28,7 +28,7 @@ analyze_document :: proc(text: string, file_path: string, uri: string, allocator
 
 	if diag_collector_has_errors(&ctx.collector) {
 		for d in ctx.collector.diagnostics {
-			lsp_diag := lsp_from_diagnostic(d, source)
+		lsp_diag := lsp_from_diagnostic(d, source, uri)
 			lsp_diag.message = clone_string(lsp_diag.message, allocator)
 			for i in 0..<len(lsp_diag.related) {
 				lsp_diag.related[i].message = clone_string(lsp_diag.related[i].message, allocator)
@@ -47,11 +47,12 @@ analyze_document :: proc(text: string, file_path: string, uri: string, allocator
 	context.allocator = ctx.allocator
 	store: Type_Store
 	type_store_init(&store, &ctx.interner, &ctx.collector)
+	inject_prelude(&store)
 	typecheck_file(canon, &store)
 	context.allocator = old_allocator
 
 	for d in ctx.collector.diagnostics {
-		lsp_diag := lsp_from_diagnostic(d, source)
+		lsp_diag := lsp_from_diagnostic(d, source, uri)
 		lsp_diag.message = clone_string(lsp_diag.message, allocator)
 		for i in 0..<len(lsp_diag.related) {
 			lsp_diag.related[i].message = clone_string(lsp_diag.related[i].message, allocator)

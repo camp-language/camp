@@ -358,11 +358,8 @@ format_expr_if :: proc(e: ^Expr_If, info: ^Format_Source_Info, interner: ^Intern
 			append(&parts, doc_line())
 			append(&parts, doc_text("}"))
 		} else {
-			append(&parts, doc_text(" else {"))
-			append(&parts, doc_line())
-			append(&parts, doc_nest(4, format_expr(e.else_branch, info, interner)))
-			append(&parts, doc_line())
-			append(&parts, doc_text("}"))
+			append(&parts, doc_text(" else "))
+			append(&parts, format_expr(e.else_branch, info, interner))
 		}
 
 		return doc_concat(parts[:])

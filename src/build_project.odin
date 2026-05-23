@@ -192,7 +192,12 @@ run_build_project :: proc(thread_count: int = 1) {
 	context.allocator = old_allocator_save()
 
 	output_path := "a.wasm"
-	_ = os.write_entire_file_from_bytes(output_path, wasm_bytes)
+	write_err := os.write_entire_file_from_bytes(output_path, wasm_bytes)
+	if write_err != nil {
+		collector_add_diag(&ctx.collector, diag_file_write_failed(output_path, fmt.tprintf("{}", write_err)))
+		render_all(&ctx.collector, "", "")
+		os.exit(1)
+	}
 	fmt.printfln("compiled project -> {}", output_path)
 }
 
