@@ -258,42 +258,42 @@ codegen :: proc(ir_mod: ir.IR_Module, interner: ^base.Intern_Table, type_store: 
 
 	runtime_func_indices: [RUNTIME_FUNC_COUNT]int
 	alloc_func_idx := add_function(&env, alloc_type_idx)
-	runtime_func_indices[0] = alloc_func_idx
+	runtime_func_indices[Runtime_Func.Alloc] = alloc_func_idx
 	dup_func_idx := add_function(&env, dup_type_idx)
-	runtime_func_indices[1] = dup_func_idx
+	runtime_func_indices[Runtime_Func.Dup] = dup_func_idx
 	drop_func_idx := add_function(&env, drop_type_idx)
-	runtime_func_indices[2] = drop_func_idx
+	runtime_func_indices[Runtime_Func.Drop] = drop_func_idx
 	print_str_func_idx := add_function(&env, print_str_type_idx)
-	runtime_func_indices[3] = print_str_func_idx
+	runtime_func_indices[Runtime_Func.Print_Str] = print_str_func_idx
 	exit_func_idx := add_function(&env, exit_type_idx)
-	runtime_func_indices[4] = exit_func_idx
+	runtime_func_indices[Runtime_Func.Exit] = exit_func_idx
 	dealloc_func_idx := add_function(&env, dealloc_type_idx)
-	runtime_func_indices[5] = dealloc_func_idx
+	runtime_func_indices[Runtime_Func.Dealloc] = dealloc_func_idx
 
 	print_err_func_idx := add_function(&env, print_err_type_idx)
-	runtime_func_indices[6] = print_err_func_idx
+	runtime_func_indices[Runtime_Func.Print_Err] = print_err_func_idx
 	list_alloc_func_idx := add_function(&env, list_alloc_type_idx)
-	runtime_func_indices[7] = list_alloc_func_idx
+	runtime_func_indices[Runtime_Func.List_Alloc] = list_alloc_func_idx
 	list_push_func_idx := add_function(&env, list_push_type_idx)
-	runtime_func_indices[8] = list_push_func_idx
+	runtime_func_indices[Runtime_Func.List_Push] = list_push_func_idx
 	list_len_func_idx := add_function(&env, list_len_type_idx)
-	runtime_func_indices[9] = list_len_func_idx
+	runtime_func_indices[Runtime_Func.List_Len] = list_len_func_idx
 	list_get_func_idx := add_function(&env, list_get_type_idx)
-	runtime_func_indices[10] = list_get_func_idx
+	runtime_func_indices[Runtime_Func.List_Get] = list_get_func_idx
 	str_len_func_idx := add_function(&env, str_len_type_idx)
-	runtime_func_indices[11] = str_len_func_idx
+	runtime_func_indices[Runtime_Func.Str_Len] = str_len_func_idx
 	str_eq_func_idx := add_function(&env, str_eq_type_idx)
-	runtime_func_indices[12] = str_eq_func_idx
+	runtime_func_indices[Runtime_Func.Str_Eq] = str_eq_func_idx
 	str_concat_func_idx := add_function(&env, str_concat_type_idx)
-	runtime_func_indices[35] = str_concat_func_idx
+	runtime_func_indices[Runtime_Func.Str_Concat] = str_concat_func_idx
 	i64_to_str_func_idx := add_function(&env, i64_to_str_type_idx)
-	runtime_func_indices[36] = i64_to_str_func_idx
+	runtime_func_indices[Runtime_Func.I64_To_Str] = i64_to_str_func_idx
 	i32_to_str_func_idx := add_function(&env, i32_to_str_type_idx)
-	runtime_func_indices[37] = i32_to_str_func_idx
+	runtime_func_indices[Runtime_Func.I32_To_Str] = i32_to_str_func_idx
 	f64_to_str_func_idx := add_function(&env, f64_to_str_type_idx)
-	runtime_func_indices[38] = f64_to_str_func_idx
+	runtime_func_indices[Runtime_Func.F64_To_Str] = f64_to_str_func_idx
 	bool_to_str_func_idx := add_function(&env, bool_to_str_type_idx)
-	runtime_func_indices[39] = bool_to_str_func_idx
+	runtime_func_indices[Runtime_Func.Bool_To_Str] = bool_to_str_func_idx
 
 	async_init_type_idx := get_or_create_type(&env, []Wasm_Value_Type{}, []Wasm_Value_Type{})
 	async_enqueue_type_idx := get_or_create_type(&env, []Wasm_Value_Type{.I32, .I32}, []Wasm_Value_Type{.I32})
@@ -301,13 +301,13 @@ codegen :: proc(ir_mod: ir.IR_Module, interner: ^base.Intern_Table, type_store: 
 	async_run_type_idx := get_or_create_type(&env, []Wasm_Value_Type{}, []Wasm_Value_Type{.I32})
 
 	async_init_func_idx := add_function(&env, async_init_type_idx)
-	runtime_func_indices[13] = async_init_func_idx
+	runtime_func_indices[Runtime_Func.Async_Init] = async_init_func_idx
 	async_enqueue_func_idx := add_function(&env, async_enqueue_type_idx)
-	runtime_func_indices[14] = async_enqueue_func_idx
+	runtime_func_indices[Runtime_Func.Async_Enqueue] = async_enqueue_func_idx
 	async_dequeue_func_idx := add_function(&env, async_dequeue_type_idx)
-	runtime_func_indices[15] = async_dequeue_func_idx
+	runtime_func_indices[Runtime_Func.Async_Dequeue] = async_dequeue_func_idx
 	async_run_func_idx := add_function(&env, async_run_type_idx)
-	runtime_func_indices[16] = async_run_func_idx
+	runtime_func_indices[Runtime_Func.Async_Run] = async_run_func_idx
 
 	// Scheduler runtime function types
 	sched_init_type_idx := get_or_create_type(&env, []Wasm_Value_Type{.I32}, []Wasm_Value_Type{})
@@ -324,29 +324,29 @@ codegen :: proc(ir_mod: ir.IR_Module, interner: ^base.Intern_Table, type_store: 
 	sched_worker_loop_type_idx := get_or_create_type(&env, []Wasm_Value_Type{.I32}, []Wasm_Value_Type{})
 
 	sched_init_func_idx := add_function(&env, sched_init_type_idx)
-	runtime_func_indices[RUNTIME_SCHED_INIT] = sched_init_func_idx
+	runtime_func_indices[Runtime_Func.Sched_Init] = sched_init_func_idx
 	sched_spawn_func_idx := add_function(&env, sched_spawn_type_idx)
-	runtime_func_indices[RUNTIME_SCHED_SPAWN] = sched_spawn_func_idx
+	runtime_func_indices[Runtime_Func.Sched_Spawn] = sched_spawn_func_idx
 	sched_join_func_idx := add_function(&env, sched_join_type_idx)
-	runtime_func_indices[RUNTIME_SCHED_JOIN] = sched_join_func_idx
+	runtime_func_indices[Runtime_Func.Sched_Join] = sched_join_func_idx
 	sched_cancel_func_idx := add_function(&env, sched_cancel_type_idx)
-	runtime_func_indices[RUNTIME_SCHED_CANCEL] = sched_cancel_func_idx
+	runtime_func_indices[Runtime_Func.Sched_Cancel] = sched_cancel_func_idx
 	sched_complete_func_idx := add_function(&env, sched_complete_type_idx)
-	runtime_func_indices[RUNTIME_SCHED_COMPLETE] = sched_complete_func_idx
+	runtime_func_indices[Runtime_Func.Sched_Complete] = sched_complete_func_idx
 	sched_yield_func_idx := add_function(&env, sched_yield_type_idx)
-	runtime_func_indices[RUNTIME_SCHED_YIELD] = sched_yield_func_idx
+	runtime_func_indices[Runtime_Func.Sched_Yield] = sched_yield_func_idx
 	sched_block_io_func_idx := add_function(&env, sched_block_io_type_idx)
-	runtime_func_indices[RUNTIME_SCHED_BLOCK_IO] = sched_block_io_func_idx
+	runtime_func_indices[Runtime_Func.Sched_Block_IO] = sched_block_io_func_idx
 	sched_timer_insert_func_idx := add_function(&env, sched_timer_insert_type_idx)
-	runtime_func_indices[RUNTIME_SCHED_TIMER_INSERT] = sched_timer_insert_func_idx
+	runtime_func_indices[Runtime_Func.Sched_Timer_Insert] = sched_timer_insert_func_idx
 	sched_timer_cancel_func_idx := add_function(&env, sched_timer_cancel_type_idx)
-	runtime_func_indices[RUNTIME_SCHED_TIMER_CANCEL] = sched_timer_cancel_func_idx
+	runtime_func_indices[Runtime_Func.Sched_Timer_Cancel] = sched_timer_cancel_func_idx
 	sched_notify_func_idx := add_function(&env, sched_notify_type_idx)
-	runtime_func_indices[RUNTIME_SCHED_NOTIFY] = sched_notify_func_idx
+	runtime_func_indices[Runtime_Func.Sched_Notify] = sched_notify_func_idx
 	sched_park_func_idx := add_function(&env, sched_park_type_idx)
-	runtime_func_indices[RUNTIME_SCHED_PARK] = sched_park_func_idx
+	runtime_func_indices[Runtime_Func.Sched_Park] = sched_park_func_idx
 	sched_worker_loop_func_idx := add_function(&env, sched_worker_loop_type_idx)
-	runtime_func_indices[RUNTIME_SCHED_WORKER_LOOP] = sched_worker_loop_func_idx
+	runtime_func_indices[Runtime_Func.Sched_Worker_Loop] = sched_worker_loop_func_idx
 
 	// Parallel! runtime function types
 	// camp_parallel_map(fn_idx: i32, fn_env: i32, items_ptr: i32, items_len: i32, chunk_size: i32) -> i32
@@ -363,17 +363,17 @@ codegen :: proc(ir_mod: ir.IR_Module, interner: ^base.Intern_Table, type_store: 
 	parallel_for_each_type_idx := get_or_create_type(&env, []Wasm_Value_Type{.I32, .I32, .I32, .I32, .I32}, []Wasm_Value_Type{})
 
 	parallel_map_func_idx := add_function(&env, parallel_map_type_idx)
-	runtime_func_indices[RUNTIME_PARALLEL_MAP] = parallel_map_func_idx
+	runtime_func_indices[Runtime_Func.Parallel_Map] = parallel_map_func_idx
 	parallel_reduce_func_idx := add_function(&env, parallel_reduce_type_idx)
-	runtime_func_indices[RUNTIME_PARALLEL_REDUCE] = parallel_reduce_func_idx
+	runtime_func_indices[Runtime_Func.Parallel_Reduce] = parallel_reduce_func_idx
 	parallel_any_func_idx := add_function(&env, parallel_any_type_idx)
-	runtime_func_indices[RUNTIME_PARALLEL_ANY] = parallel_any_func_idx
+	runtime_func_indices[Runtime_Func.Parallel_Any] = parallel_any_func_idx
 	parallel_all_func_idx := add_function(&env, parallel_all_type_idx)
-	runtime_func_indices[RUNTIME_PARALLEL_ALL] = parallel_all_func_idx
+	runtime_func_indices[Runtime_Func.Parallel_All] = parallel_all_func_idx
 	parallel_filter_func_idx := add_function(&env, parallel_filter_type_idx)
-	runtime_func_indices[RUNTIME_PARALLEL_FILTER] = parallel_filter_func_idx
+	runtime_func_indices[Runtime_Func.Parallel_Filter] = parallel_filter_func_idx
 	parallel_for_each_func_idx := add_function(&env, parallel_for_each_type_idx)
-	runtime_func_indices[RUNTIME_PARALLEL_FOR_EACH] = parallel_for_each_func_idx
+	runtime_func_indices[Runtime_Func.Parallel_For_Each] = parallel_for_each_func_idx
 
 	camp_alloc_code := emit_camp_alloc_body(heap_ptr_global_idx)
 	append(&mod.codes, camp_alloc_code)
@@ -499,7 +499,7 @@ codegen :: proc(ir_mod: ir.IR_Module, interner: ^base.Intern_Table, type_store: 
 		func_idx := add_function(&env, type_idx)
 		if d.name.module != base.NO_NAME {
 				mangled := base.mangle_name(d.name.module, d.name.name, interner)
-				env.func_map[hash_string(mangled)] = func_idx
+				env.func_map[base.hash_string(mangled)] = func_idx
 			}
 			env.func_map[int(d.name.name)] = func_idx
 			env.decl_to_wasm_fn_idx[decl_idx] = func_idx
@@ -667,7 +667,7 @@ codegen :: proc(ir_mod: ir.IR_Module, interner: ^base.Intern_Table, type_store: 
 			emit_instruction(Wasm_I32_Wrap_I64{}, &cont_body_buf)         // to i32
 			emit_instruction(Wasm_I32_Const{value = CAMP_EXIT_MASK}, &cont_body_buf)
 			emit_instruction(Wasm_I32_And{}, &cont_body_buf)              // result & 127
-			emit_instruction(Wasm_Call{index = u32(runtime_func_indices[RUNTIME_EXIT])}, &cont_body_buf)
+			emit_instruction(Wasm_Call{index = u32(runtime_func_indices[Runtime_Func.Exit])}, &cont_body_buf)
 			emit_instruction(Wasm_Unreachable{}, &cont_body_buf)          // camp_exit doesn't return
 			emit_instruction(Wasm_End{}, &cont_body_buf)
 
@@ -702,7 +702,7 @@ codegen :: proc(ir_mod: ir.IR_Module, interner: ^base.Intern_Table, type_store: 
 
 				// Emit: ev_local = camp_alloc(ev_record_size)
 				emit_instruction(Wasm_I32_Const{value = i32(ev_record_size)}, &code_buf)
-				emit_instruction(Wasm_Call{index = u32(runtime_func_indices[RUNTIME_ALLOC])}, &code_buf)
+				emit_instruction(Wasm_Call{index = u32(runtime_func_indices[Runtime_Func.Alloc])}, &code_buf)
 				emit_instruction(Wasm_Local_Set{index = u32(ev_local_idx)}, &code_buf)
 			}
 
@@ -775,14 +775,14 @@ codegen :: proc(ir_mod: ir.IR_Module, interner: ^base.Intern_Table, type_store: 
 			main_fn_idx, ok := env.func_map[int(main_decl.name.name)]
 			if !ok {
 				mangled := base.mangle_name(main_decl.name.module, main_decl.name.name, env.interner)
-				main_fn_idx = env.func_map[hash_string(mangled)]
+				main_fn_idx = env.func_map[base.hash_string(mangled)]
 			}
 
 			// Allocate closure record for top-level continuation
 			closure_local := env.next_local
 			env.next_local += 1
 			emit_instruction(Wasm_I32_Const{value = 24}, &code_buf)      // size = CAMP_TAG_HEADER_SIZE(8) + 2*8
-			emit_instruction(Wasm_Call{index = u32(runtime_func_indices[RUNTIME_ALLOC])}, &code_buf)
+			emit_instruction(Wasm_Call{index = u32(runtime_func_indices[Runtime_Func.Alloc])}, &code_buf)
 			emit_instruction(Wasm_Local_Set{index = closure_local}, &code_buf)
 
 			// Set refcount = 1
@@ -887,7 +887,7 @@ codegen :: proc(ir_mod: ir.IR_Module, interner: ^base.Intern_Table, type_store: 
 			worker_buf: [dynamic]u8
 			worker_buf = make([dynamic]u8, 0, 64)
 			emit_instruction(Wasm_Local_Get{index = 0}, &worker_buf)
-			emit_instruction(Wasm_Call{index = u32(runtime_func_indices[RUNTIME_SCHED_WORKER_LOOP])}, &worker_buf)
+			emit_instruction(Wasm_Call{index = u32(runtime_func_indices[Runtime_Func.Sched_Worker_Loop])}, &worker_buf)
 			emit_instruction(Wasm_End{}, &worker_buf)
 
 			worker_locals := make([]Wasm_Local_Decl, 0)
@@ -1117,47 +1117,50 @@ collect_pattern_locals :: proc(pattern: ir.IR_Pattern, scrutinee: ir.IR_Expr, lo
 	}
 }
 
-RUNTIME_ALLOC :: 0
-RUNTIME_DUP :: 1
-RUNTIME_DROP :: 2
-RUNTIME_PRINT_STR :: 3
-RUNTIME_EXIT :: 4
-RUNTIME_DEALLOC :: 5
-RUNTIME_PRINT_ERR :: 6
-RUNTIME_LIST_ALLOC :: 7
-RUNTIME_LIST_PUSH :: 8
-RUNTIME_LIST_LEN :: 9
-RUNTIME_LIST_GET :: 10
-RUNTIME_STR_LEN :: 11
-RUNTIME_STR_EQ :: 12
-RUNTIME_ASYNC_INIT :: 13
-RUNTIME_ASYNC_ENQUEUE :: 14
-RUNTIME_ASYNC_DEQUEUE :: 15
-RUNTIME_ASYNC_RUN :: 16
-RUNTIME_SCHED_INIT :: 17
-RUNTIME_SCHED_SPAWN :: 18
-RUNTIME_SCHED_JOIN :: 19
-RUNTIME_SCHED_CANCEL :: 20
-RUNTIME_SCHED_COMPLETE :: 21
-RUNTIME_SCHED_YIELD :: 22
-RUNTIME_SCHED_BLOCK_IO :: 23
-RUNTIME_SCHED_TIMER_INSERT :: 24
-RUNTIME_SCHED_TIMER_CANCEL :: 25
-RUNTIME_SCHED_NOTIFY :: 26
-RUNTIME_SCHED_PARK :: 27
-RUNTIME_SCHED_WORKER_LOOP :: 28
-RUNTIME_PARALLEL_MAP :: 29
-RUNTIME_PARALLEL_REDUCE :: 30
-RUNTIME_PARALLEL_ANY :: 31
-RUNTIME_PARALLEL_ALL :: 32
-RUNTIME_PARALLEL_FILTER :: 33
-RUNTIME_PARALLEL_FOR_EACH :: 34
-RUNTIME_STR_CONCAT :: 35
-RUNTIME_I64_TO_STR :: 36
-RUNTIME_I32_TO_STR :: 37
-RUNTIME_F64_TO_STR :: 38
-RUNTIME_BOOL_TO_STR :: 39
-RUNTIME_FUNC_COUNT :: 40
+Runtime_Func :: enum {
+	Alloc,
+	Dup,
+	Drop,
+	Print_Str,
+	Exit,
+	Dealloc,
+	Print_Err,
+	List_Alloc,
+	List_Push,
+	List_Len,
+	List_Get,
+	Str_Len,
+	Str_Eq,
+	Async_Init,
+	Async_Enqueue,
+	Async_Dequeue,
+	Async_Run,
+	Sched_Init,
+	Sched_Spawn,
+	Sched_Join,
+	Sched_Cancel,
+	Sched_Complete,
+	Sched_Yield,
+	Sched_Block_IO,
+	Sched_Timer_Insert,
+	Sched_Timer_Cancel,
+	Sched_Notify,
+	Sched_Park,
+	Sched_Worker_Loop,
+	Parallel_Map,
+	Parallel_Reduce,
+	Parallel_Any,
+	Parallel_All,
+	Parallel_Filter,
+	Parallel_For_Each,
+	Str_Concat,
+	I64_To_Str,
+	I32_To_Str,
+	F64_To_Str,
+	Bool_To_Str,
+}
+
+RUNTIME_FUNC_COUNT :: int(len(Runtime_Func))
 
 extract_effectful_body :: proc(expr: ir.IR_Expr) -> ir.IR_Expr {
 	#partial switch e in expr {
@@ -1273,21 +1276,21 @@ emit_expr :: proc(expr: ir.IR_Expr, buf: ^[dynamic]u8, env: ^Codegen_Env, runtim
 			if module_str == "Str" {
 				if name_str == "length" && len(e.args) == 1 {
 					emit_expr(e.args[0], buf, env, runtime_indices)
-					emit_instruction(Wasm_Call{index = u32(runtime_indices[RUNTIME_STR_LEN])}, buf)
-					// Str.length returns I64 in Camp but RUNTIME_STR_LEN returns i32
+					emit_instruction(Wasm_Call{index = u32(runtime_indices[Runtime_Func.Str_Len])}, buf)
+					// Str.length returns I64 in Camp but Runtime_Func.Str_Len returns i32
 					emit_instruction(Wasm_I64_Extend_I32_S{}, buf)
 					break
 				}
 				if name_str == "eq" && len(e.args) == 2 {
 					emit_expr(e.args[0], buf, env, runtime_indices)
 					emit_expr(e.args[1], buf, env, runtime_indices)
-					emit_instruction(Wasm_Call{index = u32(runtime_indices[RUNTIME_STR_EQ])}, buf)
+					emit_instruction(Wasm_Call{index = u32(runtime_indices[Runtime_Func.Str_Eq])}, buf)
 					break
 				}
 				if name_str == "concat" && len(e.args) == 2 {
 					emit_expr(e.args[0], buf, env, runtime_indices)
 					emit_expr(e.args[1], buf, env, runtime_indices)
-					emit_instruction(Wasm_Call{index = u32(runtime_indices[RUNTIME_STR_CONCAT])}, buf)
+					emit_instruction(Wasm_Call{index = u32(runtime_indices[Runtime_Func.Str_Concat])}, buf)
 					break
 				}
 			}
@@ -1295,25 +1298,25 @@ emit_expr :: proc(expr: ir.IR_Expr, buf: ^[dynamic]u8, env: ^Codegen_Env, runtim
 			if module_str == "List" {
 				if name_str == "length" && len(e.args) == 1 {
 					emit_expr(e.args[0], buf, env, runtime_indices)
-					emit_instruction(Wasm_Call{index = u32(runtime_indices[RUNTIME_LIST_LEN])}, buf)
-					// List.length returns I64 in Camp but RUNTIME_LIST_LEN returns i32
+					emit_instruction(Wasm_Call{index = u32(runtime_indices[Runtime_Func.List_Len])}, buf)
+					// List.length returns I64 in Camp but Runtime_Func.List_Len returns i32
 					emit_instruction(Wasm_I64_Extend_I32_S{}, buf)
 					break
 				}
 				if name_str == "get" && len(e.args) == 2 {
 					emit_expr(e.args[0], buf, env, runtime_indices)
 					emit_expr(e.args[1], buf, env, runtime_indices)
-					emit_instruction(Wasm_Call{index = u32(runtime_indices[RUNTIME_LIST_GET])}, buf)
+					emit_instruction(Wasm_Call{index = u32(runtime_indices[Runtime_Func.List_Get])}, buf)
 					break
 				}
 				if name_str == "push" && len(e.args) == 2 {
 					emit_expr(e.args[0], buf, env, runtime_indices)
 					emit_expr(e.args[1], buf, env, runtime_indices)
-					emit_instruction(Wasm_Call{index = u32(runtime_indices[RUNTIME_LIST_PUSH])}, buf)
+					emit_instruction(Wasm_Call{index = u32(runtime_indices[Runtime_Func.List_Push])}, buf)
 					break
 				}
 				if name_str == "alloc" && len(e.args) == 0 {
-					emit_instruction(Wasm_Call{index = u32(runtime_indices[RUNTIME_LIST_ALLOC])}, buf)
+					emit_instruction(Wasm_Call{index = u32(runtime_indices[Runtime_Func.List_Alloc])}, buf)
 					break
 				}
 			}
@@ -1324,22 +1327,22 @@ emit_expr :: proc(expr: ir.IR_Expr, buf: ^[dynamic]u8, env: ^Codegen_Env, runtim
 			name_str := base.intern_get(env.interner, e.callee.name)
 			if name_str == "I64_to_str" && len(e.args) == 1 {
 				emit_expr(e.args[0], buf, env, runtime_indices)
-				emit_instruction(Wasm_Call{index = u32(runtime_indices[RUNTIME_I64_TO_STR])}, buf)
+				emit_instruction(Wasm_Call{index = u32(runtime_indices[Runtime_Func.I64_To_Str])}, buf)
 				break
 			}
 			if name_str == "I32_to_str" && len(e.args) == 1 {
 				emit_expr(e.args[0], buf, env, runtime_indices)
-				emit_instruction(Wasm_Call{index = u32(runtime_indices[RUNTIME_I32_TO_STR])}, buf)
+				emit_instruction(Wasm_Call{index = u32(runtime_indices[Runtime_Func.I32_To_Str])}, buf)
 				break
 			}
 			if name_str == "F64_to_str" && len(e.args) == 1 {
 				emit_expr(e.args[0], buf, env, runtime_indices)
-				emit_instruction(Wasm_Call{index = u32(runtime_indices[RUNTIME_F64_TO_STR])}, buf)
+				emit_instruction(Wasm_Call{index = u32(runtime_indices[Runtime_Func.F64_To_Str])}, buf)
 				break
 			}
 			if name_str == "Bool_to_str" && len(e.args) == 1 {
 				emit_expr(e.args[0], buf, env, runtime_indices)
-				emit_instruction(Wasm_Call{index = u32(runtime_indices[RUNTIME_BOOL_TO_STR])}, buf)
+				emit_instruction(Wasm_Call{index = u32(runtime_indices[Runtime_Func.Bool_To_Str])}, buf)
 				break
 			}
 			if name_str == "Str_to_str" && len(e.args) == 1 {
@@ -1354,7 +1357,7 @@ emit_expr :: proc(expr: ir.IR_Expr, buf: ^[dynamic]u8, env: ^Codegen_Env, runtim
 		call_idx: int = 0
 		if e.callee.module != base.NO_NAME {
 			mangled := base.mangle_name(e.callee.module, e.callee.name, env.interner)
-			if idx, ok := env.func_map[hash_string(mangled)]; ok {
+			if idx, ok := env.func_map[base.hash_string(mangled)]; ok {
 				call_idx = idx
 			} else if idx, ok := env.func_map[int(e.callee.name)]; ok {
 				call_idx = idx
@@ -1431,7 +1434,7 @@ emit_expr :: proc(expr: ir.IR_Expr, buf: ^[dynamic]u8, env: ^Codegen_Env, runtim
 			tail_idx: int = 0
 			if e.callee.module != base.NO_NAME {
 			mangled := base.mangle_name(e.callee.module, e.callee.name, env.interner)
-				if idx, ok := env.func_map[hash_string(mangled)]; ok {
+				if idx, ok := env.func_map[base.hash_string(mangled)]; ok {
 					tail_idx = idx
 				} else if idx, ok := env.func_map[int(e.callee.name)]; ok {
 					tail_idx = idx
@@ -1460,12 +1463,12 @@ emit_expr :: proc(expr: ir.IR_Expr, buf: ^[dynamic]u8, env: ^Codegen_Env, runtim
 	case ^ir.IR_Dup:
 		if idx, ok := env.local_map[e.value]; ok {
 			emit_instruction(Wasm_Local_Get{index = idx}, buf)
-			emit_instruction(Wasm_Call{index = u32(runtime_indices[RUNTIME_DUP])}, buf)
+			emit_instruction(Wasm_Call{index = u32(runtime_indices[Runtime_Func.Dup])}, buf)
 		}
 	case ^ir.IR_Drop:
 		if idx, ok := env.local_map[e.value]; ok {
 			emit_instruction(Wasm_Local_Get{index = idx}, buf)
-			emit_instruction(Wasm_Call{index = u32(runtime_indices[RUNTIME_DROP])}, buf)
+			emit_instruction(Wasm_Call{index = u32(runtime_indices[Runtime_Func.Drop])}, buf)
 		}
 	case ^ir.IR_Block:
 		for stmt, idx in e.statements {
@@ -1664,7 +1667,7 @@ emit_expr :: proc(expr: ir.IR_Expr, buf: ^[dynamic]u8, env: ^Codegen_Env, runtim
 							str_offset = 0
 						}
 						emit_instruction(Wasm_I32_Const{value = i32(str_offset)}, buf)
-						emit_instruction(Wasm_Call{index = u32(runtime_indices[RUNTIME_STR_EQ])}, buf)
+						emit_instruction(Wasm_Call{index = u32(runtime_indices[Runtime_Func.Str_Eq])}, buf)
 					case ^ir.IR_Pat_Wildcard, ^ir.IR_Pat_Var:
 						emit_instruction(Wasm_I32_Const{value = 1}, buf)
 					case:
@@ -1701,7 +1704,7 @@ emit_expr :: proc(expr: ir.IR_Expr, buf: ^[dynamic]u8, env: ^Codegen_Env, runtim
 		total_size := CAMP_TAG_HEADER_SIZE + num_fields * 8
 
 		emit_instruction(Wasm_I32_Const{value = i32(total_size)}, buf)
-		emit_instruction(Wasm_Call{index = u32(runtime_indices[RUNTIME_ALLOC])}, buf)
+		emit_instruction(Wasm_Call{index = u32(runtime_indices[Runtime_Func.Alloc])}, buf)
 
 		tmp_local_idx := env.tmp_local_base
 		emit_instruction(Wasm_Local_Set{index = tmp_local_idx}, buf)
@@ -1733,7 +1736,7 @@ emit_expr :: proc(expr: ir.IR_Expr, buf: ^[dynamic]u8, env: ^Codegen_Env, runtim
 		total_size := CAMP_TAG_HEADER_SIZE + num_fields * 8
 
 		emit_instruction(Wasm_I32_Const{value = i32(total_size)}, buf)
-		emit_instruction(Wasm_Call{index = u32(runtime_indices[RUNTIME_ALLOC])}, buf)
+		emit_instruction(Wasm_Call{index = u32(runtime_indices[Runtime_Func.Alloc])}, buf)
 
 		tmp_local_idx := env.tmp_local_base
 		emit_instruction(Wasm_Local_Set{index = tmp_local_idx}, buf)
@@ -1782,7 +1785,7 @@ emit_expr :: proc(expr: ir.IR_Expr, buf: ^[dynamic]u8, env: ^Codegen_Env, runtim
 		// Method calls should be resolved by monomorphization.
 		// If one reaches codegen, it's a compiler bug — emit a runtime error.
 		emit_instruction(Wasm_I32_Const{value = 1}, buf)
-		emit_instruction(Wasm_Call{index = u32(runtime_indices[RUNTIME_EXIT])}, buf)
+		emit_instruction(Wasm_Call{index = u32(runtime_indices[Runtime_Func.Exit])}, buf)
 		emit_instruction(Wasm_Unreachable{}, buf)
 	case ^ir.IR_Handle:
 		if ir.is_scheduler_effect_by_ids(e.effect.name, env.async_id, env.spawn_id, env.parallel_id, env.file_id, env.console_id, env.time_id) {
@@ -1885,7 +1888,7 @@ emit_expr :: proc(expr: ir.IR_Expr, buf: ^[dynamic]u8, env: ^Codegen_Env, runtim
 						// scope_id from enclosing handler (use 0 as default if no scope tracking)
 						emit_instruction(Wasm_I32_Const{value = 0}, buf)
 
-						emit_instruction(Wasm_Call{index = u32(runtime_indices[RUNTIME_SCHED_SPAWN])}, buf)
+						emit_instruction(Wasm_Call{index = u32(runtime_indices[Runtime_Func.Sched_Spawn])}, buf)
 					} else {
 						emit_instruction(Wasm_I32_Const{value = 0}, buf)
 					}
@@ -1896,14 +1899,14 @@ emit_expr :: proc(expr: ir.IR_Expr, buf: ^[dynamic]u8, env: ^Codegen_Env, runtim
 					} else {
 						emit_instruction(Wasm_I32_Const{value = 0}, buf)
 					}
-					emit_instruction(Wasm_Call{index = u32(runtime_indices[RUNTIME_SCHED_JOIN])}, buf)
+					emit_instruction(Wasm_Call{index = u32(runtime_indices[Runtime_Func.Sched_Join])}, buf)
 					// camp_sched_join returns i32, but the perform type may be i64
 					if e.type.wasm_type == .I64 {
 						emit_instruction(Wasm_I64_Extend_I32_S{}, buf)
 					}
 				} else if op_str == "yield!" {
 					// camp_sched_yield() -> void
-					emit_instruction(Wasm_Call{index = u32(runtime_indices[RUNTIME_SCHED_YIELD])}, buf)
+					emit_instruction(Wasm_Call{index = u32(runtime_indices[Runtime_Func.Sched_Yield])}, buf)
 				} else if op_str == "cancel!" {
 					// camp_sched_cancel(handle_id) -> void
 					if len(e.args) >= 1 {
@@ -1911,7 +1914,7 @@ emit_expr :: proc(expr: ir.IR_Expr, buf: ^[dynamic]u8, env: ^Codegen_Env, runtim
 					} else {
 						emit_instruction(Wasm_I32_Const{value = 0}, buf)
 					}
-					emit_instruction(Wasm_Call{index = u32(runtime_indices[RUNTIME_SCHED_CANCEL])}, buf)
+					emit_instruction(Wasm_Call{index = u32(runtime_indices[Runtime_Func.Sched_Cancel])}, buf)
 				} else {
 					emit_instruction(Wasm_Unreachable{}, buf)
 				}
@@ -1926,7 +1929,7 @@ emit_expr :: proc(expr: ir.IR_Expr, buf: ^[dynamic]u8, env: ^Codegen_Env, runtim
 					}
 					// task_ptr placeholder (would need current task context)
 					emit_instruction(Wasm_I32_Const{value = 0}, buf)
-					emit_instruction(Wasm_Call{index = u32(runtime_indices[RUNTIME_SCHED_TIMER_INSERT])}, buf)
+					emit_instruction(Wasm_Call{index = u32(runtime_indices[Runtime_Func.Sched_Timer_Insert])}, buf)
 				} else {
 					emit_instruction(Wasm_Unreachable{}, buf)
 				}
@@ -1941,7 +1944,7 @@ emit_expr :: proc(expr: ir.IR_Expr, buf: ^[dynamic]u8, env: ^Codegen_Env, runtim
 						emit_instruction(Wasm_I32_Const{value = 0}, buf)
 					}
 					emit_instruction(Wasm_I32_Const{value = 0}, buf) // task_ptr placeholder
-					emit_instruction(Wasm_Call{index = u32(runtime_indices[RUNTIME_SCHED_BLOCK_IO])}, buf)
+					emit_instruction(Wasm_Call{index = u32(runtime_indices[Runtime_Func.Sched_Block_IO])}, buf)
 				} else if op_str == "write!" {
 					if len(e.args) >= 2 {
 						emit_expr(e.args[0], buf, env, runtime_indices)
@@ -1975,7 +1978,7 @@ emit_expr :: proc(expr: ir.IR_Expr, buf: ^[dynamic]u8, env: ^Codegen_Env, runtim
 					emit_instruction(Wasm_Local_Get{index = items_local}, buf)
 					emit_instruction(Wasm_I32_Load{align = 2, offset = u32(CAMP_TAG_FIELDS_OFFSET + 8)}, buf)
 					emit_instruction(Wasm_I32_Const{value = 0}, buf)
-					emit_instruction(Wasm_Call{index = u32(runtime_indices[RUNTIME_PARALLEL_MAP])}, buf)
+					emit_instruction(Wasm_Call{index = u32(runtime_indices[Runtime_Func.Parallel_Map])}, buf)
 				} else if op_str == "reduce!" && len(e.args) >= 3 {
 					fn_local := env.tmp_local_base + env.tmp_count; env.tmp_count += 1
 					emit_expr(e.args[0], buf, env, runtime_indices)
@@ -1993,7 +1996,7 @@ emit_expr :: proc(expr: ir.IR_Expr, buf: ^[dynamic]u8, env: ^Codegen_Env, runtim
 					emit_instruction(Wasm_I32_Load{align = 2, offset = u32(CAMP_TAG_FIELDS_OFFSET + 8)}, buf)
 					emit_expr(e.args[2], buf, env, runtime_indices)
 					emit_instruction(Wasm_I32_Const{value = 0}, buf)
-					emit_instruction(Wasm_Call{index = u32(runtime_indices[RUNTIME_PARALLEL_REDUCE])}, buf)
+					emit_instruction(Wasm_Call{index = u32(runtime_indices[Runtime_Func.Parallel_Reduce])}, buf)
 				} else if op_str == "any!" && len(e.args) >= 2 {
 					fn_local := env.tmp_local_base + env.tmp_count; env.tmp_count += 1
 					emit_expr(e.args[0], buf, env, runtime_indices)
@@ -2009,7 +2012,7 @@ emit_expr :: proc(expr: ir.IR_Expr, buf: ^[dynamic]u8, env: ^Codegen_Env, runtim
 					emit_instruction(Wasm_I32_Load{align = 2, offset = u32(CAMP_TAG_FIELDS_OFFSET)}, buf)
 					emit_instruction(Wasm_Local_Get{index = items_local}, buf)
 					emit_instruction(Wasm_I32_Load{align = 2, offset = u32(CAMP_TAG_FIELDS_OFFSET + 8)}, buf)
-					emit_instruction(Wasm_Call{index = u32(runtime_indices[RUNTIME_PARALLEL_ANY])}, buf)
+					emit_instruction(Wasm_Call{index = u32(runtime_indices[Runtime_Func.Parallel_Any])}, buf)
 				} else if op_str == "all!" && len(e.args) >= 2 {
 					fn_local := env.tmp_local_base + env.tmp_count; env.tmp_count += 1
 					emit_expr(e.args[0], buf, env, runtime_indices)
@@ -2026,7 +2029,7 @@ emit_expr :: proc(expr: ir.IR_Expr, buf: ^[dynamic]u8, env: ^Codegen_Env, runtim
 					emit_instruction(Wasm_Local_Get{index = items_local}, buf)
 					emit_instruction(Wasm_I32_Load{align = 2, offset = u32(CAMP_TAG_FIELDS_OFFSET + 8)}, buf)
 					emit_instruction(Wasm_I32_Const{value = 0}, buf)
-					emit_instruction(Wasm_Call{index = u32(runtime_indices[RUNTIME_PARALLEL_ALL])}, buf)
+					emit_instruction(Wasm_Call{index = u32(runtime_indices[Runtime_Func.Parallel_All])}, buf)
 				} else if op_str == "filter!" && len(e.args) >= 2 {
 					fn_local := env.tmp_local_base + env.tmp_count; env.tmp_count += 1
 					emit_expr(e.args[0], buf, env, runtime_indices)
@@ -2043,7 +2046,7 @@ emit_expr :: proc(expr: ir.IR_Expr, buf: ^[dynamic]u8, env: ^Codegen_Env, runtim
 					emit_instruction(Wasm_Local_Get{index = items_local}, buf)
 					emit_instruction(Wasm_I32_Load{align = 2, offset = u32(CAMP_TAG_FIELDS_OFFSET + 8)}, buf)
 					emit_instruction(Wasm_I32_Const{value = 0}, buf)
-					emit_instruction(Wasm_Call{index = u32(runtime_indices[RUNTIME_PARALLEL_FILTER])}, buf)
+					emit_instruction(Wasm_Call{index = u32(runtime_indices[Runtime_Func.Parallel_Filter])}, buf)
 				} else if op_str == "for_each!" && len(e.args) >= 2 {
 					fn_local := env.tmp_local_base + env.tmp_count; env.tmp_count += 1
 					emit_expr(e.args[0], buf, env, runtime_indices)
@@ -2060,7 +2063,7 @@ emit_expr :: proc(expr: ir.IR_Expr, buf: ^[dynamic]u8, env: ^Codegen_Env, runtim
 					emit_instruction(Wasm_Local_Get{index = items_local}, buf)
 					emit_instruction(Wasm_I32_Load{align = 2, offset = u32(CAMP_TAG_FIELDS_OFFSET + 8)}, buf)
 					emit_instruction(Wasm_I32_Const{value = 0}, buf)
-					emit_instruction(Wasm_Call{index = u32(runtime_indices[RUNTIME_PARALLEL_FOR_EACH])}, buf)
+					emit_instruction(Wasm_Call{index = u32(runtime_indices[Runtime_Func.Parallel_For_Each])}, buf)
 				} else {
 					emit_instruction(Wasm_Unreachable{}, buf)
 				}
@@ -2075,7 +2078,7 @@ emit_expr :: proc(expr: ir.IR_Expr, buf: ^[dynamic]u8, env: ^Codegen_Env, runtim
 				emit_expr(arg, buf, env, runtime_indices)
 			}
 			emit_instruction(Wasm_I32_Const{value = 1}, buf)
-			emit_instruction(Wasm_Call{index = u32(runtime_indices[RUNTIME_EXIT])}, buf)
+			emit_instruction(Wasm_Call{index = u32(runtime_indices[Runtime_Func.Exit])}, buf)
 			emit_instruction(Wasm_Unreachable{}, buf)
 		}
 	case ^ir.IR_Resume:
@@ -2138,7 +2141,7 @@ emit_expr :: proc(expr: ir.IR_Expr, buf: ^[dynamic]u8, env: ^Codegen_Env, runtim
 		total_size := CAMP_TAG_HEADER_SIZE + num_fields * 8
 
 		emit_instruction(Wasm_I32_Const{value = i32(total_size)}, buf)
-		emit_instruction(Wasm_Call{index = u32(runtime_indices[RUNTIME_ALLOC])}, buf)
+		emit_instruction(Wasm_Call{index = u32(runtime_indices[Runtime_Func.Alloc])}, buf)
 
 		tmp_local_idx := env.tmp_local_base
 		emit_instruction(Wasm_Local_Set{index = tmp_local_idx}, buf)
@@ -2211,16 +2214,16 @@ emit_expr :: proc(expr: ir.IR_Expr, buf: ^[dynamic]u8, env: ^Codegen_Env, runtim
 	case ^ir.IR_Drop_Reuse:
 		if idx, ok := env.local_map[e.value]; ok {
 			emit_instruction(Wasm_Local_Get{index = idx}, buf)
-			emit_instruction(Wasm_Call{index = u32(runtime_indices[RUNTIME_DROP])}, buf)
+			emit_instruction(Wasm_Call{index = u32(runtime_indices[Runtime_Func.Drop])}, buf)
 		}
 	case ^ir.IR_Alloc_At:
 		emit_instruction(Wasm_I32_Const{value = 16}, buf)
-		emit_instruction(Wasm_Call{index = u32(runtime_indices[RUNTIME_ALLOC])}, buf)
+		emit_instruction(Wasm_Call{index = u32(runtime_indices[Runtime_Func.Alloc])}, buf)
 	case ^ir.IR_Crash:
 		emit_expr(e.message, buf, env, runtime_indices)
 		emit_instruction(Wasm_Drop{}, buf)
 		emit_instruction(Wasm_I32_Const{value = 1}, buf)
-		emit_instruction(Wasm_Call{index = u32(runtime_indices[RUNTIME_EXIT])}, buf)
+		emit_instruction(Wasm_Call{index = u32(runtime_indices[Runtime_Func.Exit])}, buf)
 	case ^ir.IR_I32_Load:
 		emit_expr(e.base, buf, env, runtime_indices)
 		emit_instruction(Wasm_I32_Const{value = i32(e.offset)}, buf)
@@ -2437,7 +2440,7 @@ emit_handler_into_evidence :: proc(buf: ^[dynamic]u8, env: ^Codegen_Env, ev_loca
 
 	// Allocate closure: size = CAMP_TAG_HEADER_SIZE(8) + 2*8 = 24
 	emit_instruction(Wasm_I32_Const{value = 24}, buf)
-	emit_instruction(Wasm_Call{index = u32(runtime_indices[RUNTIME_ALLOC])}, buf)
+	emit_instruction(Wasm_Call{index = u32(runtime_indices[Runtime_Func.Alloc])}, buf)
 
 	tmp := env.tmp_local_base + 3
 	emit_instruction(Wasm_Local_Tee{index = u32(tmp)}, buf)
@@ -2493,7 +2496,7 @@ emit_throw_handler_fn :: proc(env: ^Codegen_Env, runtime_indices: []int) -> (int
 
 	// Call camp_exit(1)
 	emit_instruction(Wasm_I32_Const{value = 1}, &buf)
-	emit_instruction(Wasm_Call{index = u32(runtime_indices[RUNTIME_EXIT])}, &buf)
+	emit_instruction(Wasm_Call{index = u32(runtime_indices[Runtime_Func.Exit])}, &buf)
 	emit_instruction(Wasm_Unreachable{}, &buf)
 	emit_instruction(Wasm_End{}, &buf)
 
@@ -2571,7 +2574,7 @@ emit_unhandled_effect_handler_fn :: proc(env: ^Codegen_Env, eff_name: string, ru
 
 	// Call camp_exit(1) — unhandled effect
 	emit_instruction(Wasm_I32_Const{value = 1}, &buf)
-	emit_instruction(Wasm_Call{index = u32(runtime_indices[RUNTIME_EXIT])}, &buf)
+	emit_instruction(Wasm_Call{index = u32(runtime_indices[Runtime_Func.Exit])}, &buf)
 	emit_instruction(Wasm_Unreachable{}, &buf)
 	emit_instruction(Wasm_End{}, &buf)
 
@@ -2582,18 +2585,10 @@ emit_unhandled_effect_handler_fn :: proc(env: ^Codegen_Env, eff_name: string, ru
 	return handler_fn_idx, code
 }
 
-hash_string :: proc(s: string) -> int {
-	h: int = 5381
-	for i := 0; i < len(s); i += 1 {
-		h = ((h << 5) + h) + int(s[i])
-	}
-	return h
-}
-
 resolve_call_idx :: proc(callee: base.Canonical_Name, env: ^Codegen_Env) -> int {
 	if callee.module != base.NO_NAME {
 		mangled := base.mangle_name(callee.module, callee.name, env.interner)
-		if idx, ok := env.func_map[hash_string(mangled)]; ok {
+		if idx, ok := env.func_map[base.hash_string(mangled)]; ok {
 			return idx
 		}
 	}

@@ -32,14 +32,6 @@ Pat_Result :: struct {
 	tpat:    TPattern,
 }
 
-tc_ir_type :: proc(store: ^Type_Store, var_id: base.Type_Var_ID) -> base.IR_Type {
-	return lower_type(store, var_id)
-}
-
-tc_eff_type :: proc(store: ^Type_Store, eff_var: base.Type_Var_ID) -> base.IR_Type {
-	return lower_effect_type(store, eff_var)
-}
-
 env_lookup :: proc(env: ^Type_Env, name: base.Intern_ID) -> (base.Type_Var_ID, bool) {
 	current := env
 	for current != nil {
@@ -252,8 +244,8 @@ typecheck_decl :: proc(decl: CDecl, env: ^Type_Env, store: ^Type_Store) -> TDecl
 
 		env.bindings[d.name.name] = result.var_id
 
-		type_ir := tc_ir_type(store, result.var_id)
-		eff_ir := tc_eff_type(store, result.effects)
+		type_ir := lower_type(store, result.var_id)
+		eff_ir := lower_effect_type(store, result.effects)
 		td := new(TDecl_Const)
 		td^ = TDecl_Const{
 			name = d.name,
@@ -291,8 +283,8 @@ typecheck_decl :: proc(decl: CDecl, env: ^Type_Env, store: ^Type_Store) -> TDecl
 				}
 				params_t[j] = TFunc_Param{
 					name = p.name,
-					type_ = tc_ir_type(store, param_types[j]),
-					eff_ = tc_eff_type(store, fresh_effect_row(store, p.span)),
+					type_ = lower_type(store, param_types[j]),
+					eff_ = lower_effect_type(store, fresh_effect_row(store, p.span)),
 					span = p.span,
 				}
 			}
@@ -310,8 +302,8 @@ typecheck_decl :: proc(decl: CDecl, env: ^Type_Env, store: ^Type_Store) -> TDecl
 				name = op.name,
 				is_effectful = op.is_effectful,
 				params = params_t,
-				return_type = tc_ir_type(store, ret_type),
-				return_effects = tc_eff_type(store, fresh_effect_row(store, op.span)),
+				return_type = lower_type(store, ret_type),
+				return_effects = lower_effect_type(store, fresh_effect_row(store, op.span)),
 				span = op.span,
 			}
 		}
@@ -353,8 +345,8 @@ typecheck_decl :: proc(decl: CDecl, env: ^Type_Env, store: ^Type_Store) -> TDecl
 			td.methods[i] = TTrait_Method{
 				name = m.name,
 				params = make([dynamic]TFunc_Param, len(m.params)),
-				return_type = tc_ir_type(store, fresh_value_var(store, m.span)),
-				effects = tc_eff_type(store, fresh_effect_row(store, m.span)),
+				return_type = lower_type(store, fresh_value_var(store, m.span)),
+				effects = lower_effect_type(store, fresh_effect_row(store, m.span)),
 				span = m.span,
 			}
 			for p, j in m.params {
@@ -362,15 +354,15 @@ typecheck_decl :: proc(decl: CDecl, env: ^Type_Env, store: ^Type_Store) -> TDecl
 					pv := convert_type_to_var(p.type_ann, store, env)
 					td.methods[i].params[j] = TFunc_Param{
 						name = p.name,
-						type_ = tc_ir_type(store, pv),
-						eff_ = tc_eff_type(store, fresh_effect_row(store, p.span)),
+						type_ = lower_type(store, pv),
+						eff_ = lower_effect_type(store, fresh_effect_row(store, p.span)),
 						span = p.span,
 					}
 				} else {
 					td.methods[i].params[j] = TFunc_Param{
 						name = p.name,
-						type_ = tc_ir_type(store, fresh_value_var(store, p.span)),
-						eff_ = tc_eff_type(store, fresh_effect_row(store, p.span)),
+						type_ = lower_type(store, fresh_value_var(store, p.span)),
+						eff_ = lower_effect_type(store, fresh_effect_row(store, p.span)),
 						span = p.span,
 					}
 				}
@@ -419,7 +411,7 @@ typecheck_decl :: proc(decl: CDecl, env: ^Type_Env, store: ^Type_Store) -> TDecl
 			type_params = d.type_params,
 			trait_conforms = d.trait_conforms,
 			inner_type = d.inner_type,
-			type_ = tc_ir_type(store, nt_var),
+			type_ = lower_type(store, nt_var),
 			derive_targets = d.derive_targets,
 			span = d.span,
 		}
@@ -535,7 +527,7 @@ typecheck_synth :: proc(expr: CExpr, env: ^Type_Env, store: ^Type_Store) -> Synt
 		store.literal_int_values[var_id] = i128(e.value)
 		eff := fresh_effect_row(store, e.span)
 		t := new(TExpr_Int)
-		t^ = TExpr_Int{value = e.value, type_ = tc_ir_type(store, var_id), eff_ = tc_eff_type(store, eff), span = e.span}
+		t^ = TExpr_Int{value = e.value, type_ = lower_type(store, var_id), eff_ = lower_effect_type(store, eff), span = e.span}
 		return Synth_Result{var_id = var_id, effects = eff, texpr = TExpr(t)}
 
 	case ^CExpr_Float:
@@ -544,7 +536,7 @@ typecheck_synth :: proc(expr: CExpr, env: ^Type_Env, store: ^Type_Store) -> Synt
 		store.literal_float_values[var_id] = e.value
 		eff := fresh_effect_row(store, e.span)
 		t := new(TExpr_Float)
-		t^ = TExpr_Float{value = e.value, type_ = tc_ir_type(store, var_id), eff_ = tc_eff_type(store, eff), span = e.span}
+		t^ = TExpr_Float{value = e.value, type_ = lower_type(store, var_id), eff_ = lower_effect_type(store, eff), span = e.span}
 		return Synth_Result{var_id = var_id, effects = eff, texpr = TExpr(t)}
 
 	case ^CExpr_String:
@@ -552,7 +544,7 @@ typecheck_synth :: proc(expr: CExpr, env: ^Type_Env, store: ^Type_Store) -> Synt
 		var_id := make_primitive_type(store, name, e.span)
 		eff := fresh_effect_row(store, e.span)
 		t := new(TExpr_String)
-		t^ = TExpr_String{value = e.value, type_ = tc_ir_type(store, var_id), eff_ = tc_eff_type(store, eff), span = e.span}
+		t^ = TExpr_String{value = e.value, type_ = lower_type(store, var_id), eff_ = lower_effect_type(store, eff), span = e.span}
 		return Synth_Result{var_id = var_id, effects = eff, texpr = TExpr(t)}
 
 	case ^CExpr_Bool:
@@ -560,7 +552,7 @@ typecheck_synth :: proc(expr: CExpr, env: ^Type_Env, store: ^Type_Store) -> Synt
 		var_id := make_primitive_type(store, name, e.span)
 		eff := fresh_effect_row(store, e.span)
 		t := new(TExpr_Bool)
-		t^ = TExpr_Bool{value = e.value, type_ = tc_ir_type(store, var_id), eff_ = tc_eff_type(store, eff), span = e.span}
+		t^ = TExpr_Bool{value = e.value, type_ = lower_type(store, var_id), eff_ = lower_effect_type(store, eff), span = e.span}
 		return Synth_Result{var_id = var_id, effects = eff, texpr = TExpr(t)}
 
 	case ^CExpr_Name:
@@ -568,7 +560,7 @@ typecheck_synth :: proc(expr: CExpr, env: ^Type_Env, store: ^Type_Store) -> Synt
 			inst := instantiate(store, existing)
 			eff := fresh_effect_row(store, e.span)
 			t := new(TExpr_Name)
-			t^ = TExpr_Name{name = e.name, type_ = tc_ir_type(store, inst), eff_ = tc_eff_type(store, eff), span = e.span}
+			t^ = TExpr_Name{name = e.name, type_ = lower_type(store, inst), eff_ = lower_effect_type(store, eff), span = e.span}
 			return Synth_Result{var_id = inst, effects = eff, texpr = TExpr(t)}
 		}
 		var_id := fresh_value_var(store, e.span)
@@ -578,7 +570,7 @@ typecheck_synth :: proc(expr: CExpr, env: ^Type_Env, store: ^Type_Store) -> Synt
 		diagnostics.collector_add_diag(store.collector, diagnostics.diag_undefined_name(name_str, similar[:], e.span))
 		eff := fresh_effect_row(store, e.span)
 		t := new(TExpr_Name)
-		t^ = TExpr_Name{name = e.name, type_ = tc_ir_type(store, var_id), eff_ = tc_eff_type(store, eff), span = e.span}
+		t^ = TExpr_Name{name = e.name, type_ = lower_type(store, var_id), eff_ = lower_effect_type(store, eff), span = e.span}
 		return Synth_Result{var_id = var_id, effects = eff, texpr = TExpr(t)}
 
 	case ^CExpr_Lambda:
@@ -648,19 +640,19 @@ typecheck_synth :: proc(expr: CExpr, env: ^Type_Env, store: ^Type_Store) -> Synt
 			check_shadow(env, target.name.name, store, e.span)
 			env.bindings[target.name.name] = result.var_id
 			t_name := new(TExpr_Name)
-			t_name^ = TExpr_Name{name = target.name, type_ = tc_ir_type(store, result.var_id), eff_ = tc_eff_type(store, result.effects), span = target.span}
+			t_name^ = TExpr_Name{name = target.name, type_ = lower_type(store, result.var_id), eff_ = lower_effect_type(store, result.effects), span = target.span}
 			target_t = TExpr(t_name)
 		case:
 			target_t = typecheck_synth(e.target, env, store).texpr
 		}
 		t := new(TExpr_Assign)
-		t^ = TExpr_Assign{target = target_t, value = result.texpr, type_ = tc_ir_type(store, result.var_id), eff_ = tc_eff_type(store, result.effects), span = e.span}
+		t^ = TExpr_Assign{target = target_t, value = result.texpr, type_ = lower_type(store, result.var_id), eff_ = lower_effect_type(store, result.effects), span = e.span}
 		return Synth_Result{var_id = result.var_id, effects = result.effects, texpr = TExpr(t)}
 
 	case ^CExpr_Return:
 		result := typecheck_synth(e.value, env, store)
 		t := new(TExpr_Return)
-		t^ = TExpr_Return{value = result.texpr, type_ = tc_ir_type(store, result.var_id), eff_ = tc_eff_type(store, result.effects), span = e.span}
+		t^ = TExpr_Return{value = result.texpr, type_ = lower_type(store, result.var_id), eff_ = lower_effect_type(store, result.effects), span = e.span}
 		return Synth_Result{var_id = result.var_id, effects = result.effects, texpr = TExpr(t)}
 
 	case ^CExpr_Crash:
@@ -668,7 +660,7 @@ typecheck_synth :: proc(expr: CExpr, env: ^Type_Env, store: ^Type_Store) -> Synt
 		eff := fresh_effect_row(store, e.span)
 		msg_result := typecheck_synth(e.message, env, store)
 		t := new(TExpr_Crash)
-		t^ = TExpr_Crash{message = msg_result.texpr, type_ = tc_ir_type(store, var_id), eff_ = tc_eff_type(store, eff), span = e.span}
+		t^ = TExpr_Crash{message = msg_result.texpr, type_ = lower_type(store, var_id), eff_ = lower_effect_type(store, eff), span = e.span}
 		return Synth_Result{var_id = var_id, effects = eff, texpr = TExpr(t)}
 
 	case ^CExpr_Interpolated_String:
@@ -684,8 +676,8 @@ typecheck_synth :: proc(expr: CExpr, env: ^Type_Env, store: ^Type_Store) -> Synt
 				clit := new(TExpr_String_Literal)
 				clit^ = TExpr_String_Literal{
 					value = p.value,
-					type_ = tc_ir_type(store, str_var),
-					eff_ = tc_eff_type(store, eff),
+					type_ = lower_type(store, str_var),
+					eff_ = lower_effect_type(store, eff),
 					span = p.span,
 				}
 				append(&parts_t, TExpr_String_Part(clit))
@@ -738,8 +730,8 @@ typecheck_synth :: proc(expr: CExpr, env: ^Type_Env, store: ^Type_Store) -> Synt
 			parts = parts_t,
 			is_raw = e.is_raw,
 			is_multiline = e.is_multiline,
-			type_ = tc_ir_type(store, str_var),
-			eff_ = tc_eff_type(store, eff),
+			type_ = lower_type(store, str_var),
+			eff_ = lower_effect_type(store, eff),
 			span = e.span,
 		}
 		return Synth_Result{var_id = str_var, effects = eff, texpr = TExpr(t)}
@@ -838,8 +830,8 @@ typecheck_synth :: proc(expr: CExpr, env: ^Type_Env, store: ^Type_Store) -> Synt
 			is_shallow = e.is_shallow,
 			body = body_result.texpr,
 			arms = arms_t,
-			type_ = tc_ir_type(store, body_result.var_id),
-			eff_ = tc_eff_type(store, result_effects),
+			type_ = lower_type(store, body_result.var_id),
+			eff_ = lower_effect_type(store, result_effects),
 			span = e.span,
 		}
 		return Synth_Result{var_id = body_result.var_id, effects = result_effects, texpr = TExpr(t)}
@@ -854,7 +846,7 @@ typecheck_synth :: proc(expr: CExpr, env: ^Type_Env, store: ^Type_Store) -> Synt
 			args_t[i] = arg_result.texpr
 		}
 		t := new(TExpr_Perform)
-		t^ = TExpr_Perform{effect = e.effect, op = e.op, args = args_t, type_ = tc_ir_type(store, var_id), eff_ = tc_eff_type(store, effects), span = e.span}
+		t^ = TExpr_Perform{effect = e.effect, op = e.op, args = args_t, type_ = lower_type(store, var_id), eff_ = lower_effect_type(store, effects), span = e.span}
 		return Synth_Result{var_id = var_id, effects = effects, texpr = TExpr(t)}
 
 	case ^CExpr_Par:
@@ -874,8 +866,8 @@ typecheck_synth :: proc(expr: CExpr, env: ^Type_Env, store: ^Type_Store) -> Synt
 				for_var = e.for_var,
 				for_iter = iter_result.texpr,
 				for_body = body_result.texpr,
-				type_ = tc_ir_type(store, var_id),
-				eff_ = tc_eff_type(store, eff),
+				type_ = lower_type(store, var_id),
+				eff_ = lower_effect_type(store, eff),
 				span = e.span,
 			}
 			return Synth_Result{var_id = var_id, effects = eff, texpr = TExpr(t)}
@@ -893,8 +885,8 @@ typecheck_synth :: proc(expr: CExpr, env: ^Type_Env, store: ^Type_Store) -> Synt
 		t := new(TExpr_Par)
 		t^ = TExpr_Par{
 			expressions = exprs,
-			type_ = tc_ir_type(store, var_id),
-			eff_ = tc_eff_type(store, eff),
+			type_ = lower_type(store, var_id),
+			eff_ = lower_effect_type(store, eff),
 			span = e.span,
 		}
 		return Synth_Result{var_id = var_id, effects = eff, texpr = TExpr(t)}
@@ -929,7 +921,7 @@ typecheck_synth :: proc(expr: CExpr, env: ^Type_Env, store: ^Type_Store) -> Synt
 	var_id := fresh_value_var(store, base.Source_Span_ZERO)
 	eff := fresh_effect_row(store, base.Source_Span_ZERO)
 	t := new(TExpr_Int)
-	t^ = TExpr_Int{type_ = tc_ir_type(store, var_id), eff_ = tc_eff_type(store, eff), span = base.Source_Span_ZERO}
+	t^ = TExpr_Int{type_ = lower_type(store, var_id), eff_ = lower_effect_type(store, eff), span = base.Source_Span_ZERO}
 	return Synth_Result{var_id = var_id, effects = eff, texpr = TExpr(t)}
 }
 
@@ -988,8 +980,8 @@ typecheck_lambda :: proc(e: ^CExpr_Lambda, env: ^Type_Env, store: ^Type_Store) -
 		param_ids[i] = param_var
 		params_t[i] = TFunc_Param{
 			name = param.name,
-			type_ = tc_ir_type(store, param_var),
-			eff_ = tc_eff_type(store, fresh_effect_row(store, param.span)),
+			type_ = lower_type(store, param_var),
+			eff_ = lower_effect_type(store, fresh_effect_row(store, param.span)),
 			span = param.span,
 		}
 	}
@@ -1025,11 +1017,11 @@ typecheck_lambda :: proc(e: ^CExpr_Lambda, env: ^Type_Env, store: ^Type_Store) -
 	t^ = TExpr_Lambda{
 		type_params = e.type_params,
 		params = params_t,
-		return_type = tc_ir_type(store, return_id),
-		effects = tc_eff_type(store, effect_id),
+		return_type = lower_type(store, return_id),
+		effects = lower_effect_type(store, effect_id),
 		body = body_result.texpr,
-		type_ = tc_ir_type(store, fn_var),
-		eff_ = tc_eff_type(store, outer_eff),
+		type_ = lower_type(store, fn_var),
+		eff_ = lower_effect_type(store, outer_eff),
 		span = e.span,
 	}
 	return Synth_Result{var_id = fn_var, effects = outer_eff, texpr = TExpr(t)}
@@ -1068,8 +1060,8 @@ typecheck_call :: proc(e: ^CExpr_Call, env: ^Type_Env, store: ^Type_Store) -> Sy
 	t^ = TExpr_Call{
 		callee = callee_result.texpr,
 		args = args_t,
-		type_ = tc_ir_type(store, return_var),
-		eff_ = tc_eff_type(store, eff),
+		type_ = lower_type(store, return_var),
+		eff_ = lower_effect_type(store, eff),
 		span = e.span,
 	}
 	return Synth_Result{var_id = return_var, effects = eff, texpr = TExpr(t)}
@@ -1096,8 +1088,8 @@ typecheck_if :: proc(e: ^CExpr_If, env: ^Type_Env, store: ^Type_Store) -> Synth_
 		condition = cond_result.texpr,
 		then_branch = then_result.texpr,
 		else_branch = else_result.texpr,
-		type_ = tc_ir_type(store, then_result.var_id),
-		eff_ = tc_eff_type(store, effect_row),
+		type_ = lower_type(store, then_result.var_id),
+		eff_ = lower_effect_type(store, effect_row),
 		span = e.span,
 	}
 	return Synth_Result{var_id = then_result.var_id, effects = effect_row, texpr = TExpr(t)}
@@ -1110,8 +1102,8 @@ typecheck_block :: proc(e: ^CExpr_Block, env: ^Type_Env, store: ^Type_Store) -> 
 		eff := fresh_effect_row(store, e.span)
 		t := new(TExpr_Block)
 		t^ = TExpr_Block{
-			type_ = tc_ir_type(store, var_id),
-			eff_ = tc_eff_type(store, eff),
+			type_ = lower_type(store, var_id),
+			eff_ = lower_effect_type(store, eff),
 			span = e.span,
 		}
 		return Synth_Result{var_id = var_id, effects = eff, texpr = TExpr(t)}
@@ -1128,8 +1120,8 @@ typecheck_block :: proc(e: ^CExpr_Block, env: ^Type_Env, store: ^Type_Store) -> 
 	t := new(TExpr_Block)
 	t^ = TExpr_Block{
 		statements = stmts_t,
-		type_ = tc_ir_type(store, last_result.var_id),
-		eff_ = tc_eff_type(store, effect_row),
+		type_ = lower_type(store, last_result.var_id),
+		eff_ = lower_effect_type(store, effect_row),
 		span = e.span,
 	}
 	return Synth_Result{var_id = last_result.var_id, effects = effect_row, texpr = TExpr(t)}
@@ -1170,8 +1162,8 @@ typecheck_binop :: proc(e: ^CExpr_BinOp, env: ^Type_Env, store: ^Type_Store) -> 
 		op = e.op,
 		left = left_result.texpr,
 		right = right_result.texpr,
-		type_ = tc_ir_type(store, result_var),
-		eff_ = tc_eff_type(store, eff),
+		type_ = lower_type(store, result_var),
+		eff_ = lower_effect_type(store, eff),
 		span = e.span,
 	}
 	return Synth_Result{var_id = result_var, effects = eff, texpr = TExpr(t)}
@@ -1201,8 +1193,8 @@ typecheck_prefixop :: proc(e: ^CExpr_PrefixOp, env: ^Type_Env, store: ^Type_Stor
 	t^ = TExpr_PrefixOp{
 		op = e.op,
 		operand = operand_result.texpr,
-		type_ = tc_ir_type(store, result_var),
-		eff_ = tc_eff_type(store, result_eff),
+		type_ = lower_type(store, result_var),
+		eff_ = lower_effect_type(store, result_eff),
 		span = e.span,
 	}
 	return Synth_Result{var_id = result_var, effects = result_eff, texpr = TExpr(t)}
@@ -1226,8 +1218,8 @@ typecheck_tag :: proc(e: ^CExpr_Tag, env: ^Type_Env, store: ^Type_Store) -> Synt
 			t^ = TExpr_Tag{
 				name = e.name,
 				payload = payload_t,
-				type_ = tc_ir_type(store, inst),
-				eff_ = tc_eff_type(store, eff),
+				type_ = lower_type(store, inst),
+				eff_ = lower_effect_type(store, eff),
 				span = e.span,
 			}
 			return Synth_Result{var_id = inst, effects = eff, texpr = TExpr(t)}
@@ -1277,8 +1269,8 @@ typecheck_tag :: proc(e: ^CExpr_Tag, env: ^Type_Env, store: ^Type_Store) -> Synt
 	t^ = TExpr_Tag{
 		name = e.name,
 		payload = payload_t,
-		type_ = tc_ir_type(store, tag_var),
-		eff_ = tc_eff_type(store, eff),
+		type_ = lower_type(store, tag_var),
+		eff_ = lower_effect_type(store, eff),
 		span = e.span,
 	}
 	return Synth_Result{var_id = tag_var, effects = eff, texpr = TExpr(t)}
@@ -1339,8 +1331,8 @@ typecheck_record :: proc(e: ^CExpr_Record, env: ^Type_Env, store: ^Type_Store) -
 		fields = fields_t,
 		rest = rest_t,
 		is_open = e.is_open,
-		type_ = tc_ir_type(store, var_id),
-		eff_ = tc_eff_type(store, eff),
+		type_ = lower_type(store, var_id),
+		eff_ = lower_effect_type(store, eff),
 		span = e.span,
 	}
 	return Synth_Result{var_id = var_id, effects = eff, texpr = TExpr(t)}
@@ -1363,8 +1355,8 @@ typecheck_field_access :: proc(e: ^CExpr_Field_Access, env: ^Type_Env, store: ^T
 	t^ = TExpr_Field_Access{
 		record = record_result.texpr,
 		field = e.field,
-		type_ = tc_ir_type(store, field_var),
-		eff_ = tc_eff_type(store, record_result.effects),
+		type_ = lower_type(store, field_var),
+		eff_ = lower_effect_type(store, record_result.effects),
 		span = e.span,
 	}
 	return Synth_Result{var_id = field_var, effects = record_result.effects, texpr = TExpr(t)}
@@ -1557,8 +1549,8 @@ typecheck_match :: proc(e: ^CExpr_Match, env: ^Type_Env, store: ^Type_Store) -> 
 		t^ = TExpr_Match{
 			scrutinee = scrutinee_result.texpr,
 			arms = arms_t,
-			type_ = tc_ir_type(store, var_id),
-			eff_ = tc_eff_type(store, eff),
+			type_ = lower_type(store, var_id),
+			eff_ = lower_effect_type(store, eff),
 			span = e.span,
 		}
 		return Synth_Result{var_id = var_id, effects = eff, texpr = TExpr(t)}
@@ -1697,8 +1689,8 @@ typecheck_match :: proc(e: ^CExpr_Match, env: ^Type_Env, store: ^Type_Store) -> 
 	t^ = TExpr_Match{
 		scrutinee = scrutinee_result.texpr,
 		arms = arms_t,
-		type_ = tc_ir_type(store, result_var),
-		eff_ = tc_eff_type(store, effect_row),
+		type_ = lower_type(store, result_var),
+		eff_ = lower_effect_type(store, effect_row),
 		span = e.span,
 	}
 	return Synth_Result{var_id = result_var, effects = effect_row, texpr = TExpr(t)}
@@ -1720,8 +1712,8 @@ typecheck_list :: proc(e: ^CExpr_List, env: ^Type_Env, store: ^Type_Store) -> Sy
 	t := new(TExpr_List)
 	t^ = TExpr_List{
 		elements = elements_t,
-		type_ = tc_ir_type(store, var_id),
-		eff_ = tc_eff_type(store, eff),
+		type_ = lower_type(store, var_id),
+		eff_ = lower_effect_type(store, eff),
 		span = e.span,
 	}
 	return Synth_Result{var_id = var_id, effects = eff, texpr = TExpr(t)}
@@ -1743,8 +1735,8 @@ typecheck_record_update :: proc(e: ^CExpr_Record_Update, env: ^Type_Env, store: 
 	t^ = TExpr_Record_Update{
 		rest = rest_result.texpr,
 		updates = updates_t,
-		type_ = tc_ir_type(store, rest_result.var_id),
-		eff_ = tc_eff_type(store, eff),
+		type_ = lower_type(store, rest_result.var_id),
+		eff_ = lower_effect_type(store, eff),
 		span = e.span,
 	}
 	return Synth_Result{var_id = rest_result.var_id, effects = eff, texpr = TExpr(t)}
@@ -1767,8 +1759,8 @@ typecheck_method_call :: proc(e: ^CExpr_Method_Call, env: ^Type_Env, store: ^Typ
 				receiver = receiver_result.texpr,
 				method = e.method,
 				args = args_t,
-				type_ = tc_ir_type(store, inf.inner_id),
-				eff_ = tc_eff_type(store, receiver_result.effects),
+				type_ = lower_type(store, inf.inner_id),
+				eff_ = lower_effect_type(store, receiver_result.effects),
 				resolved_ = e.method,
 				span = e.span,
 			}
@@ -1843,8 +1835,8 @@ typecheck_method_call :: proc(e: ^CExpr_Method_Call, env: ^Type_Env, store: ^Typ
 					receiver = receiver_result.texpr,
 					method = e.method,
 					args = args_t,
-					type_ = tc_ir_type(store, handle_var),
-					eff_ = tc_eff_type(store, eff),
+					type_ = lower_type(store, handle_var),
+					eff_ = lower_effect_type(store, eff),
 					resolved_ = e.method,
 					span = e.span,
 				}
@@ -1864,8 +1856,8 @@ typecheck_method_call :: proc(e: ^CExpr_Method_Call, env: ^Type_Env, store: ^Typ
 				receiver = receiver_result.texpr,
 				method = e.method,
 				args = args_t,
-				type_ = tc_ir_type(store, handle_var),
-				eff_ = tc_eff_type(store, eff),
+				type_ = lower_type(store, handle_var),
+				eff_ = lower_effect_type(store, eff),
 				resolved_ = e.method,
 				span = e.span,
 			}
@@ -1885,8 +1877,8 @@ typecheck_method_call :: proc(e: ^CExpr_Method_Call, env: ^Type_Env, store: ^Typ
 					receiver = receiver_result.texpr,
 					method = e.method,
 					args = args_t,
-					type_ = tc_ir_type(store, inf.inner_id),
-					eff_ = tc_eff_type(store, eff),
+					type_ = lower_type(store, inf.inner_id),
+					eff_ = lower_effect_type(store, eff),
 					resolved_ = e.method,
 					span = e.span,
 				}
@@ -1898,8 +1890,8 @@ typecheck_method_call :: proc(e: ^CExpr_Method_Call, env: ^Type_Env, store: ^Typ
 				receiver = receiver_result.texpr,
 				method = e.method,
 				args = args_t,
-				type_ = tc_ir_type(store, return_var),
-				eff_ = tc_eff_type(store, eff),
+				type_ = lower_type(store, return_var),
+				eff_ = lower_effect_type(store, eff),
 				resolved_ = e.method,
 				span = e.span,
 			}
@@ -1952,8 +1944,8 @@ typecheck_method_call :: proc(e: ^CExpr_Method_Call, env: ^Type_Env, store: ^Typ
 				receiver = receiver_result.texpr,
 				method = e.method,
 				args = args_t,
-				type_ = tc_ir_type(store, result_var),
-				eff_ = tc_eff_type(store, eff),
+				type_ = lower_type(store, result_var),
+				eff_ = lower_effect_type(store, eff),
 				resolved_ = e.method,
 				span = e.span,
 			}
@@ -1981,8 +1973,8 @@ typecheck_method_call :: proc(e: ^CExpr_Method_Call, env: ^Type_Env, store: ^Typ
 		receiver = receiver_result.texpr,
 		method = e.method,
 		args = args_t,
-		type_ = tc_ir_type(store, return_var),
-		eff_ = tc_eff_type(store, eff),
+		type_ = lower_type(store, return_var),
+		eff_ = lower_effect_type(store, eff),
 		resolved_ = e.method,
 		span = e.span,
 	}
@@ -2006,8 +1998,8 @@ typecheck_qualified_tag_construct :: proc(receiver: ^CExpr_Tag, e: ^CExpr_Method
 			receiver = TExpr(new(TExpr_Tag)),
 			method = e.method,
 			args = args_t,
-			type_ = tc_ir_type(store, return_var),
-			eff_ = tc_eff_type(store, eff),
+			type_ = lower_type(store, return_var),
+			eff_ = lower_effect_type(store, eff),
 			resolved_ = e.method,
 			span = e.span,
 		}
@@ -2041,8 +2033,8 @@ typecheck_qualified_tag_construct :: proc(receiver: ^CExpr_Tag, e: ^CExpr_Method
 			receiver = TExpr(new(TExpr_Tag)),
 			method = e.method,
 			args = args_t,
-			type_ = tc_ir_type(store, return_var),
-			eff_ = tc_eff_type(store, eff),
+			type_ = lower_type(store, return_var),
+			eff_ = lower_effect_type(store, eff),
 			resolved_ = e.method,
 			span = e.span,
 		}
@@ -2074,8 +2066,8 @@ typecheck_qualified_tag_construct :: proc(receiver: ^CExpr_Tag, e: ^CExpr_Method
 						receiver = TExpr(new(TExpr_Tag)),
 						method = e.method,
 						args = args_t,
-						type_ = tc_ir_type(store, inst_binding),
-						eff_ = tc_eff_type(store, eff),
+						type_ = lower_type(store, inst_binding),
+						eff_ = lower_effect_type(store, eff),
 						resolved_ = e.method,
 						span = e.span,
 					}
@@ -2096,8 +2088,8 @@ typecheck_qualified_tag_construct :: proc(receiver: ^CExpr_Tag, e: ^CExpr_Method
 		receiver = TExpr(new(TExpr_Tag)),
 		method = e.method,
 		args = args_t,
-		type_ = tc_ir_type(store, inst_binding),
-		eff_ = tc_eff_type(store, eff),
+		type_ = lower_type(store, inst_binding),
+		eff_ = lower_effect_type(store, eff),
 		resolved_ = e.method,
 		span = e.span,
 	}
@@ -2612,8 +2604,8 @@ typecheck_newtype_construct :: proc(e: ^CExpr_Tag, env: ^Type_Env, store: ^Type_
 		t^ = TExpr_Tag{
 			name = e.name,
 			payload = payload_t,
-			type_ = tc_ir_type(store, var_id),
-			eff_ = tc_eff_type(store, eff),
+			type_ = lower_type(store, var_id),
+			eff_ = lower_effect_type(store, eff),
 			span = e.span,
 		}
 		return Synth_Result{var_id = var_id, effects = eff, texpr = TExpr(t)}
@@ -2674,8 +2666,8 @@ typecheck_newtype_construct :: proc(e: ^CExpr_Tag, env: ^Type_Env, store: ^Type_
 	t^ = TExpr_Tag{
 		name = e.name,
 		payload = payload_t,
-		type_ = tc_ir_type(store, inst_binding),
-		eff_ = tc_eff_type(store, eff),
+		type_ = lower_type(store, inst_binding),
+		eff_ = lower_effect_type(store, eff),
 		span = e.span,
 	}
 	return Synth_Result{var_id = inst_binding, effects = eff, texpr = TExpr(t)}

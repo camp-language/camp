@@ -36,6 +36,14 @@ intern_get :: proc(table: ^Intern_Table, id: Intern_ID) -> string {
 	return table.ids[int(id)]
 }
 
+hash_string :: proc(s: string) -> int {
+	h: int = 5381
+	for i := 0; i < len(s); i += 1 {
+		h = ((h << 5) + h) + int(s[i])
+	}
+	return h
+}
+
 mangle_name :: proc(module: Intern_ID, name: Intern_ID, interner: ^Intern_Table) -> string {
 	module_str := intern_get(interner, module)
 	name_str := intern_get(interner, name)

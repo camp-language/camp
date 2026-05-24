@@ -4,6 +4,8 @@ import "camp:base"
 
 import "core:fmt"
 
+EXPECTED_GOT_FMT :: "expected {}, got {}"
+
 diag_init :: proc(category: Diagnostic_Category, title: string, span: base.Source_Span, message: string) -> Diagnostic {
 	d: Diagnostic
 	d.category = category
@@ -262,7 +264,7 @@ diag_missing_trait_method :: proc(type_name: string, trait_name: string, method_
 diag_trait_method_signature_mismatch :: proc(type_name: string, trait_name: string, method_name: string, expected_sig: string, actual_sig: string, span: base.Source_Span) -> Diagnostic {
 	d := diag_init(.Error, "TRAIT METHOD SIGNATURE MISMATCH", span,
 		fmt.tprintf("`{}`'s `{}` method has wrong signature for trait `{}`.", type_name, method_name, trait_name))
-	append(&d.labels, Span_Label{span = span, label = fmt.tprintf("expected `{}`, got `{}`", expected_sig, actual_sig)})
+	append(&d.labels, Span_Label{span = span, label = fmt.tprintf(EXPECTED_GOT_FMT, expected_sig, actual_sig)})
 	return d
 }
 
