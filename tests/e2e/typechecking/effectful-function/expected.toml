@@ -1,13 +1,7 @@
 stdout = """
 canonicalized /tmp/camp-e2e/typechecking/effectful-function/src/Main.camp: 1 declaration(s), 0 import(s)
 typecheck passed for /tmp/camp-e2e/typechecking/effectful-function/src/Main.camp
--- UNUSED BINDING --- /tmp/camp-e2e/typechecking/effectful-function/src/Main.camp
-
-Binding `name` is never used. 
-   1 | greet! = |name| -> -[IO]-> String { name }
-                                           ^^^^
-  Prefix with `_` to mark as intentionally unused: `_name
-compilation failed with 1 error(s)
+compiled /tmp/camp-e2e/typechecking/effectful-function/src/Main.camp -> /tmp/camp-e2e/typechecking/effectful-function/src/Main.wasm
 """
 stderr = ""
-exit = 1
+exit = 0

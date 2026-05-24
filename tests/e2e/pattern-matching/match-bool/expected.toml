@@ -7,3 +7,4 @@ stderr = ""
 exit = 0
 wasm_exit = 1
 wasm_stdout = ""
+wasm_stderr = ""

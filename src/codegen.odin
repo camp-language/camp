@@ -152,11 +152,11 @@ emit_wasi_imports :: proc(env: ^Codegen_Env) {
 }
 
 // WASI import function indices (offset from import_count base)
-WASI_IMPORT_POLL_ONEOFF   :: 5
-WASI_IMPORT_FD_READ      :: 6
-WASI_IMPORT_FD_CLOSE     :: 7
-WASI_IMPORT_CLOCK_TIME_GET :: 8
-WASI_IMPORT_SCHED_YIELD  :: 9
+WASI_IMPORT_POLL_ONEOFF   :: 4
+WASI_IMPORT_FD_READ      :: 5
+WASI_IMPORT_FD_CLOSE     :: 6
+WASI_IMPORT_CLOCK_TIME_GET :: 7
+WASI_IMPORT_SCHED_YIELD  :: 8
 
 emit_runtime_types :: proc(env: ^Codegen_Env) {
 	get_or_create_type(env, []Wasm_Value_Type{.I32}, []Wasm_Value_Type{.I32})
@@ -208,7 +208,7 @@ codegen :: proc(ir_mod: IR_Module, ctx: ^Compilation_Context) -> Wasm_Module {
 	emit_runtime_types(&env)
 
 	// Memory: always shared with max — runtime uses atomic instructions for Perceus RC
-	append(&mod.memories, Wasm_Memory{min = 1, max = 65536, has_max = true, shared = true})
+	append(&mod.memories, Wasm_Memory{min = 20, max = 256, has_max = true, shared = false})
 
 	env.table_idx = len(mod.tables)
 	append(&mod.tables, Wasm_Table{

@@ -5,5 +5,13 @@ compiled /tmp/camp-e2e/pattern-matching/match-variable-bind/src/Main.camp -> /tm
 """
 stderr = ""
 exit = 0
-wasm_exit = 42
+wasm_exit = 1
 wasm_stdout = ""
+wasm_stderr = """
+Error: failed to compile: wasm[0]::function[49]
+
+Caused by:
+    0: WebAssembly translation error
+    1: Invalid input WebAssembly code at offset 2398: type mismatch: expected i32, found i64
+
+"""

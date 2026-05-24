@@ -246,6 +246,18 @@ source_text_analysis :: proc(source: string, tokens: []Token, info: ^Format_Sour
 			info.blank_line_after[tok.span.start] = true
 		}
 	}
+
+	// Find backslash line continuations
+	for i := 0; i < len(tokens) - 1; i += 1 {
+		tok := tokens[i]
+		next := tokens[i + 1]
+		if tok.kind == .Eof || next.kind == .Eof do continue
+
+		gap := source[tok.span.end:next.span.start]
+		if has_backslash_in_gap(gap) {
+			info.has_backslash[tok.span.start] = true
+		}
+	}
 }
 
 destroy_format_source_info :: proc(info: ^Format_Source_Info) {
@@ -272,6 +284,25 @@ has_blank_line_in_gap :: proc(gap: string) -> bool {
 				return true
 			}
 		}
+	}
+	return false
+}
+
+has_backslash_in_gap :: proc(gap: string) -> bool {
+	i := 0
+	for i < len(gap) {
+		if gap[i] == '\\' {
+			j := i + 1
+			for j < len(gap) && (gap[j] == ' ' || gap[j] == '\t') {
+				j += 1
+			}
+			if j < len(gap) && gap[j] == '\n' {
+				return true
+			}
+		} else if gap[i] == '\n' {
+			return false
+		}
+		i += 1
 	}
 	return false
 }

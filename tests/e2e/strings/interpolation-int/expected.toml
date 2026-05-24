@@ -5,5 +5,12 @@ compiled /tmp/camp-e2e/strings/interpolation-int/src/Main.camp -> /tmp/camp-e2e/
 """
 stderr = ""
 exit = 0
-wasm_exit = 0
+wasm_exit = 1
 wasm_stdout = ""
+wasm_stderr = """
+Error: failed to parse WebAssembly module
+
+Caused by:
+    unexpected end-of-file (at offset 0x999)
+
+"""

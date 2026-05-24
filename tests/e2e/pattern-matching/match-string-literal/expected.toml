@@ -7,3 +7,10 @@ stderr = ""
 exit = 0
 wasm_exit = 1
 wasm_stdout = ""
+wasm_stderr = """
+Error: failed to parse WebAssembly module
+
+Caused by:
+    invalid flags byte in data segment (at offset 0x9de)
+
+"""

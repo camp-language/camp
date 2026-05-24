@@ -7,3 +7,11 @@ stderr = ""
 exit = 0
 wasm_exit = 1
 wasm_stdout = ""
+wasm_stderr = """
+Error: failed to compile: wasm[0]::function[49]
+
+Caused by:
+    0: WebAssembly translation error
+    1: Invalid input WebAssembly code at offset 2507: type mismatch: expected i64, found i32
+
+"""

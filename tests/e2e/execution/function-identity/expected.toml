@@ -1,13 +1,7 @@
 stdout = """
 canonicalized /tmp/camp-e2e/execution/function-identity/src/Main.camp: 2 declaration(s), 0 import(s)
 typecheck passed for /tmp/camp-e2e/execution/function-identity/src/Main.camp
--- UNUSED BINDING --- /tmp/camp-e2e/execution/function-identity/src/Main.camp
-
-Binding `x` is never used. 
-   2 |     x
-           ^
-  Prefix with `_` to mark as intentionally unused: `_x
-compilation failed with 1 error(s)
+compiled /tmp/camp-e2e/execution/function-identity/src/Main.camp -> /tmp/camp-e2e/execution/function-identity/src/Main.wasm
 """
 stderr = ""
-exit = 1
+exit = 0

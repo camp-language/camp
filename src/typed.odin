@@ -26,6 +26,7 @@ TExpr :: union {
 	^TExpr_Handle,
 	^TExpr_Perform,
 	^TExpr_For,
+	^TExpr_Par,
 }
 
 TExpr_Int :: struct {
@@ -338,6 +339,16 @@ TExpr_For :: struct {
 	type_:    IR_Type,
 	eff_:     IR_Type,
 	span:     Source_Span,
+}
+
+TExpr_Par :: struct {
+	expressions: [dynamic]TExpr,
+	for_var:     Intern_ID,
+	for_iter:    TExpr,
+	for_body:    TExpr,
+	type_:       IR_Type,
+	eff_:        IR_Type,
+	span:        Source_Span,
 }
 
 THandler_Arm :: struct {

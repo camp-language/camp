@@ -119,6 +119,12 @@ unify_inferred :: proc(store: ^Type_Store, a: Inferred_Type, b: Inferred_Type, a
 	}
 
 	if a.tag == .Primitive && a.primitive_name != b.primitive_name {
+		if try_narrow_literal(store, a, b, a_id, b_id) {
+			return true
+		}
+		if try_narrow_literal(store, b, a, b_id, a_id) {
+			return true
+		}
 		name_a := intern_get(store.interner, a.primitive_name)
 		name_b := intern_get(store.interner, b.primitive_name)
 		va := get_var(store, resolve_var(store, a_id))
@@ -613,5 +619,25 @@ is_rec_var_reachable :: proc(store: ^Type_Store, var_id: Type_Var_ID) -> bool {
 			return true
 		}
 	}
+	return false
+}
+
+try_narrow_literal :: proc(store: ^Type_Store, lit_inf: Inferred_Type, target_inf: Inferred_Type, lit_id: Type_Var_ID, target_id: Type_Var_ID) -> bool {
+	target_name_str := intern_get(store.interner, target_inf.primitive_name)
+
+	if int_val, ok := store.literal_int_values[lit_id]; ok {
+		if is_int_primitive_name(store, target_inf.primitive_name) && int_fits_type(int_val, target_name_str) {
+			link_var(store, lit_id, target_id)
+			return true
+		}
+	}
+
+	if float_val, ok := store.literal_float_values[lit_id]; ok {
+		if is_float_primitive_name(store, target_inf.primitive_name) && float_fits_type(float_val, target_name_str) {
+			link_var(store, lit_id, target_id)
+			return true
+		}
+	}
+
 	return false
 }

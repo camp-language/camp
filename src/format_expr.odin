@@ -603,6 +603,15 @@ format_update_fields_multiline :: proc(fields: []Record_Field, info: ^Format_Sou
 }
 
 format_expr_assign :: proc(e: ^Expr_Assign, info: ^Format_Source_Info, interner: ^Intern_Table) -> Doc {
+	if e.type_ann != nil {
+		return doc_concat([]Doc{
+			format_expr(e.target, info, interner),
+			doc_text(": "),
+			format_type(e.type_ann, info, interner),
+			doc_text(" = "),
+			format_expr(e.value, info, interner),
+		})
+	}
 	return doc_concat([]Doc{
 		format_expr(e.target, info, interner),
 		doc_text(" = "),
@@ -756,6 +765,10 @@ format_exprs_comma_multiline :: proc(parts: ^[dynamic]Doc, exprs: []Expr, info: 
 	append(&inner, doc_line())
 	for expr, i in exprs {
 		if i > 0 {
+			span_start := expr_span(expr, .Start)
+			if info.has_backslash[span_start] {
+				append(&inner, doc_backslash_break())
+			}
 			append(&inner, doc_line())
 		}
 		append(&inner, format_expr(expr, info, interner))

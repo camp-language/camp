@@ -115,20 +115,22 @@ Effect_Op_Sig :: struct {
 }
 
 Type_Store :: struct {
-	vars:             [dynamic]Type_Var,
-	next_id:          Type_Var_ID,
-	current_level:    int,
-	interner:         ^Intern_Table,
-	collector:        ^Diagnostic_Collector,
-	allocator:        mem.Allocator,
-	declared_effects: [dynamic]Intern_ID,
-	bindings:         map[Intern_ID]Type_Var_ID,
-	newtype_decls:    map[Intern_ID]Newtype_Decl_Info,
-	trait_registry:   map[Intern_ID]Trait_Info,
-	trait_impls:      [dynamic]Trait_Impl,
-	type_constraints:  map[Type_Var_ID][]Intern_ID,
-	rec_vars:         map[Type_Var_ID]bool,
-	effect_ops:       map[Intern_ID][]Effect_Op_Sig,
+	vars:               [dynamic]Type_Var,
+	next_id:            Type_Var_ID,
+	current_level:      int,
+	interner:           ^Intern_Table,
+	collector:          ^Diagnostic_Collector,
+	allocator:          mem.Allocator,
+	declared_effects:   [dynamic]Intern_ID,
+	bindings:           map[Intern_ID]Type_Var_ID,
+	newtype_decls:      map[Intern_ID]Newtype_Decl_Info,
+	trait_registry:     map[Intern_ID]Trait_Info,
+	trait_impls:        [dynamic]Trait_Impl,
+	type_constraints:    map[Type_Var_ID][]Intern_ID,
+	rec_vars:           map[Type_Var_ID]bool,
+	effect_ops:         map[Intern_ID][]Effect_Op_Sig,
+	literal_int_values:  map[Type_Var_ID]i128,
+	literal_float_values: map[Type_Var_ID]f64,
 }
 
 type_store_init :: proc(store: ^Type_Store, interner: ^Intern_Table, collector: ^Diagnostic_Collector, allocator: mem.Allocator = context.allocator) {
@@ -146,6 +148,8 @@ type_store_init :: proc(store: ^Type_Store, interner: ^Intern_Table, collector: 
 	store.type_constraints = make(map[Type_Var_ID][]Intern_ID, 32, allocator)
 	store.rec_vars = make(map[Type_Var_ID]bool, 4, allocator)
 	store.effect_ops = make(map[Intern_ID][]Effect_Op_Sig, 16, allocator)
+	store.literal_int_values = make(map[Type_Var_ID]i128, 16, allocator)
+	store.literal_float_values = make(map[Type_Var_ID]f64, 16, allocator)
 }
 
 type_store_destroy :: proc(store: ^Type_Store) {
@@ -199,6 +203,8 @@ type_store_destroy :: proc(store: ^Type_Store) {
 	delete(store.type_constraints)
 	delete(store.rec_vars)
 	delete(store.effect_ops)
+	delete(store.literal_int_values)
+	delete(store.literal_float_values)
 }
 
 fresh_var :: proc(store: ^Type_Store, kind: Type_Var_Kind, name: Intern_ID, span: Source_Span) -> Type_Var_ID {
@@ -369,16 +375,61 @@ is_numeric_primitive :: proc(store: ^Type_Store, var_id: Type_Var_ID) -> bool {
 	if inf, ok := resolved.link.(Inferred_Type); ok && inf.tag == .Primitive {
 		i64_name := intern(store.interner, "I64")
 		i32_name := intern(store.interner, "I32")
+		i16_name := intern(store.interner, "I16")
+		i8_name := intern(store.interner, "I8")
 		u64_name := intern(store.interner, "U64")
+		u32_name := intern(store.interner, "U32")
+		u16_name := intern(store.interner, "U16")
+		u8_name := intern(store.interner, "U8")
 		f64_name := intern(store.interner, "F64")
 		f32_name := intern(store.interner, "F32")
-		return inf.primitive_name == i64_name ||
-			inf.primitive_name == i32_name ||
-			inf.primitive_name == u64_name ||
-			inf.primitive_name == f64_name ||
-			inf.primitive_name == f32_name
+		name := inf.primitive_name
+		return name == i64_name || name == i32_name || name == i16_name || name == i8_name ||
+			name == u64_name || name == u32_name || name == u16_name || name == u8_name ||
+			name == f64_name || name == f32_name
 	}
 	return false
+}
+
+is_int_primitive_name :: proc(store: ^Type_Store, name: Intern_ID) -> bool {
+	i64_name := intern(store.interner, "I64")
+	i32_name := intern(store.interner, "I32")
+	i16_name := intern(store.interner, "I16")
+	i8_name := intern(store.interner, "I8")
+	u64_name := intern(store.interner, "U64")
+	u32_name := intern(store.interner, "U32")
+	u16_name := intern(store.interner, "U16")
+	u8_name := intern(store.interner, "U8")
+	return name == i64_name || name == i32_name || name == i16_name || name == i8_name ||
+		name == u64_name || name == u32_name || name == u16_name || name == u8_name
+}
+
+is_float_primitive_name :: proc(store: ^Type_Store, name: Intern_ID) -> bool {
+	f64_name := intern(store.interner, "F64")
+	f32_name := intern(store.interner, "F32")
+	return name == f64_name || name == f32_name
+}
+
+int_fits_type :: proc(value: i128, type_name: string) -> bool {
+	switch type_name {
+	case "I8":  return value >= -128 && value <= 127
+	case "I16": return value >= -32768 && value <= 32767
+	case "I32": return value >= -2147483648 && value <= 2147483647
+	case "I64": return value >= -9223372036854775808 && value <= 9223372036854775807
+	case "U8":  return value >= 0 && value <= 255
+	case "U16": return value >= 0 && value <= 65535
+	case "U32": return value >= 0 && value <= 4294967295
+	case "U64": return value >= 0 && value <= 18446744073709551615
+	case:       return false
+	}
+}
+
+float_fits_type :: proc(value: f64, type_name: string) -> bool {
+	switch type_name {
+	case "F32": return f64(f32(value)) == value
+	case "F64": return true
+	case:       return false
+	}
 }
 
 is_trait_declared :: proc(store: ^Type_Store, name: Intern_ID) -> bool {
