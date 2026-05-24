@@ -20,7 +20,7 @@ primitives_demo = || -> I64 {
   u16_val: U16 = 65535
   u32_val: U32 = 4294967295
   u64_val: U64 = 100
-  f32_val: F32 = 3.14
+  f32_val: F32 = 3.0
   f64_val: F64 = 2.718281828
   bool_val: Bool = True
   i64_val

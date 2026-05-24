@@ -91,10 +91,18 @@ unify :: proc(store: ^Type_Store, a: base.Type_Var_ID, b: base.Type_Var_ID) -> b
 			if !unify_inferred(store, a_inf, b_inf, ra, rb) {
 				return false
 			}
-			if int(ra) < int(rb) {
-				link_var(store, rb, ra)
-			} else {
-				link_var(store, ra, rb)
+			// unify_inferred handles structural unification and may
+			// already link vars (e.g. try_narrow_literal links lit→target).
+			// Only create a representative link if neither side was already
+			// linked during structural unification.
+			ra_resolved := resolve_var(store, ra)
+			rb_resolved := resolve_var(store, rb)
+			if ra_resolved != rb_resolved {
+				if int(ra) < int(rb) {
+					link_var(store, rb, ra)
+				} else {
+					link_var(store, ra, rb)
+				}
 			}
 		} else {
 			if int(ra) < int(rb) {

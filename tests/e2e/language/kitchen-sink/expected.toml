@@ -1,5 +1,7 @@
 stdout = """
 canonicalized /tmp/camp-e2e/language/kitchen-sink/src/Main.camp: 4 declaration(s), 0 import(s)
+typecheck passed for /tmp/camp-e2e/language/kitchen-sink/src/Main.camp
+compiled /tmp/camp-e2e/language/kitchen-sink/src/Main.camp -> /tmp/camp-e2e/language/kitchen-sink/src/Main.wasm
 """
 stderr = ""
-exit = 11
+exit = 0
