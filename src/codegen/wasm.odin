@@ -1031,7 +1031,7 @@ wasm_encode_section :: proc(id: u8, content: []u8, buf: ^[dynamic]u8) {
 
 wasm_serialize :: proc(mod: Wasm_Module) -> []u8 {
 	buf: [dynamic]u8
-	buf = make([dynamic]u8, 0, 4096)
+	buf = make([dynamic]u8, 0, CODE_BUF_SECTION)
 
 	append(&buf, 0x00)
 	append(&buf, 0x61)
@@ -1044,7 +1044,7 @@ wasm_serialize :: proc(mod: Wasm_Module) -> []u8 {
 
 	if len(mod.types) > 0 {
 		content: [dynamic]u8
-		content = make([dynamic]u8, 0, 1024)
+		content = make([dynamic]u8, 0, CODE_BUF_XXL)
 		encode_u32_leb128(u32(len(mod.types)), &content)
 		for ft in mod.types {
 			append(&content, 0x60)
@@ -1063,7 +1063,7 @@ wasm_serialize :: proc(mod: Wasm_Module) -> []u8 {
 
 	if len(mod.imports) > 0 {
 		content: [dynamic]u8
-		content = make([dynamic]u8, 0, 1024)
+		content = make([dynamic]u8, 0, CODE_BUF_XXL)
 		encode_u32_leb128(u32(len(mod.imports)), &content)
 		for imp in mod.imports {
 			wasm_encode_string(imp.module, &content)
@@ -1096,7 +1096,7 @@ wasm_serialize :: proc(mod: Wasm_Module) -> []u8 {
 
 	if len(mod.functions) > 0 {
 		content: [dynamic]u8
-		content = make([dynamic]u8, 0, 256)
+		content = make([dynamic]u8, 0, CODE_BUF_MAJOR)
 		encode_u32_leb128(u32(len(mod.functions)), &content)
 		for idx in mod.functions {
 			encode_u32_leb128(u32(idx), &content)
@@ -1107,7 +1107,7 @@ wasm_serialize :: proc(mod: Wasm_Module) -> []u8 {
 
 	if len(mod.tables) > 0 {
 		content: [dynamic]u8
-		content = make([dynamic]u8, 0, 64)
+		content = make([dynamic]u8, 0, CODE_BUF_DEFAULT)
 		encode_u32_leb128(u32(len(mod.tables)), &content)
 		for tbl in mod.tables {
 			append(&content, u8(tbl.elem_type))
@@ -1126,7 +1126,7 @@ wasm_serialize :: proc(mod: Wasm_Module) -> []u8 {
 
 	if len(mod.memories) > 0 {
 		content: [dynamic]u8
-		content = make([dynamic]u8, 0, 16)
+		content = make([dynamic]u8, 0, CODE_BUF_TINY)
 		encode_u32_leb128(u32(len(mod.memories)), &content)
 		for mem in mod.memories {
 			if mem.has_max && mem.shared {
@@ -1148,7 +1148,7 @@ wasm_serialize :: proc(mod: Wasm_Module) -> []u8 {
 
 	if len(mod.globals) > 0 {
 		content: [dynamic]u8
-		content = make([dynamic]u8, 0, 128)
+		content = make([dynamic]u8, 0, CODE_BUF_MODERATE)
 		encode_u32_leb128(u32(len(mod.globals)), &content)
 		for g in mod.globals {
 			append(&content, u8(g.type))
@@ -1168,7 +1168,7 @@ wasm_serialize :: proc(mod: Wasm_Module) -> []u8 {
 
 	if len(mod.exports) > 0 {
 		content: [dynamic]u8
-		content = make([dynamic]u8, 0, 256)
+		content = make([dynamic]u8, 0, CODE_BUF_MAJOR)
 		encode_u32_leb128(u32(len(mod.exports)), &content)
 		for exp in mod.exports {
 			wasm_encode_string(exp.name, &content)
@@ -1181,7 +1181,7 @@ wasm_serialize :: proc(mod: Wasm_Module) -> []u8 {
 
 	if mod.start >= 0 {
 		content: [dynamic]u8
-		content = make([dynamic]u8, 0, 8)
+		content = make([dynamic]u8, 0, CODE_BUF_SMALL)
 		encode_u32_leb128(u32(mod.start), &content)
 		wasm_encode_section(8, content[:], &buf)
 		delete(content)
@@ -1189,7 +1189,7 @@ wasm_serialize :: proc(mod: Wasm_Module) -> []u8 {
 
 	if len(mod.elements) > 0 {
 		content: [dynamic]u8
-		content = make([dynamic]u8, 0, 256)
+		content = make([dynamic]u8, 0, CODE_BUF_MAJOR)
 		encode_u32_leb128(u32(len(mod.elements)), &content)
 		for elem in mod.elements {
 			encode_u32_leb128(u32(elem.table_idx), &content)
@@ -1208,11 +1208,11 @@ wasm_serialize :: proc(mod: Wasm_Module) -> []u8 {
 
 	if len(mod.codes) > 0 {
 		content: [dynamic]u8
-		content = make([dynamic]u8, 0, 4096)
+		content = make([dynamic]u8, 0, CODE_BUF_SECTION)
 		encode_u32_leb128(u32(len(mod.codes)), &content)
 		for code in mod.codes {
 			body_buf: [dynamic]u8
-			body_buf = make([dynamic]u8, 0, 512)
+			body_buf = make([dynamic]u8, 0, CODE_BUF_XL)
 
 			encode_u32_leb128(u32(len(code.locals)), &body_buf)
 			for loc in code.locals {
@@ -1235,7 +1235,7 @@ wasm_serialize :: proc(mod: Wasm_Module) -> []u8 {
 
 	if len(mod.datas) > 0 {
 		content: [dynamic]u8
-		content = make([dynamic]u8, 0, 1024)
+		content = make([dynamic]u8, 0, CODE_BUF_XXL)
 		encode_u32_leb128(u32(len(mod.datas)), &content)
 		for d in mod.datas {
 			encode_u32_leb128(u32(d.mem_idx), &content)

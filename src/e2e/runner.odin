@@ -15,6 +15,16 @@ E2E_Test :: struct {
 	is_multi_module: bool,
 }
 
+destroy_tests :: proc(tests: [dynamic]E2E_Test, allocator: mem.Allocator) {
+	for &test in tests {
+		delete(test.category, allocator)
+		delete(test.name, allocator)
+		delete(test.test_dir, allocator)
+		delete(test.expected_path, allocator)
+	}
+	delete(tests, allocator)
+}
+
 Test_Result :: enum {
 	Pass,
 	Fail,

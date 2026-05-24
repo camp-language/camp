@@ -14,6 +14,18 @@ CAMP_TAG_FIELDS_OFFSET :: 8
 
 CAMP_EXIT_MASK :: 127
 
+CODE_BUF_SMALL    :: 8
+CODE_BUF_TINY     :: 16
+CODE_BUF_MINOR    :: 32
+CODE_BUF_DEFAULT  :: 64
+CODE_BUF_MEDIUM   :: 96
+CODE_BUF_MODERATE :: 128
+CODE_BUF_LARGE    :: 192
+CODE_BUF_MAJOR    :: 256
+CODE_BUF_XL       :: 512
+CODE_BUF_XXL      :: 1024
+CODE_BUF_SECTION  :: 4096
+
 Match_Kind :: enum {
 	Tag_Union,
 	Bool,
@@ -227,7 +239,7 @@ codegen :: proc(ir_mod: ir.IR_Module, interner: ^base.Intern_Table, type_store: 
 
 	heap_ptr_global_idx := len(mod.globals)
 	heap_ptr_init: [dynamic]u8
-	heap_ptr_init = make([dynamic]u8, 0, 8)
+	heap_ptr_init = make([dynamic]u8, 0, CODE_BUF_SMALL)
 	emit_instruction(Wasm_I32_Const{value = i32(env.data_offset)}, &heap_ptr_init)
 	append(&mod.globals, Wasm_Global{
 		type = .I32,
@@ -592,7 +604,7 @@ codegen :: proc(ir_mod: ir.IR_Module, interner: ^base.Intern_Table, type_store: 
 			env.next_local += 4
 
 			body_buf: [dynamic]u8
-			body_buf = make([dynamic]u8, 0, 512)
+			body_buf = make([dynamic]u8, 0, CODE_BUF_XL)
 			emit_expr(d.body, &body_buf, &env, runtime_func_indices[:])
 			emit_instruction(Wasm_End{}, &body_buf)
 
@@ -627,7 +639,7 @@ codegen :: proc(ir_mod: ir.IR_Module, interner: ^base.Intern_Table, type_store: 
 		mod.tables[env.table_idx].max = u32(total_funcs)
 
 		elem_offset_buf: [dynamic]u8
-		elem_offset_buf = make([dynamic]u8, 0, 8)
+		elem_offset_buf = make([dynamic]u8, 0, CODE_BUF_SMALL)
 		emit_instruction(Wasm_I32_Const{value = 0}, &elem_offset_buf)
 
 		elem_func_indices: [dynamic]int
@@ -654,7 +666,7 @@ codegen :: proc(ir_mod: ir.IR_Module, interner: ^base.Intern_Table, type_store: 
 		env.tmp_count = 0
 
 		code_buf: [dynamic]u8
-		code_buf = make([dynamic]u8, 0, 256)
+		code_buf = make([dynamic]u8, 0, CODE_BUF_MAJOR)
 
 		if main_decl.is_effectful {
 			// Effectful main: _start allocates evidence records, calls main!, exits
@@ -662,7 +674,7 @@ codegen :: proc(ir_mod: ir.IR_Module, interner: ^base.Intern_Table, type_store: 
 			// Emit top-level continuation function body for CPS-transformed main!
 			// The continuation takes (env: i32, result: i64) and calls camp_exit(result & 127)
 			cont_body_buf: [dynamic]u8
-			cont_body_buf = make([dynamic]u8, 0, 32)
+			cont_body_buf = make([dynamic]u8, 0, CODE_BUF_MINOR)
 			emit_instruction(Wasm_Local_Get{index = 1}, &cont_body_buf)  // result (i64)
 			emit_instruction(Wasm_I32_Wrap_I64{}, &cont_body_buf)         // to i32
 			emit_instruction(Wasm_I32_Const{value = CAMP_EXIT_MASK}, &cont_body_buf)
@@ -885,7 +897,7 @@ codegen :: proc(ir_mod: ir.IR_Module, interner: ^base.Intern_Table, type_store: 
 			worker_entry_func_idx := add_function(&env, worker_entry_type_idx)
 
 			worker_buf: [dynamic]u8
-			worker_buf = make([dynamic]u8, 0, 64)
+			worker_buf = make([dynamic]u8, 0, CODE_BUF_DEFAULT)
 			emit_instruction(Wasm_Local_Get{index = 0}, &worker_buf)
 			emit_instruction(Wasm_Call{index = u32(runtime_func_indices[Runtime_Func.Sched_Worker_Loop])}, &worker_buf)
 			emit_instruction(Wasm_End{}, &worker_buf)
@@ -900,7 +912,7 @@ codegen :: proc(ir_mod: ir.IR_Module, interner: ^base.Intern_Table, type_store: 
 
 	if worker_func_idx >= 0 {
 		worker_buf: [dynamic]u8
-		worker_buf = make([dynamic]u8, 0, 64)
+		worker_buf = make([dynamic]u8, 0, CODE_BUF_DEFAULT)
 
 		// Load env pointer from closure at CAMP_TAG_FIELDS_OFFSET + 8
 		emit_instruction(Wasm_Local_Get{index = 0}, &worker_buf)
@@ -940,7 +952,7 @@ codegen :: proc(ir_mod: ir.IR_Module, interner: ^base.Intern_Table, type_store: 
 		env.data_offset += u32(len(bytes))
 
 		offset_buf: [dynamic]u8
-		offset_buf = make([dynamic]u8, 0, 8)
+		offset_buf = make([dynamic]u8, 0, CODE_BUF_SMALL)
 		emit_instruction(Wasm_I32_Const{value = i32(offset)}, &offset_buf)
 
 		append(&mod.datas, Wasm_Data{
@@ -2492,7 +2504,7 @@ emit_throw_handler_fn :: proc(env: ^Codegen_Env, runtime_indices: []int) -> (int
 	env.func_type_indices[handler_fn_idx] = u32(handler_type_idx)
 
 	buf: [dynamic]u8
-	buf = make([dynamic]u8, 0, 32)
+	buf = make([dynamic]u8, 0, CODE_BUF_MINOR)
 
 	// Call camp_exit(1)
 	emit_instruction(Wasm_I32_Const{value = 1}, &buf)
@@ -2518,7 +2530,7 @@ emit_console_println_handler_fn :: proc(env: ^Codegen_Env, cont_fn_idx: int) -> 
 	env.func_type_indices[handler_fn_idx] = u32(handler_type_idx)
 
 	buf: [dynamic]u8
-	buf = make([dynamic]u8, 0, 32)
+	buf = make([dynamic]u8, 0, CODE_BUF_MINOR)
 
 	// Ignore the string arg for now — call continuation with Unit
 	emit_instruction(Wasm_I32_Const{value = 0}, &buf)  // env = null
@@ -2545,7 +2557,7 @@ emit_console_readln_handler_fn :: proc(env: ^Codegen_Env) -> (int, Wasm_Code) {
 	env.func_type_indices[handler_fn_idx] = u32(handler_type_idx)
 
 	buf: [dynamic]u8
-	buf = make([dynamic]u8, 0, 8)
+	buf = make([dynamic]u8, 0, CODE_BUF_SMALL)
 
 	// readln! not supported — unreachable
 	emit_instruction(Wasm_Unreachable{}, &buf)
@@ -2570,7 +2582,7 @@ emit_unhandled_effect_handler_fn :: proc(env: ^Codegen_Env, eff_name: string, ru
 	env.func_type_indices[handler_fn_idx] = u32(handler_type_idx)
 
 	buf: [dynamic]u8
-	buf = make([dynamic]u8, 0, 32)
+	buf = make([dynamic]u8, 0, CODE_BUF_MINOR)
 
 	// Call camp_exit(1) — unhandled effect
 	emit_instruction(Wasm_I32_Const{value = 1}, &buf)

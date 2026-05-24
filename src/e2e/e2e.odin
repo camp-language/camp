@@ -78,7 +78,7 @@ main :: proc() {
 		fmt.println("no e2e tests found")
 		os.exit(1)
 	}
-	defer delete(tests)
+	defer destroy_tests(tests, context.allocator)
 
 	reports: [dynamic]Test_Report
 	reports.allocator = context.allocator
