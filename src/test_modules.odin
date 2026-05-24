@@ -1,126 +1,130 @@
 package camp
 
+import "camp:base"
+import "camp:build"
+import "camp:semantics"
+import "camp:diagnostics"
 import "core:testing"
 
 @(test)
 test_path_to_module_name_top :: proc(t: ^testing.T) {
-	ctx: Compilation_Context
-	context_init(&ctx)
-	defer context_destroy(&ctx)
+	ctx: build.Compilation_Context
+	build.context_init(&ctx)
+	defer build.context_destroy(&ctx)
 
-	id := path_to_module_name("src/List.camp", "src", &ctx.interner)
-	name := intern_get(&ctx.interner, id)
+	id := build.path_to_module_name("src/List.camp", "src", &ctx.interner)
+	name := base.intern_get(&ctx.interner, id)
 	testing.expect(t, name == "List")
 }
 
 @(test)
 test_path_to_module_name_nested :: proc(t: ^testing.T) {
-	ctx: Compilation_Context
-	context_init(&ctx)
-	defer context_destroy(&ctx)
+	ctx: build.Compilation_Context
+	build.context_init(&ctx)
+	defer build.context_destroy(&ctx)
 
-	id := path_to_module_name("src/Http/Server.camp", "src", &ctx.interner)
-	name := intern_get(&ctx.interner, id)
+	id := build.path_to_module_name("src/Http/Server.camp", "src", &ctx.interner)
+	name := base.intern_get(&ctx.interner, id)
 	testing.expect(t, name == "Http.Server")
 }
 
 @(test)
 test_path_to_module_name_deep :: proc(t: ^testing.T) {
-	ctx: Compilation_Context
-	context_init(&ctx)
-	defer context_destroy(&ctx)
+	ctx: build.Compilation_Context
+	build.context_init(&ctx)
+	defer build.context_destroy(&ctx)
 
-	id := path_to_module_name("src/A/B/C.camp", "src", &ctx.interner)
-	name := intern_get(&ctx.interner, id)
+	id := build.path_to_module_name("src/A/B/C.camp", "src", &ctx.interner)
+	name := base.intern_get(&ctx.interner, id)
 	testing.expect(t, name == "A.B.C")
 }
 
 @(test)
 test_simple_hash_deterministic :: proc(t: ^testing.T) {
-	a := simple_hash("hello")
-	b := simple_hash("hello")
+	a := build.simple_hash("hello")
+	b := build.simple_hash("hello")
 	testing.expect(t, a == b)
 }
 
 @(test)
 test_simple_hash_different_inputs :: proc(t: ^testing.T) {
-	a := simple_hash("hello")
-	b := simple_hash("world")
+	a := build.simple_hash("hello")
+	b := build.simple_hash("world")
 	testing.expect(t, a != b)
 }
 
 @(test)
 test_mangle_name_simple :: proc(t: ^testing.T) {
-	ctx: Compilation_Context
-	context_init(&ctx)
-	defer context_destroy(&ctx)
+	ctx: build.Compilation_Context
+	build.context_init(&ctx)
+	defer build.context_destroy(&ctx)
 
-	mod := intern(&ctx.interner, "List")
-	name := intern(&ctx.interner, "map")
-	result := mangle_name(mod, name, &ctx.interner)
+	mod := base.intern(&ctx.interner, "List")
+	name := base.intern(&ctx.interner, "map")
+	result := base.mangle_name(mod, name, &ctx.interner)
 	testing.expect(t, result == "List__map")
 }
 
 @(test)
 test_mangle_name_nested :: proc(t: ^testing.T) {
-	ctx: Compilation_Context
-	context_init(&ctx)
-	defer context_destroy(&ctx)
+	ctx: build.Compilation_Context
+	build.context_init(&ctx)
+	defer build.context_destroy(&ctx)
 
-	mod := intern(&ctx.interner, "Http.Server")
-	name := intern(&ctx.interner, "handle")
-	result := mangle_name(mod, name, &ctx.interner)
+	mod := base.intern(&ctx.interner, "Http.Server")
+	name := base.intern(&ctx.interner, "handle")
+	result := base.mangle_name(mod, name, &ctx.interner)
 	testing.expect(t, result == "Http_Server__handle")
 }
 
 @(test)
 test_export_table_manual :: proc(t: ^testing.T) {
-	ctx: Compilation_Context
-	context_init(&ctx)
-	defer context_destroy(&ctx)
+	ctx: build.Compilation_Context
+	build.context_init(&ctx)
+	defer build.context_destroy(&ctx)
 
-	et: Export_Table
-	export_table_init(&et)
-	defer export_table_destroy(&et)
+	et: build.Export_Table
+	build.export_table_init(&et)
+	defer build.export_table_destroy(&et)
 
-	x_name := intern(&ctx.interner, "x")
-	et.exports[x_name] = Export_Info{
+	x_name := base.intern(&ctx.interner, "x")
+	et.exports[x_name] = build.Export_Info{
 		name = x_name,
 		kind = .Const,
 		is_pub = true,
-		type_var = Type_Var_ID(-1),
+		type_var = base.Type_Var_ID(-1),
 	}
 
-	ei, ok := export_lookup(&et, x_name)
+	ei, ok := build.export_lookup(&et, x_name)
 	testing.expect(t, ok)
 	testing.expect(t, ei.is_pub)
 
-	y_name := intern(&ctx.interner, "y")
-	_, y_ok := export_lookup(&et, y_name)
+	y_name := base.intern(&ctx.interner, "y")
+	_, y_ok := build.export_lookup(&et, y_name)
 	testing.expect(t, !y_ok)
 }
 
 @(test)
 test_module_graph_topo_sort :: proc(t: ^testing.T) {
-	ctx: Compilation_Context
-	context_init(&ctx)
-	defer context_destroy(&ctx)
+	ctx: build.Compilation_Context
+	build.context_init(&ctx)
+	defer build.context_destroy(&ctx)
 
-	graph: Module_Graph
-	module_graph_init(&graph)
-	defer module_graph_destroy(&graph)
+	graph: build.Module_Graph
+	build.module_graph_init(&graph)
+	defer build.module_graph_destroy(&graph)
 
-	a := intern(&ctx.interner, "A")
-	b := intern(&ctx.interner, "B")
-	c := intern(&ctx.interner, "C")
+	a := base.intern(&ctx.interner, "A")
+	b := base.intern(&ctx.interner, "B")
+	c := base.intern(&ctx.interner, "C")
 
-	module_graph_add_node(&graph, a)
-	module_graph_add_node(&graph, b)
-	module_graph_add_node(&graph, c)
-	module_graph_add_edge(&graph, a, b)
-	module_graph_add_edge(&graph, b, c)
+	build.module_graph_add_node(&graph, a)
+	build.module_graph_add_node(&graph, b)
+	build.module_graph_add_node(&graph, c)
+	build.module_graph_add_edge(&graph, a, b)
+	build.module_graph_add_edge(&graph, b, c)
 
-	sorted, ok := topological_sort(&graph, &ctx.interner, &ctx.collector)
+	sorted, ok := build.topological_sort(&graph, &ctx.interner, &ctx.collector)
 	testing.expect(t, ok)
 
 	if ok && len(sorted) == 3 {
@@ -140,227 +144,227 @@ test_module_graph_topo_sort :: proc(t: ^testing.T) {
 
 @(test)
 test_module_graph_cycle_detection :: proc(t: ^testing.T) {
-	ctx: Compilation_Context
-	context_init(&ctx)
-	defer context_destroy(&ctx)
+	ctx: build.Compilation_Context
+	build.context_init(&ctx)
+	defer build.context_destroy(&ctx)
 
-	graph: Module_Graph
-	module_graph_init(&graph)
-	defer module_graph_destroy(&graph)
+	graph: build.Module_Graph
+	build.module_graph_init(&graph)
+	defer build.module_graph_destroy(&graph)
 
-	a := intern(&ctx.interner, "A")
-	b := intern(&ctx.interner, "B")
+	a := base.intern(&ctx.interner, "A")
+	b := base.intern(&ctx.interner, "B")
 
-	module_graph_add_node(&graph, a)
-	module_graph_add_node(&graph, b)
-	module_graph_add_edge(&graph, a, b)
-	module_graph_add_edge(&graph, b, a)
+	build.module_graph_add_node(&graph, a)
+	build.module_graph_add_node(&graph, b)
+	build.module_graph_add_edge(&graph, a, b)
+	build.module_graph_add_edge(&graph, b, a)
 
-	_, ok := topological_sort(&graph, &ctx.interner, &ctx.collector)
+	_, ok := build.topological_sort(&graph, &ctx.interner, &ctx.collector)
 	testing.expect(t, !ok)
-	testing.expect(t, diag_collector_has_errors(&ctx.collector))
+	testing.expect(t, diagnostics.diag_collector_has_errors(&ctx.collector))
 }
 
 @(test)
 test_module_graph_independent :: proc(t: ^testing.T) {
-	ctx: Compilation_Context
-	context_init(&ctx)
-	defer context_destroy(&ctx)
+	ctx: build.Compilation_Context
+	build.context_init(&ctx)
+	defer build.context_destroy(&ctx)
 
-	graph: Module_Graph
-	module_graph_init(&graph)
-	defer module_graph_destroy(&graph)
+	graph: build.Module_Graph
+	build.module_graph_init(&graph)
+	defer build.module_graph_destroy(&graph)
 
-	a := intern(&ctx.interner, "A")
-	b := intern(&ctx.interner, "B")
+	a := base.intern(&ctx.interner, "A")
+	b := base.intern(&ctx.interner, "B")
 
-	module_graph_add_node(&graph, a)
-	module_graph_add_node(&graph, b)
+	build.module_graph_add_node(&graph, a)
+	build.module_graph_add_node(&graph, b)
 
-	sorted, ok := topological_sort(&graph, &ctx.interner, &ctx.collector)
+	sorted, ok := build.topological_sort(&graph, &ctx.interner, &ctx.collector)
 	testing.expect(t, ok)
 	testing.expect(t, len(sorted) == 2)
 }
 
 @(test)
 test_inject_prelude_types :: proc(t: ^testing.T) {
-	ctx: Compilation_Context
-	context_init(&ctx)
-	defer context_destroy(&ctx)
+	ctx: build.Compilation_Context
+	build.context_init(&ctx)
+	defer build.context_destroy(&ctx)
 
-	store: Type_Store
-	type_store_init(&store, &ctx.interner, &ctx.collector)
-	inject_prelude(&store)
+	store: semantics.Type_Store
+	semantics.type_store_init(&store, &ctx.interner, &ctx.collector)
+	semantics.inject_prelude(&store)
 
-	bool_name := intern(&ctx.interner, "Bool")
+	bool_name := base.intern(&ctx.interner, "Bool")
 	_, bool_ok := store.bindings[bool_name]
 	testing.expect(t, bool_ok)
 
-	i64_name := intern(&ctx.interner, "I64")
+	i64_name := base.intern(&ctx.interner, "I64")
 	_, i64_ok := store.bindings[i64_name]
 	testing.expect(t, i64_ok)
 
-	str_name := intern(&ctx.interner, "Str")
+	str_name := base.intern(&ctx.interner, "Str")
 	_, str_ok := store.bindings[str_name]
 	testing.expect(t, str_ok)
 
-	true_name := intern(&ctx.interner, "True")
+	true_name := base.intern(&ctx.interner, "True")
 	_, true_ok := store.bindings[true_name]
 	testing.expect(t, true_ok)
 
-	false_name := intern(&ctx.interner, "False")
+	false_name := base.intern(&ctx.interner, "False")
 	_, false_ok := store.bindings[false_name]
 	testing.expect(t, false_ok)
 }
 
 @(test)
 test_import_scope_local_names :: proc(t: ^testing.T) {
-	ctx: Compilation_Context
-	context_init(&ctx)
-	defer context_destroy(&ctx)
+	ctx: build.Compilation_Context
+	build.context_init(&ctx)
+	defer build.context_destroy(&ctx)
 
-	scope: Import_Scope
-	import_scope_init(&scope)
-	defer import_scope_destroy(&scope)
+	scope: build.Import_Scope
+	build.import_scope_init(&scope)
+	defer build.import_scope_destroy(&scope)
 
-	x_name := intern(&ctx.interner, "x")
-	scope.unqualified[x_name] = Canonical_Name{module = NO_NAME, name = x_name, is_local = true}
+	x_name := base.intern(&ctx.interner, "x")
+	scope.unqualified[x_name] = base.Canonical_Name{module = base.NO_NAME, name = x_name, is_local = true}
 
-	resolved, ok := resolve_name(x_name, &scope, &ctx.interner)
+	resolved, ok := build.resolve_name(x_name, &scope, &ctx.interner)
 	testing.expect(t, ok)
 	testing.expect(t, resolved.is_local == true)
 }
 
 @(test)
 test_import_scope_missing :: proc(t: ^testing.T) {
-	ctx: Compilation_Context
-	context_init(&ctx)
-	defer context_destroy(&ctx)
+	ctx: build.Compilation_Context
+	build.context_init(&ctx)
+	defer build.context_destroy(&ctx)
 
-	scope: Import_Scope
-	import_scope_init(&scope)
-	defer import_scope_destroy(&scope)
+	scope: build.Import_Scope
+	build.import_scope_init(&scope)
+	defer build.import_scope_destroy(&scope)
 
-	x_name := intern(&ctx.interner, "x")
-	_, ok := resolve_name(x_name, &scope, &ctx.interner)
+	x_name := base.intern(&ctx.interner, "x")
+	_, ok := build.resolve_name(x_name, &scope, &ctx.interner)
 	testing.expect(t, !ok)
 }
 
 @(test)
 test_cache_key_for_typecheck :: proc(t: ^testing.T) {
-	ctx: Compilation_Context
-	context_init(&ctx)
-	defer context_destroy(&ctx)
+	ctx: build.Compilation_Context
+	build.context_init(&ctx)
+	defer build.context_destroy(&ctx)
 
-	project: Project_Discovery
-	project.modules = make(map[Intern_ID]Module_Info, 4)
-	project.module_names = make([dynamic]Intern_ID, 0, 4)
+	project: build.Project_Discovery
+	project.modules = make(map[base.Intern_ID]build.Module_Info, 4)
+	project.module_names = make([dynamic]base.Intern_ID, 0, 4)
 
-	a_name := intern(&ctx.interner, "A")
-	b_name := intern(&ctx.interner, "B")
+	a_name := base.intern(&ctx.interner, "A")
+	b_name := base.intern(&ctx.interner, "B")
 
-	project.modules[a_name] = Module_Info{
+	project.modules[a_name] = build.Module_Info{
 		name = a_name,
 		content_hash = "hash_a",
-		imports = make([dynamic]Deferred_Import, 0, 4),
-		exports = make([dynamic]Export_Info, 0, 4),
+		imports = make([dynamic]base.Deferred_Import, 0, 4),
+		exports = make([dynamic]build.Export_Info, 0, 4),
 	}
-	project.modules[b_name] = Module_Info{
+	project.modules[b_name] = build.Module_Info{
 		name = b_name,
 		content_hash = "hash_b",
-		imports = make([dynamic]Deferred_Import, 0, 4),
-		exports = make([dynamic]Export_Info, 0, 4),
+		imports = make([dynamic]base.Deferred_Import, 0, 4),
+		exports = make([dynamic]build.Export_Info, 0, 4),
 	}
 
 	mi := project.modules[a_name]
-	imp: Deferred_Import
+	imp: base.Deferred_Import
 	imp.module = b_name
 	append(&mi.imports, imp)
 	project.modules[a_name] = mi
 
-	key := cache_key_for_typecheck(&project.modules[a_name], &project, &ctx.interner)
+	key := build.cache_key_for_typecheck(&project.modules[a_name], &project, &ctx.interner)
 	testing.expect(t, len(key) > 0)
 
-	project_discovery_destroy(&project)
+	build.project_discovery_destroy(&project)
 }
 
 @(test)
 test_module_graph_three_node_cycle :: proc(t: ^testing.T) {
-	ctx: Compilation_Context
-	context_init(&ctx)
-	defer context_destroy(&ctx)
+	ctx: build.Compilation_Context
+	build.context_init(&ctx)
+	defer build.context_destroy(&ctx)
 
-	graph: Module_Graph
-	module_graph_init(&graph)
-	defer module_graph_destroy(&graph)
+	graph: build.Module_Graph
+	build.module_graph_init(&graph)
+	defer build.module_graph_destroy(&graph)
 
-	a := intern(&ctx.interner, "A")
-	b := intern(&ctx.interner, "B")
-	c := intern(&ctx.interner, "C")
+	a := base.intern(&ctx.interner, "A")
+	b := base.intern(&ctx.interner, "B")
+	c := base.intern(&ctx.interner, "C")
 
-	module_graph_add_node(&graph, a)
-	module_graph_add_node(&graph, b)
-	module_graph_add_node(&graph, c)
-	module_graph_add_edge(&graph, a, b)
-	module_graph_add_edge(&graph, b, c)
-	module_graph_add_edge(&graph, c, a)
+	build.module_graph_add_node(&graph, a)
+	build.module_graph_add_node(&graph, b)
+	build.module_graph_add_node(&graph, c)
+	build.module_graph_add_edge(&graph, a, b)
+	build.module_graph_add_edge(&graph, b, c)
+	build.module_graph_add_edge(&graph, c, a)
 
-	_, ok := topological_sort(&graph, &ctx.interner, &ctx.collector)
+	_, ok := build.topological_sort(&graph, &ctx.interner, &ctx.collector)
 	testing.expect(t, !ok)
-	testing.expect(t, diag_collector_has_errors(&ctx.collector))
+	testing.expect(t, diagnostics.diag_collector_has_errors(&ctx.collector))
 }
 
 @(test)
 test_duplicate_name_const_and_effect :: proc(t: ^testing.T) {
-	ctx: Compilation_Context
-	context_init(&ctx)
-	defer context_destroy(&ctx)
+	ctx: build.Compilation_Context
+	build.context_init(&ctx)
+	defer build.context_destroy(&ctx)
 
-	scope: Canonicalize_Scope
-	scope.local_names = make(map[Intern_ID]Canonical_Name, 8)
-	scope.local_kinds = make(map[Intern_ID]Decl_Kind, 8)
+	scope: semantics.Canonicalize_Scope
+	scope.local_names = make(map[base.Intern_ID]base.Canonical_Name, 8)
+	scope.local_kinds = make(map[base.Intern_ID]semantics.Decl_Kind, 8)
 	defer delete(scope.local_names)
 	defer delete(scope.local_kinds)
 
-	x_name := intern(&ctx.interner, "Result")
-	_ = canonicalize_local_name(x_name, .Const, &scope, &ctx)
-	_ = canonicalize_local_name(x_name, .Effect, &scope, &ctx)
+	x_name := base.intern(&ctx.interner, "Result")
+	_ = semantics.canonicalize_local_name(x_name, .Const, &scope, &ctx.interner, &ctx.collector)
+	_ = semantics.canonicalize_local_name(x_name, .Effect, &scope, &ctx.interner, &ctx.collector)
 
-	testing.expect(t, diag_collector_has_errors(&ctx.collector))
+	testing.expect(t, diagnostics.diag_collector_has_errors(&ctx.collector))
 }
 
 @(test)
 test_duplicate_name_same_kind_ok :: proc(t: ^testing.T) {
-	ctx: Compilation_Context
-	context_init(&ctx)
-	defer context_destroy(&ctx)
+	ctx: build.Compilation_Context
+	build.context_init(&ctx)
+	defer build.context_destroy(&ctx)
 
-	scope: Canonicalize_Scope
-	scope.local_names = make(map[Intern_ID]Canonical_Name, 8)
-	scope.local_kinds = make(map[Intern_ID]Decl_Kind, 8)
+	scope: semantics.Canonicalize_Scope
+	scope.local_names = make(map[base.Intern_ID]base.Canonical_Name, 8)
+	scope.local_kinds = make(map[base.Intern_ID]semantics.Decl_Kind, 8)
 	defer delete(scope.local_names)
 	defer delete(scope.local_kinds)
 
-	x_name := intern(&ctx.interner, "map")
-	_ = canonicalize_local_name(x_name, .Const, &scope, &ctx)
-	_ = canonicalize_local_name(x_name, .Const, &scope, &ctx)
+	x_name := base.intern(&ctx.interner, "map")
+	_ = semantics.canonicalize_local_name(x_name, .Const, &scope, &ctx.interner, &ctx.collector)
+	_ = semantics.canonicalize_local_name(x_name, .Const, &scope, &ctx.interner, &ctx.collector)
 
-	testing.expect(t, !diag_collector_has_errors(&ctx.collector))
+	testing.expect(t, !diagnostics.diag_collector_has_errors(&ctx.collector))
 }
 
 @(test)
 test_manifest_round_trip :: proc(t: ^testing.T) {
-	ctx: Compilation_Context
-	context_init(&ctx)
-	defer context_destroy(&ctx)
+	ctx: build.Compilation_Context
+	build.context_init(&ctx)
+	defer build.context_destroy(&ctx)
 
-	manifest: Module_Manifest
+	manifest: build.Module_Manifest
 	manifest.content_hash = "abc123"
 	manifest.module_name = "List"
-	manifest.imports = make([dynamic]Manifest_Import, 0, 4)
-	manifest.exports = make([dynamic]Manifest_Export, 0, 4)
+	manifest.imports = make([dynamic]build.Manifest_Import, 0, 4)
+	manifest.exports = make([dynamic]build.Manifest_Export, 0, 4)
 
-	imp: Manifest_Import
+	imp: build.Manifest_Import
 	imp.module = "Maybe"
 	imp.exposing = make([dynamic]string, 0, 4)
 	append(&imp.exposing, "just")
@@ -369,24 +373,24 @@ test_manifest_round_trip :: proc(t: ^testing.T) {
 	imp.is_unsafe = false
 	append(&manifest.imports, imp)
 
-	exp: Manifest_Export
+	exp: build.Manifest_Export
 	exp.name = "map"
 	exp.kind = .Const
 	exp.is_pub = true
 	exp.pub_variants = false
 	append(&manifest.exports, exp)
 
-	nt_exp: Manifest_Export
+	nt_exp: build.Manifest_Export
 	nt_exp.name = "Result"
 	nt_exp.kind = .Newtype
 	nt_exp.is_pub = true
 	nt_exp.pub_variants = true
 	append(&manifest.exports, nt_exp)
 
-	data := serialize_manifest(manifest, ctx.allocator)
+	data := build.serialize_manifest(manifest, ctx.allocator)
 	testing.expect(t, len(data) > 0)
 
-	result, ok := deserialize_manifest(data, ctx.allocator)
+	result, ok := build.deserialize_manifest(data, ctx.allocator)
 	testing.expect(t, ok)
 	testing.expect(t, result.content_hash == "abc123")
 	testing.expect(t, result.module_name == "List")
@@ -413,52 +417,52 @@ test_manifest_round_trip :: proc(t: ^testing.T) {
 		testing.expect(t, result.exports[1].pub_variants == true)
 	}
 
-	manifest_destroy(&manifest)
-	manifest_destroy(&result)
+	build.manifest_destroy(&manifest)
+	build.manifest_destroy(&result)
 }
 
 @(test)
 test_manifest_deserialize_bad_magic :: proc(t: ^testing.T) {
-	ctx: Compilation_Context
-	context_init(&ctx)
-	defer context_destroy(&ctx)
+	ctx: build.Compilation_Context
+	build.context_init(&ctx)
+	defer build.context_destroy(&ctx)
 
 	data := []byte{0xDE, 0xAD, 0xBE, 0xEF, 0, 0, 0, 0}
-	_, ok := deserialize_manifest(data, ctx.allocator)
+	_, ok := build.deserialize_manifest(data, ctx.allocator)
 	testing.expect(t, !ok)
 }
 
 @(test)
 test_cache_has_miss :: proc(t: ^testing.T) {
-	has := cache_has("nonexistent_key_12345", ".manifest")
+	has := build.cache_has("nonexistent_key_12345", ".manifest")
 	testing.expect(t, !has)
 }
 
 @(test)
 test_export_table_newtype_pub :: proc(t: ^testing.T) {
-	ctx: Compilation_Context
-	context_init(&ctx)
-	defer context_destroy(&ctx)
+	ctx: build.Compilation_Context
+	build.context_init(&ctx)
+	defer build.context_destroy(&ctx)
 
-	store: Type_Store
-	type_store_init(&store, &ctx.interner, &ctx.collector)
-	defer type_store_destroy(&store)
+	store: semantics.Type_Store
+	semantics.type_store_init(&store, &ctx.interner, &ctx.collector)
+	defer semantics.type_store_destroy(&store)
 
-	result_name := intern(&ctx.interner, "Result")
-	nt := CDecl_Newtype{
-		name = Canonical_Name{name = result_name, is_local = true},
+	result_name := base.intern(&ctx.interner, "Result")
+	nt := semantics.CDecl_Newtype{
+		name = base.Canonical_Name{name = result_name, is_local = true},
 		is_pub = true,
 		pub_variants = true,
 	}
 
-	cfile: CFile
-	cfile.decls = make([dynamic]CDecl, 1)
-	append(&cfile.decls, CDecl(&nt))
+	cfile: semantics.CFile
+	cfile.decls = make([dynamic]semantics.CDecl, 1)
+	append(&cfile.decls, semantics.CDecl(&nt))
 
-	et := collect_exports(cfile, &store)
-	defer export_table_destroy(&et)
+	et := build.collect_exports(cfile, &store)
+	defer build.export_table_destroy(&et)
 
-	ei, ok := export_lookup(&et, result_name)
+	ei, ok := build.export_lookup(&et, result_name)
 	testing.expect(t, ok)
 	testing.expect(t, ei.kind == .Newtype)
 	testing.expect(t, ei.is_pub)
@@ -467,57 +471,57 @@ test_export_table_newtype_pub :: proc(t: ^testing.T) {
 
 @(test)
 test_export_table_newtype_private :: proc(t: ^testing.T) {
-	ctx: Compilation_Context
-	context_init(&ctx)
-	defer context_destroy(&ctx)
+	ctx: build.Compilation_Context
+	build.context_init(&ctx)
+	defer build.context_destroy(&ctx)
 
-	store: Type_Store
-	type_store_init(&store, &ctx.interner, &ctx.collector)
-	defer type_store_destroy(&store)
+	store: semantics.Type_Store
+	semantics.type_store_init(&store, &ctx.interner, &ctx.collector)
+	defer semantics.type_store_destroy(&store)
 
-	result_name := intern(&ctx.interner, "Result")
-	nt := CDecl_Newtype{
-		name = Canonical_Name{name = result_name, is_local = true},
+	result_name := base.intern(&ctx.interner, "Result")
+	nt := semantics.CDecl_Newtype{
+		name = base.Canonical_Name{name = result_name, is_local = true},
 		is_pub = false,
 		pub_variants = false,
 	}
 
-	cfile: CFile
-	cfile.decls = make([dynamic]CDecl, 1)
-	append(&cfile.decls, CDecl(&nt))
+	cfile: semantics.CFile
+	cfile.decls = make([dynamic]semantics.CDecl, 1)
+	append(&cfile.decls, semantics.CDecl(&nt))
 
-	et := collect_exports(cfile, &store)
-	defer export_table_destroy(&et)
+	et := build.collect_exports(cfile, &store)
+	defer build.export_table_destroy(&et)
 
-	_, ok := export_lookup(&et, result_name)
+	_, ok := build.export_lookup(&et, result_name)
 	testing.expect(t, !ok)
 }
 
 @(test)
 test_export_table_newtype_pub_opaque :: proc(t: ^testing.T) {
-	ctx: Compilation_Context
-	context_init(&ctx)
-	defer context_destroy(&ctx)
+	ctx: build.Compilation_Context
+	build.context_init(&ctx)
+	defer build.context_destroy(&ctx)
 
-	store: Type_Store
-	type_store_init(&store, &ctx.interner, &ctx.collector)
-	defer type_store_destroy(&store)
+	store: semantics.Type_Store
+	semantics.type_store_init(&store, &ctx.interner, &ctx.collector)
+	defer semantics.type_store_destroy(&store)
 
-	userid_name := intern(&ctx.interner, "UserId")
-	nt := CDecl_Newtype{
-		name = Canonical_Name{name = userid_name, is_local = true},
+	userid_name := base.intern(&ctx.interner, "UserId")
+	nt := semantics.CDecl_Newtype{
+		name = base.Canonical_Name{name = userid_name, is_local = true},
 		is_pub = true,
 		pub_variants = false,
 	}
 
-	cfile: CFile
-	cfile.decls = make([dynamic]CDecl, 1)
-	append(&cfile.decls, CDecl(&nt))
+	cfile: semantics.CFile
+	cfile.decls = make([dynamic]semantics.CDecl, 1)
+	append(&cfile.decls, semantics.CDecl(&nt))
 
-	et := collect_exports(cfile, &store)
-	defer export_table_destroy(&et)
+	et := build.collect_exports(cfile, &store)
+	defer build.export_table_destroy(&et)
 
-	ei, ok := export_lookup(&et, userid_name)
+	ei, ok := build.export_lookup(&et, userid_name)
 	testing.expect(t, ok)
 	testing.expect(t, ei.kind == .Newtype)
 	testing.expect(t, ei.is_pub)

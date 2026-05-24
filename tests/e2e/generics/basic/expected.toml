@@ -3,6 +3,6 @@ canonicalized /tmp/camp-e2e/generics/basic/src/Main.camp: 2 declaration(s), 0 im
 typecheck passed for /tmp/camp-e2e/generics/basic/src/Main.camp
 """
 stderr = """
-/home/smores/code/github.com/camp-language/camp/src/intern.odin(36:19) Index -1 is out of range 0..<69
+/home/smores/code/github.com/camp-language/camp/.worktrees/break-down-src-packages/src/base/intern.odin(36:19) Index -1 is out of range 0..<69
 """
 exit = 4
