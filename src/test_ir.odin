@@ -1,43 +1,49 @@
 package camp
 
+import "camp:base"
+import "camp:ir"
+import "camp:semantics"
+import "camp:frontend"
+import "camp:build"
+import "camp:diagnostics"
 import "core:testing"
 import "core:mem"
 import "core:strings"
 
-lower_source :: proc(source: string) -> (IR_Module, ^Compilation_Context, Type_Store) {
-	ctx: ^Compilation_Context = new(Compilation_Context)
-	alloc := context_init(ctx)
+lower_source :: proc(source: string) -> (ir.IR_Module, ^build.Compilation_Context, semantics.Type_Store) {
+	ctx: ^build.Compilation_Context = new(build.Compilation_Context)
+	alloc := build.context_init(ctx)
 	context.allocator = alloc
 
-	file := Source_File{path = "<ir-test>", contents = source, id = 0}
-	lexer: Lexer
-	lexer_init(&lexer, file, &ctx.collector, &ctx.interner)
+	file := base.Source_File{path = "<ir-test>", contents = source, id = 0}
+	lexer: frontend.Lexer
+	frontend.lexer_init(&lexer, file, &ctx.collector, &ctx.interner)
 
-	parser: Parser
-	parser_init(&parser, &lexer, &ctx.collector, &ctx.interner)
-	surface := parser_parse_file(&parser)
+	parser: frontend.Parser
+	frontend.parser_init(&parser, &lexer, &ctx.collector, &ctx.interner)
+	surface := frontend.parser_parse_file(&parser)
 
-	canon := canonicalize(surface, ctx)
+	canon := semantics.canonicalize(surface, &ctx.interner, &ctx.collector)
 
-	store: Type_Store
-	type_store_init(&store, &ctx.interner, &ctx.collector)
-	inject_prelude(&store)
-	tfile := typecheck_file(canon, &store)
+	store: semantics.Type_Store
+	semantics.type_store_init(&store, &ctx.interner, &ctx.collector)
+	semantics.inject_prelude(&store)
+	tfile := semantics.typecheck_file(canon, &store)
 
-	mod := lower_tfile(tfile, &store)
+	mod := ir.lower_tfile(tfile, &store)
 	return mod, ctx, store
 }
 
-teardown_lower :: proc(ctx: ^Compilation_Context, store: ^Type_Store) {
-	type_store_destroy(store)
-	context_destroy(ctx)
+teardown_lower :: proc(ctx: ^build.Compilation_Context, store: ^semantics.Type_Store) {
+	semantics.type_store_destroy(store)
+	build.context_destroy(ctx)
 	free(ctx)
 }
 
-find_decl_fn :: proc(mod: IR_Module, is_effectful: bool) -> ^IR_Decl_Fn {
+find_decl_fn :: proc(mod: ir.IR_Module, is_effectful: bool) -> ^ir.IR_Decl_Fn {
 	for decl in mod.decls {
 		#partial switch d in decl {
-		case ^IR_Decl_Fn:
+		case ^ir.IR_Decl_Fn:
 			if d.is_effectful == is_effectful {
 				return d
 			}
@@ -54,9 +60,9 @@ test_lower_int_literal :: proc(t: ^testing.T) {
 
 	testing.expect(t, len(mod.decls) == 1)
 	#partial switch decl in mod.decls[0] {
-	case ^IR_Decl_Const:
+	case ^ir.IR_Decl_Const:
 		#partial switch expr in decl.value {
-		case ^IR_Literal_Int:
+		case ^ir.IR_Literal_Int:
 			testing.expect(t, expr.value == 42)
 			testing.expect(t, expr.type.wasm_type == .I64)
 		case:
@@ -74,9 +80,9 @@ test_lower_bool_literal :: proc(t: ^testing.T) {
 
 	testing.expect(t, len(mod.decls) == 1)
 	#partial switch decl in mod.decls[0] {
-	case ^IR_Decl_Const:
+	case ^ir.IR_Decl_Const:
 		#partial switch expr in decl.value {
-		case ^IR_Literal_Bool:
+		case ^ir.IR_Literal_Bool:
 			testing.expect(t, expr.value == true)
 			testing.expect(t, expr.type.wasm_type == .I32)
 		case:
@@ -94,9 +100,9 @@ test_lower_float_literal :: proc(t: ^testing.T) {
 
 	testing.expect(t, len(mod.decls) == 1)
 	#partial switch decl in mod.decls[0] {
-	case ^IR_Decl_Const:
+	case ^ir.IR_Decl_Const:
 		#partial switch expr in decl.value {
-		case ^IR_Literal_Float:
+		case ^ir.IR_Literal_Float:
 			testing.expect(t, expr.type.wasm_type == .F64)
 		case:
 			testing.expect(t, false)
@@ -113,9 +119,9 @@ test_lower_string_literal :: proc(t: ^testing.T) {
 
 	testing.expect(t, len(mod.decls) == 1)
 	#partial switch decl in mod.decls[0] {
-	case ^IR_Decl_Const:
+	case ^ir.IR_Decl_Const:
 		#partial switch expr in decl.value {
-		case ^IR_Literal_String:
+		case ^ir.IR_Literal_String:
 			testing.expect(t, expr.type.wasm_type == .I32)
 		case:
 			testing.expect(t, false)
@@ -132,9 +138,9 @@ test_lower_binop :: proc(t: ^testing.T) {
 
 	testing.expect(t, len(mod.decls) == 1)
 	#partial switch decl in mod.decls[0] {
-	case ^IR_Decl_Const:
+	case ^ir.IR_Decl_Const:
 		#partial switch expr in decl.value {
-		case ^IR_BinOp:
+		case ^ir.IR_BinOp:
 			testing.expect(t, expr.op == .Add)
 		case:
 			testing.expect(t, false)
@@ -151,9 +157,9 @@ test_lower_if :: proc(t: ^testing.T) {
 
 	testing.expect(t, len(mod.decls) == 1)
 	#partial switch decl in mod.decls[0] {
-	case ^IR_Decl_Const:
+	case ^ir.IR_Decl_Const:
 		#partial switch expr in decl.value {
-		case ^IR_If:
+		case ^ir.IR_If:
 			testing.expect(t, expr.else_branch != nil)
 		case:
 			testing.expect(t, false)
@@ -170,9 +176,9 @@ test_lower_record :: proc(t: ^testing.T) {
 
 	testing.expect(t, len(mod.decls) == 1)
 	#partial switch decl in mod.decls[0] {
-	case ^IR_Decl_Const:
+	case ^ir.IR_Decl_Const:
 		#partial switch expr in decl.value {
-		case ^IR_Construct_Record:
+		case ^ir.IR_Construct_Record:
 			testing.expect(t, len(expr.fields) == 2)
 		case:
 			testing.expect(t, false)
@@ -189,7 +195,7 @@ test_lower_effect_decl :: proc(t: ^testing.T) {
 
 	io_found := false
 	for eff in mod.effect_defs {
-		io_name := intern_get(&ctx.interner, eff.name.name)
+		io_name := base.intern_get(&ctx.interner, eff.name.name)
 		if io_name == "IO" {
 			io_found = true
 			testing.expect(t, len(eff.operations) == 1)
@@ -216,7 +222,7 @@ test_lower_lambda_as_fn :: proc(t: ^testing.T) {
 
 	testing.expect(t, len(mod.decls) >= 1)
 	#partial switch decl in mod.decls[0] {
-	case ^IR_Decl_Fn:
+	case ^ir.IR_Decl_Fn:
 		testing.expect(t, len(decl.params) == 2)
 		testing.expect(t, decl.is_effectful == false)
 	case:
@@ -233,9 +239,9 @@ test_lower_handle :: proc(t: ^testing.T) {
 	found_handle := false
 	for decl in mod.decls {
 		#partial switch d in decl {
-		case ^IR_Decl_Fn:
+		case ^ir.IR_Decl_Fn:
 			#partial switch expr in d.body {
-			case ^IR_Handle:
+			case ^ir.IR_Handle:
 				found_handle = true
 				testing.expect(t, len(expr.arms) == 1)
 			case:
@@ -253,9 +259,9 @@ test_lower_tag :: proc(t: ^testing.T) {
 
 	testing.expect(t, len(mod.decls) >= 1)
 	#partial switch decl in mod.decls[0] {
-	case ^IR_Decl_Const:
+	case ^ir.IR_Decl_Const:
 		#partial switch expr in decl.value {
-		case ^IR_Construct_Tag:
+		case ^ir.IR_Construct_Tag:
 			testing.expect(t, len(expr.payload) == 1)
 		case:
 			testing.expect(t, false)
@@ -273,46 +279,46 @@ test_lower_string_table :: proc(t: ^testing.T) {
 	testing.expect(t, len(mod.string_table) >= 1)
 }
 
-contains_ir_let :: proc(expr: IR_Expr) -> bool {
+contains_ir_let :: proc(expr: ir.IR_Expr) -> bool {
 	#partial switch e in expr {
-	case ^IR_Let:
+	case ^ir.IR_Let:
 		return true
-	case ^IR_If:
+	case ^ir.IR_If:
 		return contains_ir_let(e.condition) || contains_ir_let(e.then_branch) || contains_ir_let(e.else_branch)
-	case ^IR_Block:
+	case ^ir.IR_Block:
 		for stmt in e.statements {
 			if contains_ir_let(stmt) do return true
 		}
-	case ^IR_BinOp:
+	case ^ir.IR_BinOp:
 		return contains_ir_let(e.left) || contains_ir_let(e.right)
-	case ^IR_Call:
+	case ^ir.IR_Call:
 		for arg in e.args {
 			if contains_ir_let(arg) do return true
 		}
-	case ^IR_Return:
+	case ^ir.IR_Return:
 		return contains_ir_let(e.value)
-	case ^IR_Construct_Record:
+	case ^ir.IR_Construct_Record:
 		for f in e.fields {
 			if contains_ir_let(f.value) do return true
 		}
 		return contains_ir_let(e.rest)
-	case ^IR_Construct_Tag:
+	case ^ir.IR_Construct_Tag:
 		for p in e.payload {
 			if contains_ir_let(p) do return true
 		}
-	case ^IR_Field_Access:
+	case ^ir.IR_Field_Access:
 		return contains_ir_let(e.record)
-	case ^IR_Method_Call:
+	case ^ir.IR_Method_Call:
 		if contains_ir_let(e.receiver) do return true
 		for arg in e.args {
 			if contains_ir_let(arg) do return true
 		}
-	case ^IR_Handle:
+	case ^ir.IR_Handle:
 		if contains_ir_let(e.body) do return true
 		for arm in e.arms {
 			if contains_ir_let(arm.body) do return true
 		}
-	case ^IR_Perform:
+	case ^ir.IR_Perform:
 		for arg in e.args {
 			if contains_ir_let(arg) do return true
 		}
@@ -321,46 +327,46 @@ contains_ir_let :: proc(expr: IR_Expr) -> bool {
 	return false
 }
 
-contains_ir_call :: proc(expr: IR_Expr) -> bool {
+contains_ir_call :: proc(expr: ir.IR_Expr) -> bool {
 	#partial switch e in expr {
-	case ^IR_Call:
+	case ^ir.IR_Call:
 		return true
-	case ^IR_Closure_Call:
+	case ^ir.IR_Closure_Call:
 		return true
-	case ^IR_Let:
+	case ^ir.IR_Let:
 		return contains_ir_call(e.value) || contains_ir_call(e.body)
-	case ^IR_If:
+	case ^ir.IR_If:
 		return contains_ir_call(e.condition) || contains_ir_call(e.then_branch) || contains_ir_call(e.else_branch)
-	case ^IR_Block:
+	case ^ir.IR_Block:
 		for stmt in e.statements {
 			if contains_ir_call(stmt) do return true
 		}
-	case ^IR_BinOp:
+	case ^ir.IR_BinOp:
 		return contains_ir_call(e.left) || contains_ir_call(e.right)
-	case ^IR_Return:
+	case ^ir.IR_Return:
 		return contains_ir_call(e.value)
-	case ^IR_Construct_Record:
+	case ^ir.IR_Construct_Record:
 		for f in e.fields {
 			if contains_ir_call(f.value) do return true
 		}
 		return contains_ir_call(e.rest)
-	case ^IR_Construct_Tag:
+	case ^ir.IR_Construct_Tag:
 		for p in e.payload {
 			if contains_ir_call(p) do return true
 		}
-	case ^IR_Field_Access:
+	case ^ir.IR_Field_Access:
 		return contains_ir_call(e.record)
-	case ^IR_Method_Call:
+	case ^ir.IR_Method_Call:
 		if contains_ir_call(e.receiver) do return true
 		for arg in e.args {
 			if contains_ir_call(arg) do return true
 		}
-	case ^IR_Handle:
+	case ^ir.IR_Handle:
 		if contains_ir_call(e.body) do return true
 		for arm in e.arms {
 			if contains_ir_call(arm.body) do return true
 		}
-	case ^IR_Perform:
+	case ^ir.IR_Perform:
 		for arg in e.args {
 			if contains_ir_call(arg) do return true
 		}
@@ -369,48 +375,48 @@ contains_ir_call :: proc(expr: IR_Expr) -> bool {
 	return false
 }
 
-contains_ir_tail_call :: proc(expr: IR_Expr) -> bool {
+contains_ir_tail_call :: proc(expr: ir.IR_Expr) -> bool {
 	#partial switch e in expr {
-	case ^IR_Tail_Call:
+	case ^ir.IR_Tail_Call:
 		return true
-	case ^IR_Let:
+	case ^ir.IR_Let:
 		return contains_ir_tail_call(e.value) || contains_ir_tail_call(e.body)
-	case ^IR_If:
+	case ^ir.IR_If:
 		return contains_ir_tail_call(e.condition) || contains_ir_tail_call(e.then_branch) || contains_ir_tail_call(e.else_branch)
-	case ^IR_Block:
+	case ^ir.IR_Block:
 		for stmt in e.statements {
 			if contains_ir_tail_call(stmt) do return true
 		}
-	case ^IR_BinOp:
+	case ^ir.IR_BinOp:
 		return contains_ir_tail_call(e.left) || contains_ir_tail_call(e.right)
-	case ^IR_Return:
+	case ^ir.IR_Return:
 		return contains_ir_tail_call(e.value)
-	case ^IR_Call:
+	case ^ir.IR_Call:
 		for arg in e.args {
 			if contains_ir_tail_call(arg) do return true
 		}
-	case ^IR_Construct_Record:
+	case ^ir.IR_Construct_Record:
 		for f in e.fields {
 			if contains_ir_tail_call(f.value) do return true
 		}
 		return contains_ir_tail_call(e.rest)
-	case ^IR_Construct_Tag:
+	case ^ir.IR_Construct_Tag:
 		for p in e.payload {
 			if contains_ir_tail_call(p) do return true
 		}
-	case ^IR_Field_Access:
+	case ^ir.IR_Field_Access:
 		return contains_ir_tail_call(e.record)
-	case ^IR_Method_Call:
+	case ^ir.IR_Method_Call:
 		if contains_ir_tail_call(e.receiver) do return true
 		for arg in e.args {
 			if contains_ir_tail_call(arg) do return true
 		}
-	case ^IR_Handle:
+	case ^ir.IR_Handle:
 		if contains_ir_tail_call(e.body) do return true
 		for arm in e.arms {
 			if contains_ir_tail_call(arm.body) do return true
 		}
-	case ^IR_Perform:
+	case ^ir.IR_Perform:
 		for arg in e.args {
 			if contains_ir_tail_call(arg) do return true
 		}
@@ -419,43 +425,43 @@ contains_ir_tail_call :: proc(expr: IR_Expr) -> bool {
 	return false
 }
 
-contains_ir_construct_record :: proc(expr: IR_Expr) -> bool {
+contains_ir_construct_record :: proc(expr: ir.IR_Expr) -> bool {
 	#partial switch e in expr {
-	case ^IR_Construct_Record:
+	case ^ir.IR_Construct_Record:
 		return true
-	case ^IR_Let:
+	case ^ir.IR_Let:
 		return contains_ir_construct_record(e.value) || contains_ir_construct_record(e.body)
-	case ^IR_If:
+	case ^ir.IR_If:
 		return contains_ir_construct_record(e.condition) || contains_ir_construct_record(e.then_branch) || contains_ir_construct_record(e.else_branch)
-	case ^IR_Block:
+	case ^ir.IR_Block:
 		for stmt in e.statements {
 			if contains_ir_construct_record(stmt) do return true
 		}
-	case ^IR_BinOp:
+	case ^ir.IR_BinOp:
 		return contains_ir_construct_record(e.left) || contains_ir_construct_record(e.right)
-	case ^IR_Return:
+	case ^ir.IR_Return:
 		return contains_ir_construct_record(e.value)
-	case ^IR_Call:
+	case ^ir.IR_Call:
 		for arg in e.args {
 			if contains_ir_construct_record(arg) do return true
 		}
-	case ^IR_Construct_Tag:
+	case ^ir.IR_Construct_Tag:
 		for p in e.payload {
 			if contains_ir_construct_record(p) do return true
 		}
-	case ^IR_Field_Access:
+	case ^ir.IR_Field_Access:
 		return contains_ir_construct_record(e.record)
-	case ^IR_Method_Call:
+	case ^ir.IR_Method_Call:
 		if contains_ir_construct_record(e.receiver) do return true
 		for arg in e.args {
 			if contains_ir_construct_record(arg) do return true
 		}
-	case ^IR_Handle:
+	case ^ir.IR_Handle:
 		if contains_ir_construct_record(e.body) do return true
 		for arm in e.arms {
 			if contains_ir_construct_record(arm.body) do return true
 		}
-	case ^IR_Perform:
+	case ^ir.IR_Perform:
 		for arg in e.args {
 			if contains_ir_construct_record(arg) do return true
 		}
@@ -470,12 +476,12 @@ test_effect_lower_handle :: proc(t: ^testing.T) {
 		"IO! : { println!: || -> Str }\nmain! = handle IO in { 42 } with { .println!(resume) => resume({}) }")
 	defer teardown_lower(ctx, &store)
 
-	result := effect_lower(&mod, ctx)
+	result := ir.effect_lower(&mod, &ctx.interner, &ctx.collector, &store)
 
 	found_let := false
 	for decl in result.decls {
 		#partial switch d in decl {
-		case ^IR_Decl_Fn:
+		case ^ir.IR_Decl_Fn:
 			if contains_ir_let(d.body) {
 				found_let = true
 			}
@@ -491,12 +497,12 @@ test_effect_lower_perform :: proc(t: ^testing.T) {
 		"IO! : { println!: || -> Str }\nmain! = handle IO in { IO.println(\"hi\") } with { .println!(resume) => resume({}) }")
 	defer teardown_lower(ctx, &store)
 
-	result := effect_lower(&mod, ctx)
+	result := ir.effect_lower(&mod, &ctx.interner, &ctx.collector, &store)
 
 	found_call := false
 	for decl in result.decls {
 		#partial switch d in decl {
-		case ^IR_Decl_Fn:
+		case ^ir.IR_Decl_Fn:
 			if contains_ir_call(d.body) {
 				found_call = true
 			}
@@ -512,13 +518,13 @@ test_effect_lower_handler_fns :: proc(t: ^testing.T) {
 		"IO! : { println!: || -> Str }\nmain! = handle IO in { 42 } with { .println!(resume) => resume({}) }")
 	defer teardown_lower(ctx, &store)
 
-	result := effect_lower(&mod, ctx)
+	result := ir.effect_lower(&mod, &ctx.interner, &ctx.collector, &store)
 
 	handler_count := 0
 	for decl in result.decls {
 		#partial switch d in decl {
-		case ^IR_Decl_Fn:
-			name_str := intern_get(&ctx.interner, d.name.name)
+		case ^ir.IR_Decl_Fn:
+			name_str := base.intern_get(&ctx.interner, d.name.name)
 			if strings.has_prefix(name_str, "handler_") {
 				handler_count += 1
 			}
@@ -528,162 +534,162 @@ test_effect_lower_handler_fns :: proc(t: ^testing.T) {
 	testing.expect(t, handler_count >= 1)
 }
 
-contains_ir_i32_load :: proc(expr: IR_Expr) -> bool {
+contains_ir_i32_load :: proc(expr: ir.IR_Expr) -> bool {
 	#partial switch e in expr {
-	case ^IR_I32_Load:
+	case ^ir.IR_I32_Load:
 		return true
-	case ^IR_Let:
+	case ^ir.IR_Let:
 		return contains_ir_i32_load(e.value) || contains_ir_i32_load(e.body)
-	case ^IR_If:
+	case ^ir.IR_If:
 		return contains_ir_i32_load(e.condition) || contains_ir_i32_load(e.then_branch) || contains_ir_i32_load(e.else_branch)
-	case ^IR_Block:
+	case ^ir.IR_Block:
 		for stmt in e.statements {
 			if contains_ir_i32_load(stmt) do return true
 		}
-	case ^IR_BinOp:
+	case ^ir.IR_BinOp:
 		return contains_ir_i32_load(e.left) || contains_ir_i32_load(e.right)
-	case ^IR_Return:
+	case ^ir.IR_Return:
 		return contains_ir_i32_load(e.value)
-	case ^IR_Call:
+	case ^ir.IR_Call:
 		for arg in e.args {
 			if contains_ir_i32_load(arg) do return true
 		}
-	case ^IR_Closure_Call:
+	case ^ir.IR_Closure_Call:
 		if contains_ir_i32_load(e.callee) do return true
 		for arg in e.args {
 			if contains_ir_i32_load(arg) do return true
 		}
-	case ^IR_Construct_Record:
+	case ^ir.IR_Construct_Record:
 		for f in e.fields {
 			if contains_ir_i32_load(f.value) do return true
 		}
 		return contains_ir_i32_load(e.rest)
-	case ^IR_Construct_Tag:
+	case ^ir.IR_Construct_Tag:
 		for p in e.payload {
 			if contains_ir_i32_load(p) do return true
 		}
-	case ^IR_Field_Access:
+	case ^ir.IR_Field_Access:
 		return contains_ir_i32_load(e.record)
-	case ^IR_Method_Call:
+	case ^ir.IR_Method_Call:
 		if contains_ir_i32_load(e.receiver) do return true
 		for arg in e.args {
 			if contains_ir_i32_load(arg) do return true
 		}
-	case ^IR_Handle:
+	case ^ir.IR_Handle:
 		if contains_ir_i32_load(e.body) do return true
 		for arm in e.arms {
 			if contains_ir_i32_load(arm.body) do return true
 		}
-	case ^IR_Perform:
+	case ^ir.IR_Perform:
 		for arg in e.args {
 			if contains_ir_i32_load(arg) do return true
 		}
-	case ^IR_I32_Store:
+	case ^ir.IR_I32_Store:
 		return contains_ir_i32_load(e.base) || contains_ir_i32_load(e.value)
 	case:
 	}
 	return false
 }
 
-contains_ir_i32_store :: proc(expr: IR_Expr) -> bool {
+contains_ir_i32_store :: proc(expr: ir.IR_Expr) -> bool {
 	#partial switch e in expr {
-	case ^IR_I32_Store:
+	case ^ir.IR_I32_Store:
 		return true
-	case ^IR_Let:
+	case ^ir.IR_Let:
 		return contains_ir_i32_store(e.value) || contains_ir_i32_store(e.body)
-	case ^IR_If:
+	case ^ir.IR_If:
 		return contains_ir_i32_store(e.condition) || contains_ir_i32_store(e.then_branch) || contains_ir_i32_store(e.else_branch)
-	case ^IR_Block:
+	case ^ir.IR_Block:
 		for stmt in e.statements {
 			if contains_ir_i32_store(stmt) do return true
 		}
-	case ^IR_BinOp:
+	case ^ir.IR_BinOp:
 		return contains_ir_i32_store(e.left) || contains_ir_i32_store(e.right)
-	case ^IR_Return:
+	case ^ir.IR_Return:
 		return contains_ir_i32_store(e.value)
-	case ^IR_Call:
+	case ^ir.IR_Call:
 		for arg in e.args {
 			if contains_ir_i32_store(arg) do return true
 		}
-	case ^IR_Closure_Call:
+	case ^ir.IR_Closure_Call:
 		if contains_ir_i32_store(e.callee) do return true
 		for arg in e.args {
 			if contains_ir_i32_store(arg) do return true
 		}
-	case ^IR_Construct_Record:
+	case ^ir.IR_Construct_Record:
 		for f in e.fields {
 			if contains_ir_i32_store(f.value) do return true
 		}
 		return contains_ir_i32_store(e.rest)
-	case ^IR_Construct_Tag:
+	case ^ir.IR_Construct_Tag:
 		for p in e.payload {
 			if contains_ir_i32_store(p) do return true
 		}
-	case ^IR_Field_Access:
+	case ^ir.IR_Field_Access:
 		return contains_ir_i32_store(e.record)
-	case ^IR_Method_Call:
+	case ^ir.IR_Method_Call:
 		if contains_ir_i32_store(e.receiver) do return true
 		for arg in e.args {
 			if contains_ir_i32_store(arg) do return true
 		}
-	case ^IR_Handle:
+	case ^ir.IR_Handle:
 		if contains_ir_i32_store(e.body) do return true
 		for arm in e.arms {
 			if contains_ir_i32_store(arm.body) do return true
 		}
-	case ^IR_Perform:
+	case ^ir.IR_Perform:
 		for arg in e.args {
 			if contains_ir_i32_store(arg) do return true
 		}
-	case ^IR_I32_Load:
+	case ^ir.IR_I32_Load:
 		return contains_ir_i32_store(e.base)
 	case:
 	}
 	return false
 }
 
-contains_ir_closure_call :: proc(expr: IR_Expr) -> bool {
+contains_ir_closure_call :: proc(expr: ir.IR_Expr) -> bool {
 	#partial switch e in expr {
-	case ^IR_Closure_Call:
+	case ^ir.IR_Closure_Call:
 		return true
-	case ^IR_Let:
+	case ^ir.IR_Let:
 		return contains_ir_closure_call(e.value) || contains_ir_closure_call(e.body)
-	case ^IR_If:
+	case ^ir.IR_If:
 		return contains_ir_closure_call(e.condition) || contains_ir_closure_call(e.then_branch) || contains_ir_closure_call(e.else_branch)
-	case ^IR_Block:
+	case ^ir.IR_Block:
 		for stmt in e.statements {
 			if contains_ir_closure_call(stmt) do return true
 		}
-	case ^IR_BinOp:
+	case ^ir.IR_BinOp:
 		return contains_ir_closure_call(e.left) || contains_ir_closure_call(e.right)
-	case ^IR_Return:
+	case ^ir.IR_Return:
 		return contains_ir_closure_call(e.value)
-	case ^IR_Call:
+	case ^ir.IR_Call:
 		for arg in e.args {
 			if contains_ir_closure_call(arg) do return true
 		}
-	case ^IR_Construct_Record:
+	case ^ir.IR_Construct_Record:
 		for f in e.fields {
 			if contains_ir_closure_call(f.value) do return true
 		}
 		return contains_ir_closure_call(e.rest)
-	case ^IR_Construct_Tag:
+	case ^ir.IR_Construct_Tag:
 		for p in e.payload {
 			if contains_ir_closure_call(p) do return true
 		}
-	case ^IR_Field_Access:
+	case ^ir.IR_Field_Access:
 		return contains_ir_closure_call(e.record)
-	case ^IR_Method_Call:
+	case ^ir.IR_Method_Call:
 		if contains_ir_closure_call(e.receiver) do return true
 		for arg in e.args {
 			if contains_ir_closure_call(arg) do return true
 		}
-	case ^IR_Handle:
+	case ^ir.IR_Handle:
 		if contains_ir_closure_call(e.body) do return true
 		for arm in e.arms {
 			if contains_ir_closure_call(arm.body) do return true
 		}
-	case ^IR_Perform:
+	case ^ir.IR_Perform:
 		for arg in e.args {
 			if contains_ir_closure_call(arg) do return true
 		}
@@ -692,42 +698,42 @@ contains_ir_closure_call :: proc(expr: IR_Expr) -> bool {
 	return false
 }
 
-has_camp_alloc_call :: proc(expr: IR_Expr, alloc_id: Intern_ID) -> bool {
+has_camp_alloc_call :: proc(expr: ir.IR_Expr, alloc_id: base.Intern_ID) -> bool {
 	#partial switch e in expr {
-	case ^IR_Call:
+	case ^ir.IR_Call:
 		if e.callee.name == alloc_id do return true
 		for arg in e.args {
 			if has_camp_alloc_call(arg, alloc_id) do return true
 		}
-	case ^IR_Let:
+	case ^ir.IR_Let:
 		return has_camp_alloc_call(e.value, alloc_id) || has_camp_alloc_call(e.body, alloc_id)
-	case ^IR_If:
+	case ^ir.IR_If:
 		return has_camp_alloc_call(e.condition, alloc_id) || has_camp_alloc_call(e.then_branch, alloc_id) || has_camp_alloc_call(e.else_branch, alloc_id)
-	case ^IR_Block:
+	case ^ir.IR_Block:
 		for stmt in e.statements {
 			if has_camp_alloc_call(stmt, alloc_id) do return true
 		}
-	case ^IR_BinOp:
+	case ^ir.IR_BinOp:
 		return has_camp_alloc_call(e.left, alloc_id) || has_camp_alloc_call(e.right, alloc_id)
-	case ^IR_Return:
+	case ^ir.IR_Return:
 		return has_camp_alloc_call(e.value, alloc_id)
-	case ^IR_Closure_Call:
+	case ^ir.IR_Closure_Call:
 		if has_camp_alloc_call(e.callee, alloc_id) do return true
 		for arg in e.args {
 			if has_camp_alloc_call(arg, alloc_id) do return true
 		}
-	case ^IR_Construct_Record:
+	case ^ir.IR_Construct_Record:
 		for f in e.fields {
 			if has_camp_alloc_call(f.value, alloc_id) do return true
 		}
 		return has_camp_alloc_call(e.rest, alloc_id)
-	case ^IR_Construct_Tag:
+	case ^ir.IR_Construct_Tag:
 		for p in e.payload {
 			if has_camp_alloc_call(p, alloc_id) do return true
 		}
-	case ^IR_Field_Access:
+	case ^ir.IR_Field_Access:
 		return has_camp_alloc_call(e.record, alloc_id)
-	case ^IR_Method_Call:
+	case ^ir.IR_Method_Call:
 		if has_camp_alloc_call(e.receiver, alloc_id) do return true
 		for arg in e.args {
 			if has_camp_alloc_call(arg, alloc_id) do return true
@@ -737,42 +743,42 @@ has_camp_alloc_call :: proc(expr: IR_Expr, alloc_id: Intern_ID) -> bool {
 	return false
 }
 
-has_camp_dealloc_call :: proc(expr: IR_Expr, dealloc_id: Intern_ID) -> bool {
+has_camp_dealloc_call :: proc(expr: ir.IR_Expr, dealloc_id: base.Intern_ID) -> bool {
 	#partial switch e in expr {
-	case ^IR_Call:
+	case ^ir.IR_Call:
 		if e.callee.name == dealloc_id do return true
 		for arg in e.args {
 			if has_camp_dealloc_call(arg, dealloc_id) do return true
 		}
-	case ^IR_Let:
+	case ^ir.IR_Let:
 		return has_camp_dealloc_call(e.value, dealloc_id) || has_camp_dealloc_call(e.body, dealloc_id)
-	case ^IR_If:
+	case ^ir.IR_If:
 		return has_camp_dealloc_call(e.condition, dealloc_id) || has_camp_dealloc_call(e.then_branch, dealloc_id) || has_camp_dealloc_call(e.else_branch, dealloc_id)
-	case ^IR_Block:
+	case ^ir.IR_Block:
 		for stmt in e.statements {
 			if has_camp_dealloc_call(stmt, dealloc_id) do return true
 		}
-	case ^IR_BinOp:
+	case ^ir.IR_BinOp:
 		return has_camp_dealloc_call(e.left, dealloc_id) || has_camp_dealloc_call(e.right, dealloc_id)
-	case ^IR_Return:
+	case ^ir.IR_Return:
 		return has_camp_dealloc_call(e.value, dealloc_id)
-	case ^IR_Closure_Call:
+	case ^ir.IR_Closure_Call:
 		if has_camp_dealloc_call(e.callee, dealloc_id) do return true
 		for arg in e.args {
 			if has_camp_dealloc_call(arg, dealloc_id) do return true
 		}
-	case ^IR_Construct_Record:
+	case ^ir.IR_Construct_Record:
 		for f in e.fields {
 			if has_camp_dealloc_call(f.value, dealloc_id) do return true
 		}
 		return has_camp_dealloc_call(e.rest, dealloc_id)
-	case ^IR_Construct_Tag:
+	case ^ir.IR_Construct_Tag:
 		for p in e.payload {
 			if has_camp_dealloc_call(p, dealloc_id) do return true
 		}
-	case ^IR_Field_Access:
+	case ^ir.IR_Field_Access:
 		return has_camp_dealloc_call(e.record, dealloc_id)
-	case ^IR_Method_Call:
+	case ^ir.IR_Method_Call:
 		if has_camp_dealloc_call(e.receiver, dealloc_id) do return true
 		for arg in e.args {
 			if has_camp_dealloc_call(arg, dealloc_id) do return true
@@ -782,9 +788,9 @@ has_camp_dealloc_call :: proc(expr: IR_Expr, dealloc_id: Intern_ID) -> bool {
 	return false
 }
 
-effect_lower_source :: proc(source: string) -> (IR_Module, ^Compilation_Context, Type_Store) {
+effect_lower_source :: proc(source: string) -> (ir.IR_Module, ^build.Compilation_Context, semantics.Type_Store) {
 	mod, ctx, store := lower_source(source)
-	result := effect_lower(&mod, ctx)
+	result := ir.effect_lower(&mod, &ctx.interner, &ctx.collector, &store)
 	return result, ctx, store
 }
 
@@ -798,8 +804,8 @@ test_effect_lower_produces_handler_decls :: proc(t: ^testing.T) {
 	cont_count := 0
 	for decl in result.decls {
 		#partial switch d in decl {
-		case ^IR_Decl_Fn:
-			name_str := intern_get(&ctx.interner, d.name.name)
+		case ^ir.IR_Decl_Fn:
+			name_str := base.intern_get(&ctx.interner, d.name.name)
 			if strings.has_prefix(name_str, "handler_") || strings.has_prefix(name_str, "handler") {
 				handler_count += 1
 			}
@@ -822,7 +828,7 @@ test_effect_lower_perform_dispatches_via_i32_load :: proc(t: ^testing.T) {
 	found_closure_call := false
 	for decl in result.decls {
 		#partial switch d in decl {
-		case ^IR_Decl_Fn:
+		case ^ir.IR_Decl_Fn:
 			if d.is_effectful {
 				if contains_ir_i32_load(d.body) { found_i32_load = true }
 				if contains_ir_closure_call(d.body) { found_closure_call = true }
@@ -840,15 +846,15 @@ test_effect_lower_handle_evidence_record :: proc(t: ^testing.T) {
 		"IO! : { println!: || -> Str }\nmain! = handle IO in { 42 } with { .println!(resume) => resume({}) }")
 	defer teardown_lower(ctx, &store)
 
-	alloc_id := intern(&ctx.interner, "camp_alloc")
-	dealloc_id := intern(&ctx.interner, "camp_dealloc")
+	alloc_id := base.intern(&ctx.interner, "camp_alloc")
+	dealloc_id := base.intern(&ctx.interner, "camp_dealloc")
 
 	found_alloc := false
 	found_dealloc := false
 	found_store := false
 	for decl in result.decls {
 		#partial switch d in decl {
-		case ^IR_Decl_Fn:
+		case ^ir.IR_Decl_Fn:
 			if d.is_effectful {
 				if has_camp_alloc_call(d.body, alloc_id) { found_alloc = true }
 				if has_camp_dealloc_call(d.body, dealloc_id) { found_dealloc = true }
@@ -870,13 +876,13 @@ test_effect_lower_handler_fn_has_env_and_ev_params :: proc(t: ^testing.T) {
 	found := false
 	for decl in result.decls {
 		#partial switch d in decl {
-		case ^IR_Decl_Fn:
-			name_str := intern_get(&ctx.interner, d.name.name)
+		case ^ir.IR_Decl_Fn:
+			name_str := base.intern_get(&ctx.interner, d.name.name)
 			if strings.has_prefix(name_str, "handler_") || strings.has_prefix(name_str, "handler") {
 				has_env := false
 				has_ev := false
 				for p in d.params {
-					p_str := intern_get(&ctx.interner, p.name)
+					p_str := base.intern_get(&ctx.interner, p.name)
 					if strings.has_prefix(p_str, "_env_") { has_env = true }
 					if strings.has_prefix(p_str, "_ev_") { has_ev = true }
 				}
@@ -899,8 +905,8 @@ test_effect_lower_handler_fn_count_matches_ops :: proc(t: ^testing.T) {
 	handler_count := 0
 	for decl in result.decls {
 		#partial switch d in decl {
-		case ^IR_Decl_Fn:
-			name_str := intern_get(&ctx.interner, d.name.name)
+		case ^ir.IR_Decl_Fn:
+			name_str := base.intern_get(&ctx.interner, d.name.name)
 			if strings.has_prefix(name_str, "handler_") || strings.has_prefix(name_str, "handler") {
 				handler_count += 1
 			}
@@ -915,12 +921,12 @@ test_closure_convert_closure :: proc(t: ^testing.T) {
 	mod, ctx, store := lower_source("f = |x| |y| x")
 	defer teardown_lower(ctx, &store)
 
-	result := closure_convert(&mod, ctx)
+	result := ir.closure_convert(&mod, &ctx.interner)
 
 	found_record := false
 	for decl in result.decls {
 		#partial switch d in decl {
-		case ^IR_Decl_Fn:
+		case ^ir.IR_Decl_Fn:
 			if contains_ir_construct_record(d.body) {
 				found_record = true
 			}
@@ -936,7 +942,7 @@ test_closure_convert_creates_closed_fn :: proc(t: ^testing.T) {
 	defer teardown_lower(ctx, &store)
 
 	original_count := len(mod.decls)
-	result := closure_convert(&mod, ctx)
+	result := ir.closure_convert(&mod, &ctx.interner)
 
 	testing.expect(t, len(result.decls) > original_count)
 }
@@ -946,7 +952,7 @@ test_cps_transform_effectful_fn :: proc(t: ^testing.T) {
 	mod, ctx, store := lower_source("main! = || { 42 }")
 	defer teardown_lower(ctx, &store)
 
-	result := cps_transform(&mod, ctx)
+	result := ir.cps_transform(&mod, &ctx.interner)
 
 	fn_decl := find_decl_fn(result, true)
 	testing.expect(t, fn_decl != nil)
@@ -958,7 +964,7 @@ test_cps_transform_return_becomes_tail_call :: proc(t: ^testing.T) {
 	mod, ctx, store := lower_source("main! = || { 42 }")
 	defer teardown_lower(ctx, &store)
 
-	result := cps_transform(&mod, ctx)
+	result := ir.cps_transform(&mod, &ctx.interner)
 
 	fn_decl := find_decl_fn(result, true)
 	testing.expect(t, fn_decl != nil)
@@ -972,43 +978,43 @@ test_cps_transform_pure_fn_unchanged :: proc(t: ^testing.T) {
 
 	original_param_count := 0
 	#partial switch decl in mod.decls[0] {
-	case ^IR_Decl_Fn:
+	case ^ir.IR_Decl_Fn:
 		original_param_count = len(decl.params)
 	case:
 	}
 
-	result := cps_transform(&mod, ctx)
+	result := ir.cps_transform(&mod, &ctx.interner)
 
 	fn_decl := find_decl_fn(result, false)
 	testing.expect(t, fn_decl != nil)
 	testing.expect(t, len(fn_decl.params) == original_param_count)
 }
 
-has_dup_or_drop :: proc(expr: IR_Expr) -> bool {
+has_dup_or_drop :: proc(expr: ir.IR_Expr) -> bool {
 	#partial switch e in expr {
-	case ^IR_Dup:
+	case ^ir.IR_Dup:
 		return true
-	case ^IR_Drop:
+	case ^ir.IR_Drop:
 		return true
-	case ^IR_Let:
+	case ^ir.IR_Let:
 		if has_dup_or_drop(e.value) do return true
 		return has_dup_or_drop(e.body)
-	case ^IR_Call:
+	case ^ir.IR_Call:
 		for arg in e.args {
 			if has_dup_or_drop(arg) do return true
 		}
-	case ^IR_BinOp:
+	case ^ir.IR_BinOp:
 		if has_dup_or_drop(e.left) do return true
 		return has_dup_or_drop(e.right)
-	case ^IR_If:
+	case ^ir.IR_If:
 		if has_dup_or_drop(e.condition) do return true
 		if has_dup_or_drop(e.then_branch) do return true
 		return has_dup_or_drop(e.else_branch)
-	case ^IR_Block:
+	case ^ir.IR_Block:
 		for stmt in e.statements {
 			if has_dup_or_drop(stmt) do return true
 		}
-	case ^IR_Return:
+	case ^ir.IR_Return:
 		return has_dup_or_drop(e.value)
 	case:
 	}
@@ -1020,40 +1026,40 @@ test_rc_insert_dup_drop :: proc(t: ^testing.T) {
 	mod, ctx, store := lower_source("f = || { a = 42; a + a }")
 	defer teardown_lower(ctx, &store)
 
-	rc_insert(&mod, ctx)
+	ir.rc_insert(&mod, &ctx.interner)
 
 	fn_decl := find_decl_fn(mod, false)
 	testing.expect(t, fn_decl != nil)
 	testing.expect(t, has_dup_or_drop(fn_decl.body))
 }
 
-contains_ir_field_access :: proc(expr: IR_Expr) -> bool {
+contains_ir_field_access :: proc(expr: ir.IR_Expr) -> bool {
 	#partial switch e in expr {
-	case ^IR_Field_Access:
+	case ^ir.IR_Field_Access:
 		return true
-	case ^IR_Let:
+	case ^ir.IR_Let:
 		if contains_ir_field_access(e.value) do return true
 		return contains_ir_field_access(e.body)
-	case ^IR_Call:
+	case ^ir.IR_Call:
 		for arg in e.args {
 			if contains_ir_field_access(arg) do return true
 		}
-	case ^IR_Closure_Call:
+	case ^ir.IR_Closure_Call:
 		if contains_ir_field_access(e.callee) do return true
 		for arg in e.args {
 			if contains_ir_field_access(arg) do return true
 		}
-	case ^IR_BinOp:
+	case ^ir.IR_BinOp:
 		return contains_ir_field_access(e.left) || contains_ir_field_access(e.right)
-	case ^IR_If:
+	case ^ir.IR_If:
 		return contains_ir_field_access(e.condition) || contains_ir_field_access(e.then_branch) || contains_ir_field_access(e.else_branch)
-	case ^IR_Block:
+	case ^ir.IR_Block:
 		for stmt in e.statements {
 			if contains_ir_field_access(stmt) do return true
 		}
-	case ^IR_Return:
+	case ^ir.IR_Return:
 		return contains_ir_field_access(e.value)
-	case ^IR_Construct_Record:
+	case ^ir.IR_Construct_Record:
 		for f in e.fields {
 			if contains_ir_field_access(f.value) do return true
 		}
@@ -1068,12 +1074,12 @@ test_closure_capture_free_var :: proc(t: ^testing.T) {
 	mod, ctx, store := lower_source("f = |x| |y| x")
 	defer teardown_lower(ctx, &store)
 
-	result := closure_convert(&mod, ctx)
+	result := ir.closure_convert(&mod, &ctx.interner)
 
 	has_env_access := false
 	for decl in result.decls {
 		#partial switch d in decl {
-		case ^IR_Decl_Fn:
+		case ^ir.IR_Decl_Fn:
 			if contains_ir_field_access(d.body) {
 				has_env_access = true
 			}
@@ -1088,16 +1094,16 @@ test_closure_closed_fn_has_params :: proc(t: ^testing.T) {
 	mod, ctx, store := lower_source("f = |x| |y| x")
 	defer teardown_lower(ctx, &store)
 
-	result := closure_convert(&mod, ctx)
+	result := ir.closure_convert(&mod, &ctx.interner)
 
 	found := false
 	for decl in result.decls {
 		#partial switch d in decl {
-		case ^IR_Decl_Fn:
+		case ^ir.IR_Decl_Fn:
 			has_cenv := false
 			has_y := false
 			for p in d.params {
-				name_str := intern_get(&ctx.interner, p.name)
+				name_str := base.intern_get(&ctx.interner, p.name)
 				if strings.contains(name_str, "_cenv") { has_cenv = true }
 				if strings.contains(name_str, "y") { has_y = true }
 			}
@@ -1110,33 +1116,33 @@ test_closure_closed_fn_has_params :: proc(t: ^testing.T) {
 	testing.expect(t, found)
 }
 
-contains_ir_resume :: proc(expr: IR_Expr) -> bool {
+contains_ir_resume :: proc(expr: ir.IR_Expr) -> bool {
 	if expr == nil do return false
 	#partial switch e in expr {
-	case ^IR_Resume:
+	case ^ir.IR_Resume:
 		return true
-	case ^IR_Let:
+	case ^ir.IR_Let:
 		return contains_ir_resume(e.value) || contains_ir_resume(e.body)
-	case ^IR_If:
+	case ^ir.IR_If:
 		return contains_ir_resume(e.condition) || contains_ir_resume(e.then_branch) || contains_ir_resume(e.else_branch)
-	case ^IR_Block:
+	case ^ir.IR_Block:
 		for stmt in e.statements {
 			if contains_ir_resume(stmt) do return true
 		}
-	case ^IR_BinOp:
+	case ^ir.IR_BinOp:
 		return contains_ir_resume(e.left) || contains_ir_resume(e.right)
-	case ^IR_Return:
+	case ^ir.IR_Return:
 		return contains_ir_resume(e.value)
-	case ^IR_Call:
+	case ^ir.IR_Call:
 		for arg in e.args {
 			if contains_ir_resume(arg) do return true
 		}
-	case ^IR_Closure_Call:
+	case ^ir.IR_Closure_Call:
 		if contains_ir_resume(e.callee) do return true
 		for arg in e.args {
 			if contains_ir_resume(arg) do return true
 		}
-	case ^IR_Closure:
+	case ^ir.IR_Closure:
 		if contains_ir_resume(e.env) do return true
 		if contains_ir_resume(e.body) do return true
 	case:
@@ -1144,16 +1150,16 @@ contains_ir_resume :: proc(expr: IR_Expr) -> bool {
 	return false
 }
 
-has_resume_with_ev :: proc(expr: IR_Expr) -> bool {
+has_resume_with_ev :: proc(expr: ir.IR_Expr) -> bool {
 	if expr == nil do return false
 	#partial switch e in expr {
-	case ^IR_Resume:
+	case ^ir.IR_Resume:
 		return e.ev != nil
-	case ^IR_Let:
+	case ^ir.IR_Let:
 		return has_resume_with_ev(e.value) || has_resume_with_ev(e.body)
-	case ^IR_If:
+	case ^ir.IR_If:
 		return has_resume_with_ev(e.condition) || has_resume_with_ev(e.then_branch) || has_resume_with_ev(e.else_branch)
-	case ^IR_Closure:
+	case ^ir.IR_Closure:
 		if has_resume_with_ev(e.env) do return true
 		return has_resume_with_ev(e.body)
 	case:
@@ -1161,16 +1167,16 @@ has_resume_with_ev :: proc(expr: IR_Expr) -> bool {
 	return false
 }
 
-has_resume_without_ev :: proc(expr: IR_Expr) -> bool {
+has_resume_without_ev :: proc(expr: ir.IR_Expr) -> bool {
 	if expr == nil do return false
 	#partial switch e in expr {
-	case ^IR_Resume:
+	case ^ir.IR_Resume:
 		return e.ev == nil
-	case ^IR_Let:
+	case ^ir.IR_Let:
 		return has_resume_without_ev(e.value) || has_resume_without_ev(e.body)
-	case ^IR_If:
+	case ^ir.IR_If:
 		return has_resume_without_ev(e.condition) || has_resume_without_ev(e.then_branch) || has_resume_without_ev(e.else_branch)
-	case ^IR_Closure:
+	case ^ir.IR_Closure:
 		if has_resume_without_ev(e.env) do return true
 		return has_resume_without_ev(e.body)
 	case:
@@ -1178,14 +1184,14 @@ has_resume_without_ev :: proc(expr: IR_Expr) -> bool {
 	return false
 }
 
-continuation_has_ev_param :: proc(mod: IR_Module, interner: ^Intern_Table) -> bool {
+continuation_has_ev_param :: proc(mod: ir.IR_Module, interner: ^base.Intern_Table) -> bool {
 	for decl in mod.decls {
 		#partial switch d in decl {
-		case ^IR_Decl_Fn:
-			name_str := intern_get(interner, d.name.name)
+		case ^ir.IR_Decl_Fn:
+			name_str := base.intern_get(interner, d.name.name)
 			if strings.has_prefix(name_str, "_kc") {
 				for p in d.params {
-					p_str := intern_get(interner, p.name)
+					p_str := base.intern_get(interner, p.name)
 					if strings.has_prefix(p_str, "_ev") {
 						return true
 					}
@@ -1197,15 +1203,15 @@ continuation_has_ev_param :: proc(mod: IR_Module, interner: ^Intern_Table) -> bo
 	return false
 }
 
-continuation_lacks_ev_param :: proc(mod: IR_Module, interner: ^Intern_Table) -> bool {
+continuation_lacks_ev_param :: proc(mod: ir.IR_Module, interner: ^base.Intern_Table) -> bool {
 	for decl in mod.decls {
 		#partial switch d in decl {
-		case ^IR_Decl_Fn:
-			name_str := intern_get(interner, d.name.name)
+		case ^ir.IR_Decl_Fn:
+			name_str := base.intern_get(interner, d.name.name)
 			if strings.has_prefix(name_str, "_kc") {
 				has_ev := false
 				for p in d.params {
-					p_str := intern_get(interner, p.name)
+					p_str := base.intern_get(interner, p.name)
 					if strings.has_prefix(p_str, "_ev") {
 						has_ev = true
 					}
@@ -1229,7 +1235,7 @@ test_effect_lower_produces_ir_resume :: proc(t: ^testing.T) {
 	found_resume := false
 	for decl in result.decls {
 		#partial switch d in decl {
-		case ^IR_Decl_Fn:
+		case ^ir.IR_Decl_Fn:
 			if contains_ir_resume(d.body) {
 				found_resume = true
 			}
@@ -1248,7 +1254,7 @@ test_effect_lower_resume_deep_has_ev :: proc(t: ^testing.T) {
 	found := false
 	for decl in result.decls {
 		#partial switch d in decl {
-		case ^IR_Decl_Fn:
+		case ^ir.IR_Decl_Fn:
 			if has_resume_with_ev(d.body) {
 				found = true
 			}
@@ -1276,7 +1282,7 @@ test_effect_lower_resume_shallow_no_ev :: proc(t: ^testing.T) {
 	found := false
 	for decl in result.decls {
 		#partial switch d in decl {
-		case ^IR_Decl_Fn:
+		case ^ir.IR_Decl_Fn:
 			if has_resume_without_ev(d.body) {
 				found = true
 			}
@@ -1295,98 +1301,98 @@ test_effect_lower_shallow_continuation_no_ev_param :: proc(t: ^testing.T) {
 	testing.expect(t, continuation_lacks_ev_param(result, &ctx.interner))
 }
 
-// ── Helper: count IR_Dup nodes ──────────────────────────────────────────────
+// ── Helper: count ir.IR_Dup nodes ──────────────────────────────────────────────
 
-count_ir_dup :: proc(expr: IR_Expr) -> int {
+count_ir_dup :: proc(expr: ir.IR_Expr) -> int {
 	if expr == nil do return 0
 	count := 0
 	#partial switch e in expr {
-	case ^IR_Dup:
+	case ^ir.IR_Dup:
 		count += 1
-	case ^IR_Let:
+	case ^ir.IR_Let:
 		count += count_ir_dup(e.value)
 		count += count_ir_dup(e.body)
-	case ^IR_If:
+	case ^ir.IR_If:
 		count += count_ir_dup(e.condition)
 		count += count_ir_dup(e.then_branch)
 		count += count_ir_dup(e.else_branch)
-	case ^IR_Block:
+	case ^ir.IR_Block:
 		for stmt in e.statements {
 			count += count_ir_dup(stmt)
 		}
-	case ^IR_BinOp:
+	case ^ir.IR_BinOp:
 		count += count_ir_dup(e.left)
 		count += count_ir_dup(e.right)
-	case ^IR_Call:
+	case ^ir.IR_Call:
 		for arg in e.args {
 			count += count_ir_dup(arg)
 		}
-	case ^IR_Closure_Call:
+	case ^ir.IR_Closure_Call:
 		count += count_ir_dup(e.callee)
 		for arg in e.args {
 			count += count_ir_dup(arg)
 		}
-	case ^IR_Return:
+	case ^ir.IR_Return:
 		count += count_ir_dup(e.value)
-	case ^IR_Construct_Record:
+	case ^ir.IR_Construct_Record:
 		for f in e.fields {
 			count += count_ir_dup(f.value)
 		}
 		count += count_ir_dup(e.rest)
-	case ^IR_Construct_Tag:
+	case ^ir.IR_Construct_Tag:
 		for p in e.payload {
 			count += count_ir_dup(p)
 		}
-	case ^IR_Field_Access:
+	case ^ir.IR_Field_Access:
 		count += count_ir_dup(e.record)
 	case:
 	}
 	return count
 }
 
-// ── Helper: count IR_Drop nodes ─────────────────────────────────────────────
+// ── Helper: count ir.IR_Drop nodes ─────────────────────────────────────────────
 
-count_ir_drop :: proc(expr: IR_Expr) -> int {
+count_ir_drop :: proc(expr: ir.IR_Expr) -> int {
 	if expr == nil do return 0
 	count := 0
 	#partial switch e in expr {
-	case ^IR_Drop:
+	case ^ir.IR_Drop:
 		count += 1
-	case ^IR_Let:
+	case ^ir.IR_Let:
 		count += count_ir_drop(e.value)
 		count += count_ir_drop(e.body)
-	case ^IR_If:
+	case ^ir.IR_If:
 		count += count_ir_drop(e.condition)
 		count += count_ir_drop(e.then_branch)
 		count += count_ir_drop(e.else_branch)
-	case ^IR_Block:
+	case ^ir.IR_Block:
 		for stmt in e.statements {
 			count += count_ir_drop(stmt)
 		}
-	case ^IR_BinOp:
+	case ^ir.IR_BinOp:
 		count += count_ir_drop(e.left)
 		count += count_ir_drop(e.right)
-	case ^IR_Call:
+	case ^ir.IR_Call:
 		for arg in e.args {
 			count += count_ir_drop(arg)
 		}
-	case ^IR_Closure_Call:
+	case ^ir.IR_Closure_Call:
 		count += count_ir_drop(e.callee)
 		for arg in e.args {
 			count += count_ir_drop(arg)
 		}
-	case ^IR_Return:
+	case ^ir.IR_Return:
 		count += count_ir_drop(e.value)
-	case ^IR_Construct_Record:
+	case ^ir.IR_Construct_Record:
 		for f in e.fields {
 			count += count_ir_drop(f.value)
 		}
 		count += count_ir_drop(e.rest)
-	case ^IR_Construct_Tag:
+	case ^ir.IR_Construct_Tag:
 		for p in e.payload {
 			count += count_ir_drop(p)
 		}
-	case ^IR_Field_Access:
+	case ^ir.IR_Field_Access:
 		count += count_ir_drop(e.record)
 	case:
 	}
@@ -1395,26 +1401,26 @@ count_ir_drop :: proc(expr: IR_Expr) -> int {
 
 // ── Pipeline helper wrappers ────────────────────────────────────────────────
 
-closure_convert_source :: proc(source: string) -> (IR_Module, ^Compilation_Context, Type_Store) {
+closure_convert_source :: proc(source: string) -> (ir.IR_Module, ^build.Compilation_Context, semantics.Type_Store) {
 	mod, ctx, store := lower_source(source)
-	mod = effect_lower(&mod, ctx)
-	result := closure_convert(&mod, ctx)
+	mod = ir.effect_lower(&mod, &ctx.interner, &ctx.collector, &store)
+	result := ir.closure_convert(&mod, &ctx.interner)
 	return result, ctx, store
 }
 
-cps_source :: proc(source: string) -> (IR_Module, ^Compilation_Context, Type_Store) {
+cps_source :: proc(source: string) -> (ir.IR_Module, ^build.Compilation_Context, semantics.Type_Store) {
 	mod, ctx, store := lower_source(source)
-	mod = effect_lower(&mod, ctx)
-	mod = closure_convert(&mod, ctx)
-	result := cps_transform(&mod, ctx)
+	mod = ir.effect_lower(&mod, &ctx.interner, &ctx.collector, &store)
+	mod = ir.closure_convert(&mod, &ctx.interner)
+	result := ir.cps_transform(&mod, &ctx.interner)
 	return result, ctx, store
 }
 
-find_decl_fn_by_name :: proc(mod: IR_Module, name_str: string, interner: ^Intern_Table) -> ^IR_Decl_Fn {
+find_decl_fn_by_name :: proc(mod: ir.IR_Module, name_str: string, interner: ^base.Intern_Table) -> ^ir.IR_Decl_Fn {
 	for decl in mod.decls {
 		#partial switch d in decl {
-		case ^IR_Decl_Fn:
-			if intern_get(interner, d.name.name) == name_str {
+		case ^ir.IR_Decl_Fn:
+			if base.intern_get(interner, d.name.name) == name_str {
 				return d
 			}
 		case:
@@ -1436,8 +1442,8 @@ test_effect_lower_nested_handlers :: proc(t: ^testing.T) {
 	handler_count := 0
 	for decl in result.decls {
 		#partial switch d in decl {
-		case ^IR_Decl_Fn:
-			name_str := intern_get(&ctx.interner, d.name.name)
+		case ^ir.IR_Decl_Fn:
+			name_str := base.intern_get(&ctx.interner, d.name.name)
 			if strings.has_prefix(name_str, "handler") {
 				handler_count += 1
 			}
@@ -1456,7 +1462,7 @@ test_effect_lower_multi_arm_perform :: proc(t: ^testing.T) {
 	load_count := 0
 	for decl in result.decls {
 		#partial switch d in decl {
-		case ^IR_Decl_Fn:
+		case ^ir.IR_Decl_Fn:
 			if d.is_effectful && contains_ir_i32_load(d.body) {
 				load_count += 1
 			}
@@ -1475,8 +1481,8 @@ test_effect_lower_scheduler_passthrough :: proc(t: ^testing.T) {
 	handler_count := 0
 	for decl in result.decls {
 		#partial switch d in decl {
-		case ^IR_Decl_Fn:
-			name_str := intern_get(&ctx.interner, d.name.name)
+		case ^ir.IR_Decl_Fn:
+			name_str := base.intern_get(&ctx.interner, d.name.name)
 			if strings.has_prefix(name_str, "handler") {
 				handler_count += 1
 			}
@@ -1495,10 +1501,10 @@ test_effect_lower_handle_removes_ir_handle :: proc(t: ^testing.T) {
 	found_handle := false
 	for decl in result.decls {
 		#partial switch d in decl {
-		case ^IR_Decl_Fn:
+		case ^ir.IR_Decl_Fn:
 			if d.is_effectful {
 				#partial switch expr in d.body {
-				case ^IR_Handle:
+				case ^ir.IR_Handle:
 					found_handle = true
 				case:
 				}
@@ -1510,7 +1516,7 @@ test_effect_lower_handle_removes_ir_handle :: proc(t: ^testing.T) {
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════
-// Phase 6 – closure_convert tests
+// Phase 6 – ir.closure_convert tests
 // ═══════════════════════════════════════════════════════════════════════════════
 
 @(test)
@@ -1518,14 +1524,14 @@ test_closure_convert_no_free_vars :: proc(t: ^testing.T) {
 	mod, ctx, store := lower_source("f = |x| x + 1")
 	defer teardown_lower(ctx, &store)
 
-	result := closure_convert(&mod, ctx)
+	result := ir.closure_convert(&mod, &ctx.interner)
 
 	found_cenv := false
 	for decl in result.decls {
 		#partial switch d in decl {
-		case ^IR_Decl_Fn:
+		case ^ir.IR_Decl_Fn:
 			for p in d.params {
-				p_str := intern_get(&ctx.interner, p.name)
+				p_str := base.intern_get(&ctx.interner, p.name)
 				if strings.contains(p_str, "_cenv") { found_cenv = true }
 			}
 		case:
@@ -1539,12 +1545,12 @@ test_closure_convert_multi_free_var :: proc(t: ^testing.T) {
 	mod, ctx, store := lower_source("f = |x| |y| |z| x + y + z")
 	defer teardown_lower(ctx, &store)
 
-	result := closure_convert(&mod, ctx)
+	result := ir.closure_convert(&mod, &ctx.interner)
 
 	field_access_count := 0
 	for decl in result.decls {
 		#partial switch d in decl {
-		case ^IR_Decl_Fn:
+		case ^ir.IR_Decl_Fn:
 			if contains_ir_field_access(d.body) {
 				field_access_count += 1
 			}
@@ -1559,12 +1565,12 @@ test_closure_convert_produces_record :: proc(t: ^testing.T) {
 	mod, ctx, store := lower_source("f = |x| |y| x")
 	defer teardown_lower(ctx, &store)
 
-	result := closure_convert(&mod, ctx)
+	result := ir.closure_convert(&mod, &ctx.interner)
 
 	found_record := false
 	for decl in result.decls {
 		#partial switch d in decl {
-		case ^IR_Decl_Fn:
+		case ^ir.IR_Decl_Fn:
 			if contains_ir_construct_record(d.body) {
 				found_record = true
 			}
@@ -1579,14 +1585,14 @@ test_closure_convert_env_param_name :: proc(t: ^testing.T) {
 	mod, ctx, store := lower_source("f = |x| |y| x")
 	defer teardown_lower(ctx, &store)
 
-	result := closure_convert(&mod, ctx)
+	result := ir.closure_convert(&mod, &ctx.interner)
 
 	found := false
 	for decl in result.decls {
 		#partial switch d in decl {
-		case ^IR_Decl_Fn:
+		case ^ir.IR_Decl_Fn:
 			if len(d.params) > 0 {
-				first_param := intern_get(&ctx.interner, d.params[0].name)
+				first_param := base.intern_get(&ctx.interner, d.params[0].name)
 				if strings.contains(first_param, "_cenv") {
 					found = true
 				}
@@ -1598,7 +1604,7 @@ test_closure_convert_env_param_name :: proc(t: ^testing.T) {
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════
-// Phase 6 – cps_transform tests
+// Phase 6 – ir.cps_transform tests
 // ═══════════════════════════════════════════════════════════════════════════════
 
 @(test)
@@ -1606,13 +1612,13 @@ test_cps_transform_adds_k_param :: proc(t: ^testing.T) {
 	mod, ctx, store := lower_source("main! = || { 42 }")
 	defer teardown_lower(ctx, &store)
 
-	result := cps_transform(&mod, ctx)
+	result := ir.cps_transform(&mod, &ctx.interner)
 
 	fn_decl := find_decl_fn(result, true)
 	testing.expect(t, fn_decl != nil)
 	has_k := false
 	for p in fn_decl.params {
-		p_str := intern_get(&ctx.interner, p.name)
+		p_str := base.intern_get(&ctx.interner, p.name)
 		if strings.contains(p_str, "_k") { has_k = true }
 	}
 	testing.expect(t, has_k)
@@ -1625,12 +1631,12 @@ test_cps_transform_pure_fn_no_k_param :: proc(t: ^testing.T) {
 
 	original_param_count := 0
 	#partial switch decl in mod.decls[0] {
-	case ^IR_Decl_Fn:
+	case ^ir.IR_Decl_Fn:
 		original_param_count = len(decl.params)
 	case:
 	}
 
-	result := cps_transform(&mod, ctx)
+	result := ir.cps_transform(&mod, &ctx.interner)
 
 	fn_decl := find_decl_fn(result, false)
 	testing.expect(t, fn_decl != nil)
@@ -1642,7 +1648,7 @@ test_cps_transform_return_is_closure_call :: proc(t: ^testing.T) {
 	mod, ctx, store := lower_source("main! = || { 42 }")
 	defer teardown_lower(ctx, &store)
 
-	result := cps_transform(&mod, ctx)
+	result := ir.cps_transform(&mod, &ctx.interner)
 
 	fn_decl := find_decl_fn(result, true)
 	testing.expect(t, fn_decl != nil)
@@ -1650,7 +1656,7 @@ test_cps_transform_return_is_closure_call :: proc(t: ^testing.T) {
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════
-// Phase 6 – rc_insert tests
+// Phase 6 – ir.rc_insert tests
 // ═══════════════════════════════════════════════════════════════════════════════
 
 @(test)
@@ -1658,7 +1664,7 @@ test_rc_insert_single_use_no_dup :: proc(t: ^testing.T) {
 	mod, ctx, store := lower_source("f = || { a = 42; a }")
 	defer teardown_lower(ctx, &store)
 
-	rc_insert(&mod, ctx)
+	ir.rc_insert(&mod, &ctx.interner)
 
 	fn_decl := find_decl_fn(mod, false)
 	testing.expect(t, fn_decl != nil)
@@ -1670,7 +1676,7 @@ test_rc_insert_multi_use_has_dup :: proc(t: ^testing.T) {
 	mod, ctx, store := lower_source("f = || { a = 42; a + a }")
 	defer teardown_lower(ctx, &store)
 
-	rc_insert(&mod, ctx)
+	ir.rc_insert(&mod, &ctx.interner)
 
 	fn_decl := find_decl_fn(mod, false)
 	testing.expect(t, fn_decl != nil)
@@ -1682,7 +1688,7 @@ test_rc_insert_has_drop :: proc(t: ^testing.T) {
 	mod, ctx, store := lower_source("f = || { a = 42; a + a }")
 	defer teardown_lower(ctx, &store)
 
-	rc_insert(&mod, ctx)
+	ir.rc_insert(&mod, &ctx.interner)
 
 	fn_decl := find_decl_fn(mod, false)
 	testing.expect(t, fn_decl != nil)
@@ -1699,7 +1705,7 @@ test_rc_insert_branch_independent :: proc(t: ^testing.T) {
 	mod, ctx, store := lower_source("f = || { a = 42; if true (a + a) else (a + a) }")
 	defer teardown_lower(ctx, &store)
 
-	rc_insert(&mod, ctx)
+	ir.rc_insert(&mod, &ctx.interner)
 
 	fn_decl := find_decl_fn(mod, false)
 	testing.expect(t, fn_decl != nil)

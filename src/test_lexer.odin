@@ -1,18 +1,22 @@
 package camp
 
 import "core:testing"
+import "camp:base"
+import "camp:frontend"
+import "camp:build"
+import "camp:diagnostics"
 
-lex_all :: proc(source: string, ctx: ^Compilation_Context) -> []Token {
+lex_all :: proc(source: string, ctx: ^build.Compilation_Context) -> []base.Token {
 	old_allocator := context.allocator
 	context.allocator = ctx.allocator
 	defer context.allocator = old_allocator
-	file := Source_File{path = "<test>", contents = source, id = 0}
-	lexer: Lexer
-	lexer_init(&lexer, file, &ctx.collector, &ctx.interner)
+	file := base.Source_File{path = "<test>", contents = source, id = 0}
+	lexer: frontend.Lexer
+	frontend.lexer_init(&lexer, file, &ctx.collector, &ctx.interner)
 
-	tokens: [dynamic]Token
+	tokens: [dynamic]base.Token
 	for {
-		tok := lexer_next(&lexer)
+		tok := frontend.lexer_next(&lexer)
 		append(&tokens, tok)
 		if tok.kind == .Eof { break }
 	}
@@ -22,9 +26,9 @@ lex_all :: proc(source: string, ctx: ^Compilation_Context) -> []Token {
 
 @(test)
 test_lexer_integer_literal :: proc(t: ^testing.T) {
-	ctx: Compilation_Context
-	context_init(&ctx)
-	defer context_destroy(&ctx)
+	ctx: build.Compilation_Context
+	build.context_init(&ctx)
+	defer build.context_destroy(&ctx)
 
 	tokens := lex_all("42", &ctx)
 	defer delete(tokens)
@@ -36,9 +40,9 @@ test_lexer_integer_literal :: proc(t: ^testing.T) {
 
 @(test)
 test_lexer_string_literal :: proc(t: ^testing.T) {
-	ctx: Compilation_Context
-	context_init(&ctx)
-	defer context_destroy(&ctx)
+	ctx: build.Compilation_Context
+	build.context_init(&ctx)
+	defer build.context_destroy(&ctx)
 
 	tokens := lex_all("\"hello\"", &ctx)
 	defer delete(tokens)
@@ -49,9 +53,9 @@ test_lexer_string_literal :: proc(t: ^testing.T) {
 
 @(test)
 test_lexer_upper_identifier :: proc(t: ^testing.T) {
-	ctx: Compilation_Context
-	context_init(&ctx)
-	defer context_destroy(&ctx)
+	ctx: build.Compilation_Context
+	build.context_init(&ctx)
+	defer build.context_destroy(&ctx)
 
 	tokens := lex_all("Ok", &ctx)
 	defer delete(tokens)
@@ -62,9 +66,9 @@ test_lexer_upper_identifier :: proc(t: ^testing.T) {
 
 @(test)
 test_lexer_lower_identifier :: proc(t: ^testing.T) {
-	ctx: Compilation_Context
-	context_init(&ctx)
-	defer context_destroy(&ctx)
+	ctx: build.Compilation_Context
+	build.context_init(&ctx)
+	defer build.context_destroy(&ctx)
 
 	tokens := lex_all("add", &ctx)
 	defer delete(tokens)
@@ -75,9 +79,9 @@ test_lexer_lower_identifier :: proc(t: ^testing.T) {
 
 @(test)
 test_lexer_dollar_identifier :: proc(t: ^testing.T) {
-	ctx: Compilation_Context
-	context_init(&ctx)
-	defer context_destroy(&ctx)
+	ctx: build.Compilation_Context
+	build.context_init(&ctx)
+	defer build.context_destroy(&ctx)
 
 	tokens := lex_all("$count", &ctx)
 	defer delete(tokens)
@@ -89,9 +93,9 @@ test_lexer_dollar_identifier :: proc(t: ^testing.T) {
 
 @(test)
 test_lexer_keyword :: proc(t: ^testing.T) {
-	ctx: Compilation_Context
-	context_init(&ctx)
-	defer context_destroy(&ctx)
+	ctx: build.Compilation_Context
+	build.context_init(&ctx)
+	defer build.context_destroy(&ctx)
 
 	tokens := lex_all("if else match", &ctx)
 	defer delete(tokens)
@@ -104,9 +108,9 @@ test_lexer_keyword :: proc(t: ^testing.T) {
 
 @(test)
 test_lexer_arrow :: proc(t: ^testing.T) {
-	ctx: Compilation_Context
-	context_init(&ctx)
-	defer context_destroy(&ctx)
+	ctx: build.Compilation_Context
+	build.context_init(&ctx)
+	defer build.context_destroy(&ctx)
 
 	tokens := lex_all("->", &ctx)
 	defer delete(tokens)
@@ -117,9 +121,9 @@ test_lexer_arrow :: proc(t: ^testing.T) {
 
 @(test)
 test_lexer_dot_dot :: proc(t: ^testing.T) {
-	ctx: Compilation_Context
-	context_init(&ctx)
-	defer context_destroy(&ctx)
+	ctx: build.Compilation_Context
+	build.context_init(&ctx)
+	defer build.context_destroy(&ctx)
 
 	tokens := lex_all("..", &ctx)
 	defer delete(tokens)
@@ -130,9 +134,9 @@ test_lexer_dot_dot :: proc(t: ^testing.T) {
 
 @(test)
 test_lexer_comment :: proc(t: ^testing.T) {
-	ctx: Compilation_Context
-	context_init(&ctx)
-	defer context_destroy(&ctx)
+	ctx: build.Compilation_Context
+	build.context_init(&ctx)
+	defer build.context_destroy(&ctx)
 
 	tokens := lex_all("42 -- this is a comment\n43", &ctx)
 	defer delete(tokens)
@@ -144,9 +148,9 @@ test_lexer_comment :: proc(t: ^testing.T) {
 
 @(test)
 test_lexer_float_literal :: proc(t: ^testing.T) {
-	ctx: Compilation_Context
-	context_init(&ctx)
-	defer context_destroy(&ctx)
+	ctx: build.Compilation_Context
+	build.context_init(&ctx)
+	defer build.context_destroy(&ctx)
 
 	tokens := lex_all("3.14", &ctx)
 	defer delete(tokens)
@@ -157,9 +161,9 @@ test_lexer_float_literal :: proc(t: ^testing.T) {
 
 @(test)
 test_lexer_handle :: proc(t: ^testing.T) {
-	ctx: Compilation_Context
-	context_init(&ctx)
-	defer context_destroy(&ctx)
+	ctx: build.Compilation_Context
+	build.context_init(&ctx)
+	defer build.context_destroy(&ctx)
 
 	tokens := lex_all("handle Async in { } with { }", &ctx)
 	defer delete(tokens)
@@ -178,9 +182,9 @@ test_lexer_handle :: proc(t: ^testing.T) {
 
 @(test)
 test_lexer_intercept :: proc(t: ^testing.T) {
-	ctx: Compilation_Context
-	context_init(&ctx)
-	defer context_destroy(&ctx)
+	ctx: build.Compilation_Context
+	build.context_init(&ctx)
+	defer build.context_destroy(&ctx)
 
 	tokens := lex_all("intercept Async in { } with { }", &ctx)
 	defer delete(tokens)
@@ -199,9 +203,9 @@ test_lexer_intercept :: proc(t: ^testing.T) {
 
 @(test)
 test_lexer_backslash :: proc(t: ^testing.T) {
-	ctx: Compilation_Context
-	context_init(&ctx)
-	defer context_destroy(&ctx)
+	ctx: build.Compilation_Context
+	build.context_init(&ctx)
+	defer build.context_destroy(&ctx)
 
 	tokens := lex_all("\\", &ctx)
 	defer delete(tokens)
@@ -212,9 +216,9 @@ test_lexer_backslash :: proc(t: ^testing.T) {
 
 @(test)
 test_lexer_backslash_in_string :: proc(t: ^testing.T) {
-	ctx: Compilation_Context
-	context_init(&ctx)
-	defer context_destroy(&ctx)
+	ctx: build.Compilation_Context
+	build.context_init(&ctx)
+	defer build.context_destroy(&ctx)
 
 	tokens := lex_all("\"hello\\nworld\"", &ctx)
 	defer delete(tokens)
@@ -225,9 +229,9 @@ test_lexer_backslash_in_string :: proc(t: ^testing.T) {
 
 @(test)
 test_lexer_backslash_after_comma :: proc(t: ^testing.T) {
-	ctx: Compilation_Context
-	context_init(&ctx)
-	defer context_destroy(&ctx)
+	ctx: build.Compilation_Context
+	build.context_init(&ctx)
+	defer build.context_destroy(&ctx)
 
 	tokens := lex_all("1,\\ 2", &ctx)
 	defer delete(tokens)
@@ -242,9 +246,9 @@ test_lexer_backslash_after_comma :: proc(t: ^testing.T) {
 
 @(test)
 test_lexer_colon_eq :: proc(t: ^testing.T) {
-	ctx: Compilation_Context
-	context_init(&ctx)
-	defer context_destroy(&ctx)
+	ctx: build.Compilation_Context
+	build.context_init(&ctx)
+	defer build.context_destroy(&ctx)
 
 	tokens := lex_all(":=", &ctx)
 	defer delete(tokens)
@@ -255,9 +259,9 @@ test_lexer_colon_eq :: proc(t: ^testing.T) {
 
 @(test)
 test_lexer_colon_vs_colon_eq :: proc(t: ^testing.T) {
-	ctx: Compilation_Context
-	context_init(&ctx)
-	defer context_destroy(&ctx)
+	ctx: build.Compilation_Context
+	build.context_init(&ctx)
+	defer build.context_destroy(&ctx)
 
 	tokens := lex_all(": :=", &ctx)
 	defer delete(tokens)
@@ -269,9 +273,9 @@ test_lexer_colon_vs_colon_eq :: proc(t: ^testing.T) {
 
 @(test)
 test_interpolated_string_literal :: proc(t: ^testing.T) {
-	ctx: Compilation_Context
-	context_init(&ctx)
-	defer context_destroy(&ctx)
+	ctx: build.Compilation_Context
+	build.context_init(&ctx)
+	defer build.context_destroy(&ctx)
 
 	tokens := lex_all("\"Hello ${name}!\"", &ctx)
 	defer delete(tokens)
@@ -282,9 +286,9 @@ test_interpolated_string_literal :: proc(t: ^testing.T) {
 
 @(test)
 test_plain_string_no_interpolation :: proc(t: ^testing.T) {
-	ctx: Compilation_Context
-	context_init(&ctx)
-	defer context_destroy(&ctx)
+	ctx: build.Compilation_Context
+	build.context_init(&ctx)
+	defer build.context_destroy(&ctx)
 
 	tokens := lex_all("\"Hello world\"", &ctx)
 	defer delete(tokens)
@@ -295,9 +299,9 @@ test_plain_string_no_interpolation :: proc(t: ^testing.T) {
 
 @(test)
 test_escaped_dollar_in_string :: proc(t: ^testing.T) {
-	ctx: Compilation_Context
-	context_init(&ctx)
-	defer context_destroy(&ctx)
+	ctx: build.Compilation_Context
+	build.context_init(&ctx)
+	defer build.context_destroy(&ctx)
 
 	tokens := lex_all("\"Var: \\${HOME}\"", &ctx)
 	defer delete(tokens)
@@ -308,9 +312,9 @@ test_escaped_dollar_in_string :: proc(t: ^testing.T) {
 
 @(test)
 test_dollar_without_brace :: proc(t: ^testing.T) {
-	ctx: Compilation_Context
-	context_init(&ctx)
-	defer context_destroy(&ctx)
+	ctx: build.Compilation_Context
+	build.context_init(&ctx)
+	defer build.context_destroy(&ctx)
 
 	tokens := lex_all("\"Price: $5\"", &ctx)
 	defer delete(tokens)
@@ -321,9 +325,9 @@ test_dollar_without_brace :: proc(t: ^testing.T) {
 
 @(test)
 test_raw_string :: proc(t: ^testing.T) {
-	ctx: Compilation_Context
-	context_init(&ctx)
-	defer context_destroy(&ctx)
+	ctx: build.Compilation_Context
+	build.context_init(&ctx)
+	defer build.context_destroy(&ctx)
 
 	tokens := lex_all("r\"C:\\Users\"", &ctx)
 	defer delete(tokens)
@@ -334,9 +338,9 @@ test_raw_string :: proc(t: ^testing.T) {
 
 @(test)
 test_raw_string_with_interpolation :: proc(t: ^testing.T) {
-	ctx: Compilation_Context
-	context_init(&ctx)
-	defer context_destroy(&ctx)
+	ctx: build.Compilation_Context
+	build.context_init(&ctx)
+	defer build.context_destroy(&ctx)
 
 	tokens := lex_all("r\"C:\\${dir}\"", &ctx)
 	defer delete(tokens)
@@ -347,9 +351,9 @@ test_raw_string_with_interpolation :: proc(t: ^testing.T) {
 
 @(test)
 test_raw_string_escaped_dollar :: proc(t: ^testing.T) {
-	ctx: Compilation_Context
-	context_init(&ctx)
-	defer context_destroy(&ctx)
+	ctx: build.Compilation_Context
+	build.context_init(&ctx)
+	defer build.context_destroy(&ctx)
 
 	tokens := lex_all("r\"Var: \\${HOME}\"", &ctx)
 	defer delete(tokens)
@@ -360,9 +364,9 @@ test_raw_string_escaped_dollar :: proc(t: ^testing.T) {
 
 @(test)
 test_multiline_string :: proc(t: ^testing.T) {
-	ctx: Compilation_Context
-	context_init(&ctx)
-	defer context_destroy(&ctx)
+	ctx: build.Compilation_Context
+	build.context_init(&ctx)
+	defer build.context_destroy(&ctx)
 
 	tokens := lex_all("\"\"\"Line 1\\nLine 2\"\"\"", &ctx)
 	defer delete(tokens)
@@ -373,9 +377,9 @@ test_multiline_string :: proc(t: ^testing.T) {
 
 @(test)
 test_multiline_string_with_interpolation :: proc(t: ^testing.T) {
-	ctx: Compilation_Context
-	context_init(&ctx)
-	defer context_destroy(&ctx)
+	ctx: build.Compilation_Context
+	build.context_init(&ctx)
+	defer build.context_destroy(&ctx)
 
 	tokens := lex_all("\"\"\"Hello ${name}!\"\"\"", &ctx)
 	defer delete(tokens)

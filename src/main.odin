@@ -3,6 +3,12 @@ package camp
 import "core:fmt"
 import "core:os"
 
+import "camp:base"
+import "camp:diagnostics"
+import "camp:build"
+import "camp:format"
+import "camp:lsp"
+
 VERSION :: "0.0.1"
 
 main :: proc() {
@@ -16,20 +22,22 @@ main :: proc() {
 
 	cmd, ok := parse_command(args[1])
 	if !ok {
-		collector: Diagnostic_Collector
-		diag_collector_init(&collector)
-		collector_add_diag(&collector, diag_unknown_command(args[1]))
-		render_all(&collector, "", "")
-		diag_collector_destroy(&collector)
+		collector: diagnostics.Diagnostic_Collector
+		diagnostics.diag_collector_init(&collector)
+		diagnostics.collector_add_diag(&collector, diagnostics.diag_unknown_command(args[1]))
+		diagnostics.render_all(&collector, "", "")
+		diagnostics.diag_collector_destroy(&collector)
 		os.exit(1)
 	}
 
 	remaining_args := args[2:]
 	switch cmd {
-	case .Build: run_build(remaining_args)
-	case .Test:  run_test(remaining_args)
-	case .Fmt:   run_fmt(remaining_args)
-	case .Check: run_check(remaining_args)
-	case .Lsp:   lsp_main()
+	case .Build:
+		file_path := len(remaining_args) > 0 ? remaining_args[0] : ""
+		build.run_build_single(file_path)
+	case .Test:  build.run_test(remaining_args)
+	case .Fmt:   format.run_fmt(remaining_args)
+	case .Check: build.run_check(remaining_args)
+	case .Lsp:   lsp.lsp_main()
 	}
 }
