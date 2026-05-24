@@ -185,72 +185,69 @@ Wasm_I64_Extend_I32_S :: struct {}
 Wasm_Ref_Null :: struct { heap_type: u8 }
 Wasm_Ref_Func :: struct { index: u32 }
 Wasm_Atomic_Fence :: struct {}
-Wasm_I32_Atomic_Load :: struct { align: u32, offset: u32 }
-Wasm_I64_Atomic_Load :: struct { align: u32, offset: u32 }
-Wasm_I32_Atomic_Load8U :: struct { align: u32, offset: u32 }
-Wasm_I32_Atomic_Load16U :: struct { align: u32, offset: u32 }
-Wasm_I64_Atomic_Load8U :: struct { align: u32, offset: u32 }
-Wasm_I64_Atomic_Load16U :: struct { align: u32, offset: u32 }
-Wasm_I64_Atomic_Load32U :: struct { align: u32, offset: u32 }
-Wasm_I32_Atomic_Store :: struct { align: u32, offset: u32 }
-Wasm_I64_Atomic_Store :: struct { align: u32, offset: u32 }
-Wasm_I32_Atomic_Store8 :: struct { align: u32, offset: u32 }
-Wasm_I32_Atomic_Store16 :: struct { align: u32, offset: u32 }
-Wasm_I64_Atomic_Store8 :: struct { align: u32, offset: u32 }
-Wasm_I64_Atomic_Store16 :: struct { align: u32, offset: u32 }
-Wasm_I64_Atomic_Store32 :: struct { align: u32, offset: u32 }
-Wasm_I32_Atomic_RMW_Add :: struct { align: u32, offset: u32 }
-Wasm_I64_Atomic_RMW_Add :: struct { align: u32, offset: u32 }
-Wasm_I32_Atomic_RMW_Sub :: struct { align: u32, offset: u32 }
-Wasm_I64_Atomic_RMW_Sub :: struct { align: u32, offset: u32 }
-Wasm_I32_Atomic_RMW_And :: struct { align: u32, offset: u32 }
-Wasm_I64_Atomic_RMW_And :: struct { align: u32, offset: u32 }
-Wasm_I32_Atomic_RMW_Or :: struct { align: u32, offset: u32 }
-Wasm_I64_Atomic_RMW_Or :: struct { align: u32, offset: u32 }
-Wasm_I32_Atomic_RMW_Xor :: struct { align: u32, offset: u32 }
-Wasm_I64_Atomic_RMW_Xor :: struct { align: u32, offset: u32 }
-Wasm_I32_Atomic_RMW_Xchg :: struct { align: u32, offset: u32 }
-Wasm_I64_Atomic_RMW_Xchg :: struct { align: u32, offset: u32 }
-Wasm_I32_Atomic_RMW_CmpXchg :: struct { align: u32, offset: u32 }
-Wasm_I64_Atomic_RMW_CmpXchg :: struct { align: u32, offset: u32 }
-Wasm_I32_Atomic_RMW8_Add :: struct { align: u32, offset: u32 }
-Wasm_I32_Atomic_RMW8_Sub :: struct { align: u32, offset: u32 }
-Wasm_I32_Atomic_RMW8_And :: struct { align: u32, offset: u32 }
-Wasm_I32_Atomic_RMW8_Or :: struct { align: u32, offset: u32 }
-Wasm_I32_Atomic_RMW8_Xor :: struct { align: u32, offset: u32 }
-Wasm_I32_Atomic_RMW8_Xchg :: struct { align: u32, offset: u32 }
-Wasm_I32_Atomic_RMW8_CmpXchg :: struct { align: u32, offset: u32 }
-Wasm_I32_Atomic_RMW16_Add :: struct { align: u32, offset: u32 }
-Wasm_I32_Atomic_RMW16_Sub :: struct { align: u32, offset: u32 }
-Wasm_I32_Atomic_RMW16_And :: struct { align: u32, offset: u32 }
-Wasm_I32_Atomic_RMW16_Or :: struct { align: u32, offset: u32 }
-Wasm_I32_Atomic_RMW16_Xor :: struct { align: u32, offset: u32 }
-Wasm_I32_Atomic_RMW16_Xchg :: struct { align: u32, offset: u32 }
-Wasm_I32_Atomic_RMW16_CmpXchg :: struct { align: u32, offset: u32 }
-Wasm_I64_Atomic_RMW8_Add :: struct { align: u32, offset: u32 }
-Wasm_I64_Atomic_RMW8_Sub :: struct { align: u32, offset: u32 }
-Wasm_I64_Atomic_RMW8_And :: struct { align: u32, offset: u32 }
-Wasm_I64_Atomic_RMW8_Or :: struct { align: u32, offset: u32 }
-Wasm_I64_Atomic_RMW8_Xor :: struct { align: u32, offset: u32 }
-Wasm_I64_Atomic_RMW8_Xchg :: struct { align: u32, offset: u32 }
-Wasm_I64_Atomic_RMW8_CmpXchg :: struct { align: u32, offset: u32 }
-Wasm_I64_Atomic_RMW16_Add :: struct { align: u32, offset: u32 }
-Wasm_I64_Atomic_RMW16_Sub :: struct { align: u32, offset: u32 }
-Wasm_I64_Atomic_RMW16_And :: struct { align: u32, offset: u32 }
-Wasm_I64_Atomic_RMW16_Or :: struct { align: u32, offset: u32 }
-Wasm_I64_Atomic_RMW16_Xor :: struct { align: u32, offset: u32 }
-Wasm_I64_Atomic_RMW16_Xchg :: struct { align: u32, offset: u32 }
-Wasm_I64_Atomic_RMW16_CmpXchg :: struct { align: u32, offset: u32 }
-Wasm_I64_Atomic_RMW32_Add :: struct { align: u32, offset: u32 }
-Wasm_I64_Atomic_RMW32_Sub :: struct { align: u32, offset: u32 }
-Wasm_I64_Atomic_RMW32_And :: struct { align: u32, offset: u32 }
-Wasm_I64_Atomic_RMW32_Or :: struct { align: u32, offset: u32 }
-Wasm_I64_Atomic_RMW32_Xor :: struct { align: u32, offset: u32 }
-Wasm_I64_Atomic_RMW32_Xchg :: struct { align: u32, offset: u32 }
-Wasm_I64_Atomic_RMW32_CmpXchg :: struct { align: u32, offset: u32 }
-Wasm_Memory_Atomic_Wait32 :: struct { align: u32, offset: u32 }
-Wasm_Memory_Atomic_Wait64 :: struct { align: u32, offset: u32 }
-Wasm_Memory_Atomic_Notify :: struct { align: u32, offset: u32 }
+
+Wasm_Atomic_Op :: enum {
+	Load,
+	Store,
+	RMW_Add,
+	RMW_Sub,
+	RMW_And,
+	RMW_Or,
+	RMW_Xor,
+	RMW_Xchg,
+	RMW_CmpXchg,
+	Notify,
+	Wait32,
+	Wait64,
+}
+
+Wasm_Atomic_Width :: enum {
+	I32,
+	I64,
+	I32_8,
+	I32_16,
+	I64_8,
+	I64_16,
+	I64_32,
+}
+
+Wasm_Atomic_Mem :: struct {
+	op:     Wasm_Atomic_Op,
+	width:  Wasm_Atomic_Width,
+	align:  u32,
+	offset: u32,
+}
+
+ATOMIC_PREFIX :: u8(0xFE)
+
+atomic_opcode :: proc(op: Wasm_Atomic_Op, width: Wasm_Atomic_Width) -> u8 {
+	base := u8(0)
+	switch op {
+	case .Load:       base = 0x10
+	case .Store:      base = 0x17
+	case .RMW_Add:    base = 0x1E
+	case .RMW_Sub:    base = 0x25
+	case .RMW_And:    base = 0x2C
+	case .RMW_Or:     base = 0x33
+	case .RMW_Xor:    base = 0x3A
+	case .RMW_Xchg:   base = 0x41
+	case .RMW_CmpXchg: base = 0x48
+	case .Notify:     return 0x00
+	case .Wait32:     return 0x01
+	case .Wait64:     return 0x02
+	}
+	offset := u8(0)
+	switch width {
+	case .I32:    offset = 0
+	case .I64:    offset = 1
+	case .I32_8:  offset = 2
+	case .I32_16: offset = 3
+	case .I64_8:  offset = 4
+	case .I64_16: offset = 5
+	case .I64_32: offset = 6
+	}
+	return base + offset
+}
 
 Wasm_Instruction :: union {
 	Wasm_I32_Const,
@@ -333,72 +330,7 @@ Wasm_Instruction :: union {
 	Wasm_Ref_Null,
 	Wasm_Ref_Func,
 	Wasm_Atomic_Fence,
-	Wasm_I32_Atomic_Load,
-	Wasm_I64_Atomic_Load,
-	Wasm_I32_Atomic_Load8U,
-	Wasm_I32_Atomic_Load16U,
-	Wasm_I64_Atomic_Load8U,
-	Wasm_I64_Atomic_Load16U,
-	Wasm_I64_Atomic_Load32U,
-	Wasm_I32_Atomic_Store,
-	Wasm_I64_Atomic_Store,
-	Wasm_I32_Atomic_Store8,
-	Wasm_I32_Atomic_Store16,
-	Wasm_I64_Atomic_Store8,
-	Wasm_I64_Atomic_Store16,
-	Wasm_I64_Atomic_Store32,
-	Wasm_I32_Atomic_RMW_Add,
-	Wasm_I64_Atomic_RMW_Add,
-	Wasm_I32_Atomic_RMW_Sub,
-	Wasm_I64_Atomic_RMW_Sub,
-	Wasm_I32_Atomic_RMW_And,
-	Wasm_I64_Atomic_RMW_And,
-	Wasm_I32_Atomic_RMW_Or,
-	Wasm_I64_Atomic_RMW_Or,
-	Wasm_I32_Atomic_RMW_Xor,
-	Wasm_I64_Atomic_RMW_Xor,
-	Wasm_I32_Atomic_RMW_Xchg,
-	Wasm_I64_Atomic_RMW_Xchg,
-	Wasm_I32_Atomic_RMW_CmpXchg,
-	Wasm_I64_Atomic_RMW_CmpXchg,
-	Wasm_I32_Atomic_RMW8_Add,
-	Wasm_I32_Atomic_RMW8_Sub,
-	Wasm_I32_Atomic_RMW8_And,
-	Wasm_I32_Atomic_RMW8_Or,
-	Wasm_I32_Atomic_RMW8_Xor,
-	Wasm_I32_Atomic_RMW8_Xchg,
-	Wasm_I32_Atomic_RMW8_CmpXchg,
-	Wasm_I32_Atomic_RMW16_Add,
-	Wasm_I32_Atomic_RMW16_Sub,
-	Wasm_I32_Atomic_RMW16_And,
-	Wasm_I32_Atomic_RMW16_Or,
-	Wasm_I32_Atomic_RMW16_Xor,
-	Wasm_I32_Atomic_RMW16_Xchg,
-	Wasm_I32_Atomic_RMW16_CmpXchg,
-	Wasm_I64_Atomic_RMW8_Add,
-	Wasm_I64_Atomic_RMW8_Sub,
-	Wasm_I64_Atomic_RMW8_And,
-	Wasm_I64_Atomic_RMW8_Or,
-	Wasm_I64_Atomic_RMW8_Xor,
-	Wasm_I64_Atomic_RMW8_Xchg,
-	Wasm_I64_Atomic_RMW8_CmpXchg,
-	Wasm_I64_Atomic_RMW16_Add,
-	Wasm_I64_Atomic_RMW16_Sub,
-	Wasm_I64_Atomic_RMW16_And,
-	Wasm_I64_Atomic_RMW16_Or,
-	Wasm_I64_Atomic_RMW16_Xor,
-	Wasm_I64_Atomic_RMW16_Xchg,
-	Wasm_I64_Atomic_RMW16_CmpXchg,
-	Wasm_I64_Atomic_RMW32_Add,
-	Wasm_I64_Atomic_RMW32_Sub,
-	Wasm_I64_Atomic_RMW32_And,
-	Wasm_I64_Atomic_RMW32_Or,
-	Wasm_I64_Atomic_RMW32_Xor,
-	Wasm_I64_Atomic_RMW32_Xchg,
-	Wasm_I64_Atomic_RMW32_CmpXchg,
-	Wasm_Memory_Atomic_Wait32,
-	Wasm_Memory_Atomic_Wait64,
-	Wasm_Memory_Atomic_Notify,
+	Wasm_Atomic_Mem,
 }
 
 emit_instruction :: proc(instr: Wasm_Instruction, buf: ^[dynamic]u8) {
@@ -622,337 +554,12 @@ emit_instruction :: proc(instr: Wasm_Instruction, buf: ^[dynamic]u8) {
 		append(buf, 0xD2)
 		encode_u32_leb128(i.index, buf)
 	case Wasm_Atomic_Fence:
-		append(buf, 0xFE)
+		append(buf, ATOMIC_PREFIX)
 		append(buf, 0x03)
-		encode_u32_leb128(0, buf) // ordering: 0 = SeqCst
-	case Wasm_I32_Atomic_Load:
-		append(buf, 0xFE)
-		append(buf, 0x10)
-		encode_u32_leb128(i.align, buf)
-		encode_u32_leb128(i.offset, buf)
-	case Wasm_I64_Atomic_Load:
-		append(buf, 0xFE)
-		append(buf, 0x11)
-		encode_u32_leb128(i.align, buf)
-		encode_u32_leb128(i.offset, buf)
-	case Wasm_I32_Atomic_Load8U:
-		append(buf, 0xFE)
-		append(buf, 0x12)
-		encode_u32_leb128(i.align, buf)
-		encode_u32_leb128(i.offset, buf)
-	case Wasm_I32_Atomic_Load16U:
-		append(buf, 0xFE)
-		append(buf, 0x13)
-		encode_u32_leb128(i.align, buf)
-		encode_u32_leb128(i.offset, buf)
-	case Wasm_I64_Atomic_Load8U:
-		append(buf, 0xFE)
-		append(buf, 0x14)
-		encode_u32_leb128(i.align, buf)
-		encode_u32_leb128(i.offset, buf)
-	case Wasm_I64_Atomic_Load16U:
-		append(buf, 0xFE)
-		append(buf, 0x15)
-		encode_u32_leb128(i.align, buf)
-		encode_u32_leb128(i.offset, buf)
-	case Wasm_I64_Atomic_Load32U:
-		append(buf, 0xFE)
-		append(buf, 0x16)
-		encode_u32_leb128(i.align, buf)
-		encode_u32_leb128(i.offset, buf)
-	case Wasm_I32_Atomic_Store:
-		append(buf, 0xFE)
-		append(buf, 0x17)
-		encode_u32_leb128(i.align, buf)
-		encode_u32_leb128(i.offset, buf)
-	case Wasm_I64_Atomic_Store:
-		append(buf, 0xFE)
-		append(buf, 0x18)
-		encode_u32_leb128(i.align, buf)
-		encode_u32_leb128(i.offset, buf)
-	case Wasm_I32_Atomic_Store8:
-		append(buf, 0xFE)
-		append(buf, 0x19)
-		encode_u32_leb128(i.align, buf)
-		encode_u32_leb128(i.offset, buf)
-	case Wasm_I32_Atomic_Store16:
-		append(buf, 0xFE)
-		append(buf, 0x1A)
-		encode_u32_leb128(i.align, buf)
-		encode_u32_leb128(i.offset, buf)
-	case Wasm_I64_Atomic_Store8:
-		append(buf, 0xFE)
-		append(buf, 0x1B)
-		encode_u32_leb128(i.align, buf)
-		encode_u32_leb128(i.offset, buf)
-	case Wasm_I64_Atomic_Store16:
-		append(buf, 0xFE)
-		append(buf, 0x1C)
-		encode_u32_leb128(i.align, buf)
-		encode_u32_leb128(i.offset, buf)
-	case Wasm_I64_Atomic_Store32:
-		append(buf, 0xFE)
-		append(buf, 0x1D)
-		encode_u32_leb128(i.align, buf)
-		encode_u32_leb128(i.offset, buf)
-	case Wasm_I32_Atomic_RMW_Add:
-		append(buf, 0xFE)
-		append(buf, 0x1E)
-		encode_u32_leb128(i.align, buf)
-		encode_u32_leb128(i.offset, buf)
-	case Wasm_I64_Atomic_RMW_Add:
-		append(buf, 0xFE)
-		append(buf, 0x1F)
-		encode_u32_leb128(i.align, buf)
-		encode_u32_leb128(i.offset, buf)
-	case Wasm_I32_Atomic_RMW8_Add:
-		append(buf, 0xFE)
-		append(buf, 0x20)
-		encode_u32_leb128(i.align, buf)
-		encode_u32_leb128(i.offset, buf)
-	case Wasm_I32_Atomic_RMW16_Add:
-		append(buf, 0xFE)
-		append(buf, 0x21)
-		encode_u32_leb128(i.align, buf)
-		encode_u32_leb128(i.offset, buf)
-	case Wasm_I64_Atomic_RMW8_Add:
-		append(buf, 0xFE)
-		append(buf, 0x22)
-		encode_u32_leb128(i.align, buf)
-		encode_u32_leb128(i.offset, buf)
-	case Wasm_I64_Atomic_RMW16_Add:
-		append(buf, 0xFE)
-		append(buf, 0x23)
-		encode_u32_leb128(i.align, buf)
-		encode_u32_leb128(i.offset, buf)
-	case Wasm_I64_Atomic_RMW32_Add:
-		append(buf, 0xFE)
-		append(buf, 0x24)
-		encode_u32_leb128(i.align, buf)
-		encode_u32_leb128(i.offset, buf)
-	case Wasm_I32_Atomic_RMW_Sub:
-		append(buf, 0xFE)
-		append(buf, 0x25)
-		encode_u32_leb128(i.align, buf)
-		encode_u32_leb128(i.offset, buf)
-	case Wasm_I64_Atomic_RMW_Sub:
-		append(buf, 0xFE)
-		append(buf, 0x26)
-		encode_u32_leb128(i.align, buf)
-		encode_u32_leb128(i.offset, buf)
-	case Wasm_I32_Atomic_RMW8_Sub:
-		append(buf, 0xFE)
-		append(buf, 0x27)
-		encode_u32_leb128(i.align, buf)
-		encode_u32_leb128(i.offset, buf)
-	case Wasm_I32_Atomic_RMW16_Sub:
-		append(buf, 0xFE)
-		append(buf, 0x28)
-		encode_u32_leb128(i.align, buf)
-		encode_u32_leb128(i.offset, buf)
-	case Wasm_I64_Atomic_RMW8_Sub:
-		append(buf, 0xFE)
-		append(buf, 0x29)
-		encode_u32_leb128(i.align, buf)
-		encode_u32_leb128(i.offset, buf)
-	case Wasm_I64_Atomic_RMW16_Sub:
-		append(buf, 0xFE)
-		append(buf, 0x2A)
-		encode_u32_leb128(i.align, buf)
-		encode_u32_leb128(i.offset, buf)
-	case Wasm_I64_Atomic_RMW32_Sub:
-		append(buf, 0xFE)
-		append(buf, 0x2B)
-		encode_u32_leb128(i.align, buf)
-		encode_u32_leb128(i.offset, buf)
-	case Wasm_I32_Atomic_RMW_And:
-		append(buf, 0xFE)
-		append(buf, 0x2C)
-		encode_u32_leb128(i.align, buf)
-		encode_u32_leb128(i.offset, buf)
-	case Wasm_I64_Atomic_RMW_And:
-		append(buf, 0xFE)
-		append(buf, 0x2D)
-		encode_u32_leb128(i.align, buf)
-		encode_u32_leb128(i.offset, buf)
-	case Wasm_I32_Atomic_RMW8_And:
-		append(buf, 0xFE)
-		append(buf, 0x2E)
-		encode_u32_leb128(i.align, buf)
-		encode_u32_leb128(i.offset, buf)
-	case Wasm_I32_Atomic_RMW16_And:
-		append(buf, 0xFE)
-		append(buf, 0x2F)
-		encode_u32_leb128(i.align, buf)
-		encode_u32_leb128(i.offset, buf)
-	case Wasm_I64_Atomic_RMW8_And:
-		append(buf, 0xFE)
-		append(buf, 0x30)
-		encode_u32_leb128(i.align, buf)
-		encode_u32_leb128(i.offset, buf)
-	case Wasm_I64_Atomic_RMW16_And:
-		append(buf, 0xFE)
-		append(buf, 0x31)
-		encode_u32_leb128(i.align, buf)
-		encode_u32_leb128(i.offset, buf)
-	case Wasm_I64_Atomic_RMW32_And:
-		append(buf, 0xFE)
-		append(buf, 0x32)
-		encode_u32_leb128(i.align, buf)
-		encode_u32_leb128(i.offset, buf)
-	case Wasm_I32_Atomic_RMW_Or:
-		append(buf, 0xFE)
-		append(buf, 0x33)
-		encode_u32_leb128(i.align, buf)
-		encode_u32_leb128(i.offset, buf)
-	case Wasm_I64_Atomic_RMW_Or:
-		append(buf, 0xFE)
-		append(buf, 0x34)
-		encode_u32_leb128(i.align, buf)
-		encode_u32_leb128(i.offset, buf)
-	case Wasm_I32_Atomic_RMW8_Or:
-		append(buf, 0xFE)
-		append(buf, 0x35)
-		encode_u32_leb128(i.align, buf)
-		encode_u32_leb128(i.offset, buf)
-	case Wasm_I32_Atomic_RMW16_Or:
-		append(buf, 0xFE)
-		append(buf, 0x36)
-		encode_u32_leb128(i.align, buf)
-		encode_u32_leb128(i.offset, buf)
-	case Wasm_I64_Atomic_RMW8_Or:
-		append(buf, 0xFE)
-		append(buf, 0x37)
-		encode_u32_leb128(i.align, buf)
-		encode_u32_leb128(i.offset, buf)
-	case Wasm_I64_Atomic_RMW16_Or:
-		append(buf, 0xFE)
-		append(buf, 0x38)
-		encode_u32_leb128(i.align, buf)
-		encode_u32_leb128(i.offset, buf)
-	case Wasm_I64_Atomic_RMW32_Or:
-		append(buf, 0xFE)
-		append(buf, 0x39)
-		encode_u32_leb128(i.align, buf)
-		encode_u32_leb128(i.offset, buf)
-	case Wasm_I32_Atomic_RMW_Xor:
-		append(buf, 0xFE)
-		append(buf, 0x3A)
-		encode_u32_leb128(i.align, buf)
-		encode_u32_leb128(i.offset, buf)
-	case Wasm_I64_Atomic_RMW_Xor:
-		append(buf, 0xFE)
-		append(buf, 0x3B)
-		encode_u32_leb128(i.align, buf)
-		encode_u32_leb128(i.offset, buf)
-	case Wasm_I32_Atomic_RMW8_Xor:
-		append(buf, 0xFE)
-		append(buf, 0x3C)
-		encode_u32_leb128(i.align, buf)
-		encode_u32_leb128(i.offset, buf)
-	case Wasm_I32_Atomic_RMW16_Xor:
-		append(buf, 0xFE)
-		append(buf, 0x3D)
-		encode_u32_leb128(i.align, buf)
-		encode_u32_leb128(i.offset, buf)
-	case Wasm_I64_Atomic_RMW8_Xor:
-		append(buf, 0xFE)
-		append(buf, 0x3E)
-		encode_u32_leb128(i.align, buf)
-		encode_u32_leb128(i.offset, buf)
-	case Wasm_I64_Atomic_RMW16_Xor:
-		append(buf, 0xFE)
-		append(buf, 0x3F)
-		encode_u32_leb128(i.align, buf)
-		encode_u32_leb128(i.offset, buf)
-	case Wasm_I64_Atomic_RMW32_Xor:
-		append(buf, 0xFE)
-		append(buf, 0x40)
-		encode_u32_leb128(i.align, buf)
-		encode_u32_leb128(i.offset, buf)
-	case Wasm_I32_Atomic_RMW_Xchg:
-		append(buf, 0xFE)
-		append(buf, 0x41)
-		encode_u32_leb128(i.align, buf)
-		encode_u32_leb128(i.offset, buf)
-	case Wasm_I64_Atomic_RMW_Xchg:
-		append(buf, 0xFE)
-		append(buf, 0x42)
-		encode_u32_leb128(i.align, buf)
-		encode_u32_leb128(i.offset, buf)
-	case Wasm_I32_Atomic_RMW8_Xchg:
-		append(buf, 0xFE)
-		append(buf, 0x43)
-		encode_u32_leb128(i.align, buf)
-		encode_u32_leb128(i.offset, buf)
-	case Wasm_I32_Atomic_RMW16_Xchg:
-		append(buf, 0xFE)
-		append(buf, 0x44)
-		encode_u32_leb128(i.align, buf)
-		encode_u32_leb128(i.offset, buf)
-	case Wasm_I64_Atomic_RMW8_Xchg:
-		append(buf, 0xFE)
-		append(buf, 0x45)
-		encode_u32_leb128(i.align, buf)
-		encode_u32_leb128(i.offset, buf)
-	case Wasm_I64_Atomic_RMW16_Xchg:
-		append(buf, 0xFE)
-		append(buf, 0x46)
-		encode_u32_leb128(i.align, buf)
-		encode_u32_leb128(i.offset, buf)
-	case Wasm_I64_Atomic_RMW32_Xchg:
-		append(buf, 0xFE)
-		append(buf, 0x47)
-		encode_u32_leb128(i.align, buf)
-		encode_u32_leb128(i.offset, buf)
-	case Wasm_I32_Atomic_RMW_CmpXchg:
-		append(buf, 0xFE)
-		append(buf, 0x48)
-		encode_u32_leb128(i.align, buf)
-		encode_u32_leb128(i.offset, buf)
-	case Wasm_I64_Atomic_RMW_CmpXchg:
-		append(buf, 0xFE)
-		append(buf, 0x49)
-		encode_u32_leb128(i.align, buf)
-		encode_u32_leb128(i.offset, buf)
-	case Wasm_I32_Atomic_RMW8_CmpXchg:
-		append(buf, 0xFE)
-		append(buf, 0x4A)
-		encode_u32_leb128(i.align, buf)
-		encode_u32_leb128(i.offset, buf)
-	case Wasm_I32_Atomic_RMW16_CmpXchg:
-		append(buf, 0xFE)
-		append(buf, 0x4B)
-		encode_u32_leb128(i.align, buf)
-		encode_u32_leb128(i.offset, buf)
-	case Wasm_I64_Atomic_RMW8_CmpXchg:
-		append(buf, 0xFE)
-		append(buf, 0x4C)
-		encode_u32_leb128(i.align, buf)
-		encode_u32_leb128(i.offset, buf)
-	case Wasm_I64_Atomic_RMW16_CmpXchg:
-		append(buf, 0xFE)
-		append(buf, 0x4D)
-		encode_u32_leb128(i.align, buf)
-		encode_u32_leb128(i.offset, buf)
-	case Wasm_I64_Atomic_RMW32_CmpXchg:
-		append(buf, 0xFE)
-		append(buf, 0x4E)
-		encode_u32_leb128(i.align, buf)
-		encode_u32_leb128(i.offset, buf)
-	case Wasm_Memory_Atomic_Wait32:
-		append(buf, 0xFE)
-		append(buf, 0x01)
-		encode_u32_leb128(i.align, buf)
-		encode_u32_leb128(i.offset, buf)
-	case Wasm_Memory_Atomic_Wait64:
-		append(buf, 0xFE)
-		append(buf, 0x02)
-		encode_u32_leb128(i.align, buf)
-		encode_u32_leb128(i.offset, buf)
-	case Wasm_Memory_Atomic_Notify:
-		append(buf, 0xFE)
-		append(buf, 0x00)
+		encode_u32_leb128(0, buf)
+	case Wasm_Atomic_Mem:
+		append(buf, ATOMIC_PREFIX)
+		append(buf, atomic_opcode(i.op, i.width))
 		encode_u32_leb128(i.align, buf)
 		encode_u32_leb128(i.offset, buf)
 	}
