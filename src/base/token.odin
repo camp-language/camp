@@ -27,8 +27,6 @@ Token_Kind :: enum {
 	Kw_For,
 	Kw_And,
 	Kw_Or,
-	Kw_True,
-	Kw_False,
 	Kw_Expect,
 	Kw_Test,
 	Kw_Not,

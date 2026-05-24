@@ -9,7 +9,6 @@ Binding_Power :: int
 
 PREFIX_BP :map[base.Token_Kind]Binding_Power = {
 	.Minus  = 7,
-	.Plus   = 7,
 	.Kw_Not = 7,
 }
 
@@ -383,18 +382,6 @@ parser_parse_prefix :: proc(p: ^Parser) -> Expr {
 		parser_advance(p)
 		return parser_parse_interpolated_string(p, tok)
 
-	case .Kw_True:
-		parser_advance(p)
-		e := new(Expr_Bool)
-		e^ = Expr_Bool{value = true, span = tok.span}
-		return e
-
-	case .Kw_False:
-		parser_advance(p)
-		e := new(Expr_Bool)
-		e^ = Expr_Bool{value = false, span = tok.span}
-		return e
-
 	case .Upper_Id:
 		return parser_parse_tag_or_call(p)
 
@@ -448,7 +435,7 @@ parser_parse_prefix :: proc(p: ^Parser) -> Expr {
 		parser_expect(p, .RParen)
 		return expr
 
-	case .Minus, .Plus, .Kw_Not:
+	case .Minus, .Kw_Not:
 		parser_advance(p)
 		rhs := parser_parse_expr_bp(p, 7)
 		e := new(Expr_PrefixOp)
@@ -681,13 +668,8 @@ parser_parse_lambda :: proc(p: ^Parser) -> Expr {
 	effects: ^Type = nil
 	if p.current.kind == .Arrow {
 		parser_advance(p)
-		if p.current.kind == .LBrace {
-			// ->{ Eff1, Eff2 } syntax (spec-compliant)
-			parser_advance(p)
-			effects = parser_parse_effect_row_type_brace(p)
-			parser_expect(p, .RBrace)
-		} else if p.current.kind == .Minus {
-			// ->-[ Eff1, Eff2 ]-> syntax (legacy)
+		if p.current.kind == .Minus {
+			// -[ Eff1, Eff2 ]-> syntax
 			parser_advance(p)
 			parser_expect(p, .LBrack)
 			effects = parser_parse_effect_row_type(p)
@@ -926,12 +908,27 @@ parser_parse_if :: proc(p: ^Parser) -> Expr {
 	parser_advance(p)
 
 	condition := parser_parse_expr(p)
-	then_branch := parser_parse_expr(p)
+
+	then_branch: Expr = nil
+	if p.current.kind == .LBrace {
+		then_branch = parser_parse_block_or_record(p)
+	} else {
+		diagnostics.collector_add_diag(p.collector, diagnostics.diag_if_requires_braces(p.current.span))
+		then_branch = parser_parse_expr(p)
+	}
 
 	else_branch: Expr = nil
 	if p.current.kind == .Kw_Else {
 		parser_advance(p)
-		else_branch = parser_parse_expr(p)
+		if p.current.kind == .Kw_If {
+			// else if sugar
+			else_branch = parser_parse_if(p)
+		} else if p.current.kind == .LBrace {
+			else_branch = parser_parse_block_or_record(p)
+		} else {
+			diagnostics.collector_add_diag(p.collector, diagnostics.diag_if_requires_braces(p.current.span))
+			else_branch = parser_parse_expr(p)
+		}
 	}
 
 	e := new(Expr_If)
@@ -1128,12 +1125,6 @@ parser_parse_pattern :: proc(p: ^Parser) -> Pattern {
 		pat^ = Pattern_String{value = tok.text, span = tok.span}
 		return pat
 
-	case .Kw_True, .Kw_False:
-		tok := parser_advance(p)
-		pat := new(Pattern_Bool)
-		pat^ = Pattern_Bool{value = tok.kind == .Kw_True, span = tok.span}
-		return pat
-
 	case .LBrace:
 		return parser_parse_record_pattern(p)
 
@@ -1294,13 +1285,8 @@ parser_parse_function_type :: proc(p: ^Parser) -> Type {
 	effects: ^Type = nil
 	if p.current.kind == .Arrow {
 		parser_advance(p)
-		if p.current.kind == .LBrace {
-			// ->{ Eff1, Eff2 } syntax (spec-compliant)
-			parser_advance(p)
-			effects = parser_parse_effect_row_type_brace(p)
-			parser_expect(p, .RBrace)
-		} else if p.current.kind == .Minus {
-			// ->-[ Eff1, Eff2 ]-> syntax (legacy)
+		if p.current.kind == .Minus {
+			// -[ Eff1, Eff2 ]-> syntax
 			parser_advance(p)
 			parser_expect(p, .LBrack)
 			effects = parser_parse_effect_row_type(p)
@@ -1476,10 +1462,6 @@ parser_parse_effect_row_type_inner :: proc(p: ^Parser, terminator: base.Token_Ki
 
 parser_parse_effect_row_type :: proc(p: ^Parser) -> ^Type {
 	return parser_parse_effect_row_type_inner(p, .RBrack)
-}
-
-parser_parse_effect_row_type_brace :: proc(p: ^Parser) -> ^Type {
-	return parser_parse_effect_row_type_inner(p, .RBrace)
 }
 
 parser_parse_trait_decl :: proc(p: ^Parser, is_pub: bool) -> Decl {

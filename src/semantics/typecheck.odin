@@ -1625,11 +1625,11 @@ typecheck_match :: proc(e: ^CExpr_Match, env: ^Type_Env, store: ^Type_Store) -> 
 			if !cov.bool_values[true] || !cov.bool_values[false] {
 				missing: string
 				if !cov.bool_values[true] && !cov.bool_values[false] {
-					missing = "true and false"
+					missing = "True and False"
 				} else if !cov.bool_values[true] {
-					missing = "true"
+					missing = "True"
 				} else {
-					missing = "false"
+					missing = "False"
 				}
 				diagnostics.collector_add_diag(store.collector, diagnostics.diag_non_exhaustive_bool(missing, e.span))
 			}

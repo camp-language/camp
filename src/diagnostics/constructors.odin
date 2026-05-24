@@ -397,6 +397,13 @@ plural_s :: proc(n: int) -> string {
 	return "s"
 }
 
+diag_if_requires_braces :: proc(span: base.Source_Span) -> Diagnostic {
+	d := diag_init(.Error, "MISSING BRACES", span,
+		"`if`/`else` branches require braces. Use `if condition { ... } else { ... }`.")
+	append(&d.hints, "For chained conditions, use `else if`.")
+	return d
+}
+
 diag_ambiguous_type :: proc(name: string, span: base.Source_Span) -> Diagnostic {
 	d := diag_init(.Error, "AMBIGUOUS TYPE", span,
 		fmt.tprintf("Cannot determine type for generic parameter `{}`. Provide a type annotation.", name))

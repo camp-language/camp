@@ -29,8 +29,6 @@ token_kind_display :: proc(kind: base.Token_Kind) -> string {
 	case .Kw_For:       return "for"
 	case .Kw_And:       return "and"
 	case .Kw_Or:        return "or"
-	case .Kw_True:      return "true"
-	case .Kw_False:     return "false"
 	case .Kw_Expect:    return "expect"
 	case .Kw_Test:      return "test"
 	case .Kw_Not:       return "not"
