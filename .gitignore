@@ -1,5 +1,6 @@
 camp
-camp-e2e
+camp-*
+*.bin
 tree-sitter/node_modules/
 tree-sitter/build/
 *.wasm
