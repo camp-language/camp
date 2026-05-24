@@ -1,94 +1,11 @@
 stdout = """
--- SYNTAX ERROR --- /tmp/camp-e2e/traits/orphan-rule/src/Main.camp
+canonicalized /tmp/camp-e2e/traits/orphan-rule/src/Main.camp: 3 declaration(s), 0 import(s)
+-- MISSING TRAIT METHOD --- /tmp/camp-e2e/traits/orphan-rule/src/Main.camp
 
-I expected `|` here, but I got `,` instead.
-   1 | Eq : { eq: |Self, Self| -> Bool }
-                       ^
-
--- SYNTAX ERROR --- /tmp/camp-e2e/traits/orphan-rule/src/Main.camp
-
-I expected `identifier` here, but I got `Self` instead.
-   1 | Eq : { eq: |Self, Self| -> Bool }
-                         ^^^^
-
--- SYNTAX ERROR --- /tmp/camp-e2e/traits/orphan-rule/src/Main.camp
-
-I expected `:` here, but I got `|` instead.
-   1 | Eq : { eq: |Self, Self| -> Bool }
-                             ^
-
--- SYNTAX ERROR --- /tmp/camp-e2e/traits/orphan-rule/src/Main.camp
-
-I was expecting a type here, but I found `->` instead.
-   1 | Eq : { eq: |Self, Self| -> Bool }
-                               ^^
-
--- SYNTAX ERROR --- /tmp/camp-e2e/traits/orphan-rule/src/Main.camp
-
-I expected `identifier` here, but I got `Bool` instead.
-   1 | Eq : { eq: |Self, Self| -> Bool }
-                                  ^^^^
-
--- SYNTAX ERROR --- /tmp/camp-e2e/traits/orphan-rule/src/Main.camp
-
-I expected `:` here, but I got `}` instead.
-   1 | Eq : { eq: |Self, Self| -> Bool }
-                                       ^
-
--- SYNTAX ERROR --- /tmp/camp-e2e/traits/orphan-rule/src/Main.camp
-
-I was expecting a type here, but I found `@` instead.
+`UserId` does not implement method `eq` required by trait `Eq`.
    2 | @UserId is Eq : U64
        ^
-
--- SYNTAX ERROR --- /tmp/camp-e2e/traits/orphan-rule/src/Main.camp
-
-I expected `identifier` here, but I got `UserId` instead.
-   2 | @UserId is Eq : U64
-        ^^^^^^
-
--- SYNTAX ERROR --- /tmp/camp-e2e/traits/orphan-rule/src/Main.camp
-
-I expected `:` here, but I got `is` instead.
-   2 | @UserId is Eq : U64
-               ^^
-
--- SYNTAX ERROR --- /tmp/camp-e2e/traits/orphan-rule/src/Main.camp
-
-I expected `identifier` here, but I got `:` instead.
-   2 | @UserId is Eq : U64
-                     ^
-
--- SYNTAX ERROR --- /tmp/camp-e2e/traits/orphan-rule/src/Main.camp
-
-I expected `:` here, but I got `U64` instead.
-   2 | @UserId is Eq : U64
-                       ^^^
-
--- SYNTAX ERROR --- /tmp/camp-e2e/traits/orphan-rule/src/Main.camp
-
-I expected `identifier` here, but I got `=` instead.
-   3 | _UserId_eq = |_x, _y| True
-                  ^
-
--- SYNTAX ERROR --- /tmp/camp-e2e/traits/orphan-rule/src/Main.camp
-
-I expected `:` here, but I got `|` instead.
-   3 | _UserId_eq = |_x, _y| True
-                    ^
-
--- SYNTAX ERROR --- /tmp/camp-e2e/traits/orphan-rule/src/Main.camp
-
-I expected `:` here, but I got `|` instead.
-   3 | _UserId_eq = |_x, _y| True
-                           ^
-
--- SYNTAX ERROR --- /tmp/camp-e2e/traits/orphan-rule/src/Main.camp
-
-I expected `}` here, but I got `` instead.
-   4 | 
-       ^
-compilation failed with 15 error(s)
+compilation failed with 1 error(s)
 """
 stderr = ""
 exit = 1

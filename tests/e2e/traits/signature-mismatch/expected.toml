@@ -1,100 +1,13 @@
 stdout = """
--- SYNTAX ERROR --- /tmp/camp-e2e/traits/signature-mismatch/src/Main.camp
+canonicalized /tmp/camp-e2e/traits/signature-mismatch/src/Main.camp: 3 declaration(s), 0 import(s)
+-- TRAIT METHOD SIGNATURE MISMATCH --- /tmp/camp-e2e/traits/signature-mismatch/src/Main.camp
 
-I expected `|` here, but I got `,` instead.
-   1 | Eq : { eq: |Self, Self| -> Bool }
-                       ^
-
--- SYNTAX ERROR --- /tmp/camp-e2e/traits/signature-mismatch/src/Main.camp
-
-I expected `identifier` here, but I got `Self` instead.
-   1 | Eq : { eq: |Self, Self| -> Bool }
-                         ^^^^
-
--- SYNTAX ERROR --- /tmp/camp-e2e/traits/signature-mismatch/src/Main.camp
-
-I expected `:` here, but I got `|` instead.
-   1 | Eq : { eq: |Self, Self| -> Bool }
-                             ^
-
--- SYNTAX ERROR --- /tmp/camp-e2e/traits/signature-mismatch/src/Main.camp
-
-I was expecting a type here, but I found `->` instead.
-   1 | Eq : { eq: |Self, Self| -> Bool }
-                               ^^
-
--- SYNTAX ERROR --- /tmp/camp-e2e/traits/signature-mismatch/src/Main.camp
-
-I expected `identifier` here, but I got `Bool` instead.
-   1 | Eq : { eq: |Self, Self| -> Bool }
-                                  ^^^^
-
--- SYNTAX ERROR --- /tmp/camp-e2e/traits/signature-mismatch/src/Main.camp
-
-I expected `:` here, but I got `}` instead.
-   1 | Eq : { eq: |Self, Self| -> Bool }
-                                       ^
-
--- SYNTAX ERROR --- /tmp/camp-e2e/traits/signature-mismatch/src/Main.camp
-
-I was expecting a type here, but I found `@` instead.
+`UserId`'s `eq` method has wrong signature for trait `Eq`.
    2 | @UserId is Eq : U64
        ^
-
--- SYNTAX ERROR --- /tmp/camp-e2e/traits/signature-mismatch/src/Main.camp
-
-I expected `identifier` here, but I got `UserId` instead.
    2 | @UserId is Eq : U64
-        ^^^^^^
-
--- SYNTAX ERROR --- /tmp/camp-e2e/traits/signature-mismatch/src/Main.camp
-
-I expected `:` here, but I got `is` instead.
-   2 | @UserId is Eq : U64
-               ^^
-
--- SYNTAX ERROR --- /tmp/camp-e2e/traits/signature-mismatch/src/Main.camp
-
-I expected `identifier` here, but I got `:` instead.
-   2 | @UserId is Eq : U64
-                     ^
-
--- SYNTAX ERROR --- /tmp/camp-e2e/traits/signature-mismatch/src/Main.camp
-
-I expected `:` here, but I got `U64` instead.
-   2 | @UserId is Eq : U64
-                       ^^^
-
--- SYNTAX ERROR --- /tmp/camp-e2e/traits/signature-mismatch/src/Main.camp
-
-I expected `identifier` here, but I got `=` instead.
-   3 | UserId_eq = |x, y| 42
-                 ^
-
--- SYNTAX ERROR --- /tmp/camp-e2e/traits/signature-mismatch/src/Main.camp
-
-I expected `:` here, but I got `|` instead.
-   3 | UserId_eq = |x, y| 42
-                   ^
-
--- SYNTAX ERROR --- /tmp/camp-e2e/traits/signature-mismatch/src/Main.camp
-
-I expected `:` here, but I got `|` instead.
-   3 | UserId_eq = |x, y| 42
-                        ^
-
--- SYNTAX ERROR --- /tmp/camp-e2e/traits/signature-mismatch/src/Main.camp
-
-I was expecting a type here, but I found `42` instead.
-   3 | UserId_eq = |x, y| 42
-                          ^^
-
--- SYNTAX ERROR --- /tmp/camp-e2e/traits/signature-mismatch/src/Main.camp
-
-I expected `}` here, but I got `` instead.
-   4 | 
-       ^
-compilation failed with 16 error(s)
+       ~ expected `(2 params) -> Bool`, got `(2 params) -> I64`
+compilation failed with 1 error(s)
 """
 stderr = ""
 exit = 1

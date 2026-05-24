@@ -1381,9 +1381,15 @@ parser_parse_function_type :: proc(p: ^Parser) -> Type {
 			// || zero-param syntax
 			parser_advance(p)
 		} else {
-			// |ParamType| single-param syntax
-			param := parser_parse_type(p)
-			append(&params, param^)
+			// |Type1, Type2, ...| pipe-param syntax
+			for p.current.kind != .Pipe && p.current.kind != .Eof {
+				param := parser_parse_type(p)
+				append(&params, param^)
+				if p.current.kind == .Comma {
+					parser_advance(p)
+					parser_skip_backslashes(p)
+				}
+			}
 			parser_expect(p, .Pipe)
 		}
 	}
@@ -1625,11 +1631,15 @@ is_trait_decl :: proc(p: ^Parser) -> bool {
 	saved_tok := p.current
 
 	parser_advance(p)
-	result := p.current.kind == .Kw_Is
+	if p.current.kind == .Kw_Is {
+		p.lexer.pos = saved_pos
+		p.current = saved_tok
+		return true
+	}
 
 	p.lexer.pos = saved_pos
 	p.current = saved_tok
-	return result
+	return false
 }
 
 parser_parse_newtype_decl :: proc(p: ^Parser, is_pub: bool) -> Decl {
