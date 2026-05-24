@@ -281,6 +281,16 @@ resolve_expr_names :: proc(expr: semantics.CExpr, scope: ^Import_Scope, export_t
 			resolve_expr_names(p, scope, export_tables, interner, collector)
 		}
 
+	case ^semantics.CExpr_Nominal_Construct:
+		if e.type_name.module == base.NO_NAME {
+			if resolved, ok := resolve_name(e.type_name.name, scope, interner); ok {
+				e.type_name = resolved
+			}
+		}
+		for &p in e.payload {
+			resolve_expr_names(p, scope, export_tables, interner, collector)
+		}
+
 	case ^semantics.CExpr_Record:
 		for &f in e.fields {
 			resolve_expr_names(f.value, scope, export_tables, interner, collector)

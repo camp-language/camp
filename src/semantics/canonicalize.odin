@@ -383,6 +383,19 @@ canonicalize_expr :: proc(expr: frontend.Expr, scope: ^Canonicalize_Scope, inter
 		c^ = CExpr_Tag{name = name, payload = payload, span = e.span}
 		return c
 
+	case ^frontend.Expr_Nominal_Construct:
+		type_name := base.Canonical_Name{module = base.NO_NAME, name = e.type_name, is_local = true}
+		if existing, ok := scope.local_names[e.type_name]; ok {
+			type_name = existing
+		}
+		payload := make([dynamic]CExpr, 0, len(e.payload))
+		for p in e.payload {
+			append(&payload, canonicalize_expr(p, scope, interner, collector))
+		}
+		c := new(CExpr_Nominal_Construct)
+		c^ = CExpr_Nominal_Construct{type_name = type_name, variant = e.variant, payload = payload, span = e.span}
+		return c
+
 	case ^frontend.Expr_Record:
 		fields := make([dynamic]CRecord_Field, 0, len(e.fields))
 		for f in e.fields {

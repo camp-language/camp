@@ -561,6 +561,21 @@ substitute_types_in_expr :: proc(expr: semantics.TExpr, type_args: map[base.Inte
 		}
 		result.expressions = exprs
 		return semantics.TExpr(result)
+
+	case ^semantics.TExpr_Nominal_Construct:
+		payload_t := make([dynamic]semantics.TExpr, len(e.payload))
+		for i in 0..<len(e.payload) {
+			payload_t[i] = substitute_types_in_expr(e.payload[i], type_args, env)
+		}
+		result := new(semantics.TExpr_Nominal_Construct)
+		result^ = semantics.TExpr_Nominal_Construct{
+			type_name = e.type_name,
+			variant = e.variant,
+			payload = payload_t,
+			resolved_type = e.resolved_type,
+			span = e.span,
+		}
+		return semantics.TExpr(result)
 	}
 	return expr
 }
@@ -651,6 +666,8 @@ get_expr_ir_type :: proc(expr: semantics.TExpr) -> base.IR_Type {
 		return e.type_
 	case ^semantics.TExpr_Par:
 		return e.type_
+	case ^semantics.TExpr_Nominal_Construct:
+		return base.IR_Type{type_id = e.resolved_type}
 	}
 	return base.IR_Type{}
 }
@@ -820,7 +837,7 @@ walk_expr_for_call_sites :: proc(expr: semantics.TExpr, env: ^Mono_Env) {
 			walk_expr_for_call_sites(arg, env)
 		}
 	case ^semantics.TExpr_Int, ^semantics.TExpr_Float, ^semantics.TExpr_String, ^semantics.TExpr_Bool,
-		^semantics.TExpr_Tag, ^semantics.TExpr_Record, ^semantics.TExpr_List, ^semantics.TExpr_Name,
+		^semantics.TExpr_Tag, ^semantics.TExpr_Nominal_Construct, ^semantics.TExpr_Record, ^semantics.TExpr_List, ^semantics.TExpr_Name,
 		^semantics.TExpr_For, ^semantics.TExpr_Par:
 	}
 }
@@ -944,7 +961,7 @@ rewrite_calls_in_expr :: proc(expr: semantics.TExpr, specializations: map[string
 			e.args[i] = rewrite_calls_in_expr(e.args[i], specializations, env)
 		}
 	case ^semantics.TExpr_Int, ^semantics.TExpr_Float, ^semantics.TExpr_String, ^semantics.TExpr_Bool,
-		^semantics.TExpr_Tag, ^semantics.TExpr_Record, ^semantics.TExpr_List, ^semantics.TExpr_Name,
+		^semantics.TExpr_Tag, ^semantics.TExpr_Nominal_Construct, ^semantics.TExpr_Record, ^semantics.TExpr_List, ^semantics.TExpr_Name,
 		^semantics.TExpr_For, ^semantics.TExpr_Par:
 	}
 	return expr

@@ -104,6 +104,7 @@ Expr :: union {
 	^Expr_String,
 	^Expr_Bool,
 	^Expr_Tag,
+	^Expr_Nominal_Construct,
 	^Expr_Record,
 	^Expr_List,
 	^Expr_Identifier,
@@ -152,6 +153,13 @@ Expr_Tag :: struct {
 	name:    base.Intern_ID,
 	payload: [dynamic]Expr,
 	span:    base.Source_Span,
+}
+
+Expr_Nominal_Construct :: struct {
+	type_name: base.Intern_ID,
+	variant:   base.Intern_ID,  // 0 = simple wrap @TypeName(args), non-zero = @TypeName.Variant(args)
+	payload:   [dynamic]Expr,
+	span:      base.Source_Span,
 }
 
 Expr_Record :: struct {

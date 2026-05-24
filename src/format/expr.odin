@@ -79,6 +79,8 @@ format_expr :: proc(e: frontend.Expr, info: ^Format_Source_Info, interner: ^base
 		return doc_text("False")
 	case ^frontend.Expr_Tag:
 		return format_expr_tag(v, info, interner)
+	case ^frontend.Expr_Nominal_Construct:
+		return format_expr_nominal_construct(v, info, interner)
 	case ^frontend.Expr_Record:
 		return format_expr_record(v, info, interner)
 	case ^frontend.Expr_List:
@@ -144,6 +146,28 @@ format_expr_tag :: proc(e: ^frontend.Expr_Tag, info: ^Format_Source_Info, intern
 	}
 
 	append(&parts, doc_text(")"))
+	return doc_concat(parts[:])
+}
+
+format_expr_nominal_construct :: proc(e: ^frontend.Expr_Nominal_Construct, info: ^Format_Source_Info, interner: ^base.Intern_Table) -> Doc {
+	parts: [dynamic]Doc
+	defer delete(parts)
+	append(&parts, doc_text("@"))
+	append(&parts, doc_text(base.intern_get(interner, e.type_name)))
+	if e.variant != 0 {
+		append(&parts, doc_text("."))
+		append(&parts, doc_text(base.intern_get(interner, e.variant)))
+	}
+	if len(e.payload) > 0 {
+		append(&parts, doc_text("("))
+		for arg, i in e.payload {
+			if i > 0 {
+				append(&parts, doc_text(", "))
+			}
+			append(&parts, format_expr(arg, info, interner))
+		}
+		append(&parts, doc_text(")"))
+	}
 	return doc_concat(parts[:])
 }
 
@@ -513,10 +537,9 @@ format_pattern_list :: proc(p: ^frontend.Pattern_List, info: ^Format_Source_Info
 format_pattern_destructure :: proc(p: ^frontend.Pattern_Destructure, info: ^Format_Source_Info, interner: ^base.Intern_Table) -> Doc {
 	parts: [dynamic]Doc
 	defer delete(parts)
+	append(&parts, doc_text("@"))
 	append(&parts, doc_text(base.intern_get(interner, p.type_name)))
-	append(&parts, doc_text("("))
 	append(&parts, format_pattern(p.inner, info, interner))
-	append(&parts, doc_text(")"))
 	return doc_concat(parts[:])
 }
 

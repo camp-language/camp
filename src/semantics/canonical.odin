@@ -97,6 +97,7 @@ CExpr :: union {
 	^CExpr_String,
 	^CExpr_Bool,
 	^CExpr_Tag,
+	^CExpr_Nominal_Construct,
 	^CExpr_Record,
 	^CExpr_List,
 	^CExpr_Name,
@@ -144,6 +145,13 @@ CExpr_Tag :: struct {
 	name:    base.Canonical_Name,
 	payload: [dynamic]CExpr,
 	span:    base.Source_Span,
+}
+
+CExpr_Nominal_Construct :: struct {
+	type_name: base.Canonical_Name,
+	variant:   base.Intern_ID,  // 0 = simple wrap, non-zero = qualified variant
+	payload:   [dynamic]CExpr,
+	span:      base.Source_Span,
 }
 
 CExpr_Record :: struct {

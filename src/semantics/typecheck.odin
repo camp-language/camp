@@ -596,6 +596,25 @@ typecheck_synth :: proc(expr: CExpr, env: ^Type_Env, store: ^Type_Store) -> Synt
 	case ^CExpr_Tag:
 		return typecheck_tag(e, env, store)
 
+	case ^CExpr_Nominal_Construct:
+		eff := fresh_effect_row(store, e.span)
+		type_var := fresh_value_var(store, e.span)
+		payload := make([dynamic]TExpr, len(e.payload))
+		for p, i in e.payload {
+			p_result := typecheck_synth(p, env, store)
+			unify(store, eff, p_result.effects)
+			payload[i] = p_result.texpr
+		}
+		t := new(TExpr_Nominal_Construct)
+		t^ = TExpr_Nominal_Construct{
+			type_name = e.type_name,
+			variant = e.variant,
+			payload = payload,
+			resolved_type = type_var,
+			span = e.span,
+		}
+		return Synth_Result{var_id = type_var, effects = eff, texpr = TExpr(t)}
+
 	case ^CExpr_Record:
 		return typecheck_record(e, env, store)
 
@@ -1257,6 +1276,26 @@ typecheck_tag :: proc(e: ^CExpr_Tag, env: ^Type_Env, store: ^Type_Store) -> Synt
 		span = e.span,
 	}
 	return Synth_Result{var_id = tag_var, effects = eff, texpr = TExpr(t)}
+}
+
+typecheck_nominal_construct :: proc(e: ^CExpr_Nominal_Construct, env: ^Type_Env, store: ^Type_Store) -> Synth_Result {
+	eff := fresh_effect_row(store, e.span)
+	payload_t := make([dynamic]TExpr, len(e.payload))
+	for p, i in e.payload {
+		p_result := typecheck_synth(p, env, store)
+		unify(store, eff, p_result.effects)
+		payload_t[i] = p_result.texpr
+	}
+	resolved_type := fresh_value_var(store, e.span)
+	t := new(TExpr_Nominal_Construct)
+	t^ = TExpr_Nominal_Construct{
+		type_name = e.type_name,
+		variant = e.variant,
+		payload = payload_t,
+		resolved_type = resolve_var(store, resolved_type),
+		span = e.span,
+	}
+	return Synth_Result{var_id = resolved_type, effects = eff, texpr = TExpr(t)}
 }
 
 typecheck_record :: proc(e: ^CExpr_Record, env: ^Type_Env, store: ^Type_Store) -> Synth_Result {

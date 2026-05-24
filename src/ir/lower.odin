@@ -202,6 +202,20 @@ lower_texpr :: proc(expr: semantics.TExpr, env: ^Lower_Env) -> IR_Expr {
 	case ^semantics.TExpr_Tag:
 		return lower_ttag(e, env)
 
+	case ^semantics.TExpr_Nominal_Construct:
+		payload := make([dynamic]IR_Expr, 0, len(e.payload))
+		for p in e.payload {
+			append(&payload, lower_texpr(p, env))
+		}
+		ir := new(IR_Expr_Nominal_Construct)
+		ir^ = IR_Expr_Nominal_Construct{
+			type_name = e.type_name,
+			variant   = e.variant,
+			payload   = payload,
+			span      = e.span,
+		}
+		return ir
+
 	case ^semantics.TExpr_Record:
 		return lower_trecord(e, env)
 

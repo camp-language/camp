@@ -87,6 +87,7 @@ expr_span :: proc(expr: Expr, which: Span_End) -> int {
 	case ^Expr_If:                return e.span.start if which == .Start else e.span.end
 	case ^Expr_Match:             return e.span.start if which == .Start else e.span.end
 	case ^Expr_Tag:               return e.span.start if which == .Start else e.span.end
+	case ^Expr_Nominal_Construct: return e.span.start if which == .Start else e.span.end
 	case ^Expr_Call:              return e.span.start if which == .Start else e.span.end
 	case ^Expr_Field_Access:      return e.span.start if which == .Start else e.span.end
 	case ^Expr_Method_Call:       return e.span.start if which == .Start else e.span.end
@@ -445,6 +446,9 @@ parser_parse_prefix :: proc(p: ^Parser) -> Expr {
 	case .Dot:
 		return parser_parse_dot_lambda(p)
 
+	case .At:
+		return parser_parse_nominal_construct(p)
+
 	case:
 		diagnostics.collector_add_diag(p.collector, diagnostics.diag_unexpected_token(tok))
 		parser_advance(p)
@@ -452,6 +456,39 @@ parser_parse_prefix :: proc(p: ^Parser) -> Expr {
 		e^ = Expr_Int{value = 0, span = tok.span}
 		return e
 	}
+}
+
+parser_parse_nominal_construct :: proc(p: ^Parser) -> Expr {
+	start := p.current.span
+	parser_expect(p, .At)
+
+	type_tok := parser_expect(p, .Upper_Id)
+	type_id := base.intern(p.intern, type_tok.text)
+
+	variant: base.Intern_ID = 0
+	if p.current.kind == .Dot {
+		parser_advance(p)
+		variant_tok := parser_expect(p, .Upper_Id)
+		variant = base.intern(p.intern, variant_tok.text)
+	}
+
+	payload := make([dynamic]Expr, 0, 2)
+	if p.current.kind == .LParen {
+		parser_advance(p)
+		for p.current.kind != .RParen && p.current.kind != .Eof {
+			arg := parser_parse_expr(p)
+			append(&payload, arg)
+			if p.current.kind == .Comma {
+				parser_advance(p)
+				parser_skip_backslashes(p)
+			}
+		}
+		parser_expect(p, .RParen)
+	}
+
+	e := new(Expr_Nominal_Construct)
+	e^ = Expr_Nominal_Construct{type_name = type_id, variant = variant, payload = payload, span = start}
+	return e
 }
 
 parser_parse_tag_or_call :: proc(p: ^Parser) -> Expr {
@@ -1131,12 +1168,60 @@ parser_parse_pattern :: proc(p: ^Parser) -> Pattern {
 	case .LBrack:
 		return parser_parse_list_pattern(p)
 
+	case .At:
+		return parser_parse_nominal_destructure(p)
+
 	case:
 		tok := parser_advance(p)
 		pat := new(Pattern_Wildcard)
 		pat^ = Pattern_Wildcard{span = tok.span}
 		return pat
 	}
+}
+
+parser_parse_nominal_destructure :: proc(p: ^Parser) -> Pattern {
+	start := p.current.span
+	parser_expect(p, .At)
+
+	type_tok := parser_expect(p, .Upper_Id)
+	type_id := base.intern(p.intern, type_tok.text)
+
+	// @TypeName.Variant(pattern) or @TypeName(pattern)
+	inner: Pattern
+	if p.current.kind == .Dot {
+		parser_advance(p)
+		variant_tok := parser_expect(p, .Upper_Id)
+		variant_id := base.intern(p.intern, variant_tok.text)
+
+		tag_pat := new(Pattern_Tag)
+		tag_pat^ = Pattern_Tag{name = variant_id, payload = make([dynamic]Pattern, 0, 2), span = variant_tok.span}
+
+		if p.current.kind == .LParen {
+			parser_advance(p)
+			for p.current.kind != .RParen && p.current.kind != .Eof {
+				inner_pat := parser_parse_pattern(p)
+				append(&tag_pat.payload, inner_pat)
+				if p.current.kind == .Comma {
+					parser_advance(p)
+				}
+			}
+			parser_expect(p, .RParen)
+		}
+		inner = tag_pat
+	} else if p.current.kind == .LParen {
+		parser_advance(p)
+		inner = parser_parse_pattern(p)
+		parser_expect(p, .RParen)
+	} else {
+		// @TypeName without parens — wildcard destructure
+		wild := new(Pattern_Wildcard)
+		wild^ = Pattern_Wildcard{span = p.current.span}
+		inner = wild
+	}
+
+	pat := new(Pattern_Destructure)
+	pat^ = Pattern_Destructure{type_name = type_id, inner = inner, span = start}
+	return pat
 }
 
 parser_parse_record_pattern :: proc(p: ^Parser) -> Pattern {

@@ -133,6 +133,7 @@ IR_Expr :: union {
 	^IR_If,
 	^IR_Match,
 	^IR_Construct_Tag,
+	^IR_Expr_Nominal_Construct,
 	^IR_Construct_Record,
 	^IR_Field_Access,
 	^IR_Method_Call,
@@ -248,6 +249,13 @@ IR_Construct_Tag :: struct {
 	tag_index: int,
 	payload:   [dynamic]IR_Expr,
 	type:      ba.IR_Type,
+	span:      ba.Source_Span,
+}
+
+IR_Expr_Nominal_Construct :: struct {
+	type_name: ba.Canonical_Name,
+	variant:   ba.Intern_ID,  // 0 = simple wrap, non-zero = qualified variant
+	payload:   [dynamic]IR_Expr,
 	span:      ba.Source_Span,
 }
 

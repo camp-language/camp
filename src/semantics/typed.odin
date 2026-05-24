@@ -3,12 +3,15 @@ package semantics
 import "camp:base"
 import "camp:frontend"
 
+Type_ID :: base.Type_Var_ID
+
 TExpr :: union {
 	^TExpr_Int,
 	^TExpr_Float,
 	^TExpr_String,
 	^TExpr_Bool,
 	^TExpr_Tag,
+	^TExpr_Nominal_Construct,
 	^TExpr_Record,
 	^TExpr_List,
 	^TExpr_Name,
@@ -66,6 +69,14 @@ TExpr_Tag :: struct {
 	type_:   base.IR_Type,
 	eff_:    base.IR_Type,
 	span:    base.Source_Span,
+}
+
+TExpr_Nominal_Construct :: struct {
+	type_name: base.Canonical_Name,
+	variant:   base.Intern_ID,
+	payload:   [dynamic]TExpr,
+	resolved_type: Type_ID,
+	span:      base.Source_Span,
 }
 
 TExpr_Record :: struct {
