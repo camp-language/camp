@@ -1,6 +1,7 @@
 package camp
 
 import "core:fmt"
+import "core:strings"
 
 lower_tfile :: proc(tfile: TFile, store: ^Type_Store) -> IR_Module {
 	mod: IR_Module
@@ -149,8 +150,15 @@ collect_effects_from_row :: proc(store: ^Type_Store, effect_var: Type_Var_ID, ef
 	}
 
 	for entry in inf.effects {
+		entry_str := intern_get(store.interner, entry.name)
+		// Typechecker stores effect names with trailing '!' (e.g. "Spawn!"),
+		// but effect defs use the base name (e.g. "Spawn"). Strip the '!' for comparison.
+		if strings.has_suffix(entry_str, "!") {
+			entry_str = entry_str[:len(entry_str)-1]
+		}
+		entry_base := intern(store.interner, entry_str)
 		for def in effect_defs {
-			if def.name.name == entry.name {
+			if def.name.name == entry_base || def.name.name == entry.name {
 				already := false
 				for e in result^ {
 					if e == def.name {
