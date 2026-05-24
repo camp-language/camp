@@ -16,9 +16,24 @@ import "core:path/filepath"
 import "core:strings"
 import "core:time"
 
+Build_Output :: struct {
+	wasm_path:  string,
+	has_errors: bool,
+}
+
+Build_Error :: struct {
+	message: string,
+	code:    int,
+}
+
+Build_Result :: union {
+	Build_Output,
+	Build_Error,
+}
+
 run_command_counter: int
 
-run_build_single :: proc(file_path: string, thread_count: int = 1) {
+run_build_single :: proc(file_path: string, thread_count: int = 1) -> Build_Result {
 	ctx: Compilation_Context
 	context_init(&ctx)
 	ctx.thread_count = thread_count
@@ -32,14 +47,14 @@ run_build_single :: proc(file_path: string, thread_count: int = 1) {
 		ext := filepath.ext(file_path)
 		diagnostics.collector_add_diag(&ctx.collector, diagnostics.diag_invalid_extension(file_path, ext))
 		diagnostics.render_all(&ctx.collector, file_path, "")
-		os.exit(1)
+		return Build_Error{message = fmt.tprintf("invalid file extension: {}", ext), code = 1}
 	}
 
 	data, err := os.read_entire_file(file_path, ctx.allocator)
 	if err != nil {
 		diagnostics.collector_add_diag(&ctx.collector, diagnostics.diag_file_not_found(file_path, fmt.tprintf("{}", err)))
 		diagnostics.render_all(&ctx.collector, file_path, "")
-		os.exit(1)
+		return Build_Error{message = fmt.tprintf("file not found: {}", file_path), code = 1}
 	}
 	source := string(data)
 
@@ -54,7 +69,7 @@ run_build_single :: proc(file_path: string, thread_count: int = 1) {
 
 	if diagnostics.diag_collector_has_errors(&ctx.collector) {
 		diagnostics.render_all(&ctx.collector, file_path, source)
-		os.exit(1)
+		return Build_Error{message = "parse errors", code = 1}
 	}
 
 	canon := semantics.canonicalize(ast_file, &ctx.interner, &ctx.collector)
@@ -69,7 +84,7 @@ run_build_single :: proc(file_path: string, thread_count: int = 1) {
 
 	if diagnostics.diag_collector_has_errors(&ctx.collector) {
 		diagnostics.render_all(&ctx.collector, file_path, source)
-		os.exit(1)
+		return Build_Error{message = "typecheck errors", code = 1}
 	}
 
 	fmt.printfln("typecheck passed for {}", file_path)
@@ -79,7 +94,7 @@ run_build_single :: proc(file_path: string, thread_count: int = 1) {
 
 	if diagnostics.diag_collector_has_errors(&ctx.collector) {
 		diagnostics.render_all(&ctx.collector, file_path, source)
-		os.exit(1)
+		return Build_Error{message = "analysis errors", code = 1}
 	}
 
 	mono_tfile := mono.mono(tfile, &store, &ctx.interner)
@@ -102,12 +117,13 @@ run_build_single :: proc(file_path: string, thread_count: int = 1) {
 	if write_err != nil {
 		diagnostics.collector_add_diag(&ctx.collector, diagnostics.diag_file_write_failed(output_path, fmt.tprintf("{}", write_err)))
 		diagnostics.render_all(&ctx.collector, file_path, source)
-		os.exit(1)
+		return Build_Error{message = fmt.tprintf("write failed: {}", output_path), code = 1}
 	}
 	fmt.printfln("compiled {} -> {}", file_path, output_path)
+	return Build_Output{wasm_path = output_path, has_errors = false}
 }
 
-run_check :: proc(args: []string) {
+run_check :: proc(args: []string) -> Build_Result {
 	file_path: string
 	if len(args) > 0 {
 		file_path = args[0]
@@ -115,7 +131,7 @@ run_check :: proc(args: []string) {
 
 	if file_path == "" {
 		fmt.eprintln("usage: camp check <file.camp>")
-		os.exit(1)
+		return Build_Error{message = "usage: camp check <file.camp>", code = 1}
 	}
 
 	ctx: Compilation_Context
@@ -127,14 +143,14 @@ run_check :: proc(args: []string) {
 		ext := filepath.ext(file_path)
 		diagnostics.collector_add_diag(&ctx.collector, diagnostics.diag_invalid_extension(file_path, ext))
 		diagnostics.render_all(&ctx.collector, file_path, "")
-		os.exit(1)
+		return Build_Error{message = fmt.tprintf("invalid file extension: {}", ext), code = 1}
 	}
 
 	data, err := os.read_entire_file(file_path, ctx.allocator)
 	if err != nil {
 		diagnostics.collector_add_diag(&ctx.collector, diagnostics.diag_file_not_found(file_path, fmt.tprintf("{}", err)))
 		diagnostics.render_all(&ctx.collector, file_path, "")
-		os.exit(1)
+		return Build_Error{message = fmt.tprintf("file not found: {}", file_path), code = 1}
 	}
 	source := string(data)
 
@@ -152,7 +168,7 @@ run_check :: proc(args: []string) {
 
 	if diagnostics.diag_collector_has_errors(&ctx.collector) {
 		diagnostics.render_all(&ctx.collector, file_path, source)
-		os.exit(1)
+		return Build_Error{message = "parse errors", code = 1}
 	}
 
 	context.allocator = ctx.allocator
@@ -161,7 +177,7 @@ run_check :: proc(args: []string) {
 
 	if diagnostics.diag_collector_has_errors(&ctx.collector) {
 		diagnostics.render_all(&ctx.collector, file_path, source)
-		os.exit(1)
+		return Build_Error{message = "canonicalize errors", code = 1}
 	}
 
 	context.allocator = ctx.allocator
@@ -182,13 +198,14 @@ run_check :: proc(args: []string) {
 	}
 
 	if has_errors {
-		os.exit(1)
+		return Build_Error{message = "typecheck errors", code = 1}
 	}
 
 	fmt.printfln("check passed for {}", file_path)
+	return Build_Output{wasm_path = "", has_errors = false}
 }
 
-run_test :: proc(args: []string) {
+run_test :: proc(args: []string) -> Build_Result {
 	filter := ""
 	verbose := false
 	file_args: [dynamic]string
@@ -203,7 +220,7 @@ run_test :: proc(args: []string) {
 			verbose = true
 		} else if len(args[i]) > 0 && args[i][0] == '-' {
 			fmt.eprintfln("unknown flag: %s", args[i])
-			os.exit(2)
+			return Build_Error{message = fmt.tprintf("unknown flag: %s", args[i]), code = 2}
 		} else {
 			append(&file_args, args[i])
 		}
@@ -212,7 +229,7 @@ run_test :: proc(args: []string) {
 
 	if len(file_args) == 0 {
 		fmt.eprintln("usage: camp test [--filter <pattern>] [--verbose] <file.camp>")
-		os.exit(1)
+		return Build_Error{message = "usage: camp test [--filter <pattern>] [--verbose] <file.camp>", code = 1}
 	}
 
 	file_path := file_args[0]
@@ -220,7 +237,7 @@ run_test :: proc(args: []string) {
 	source_bytes, err := os.read_entire_file(file_path, context.allocator)
 	if err != nil {
 		fmt.eprintfln("error reading %s: %v", file_path, err)
-		os.exit(1)
+		return Build_Error{message = fmt.tprintf("error reading %s: %v", file_path, err), code = 1}
 	}
 	defer delete(source_bytes, context.allocator)
 	source := string(source_bytes)
@@ -245,7 +262,7 @@ run_test :: proc(args: []string) {
 
 	if diagnostics.diag_collector_has_errors(&ctx.collector) {
 		diagnostics.render_all(&ctx.collector, file_path, source)
-		os.exit(1)
+		return Build_Error{message = "parse errors", code = 1}
 	}
 
 	test_decls: [dynamic]^frontend.Decl_Test
@@ -265,7 +282,7 @@ run_test :: proc(args: []string) {
 
 	if len(test_decls) == 0 && expect_count == 0 {
 		fmt.printfln("no tests found")
-		return
+		return Build_Output{wasm_path = "", has_errors = false}
 	}
 
 	if expect_count > 0 && verbose {
@@ -274,7 +291,7 @@ run_test :: proc(args: []string) {
 
 	if len(test_decls) == 0 {
 		fmt.printfln("no matching tests found")
-		return
+		return Build_Output{wasm_path = "", has_errors = false}
 	}
 
 	fmt.printfln("running {} test(s)", len(test_decls))
@@ -368,8 +385,10 @@ run_test :: proc(args: []string) {
 	fmt.printfln("\n{} passed, {} failed", pass_count, fail_count)
 
 	if fail_count > 0 {
-		os.exit(1)
+		return Build_Error{message = fmt.tprintf("{} test(s) failed", fail_count), code = 1}
 	}
+
+	return Build_Output{wasm_path = "", has_errors = false}
 }
 
 compile_test_canon :: proc(orig_canon: semantics.CFile, test_body: semantics.CExpr, output_path: string, interner: ^base.Intern_Table, arena: ^virtual.Arena) -> bool {

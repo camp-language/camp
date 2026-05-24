@@ -11,7 +11,7 @@ import "camp:analysis"
 import "core:fmt"
 import "core:os"
 
-run_build_project :: proc(thread_count: int = 1) {
+run_build_project :: proc(thread_count: int = 1) -> Build_Result {
 	ctx: Compilation_Context
 	context_init(&ctx)
 	old_allocator := context.allocator
@@ -31,19 +31,19 @@ run_build_project :: proc(thread_count: int = 1) {
 
 	if diagnostics.diag_collector_has_errors(&ctx.collector) {
 		diagnostics.render_all(&ctx.collector, "", "")
-		os.exit(1)
+		return Build_Result(Build_Error{message = "discovery errors", code = 1})
 	}
 
 	if len(project.modules) == 0 {
 		diagnostics.collector_add_diag(&ctx.collector, diagnostics.diag_project_no_source())
 		diagnostics.render_all(&ctx.collector, "", "")
-		os.exit(1)
+		return Build_Result(Build_Error{message = "no source modules found", code = 1})
 	}
 
 	if project.entry_point == base.NO_NAME {
 		diagnostics.collector_add_diag(&ctx.collector, diagnostics.diag_entry_point_not_found())
 		diagnostics.render_all(&ctx.collector, "", "")
-		os.exit(1)
+		return Build_Result(Build_Error{message = "entry point not found", code = 1})
 	}
 
 	fmt.printfln("discovered {} module(s)", len(project.modules))
@@ -85,7 +85,12 @@ run_build_project :: proc(thread_count: int = 1) {
 			manifest_destroy(&manifest)
 		}
 
-		parse_and_canonicalize(&mi, &ctx)
+		result := parse_and_canonicalize(&mi, &ctx)
+		switch _ in result {
+		case Build_Error:
+			return result
+		case Build_Output:
+		}
 	}
 
 	if cached_count > 0 {
@@ -97,20 +102,25 @@ run_build_project :: proc(thread_count: int = 1) {
 
 	if diagnostics.diag_collector_has_errors(&ctx.collector) {
 		diagnostics.render_all(&ctx.collector, "", "")
-		os.exit(1)
+		return Build_Result(Build_Error{message = "module graph errors", code = 1})
 	}
 
 	sorted, ok := topological_sort(&graph, &ctx.interner, &ctx.collector)
 	if !ok {
 		diagnostics.render_all(&ctx.collector, "", "")
-		os.exit(1)
+		return Build_Result(Build_Error{message = "circular dependency detected", code = 1})
 	}
 
 	for mod_id in sorted {
 		mi_ptr, mi_ok := &project.modules[mod_id]
 		if !mi_ok do continue
 		if mi_ptr.cfile == nil {
-			parse_and_canonicalize(mi_ptr, &ctx)
+			result := parse_and_canonicalize(mi_ptr, &ctx)
+			switch _ in result {
+			case Build_Error:
+				return result
+			case Build_Output:
+			}
 		}
 		if mi_ptr.cfile == nil do continue
 
@@ -138,7 +148,7 @@ run_build_project :: proc(thread_count: int = 1) {
 
 		if diagnostics.diag_collector_has_errors(&ctx.collector) {
 			diagnostics.render_all(&ctx.collector, mi.path, mi.source)
-			os.exit(1)
+			return Build_Result(Build_Error{message = fmt.tprintf("typecheck errors in module {}", mod_id), code = 1})
 		}
 
 		ctx.module_stores[mod_id] = store
@@ -158,7 +168,7 @@ run_build_project :: proc(thread_count: int = 1) {
 
 	if diagnostics.diag_collector_has_errors(&ctx.collector) {
 		diagnostics.render_all(&ctx.collector, "", "")
-		os.exit(1)
+		return Build_Result(Build_Error{message = "import resolution errors", code = 1})
 	}
 
 	entry_mi := project.modules[project.entry_point]
@@ -167,7 +177,7 @@ run_build_project :: proc(thread_count: int = 1) {
 		if _, ok := ctx.module_stores[project.entry_point].bindings[main_id]; !ok {
 			diagnostics.collector_add_diag(&ctx.collector, diagnostics.diag_entry_point_no_main())
 			diagnostics.render_all(&ctx.collector, "", "")
-			os.exit(1)
+			return Build_Result(Build_Error{message = "no main! in entry point", code = 1})
 		}
 	}
 
@@ -183,7 +193,7 @@ run_build_project :: proc(thread_count: int = 1) {
 
 	if diagnostics.diag_collector_has_errors(&ctx.collector) {
 		diagnostics.render_all(&ctx.collector, "", "")
-		os.exit(1)
+		return Build_Result(Build_Error{message = "analysis errors", code = 1})
 	}
 
 	ctx.type_store = &ctx.module_stores[project.entry_point]
@@ -201,12 +211,13 @@ run_build_project :: proc(thread_count: int = 1) {
 	if write_err != nil {
 		diagnostics.collector_add_diag(&ctx.collector, diagnostics.diag_file_write_failed(output_path, fmt.tprintf("{}", write_err)))
 		diagnostics.render_all(&ctx.collector, "", "")
-		os.exit(1)
+		return Build_Result(Build_Error{message = fmt.tprintf("write failed: {}", output_path), code = 1})
 	}
 	fmt.printfln("compiled project -> {}", output_path)
+	return Build_Result(Build_Output{wasm_path = output_path, has_errors = false})
 }
 
-parse_and_canonicalize :: proc(mi: ^Module_Info, ctx: ^Compilation_Context) {
+parse_and_canonicalize :: proc(mi: ^Module_Info, ctx: ^Compilation_Context) -> Build_Result {
 	old_allocator := context.allocator
 	context.allocator = ctx.allocator
 	defer context.allocator = old_allocator
@@ -221,7 +232,7 @@ parse_and_canonicalize :: proc(mi: ^Module_Info, ctx: ^Compilation_Context) {
 
 	if diagnostics.diag_collector_has_errors(&ctx.collector) {
 		diagnostics.render_all(&ctx.collector, mi.path, mi.source)
-		os.exit(1)
+		return Build_Result(Build_Error{message = fmt.tprintf("parse errors in {}", mi.path), code = 1})
 	}
 
 	canon := semantics.canonicalize(ast_file, &ctx.interner, &ctx.collector)
@@ -232,6 +243,7 @@ parse_and_canonicalize :: proc(mi: ^Module_Info, ctx: ^Compilation_Context) {
 	mi.imports = canon.imports
 
 	cache_write_manifest(mi, &ctx.interner)
+	return Build_Result(Build_Output{wasm_path = "", has_errors = false})
 }
 
 combine_module_irs :: proc(sorted: []base.Intern_ID, project: ^Project_Discovery, ctx: ^Compilation_Context) -> ir.IR_Module {

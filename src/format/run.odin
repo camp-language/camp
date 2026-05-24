@@ -6,7 +6,17 @@ import "core:path/filepath"
 import "core:strings"
 import "camp:diagnostics"
 
-run_fmt :: proc(args: []string) {
+Run_Error :: struct {
+	message: string,
+	code:    int,
+}
+
+Run_Result :: union {
+	bool,
+	Run_Error,
+}
+
+run_fmt :: proc(args: []string) -> Run_Result {
 	check_mode := false
 	stdin_mode := false
 	file_args: [dynamic]string
@@ -19,7 +29,7 @@ run_fmt :: proc(args: []string) {
 			stdin_mode = true
 		} else if len(arg) > 0 && arg[0] == '-' {
 			fmt.eprintfln("unknown flag: %s", arg)
-			os.exit(2)
+			return Run_Error{message = fmt.tprintf("unknown flag: %s", arg), code = 2}
 		} else {
 			append(&file_args, arg)
 		}
@@ -28,10 +38,9 @@ run_fmt :: proc(args: []string) {
 	if stdin_mode {
 		if len(file_args) > 0 {
 			fmt.eprintfln("--stdin cannot be combined with file arguments")
-			os.exit(2)
+			return Run_Error{message = "--stdin cannot be combined with file arguments", code = 2}
 		}
-		run_fmt_stdin(check_mode)
-		return
+		return run_fmt_stdin(check_mode)
 	}
 
 	if len(file_args) == 0 {
@@ -64,18 +73,20 @@ run_fmt :: proc(args: []string) {
 	}
 
 	if had_errors {
-		os.exit(1)
+		return Run_Error{message = "formatting errors", code = 1}
 	}
 	if changed {
-		os.exit(1)
+		return Run_Error{message = "files would be reformatted", code = 1}
 	}
+
+	return true
 }
 
-run_fmt_stdin :: proc(check_mode: bool) {
+run_fmt_stdin :: proc(check_mode: bool) -> Run_Result {
 	source_bytes, err := os.read_entire_file_from_file(os.stdin, context.allocator)
 	if err != nil {
 		fmt.eprintfln("error reading stdin: %v", err)
-		os.exit(1)
+		return Run_Error{message = fmt.tprintf("error reading stdin: %v", err), code = 1}
 	}
 	defer delete(source_bytes, context.allocator)
 
@@ -85,17 +96,19 @@ run_fmt_stdin :: proc(check_mode: bool) {
 
 	if len(result.diagnostics) > 0 {
 		render_fmt_diagnostics(result.diagnostics[:], "<stdin>", source)
-		os.exit(1)
+		return Run_Error{message = "formatting errors in stdin", code = 1}
 	}
 
 	if check_mode {
 		if result.output != source {
 			fmt.eprintfln("stdin would be reformatted")
-			os.exit(1)
+			return Run_Error{message = "stdin would be reformatted", code = 1}
 		}
 	} else {
 		fmt.print(result.output)
 	}
+
+	return true
 }
 
 run_fmt_dir :: proc(dir_path: string, check_mode: bool) -> (changed: bool, had_errors: bool) {

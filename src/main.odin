@@ -31,13 +31,24 @@ main :: proc() {
 	}
 
 	remaining_args := args[2:]
+	result: build.Build_Result
 	switch cmd {
 	case .Build:
 		file_path := len(remaining_args) > 0 ? remaining_args[0] : ""
-		build.run_build_single(file_path)
-	case .Test:  build.run_test(remaining_args)
-	case .Fmt:   format.run_fmt(remaining_args)
-	case .Check: build.run_check(remaining_args)
-	case .Lsp:   lsp.lsp_main()
+		result = build.run_build_single(file_path)
+	case .Test:
+		result = build.run_test(remaining_args)
+	case .Fmt:
+		format.run_fmt(remaining_args)
+		return
+	case .Check:
+		result = build.run_check(remaining_args)
+	case .Lsp:
+		lsp.lsp_main()
+		return
+	}
+
+	if failed, is_failed := result.(build.Build_Error); is_failed {
+		os.exit(failed.code)
 	}
 }
