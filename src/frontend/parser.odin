@@ -1682,6 +1682,7 @@ parser_parse_import_decl :: proc(p: ^Parser, is_pub: bool) -> Decl {
 	module_name := module_tok.text
 
 	exposing := make([dynamic]base.Intern_ID, 0, 8)
+	nominal_exposing := make([dynamic]Import_Nominal_Expose, 0, 4)
 
 	alias: base.Intern_ID = 0
 
@@ -1689,8 +1690,24 @@ parser_parse_import_decl :: proc(p: ^Parser, is_pub: bool) -> Decl {
 		parser_advance(p)
 		parser_expect(p, .LBrack)
 		for p.current.kind != .RBrack && p.current.kind != .Eof {
-			name_tok := parser_advance(p)
-			append(&exposing, base.intern(p.intern, name_tok.text))
+			if p.current.kind == .At {
+				// @[TypeName, Variant1, Variant2] — nominal type variant exposure
+				parser_advance(p)
+				type_tok := parser_expect(p, .Upper_Id)
+				type_id := base.intern(p.intern, type_tok.text)
+				variants := make([dynamic]base.Intern_ID, 0, 4)
+				for p.current.kind == .Comma {
+					parser_advance(p)
+					if p.current.kind == .Upper_Id {
+						v_tok := parser_advance(p)
+						append(&variants, base.intern(p.intern, v_tok.text))
+					}
+				}
+				append(&nominal_exposing, Import_Nominal_Expose{type_name = type_id, variants = variants})
+			} else {
+				name_tok := parser_advance(p)
+				append(&exposing, base.intern(p.intern, name_tok.text))
+			}
 			if p.current.kind == .Comma {
 				parser_advance(p)
 			}
@@ -1705,7 +1722,7 @@ parser_parse_import_decl :: proc(p: ^Parser, is_pub: bool) -> Decl {
 	}
 
 	decl := new(Decl_Import)
-	decl^ = Decl_Import{module = module_name, exposing = exposing, alias = alias, is_unsafe = is_unsafe, span = start}
+	decl^ = Decl_Import{module = module_name, exposing = exposing, nominal_exposing = nominal_exposing, alias = alias, is_unsafe = is_unsafe, span = start}
 	return decl
 }
 

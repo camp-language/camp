@@ -221,12 +221,21 @@ canonicalize_decl :: proc(decl: frontend.Decl, scope: ^Canonicalize_Scope, impor
 		di := base.Deferred_Import{
 			module = base.intern(interner, d.module),
 			exposing = make([dynamic]base.Intern_ID, len(d.exposing)),
+			nominal_exposing = make([dynamic]base.Import_Nominal_Expose, len(d.nominal_exposing)),
 			alias = d.alias,
 			is_unsafe = d.is_unsafe,
 			span = d.span,
 		}
 		for i, name in d.exposing {
 			di.exposing[i] = base.Intern_ID(name)
+		}
+		for i in 0..<len(d.nominal_exposing) {
+			ne := d.nominal_exposing[i]
+			variants := make([dynamic]base.Intern_ID, len(ne.variants))
+			for j in 0..<len(ne.variants) {
+				variants[j] = ne.variants[j]
+			}
+			di.nominal_exposing[i] = base.Import_Nominal_Expose{type_name = ne.type_name, variants = variants}
 		}
 		append(imports, di)
 		cdecl := new(CDecl_Import)

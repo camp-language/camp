@@ -229,20 +229,44 @@ format_decl_import :: proc(v: ^frontend.Decl_Import, info: ^Format_Source_Info, 
 	append(&parts, doc_text("import "))
 	append(&parts, doc_text(v.module))
 
-	if len(v.exposing) > 0 {
+	if len(v.exposing) > 0 || len(v.nominal_exposing) > 0 {
 		multiline := info.first_separator_break[v.span.start]
+		// Convert frontend.Import_Nominal_Expose to base.Import_Nominal_Expose for formatter
+		base_nominal := make([dynamic]base.Import_Nominal_Expose, len(v.nominal_exposing))
+		for i in 0..<len(v.nominal_exposing) {
+			ne := v.nominal_exposing[i]
+			variants := make([dynamic]base.Intern_ID, len(ne.variants))
+			for j in 0..<len(ne.variants) {
+				variants[j] = ne.variants[j]
+			}
+			base_nominal[i] = base.Import_Nominal_Expose{type_name = ne.type_name, variants = variants}
+		}
 		if multiline {
 			append(&parts, doc_text(" exposing ["))
-			append(&parts, doc_nest(4, format_exposing_list_multiline(v.exposing[:], interner)))
+			append(&parts, doc_nest(4, format_exposing_list_multiline(v.exposing[:], base_nominal[:], interner)))
 			append(&parts, doc_line())
 			append(&parts, doc_text("]"))
 		} else {
 			append(&parts, doc_text(" exposing ["))
-			for name, i in v.exposing {
-				if i > 0 {
+			first := true
+			for name in v.exposing {
+				if !first {
 					append(&parts, doc_text(", "))
 				}
+				first = false
 				append(&parts, doc_text(base.intern_get(interner, name)))
+			}
+			for ne in base_nominal {
+				if !first {
+					append(&parts, doc_text(", "))
+				}
+				first = false
+				append(&parts, doc_text("@"))
+				append(&parts, doc_text(base.intern_get(interner, ne.type_name)))
+				for v_name in ne.variants {
+					append(&parts, doc_text(", "))
+					append(&parts, doc_text(base.intern_get(interner, v_name)))
+				}
 			}
 			append(&parts, doc_text("]"))
 		}
@@ -256,7 +280,7 @@ format_decl_import :: proc(v: ^frontend.Decl_Import, info: ^Format_Source_Info, 
 	return doc_concat(parts[:])
 }
 
-format_exposing_list_multiline :: proc(names: []base.Intern_ID, interner: ^base.Intern_Table) -> Doc {
+format_exposing_list_multiline :: proc(names: []base.Intern_ID, nominal: []base.Import_Nominal_Expose, interner: ^base.Intern_Table) -> Doc {
 	inner: [dynamic]Doc
 	defer delete(inner)
 	append(&inner, doc_line())
@@ -265,6 +289,18 @@ format_exposing_list_multiline :: proc(names: []base.Intern_ID, interner: ^base.
 			append(&inner, doc_line())
 		}
 		append(&inner, doc_text(base.intern_get(interner, name)))
+		append(&inner, doc_text(","))
+	}
+	for ne, i in nominal {
+		if len(names) > 0 || i > 0 {
+			append(&inner, doc_line())
+		}
+		append(&inner, doc_text("@"))
+		append(&inner, doc_text(base.intern_get(interner, ne.type_name)))
+		for v_name, j in ne.variants {
+			append(&inner, doc_text(", "))
+			append(&inner, doc_text(base.intern_get(interner, v_name)))
+		}
 		append(&inner, doc_text(","))
 	}
 	append(&inner, doc_line())

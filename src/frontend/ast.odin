@@ -80,11 +80,17 @@ Decl_Newtype :: struct {
 }
 
 Decl_Import :: struct {
-	module:    string,
-	exposing:  [dynamic]base.Intern_ID,
-	alias:     base.Intern_ID,
-	is_unsafe: bool,
-	span:      base.Source_Span,
+	module:            string,
+	exposing:          [dynamic]base.Intern_ID,
+	nominal_exposing:  [dynamic]Import_Nominal_Expose,
+	alias:             base.Intern_ID,
+	is_unsafe:         bool,
+	span:              base.Source_Span,
+}
+
+Import_Nominal_Expose :: struct {
+	type_name: base.Intern_ID,
+	variants:  [dynamic]base.Intern_ID,
 }
 
 Decl_Test :: struct {
