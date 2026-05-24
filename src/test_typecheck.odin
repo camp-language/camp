@@ -109,8 +109,16 @@ test_unify_same_primitive :: proc(t: ^testing.T) {
 	testing.expect(t, ok)
 }
 
-typecheck_source :: proc(source: string) -> (semantics.Type_Store, ^build.Compilation_Context) {
-	ctx: ^build.Compilation_Context = new(build.Compilation_Context)
+Test_Options :: struct {
+	with_prelude: bool,
+}
+
+setup_for_typecheck :: proc(source: string, opts: Test_Options = {}) -> (
+	store: ^semantics.Type_Store,
+	ctx: ^build.Compilation_Context,
+	tfile: semantics.TFile,
+) {
+	ctx = new(build.Compilation_Context)
 	alloc := build.context_init(ctx)
 	context.allocator = alloc
 
@@ -124,17 +132,21 @@ typecheck_source :: proc(source: string) -> (semantics.Type_Store, ^build.Compil
 
 	canon := semantics.canonicalize(surface, &ctx.interner, &ctx.collector)
 
-	store: semantics.Type_Store
-	semantics.type_store_init(&store, &ctx.interner, &ctx.collector)
-	semantics.typecheck_file(canon, &store)
-	return store, ctx
+	store = new(semantics.Type_Store)
+	semantics.type_store_init(store, &ctx.interner, &ctx.collector)
+	if opts.with_prelude {
+		semantics.inject_prelude(store)
+	}
+	tfile = semantics.typecheck_file(canon, store)
+	return store, ctx, tfile
 }
 
-typecheck_source_full :: proc(source: string) -> (semantics.Type_Store, ^build.Compilation_Context, semantics.CFile, semantics.TFile) {
-	ctx: ^build.Compilation_Context = new(build.Compilation_Context)
-	alloc := build.context_init(ctx)
-	context.allocator = alloc
-
+typecheck_into_store :: proc(
+	source: string,
+	store: ^semantics.Type_Store,
+	ctx: ^build.Compilation_Context,
+	module_id: base.Intern_ID = base.NO_NAME,
+) -> semantics.TFile {
 	file := base.Source_File{path = "<tc-test>", contents = source, id = 0}
 	lexer: frontend.Lexer
 	frontend.lexer_init(&lexer, file, &ctx.collector, &ctx.interner)
@@ -144,134 +156,104 @@ typecheck_source_full :: proc(source: string) -> (semantics.Type_Store, ^build.C
 	surface := frontend.parser_parse_file(&parser)
 
 	canon := semantics.canonicalize(surface, &ctx.interner, &ctx.collector)
-
-	store: semantics.Type_Store
-	semantics.type_store_init(&store, &ctx.interner, &ctx.collector)
-	tfile := semantics.typecheck_file(canon, &store)
-	return store, ctx, canon, tfile
-}
-
-typecheck_source_with_prelude :: proc(source: string) -> (semantics.Type_Store, ^build.Compilation_Context) {
-	ctx: ^build.Compilation_Context = new(build.Compilation_Context)
-	alloc := build.context_init(ctx)
-	context.allocator = alloc
-
-	file := base.Source_File{path = "<tc-test>", contents = source, id = 0}
-	lexer: frontend.Lexer
-	frontend.lexer_init(&lexer, file, &ctx.collector, &ctx.interner)
-
-	parser: frontend.Parser
-	frontend.parser_init(&parser, &lexer, &ctx.collector, &ctx.interner)
-	surface := frontend.parser_parse_file(&parser)
-
-	canon := semantics.canonicalize(surface, &ctx.interner, &ctx.collector)
-
-	store: semantics.Type_Store
-	semantics.type_store_init(&store, &ctx.interner, &ctx.collector)
-	semantics.inject_prelude(&store)
-	semantics.typecheck_file(canon, &store)
-	return store, ctx
-}
-
-typecheck_source_with_module :: proc(source: string, current_module: base.Intern_ID, store: ^semantics.Type_Store, ctx: ^build.Compilation_Context) {
-	file := base.Source_File{path = "<tc-test>", contents = source, id = 0}
-	lexer: frontend.Lexer
-	frontend.lexer_init(&lexer, file, &ctx.collector, &ctx.interner)
-
-	parser: frontend.Parser
-	frontend.parser_init(&parser, &lexer, &ctx.collector, &ctx.interner)
-	surface := frontend.parser_parse_file(&parser)
-
-	canon := semantics.canonicalize(surface, &ctx.interner, &ctx.collector)
-	semantics.typecheck_file(canon, store, current_module)
+	return semantics.typecheck_file(canon, store, module_id)
 }
 
 @(test)
 test_typecheck_int_literal :: proc(t: ^testing.T) {
-	store, ctx := typecheck_source("x = 42")
-	defer build.context_destroy(ctx)
+	store, ctx, _ := setup_for_typecheck("x = 42")
 	defer free(ctx)
-	defer semantics.type_store_destroy(&store)
+	defer free(store)
+	defer build.context_destroy(ctx)
+	defer semantics.type_store_destroy(store)
 
 	testing.expect(t, !diagnostics.diag_collector_has_errors(&ctx.collector))
 }
 
 @(test)
 test_typecheck_lambda :: proc(t: ^testing.T) {
-	store, ctx := typecheck_source("add = |x| x")
-	defer build.context_destroy(ctx)
+	store, ctx, _ := setup_for_typecheck("add = |x| x")
 	defer free(ctx)
-	defer semantics.type_store_destroy(&store)
+	defer free(store)
+	defer build.context_destroy(ctx)
+	defer semantics.type_store_destroy(store)
 
 	testing.expect(t, !diagnostics.diag_collector_has_errors(&ctx.collector))
 }
 
 @(test)
 test_typecheck_if_same_type :: proc(t: ^testing.T) {
-	store, ctx := typecheck_source("val = if True { 1 } else { 2 }")
-	defer build.context_destroy(ctx)
+	store, ctx, _ := setup_for_typecheck("val = if True { 1 } else { 2 }")
 	defer free(ctx)
-	defer semantics.type_store_destroy(&store)
+	defer free(store)
+	defer build.context_destroy(ctx)
+	defer semantics.type_store_destroy(store)
 
 	testing.expect(t, !diagnostics.diag_collector_has_errors(&ctx.collector))
 }
 
 @(test)
 test_typecheck_record :: proc(t: ^testing.T) {
-	store, ctx := typecheck_source("r = { name: \"Camp\", age: 1 }")
-	defer build.context_destroy(ctx)
+	store, ctx, _ := setup_for_typecheck("r = { name: \"Camp\", age: 1 }")
 	defer free(ctx)
-	defer semantics.type_store_destroy(&store)
+	defer free(store)
+	defer build.context_destroy(ctx)
+	defer semantics.type_store_destroy(store)
 
 	testing.expect(t, !diagnostics.diag_collector_has_errors(&ctx.collector))
 }
 
 @(test)
 test_typecheck_undefined_name :: proc(t: ^testing.T) {
-	store, ctx := typecheck_source("x = undefined_var")
-	defer build.context_destroy(ctx)
+	store, ctx, _ := setup_for_typecheck("x = undefined_var")
 	defer free(ctx)
-	defer semantics.type_store_destroy(&store)
+	defer free(store)
+	defer build.context_destroy(ctx)
+	defer semantics.type_store_destroy(store)
 
 	testing.expect(t, diagnostics.diag_collector_has_errors(&ctx.collector))
 }
 
 @(test)
 test_typecheck_let_polymorphism :: proc(t: ^testing.T) {
-	store, ctx := typecheck_source("id = |x| x\na = id(1)\nb = id(True)")
-	defer build.context_destroy(ctx)
+	store, ctx, _ := setup_for_typecheck("id = |x| x\na = id(1)\nb = id(True)")
 	defer free(ctx)
-	defer semantics.type_store_destroy(&store)
+	defer free(store)
+	defer build.context_destroy(ctx)
+	defer semantics.type_store_destroy(store)
 
 	testing.expect(t, !diagnostics.diag_collector_has_errors(&ctx.collector))
 }
 
 @(test)
 test_typecheck_annotation_check :: proc(t: ^testing.T) {
-	store, ctx := typecheck_source("x = 42")
-	defer build.context_destroy(ctx)
+	store, ctx, _ := setup_for_typecheck("x = 42")
 	defer free(ctx)
-	defer semantics.type_store_destroy(&store)
+	defer free(store)
+	defer build.context_destroy(ctx)
+	defer semantics.type_store_destroy(store)
 
 	testing.expect(t, !diagnostics.diag_collector_has_errors(&ctx.collector))
 }
 
 @(test)
 test_typecheck_binop :: proc(t: ^testing.T) {
-	store, ctx := typecheck_source("x = 1 + 2\ny = True and False")
-	defer build.context_destroy(ctx)
+	store, ctx, _ := setup_for_typecheck("x = 1 + 2\ny = True and False")
 	defer free(ctx)
-	defer semantics.type_store_destroy(&store)
+	defer free(store)
+	defer build.context_destroy(ctx)
+	defer semantics.type_store_destroy(store)
 
 	testing.expect(t, !diagnostics.diag_collector_has_errors(&ctx.collector))
 }
 
 @(test)
 test_typecheck_not :: proc(t: ^testing.T) {
-	store, ctx := typecheck_source("x = not True")
-	defer build.context_destroy(ctx)
+	store, ctx, _ := setup_for_typecheck("x = not True")
 	defer free(ctx)
-	defer semantics.type_store_destroy(&store)
+	defer free(store)
+	defer build.context_destroy(ctx)
+	defer semantics.type_store_destroy(store)
 
 	testing.expect(t, !diagnostics.diag_collector_has_errors(&ctx.collector))
 }
@@ -521,53 +503,58 @@ test_unify_record_row_field_mismatch :: proc(t: ^testing.T) {
 
 @(test)
 test_typecheck_function_application :: proc(t: ^testing.T) {
-	store, ctx := typecheck_source("add = |x: I64| -> I64 { x }\nresult = add(1)")
-	defer build.context_destroy(ctx)
+	store, ctx, _ := setup_for_typecheck("add = |x: I64| -> I64 { x }\nresult = add(1)")
 	defer free(ctx)
-	defer semantics.type_store_destroy(&store)
+	defer free(store)
+	defer build.context_destroy(ctx)
+	defer semantics.type_store_destroy(store)
 
 	testing.expect(t, !diagnostics.diag_collector_has_errors(&ctx.collector))
 }
 
 @(test)
 test_effectful_naming_enforcement :: proc(t: ^testing.T) {
-	store, ctx := typecheck_source(
+	store, ctx, _ := setup_for_typecheck(
 		"IO! : { println!: || -> Str }\nresult = handle IO in { IO.println(\"hi\") } with { .println!(resume) => resume({}) }")
-	defer build.context_destroy(ctx)
 	defer free(ctx)
-	defer semantics.type_store_destroy(&store)
+	defer free(store)
+	defer build.context_destroy(ctx)
+	defer semantics.type_store_destroy(store)
 
 	testing.expect(t, !diagnostics.diag_collector_has_errors(&ctx.collector))
 }
 
 @(test)
 test_unhandled_effect_error :: proc(t: ^testing.T) {
-	store, ctx := typecheck_source(
+	store, ctx, _ := setup_for_typecheck(
 		"IO! : { println!: || -> Str }\nval = IO.println(\"hello\")")
-	defer build.context_destroy(ctx)
 	defer free(ctx)
-	defer semantics.type_store_destroy(&store)
+	defer free(store)
+	defer build.context_destroy(ctx)
+	defer semantics.type_store_destroy(store)
 
 	testing.expect(t, diagnostics.diag_collector_has_errors(&ctx.collector))
 }
 
 @(test)
 test_handled_effect_ok :: proc(t: ^testing.T) {
-	store, ctx := typecheck_source(
+	store, ctx, _ := setup_for_typecheck(
 		"IO! : { println!: || -> Str }\nmain! = handle IO in { IO.println(\"hello\") } with { .println!(resume) => resume({}) }")
-	defer build.context_destroy(ctx)
 	defer free(ctx)
-	defer semantics.type_store_destroy(&store)
+	defer free(store)
+	defer build.context_destroy(ctx)
+	defer semantics.type_store_destroy(store)
 
 	testing.expect(t, !diagnostics.diag_collector_has_errors(&ctx.collector))
 }
 
 @(test)
 test_newtype_simple :: proc(t: ^testing.T) {
-	store, ctx := typecheck_source("@UserId : U64")
-	defer build.context_destroy(ctx)
+	store, ctx, _ := setup_for_typecheck("@UserId : U64")
 	defer free(ctx)
-	defer semantics.type_store_destroy(&store)
+	defer free(store)
+	defer build.context_destroy(ctx)
+	defer semantics.type_store_destroy(store)
 
 	testing.expect(t, !diagnostics.diag_collector_has_errors(&ctx.collector))
 	uid_name := base.intern(&ctx.interner, "UserId")
@@ -577,10 +564,11 @@ test_newtype_simple :: proc(t: ^testing.T) {
 
 @(test)
 test_newtype_parameterized :: proc(t: ^testing.T) {
-	store, ctx := typecheck_source("@Result(a, e) : [Ok(a) | Err(e)]")
-	defer build.context_destroy(ctx)
+	store, ctx, _ := setup_for_typecheck("@Result(a, e) : [Ok(a) | Err(e)]")
 	defer free(ctx)
-	defer semantics.type_store_destroy(&store)
+	defer free(store)
+	defer build.context_destroy(ctx)
+	defer semantics.type_store_destroy(store)
 
 	testing.expect(t, !diagnostics.diag_collector_has_errors(&ctx.collector))
 	result_name := base.intern(&ctx.interner, "Result")
@@ -680,20 +668,22 @@ test_newtype_same_name_unifies :: proc(t: ^testing.T) {
 
 @(test)
 test_newtype_with_trait :: proc(t: ^testing.T) {
-	store, ctx := typecheck_source("@UserId : U64")
-	defer build.context_destroy(ctx)
+	store, ctx, _ := setup_for_typecheck("@UserId : U64")
 	defer free(ctx)
-	defer semantics.type_store_destroy(&store)
+	defer free(store)
+	defer build.context_destroy(ctx)
+	defer semantics.type_store_destroy(store)
 
 	testing.expect(t, !diagnostics.diag_collector_has_errors(&ctx.collector))
 }
 
 @(test)
 test_newtype_wrapping_record :: proc(t: ^testing.T) {
-	store, ctx := typecheck_source("@User : { name: Str, age: U64 }")
-	defer build.context_destroy(ctx)
+	store, ctx, _ := setup_for_typecheck("@User : { name: Str, age: U64 }")
 	defer free(ctx)
-	defer semantics.type_store_destroy(&store)
+	defer free(store)
+	defer build.context_destroy(ctx)
+	defer semantics.type_store_destroy(store)
 
 	testing.expect(t, !diagnostics.diag_collector_has_errors(&ctx.collector))
 	user_name := base.intern(&ctx.interner, "User")
@@ -703,107 +693,114 @@ test_newtype_wrapping_record :: proc(t: ^testing.T) {
 
 @(test)
 test_newtype_construction :: proc(t: ^testing.T) {
-	store, ctx := typecheck_source("@UserId : U64\nx = UserId(42)")
-	defer build.context_destroy(ctx)
+	store, ctx, _ := setup_for_typecheck("@UserId : U64\nx = UserId(42)")
 	defer free(ctx)
-	defer semantics.type_store_destroy(&store)
+	defer free(store)
+	defer build.context_destroy(ctx)
+	defer semantics.type_store_destroy(store)
 
 	testing.expect(t, !diagnostics.diag_collector_has_errors(&ctx.collector))
 }
 
 @(test)
 test_newtype_tag_ownership :: proc(t: ^testing.T) {
-	store, ctx := typecheck_source("@Result(a, e) : [Ok(a) | Err(e)]\nx = Result.Ok(42)")
-	defer build.context_destroy(ctx)
+	store, ctx, _ := setup_for_typecheck("@Result(a, e) : [Ok(a) | Err(e)]\nx = Result.Ok(42)")
 	defer free(ctx)
-	defer semantics.type_store_destroy(&store)
+	defer free(store)
+	defer build.context_destroy(ctx)
+	defer semantics.type_store_destroy(store)
 
 	testing.expect(t, !diagnostics.diag_collector_has_errors(&ctx.collector))
 }
 
 @(test)
 test_newtype_inner_access :: proc(t: ^testing.T) {
-	store, ctx := typecheck_source("@UserId : U64\nuid = UserId(42)\nn = uid.inner()")
-	defer build.context_destroy(ctx)
+	store, ctx, _ := setup_for_typecheck("@UserId : U64\nuid = UserId(42)\nn = uid.inner()")
 	defer free(ctx)
-	defer semantics.type_store_destroy(&store)
+	defer free(store)
+	defer build.context_destroy(ctx)
+	defer semantics.type_store_destroy(store)
 
 	testing.expect(t, !diagnostics.diag_collector_has_errors(&ctx.collector))
 }
 
 @(test)
 test_newtype_opaque_construct_cross_module :: proc(t: ^testing.T) {
-	ctx: ^build.Compilation_Context = new(build.Compilation_Context)
+	ctx := new(build.Compilation_Context)
 	alloc := build.context_init(ctx)
-	defer build.context_destroy(ctx)
-	defer free(ctx)
 	context.allocator = alloc
+	defer free(ctx)
+	defer build.context_destroy(ctx)
 
-	store: semantics.Type_Store
-	semantics.type_store_init(&store, &ctx.interner, &ctx.collector)
-	semantics.inject_prelude(&store)
-	defer semantics.type_store_destroy(&store)
+	store := new(semantics.Type_Store)
+	semantics.type_store_init(store, &ctx.interner, &ctx.collector)
+	semantics.inject_prelude(store)
+	defer free(store)
+	defer semantics.type_store_destroy(store)
 
 	mod_a := base.intern(&ctx.interner, "ModuleA")
-	typecheck_source_with_module("@UserId : U64", mod_a, &store, ctx)
+	typecheck_into_store("@UserId : U64", store, ctx, mod_a)
 	testing.expect(t, !diagnostics.diag_collector_has_errors(&ctx.collector))
 
 	mod_b := base.intern(&ctx.interner, "ModuleB")
-	typecheck_source_with_module("x = UserId(42)", mod_b, &store, ctx)
+	typecheck_into_store("x = UserId(42)", store, ctx, mod_b)
 	testing.expect(t, diagnostics.diag_collector_has_errors(&ctx.collector))
 }
 
 @(test)
 test_newtype_pub_variants_cross_module :: proc(t: ^testing.T) {
-	ctx: ^build.Compilation_Context = new(build.Compilation_Context)
+	ctx := new(build.Compilation_Context)
 	alloc := build.context_init(ctx)
-	defer build.context_destroy(ctx)
-	defer free(ctx)
 	context.allocator = alloc
+	defer free(ctx)
+	defer build.context_destroy(ctx)
 
-	store: semantics.Type_Store
-	semantics.type_store_init(&store, &ctx.interner, &ctx.collector)
-	semantics.inject_prelude(&store)
-	defer semantics.type_store_destroy(&store)
+	store := new(semantics.Type_Store)
+	semantics.type_store_init(store, &ctx.interner, &ctx.collector)
+	semantics.inject_prelude(store)
+	defer free(store)
+	defer semantics.type_store_destroy(store)
 
 	mod_a := base.intern(&ctx.interner, "ModuleA")
-	typecheck_source_with_module("@Result(a, e) : pub [Ok(a) | Err(e)]", mod_a, &store, ctx)
+	typecheck_into_store("@Result(a, e) : pub [Ok(a) | Err(e)]", store, ctx, mod_a)
 	testing.expect(t, !diagnostics.diag_collector_has_errors(&ctx.collector))
 
 	mod_b := base.intern(&ctx.interner, "ModuleB")
-	typecheck_source_with_module("x = Result.Ok(42)", mod_b, &store, ctx)
+	typecheck_into_store("x = Result.Ok(42)", store, ctx, mod_b)
 	testing.expect(t, !diagnostics.diag_collector_has_errors(&ctx.collector))
 }
 
 @(test)
 test_newtype_opaque_inner_cross_module :: proc(t: ^testing.T) {
-	ctx: ^build.Compilation_Context = new(build.Compilation_Context)
+	ctx := new(build.Compilation_Context)
 	alloc := build.context_init(ctx)
-	defer build.context_destroy(ctx)
-	defer free(ctx)
 	context.allocator = alloc
+	defer free(ctx)
+	defer build.context_destroy(ctx)
 
-	store: semantics.Type_Store
-	semantics.type_store_init(&store, &ctx.interner, &ctx.collector)
-	semantics.inject_prelude(&store)
-	defer semantics.type_store_destroy(&store)
+	store := new(semantics.Type_Store)
+	semantics.type_store_init(store, &ctx.interner, &ctx.collector)
+	semantics.inject_prelude(store)
+	defer free(store)
+	defer semantics.type_store_destroy(store)
 
 	mod_a := base.intern(&ctx.interner, "ModuleA")
-	typecheck_source_with_module("@UserId : U64\nuid = UserId(42)", mod_a, &store, ctx)
+	typecheck_into_store("@UserId : U64\nuid = UserId(42)", store, ctx, mod_a)
 	testing.expect(t, !diagnostics.diag_collector_has_errors(&ctx.collector))
 
 	mod_b := base.intern(&ctx.interner, "ModuleB")
-	typecheck_source_with_module("n = uid.inner()", mod_b, &store, ctx)
+	typecheck_into_store("n = uid.inner()", store, ctx, mod_b)
 	testing.expect(t, diagnostics.diag_collector_has_errors(&ctx.collector))
 }
 
 @(test)
 test_trait_method_signature_match :: proc(t: ^testing.T) {
-	store, ctx := typecheck_source_with_prelude(
-		"Eq : { eq: (Self) -> Bool }\n@UserId is Eq : U64\nUserId_eq = |x| True")
-	defer build.context_destroy(ctx)
+	store, ctx, _ := setup_for_typecheck(
+		"Eq : { eq: (Self) -> Bool }\n@UserId is Eq : U64\nUserId_eq = |x| True", { with_prelude = true })
 	defer free(ctx)
-	defer semantics.type_store_destroy(&store)
+	defer free(store)
+	defer build.context_destroy(ctx)
+	defer semantics.type_store_destroy(store)
 
 	testing.expect(t, !diagnostics.diag_collector_has_errors(&ctx.collector))
 	eq_name := base.intern(&ctx.interner, "Eq")
@@ -813,112 +810,120 @@ test_trait_method_signature_match :: proc(t: ^testing.T) {
 
 @(test)
 test_trait_method_signature_mismatch :: proc(t: ^testing.T) {
-	store, ctx := typecheck_source_with_prelude(
-		"Eq : { eq: (Self) -> Bool }\n@UserId is Eq : U64\nUserId_eq = |x| 42")
-	defer build.context_destroy(ctx)
+	store, ctx, _ := setup_for_typecheck(
+		"Eq : { eq: (Self) -> Bool }\n@UserId is Eq : U64\nUserId_eq = |x| 42", { with_prelude = true })
 	defer free(ctx)
-	defer semantics.type_store_destroy(&store)
+	defer free(store)
+	defer build.context_destroy(ctx)
+	defer semantics.type_store_destroy(store)
 
 	testing.expect(t, diagnostics.diag_collector_has_errors(&ctx.collector))
 }
 
 @(test)
 test_trait_method_param_mismatch :: proc(t: ^testing.T) {
-	store, ctx := typecheck_source_with_prelude(
-		"Eq : { eq: (Self, Self) -> Bool }\n@UserId is Eq : U64\nUserId_eq = |x| True")
-	defer build.context_destroy(ctx)
+	store, ctx, _ := setup_for_typecheck(
+		"Eq : { eq: (Self, Self) -> Bool }\n@UserId is Eq : U64\nUserId_eq = |x| True", { with_prelude = true })
 	defer free(ctx)
-	defer semantics.type_store_destroy(&store)
+	defer free(store)
+	defer build.context_destroy(ctx)
+	defer semantics.type_store_destroy(store)
 
 	testing.expect(t, diagnostics.diag_collector_has_errors(&ctx.collector))
 }
 
 @(test)
 test_trait_orphan_rule :: proc(t: ^testing.T) {
-	ctx: ^build.Compilation_Context = new(build.Compilation_Context)
+	ctx := new(build.Compilation_Context)
 	alloc := build.context_init(ctx)
-	defer build.context_destroy(ctx)
-	defer free(ctx)
 	context.allocator = alloc
+	defer free(ctx)
+	defer build.context_destroy(ctx)
 
-	store: semantics.Type_Store
-	semantics.type_store_init(&store, &ctx.interner, &ctx.collector)
-	semantics.inject_prelude(&store)
-	defer semantics.type_store_destroy(&store)
+	store := new(semantics.Type_Store)
+	semantics.type_store_init(store, &ctx.interner, &ctx.collector)
+	semantics.inject_prelude(store)
+	defer free(store)
+	defer semantics.type_store_destroy(store)
 
 	mod_a := base.intern(&ctx.interner, "ModuleA")
-	typecheck_source_with_module("Eq : { eq: (Self) -> Bool }", mod_a, &store, ctx)
+	typecheck_into_store("Eq : { eq: (Self) -> Bool }", store, ctx, mod_a)
 	testing.expect(t, !diagnostics.diag_collector_has_errors(&ctx.collector))
 
 	mod_b := base.intern(&ctx.interner, "ModuleB")
-	typecheck_source_with_module("@UserId is Eq : U64\nUserId_eq = |x| True", mod_b, &store, ctx)
+	typecheck_into_store("@UserId is Eq : U64\nUserId_eq = |x| True", store, ctx, mod_b)
 	testing.expect(t, diagnostics.diag_collector_has_errors(&ctx.collector))
 }
 
 @(test)
 test_trait_overlapping_instance :: proc(t: ^testing.T) {
-	store, ctx := typecheck_source_with_prelude(
-		"Eq : { eq: (Self) -> Bool }\n@UserId is Eq : U64\nUserId_eq = |x| True\n@UserId is Eq : U64\nUserId_eq2 = |x| True")
-	defer build.context_destroy(ctx)
+	store, ctx, _ := setup_for_typecheck(
+		"Eq : { eq: (Self) -> Bool }\n@UserId is Eq : U64\nUserId_eq = |x| True\n@UserId is Eq : U64\nUserId_eq2 = |x| True", { with_prelude = true })
 	defer free(ctx)
-	defer semantics.type_store_destroy(&store)
+	defer free(store)
+	defer build.context_destroy(ctx)
+	defer semantics.type_store_destroy(store)
 
 	testing.expect(t, diagnostics.diag_collector_has_errors(&ctx.collector))
 }
 
 @(test)
 test_trait_missing_method :: proc(t: ^testing.T) {
-	store, ctx := typecheck_source_with_prelude(
-		"Eq : { eq: (Self) -> Bool }\n@UserId is Eq : U64")
-	defer build.context_destroy(ctx)
+	store, ctx, _ := setup_for_typecheck(
+		"Eq : { eq: (Self) -> Bool }\n@UserId is Eq : U64", { with_prelude = true })
 	defer free(ctx)
-	defer semantics.type_store_destroy(&store)
+	defer free(store)
+	defer build.context_destroy(ctx)
+	defer semantics.type_store_destroy(store)
 
 	testing.expect(t, diagnostics.diag_collector_has_errors(&ctx.collector))
 }
 
 @(test)
 test_derive_eq_generates_impl :: proc(t: ^testing.T) {
-	store, ctx := typecheck_source_with_prelude(
-		"Eq : { eq: (Self) -> Bool }\n@UserId is Eq : U64\nUserId_eq = |x| True")
-	defer build.context_destroy(ctx)
+	store, ctx, _ := setup_for_typecheck(
+		"Eq : { eq: (Self) -> Bool }\n@UserId is Eq : U64\nUserId_eq = |x| True", { with_prelude = true })
 	defer free(ctx)
-	defer semantics.type_store_destroy(&store)
+	defer free(store)
+	defer build.context_destroy(ctx)
+	defer semantics.type_store_destroy(store)
 
 	testing.expect(t, !diagnostics.diag_collector_has_errors(&ctx.collector))
 	eq_name := base.intern(&ctx.interner, "Eq")
 	uid_name := base.intern(&ctx.interner, "UserId")
-	_, found := semantics.find_trait_impl(&store, eq_name, uid_name)
+	_, found := semantics.find_trait_impl(store, eq_name, uid_name)
 	testing.expect(t, found)
 }
 
 @(test)
 test_derive_clone_generates_impl :: proc(t: ^testing.T) {
-	store, ctx := typecheck_source_with_prelude(
-		"Clone : { clone: (Self) -> Self }\n@UserId is Clone : U64\nUserId_clone = |x| x")
-	defer build.context_destroy(ctx)
+	store, ctx, _ := setup_for_typecheck(
+		"Clone : { clone: (Self) -> Self }\n@UserId is Clone : U64\nUserId_clone = |x| x", { with_prelude = true })
 	defer free(ctx)
-	defer semantics.type_store_destroy(&store)
+	defer free(store)
+	defer build.context_destroy(ctx)
+	defer semantics.type_store_destroy(store)
 
 	testing.expect(t, !diagnostics.diag_collector_has_errors(&ctx.collector))
 	clone_name := base.intern(&ctx.interner, "Clone")
 	uid_name := base.intern(&ctx.interner, "UserId")
-	_, found := semantics.find_trait_impl(&store, clone_name, uid_name)
+	_, found := semantics.find_trait_impl(store, clone_name, uid_name)
 	testing.expect(t, found)
 }
 
 @(test)
 test_derive_hash_generates_impl :: proc(t: ^testing.T) {
-	store, ctx := typecheck_source_with_prelude(
-		"Hash : { hash: (Self) -> U64 }\n@UserId is Hash : U64\nUserId_hash = |x| x.inner()")
-	defer build.context_destroy(ctx)
+	store, ctx, _ := setup_for_typecheck(
+		"Hash : { hash: (Self) -> U64 }\n@UserId is Hash : U64\nUserId_hash = |x| x.inner()", { with_prelude = true })
 	defer free(ctx)
-	defer semantics.type_store_destroy(&store)
+	defer free(store)
+	defer build.context_destroy(ctx)
+	defer semantics.type_store_destroy(store)
 
 	testing.expect(t, !diagnostics.diag_collector_has_errors(&ctx.collector))
 	hash_name := base.intern(&ctx.interner, "Hash")
 	uid_name := base.intern(&ctx.interner, "UserId")
-	_, found := semantics.find_trait_impl(&store, hash_name, uid_name)
+	_, found := semantics.find_trait_impl(store, hash_name, uid_name)
 	testing.expect(t, found)
 }
 

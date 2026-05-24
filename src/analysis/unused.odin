@@ -1,9 +1,28 @@
 package analysis
 
 import "core:fmt"
+import "core:strings"
 import "camp:base"
 import "camp:semantics"
 import "camp:diagnostics"
+
+Name_Classification :: enum {
+	Normal,
+	Underscore,
+	Wildcard,
+	Contradictory,
+	Reassignable,
+}
+
+classify_name :: proc(name: base.Intern_ID, interner: ^base.Intern_Table) -> Name_Classification {
+	str := base.intern_get(interner, name)
+	if len(str) == 0 do return .Normal
+	if str == "_" do return .Wildcard
+	if strings.has_prefix(str, "_$") || strings.has_prefix(str, "$_") do return .Contradictory
+	if strings.has_prefix(str, "$") do return .Reassignable
+	if strings.has_prefix(str, "_") do return .Underscore
+	return .Normal
+}
 
 // Use-site categories for tracking how a binding is consumed
 Use_Kind :: enum {
@@ -30,12 +49,9 @@ Assignment_Info :: struct {
 Binding_Info :: struct {
 	name:                   base.Intern_ID,
 	span:                   base.Source_Span,
-	is_reassignable:        bool,
-	is_underscore_prefixed: bool,
-	is_bare_wildcard:       bool,
+	classification:         Name_Classification,
 	is_top_level:           bool,
 	is_pub:                 bool,
-	is_contradictory:       bool,
 	is_effectful:           bool,
 	assignments:            [dynamic]Assignment_Info,
 	use_sites:              [dynamic]Use_Site,
@@ -95,38 +111,6 @@ unused_analysis_destroy :: proc(analysis: ^Unused_Analysis) {
 	delete(analysis.shadowed_names)
 }
 
-// Check if a name is underscore-prefixed: _name (single underscore + alphanumeric, not __)
-is_underscore_prefixed :: proc(name: base.Intern_ID, interner: ^base.Intern_Table) -> bool {
-	s := base.intern_get(interner, name)
-	if len(s) == 0 do return false
-	if s[0] != '_' do return false
-	if len(s) == 1 do return true
-	if s[1] == '_' do return false
-	return true
-}
-
-// Check if a name is the bare wildcard: exactly "_"
-is_bare_wildcard :: proc(name: base.Intern_ID, interner: ^base.Intern_Table) -> bool {
-	s := base.intern_get(interner, name)
-	return s == "_"
-}
-
-// Check if a name has contradictory _ and $ prefixes: _$x or $_x
-is_contradictory_prefix :: proc(name: base.Intern_ID, interner: ^base.Intern_Table) -> bool {
-	s := base.intern_get(interner, name)
-	if len(s) < 3 do return false
-	if s[0] == '_' && s[1] == '$' do return true
-	if s[0] == '$' && s[1] == '_' do return true
-	return false
-}
-
-// Check if a name starts with $ (reassignable variable)
-is_reassignable_name :: proc(name: base.Intern_ID, interner: ^base.Intern_Table) -> bool {
-	s := base.intern_get(interner, name)
-	if len(s) == 0 do return false
-	return s[0] == '$'
-}
-
 // Register a binding in the analysis
 register_binding :: proc(analysis: ^Unused_Analysis, name: base.Intern_ID, span: base.Source_Span, is_top_level: bool, is_pub: bool, is_effectful: bool = false) {
 	name_str := base.intern_get(analysis.interner, name)
@@ -134,12 +118,9 @@ register_binding :: proc(analysis: ^Unused_Analysis, name: base.Intern_ID, span:
 	bi: Binding_Info
 	bi.name = name
 	bi.span = span
-	bi.is_reassignable = is_reassignable_name(name, analysis.interner)
-	bi.is_underscore_prefixed = is_underscore_prefixed(name, analysis.interner)
-	bi.is_bare_wildcard = is_bare_wildcard(name, analysis.interner)
+	bi.classification = classify_name(name, analysis.interner)
 	bi.is_top_level = is_top_level
 	bi.is_pub = is_pub
-	bi.is_contradictory = is_contradictory_prefix(name, analysis.interner)
 	bi.is_effectful = is_effectful
 	bi.assignments = make([dynamic]Assignment_Info, 0, 4)
 	bi.use_sites = make([dynamic]Use_Site, 0, 8)
@@ -148,7 +129,7 @@ register_binding :: proc(analysis: ^Unused_Analysis, name: base.Intern_ID, span:
 
 	analysis.bindings[name] = bi
 
-	if bi.is_contradictory {
+	if bi.classification == .Contradictory {
 		diagnostics.collector_add_diag(analysis.collector,
 			diagnostics.diag_contradictory_prefix(name_str, span))
 	}
@@ -283,7 +264,7 @@ collect_uses_expr :: proc(analysis: ^Unused_Analysis, expr: semantics.CExpr) {
 		}
 	case ^semantics.CExpr_Name:
 		name := e.name.name
-		if is_bare_wildcard(name, analysis.interner) do return
+		if classify_name(name, analysis.interner) == .Wildcard do return
 		record_use(analysis, name, .Read, e.span)
 		mark_import_used(analysis, name)
 	case ^semantics.CExpr_Call:
@@ -389,7 +370,7 @@ collect_uses_expr :: proc(analysis: ^Unused_Analysis, expr: semantics.CExpr) {
 collect_uses_stmt :: proc(analysis: ^Unused_Analysis, stmt: semantics.CExpr) {
 	#partial switch s in stmt {
 	case ^semantics.CExpr_Name:
-		if is_bare_wildcard(s.name.name, analysis.interner) do return
+		if classify_name(s.name.name, analysis.interner) == .Wildcard do return
 		register_binding(analysis, s.name.name, s.span, is_top_level = false, is_pub = false)
 	case ^semantics.CExpr_Call:
 		collect_uses_expr(analysis, stmt)
@@ -419,7 +400,7 @@ collect_uses_assign :: proc(analysis: ^Unused_Analysis, assign: ^semantics.CExpr
 		name := t.name.name
 		name_str := base.intern_get(analysis.interner, name)
 
-		if is_reassignable_name(name, analysis.interner) {
+		if classify_name(name, analysis.interner) == .Reassignable {
 			if _, exists := analysis.bindings[name]; exists {
 				// Reassignment to existing $-var
 				// Check for self-assignment: $x = $x
@@ -437,7 +418,7 @@ collect_uses_assign :: proc(analysis: ^Unused_Analysis, assign: ^semantics.CExpr
 			}
 		} else {
 			// Immutable binding: x = expr
-			if is_bare_wildcard(name, analysis.interner) {
+			if classify_name(name, analysis.interner) == .Wildcard {
 				// _ = expr - check for pointless evaluation
 				record_use(analysis, name, .Discard, assign.span)
 			} else if _, exists := analysis.bindings[name]; !exists {
@@ -598,13 +579,13 @@ check_unused :: proc(analysis: ^Unused_Analysis) {
 
 	for name in binding_keys {
 		bi := analysis.bindings[name]
-		if bi.is_contradictory do continue
-		if bi.is_bare_wildcard do continue
+		if bi.classification == .Contradictory do continue
+		if bi.classification == .Wildcard do continue
 
 		// Skip if shadowed (shadowing error takes priority)
 		if _, is_shadowed := analysis.shadowed_names[name]; is_shadowed do continue
 
-		if bi.is_reassignable {
+		if bi.classification == .Reassignable {
 			check_reassignable_var(analysis, name, bi)
 		} else {
 			check_immutable_binding(analysis, name, bi)
@@ -634,7 +615,7 @@ check_immutable_binding :: proc(analysis: ^Unused_Analysis, name: base.Intern_ID
 
 	if !has_essential_use {
 		// _-prefixed bindings are exempt from unused errors
-		if bi.is_underscore_prefixed do return
+		if bi.classification == .Underscore do return
 
 		if bi.is_top_level {
 			if !bi.is_pub && !bi.is_effectful {
@@ -650,7 +631,7 @@ check_immutable_binding :: proc(analysis: ^Unused_Analysis, name: base.Intern_ID
 	}
 
 	// Check for pointless evaluation: _ = pureExpr
-	if bi.is_bare_wildcard {
+	if bi.classification == .Wildcard {
 		for use in bi.use_sites {
 			if use.kind == .Discard {
 				// Pipeline integration will use Type_Store to determine
@@ -706,7 +687,7 @@ check_reassignable_var :: proc(analysis: ^Unused_Analysis, name: base.Intern_ID,
 	}
 
 	// If the $-var has no uses at all and is not _-prefixed, also emit unused binding
-	if !binding_has_essential_use(bi) && !bi.is_underscore_prefixed && !bi.is_top_level {
+	if !binding_has_essential_use(bi) && bi.classification != .Underscore && !bi.is_top_level {
 		// Only emit if there are no assignment-level errors already
 		// (avoid double-reporting)
 		if len(bi.assignments) == 1 && !bi.assignments[0].is_in_loop {
