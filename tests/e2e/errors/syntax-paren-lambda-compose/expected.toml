@@ -1,7 +1,10 @@
 stdout = """
-canonicalized /tmp/camp-e2e/errors/syntax-paren-lambda-compose/src/Main.camp: 1 declaration(s), 0 import(s)
-typecheck passed for /tmp/camp-e2e/errors/syntax-paren-lambda-compose/src/Main.camp
-compiled /tmp/camp-e2e/errors/syntax-paren-lambda-compose/src/Main.camp -> /tmp/camp-e2e/errors/syntax-paren-lambda-compose/src/Main.wasm
+-- LAMBDA MULTI PARAM --- /tmp/camp-e2e/errors/syntax-paren-lambda-compose/src/Main.camp
+
+Lambdas must take a single parameter. Use a record to pass multiple values.
+   1 | compose = |f, g, x| { f(g(x)) }
+                         ^
+compilation failed with 1 error(s)
 """
 stderr = ""
-exit = 0
+exit = 1

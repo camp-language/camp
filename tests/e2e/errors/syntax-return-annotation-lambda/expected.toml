@@ -1,4 +1,10 @@
 stdout = """
+-- LAMBDA MULTI PARAM --- /tmp/camp-e2e/errors/syntax-return-annotation-lambda/src/Main.camp
+
+Lambdas must take a single parameter. Use a record to pass multiple values.
+   1 | f = |x, y| -> I64 { x + y }
+                ^
+
 -- SYNTAX ERROR --- /tmp/camp-e2e/errors/syntax-return-annotation-lambda/src/Main.camp
 
 I expected `=` here, but I got `(` instead.
@@ -16,7 +22,7 @@ I expected `=` here, but I got `` instead.
 I was not expecting `` here.
    3 | 
        ^
-compilation failed with 3 error(s)
+compilation failed with 4 error(s)
 """
 stderr = ""
 exit = 1

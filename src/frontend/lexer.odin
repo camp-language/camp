@@ -362,10 +362,10 @@ lexer_lex_identifier :: proc(l: ^Lexer, start: int) -> base.Token {
 
 	base_text := l.source[start:l.pos]
 
-	// Absorb trailing ! (up to 2) for non-keyword identifiers
+	// Absorb trailing ! (only 1) for non-keyword identifiers
 	if _, is_keyword := KEYWORDS[base_text]; !is_keyword {
 		bang_count := 0
-		for l.pos < len(l.source) && l.source[l.pos] == '!' && bang_count < 2 {
+		for l.pos < len(l.source) && l.source[l.pos] == '!' && bang_count < 1 {
 			// Don't absorb ! if followed by = (that's the != operator)
 			if l.pos + 1 < len(l.source) && l.source[l.pos + 1] == '=' {
 				break

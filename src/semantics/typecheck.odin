@@ -234,10 +234,16 @@ typecheck_decl :: proc(decl: CDecl, env: ^Type_Env, store: ^Type_Store) -> TDecl
 			unify(store, result.var_id, ann_var)
 		}
 
-		if !d.is_effectful && effect_row_nonempty(store, result.effects) {
-		name_str := base.intern_get(store.interner, d.name.name)
-		effects_str := format_effect_row(store, result.effects)
-		diagnostics.collector_add_diag(store.collector, diagnostics.diag_effectful_naming(name_str, effects_str, d.span))
+		if !d.is_effectful {
+			resolved := resolve_var(store, result.var_id)
+			v := get_var(store, resolved)
+			if inf, ok := v.link.(Inferred_Type); ok && inf.tag == .Function {
+				if effect_row_nonempty(store, inf.effect_id) {
+					name_str := base.intern_get(store.interner, d.name.name)
+					effects_str := format_effect_row(store, inf.effect_id)
+					diagnostics.collector_add_diag(store.collector, diagnostics.diag_effectful_naming(name_str, effects_str, d.span))
+				}
+			}
 		}
 
 		level := store.current_level

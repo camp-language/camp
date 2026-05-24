@@ -63,7 +63,7 @@ test_integration_add_function :: proc(t: ^testing.T) {
 	build.context_init(&ctx)
 	defer build.context_destroy(&ctx)
 
-	file := parse_camp_source("add = |x: I64, y: I64| -> I64 { x + y }", &ctx)
+	file := parse_camp_source("add = |x: I64| -> I64 { x + 1 }", &ctx)
 	testing.expect(t, !diagnostics.diag_collector_has_errors(&ctx.collector))
 	testing.expect(t, len(file.decls) == 1)
 }

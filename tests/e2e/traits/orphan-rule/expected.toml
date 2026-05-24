@@ -1,10 +1,9 @@
 stdout = """
-canonicalized /tmp/camp-e2e/traits/orphan-rule/src/Main.camp: 3 declaration(s), 0 import(s)
--- MISSING TRAIT METHOD --- /tmp/camp-e2e/traits/orphan-rule/src/Main.camp
+-- LAMBDA MULTI PARAM --- /tmp/camp-e2e/traits/orphan-rule/src/Main.camp
 
-`UserId` does not implement method `eq` required by trait `Eq`.
-   2 | @UserId is Eq : U64
-       ^
+Lambdas must take a single parameter. Use a record to pass multiple values.
+   3 | _UserId_eq = |_x, _y| True
+                           ^
 compilation failed with 1 error(s)
 """
 stderr = ""

@@ -1364,7 +1364,7 @@ test_format_idempotent_simple :: proc(t: ^testing.T) {
 
 @(test)
 test_format_idempotent_lambda :: proc(t: ^testing.T) {
-	source := "add = |x, y| x + y"
+	source := "add = |x| x + 1"
 	result1 := format.format(source, "test.camp", context.allocator)
 	defer cleanup_format_result(&result1)
 

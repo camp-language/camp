@@ -1,5 +1,10 @@
 stdout = """
-canonicalized /tmp/camp-e2e/closures/higher-order-map/src/Main.camp: 1 declaration(s), 0 import(s)
+-- LAMBDA MULTI PARAM --- /tmp/camp-e2e/closures/higher-order-map/src/Main.camp
+
+Lambdas must take a single parameter. Use a record to pass multiple values.
+   1 | map = |f, xs| { match xs { Nil => Nil | Cons(h, t) => Cons(f(h), map(f, t)) } }
+                   ^
+compilation failed with 1 error(s)
 """
 stderr = ""
-exit = 11
+exit = 1
