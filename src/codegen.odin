@@ -927,7 +927,6 @@ codegen :: proc(ir_mod: IR_Module, ctx: ^Compilation_Context) -> Wasm_Module {
 		offset_buf: [dynamic]u8
 		offset_buf = make([dynamic]u8, 0, 8)
 		emit_instruction(Wasm_I32_Const{value = i32(offset)}, &offset_buf)
-		emit_instruction(Wasm_End{}, &offset_buf)
 
 		append(&mod.datas, Wasm_Data{
 			mem_idx = 0,
