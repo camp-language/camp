@@ -1349,7 +1349,7 @@ typecheck_record :: proc(e: ^CExpr_Record, env: ^Type_Env, store: ^Type_Store) -
 typecheck_field_access :: proc(e: ^CExpr_Field_Access, env: ^Type_Env, store: ^Type_Store) -> Synth_Result {
 	record_result := typecheck_synth(e.record, env, store)
 	field_var := fresh_value_var(store, e.span)
-	rest_var := fresh_value_var(store, e.span)
+	rest_var := fresh_record_row(store, e.span)
 	record_fields := store_alloc(store, Type_Field_Entry, 1)
 	record_fields[0] = Type_Field_Entry{name = e.field, var = resolve_var(store, field_var)}
 	inf := Inferred_Type{
@@ -2324,7 +2324,7 @@ instantiate_rec :: proc(store: ^Type_Store, var_id: base.Type_Var_ID, subst: ^ma
 			}
 		}
 		record_rest := instantiate_rec(store, inf.record_rest, subst)
-		vid := fresh_record_row(store, v.span)
+		vid := fresh_value_var(store, v.span)
 		link_var(store, vid, Inferred_Type{
 			tag = .Record_Row,
 			record_fields = record_fields,
@@ -2346,7 +2346,7 @@ instantiate_rec :: proc(store: ^Type_Store, var_id: base.Type_Var_ID, subst: ^ma
 			}
 		}
 		tag_rest := instantiate_rec(store, inf.tag_rest, subst)
-		vid := fresh_tag_row(store, v.span)
+		vid := fresh_value_var(store, v.span)
 		link_var(store, vid, Inferred_Type{
 			tag = .Tag_Union_Row,
 			tag_entries = tag_entries,
