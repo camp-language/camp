@@ -12,6 +12,6 @@ Error: failed to compile: wasm[0]::function[49]
 
 Caused by:
     0: WebAssembly translation error
-    1: Invalid input WebAssembly code at offset 2407: type mismatch: expected funcref, found i64
+    1: Invalid input WebAssembly code at offset 2417: type mismatch: expected funcref, found i64
 
 """
