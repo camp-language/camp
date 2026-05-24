@@ -70,6 +70,11 @@ lexer_skip_whitespace :: proc(l: ^Lexer) {
 			for l.pos < len(l.source) && l.source[l.pos] != '\n' {
 				l.pos += 1
 			}
+		} else if ch == '/' && l.pos + 1 < len(l.source) && l.source[l.pos + 1] == '/' {
+			l.pos += 2
+			for l.pos < len(l.source) && l.source[l.pos] != '\n' {
+				l.pos += 1
+			}
 		} else {
 			break
 		}

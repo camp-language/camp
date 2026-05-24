@@ -682,7 +682,7 @@ parser_parse_lambda :: proc(p: ^Parser) -> Expr {
 			continue
 		}
 
-		if p.current.kind == .Identifier || p.current.kind == .Upper_Id {
+		if p.current.kind == .Identifier || p.current.kind == .Upper_Id || p.current.kind == .Kw_Self {
 			name_tok := parser_advance(p)
 			param.name = base.intern(p.intern, name_tok.text)
 			if p.current.kind == .Colon {
@@ -704,15 +704,24 @@ parser_parse_lambda :: proc(p: ^Parser) -> Expr {
 	return_type: ^Type = nil
 	effects: ^Type = nil
 	if p.current.kind == .Arrow {
+		// -> (pure arrow, or followed by -[...]-> effect row)
 		parser_advance(p)
 		if p.current.kind == .Minus {
-			// -[ Eff1, Eff2 ]-> syntax
+			// -> -[ Eff1, Eff2 ]-> syntax (legacy: arrow then effect row)
 			parser_advance(p)
 			parser_expect(p, .LBrack)
 			effects = parser_parse_effect_row_type(p)
 			parser_expect(p, .RBrack)
 			parser_expect(p, .Arrow)
 		}
+		return_type = parser_parse_type(p)
+	} else if p.current.kind == .Minus {
+		// -[ Eff1, Eff2 ]-> syntax (spec: effect row IS the arrow)
+		parser_advance(p)
+		parser_expect(p, .LBrack)
+		effects = parser_parse_effect_row_type(p)
+		parser_expect(p, .RBrack)
+		parser_expect(p, .Arrow)
 		return_type = parser_parse_type(p)
 	}
 
@@ -982,6 +991,10 @@ parser_parse_match :: proc(p: ^Parser) -> Expr {
 	arms := make([dynamic]Match_Arm, 0, 8)
 
 	parser_expect(p, .LBrace)
+	// Consume optional leading | before first arm
+	if p.current.kind == .Pipe {
+		parser_advance(p)
+	}
 	for p.current.kind != .RBrace && p.current.kind != .Eof {
 		pattern := parser_parse_pattern(p)
 
@@ -1362,22 +1375,42 @@ parser_parse_function_type :: proc(p: ^Parser) -> Type {
 			}
 		}
 		parser_expect(p, .RParen)
-	} else {
-		parser_expect(p, .Pipe)
-		parser_expect(p, .Pipe)
+	} else if p.current.kind == .Pipe {
+		parser_advance(p)
+		if p.current.kind == .Pipe {
+			// || zero-param syntax
+			parser_advance(p)
+		} else {
+			// |ParamType| single-param syntax
+			param := parser_parse_type(p)
+			append(&params, param^)
+			parser_expect(p, .Pipe)
+		}
 	}
 
 	effects: ^Type = nil
 	if p.current.kind == .Arrow {
+		// -> (pure arrow, or followed by -[...]-> effect row)
 		parser_advance(p)
 		if p.current.kind == .Minus {
-			// -[ Eff1, Eff2 ]-> syntax
+			// -> -[ Eff1, Eff2 ]-> syntax (legacy: arrow then effect row)
 			parser_advance(p)
 			parser_expect(p, .LBrack)
 			effects = parser_parse_effect_row_type(p)
 			parser_expect(p, .RBrack)
 			parser_expect(p, .Arrow)
 		}
+		return_type := parser_parse_type(p)
+		ft := new(Type_Function)
+		ft^ = Type_Function{params = params, effects = effects, return_ = return_type^, span = start}
+		return ft
+	} else if p.current.kind == .Minus {
+		// -[ Eff1, Eff2 ]-> syntax (spec: effect row IS the arrow)
+		parser_advance(p)
+		parser_expect(p, .LBrack)
+		effects = parser_parse_effect_row_type(p)
+		parser_expect(p, .RBrack)
+		parser_expect(p, .Arrow)
 		return_type := parser_parse_type(p)
 		ft := new(Type_Function)
 		ft^ = Type_Function{params = params, effects = effects, return_ = return_type^, span = start}

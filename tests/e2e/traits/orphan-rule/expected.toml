@@ -1,9 +1,9 @@
 stdout = """
 -- SYNTAX ERROR --- /tmp/camp-e2e/traits/orphan-rule/src/Main.camp
 
-I expected `|` here, but I got `Self` instead.
+I expected `|` here, but I got `,` instead.
    1 | Eq : { eq: |Self, Self| -> Bool }
-                   ^^^^
+                       ^
 
 -- SYNTAX ERROR --- /tmp/camp-e2e/traits/orphan-rule/src/Main.camp
 

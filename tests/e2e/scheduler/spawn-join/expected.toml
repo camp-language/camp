@@ -1,10 +1,7 @@
 stdout = """
--- SYNTAX ERROR --- /tmp/camp-e2e/scheduler/spawn-join/src/Main.camp
-
-I expected `=` here, but I got `I64` instead.
-   1 | main! = || -[Spawn!]-> I64 {
-                              ^^^
-compilation failed with 1 error(s)
+canonicalized /tmp/camp-e2e/scheduler/spawn-join/src/Main.camp: 1 declaration(s), 0 import(s)
+typecheck passed for /tmp/camp-e2e/scheduler/spawn-join/src/Main.camp
+compiled /tmp/camp-e2e/scheduler/spawn-join/src/Main.camp -> /tmp/camp-e2e/scheduler/spawn-join/src/Main.wasm
 """
 stderr = ""
-exit = 1
+exit = 0

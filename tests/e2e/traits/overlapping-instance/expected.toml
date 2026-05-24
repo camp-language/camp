@@ -1,9 +1,9 @@
 stdout = """
 -- SYNTAX ERROR --- /tmp/camp-e2e/traits/overlapping-instance/src/Main.camp
 
-I expected `|` here, but I got `Self` instead.
+I expected `|` here, but I got `,` instead.
    1 | Eq : { eq: |Self, Self| -> Bool }
-                   ^^^^
+                       ^
 
 -- SYNTAX ERROR --- /tmp/camp-e2e/traits/overlapping-instance/src/Main.camp
 
@@ -121,9 +121,9 @@ I expected `:` here, but I got `=` instead.
 
 -- SYNTAX ERROR --- /tmp/camp-e2e/traits/overlapping-instance/src/Main.camp
 
-I expected `|` here, but I got `x` instead.
+I expected `|` here, but I got `,` instead.
    5 | UserId_eq2 = |x, y| True
-                     ^
+                      ^
 
 -- SYNTAX ERROR --- /tmp/camp-e2e/traits/overlapping-instance/src/Main.camp
 

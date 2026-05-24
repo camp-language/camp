@@ -1,34 +1,7 @@
 stdout = """
--- SYNTAX ERROR --- /tmp/camp-e2e/errors/unhandled-console-effect/src/Main.camp
-
-I expected `identifier` here, but I got `-` instead.
-   1 | IO! : { println!: || -[IO!]-> {} }
-                            ^
-
--- SYNTAX ERROR --- /tmp/camp-e2e/errors/unhandled-console-effect/src/Main.camp
-
-I expected `:` here, but I got `[` instead.
-   1 | IO! : { println!: || -[IO!]-> {} }
-                             ^
-
--- SYNTAX ERROR --- /tmp/camp-e2e/errors/unhandled-console-effect/src/Main.camp
-
-I expected `identifier` here, but I got `]` instead.
-   1 | IO! : { println!: || -[IO!]-> {} }
-                                 ^
-
--- SYNTAX ERROR --- /tmp/camp-e2e/errors/unhandled-console-effect/src/Main.camp
-
-I expected `:` here, but I got `->` instead.
-   1 | IO! : { println!: || -[IO!]-> {} }
-                                  ^^
-
--- SYNTAX ERROR --- /tmp/camp-e2e/errors/unhandled-console-effect/src/Main.camp
-
-I expected `=` here, but I got `I64` instead.
-   2 | main! = || -[IO!]-> I64 { IO!.println!("hello") 0 }
-                           ^^^
-compilation failed with 5 error(s)
+canonicalized /tmp/camp-e2e/errors/unhandled-console-effect/src/Main.camp: 2 declaration(s), 0 import(s)
+typecheck passed for /tmp/camp-e2e/errors/unhandled-console-effect/src/Main.camp
+compiled /tmp/camp-e2e/errors/unhandled-console-effect/src/Main.camp -> /tmp/camp-e2e/errors/unhandled-console-effect/src/Main.wasm
 """
 stderr = ""
-exit = 1
+exit = 0

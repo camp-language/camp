@@ -1,34 +1,7 @@
 stdout = """
--- SYNTAX ERROR --- /tmp/camp-e2e/effects/effect-declare-and-handle/src/Main.camp
-
-I expected `identifier` here, but I got `-` instead.
-   1 | Ask! : { read!: || -[Ask!]-> I64 }
-                          ^
-
--- SYNTAX ERROR --- /tmp/camp-e2e/effects/effect-declare-and-handle/src/Main.camp
-
-I expected `:` here, but I got `[` instead.
-   1 | Ask! : { read!: || -[Ask!]-> I64 }
-                           ^
-
--- SYNTAX ERROR --- /tmp/camp-e2e/effects/effect-declare-and-handle/src/Main.camp
-
-I expected `identifier` here, but I got `]` instead.
-   1 | Ask! : { read!: || -[Ask!]-> I64 }
-                                ^
-
--- SYNTAX ERROR --- /tmp/camp-e2e/effects/effect-declare-and-handle/src/Main.camp
-
-I expected `:` here, but I got `->` instead.
-   1 | Ask! : { read!: || -[Ask!]-> I64 }
-                                 ^^
-
--- SYNTAX ERROR --- /tmp/camp-e2e/effects/effect-declare-and-handle/src/Main.camp
-
-I expected `=` here, but I got `I64` instead.
-   2 | main! = || -[Ask!]-> I64 {
-                            ^^^
-compilation failed with 5 error(s)
+canonicalized /tmp/camp-e2e/effects/effect-declare-and-handle/src/Main.camp: 2 declaration(s), 0 import(s)
+typecheck passed for /tmp/camp-e2e/effects/effect-declare-and-handle/src/Main.camp
+compiled /tmp/camp-e2e/effects/effect-declare-and-handle/src/Main.camp -> /tmp/camp-e2e/effects/effect-declare-and-handle/src/Main.wasm
 """
 stderr = ""
-exit = 1
+exit = 0

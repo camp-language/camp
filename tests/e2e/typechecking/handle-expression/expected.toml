@@ -1,28 +1,7 @@
 stdout = """
--- SYNTAX ERROR --- /tmp/camp-e2e/typechecking/handle-expression/src/Main.camp
-
-I expected `identifier` here, but I got `-` instead.
-   1 | IO! : { println!: || -[IO!]-> {} }
-                            ^
-
--- SYNTAX ERROR --- /tmp/camp-e2e/typechecking/handle-expression/src/Main.camp
-
-I expected `:` here, but I got `[` instead.
-   1 | IO! : { println!: || -[IO!]-> {} }
-                             ^
-
--- SYNTAX ERROR --- /tmp/camp-e2e/typechecking/handle-expression/src/Main.camp
-
-I expected `identifier` here, but I got `]` instead.
-   1 | IO! : { println!: || -[IO!]-> {} }
-                                 ^
-
--- SYNTAX ERROR --- /tmp/camp-e2e/typechecking/handle-expression/src/Main.camp
-
-I expected `:` here, but I got `->` instead.
-   1 | IO! : { println!: || -[IO!]-> {} }
-                                  ^^
-compilation failed with 4 error(s)
+canonicalized /tmp/camp-e2e/typechecking/handle-expression/src/Main.camp: 2 declaration(s), 0 import(s)
+typecheck passed for /tmp/camp-e2e/typechecking/handle-expression/src/Main.camp
+compiled /tmp/camp-e2e/typechecking/handle-expression/src/Main.camp -> /tmp/camp-e2e/typechecking/handle-expression/src/Main.wasm
 """
 stderr = ""
-exit = 1
+exit = 0
