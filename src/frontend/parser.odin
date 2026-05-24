@@ -423,9 +423,9 @@ parser_parse_prefix :: proc(p: ^Parser) -> Expr {
 		var_id := base.intern(p.intern, var_tok.text)
 		parser_expect(p, .Kw_In)
 		iterable := parser_parse_expr(p)
+		brace_start := p.current.span
 		parser_expect(p, .LBrace)
-		body := parser_parse_expr(p)
-		parser_expect(p, .RBrace)
+		body := parser_parse_block(p, brace_start)
 		e := new(Expr_For)
 		e^ = Expr_For{var = var_id, iterable = iterable, body = body, span = tok.span}
 		return e
@@ -834,20 +834,28 @@ parser_parse_block :: proc(p: ^Parser, start: base.Source_Span) -> Expr {
 		name_tok := parser_expect(p, .Identifier)
 		name_id := base.intern(p.intern, name_tok.text)
 
-		type_ann: ^Type = nil
-		if p.current.kind == .Colon {
-			parser_advance(p)
-			type_ann = parser_parse_type(p)
+		// $name = value (declaration/assignment) vs $name (expression)
+		if p.current.kind == .Eq || p.current.kind == .Colon {
+			type_ann: ^Type = nil
+			if p.current.kind == .Colon {
+				parser_advance(p)
+				type_ann = parser_parse_type(p)
+			}
+
+			parser_expect(p, .Eq)
+			value := parser_parse_expr(p)
+
+			id_expr := new(Expr_Dollar_Identifier)
+			id_expr^ = Expr_Dollar_Identifier{name = name_id, span = start}
+			assign := new(Expr_Assign)
+			assign^ = Expr_Assign{target = id_expr, value = value, type_ann = type_ann, span = start}
+			return assign
 		}
 
-		parser_expect(p, .Eq)
-		value := parser_parse_expr(p)
-
+		// $name as expression (e.g., return value)
 		id_expr := new(Expr_Dollar_Identifier)
 		id_expr^ = Expr_Dollar_Identifier{name = name_id, span = start}
-		assign := new(Expr_Assign)
-		assign^ = Expr_Assign{target = id_expr, value = value, span = start}
-		return assign
+		return id_expr
 	}
 
 	expr := parser_parse_expr(p)

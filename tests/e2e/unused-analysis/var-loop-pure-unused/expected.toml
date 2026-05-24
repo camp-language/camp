@@ -1,21 +1,23 @@
 stdout = """
--- SYNTAX ERROR --- /tmp/camp-e2e/unused-analysis/var-loop-pure-unused/src/Main.camp
+canonicalized /tmp/camp-e2e/unused-analysis/var-loop-pure-unused/src/Main.camp: 1 declaration(s), 0 import(s)
+-- UNDEFINED NAME --- /tmp/camp-e2e/unused-analysis/var-loop-pure-unused/src/Main.camp
 
-I expected `=` here, but I got `}` instead.
-   9 | }
-       ^
+I cannot find `items`.
+   3 |   for item in items.iter() {
+                     ^^^^^
 
--- SYNTAX ERROR --- /tmp/camp-e2e/unused-analysis/var-loop-pure-unused/src/Main.camp
+-- UNDEFINED NAME --- /tmp/camp-e2e/unused-analysis/var-loop-pure-unused/src/Main.camp
 
-I was not expecting `` here.
-  10 | 
-       ^
+I cannot find `matches`.
+   4 |     if matches(item) {
+              ^^^^^^^
 
--- SYNTAX ERROR --- /tmp/camp-e2e/unused-analysis/var-loop-pure-unused/src/Main.camp
+-- SHADOWING --- /tmp/camp-e2e/unused-analysis/var-loop-pure-unused/src/Main.camp
 
-I expected `}` here, but I got `` instead.
-  10 | 
-       ^
+`count` shadows a binding from an enclosing scope. All shadowing is forbidden.
+   5 |       $count = $count + 1
+             ^
+  Use a different name for this binding.
 compilation failed with 3 error(s)
 """
 stderr = ""

@@ -1,22 +1,12 @@
 stdout = """
--- SYNTAX ERROR --- /tmp/camp-e2e/unused-analysis/var-overwrite-before-read/src/Main.camp
+canonicalized /tmp/camp-e2e/unused-analysis/var-overwrite-before-read/src/Main.camp: 1 declaration(s), 0 import(s)
+-- SHADOWING --- /tmp/camp-e2e/unused-analysis/var-overwrite-before-read/src/Main.camp
 
-I expected `=` here, but I got `}` instead.
-   5 | }
-       ^
-
--- SYNTAX ERROR --- /tmp/camp-e2e/unused-analysis/var-overwrite-before-read/src/Main.camp
-
-I was not expecting `` here.
-   6 | 
-       ^
-
--- SYNTAX ERROR --- /tmp/camp-e2e/unused-analysis/var-overwrite-before-read/src/Main.camp
-
-I expected `}` here, but I got `` instead.
-   6 | 
-       ^
-compilation failed with 3 error(s)
+`x` shadows a binding from an enclosing scope. All shadowing is forbidden.
+   3 |   $x = 2
+         ^
+  Use a different name for this binding.
+compilation failed with 1 error(s)
 """
 stderr = ""
 exit = 1
