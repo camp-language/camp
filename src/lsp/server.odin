@@ -3,6 +3,7 @@ package lsp
 import "core:encoding/json"
 import "core:fmt"
 import "core:mem"
+import "core:mem/virtual"
 import "core:os"
 import "core:strings"
 import "camp:diagnostics"
@@ -33,18 +34,27 @@ server_loop :: proc(server: ^LSP_Server) {
 			break
 		}
 
-		parsed, parse_err := json.parse(msg_raw, .JSON, true, server.allocator)
+		// Per-request arena for JSON parse tree — destroyed after dispatch
+		// to prevent unbounded memory growth in long-running LSP sessions
+		json_arena: virtual.Arena
+		arena_err := virtual.arena_init_growing(&json_arena)
+		if arena_err != nil {
+			delete(msg_raw, server.transport.allocator)
+			continue
+		}
+		json_alloc := virtual.arena_allocator(&json_arena)
+
+		parsed, parse_err := json.parse(msg_raw, .JSON, true, json_alloc)
 		delete(msg_raw, server.transport.allocator)
 		if parse_err != .None {
+			virtual.arena_destroy(&json_arena)
 			send_error(server, 0, int(JSON_RPC_Error_Code.ParseError), "parse error")
 			continue
 		}
-		// NOTE: json.parse allocates a value tree that is never freed.
-		// There is no json.value_destroy in this Odin version, so this leaks.
-		// To fix: iterate parsed.Object and free nested values manually.
 
 		method_val, has_method := json_get_string(parsed, "method")
 		if !has_method {
+			virtual.arena_destroy(&json_arena)
 			send_error(server, 0, int(JSON_RPC_Error_Code.InvalidRequest), "missing method")
 			continue
 		}
@@ -58,6 +68,7 @@ server_loop :: proc(server: ^LSP_Server) {
 			dispatch_notification(server, method_val, params_val)
 		}
 
+		virtual.arena_destroy(&json_arena)
 		analyze_dirty_documents(server)
 	}
 }

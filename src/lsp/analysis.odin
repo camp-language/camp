@@ -65,6 +65,7 @@ analyze_document :: proc(text: string, file_path: string, uri: string, allocator
 	context.allocator = alloc
 	store: semantics.Type_Store
 	semantics.type_store_init(&store, &itable, &collector)
+	defer semantics.type_store_destroy(&store)
 	semantics.inject_prelude(&store)
 	semantics.typecheck_file(canon, &store)
 	context.allocator = old_allocator
@@ -79,15 +80,12 @@ analyze_document :: proc(text: string, file_path: string, uri: string, allocator
 	}
 
 	if diagnostics.diag_collector_has_errors(&collector) {
-		semantics.type_store_destroy(&store)
 		return result
 	}
 
 	result.typecheck_ok = true
 
 	build_symbol_index(&result.symbols, canon, uri, source, &store)
-
-	semantics.type_store_destroy(&store)
 
 	return result
 }
