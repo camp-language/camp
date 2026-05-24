@@ -1190,7 +1190,7 @@ emit_expr :: proc(expr: IR_Expr, buf: ^[dynamic]u8, env: ^Codegen_Env, runtime_i
 		} else if idx, ok := env.func_map[int(e.name)]; ok {
 			emit_instruction(Wasm_I32_Const{value = i32(idx)}, buf)
 		} else {
-			emit_instruction(Wasm_I64_Const{value = 0}, buf)
+			emit_instruction(Wasm_I32_Const{value = 0}, buf)
 		}
 	case ^IR_Let:
 		emit_expr(e.value, buf, env, runtime_indices)
@@ -1880,13 +1880,17 @@ emit_expr :: proc(expr: IR_Expr, buf: ^[dynamic]u8, env: ^Codegen_Env, runtime_i
 						emit_instruction(Wasm_I32_Const{value = 0}, buf)
 					}
 				} else if op_str == "join!" {
-					// camp_sched_join(handle_id) -> result_value
+					// camp_sched_join(handle_id) -> result_value (i32)
 					if len(e.args) >= 1 {
 						emit_expr(e.args[0], buf, env, runtime_indices)
 					} else {
 						emit_instruction(Wasm_I32_Const{value = 0}, buf)
 					}
 					emit_instruction(Wasm_Call{index = u32(runtime_indices[RUNTIME_SCHED_JOIN])}, buf)
+					// camp_sched_join returns i32, but the perform type may be i64
+					if e.type.wasm_type == .I64 {
+						emit_instruction(Wasm_I64_Extend_I32_S{}, buf)
+					}
 				} else if op_str == "yield!" {
 					// camp_sched_yield() -> void
 					emit_instruction(Wasm_Call{index = u32(runtime_indices[RUNTIME_SCHED_YIELD])}, buf)

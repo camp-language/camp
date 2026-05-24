@@ -413,6 +413,7 @@ el_replace_resume :: proc(expr: IR_Expr, resume_id: Intern_ID, resume_param: Int
 			env = el_replace_resume(e.env, resume_id, resume_param, ev_param, is_shallow, env),
 			body = el_replace_resume(e.body, resume_id, resume_param, ev_param, is_shallow, env),
 			type = e.type,
+			return_type = e.return_type,
 			span = e.span,
 		}
 		return IR_Expr(new_closure)
@@ -633,6 +634,7 @@ el_lower_let_perform :: proc(let_expr: ^IR_Let, perform: ^IR_Perform, env: ^Effe
 		env = IR_Expr(nil),
 		body = cont_fn_body,
 		type = let_expr.type,
+		return_type = let_expr.type,
 		span = let_expr.span,
 	}
 
@@ -830,14 +832,15 @@ el_lower_expr :: proc(expr: IR_Expr, env: ^Effect_Lower_Env) -> IR_Expr {
 			zero_lit^ = IR_Literal_Int{value = 0, type = IR_Type{.I32, Type_Var_ID(0)}, span = e.span}
 
 			handler_closure := new(IR_Closure)
-			handler_closure^ = IR_Closure{
-				fn_name = handler_name,
-				params = closure_params,
-				env = IR_Expr(zero_lit),
-				body = IR_Expr(nil),
-				type = IR_Type{.I32, Type_Var_ID(0)},
-				span = e.span,
-			}
+		handler_closure^ = IR_Closure{
+			fn_name = handler_name,
+			params = closure_params,
+			env = IR_Expr(zero_lit),
+			body = IR_Expr(nil),
+			type = IR_Type{.I32, Type_Var_ID(0)},
+			return_type = IR_Type{.I32, Type_Var_ID(0)},
+			span = e.span,
+		}
 
 			closure_binding := fresh_id(&env.fresh_state, "_hcl")
 
@@ -944,14 +947,15 @@ el_lower_expr :: proc(expr: IR_Expr, env: ^Effect_Lower_Env) -> IR_Expr {
 		append(&env.module.decls, IR_Decl(cont_fn))
 
 		cont_closure := new(IR_Closure)
-		cont_closure^ = IR_Closure{
-			fn_name = cont_fn_name,
-			params = cont_params,
-			env = IR_Expr(nil),
-			body = IR_Expr(result_var),
-			type = perf_type,
-			span = e.span,
-		}
+	cont_closure^ = IR_Closure{
+		fn_name = cont_fn_name,
+		params = cont_params,
+		env = IR_Expr(nil),
+		body = IR_Expr(result_var),
+		type = perf_type,
+		return_type = perf_type,
+		span = e.span,
+	}
 
 		ev_var_expr := new(IR_Var)
 		ev_var_expr^ = IR_Var{name = ev_var, type = IR_Type{.I32, Type_Var_ID(0)}, span = e.span}
@@ -1135,14 +1139,15 @@ el_lower_expr :: proc(expr: IR_Expr, env: ^Effect_Lower_Env) -> IR_Expr {
 
 	case ^IR_Closure:
 		new_closure := new(IR_Closure)
-		new_closure^ = IR_Closure{
-			fn_name = e.fn_name,
-			params = e.params,
-			env = el_lower_expr(e.env, env),
-			body = el_lower_expr(e.body, env),
-			type = e.type,
-			span = e.span,
-		}
+	new_closure^ = IR_Closure{
+		fn_name = e.fn_name,
+		params = e.params,
+		env = el_lower_expr(e.env, env),
+		body = el_lower_expr(e.body, env),
+		type = e.type,
+		return_type = e.return_type,
+		span = e.span,
+	}
 		return IR_Expr(new_closure)
 
 	case ^IR_Crash:

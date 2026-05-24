@@ -653,6 +653,7 @@ lower_tlambda :: proc(e: ^TExpr_Lambda, env: ^Lower_Env) -> IR_Expr {
 		env = IR_Expr(nil),
 		body = body,
 		type = e.type_,
+		return_type = e.return_type,
 		span = e.span,
 	}
 	return IR_Expr(closure)

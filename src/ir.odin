@@ -317,12 +317,13 @@ IR_Resume :: struct {
 }
 
 IR_Closure :: struct {
-	fn_name: Canonical_Name,
-	params:  [dynamic]IR_Param,
-	env:     IR_Expr,
-	body:    IR_Expr,
-	type:    IR_Type,
-	span:    Source_Span,
+	fn_name:     Canonical_Name,
+	params:      [dynamic]IR_Param,
+	env:         IR_Expr,
+	body:        IR_Expr,
+	type:        IR_Type,
+	return_type: IR_Type,
+	span:        Source_Span,
 }
 
 IR_Closure_Call :: struct {
