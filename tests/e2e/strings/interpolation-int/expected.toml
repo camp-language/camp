@@ -11,6 +11,6 @@ wasm_stderr = """
 Error: failed to parse WebAssembly module
 
 Caused by:
-    unexpected end-of-file (at offset 0x995)
+    unexpected end-of-file (at offset 0x999)
 
 """

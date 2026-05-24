@@ -5,13 +5,6 @@ compiled /tmp/camp-e2e/pattern-matching/match-int-literal/src/Main.camp -> /tmp/
 """
 stderr = ""
 exit = 0
-wasm_exit = 1
+wasm_exit = 0
 wasm_stdout = ""
-wasm_stderr = """
-Error: failed to compile: wasm[0]::function[32]
-
-Caused by:
-    0: WebAssembly translation error
-    1: Invalid input WebAssembly code at offset 1139: type mismatch: values remaining on stack at end of block
-
-"""
+wasm_stderr = ""
