@@ -1,17 +1,46 @@
 stdout = """
-canonicalized /tmp/camp-e2e/pattern-matching/match-record-pattern/src/Main.camp: 1 declaration(s), 0 import(s)
-typecheck passed for /tmp/camp-e2e/pattern-matching/match-record-pattern/src/Main.camp
-compiled /tmp/camp-e2e/pattern-matching/match-record-pattern/src/Main.camp -> /tmp/camp-e2e/pattern-matching/match-record-pattern/src/Main.wasm
+-- SYNTAX ERROR --- /tmp/camp-e2e/pattern-matching/match-record-pattern/src/Main.camp
+
+I expected `=>` here, but I got `{` instead.
+   3 |     | { x: a, y: b } -> a + b
+             ^
+
+-- SYNTAX ERROR --- /tmp/camp-e2e/pattern-matching/match-record-pattern/src/Main.camp
+
+I expected `=>` here, but I got `a` instead.
+   3 |     | { x: a, y: b } -> a + b
+                  ^
+
+-- SYNTAX ERROR --- /tmp/camp-e2e/pattern-matching/match-record-pattern/src/Main.camp
+
+I was not expecting `,` here.
+   3 |     | { x: a, y: b } -> a + b
+                   ^
+
+-- SYNTAX ERROR --- /tmp/camp-e2e/pattern-matching/match-record-pattern/src/Main.camp
+
+I expected `=>` here, but I got `:` instead.
+   3 |     | { x: a, y: b } -> a + b
+                      ^
+
+-- SYNTAX ERROR --- /tmp/camp-e2e/pattern-matching/match-record-pattern/src/Main.camp
+
+I was not expecting `->` here.
+   3 |     | { x: a, y: b } -> a + b
+                            ^^
+
+-- SYNTAX ERROR --- /tmp/camp-e2e/pattern-matching/match-record-pattern/src/Main.camp
+
+I expected `=` here, but I got `` instead.
+   6 | 
+       ^
+
+-- SYNTAX ERROR --- /tmp/camp-e2e/pattern-matching/match-record-pattern/src/Main.camp
+
+I was not expecting `` here.
+   6 | 
+       ^
+compilation failed with 7 error(s)
 """
 stderr = ""
-exit = 0
-wasm_exit = 1
-wasm_stdout = ""
-wasm_stderr = """
-Error: failed to compile: wasm[0]::function[49]
-
-Caused by:
-    0: WebAssembly translation error
-    1: Invalid input WebAssembly code at offset 2447: type mismatch: expected i64 but nothing on stack
-
-"""
+exit = 1

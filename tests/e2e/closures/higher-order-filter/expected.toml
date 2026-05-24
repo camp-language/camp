@@ -1,5 +1,16 @@
 stdout = """
-canonicalized /tmp/camp-e2e/closures/higher-order-filter/src/Main.camp: 1 declaration(s), 0 import(s)
+-- SYNTAX ERROR --- /tmp/camp-e2e/closures/higher-order-filter/src/Main.camp
+
+I expected `=>` here, but I got `->` instead.
+   3 |         Nil -> Nil
+                   ^^
+
+-- SYNTAX ERROR --- /tmp/camp-e2e/closures/higher-order-filter/src/Main.camp
+
+I expected `=>` here, but I got `->` instead.
+   4 |         Cons(h, t) -> if pred(h) {
+                          ^^
+compilation failed with 2 error(s)
 """
 stderr = ""
-exit = 11
+exit = 1

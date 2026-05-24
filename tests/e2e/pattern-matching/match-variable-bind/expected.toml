@@ -12,6 +12,6 @@ Error: failed to compile: wasm[0]::function[49]
 
 Caused by:
     0: WebAssembly translation error
-    1: Invalid input WebAssembly code at offset 2399: type mismatch: br_table target labels have different number of types
+    1: Invalid input WebAssembly code at offset 2401: type mismatch: br_table target labels have different number of types
 
 """

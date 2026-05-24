@@ -113,6 +113,7 @@ emit_camp_dup_body :: proc() -> Wasm_Code {
 	emit_instruction(Wasm_I32_Add{}, &buf)
 	emit_instruction(Wasm_Local_Get{index = 0}, &buf)
 	emit_instruction(Wasm_I32_Store{align = 2, offset = 0}, &buf)
+	emit_instruction(Wasm_Local_Get{index = 0}, &buf)
 	emit_instruction(Wasm_End{}, &buf)
 
 	locals := make([]Wasm_Local_Decl, 0)

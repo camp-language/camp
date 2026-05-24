@@ -235,10 +235,10 @@ codegen :: proc(ir_mod: IR_Module, ctx: ^Compilation_Context) -> Wasm_Module {
 	delete(heap_ptr_init)
 
 	alloc_type_idx := get_or_create_type(&env, []Wasm_Value_Type{.I32}, []Wasm_Value_Type{.I32})
-	dup_type_idx := get_or_create_type(&env, []Wasm_Value_Type{.I32}, []Wasm_Value_Type{})
-	drop_type_idx := dup_type_idx
+	dup_type_idx := get_or_create_type(&env, []Wasm_Value_Type{.I32}, []Wasm_Value_Type{.I32})
+	drop_type_idx := get_or_create_type(&env, []Wasm_Value_Type{.I32}, []Wasm_Value_Type{})
 	print_str_type_idx := get_or_create_type(&env, []Wasm_Value_Type{.I32, .I32}, []Wasm_Value_Type{})
-	exit_type_idx := dup_type_idx
+	exit_type_idx := get_or_create_type(&env, []Wasm_Value_Type{.I32}, []Wasm_Value_Type{})
 	dealloc_type_idx := get_or_create_type(&env, []Wasm_Value_Type{.I32, .I32}, []Wasm_Value_Type{})
 
 	print_err_type_idx := print_str_type_idx
@@ -493,9 +493,9 @@ codegen :: proc(ir_mod: IR_Module, ctx: ^Compilation_Context) -> Wasm_Module {
 				results[0] = ir_wasm_type_to_value_type(d.return_type.wasm_type)
 			}
 			
-			type_idx := get_or_create_type(&env, params, results)
-			func_idx := add_function(&env, type_idx)
-			if d.name.module != NO_NAME {
+		type_idx := get_or_create_type(&env, params, results)
+		func_idx := add_function(&env, type_idx)
+		if d.name.module != NO_NAME {
 				mangled := mangle_name(d.name.module, d.name.name, &ctx.interner)
 				env.func_map[hash_string(mangled)] = func_idx
 			}
