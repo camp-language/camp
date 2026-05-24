@@ -14,6 +14,7 @@ You are an AI assistant helping develop the Camp programming language - a strict
 - Use Perceus reference counting semantics (deterministic deallocation)
 - Write Odin code for the compiler (no C/C++ dependencies)
 - Ensure all existing tests continue passing
+- Keep specs in sync with code — when behavior changes, update the relevant spec in the same commit
 
 ### DO NOT
 - Introduce garbage collection or runtime dependencies
@@ -22,6 +23,7 @@ You are an AI assistant helping develop the Camp programming language - a strict
 - Modify the compilation pipeline without updating specs
 - Change the WASM/WASI target without design review
 - Trust documentation that contradicts the code — flag the discrepancy, don't follow the doc
+- Commit code changes without updating affected specs — specs and code must stay in sync
 
 ## Working Process
 
