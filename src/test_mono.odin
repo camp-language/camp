@@ -119,7 +119,7 @@ test_mono_substitute_ir_type_noop :: proc(t: ^testing.T) {
 
 @(test)
 test_mono_annotate_if_expr :: proc(t: ^testing.T) {
-	store, ctx, canon, annot_tfile := typecheck_source_full("val = if true 1 else 0")
+	store, ctx, canon, annot_tfile := typecheck_source_full("val = if True { 1 } else { 0 }")
 	defer build.context_destroy(ctx)
 	defer free(ctx)
 	defer semantics.type_store_destroy(&store)

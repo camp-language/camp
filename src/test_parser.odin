@@ -91,7 +91,7 @@ test_parser_if_else :: proc(t: ^testing.T) {
 	build.context_init(&ctx)
 	defer build.context_destroy(&ctx)
 
-	expr := parse_expr("if True 1 else 2", &ctx)
+	expr := parse_expr("if True { 1 } else { 2 }", &ctx)
 	testing.expect(t, !diagnostics.diag_collector_has_errors(&ctx.collector))
 	#partial switch e in expr {
 	case ^frontend.Expr_If:
@@ -499,6 +499,63 @@ test_parse_multiline_string_interpolation :: proc(t: ^testing.T) {
 			case:
 				testing.expect(t, false)
 			}
+		case:
+			testing.expect(t, false)
+		}
+	case:
+		testing.expect(t, false)
+	}
+}
+
+@(test)
+test_parser_nominal_construct :: proc(t: ^testing.T) {
+	ctx: build.Compilation_Context
+	build.context_init(&ctx)
+	defer build.context_destroy(&ctx)
+
+	expr := parse_expr("@UserId(42)", &ctx)
+	testing.expect(t, !diagnostics.diag_collector_has_errors(&ctx.collector))
+	#partial switch e in expr {
+	case ^frontend.Expr_Nominal_Construct:
+		testing.expect(t, e.variant == 0)
+		testing.expect(t, len(e.payload) == 1)
+	case:
+		testing.expect(t, false)
+	}
+}
+
+@(test)
+test_parser_nominal_construct_qualified :: proc(t: ^testing.T) {
+	ctx: build.Compilation_Context
+	build.context_init(&ctx)
+	defer build.context_destroy(&ctx)
+
+	expr := parse_expr("@Result.Ok(42)", &ctx)
+	testing.expect(t, !diagnostics.diag_collector_has_errors(&ctx.collector))
+	#partial switch e in expr {
+	case ^frontend.Expr_Nominal_Construct:
+		testing.expect(t, e.variant != 0)
+		testing.expect(t, len(e.payload) == 1)
+	case:
+		testing.expect(t, false)
+	}
+}
+
+@(test)
+test_parser_nominal_destructure :: proc(t: ^testing.T) {
+	ctx: build.Compilation_Context
+	build.context_init(&ctx)
+	defer build.context_destroy(&ctx)
+
+	// Parse a match arm with @ destructure
+	expr := parse_expr("match x { @UserId(n) => n }", &ctx)
+	testing.expect(t, !diagnostics.diag_collector_has_errors(&ctx.collector))
+	#partial switch e in expr {
+	case ^frontend.Expr_Match:
+		testing.expect(t, len(e.arms) == 1)
+		#partial switch pat in e.arms[0].pattern {
+		case ^frontend.Pattern_Destructure:
+			testing.expect(t, pat.type_name != 0)
 		case:
 			testing.expect(t, false)
 		}

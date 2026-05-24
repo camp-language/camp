@@ -208,7 +208,7 @@ test_typecheck_lambda :: proc(t: ^testing.T) {
 
 @(test)
 test_typecheck_if_same_type :: proc(t: ^testing.T) {
-	store, ctx := typecheck_source("val = if true 1 else 2")
+	store, ctx := typecheck_source("val = if True { 1 } else { 2 }")
 	defer build.context_destroy(ctx)
 	defer free(ctx)
 	defer semantics.type_store_destroy(&store)
@@ -258,7 +258,7 @@ test_typecheck_annotation_check :: proc(t: ^testing.T) {
 
 @(test)
 test_typecheck_binop :: proc(t: ^testing.T) {
-	store, ctx := typecheck_source("x = 1 + 2\ny = true and false")
+	store, ctx := typecheck_source("x = 1 + 2\ny = True and False")
 	defer build.context_destroy(ctx)
 	defer free(ctx)
 	defer semantics.type_store_destroy(&store)
@@ -268,7 +268,7 @@ test_typecheck_binop :: proc(t: ^testing.T) {
 
 @(test)
 test_typecheck_not :: proc(t: ^testing.T) {
-	store, ctx := typecheck_source("x = not true")
+	store, ctx := typecheck_source("x = not True")
 	defer build.context_destroy(ctx)
 	defer free(ctx)
 	defer semantics.type_store_destroy(&store)
@@ -800,7 +800,7 @@ test_newtype_opaque_inner_cross_module :: proc(t: ^testing.T) {
 @(test)
 test_trait_method_signature_match :: proc(t: ^testing.T) {
 	store, ctx := typecheck_source_with_prelude(
-		"Eq : { eq: (Self, Self) -> Bool }\n@UserId is Eq : U64\nUserId_eq = |x, y| true")
+		"Eq : { eq: (Self, Self) -> Bool }\n@UserId is Eq : U64\nUserId_eq = |x, y| True")
 	defer build.context_destroy(ctx)
 	defer free(ctx)
 	defer semantics.type_store_destroy(&store)
@@ -825,7 +825,7 @@ test_trait_method_signature_mismatch :: proc(t: ^testing.T) {
 @(test)
 test_trait_method_param_mismatch :: proc(t: ^testing.T) {
 	store, ctx := typecheck_source_with_prelude(
-		"Eq : { eq: (Self, Self) -> Bool }\n@UserId is Eq : U64\nUserId_eq = |x| true")
+		"Eq : { eq: (Self, Self) -> Bool }\n@UserId is Eq : U64\nUserId_eq = |x| True")
 	defer build.context_destroy(ctx)
 	defer free(ctx)
 	defer semantics.type_store_destroy(&store)
@@ -851,14 +851,14 @@ test_trait_orphan_rule :: proc(t: ^testing.T) {
 	testing.expect(t, !diagnostics.diag_collector_has_errors(&ctx.collector))
 
 	mod_b := base.intern(&ctx.interner, "ModuleB")
-	typecheck_source_with_module("@UserId is Eq : U64\nUserId_eq = |x, y| true", mod_b, &store, ctx)
+	typecheck_source_with_module("@UserId is Eq : U64\nUserId_eq = |x, y| True", mod_b, &store, ctx)
 	testing.expect(t, diagnostics.diag_collector_has_errors(&ctx.collector))
 }
 
 @(test)
 test_trait_overlapping_instance :: proc(t: ^testing.T) {
 	store, ctx := typecheck_source_with_prelude(
-		"Eq : { eq: (Self, Self) -> Bool }\n@UserId is Eq : U64\nUserId_eq = |x, y| true\n@UserId is Eq : U64\nUserId_eq2 = |x, y| true")
+		"Eq : { eq: (Self, Self) -> Bool }\n@UserId is Eq : U64\nUserId_eq = |x, y| True\n@UserId is Eq : U64\nUserId_eq2 = |x, y| True")
 	defer build.context_destroy(ctx)
 	defer free(ctx)
 	defer semantics.type_store_destroy(&store)
@@ -880,7 +880,7 @@ test_trait_missing_method :: proc(t: ^testing.T) {
 @(test)
 test_derive_eq_generates_impl :: proc(t: ^testing.T) {
 	store, ctx := typecheck_source_with_prelude(
-		"Eq : { eq: (Self, Self) -> Bool }\n@UserId is Eq : U64\nUserId_eq = |x, y| true")
+		"Eq : { eq: (Self, Self) -> Bool }\n@UserId is Eq : U64\nUserId_eq = |x, y| True")
 	defer build.context_destroy(ctx)
 	defer free(ctx)
 	defer semantics.type_store_destroy(&store)
@@ -979,7 +979,7 @@ test_mono_mangle_generic :: proc(t: ^testing.T) {
 @(test)
 test_mono_method_dispatch :: proc(t: ^testing.T) {
 	mono_tfile, ctx, store := mono_source(
-		"Eq : { eq: (Self, Self) -> Bool }\n@UserId is Eq : U64\nUserId_eq = |x, y| true\ntest_eq! = UserId.eq(UserId(1), UserId(2))")
+		"Eq : { eq: (Self, Self) -> Bool }\n@UserId is Eq : U64\nUserId_eq = |x, y| True\ntest_eq! = UserId.eq(UserId(1), UserId(2))")
 	defer teardown_mono(ctx, &store)
 
 	eq_name := base.intern(&ctx.interner, "Eq")

@@ -75,7 +75,7 @@ test_lower_int_literal :: proc(t: ^testing.T) {
 
 @(test)
 test_lower_bool_literal :: proc(t: ^testing.T) {
-	mod, ctx, store := lower_source("x = true")
+	mod, ctx, store := lower_source("x = True")
 	defer teardown_lower(ctx, &store)
 
 	testing.expect(t, len(mod.decls) == 1)
@@ -152,7 +152,7 @@ test_lower_binop :: proc(t: ^testing.T) {
 
 @(test)
 test_lower_if :: proc(t: ^testing.T) {
-	mod, ctx, store := lower_source("x = if true 1 else 2")
+	mod, ctx, store := lower_source("x = if True { 1 } else { 2 }")
 	defer teardown_lower(ctx, &store)
 
 	testing.expect(t, len(mod.decls) == 1)
@@ -1702,7 +1702,7 @@ test_rc_insert_has_drop :: proc(t: ^testing.T) {
 
 @(test)
 test_rc_insert_branch_independent :: proc(t: ^testing.T) {
-	mod, ctx, store := lower_source("f = || { a = 42; if true (a + a) else (a + a) }")
+	mod, ctx, store := lower_source("f = || { a = 42; if True { a + a } else { a + a } }")
 	defer teardown_lower(ctx, &store)
 
 	ir.rc_insert(&mod, &ctx.interner)
