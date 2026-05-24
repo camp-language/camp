@@ -777,10 +777,22 @@ walk_expr_for_call_sites :: proc(expr: semantics.TExpr, env: ^Mono_Env) {
 							}
 						}
 					}
-				case:
+				case ^semantics.TExpr_Int, ^semantics.TExpr_Float, ^semantics.TExpr_String, ^semantics.TExpr_Bool,
+				     ^semantics.TExpr_Tag, ^semantics.TExpr_Nominal_Construct, ^semantics.TExpr_Record, ^semantics.TExpr_List,
+				     ^semantics.TExpr_Name, ^semantics.TExpr_Call, ^semantics.TExpr_Method_Call, ^semantics.TExpr_Block,
+				     ^semantics.TExpr_If, ^semantics.TExpr_Match, ^semantics.TExpr_BinOp, ^semantics.TExpr_PrefixOp,
+				     ^semantics.TExpr_Field_Access, ^semantics.TExpr_Record_Update, ^semantics.TExpr_Assign,
+				     ^semantics.TExpr_Return, ^semantics.TExpr_Crash, ^semantics.TExpr_Interpolated_String,
+				     ^semantics.TExpr_Handle, ^semantics.TExpr_Perform, ^semantics.TExpr_For, ^semantics.TExpr_Par:
 				}
 			}
-		case:
+		case ^semantics.TExpr_Int, ^semantics.TExpr_Float, ^semantics.TExpr_String, ^semantics.TExpr_Bool,
+		     ^semantics.TExpr_Tag, ^semantics.TExpr_Nominal_Construct, ^semantics.TExpr_Record, ^semantics.TExpr_List,
+		     ^semantics.TExpr_Call, ^semantics.TExpr_Method_Call, ^semantics.TExpr_Lambda, ^semantics.TExpr_Block,
+		     ^semantics.TExpr_If, ^semantics.TExpr_Match, ^semantics.TExpr_BinOp, ^semantics.TExpr_PrefixOp,
+		     ^semantics.TExpr_Field_Access, ^semantics.TExpr_Record_Update, ^semantics.TExpr_Assign,
+		     ^semantics.TExpr_Return, ^semantics.TExpr_Crash, ^semantics.TExpr_Interpolated_String,
+		     ^semantics.TExpr_Handle, ^semantics.TExpr_Perform, ^semantics.TExpr_For, ^semantics.TExpr_Par:
 		}
 		walk_expr_for_call_sites(e.callee, env)
 		for arg in e.args {

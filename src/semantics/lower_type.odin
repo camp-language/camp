@@ -21,7 +21,7 @@ lower_type :: proc(store: ^Type_Store, type_var: base.Type_Var_ID) -> base.IR_Ty
 			case "Bool": wasm_type = .I32
 			case "Str": wasm_type = .I32
 			case "Unit": wasm_type = .Void
-			case: wasm_type = .I64
+			case "I8", "I16", "U8", "U16", "U32", "U64": wasm_type = .I64
 			}
 		case .Function:
 			wasm_type = .Funcref

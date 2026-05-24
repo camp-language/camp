@@ -187,7 +187,23 @@ cc_free_vars :: proc(expr: IR_Expr, bound: ^map[base.Intern_ID]bool) -> [dynamic
 			for v in inner { append(&result, v) }
 			delete(inner)
 		}
-	case:
+	case ^IR_Literal_Int,
+	     ^IR_Literal_Float,
+	     ^IR_Literal_String,
+	     ^IR_Literal_Bool,
+	     ^IR_Dup,
+	     ^IR_Drop,
+	     ^IR_Drop_Reuse,
+	     ^IR_Alloc_At,
+	     ^IR_I32_Load,
+	     ^IR_I32_Store,
+	     ^IR_Atomic_Load,
+	     ^IR_Atomic_Store,
+	     ^IR_Atomic_RMW,
+	     ^IR_Atomic_Fence,
+	     ^IR_Wait,
+	     ^IR_Notify,
+	     ^IR_Expr_Nominal_Construct:
 	}
 
 	return result
@@ -205,7 +221,7 @@ cc_bind_pattern_vars :: proc(pat: IR_Pattern, bound: ^map[base.Intern_ID]bool) {
 		for f in p.fields {
 			bound^[f.binding] = true
 		}
-	case:
+	case ^IR_Pat_Wildcard, ^IR_Pat_Bool, ^IR_Pat_Int, ^IR_Pat_String:
 	}
 }
 
@@ -246,9 +262,10 @@ cc_convert_decl :: proc(decl: IR_Decl, env: ^Closure_Convert_Env) -> IR_Decl {
 		new_const^ = d^
 		new_const.value = cc_convert_expr(d.value, env)
 		return IR_Decl(new_const)
-	case:
+	case ^IR_Decl_Effect:
 		return decl
 	}
+	return decl
 }
 
 cc_convert_expr :: proc(expr: IR_Expr, env: ^Closure_Convert_Env) -> IR_Expr {
@@ -738,7 +755,29 @@ rewrite_free_var_access :: proc(expr: IR_Expr, env_map: ^map[base.Intern_ID]IR_E
 			span     = e.span,
 		}
 		return IR_Expr(new_loop)
-	case:
+	case ^IR_Literal_Int,
+	     ^IR_Literal_Float,
+	     ^IR_Literal_String,
+	     ^IR_Literal_Bool,
+	     ^IR_Tail_Call,
+	     ^IR_Expr_Nominal_Construct,
+	     ^IR_Method_Call,
+	     ^IR_Handle,
+	     ^IR_Perform,
+	     ^IR_Closure,
+	     ^IR_Dup,
+	     ^IR_Drop,
+	     ^IR_Drop_Reuse,
+	     ^IR_Alloc_At,
+	     ^IR_Crash,
+	     ^IR_I32_Load,
+	     ^IR_I32_Store,
+	     ^IR_Atomic_Load,
+	     ^IR_Atomic_Store,
+	     ^IR_Atomic_RMW,
+	     ^IR_Atomic_Fence,
+	     ^IR_Wait,
+	     ^IR_Notify:
 		return expr
 	}
 	return expr

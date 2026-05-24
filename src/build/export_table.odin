@@ -87,7 +87,7 @@ collect_exports :: proc(cfile: semantics.CFile, store: ^semantics.Type_Store) ->
 					type_var = base.Type_Var_ID(-1),
 				}
 			}
-		case:
+		case ^semantics.CDecl_Import, ^semantics.CDecl_Test, ^semantics.CDecl_Expect:
 		}
 	}
 

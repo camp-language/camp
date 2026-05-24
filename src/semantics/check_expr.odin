@@ -220,7 +220,7 @@ typecheck_binop :: proc(e: ^CExpr_BinOp, env: ^Type_Env, store: ^Type_Store) -> 
 		unify(store, left_result.var_id, right_result.var_id)
 		result_var = left_result.var_id
 
-	case:
+	case: // all other operators: pass through operand type
 		result_var = left_result.var_id
 	}
 
@@ -251,7 +251,7 @@ typecheck_prefixop :: proc(e: ^CExpr_PrefixOp, env: ^Type_Env, store: ^Type_Stor
 	case .Minus:
 		result_var = operand_result.var_id
 		result_eff = operand_result.effects
-	case:
+	case: // all other prefix operators: pass through operand type
 		result_var = operand_result.var_id
 		result_eff = operand_result.effects
 	}

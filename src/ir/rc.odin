@@ -10,7 +10,7 @@ rc_insert :: proc(mod: ^IR_Module, interner: ^base.Intern_Table) {
 			d.body = rc_insert_expr(d.body, interner)
 		case ^IR_Decl_Const:
 			d.value = rc_insert_expr(d.value, interner)
-		case:
+		case ^IR_Decl_Effect:
 		}
 	}
 }
@@ -132,7 +132,16 @@ rc_collect_uses :: proc(expr: IR_Expr, uses: ^map[base.Intern_ID]int) {
 	case ^IR_Loop:
 		rc_collect_uses(e.iterable, uses)
 		rc_collect_uses(e.body, uses)
-	case:
+	case ^IR_Literal_Int,
+	     ^IR_Literal_Float,
+	     ^IR_Literal_String,
+	     ^IR_Literal_Bool,
+	     ^IR_Expr_Nominal_Construct,
+	     ^IR_Drop_Reuse,
+	     ^IR_Alloc_At,
+	     ^IR_I32_Load,
+	     ^IR_I32_Store,
+	     ^IR_Closure:
 	}
 }
 

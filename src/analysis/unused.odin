@@ -231,7 +231,7 @@ collect_uses_decl :: proc(analysis: ^Unused_Analysis, decl: semantics.CDecl) {
 		collect_uses_expr(analysis, d.body)
 	case ^semantics.CDecl_Expect:
 		collect_uses_expr(analysis, d.condition)
-	case:
+	case ^semantics.CDecl_Effect, ^semantics.CDecl_Trait, ^semantics.CDecl_Alias, ^semantics.CDecl_Newtype, ^semantics.CDecl_Import:
 	}
 }
 
@@ -383,7 +383,12 @@ collect_uses_stmt :: proc(analysis: ^Unused_Analysis, stmt: semantics.CExpr) {
 	case ^semantics.CExpr_Crash:
 		collect_uses_expr(analysis, s.message)
 		analysis.in_unreachable = true
-	case:
+	case ^semantics.CExpr_Int, ^semantics.CExpr_Float, ^semantics.CExpr_String, ^semantics.CExpr_Bool,
+	     ^semantics.CExpr_Tag, ^semantics.CExpr_Nominal_Construct, ^semantics.CExpr_Record, ^semantics.CExpr_List,
+	     ^semantics.CExpr_Method_Call, ^semantics.CExpr_Lambda, ^semantics.CExpr_Block, ^semantics.CExpr_If,
+	     ^semantics.CExpr_Match, ^semantics.CExpr_BinOp, ^semantics.CExpr_PrefixOp, ^semantics.CExpr_Field_Access,
+	     ^semantics.CExpr_Record_Update, ^semantics.CExpr_Interpolated_String, ^semantics.CExpr_Handle,
+	     ^semantics.CExpr_Perform, ^semantics.CExpr_For, ^semantics.CExpr_Par:
 		collect_uses_expr(analysis, stmt)
 	}
 }
@@ -425,7 +430,13 @@ collect_uses_assign :: proc(analysis: ^Unused_Analysis, assign: ^semantics.CExpr
 				register_binding(analysis, name, t.span, is_top_level = false, is_pub = false)
 			}
 		}
-	case:
+	case ^semantics.CExpr_Int, ^semantics.CExpr_Float, ^semantics.CExpr_String, ^semantics.CExpr_Bool,
+	     ^semantics.CExpr_Tag, ^semantics.CExpr_Nominal_Construct, ^semantics.CExpr_Record, ^semantics.CExpr_List,
+	     ^semantics.CExpr_Call, ^semantics.CExpr_Method_Call, ^semantics.CExpr_Lambda, ^semantics.CExpr_Block,
+	     ^semantics.CExpr_If, ^semantics.CExpr_Match, ^semantics.CExpr_BinOp, ^semantics.CExpr_PrefixOp,
+	     ^semantics.CExpr_Field_Access, ^semantics.CExpr_Record_Update, ^semantics.CExpr_Assign,
+	     ^semantics.CExpr_Return, ^semantics.CExpr_Crash, ^semantics.CExpr_Interpolated_String,
+	     ^semantics.CExpr_Handle, ^semantics.CExpr_Perform, ^semantics.CExpr_For, ^semantics.CExpr_Par:
 		collect_uses_expr(analysis, target)
 	}
 }
@@ -507,7 +518,13 @@ mark_args_escaped :: proc(analysis: ^Unused_Analysis, arg: semantics.CExpr) {
 		mark_args_escaped(analysis, a.right)
 	case ^semantics.CExpr_Field_Access:
 		mark_args_escaped(analysis, a.record)
-	case:
+	case ^semantics.CExpr_Int, ^semantics.CExpr_Float, ^semantics.CExpr_String, ^semantics.CExpr_Bool,
+	     ^semantics.CExpr_Tag, ^semantics.CExpr_Nominal_Construct, ^semantics.CExpr_List,
+	     ^semantics.CExpr_Method_Call, ^semantics.CExpr_Lambda, ^semantics.CExpr_Block, ^semantics.CExpr_If,
+	     ^semantics.CExpr_Match, ^semantics.CExpr_PrefixOp, ^semantics.CExpr_Record_Update,
+	     ^semantics.CExpr_Assign, ^semantics.CExpr_Return, ^semantics.CExpr_Crash,
+	     ^semantics.CExpr_Interpolated_String, ^semantics.CExpr_Handle, ^semantics.CExpr_Perform,
+	     ^semantics.CExpr_For, ^semantics.CExpr_Par:
 	}
 }
 
@@ -526,7 +543,13 @@ mark_returned_bindings :: proc(analysis: ^Unused_Analysis, expr: semantics.CExpr
 		for &arg in e.args {
 			mark_returned_bindings(analysis, arg)
 		}
-	case:
+	case ^semantics.CExpr_Int, ^semantics.CExpr_Float, ^semantics.CExpr_String, ^semantics.CExpr_Bool,
+	     ^semantics.CExpr_Tag, ^semantics.CExpr_Nominal_Construct, ^semantics.CExpr_List,
+	     ^semantics.CExpr_Method_Call, ^semantics.CExpr_Lambda, ^semantics.CExpr_Block, ^semantics.CExpr_If,
+	     ^semantics.CExpr_Match, ^semantics.CExpr_BinOp, ^semantics.CExpr_PrefixOp, ^semantics.CExpr_Field_Access,
+	     ^semantics.CExpr_Record_Update, ^semantics.CExpr_Assign, ^semantics.CExpr_Return, ^semantics.CExpr_Crash,
+	     ^semantics.CExpr_Interpolated_String, ^semantics.CExpr_Handle, ^semantics.CExpr_Perform,
+	     ^semantics.CExpr_For, ^semantics.CExpr_Par:
 	}
 }
 
@@ -541,7 +564,13 @@ mark_perform_args_escaped :: proc(analysis: ^Unused_Analysis, arg: semantics.CEx
 		for &field in a.fields {
 			mark_perform_args_escaped(analysis, field.value)
 		}
-	case:
+	case ^semantics.CExpr_Int, ^semantics.CExpr_Float, ^semantics.CExpr_String, ^semantics.CExpr_Bool,
+	     ^semantics.CExpr_Tag, ^semantics.CExpr_Nominal_Construct, ^semantics.CExpr_List,
+	     ^semantics.CExpr_Call, ^semantics.CExpr_Method_Call, ^semantics.CExpr_Lambda, ^semantics.CExpr_Block,
+	     ^semantics.CExpr_If, ^semantics.CExpr_Match, ^semantics.CExpr_BinOp, ^semantics.CExpr_PrefixOp,
+	     ^semantics.CExpr_Field_Access, ^semantics.CExpr_Record_Update, ^semantics.CExpr_Assign,
+	     ^semantics.CExpr_Return, ^semantics.CExpr_Crash, ^semantics.CExpr_Interpolated_String,
+	     ^semantics.CExpr_Handle, ^semantics.CExpr_Perform, ^semantics.CExpr_For, ^semantics.CExpr_Par:
 	}
 }
 
@@ -721,7 +750,7 @@ has_essential_reads_in_loop :: proc(analysis: ^Unused_Analysis, name: base.Inter
 			// For v1, we use a conservative heuristic:
 			// reads that are NOT only consumed by self-assignment are essential
 			return true
-		case:
+		case .Field_Access, .Self_Assign_Rhs, .Discard:
 		}
 	}
 	return false

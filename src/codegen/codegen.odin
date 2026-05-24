@@ -39,7 +39,7 @@ determine_match_kind :: proc(arms: []ir.IR_Match_Arm) -> Match_Kind {
 		case ^ir.IR_Pat_Bool: return .Bool
 		case ^ir.IR_Pat_Int: return .Int
 		case ^ir.IR_Pat_String: return .String
-		case:
+		case ^ir.IR_Pat_Record, ^ir.IR_Pat_Var, ^ir.IR_Pat_Wildcard:
 		}
 	}
 	return .Tag_Union
@@ -522,7 +522,7 @@ codegen :: proc(ir_mod: ir.IR_Module, interner: ^base.Intern_Table, thread_count
 				main_fn_idx = func_idx
 				main_decl = d
 			}
-		case:
+		case ^ir.IR_Decl_Const, ^ir.IR_Decl_Effect:
 		}
 	}
 
@@ -619,7 +619,7 @@ codegen :: proc(ir_mod: ir.IR_Module, interner: ^base.Intern_Table, thread_count
 			if is_main && d.is_effectful {
 				continue
 			}
-		case:
+		case ^ir.IR_Decl_Const, ^ir.IR_Decl_Effect:
 		}
 	}
 
@@ -976,7 +976,7 @@ get_main_return_type :: proc(ir_mod: ir.IR_Module, interner: ^base.Intern_Table)
 			if name_str == "main" || name_str == "main!" {
 				return d.return_type.wasm_type
 			}
-		case:
+		case ^ir.IR_Decl_Const, ^ir.IR_Decl_Effect:
 		}
 	}
 	return .I64

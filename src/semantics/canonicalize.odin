@@ -53,7 +53,7 @@ canonicalize :: proc(surface: frontend.File, interner: ^base.Intern_Table, colle
 					append(&cfile.decls, stub)
 				}
 			}
-		case:
+		case ^CDecl_Const, ^CDecl_Effect, ^CDecl_Trait, ^CDecl_Alias, ^CDecl_Import, ^CDecl_Test, ^CDecl_Expect:
 		}
 	}
 
@@ -352,9 +352,10 @@ replace_dot_receiver :: proc(expr: frontend.Expr, replacement: base.Intern_ID) -
 		c := new(frontend.Expr_Call)
 		c^ = frontend.Expr_Call{callee = ccallee, args = args, span = e.span}
 		return c
-	case:
+	case ^frontend.Expr_Int, ^frontend.Expr_Float, ^frontend.Expr_String, ^frontend.Expr_Bool, ^frontend.Expr_Tag, ^frontend.Expr_Nominal_Construct, ^frontend.Expr_Record, ^frontend.Expr_List, ^frontend.Expr_Dollar_Identifier, ^frontend.Expr_Lambda, ^frontend.Expr_Block, ^frontend.Expr_If, ^frontend.Expr_Match, ^frontend.Expr_BinOp, ^frontend.Expr_PrefixOp, ^frontend.Expr_Record_Update, ^frontend.Expr_Assign, ^frontend.Expr_Return, ^frontend.Expr_Crash, ^frontend.Expr_Interpolated_String, ^frontend.Expr_Handle, ^frontend.Expr_Par, ^frontend.Expr_Dot_Lambda, ^frontend.Expr_For:
 		return expr
 	}
+	return expr
 }
 
 canonicalize_expr :: proc(expr: frontend.Expr, scope: ^Canonicalize_Scope, interner: ^base.Intern_Table, collector: ^diagnostics.Diagnostic_Collector) -> CExpr {
@@ -998,7 +999,7 @@ generate_derive_stubs :: proc(d: ^CDecl_Newtype, scope: ^Canonicalize_Scope, int
 				generated[eq_name] = true
 				append(&result, make_derive_method_decl(d, "eq", 2, false, scope, interner, collector))
 			}
-		case:
+		case: // unknown derive target — skip
 		}
 	}
 
@@ -1185,7 +1186,6 @@ collect_type_variable_names :: proc(t: CType, seen: ^map[base.Intern_ID]bool, na
 				collect_type_variable_names(a, seen, names)
 			}
 		}
-	case:
 	}
 }
 

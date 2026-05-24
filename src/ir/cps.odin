@@ -59,7 +59,7 @@ cps_transform :: proc(mod: ^IR_Module, interner: ^base.Intern_Table) -> IR_Modul
 			if d.is_effectful {
 				env.effectful_fns[d.name] = true
 			}
-		case:
+		case ^IR_Decl_Const, ^IR_Decl_Effect:
 		}
 	}
 
@@ -114,9 +114,10 @@ cps_transform_decl :: proc(decl: IR_Decl, env: ^CPS_Env) -> IR_Decl {
 		}
 		new_fn.body = IR_Expr(let_expr)
 		return IR_Decl(new_fn)
-	case:
+	case ^IR_Decl_Const, ^IR_Decl_Effect:
 		return decl
 	}
+	return decl
 }
 
 cps_transform_expr :: proc(expr: IR_Expr, k_name: base.Intern_ID, env: ^CPS_Env) -> IR_Expr {
@@ -169,8 +170,7 @@ cps_transform_expr :: proc(expr: IR_Expr, k_name: base.Intern_ID, env: ^CPS_Env)
 				tc^ = IR_Tail_Call{callee = v.callee, args = new_args, span = e.span}
 				return IR_Expr(tc)
 			}
-		case:
-
+		case ^IR_Literal_Int, ^IR_Literal_Float, ^IR_Literal_String, ^IR_Literal_Bool, ^IR_Var, ^IR_Let, ^IR_Tail_Call, ^IR_If, ^IR_Match, ^IR_Construct_Tag, ^IR_Expr_Nominal_Construct, ^IR_Construct_Record, ^IR_Field_Access, ^IR_Method_Call, ^IR_Handle, ^IR_Perform, ^IR_Resume, ^IR_Closure, ^IR_Closure_Call, ^IR_Return, ^IR_Block, ^IR_BinOp, ^IR_Dup, ^IR_Drop, ^IR_Drop_Reuse, ^IR_Alloc_At, ^IR_Crash, ^IR_I32_Load, ^IR_I32_Store, ^IR_Atomic_Load, ^IR_Atomic_Store, ^IR_Atomic_RMW, ^IR_Atomic_Fence, ^IR_Wait, ^IR_Notify, ^IR_Assign, ^IR_Loop:
 		}
 
 		new_let := new(IR_Let)

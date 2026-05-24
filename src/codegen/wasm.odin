@@ -1243,22 +1243,24 @@ wasm_serialize :: proc(mod: Wasm_Module) -> []u8 {
 }
 
 ir_wasm_type_to_value_type :: proc(t: base.IR_Wasm_Type) -> Wasm_Value_Type {
-	#partial switch t {
+	switch t {
 	case .I32: return .I32
 	case .I64: return .I64
 	case .F32: return .F32
 	case .F64: return .F64
 	case .Funcref: return .Funcref
-	case: return .I64
+	case .Void: return .I64
 	}
+	return .I32
 }
 
 ir_wasm_type_to_block_type :: proc(t: base.IR_Wasm_Type) -> Wasm_Block_Type {
-	#partial switch t {
+	switch t {
 	case .I32: return .I32
 	case .I64: return .I64
 	case .F32: return .F32
 	case .F64: return .F64
-	case: return .Void
+	case .Funcref, .Void: return .Void
 	}
+	return .Void
 }

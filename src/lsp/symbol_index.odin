@@ -118,7 +118,7 @@ build_symbol_index :: proc(idx: ^Symbol_Index, file: semantics.CFile, uri: strin
 				type_str = format_type_ann(d.target, store)
 			}
 			symbol_index_add(idx, name_str, uri, range, .Type, type_str)
-		case:
+		case ^semantics.CDecl_Newtype, ^semantics.CDecl_Import, ^semantics.CDecl_Test, ^semantics.CDecl_Expect:
 		}
 	}
 }
@@ -146,9 +146,8 @@ format_type_ann :: proc(type_ann: ^semantics.CType, store: ^semantics.Type_Store
 		return "_"
 	case ^semantics.CType_Self:
 		return "Self"
-	case:
-		return "?"
 	}
+	return "?"
 }
 
 format_resolved_type :: proc(store: ^semantics.Type_Store, var_id: base.Type_Var_ID) -> string {
@@ -184,9 +183,8 @@ format_resolved_type :: proc(store: ^semantics.Type_Store, var_id: base.Type_Var
 		return "[ ... ]"
 	case .Effect_Row:
 		return "{}"
-	case:
-		return "?"
 	}
+	return "?"
 }
 
 span_to_lsp_range :: proc(source: string, span: base.Source_Span) -> diagnostics.LSP_Range {

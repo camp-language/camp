@@ -604,9 +604,8 @@ format_inferred_type :: proc(store: ^Type_Store, t: Inferred_Type) -> string {
 		return "effect row"
 	case .Handle:
 		return fmt.tprintf("Handle({}, {})", format_type_var(store, t.inner_id), format_type_var(store, t.effect_id))
-	case:
-		return "unknown"
 	}
+	return "unknown"
 }
 
 format_type_var :: proc(store: ^Type_Store, id: base.Type_Var_ID) -> string {

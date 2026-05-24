@@ -173,7 +173,7 @@ type_store_destroy :: proc(store: ^Type_Store) {
 				}
 				delete(inf.effects, store.allocator)
 			}
-		case:
+		case .Primitive, .Constructor, .Handle:
 		}
 	}
 	for _, sigs in store.effect_ops {

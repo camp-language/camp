@@ -29,7 +29,21 @@ ir_expr_wasm_type :: proc(expr: IR_Expr) -> base.IR_Wasm_Type {
 	case ^IR_Atomic_Fence: return .Void
 	case ^IR_Wait: return .I32
 	case ^IR_Notify: return .I32
-	case:
+	case ^IR_Expr_Nominal_Construct,
+	     ^IR_Method_Call,
+	     ^IR_Handle,
+	     ^IR_Perform,
+	     ^IR_Return,
+	     ^IR_Block,
+	     ^IR_Dup,
+	     ^IR_Drop,
+	     ^IR_Drop_Reuse,
+	     ^IR_Alloc_At,
+	     ^IR_Crash,
+	     ^IR_I32_Load,
+	     ^IR_I32_Store,
+	     ^IR_Atomic_Store:
 		return .I32
 	}
+	return .I32
 }

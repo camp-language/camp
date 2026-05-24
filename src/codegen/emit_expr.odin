@@ -110,7 +110,7 @@ collect_locals :: proc(expr: ir.IR_Expr, locals: ^map[base.Intern_ID]base.IR_Typ
 		}
 		collect_locals(e.iterable, locals)
 		collect_locals(e.body, locals)
-	case:
+	case ^ir.IR_Literal_Int, ^ir.IR_Literal_Float, ^ir.IR_Literal_String, ^ir.IR_Literal_Bool, ^ir.IR_Var, ^ir.IR_Dup, ^ir.IR_Drop, ^ir.IR_Drop_Reuse, ^ir.IR_Alloc_At, ^ir.IR_Expr_Nominal_Construct:
 	}
 }
 
@@ -136,7 +136,6 @@ collect_pattern_locals :: proc(pattern: ir.IR_Pattern, locals: ^map[base.Intern_
 	case ^ir.IR_Pat_Bool:
 	case ^ir.IR_Pat_Int:
 	case ^ir.IR_Pat_String:
-	case:
 	}
 }
 
@@ -191,12 +190,13 @@ extract_effectful_body :: proc(expr: ir.IR_Expr) -> ir.IR_Expr {
 		#partial switch b in e.body {
 		case ^ir.IR_Tail_Call, ^ir.IR_Closure_Call:
 			return e.value
-		case:
+		case ^ir.IR_Literal_Int, ^ir.IR_Literal_Float, ^ir.IR_Literal_String, ^ir.IR_Literal_Bool, ^ir.IR_Var, ^ir.IR_Let, ^ir.IR_Call, ^ir.IR_If, ^ir.IR_Match, ^ir.IR_Construct_Tag, ^ir.IR_Expr_Nominal_Construct, ^ir.IR_Construct_Record, ^ir.IR_Field_Access, ^ir.IR_Method_Call, ^ir.IR_Handle, ^ir.IR_Perform, ^ir.IR_Resume, ^ir.IR_Closure, ^ir.IR_Return, ^ir.IR_Block, ^ir.IR_BinOp, ^ir.IR_Dup, ^ir.IR_Drop, ^ir.IR_Drop_Reuse, ^ir.IR_Alloc_At, ^ir.IR_Crash, ^ir.IR_I32_Load, ^ir.IR_I32_Store, ^ir.IR_Atomic_Load, ^ir.IR_Atomic_Store, ^ir.IR_Atomic_RMW, ^ir.IR_Atomic_Fence, ^ir.IR_Wait, ^ir.IR_Notify, ^ir.IR_Assign, ^ir.IR_Loop:
 			return expr
 		}
-	case:
+	case ^ir.IR_Literal_Int, ^ir.IR_Literal_Float, ^ir.IR_Literal_String, ^ir.IR_Literal_Bool, ^ir.IR_Var, ^ir.IR_Call, ^ir.IR_Tail_Call, ^ir.IR_Closure_Call, ^ir.IR_If, ^ir.IR_Match, ^ir.IR_Construct_Tag, ^ir.IR_Expr_Nominal_Construct, ^ir.IR_Construct_Record, ^ir.IR_Field_Access, ^ir.IR_Method_Call, ^ir.IR_Handle, ^ir.IR_Perform, ^ir.IR_Resume, ^ir.IR_Closure, ^ir.IR_Return, ^ir.IR_Block, ^ir.IR_BinOp, ^ir.IR_Dup, ^ir.IR_Drop, ^ir.IR_Drop_Reuse, ^ir.IR_Alloc_At, ^ir.IR_Crash, ^ir.IR_I32_Load, ^ir.IR_I32_Store, ^ir.IR_Atomic_Load, ^ir.IR_Atomic_Store, ^ir.IR_Atomic_RMW, ^ir.IR_Atomic_Fence, ^ir.IR_Wait, ^ir.IR_Notify, ^ir.IR_Assign, ^ir.IR_Loop:
 		return expr
 	}
+	return expr
 }
 
 emit_expr :: proc(expr: ir.IR_Expr, buf: ^[dynamic]u8, env: ^Codegen_Env, runtime_indices: []int) {
@@ -523,7 +523,7 @@ emit_expr :: proc(expr: ir.IR_Expr, buf: ^[dynamic]u8, env: ^Codegen_Env, runtim
 				#partial switch p in e.arms[i].pattern {
 				case ^ir.IR_Pat_Wildcard:
 					default_target = u32(i)
-				case:
+				case ^ir.IR_Pat_Tag, ^ir.IR_Pat_Record, ^ir.IR_Pat_Var, ^ir.IR_Pat_Bool, ^ir.IR_Pat_Int, ^ir.IR_Pat_String:
 				}
 			}
 
@@ -560,7 +560,7 @@ emit_expr :: proc(expr: ir.IR_Expr, buf: ^[dynamic]u8, env: ^Codegen_Env, runtim
 					}
 				case ^ir.IR_Pat_Wildcard:
 				case ^ir.IR_Pat_Record:
-				case:
+				case ^ir.IR_Pat_Bool, ^ir.IR_Pat_Int, ^ir.IR_Pat_String:
 				}
 
 				emit_expr(arm.body, buf, env, runtime_indices)
@@ -590,7 +590,7 @@ emit_expr :: proc(expr: ir.IR_Expr, buf: ^[dynamic]u8, env: ^Codegen_Env, runtim
 						emit_instruction(Wasm_I32_Eq{}, buf)
 					case ^ir.IR_Pat_Wildcard, ^ir.IR_Pat_Var:
 						emit_instruction(Wasm_I32_Const{value = 1}, buf)
-					case:
+					case ^ir.IR_Pat_Tag, ^ir.IR_Pat_Record, ^ir.IR_Pat_Int, ^ir.IR_Pat_String:
 						emit_instruction(Wasm_I32_Const{value = 1}, buf)
 					}
 					emit_instruction(Wasm_If{block_type = .Void}, buf)
@@ -604,7 +604,7 @@ emit_expr :: proc(expr: ir.IR_Expr, buf: ^[dynamic]u8, env: ^Codegen_Env, runtim
 					} else {
 						emit_instruction(Wasm_Drop{}, buf)
 					}
-				case:
+				case ^ir.IR_Pat_Tag, ^ir.IR_Pat_Record, ^ir.IR_Pat_Wildcard, ^ir.IR_Pat_Bool, ^ir.IR_Pat_Int, ^ir.IR_Pat_String:
 				}
 
 				emit_expr(arm.body, buf, env, runtime_indices)
@@ -639,7 +639,7 @@ emit_expr :: proc(expr: ir.IR_Expr, buf: ^[dynamic]u8, env: ^Codegen_Env, runtim
 						emit_instruction(Wasm_I64_Eq{}, buf)
 					case ^ir.IR_Pat_Wildcard, ^ir.IR_Pat_Var:
 						emit_instruction(Wasm_I32_Const{value = 1}, buf)
-					case:
+					case ^ir.IR_Pat_Tag, ^ir.IR_Pat_Record, ^ir.IR_Pat_Bool, ^ir.IR_Pat_String:
 						emit_instruction(Wasm_I32_Const{value = 1}, buf)
 					}
 					emit_instruction(Wasm_If{block_type = .Void}, buf)
@@ -653,7 +653,7 @@ emit_expr :: proc(expr: ir.IR_Expr, buf: ^[dynamic]u8, env: ^Codegen_Env, runtim
 					} else {
 						emit_instruction(Wasm_Drop{}, buf)
 					}
-				case:
+				case ^ir.IR_Pat_Tag, ^ir.IR_Pat_Record, ^ir.IR_Pat_Wildcard, ^ir.IR_Pat_Bool, ^ir.IR_Pat_Int, ^ir.IR_Pat_String:
 				}
 
 				emit_expr(arm.body, buf, env, runtime_indices)
@@ -690,7 +690,7 @@ emit_expr :: proc(expr: ir.IR_Expr, buf: ^[dynamic]u8, env: ^Codegen_Env, runtim
 						emit_instruction(Wasm_Call{index = u32(runtime_indices[Runtime_Func.Str_Eq])}, buf)
 					case ^ir.IR_Pat_Wildcard, ^ir.IR_Pat_Var:
 						emit_instruction(Wasm_I32_Const{value = 1}, buf)
-					case:
+					case ^ir.IR_Pat_Tag, ^ir.IR_Pat_Record, ^ir.IR_Pat_Bool, ^ir.IR_Pat_Int:
 						emit_instruction(Wasm_I32_Const{value = 1}, buf)
 					}
 					emit_instruction(Wasm_If{block_type = .Void}, buf)
@@ -704,7 +704,7 @@ emit_expr :: proc(expr: ir.IR_Expr, buf: ^[dynamic]u8, env: ^Codegen_Env, runtim
 					} else {
 						emit_instruction(Wasm_Drop{}, buf)
 					}
-				case:
+				case ^ir.IR_Pat_Tag, ^ir.IR_Pat_Record, ^ir.IR_Pat_Wildcard, ^ir.IR_Pat_Bool, ^ir.IR_Pat_Int, ^ir.IR_Pat_String:
 				}
 
 				emit_expr(arm.body, buf, env, runtime_indices)
@@ -1281,7 +1281,7 @@ emit_expr :: proc(expr: ir.IR_Expr, buf: ^[dynamic]u8, env: ^Codegen_Env, runtim
 		emit_expr(e.base, buf, env, runtime_indices)
 		emit_expr(e.count, buf, env, runtime_indices)
 		emit_instruction(Wasm_Memory_Atomic_Notify{align = 2, offset = u32(e.offset)}, buf)
-	case:
+	case ^ir.IR_Expr_Nominal_Construct:
 		emit_instruction(Wasm_Unreachable{}, buf)
 	}
 }
@@ -1354,7 +1354,7 @@ emit_binop :: proc(op: ir.IR_BinOp_Kind, operand_type: base.IR_Wasm_Type, buf: ^
 		} else {
 			emit_instruction(Wasm_I32_Or{}, buf)
 		}
-	case:
+	case .Div, .Mod, .Exp:
 		emit_instruction(Wasm_I64_Add{}, buf)
 	}
 }
@@ -1383,7 +1383,7 @@ ir_operand_wasm_type :: proc(expr: ir.IR_Expr) -> base.IR_Wasm_Type {
 	case ^ir.IR_Atomic_RMW: return .I32
 	case ^ir.IR_Wait: return .I32
 	case ^ir.IR_Notify: return .I32
-	case:
+	case ^ir.IR_Let, ^ir.IR_Tail_Call, ^ir.IR_Match, ^ir.IR_Expr_Nominal_Construct, ^ir.IR_Method_Call, ^ir.IR_Handle, ^ir.IR_Perform, ^ir.IR_Return, ^ir.IR_Block, ^ir.IR_Dup, ^ir.IR_Drop, ^ir.IR_Drop_Reuse, ^ir.IR_Alloc_At, ^ir.IR_Crash, ^ir.IR_I32_Load, ^ir.IR_I32_Store, ^ir.IR_Atomic_Store, ^ir.IR_Atomic_Fence:
 		return .I32
 	}
 	return .I32
@@ -1394,7 +1394,7 @@ emit_store_for_type :: proc(wasm_type: base.IR_Wasm_Type, buf: ^[dynamic]u8) {
 	#partial switch wasm_type {
 	case .I64: emit_instruction(Wasm_I64_Store{align = 3, offset = 0}, buf)
 	case .F64: emit_instruction(Wasm_F64_Store{align = 3, offset = 0}, buf)
-	case: emit_instruction(Wasm_I32_Store{align = 2, offset = 0}, buf)
+	case .I32, .F32, .Funcref, .Void: emit_instruction(Wasm_I32_Store{align = 2, offset = 0}, buf)
 	}
 }
 
@@ -1402,7 +1402,7 @@ emit_load_for_type :: proc(wasm_type: base.IR_Wasm_Type, buf: ^[dynamic]u8) {
 	#partial switch wasm_type {
 	case .I64: emit_instruction(Wasm_I64_Load{align = 3, offset = 0}, buf)
 	case .F64: emit_instruction(Wasm_F64_Load{align = 3, offset = 0}, buf)
-	case: emit_instruction(Wasm_I32_Load{align = 2, offset = 0}, buf)
+	case .I32, .F32, .Funcref, .Void: emit_instruction(Wasm_I32_Load{align = 2, offset = 0}, buf)
 	}
 }
 

@@ -427,7 +427,8 @@ compile_test_canon :: proc(orig_canon: semantics.CFile, test_body: semantics.CEx
 			// Skip test declarations (we're compiling the test body as main!)
 		case ^semantics.CDecl_Expect:
 			// Skip expect declarations (compile-time assertions)
-		case:
+		case ^semantics.CDecl_Const, ^semantics.CDecl_Effect, ^semantics.CDecl_Trait, ^semantics.CDecl_Alias,
+		     ^semantics.CDecl_Newtype, ^semantics.CDecl_Import:
 			append(&new_decls, decl)
 		}
 	}

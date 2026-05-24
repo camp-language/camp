@@ -167,7 +167,7 @@ typecheck_file :: proc(file: CFile, store: ^Type_Store, current_module: base.Int
 				}
 				verify_trait_conformance(d.name.name, type_mod, tc, d.span, store, &env)
 			}
-		case:
+		case ^CDecl_Const, ^CDecl_Effect, ^CDecl_Trait, ^CDecl_Alias, ^CDecl_Import, ^CDecl_Test, ^CDecl_Expect:
 		}
 	}
 
@@ -658,7 +658,7 @@ typecheck_synth :: proc(expr: CExpr, env: ^Type_Env, store: ^Type_Store) -> Synt
 			type_ir, eff_ir := type_eff_pair(store, result.var_id, result.effects)
 			t_name^ = TExpr_Name{name = target.name, type_ = type_ir, eff_ = eff_ir, span = target.span}
 			target_t = TExpr(t_name)
-		case:
+		case ^CExpr_Int, ^CExpr_Float, ^CExpr_String, ^CExpr_Bool, ^CExpr_Tag, ^CExpr_Nominal_Construct, ^CExpr_Record, ^CExpr_List, ^CExpr_Call, ^CExpr_Method_Call, ^CExpr_Lambda, ^CExpr_Block, ^CExpr_If, ^CExpr_Match, ^CExpr_BinOp, ^CExpr_PrefixOp, ^CExpr_Field_Access, ^CExpr_Record_Update, ^CExpr_Return, ^CExpr_Crash, ^CExpr_Interpolated_String, ^CExpr_Handle, ^CExpr_Perform, ^CExpr_Par, ^CExpr_For:
 			target_t = typecheck_synth(e.target, env, store).texpr
 		}
 		t := new(TExpr_Assign)
@@ -1775,7 +1775,7 @@ ctype_contains_self :: proc(t: CType) -> bool {
 				return true
 			}
 		}
-	case:
+	case ^CType_Primitive, ^CType_Variable, ^CType_Wildcard, ^CType_Effect_Row:
 		return false
 	}
 	return false
@@ -1785,7 +1785,7 @@ convert_ctype_self_aware :: proc(t: CType, self_var: base.Type_Var_ID, store: ^T
 	#partial switch ty in t {
 	case ^CType_Self:
 		return self_var
-	case:
+	case ^CType_Primitive, ^CType_Applied, ^CType_Function, ^CType_Record, ^CType_Tag_Union, ^CType_Effect_Row, ^CType_Variable, ^CType_Wildcard:
 		return convert_type_to_var_val(t, store, env)
 	}
 	return fresh_value_var(store, base.Source_Span_ZERO)
@@ -1809,7 +1809,7 @@ extract_trait_methods_from_ctype :: proc(t: ^CType, store: ^Type_Store, env: ^Ty
 					param_types = param_types[:],
 					return_type = convert_ctype_self_aware(ft.return_, self_var, store, env),
 				}
-			case:
+			case ^CType_Primitive, ^CType_Applied, ^CType_Record, ^CType_Tag_Union, ^CType_Effect_Row, ^CType_Variable, ^CType_Wildcard, ^CType_Self:
 				methods[i] = Trait_Method_Info{
 					name = f.name,
 					param_types = param_types[:],
@@ -1818,7 +1818,7 @@ extract_trait_methods_from_ctype :: proc(t: ^CType, store: ^Type_Store, env: ^Ty
 			}
 		}
 		return methods
-	case:
+	case ^CType_Primitive, ^CType_Applied, ^CType_Function, ^CType_Tag_Union, ^CType_Effect_Row, ^CType_Variable, ^CType_Wildcard, ^CType_Self:
 	}
 	return make([]Trait_Method_Info, 0)
 }

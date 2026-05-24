@@ -43,7 +43,15 @@ diag_unexpected_token :: proc(token: base.Token) -> Diagnostic {
 	#partial switch token.kind {
 	case .Pipe:
 		append(&d.hints, "Are you trying to write a pattern match?")
-	case:
+	case .Int_Literal, .Float_Literal, .String_Literal, .Interpolated_String_Literal,
+	     .Raw_String_Literal, .Multiline_String_Literal, .Identifier, .Upper_Id,
+	     .Kw_If, .Kw_Else, .Kw_Match, .Kw_Is, .Kw_Derives, .Kw_Handle, .Kw_Intercept,
+	     .Kw_In, .Kw_With, .Kw_Import, .Kw_Exposing, .Kw_As, .Kw_Unsafe, .Kw_For,
+	     .Kw_And, .Kw_Or, .Kw_Expect, .Kw_Test, .Kw_Not, .Kw_Pub, .Kw_Self, .Kw_Par,
+	     .Kw_Where, .Arrow, .Fat_Arrow, .Eq, .Colon_Eq, .Colon, .Comma, .Dot, .Dot_Dot,
+	     .Bang, .Dollar, .Hash, .At, .Lt, .Gt, .Lt_Eq, .Gt_Eq, .Eq_Eq, .Bang_Eq,
+	     .Plus, .Minus, .Star, .Slash, .Percent, .Amp, .Caret, .Tilde, .Backslash,
+	     .LParen, .RParen, .LBrack, .RBrack, .LBrace, .RBrace, .Newline, .Eof:
 	}
 	return d
 }

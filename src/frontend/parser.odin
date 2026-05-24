@@ -139,10 +139,19 @@ parser_parse_decl :: proc(p: ^Parser) -> Decl {
 		if is_trait_decl(p) {
 			return parser_parse_trait_decl(p, is_pub)
 		}
-		fallthrough
-	case:
+		return parser_parse_const_decl(p, is_pub)
+	case .Int_Literal, .Float_Literal, .String_Literal, .Interpolated_String_Literal,
+	     .Raw_String_Literal, .Multiline_String_Literal, .Identifier, .Kw_If, .Kw_Else,
+	     .Kw_Match, .Kw_Is, .Kw_Derives, .Kw_Handle, .Kw_Intercept, .Kw_In, .Kw_With,
+	     .Kw_Exposing, .Kw_As, .Kw_For, .Kw_And, .Kw_Or, .Kw_Not, .Kw_Pub, .Kw_Self,
+	     .Kw_Par, .Kw_Where, .Pipe, .Arrow, .Fat_Arrow, .Eq, .Colon_Eq, .Colon, .Comma,
+	     .Dot, .Dot_Dot, .Bang, .Dollar, .Hash, .Lt, .Gt, .Lt_Eq, .Gt_Eq, .Eq_Eq,
+	     .Bang_Eq, .Plus, .Minus, .Star, .Slash, .Percent, .Amp, .Caret, .Tilde,
+	     .Backslash, .LParen, .RParen, .LBrack, .RBrack, .LBrace, .RBrace, .Newline, .Eof:
 		return parser_parse_const_decl(p, is_pub)
 	}
+	// Unreachable: all token kinds are handled above
+	return nil
 }
 
 parser_parse_const_decl :: proc(p: ^Parser, is_pub: bool) -> Decl {
@@ -236,7 +245,8 @@ parser_parse_const_decl :: proc(p: ^Parser, is_pub: bool) -> Decl {
 				op_return_effects = t.effects
 				return_type = new(Type)
 				return_type^ = t.return_
-			case:
+			case ^Type_Primitive, ^Type_Applied, ^Type_Record, ^Type_Tag_Union,
+			     ^Type_Effect_Row, ^Type_Variable, ^Type_Wildcard, ^Type_Self:
 				return_type = op_type
 			}
 
@@ -449,13 +459,19 @@ parser_parse_prefix :: proc(p: ^Parser) -> Expr {
 	case .At:
 		return parser_parse_nominal_construct(p)
 
-	case:
+	case .Kw_Else, .Kw_Is, .Kw_Derives, .Kw_In, .Kw_With, .Kw_Import, .Kw_Exposing,
+	     .Kw_As, .Kw_Unsafe, .Kw_And, .Kw_Or, .Kw_Expect, .Kw_Test, .Kw_Pub, .Kw_Self,
+	     .Kw_Where, .Arrow, .Fat_Arrow, .Eq, .Colon_Eq, .Colon, .Comma, .Dot_Dot, .Bang,
+	     .Hash, .Lt, .Gt, .Lt_Eq, .Gt_Eq, .Eq_Eq, .Bang_Eq, .Plus, .Star, .Slash,
+	     .Percent, .Amp, .Caret, .Tilde, .Backslash, .RParen, .RBrack, .RBrace,
+	     .Newline, .Eof:
 		diagnostics.collector_add_diag(p.collector, diagnostics.diag_unexpected_token(tok))
 		parser_advance(p)
 		e := new(Expr_Int)
 		e^ = Expr_Int{value = 0, span = tok.span}
 		return e
 	}
+	return nil
 }
 
 parser_parse_nominal_construct :: proc(p: ^Parser) -> Expr {
@@ -1197,12 +1213,21 @@ parser_parse_pattern :: proc(p: ^Parser) -> Pattern {
 	case .At:
 		return parser_parse_nominal_destructure(p)
 
-	case:
+	case .Float_Literal, .Interpolated_String_Literal, .Raw_String_Literal,
+	     .Multiline_String_Literal, .Dollar, .Pipe, .Kw_If, .Kw_Else, .Kw_Match, .Kw_Is,
+	     .Kw_Derives, .Kw_Handle, .Kw_Intercept, .Kw_In, .Kw_With, .Kw_Import,
+	     .Kw_Exposing, .Kw_As, .Kw_Unsafe, .Kw_For, .Kw_And, .Kw_Or, .Kw_Expect,
+	     .Kw_Test, .Kw_Not, .Kw_Pub, .Kw_Self, .Kw_Par, .Kw_Where, .Arrow, .Fat_Arrow,
+	     .Eq, .Colon_Eq, .Colon, .Comma, .Dot, .Dot_Dot, .Bang, .Hash, .Lt, .Gt,
+	     .Lt_Eq, .Gt_Eq, .Eq_Eq, .Bang_Eq, .Plus, .Minus, .Star, .Slash, .Percent,
+	     .Amp, .Caret, .Tilde, .Backslash, .LParen, .RParen, .RBrack, .RBrace,
+	     .Newline, .Eof:
 		tok := parser_advance(p)
 		pat := new(Pattern_Wildcard)
 		pat^ = Pattern_Wildcard{span = tok.span}
 		return pat
 	}
+	return nil
 }
 
 parser_parse_nominal_destructure :: proc(p: ^Parser) -> Pattern {
@@ -1313,7 +1338,7 @@ parser_parse_list_pattern :: proc(p: ^Parser) -> Pattern {
 parser_parse_type :: proc(p: ^Parser) -> ^Type {
 	t: Type = nil
 
-	#partial switch p.current.kind {
+	switch p.current.kind {
 	case .Upper_Id:
 		name_tok := parser_advance(p)
 		name_id := base.intern(p.intern, name_tok.text)
@@ -1360,7 +1385,15 @@ parser_parse_type :: proc(p: ^Parser) -> ^Type {
 	case .LParen, .Pipe:
 		t = parser_parse_function_type(p)
 
-	case:
+	case .Int_Literal, .Float_Literal, .String_Literal, .Interpolated_String_Literal,
+	     .Raw_String_Literal, .Multiline_String_Literal, .Kw_If, .Kw_Else, .Kw_Match,
+	     .Kw_Is, .Kw_Derives, .Kw_Handle, .Kw_Intercept, .Kw_In, .Kw_With, .Kw_Import,
+	     .Kw_Exposing, .Kw_As, .Kw_Unsafe, .Kw_For, .Kw_And, .Kw_Or, .Kw_Expect,
+	     .Kw_Test, .Kw_Not, .Kw_Pub, .Kw_Par, .Kw_Where, .Arrow, .Fat_Arrow, .Eq,
+	     .Colon_Eq, .Colon, .Comma, .Dot, .Dot_Dot, .Bang, .Dollar, .Hash, .At, .Lt,
+	     .Gt, .Lt_Eq, .Gt_Eq, .Eq_Eq, .Bang_Eq, .Plus, .Minus, .Star, .Slash,
+	     .Percent, .Amp, .Caret, .Tilde, .Backslash, .RParen, .RBrack, .RBrace,
+	     .Newline, .Eof:
 		diagnostics.collector_add_diag(p.collector, diagnostics.diag_expected_type(p.current, p.current.span))
 		parser_advance(p)
 		v := new(Type_Variable)

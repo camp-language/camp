@@ -273,7 +273,7 @@ combine_module_irs :: proc(sorted: []base.Intern_ID, project: ^Project_Discovery
 				d.name.module = mod_id
 			case ^ir.IR_Decl_Const:
 				d.name.module = mod_id
-			case:
+			case ^ir.IR_Decl_Effect:
 			}
 			append(&combined.decls, decl)
 		}

@@ -66,7 +66,7 @@ resolve_imports :: proc(
 				name = d.name.name,
 				is_local = true,
 			}
-		case:
+		case ^semantics.CDecl_Import, ^semantics.CDecl_Test, ^semantics.CDecl_Expect:
 		}
 	}
 
@@ -197,7 +197,7 @@ apply_import_resolution :: proc(cfile: ^semantics.CFile, scope: ^Import_Scope, e
 	}
 }
 
-resolve_decl_names :: proc(decl: semantics.CDecl, scope: ^Import_Scope, export_tables: ^map[base.Intern_ID]Export_Table, interner: ^base.Intern_Table, collector: ^diagnostics.Diagnostic_Collector) {
+	resolve_decl_names :: proc(decl: semantics.CDecl, scope: ^Import_Scope, export_tables: ^map[base.Intern_ID]Export_Table, interner: ^base.Intern_Table, collector: ^diagnostics.Diagnostic_Collector) {
 	#partial switch d in decl {
 	case ^semantics.CDecl_Const:
 		resolve_expr_names(d.body, scope, export_tables, interner, collector)
@@ -205,7 +205,7 @@ resolve_decl_names :: proc(decl: semantics.CDecl, scope: ^Import_Scope, export_t
 		resolve_expr_names(d.body, scope, export_tables, interner, collector)
 	case ^semantics.CDecl_Expect:
 		resolve_expr_names(d.condition, scope, export_tables, interner, collector)
-	case:
+	case ^semantics.CDecl_Effect, ^semantics.CDecl_Trait, ^semantics.CDecl_Alias, ^semantics.CDecl_Newtype, ^semantics.CDecl_Import:
 	}
 }
 
@@ -218,20 +218,26 @@ resolve_expr_names :: proc(expr: semantics.CExpr, scope: ^Import_Scope, export_t
 			}
 		}
 
-	case ^semantics.CExpr_Field_Access:
-		resolve_expr_names(e.record, scope, export_tables, interner, collector)
-		#partial switch r in e.record {
-		case ^semantics.CExpr_Name:
-			if r.name.is_local && r.name.module == base.NO_NAME {
-				if _, is_module := scope.module_aliased[r.name.name]; is_module {
-					resolved, ok := resolve_qualified_access(r.name.name, e.field, scope, export_tables, interner, collector, e.span)
-					if ok {
-						r.name = resolved
+		case ^semantics.CExpr_Field_Access:
+			resolve_expr_names(e.record, scope, export_tables, interner, collector)
+			#partial switch r in e.record {
+			case ^semantics.CExpr_Name:
+				if r.name.is_local && r.name.module == base.NO_NAME {
+					if _, is_module := scope.module_aliased[r.name.name]; is_module {
+						resolved, ok := resolve_qualified_access(r.name.name, e.field, scope, export_tables, interner, collector, e.span)
+						if ok {
+							r.name = resolved
+						}
 					}
 				}
+			case ^semantics.CExpr_Int, ^semantics.CExpr_Float, ^semantics.CExpr_String, ^semantics.CExpr_Bool,
+			     ^semantics.CExpr_Tag, ^semantics.CExpr_Nominal_Construct, ^semantics.CExpr_Record, ^semantics.CExpr_List,
+			     ^semantics.CExpr_Call, ^semantics.CExpr_Method_Call, ^semantics.CExpr_Lambda, ^semantics.CExpr_Block,
+			     ^semantics.CExpr_If, ^semantics.CExpr_Match, ^semantics.CExpr_BinOp, ^semantics.CExpr_PrefixOp,
+			     ^semantics.CExpr_Field_Access, ^semantics.CExpr_Record_Update, ^semantics.CExpr_Assign,
+			     ^semantics.CExpr_Return, ^semantics.CExpr_Crash, ^semantics.CExpr_Interpolated_String,
+			     ^semantics.CExpr_Handle, ^semantics.CExpr_Perform, ^semantics.CExpr_For, ^semantics.CExpr_Par:
 			}
-		case:
-		}
 
 	case ^semantics.CExpr_Call:
 		resolve_expr_names(e.callee, scope, export_tables, interner, collector)
@@ -358,6 +364,6 @@ resolve_expr_names :: proc(expr: semantics.CExpr, scope: ^Import_Scope, export_t
 		resolve_expr_names(e.iterable, scope, export_tables, interner, collector)
 		resolve_expr_names(e.body, scope, export_tables, interner, collector)
 
-	case:
+	case: // all other CExpr variants: no names to resolve
 	}
 }

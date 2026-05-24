@@ -179,7 +179,7 @@ collect_pattern_coverage :: proc(pattern: CPattern, cov: ^Match_Coverage) {
 		for alt in p.alternatives {
 			collect_pattern_coverage(alt, cov)
 		}
-	case:
+	case ^CPattern_Record, ^CPattern_List, ^CPattern_Destructure:
 	}
 }
 
@@ -262,7 +262,7 @@ typecheck_match :: proc(e: ^CExpr_Match, env: ^Type_Env, store: ^Type_Store) -> 
 				if cov.tags[p.name.name] {
 					is_redundant = true
 				}
-			case:
+			case ^CPattern_Record, ^CPattern_List, ^CPattern_Identifier, ^CPattern_Wildcard, ^CPattern_Destructure, ^CPattern_Or:
 			}
 		}
 		if is_redundant {
@@ -327,7 +327,7 @@ typecheck_match :: proc(e: ^CExpr_Match, env: ^Type_Env, store: ^Type_Store) -> 
 				diagnostics.collector_add_diag(store.collector, diagnostics.diag_non_exhaustive_int_string(prim_name, e.span))
 			}
 		}
-	case:
+	case Type_Unlinked, base.Type_Var_ID:
 	}
 
 	t := new(TExpr_Match)

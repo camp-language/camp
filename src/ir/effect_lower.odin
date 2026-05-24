@@ -79,7 +79,7 @@ effect_lower :: proc(mod: ^IR_Module, interner: ^base.Intern_Table, collector: ^
 			if len(d.effects) > 0 {
 				env.fn_effects[d.name] = d.effects
 			}
-		case:
+		case ^IR_Decl_Const, ^IR_Decl_Effect:
 		}
 	}
 
@@ -110,9 +110,10 @@ el_lower_decl :: proc(decl: IR_Decl, env: ^Effect_Lower_Env, throw_name: base.In
 		new_const^ = d^
 		new_const.value = el_lower_expr(d.value, env)
 		return IR_Decl(new_const)
-	case:
+	case ^IR_Decl_Effect:
 		return decl
 	}
+	return decl
 }
 
 el_effect_row_has_throw :: proc(effect_row: base.IR_Type, throw_name: base.Intern_ID, store: ^semantics.Type_Store) -> bool {
@@ -883,7 +884,7 @@ el_lower_expr :: proc(expr: IR_Expr, env: ^Effect_Lower_Env) -> IR_Expr {
 		#partial switch v in e.value {
 		case ^IR_Perform:
 			return el_lower_let_perform(e, v, env)
-		case:
+		case ^IR_Literal_Int, ^IR_Literal_Float, ^IR_Literal_String, ^IR_Literal_Bool, ^IR_Var, ^IR_Let, ^IR_Call, ^IR_Tail_Call, ^IR_If, ^IR_Match, ^IR_Construct_Tag, ^IR_Expr_Nominal_Construct, ^IR_Construct_Record, ^IR_Field_Access, ^IR_Method_Call, ^IR_Handle, ^IR_Resume, ^IR_Closure, ^IR_Closure_Call, ^IR_Return, ^IR_Block, ^IR_BinOp, ^IR_Dup, ^IR_Drop, ^IR_Drop_Reuse, ^IR_Alloc_At, ^IR_Crash, ^IR_I32_Load, ^IR_I32_Store, ^IR_Atomic_Load, ^IR_Atomic_Store, ^IR_Atomic_RMW, ^IR_Atomic_Fence, ^IR_Wait, ^IR_Notify, ^IR_Assign, ^IR_Loop:
 		}
 
 		new_let := new(IR_Let)
