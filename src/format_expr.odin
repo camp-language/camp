@@ -765,6 +765,10 @@ format_exprs_comma_multiline :: proc(parts: ^[dynamic]Doc, exprs: []Expr, info: 
 	append(&inner, doc_line())
 	for expr, i in exprs {
 		if i > 0 {
+			span_start := expr_span(expr, .Start)
+			if info.has_backslash[span_start] {
+				append(&inner, doc_backslash_break())
+			}
 			append(&inner, doc_line())
 		}
 		append(&inner, format_expr(expr, info, interner))
