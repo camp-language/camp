@@ -235,7 +235,7 @@ IR_Pattern :: union {
 	^IR_Pat_String,
 }
 
-IR_Pat_Tag :: struct { name: ba.Intern_ID, payload: [dynamic]ba.Intern_ID }
+IR_Pat_Tag :: struct { name: ba.Intern_ID, payload: [dynamic]ba.Intern_ID, payload_wasm_types: []ba.IR_Wasm_Type }
 IR_Pat_Record :: struct { fields: [dynamic]IR_Pat_Field, is_open: bool }
 IR_Pat_Field :: struct { name: ba.Intern_ID, binding: ba.Intern_ID }
 IR_Pat_Var :: struct { name: ba.Intern_ID }

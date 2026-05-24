@@ -4,7 +4,6 @@ import "core:testing"
 import "camp:base"
 import "camp:frontend"
 import "camp:build"
-import "camp:diagnostics"
 
 lex_all :: proc(source: string, ctx: ^build.Compilation_Context) -> []base.Token {
 	old_allocator := context.allocator

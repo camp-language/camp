@@ -81,7 +81,7 @@ SCHED_WORKER_REGION_SIZE :: SCHED_LOCAL_QUEUE_SIZE + SCHED_LIFO_SLOT_SIZE + 4 + 
 
 emit_camp_alloc_body :: proc(heap_ptr_global_idx: int) -> Wasm_Code {
 	buf: [dynamic]u8
-	buf = make([dynamic]u8, 0, 64)
+	buf = make([dynamic]u8, 0, CODE_BUF_DEFAULT)
 
 	emit_instruction(Wasm_Global_Get{index = u32(heap_ptr_global_idx)}, &buf)
 	emit_instruction(Wasm_Local_Tee{index = 1}, &buf)
@@ -105,7 +105,7 @@ emit_camp_alloc_body :: proc(heap_ptr_global_idx: int) -> Wasm_Code {
 
 emit_camp_dup_body :: proc() -> Wasm_Code {
 	buf: [dynamic]u8
-	buf = make([dynamic]u8, 0, 64)
+	buf = make([dynamic]u8, 0, CODE_BUF_DEFAULT)
 
 	emit_instruction(Wasm_Local_Get{index = 0}, &buf)
 	emit_instruction(Wasm_I32_Load{align = 2, offset = 0}, &buf)
@@ -129,7 +129,7 @@ emit_camp_dup_body :: proc() -> Wasm_Code {
 
 emit_camp_drop_body :: proc(alloc_func_idx: int) -> Wasm_Code {
 	buf: [dynamic]u8
-	buf = make([dynamic]u8, 0, 64)
+	buf = make([dynamic]u8, 0, CODE_BUF_DEFAULT)
 
 	emit_instruction(Wasm_Local_Get{index = 0}, &buf)
 	emit_instruction(Wasm_I32_Load{align = 2, offset = 0}, &buf)
@@ -152,7 +152,7 @@ emit_camp_drop_body :: proc(alloc_func_idx: int) -> Wasm_Code {
 
 emit_camp_print_str_body :: proc() -> Wasm_Code {
 	buf: [dynamic]u8
-	buf = make([dynamic]u8, 0, 128)
+	buf = make([dynamic]u8, 0, CODE_BUF_MODERATE)
 
 	// Build iovs in memory: [str_ptr, str_len] at address 4096
 	emit_instruction(Wasm_I32_Const{value = 4096}, &buf)
@@ -183,7 +183,7 @@ emit_camp_print_str_body :: proc() -> Wasm_Code {
 
 	emit_camp_exit_body :: proc() -> Wasm_Code {
 	buf: [dynamic]u8
-	buf = make([dynamic]u8, 0, 16)
+	buf = make([dynamic]u8, 0, CODE_BUF_TINY)
 
 	emit_instruction(Wasm_Local_Get{index = 0}, &buf)
 	emit_instruction(Wasm_Call{index = 0}, &buf)
@@ -202,7 +202,7 @@ emit_camp_print_str_body :: proc() -> Wasm_Code {
 
 emit_camp_dealloc_body :: proc() -> Wasm_Code {
 	buf: [dynamic]u8
-	buf = make([dynamic]u8, 0, 16)
+	buf = make([dynamic]u8, 0, CODE_BUF_TINY)
 
 	emit_instruction(Wasm_End{}, &buf)
 
@@ -219,7 +219,7 @@ emit_camp_dealloc_body :: proc() -> Wasm_Code {
 
 	emit_camp_print_err_body :: proc() -> Wasm_Code {
 	buf: [dynamic]u8
-	buf = make([dynamic]u8, 0, 128)
+	buf = make([dynamic]u8, 0, CODE_BUF_MODERATE)
 
 	// Build iovs in memory: [str_ptr, str_len] at address 4096
 	emit_instruction(Wasm_I32_Const{value = 4096}, &buf)
@@ -250,7 +250,7 @@ emit_camp_dealloc_body :: proc() -> Wasm_Code {
 
 emit_camp_list_alloc_body :: proc(alloc_func_idx: int) -> Wasm_Code {
 	buf: [dynamic]u8
-	buf = make([dynamic]u8, 0, 64)
+	buf = make([dynamic]u8, 0, CODE_BUF_DEFAULT)
 
 	emit_instruction(Wasm_I32_Const{value = 12}, &buf)
 	emit_instruction(Wasm_Call{index = u32(alloc_func_idx)}, &buf)
@@ -288,7 +288,7 @@ emit_camp_list_alloc_body :: proc(alloc_func_idx: int) -> Wasm_Code {
 
 emit_camp_list_push_body :: proc() -> Wasm_Code {
 	buf: [dynamic]u8
-	buf = make([dynamic]u8, 0, 128)
+	buf = make([dynamic]u8, 0, CODE_BUF_MODERATE)
 
 	// data_ptr + len * 8
 	emit_instruction(Wasm_Local_Get{index = 0}, &buf)
@@ -326,7 +326,7 @@ emit_camp_list_push_body :: proc() -> Wasm_Code {
 
 emit_camp_list_len_body :: proc() -> Wasm_Code {
 	buf: [dynamic]u8
-	buf = make([dynamic]u8, 0, 16)
+	buf = make([dynamic]u8, 0, CODE_BUF_TINY)
 
 	emit_instruction(Wasm_Local_Get{index = 0}, &buf)
 	emit_instruction(Wasm_I32_Load{align = 2, offset = 0}, &buf)
@@ -345,7 +345,7 @@ emit_camp_list_len_body :: proc() -> Wasm_Code {
 
 emit_camp_list_get_body :: proc() -> Wasm_Code {
 	buf: [dynamic]u8
-	buf = make([dynamic]u8, 0, 32)
+	buf = make([dynamic]u8, 0, CODE_BUF_MINOR)
 
 	emit_instruction(Wasm_Local_Get{index = 0}, &buf)
 	emit_instruction(Wasm_I32_Load{align = 2, offset = 8}, &buf)
@@ -371,7 +371,7 @@ emit_camp_list_get_body :: proc() -> Wasm_Code {
 
 emit_camp_str_len_body :: proc() -> Wasm_Code {
 	buf: [dynamic]u8
-	buf = make([dynamic]u8, 0, 16)
+	buf = make([dynamic]u8, 0, CODE_BUF_TINY)
 
 	emit_instruction(Wasm_Local_Get{index = 0}, &buf)
 	emit_instruction(Wasm_I32_Load{align = 2, offset = 0}, &buf)
@@ -390,7 +390,7 @@ emit_camp_str_len_body :: proc() -> Wasm_Code {
 
 emit_camp_str_eq_body :: proc() -> Wasm_Code {
 	buf: [dynamic]u8
-	buf = make([dynamic]u8, 0, 64)
+	buf = make([dynamic]u8, 0, CODE_BUF_DEFAULT)
 
 	emit_instruction(Wasm_Local_Get{index = 0}, &buf)
 	emit_instruction(Wasm_I32_Load{align = 2, offset = 0}, &buf)
@@ -416,7 +416,7 @@ emit_camp_str_concat_body :: proc(alloc_func_idx: int) -> Wasm_Code {
 	// Returns a pointer to a new heap block.
 	// Params: (str_a: i32, str_b: i32) -> i32
 	buf: [dynamic]u8
-	buf = make([dynamic]u8, 0, 96)
+	buf = make([dynamic]u8, 0, CODE_BUF_MEDIUM)
 
 	// Load len_a
 	emit_instruction(Wasm_Local_Get{index = 0}, &buf)
@@ -496,7 +496,7 @@ emit_camp_str_concat_body :: proc(alloc_func_idx: int) -> Wasm_Code {
 emit_camp_async_init_body :: proc() -> Wasm_Code {
 	// Initialize async scheduler — no-op for now (scheduler state in linear memory)
 	buf: [dynamic]u8
-	buf = make([dynamic]u8, 0, 8)
+	buf = make([dynamic]u8, 0, CODE_BUF_SMALL)
 	emit_instruction(Wasm_End{}, &buf)
 	locals := make([]Wasm_Local_Decl, 0)
 	body := make([]u8, len(buf))
@@ -510,7 +510,7 @@ emit_camp_async_init_body :: proc() -> Wasm_Code {
 emit_camp_parallel_reduce_body :: proc(runtime_indices: [RUNTIME_FUNC_COUNT]int) -> Wasm_Code {
 	// camp_parallel_reduce(fn_idx: i32, fn_env: i32, items_ptr: i32, items_len: i32, init: i32, chunk_size: i32) -> i32
 	buf: [dynamic]u8
-	buf = make([dynamic]u8, 0, 192)
+	buf = make([dynamic]u8, 0, CODE_BUF_LARGE)
 	emit_instruction(Wasm_Local_Get{index = 4}, &buf)
 	emit_instruction(Wasm_Local_Set{index = 6}, &buf)
 	emit_instruction(Wasm_I32_Const{value = 0}, &buf)
@@ -559,7 +559,7 @@ emit_camp_async_enqueue_body :: proc() -> Wasm_Code {
 	// camp_async_enqueue(closure_fn: i32, closure_env: i32) -> i32 (handle_id)
 	// Simplified: return closure_fn as handle_id
 	buf: [dynamic]u8
-	buf = make([dynamic]u8, 0, 16)
+	buf = make([dynamic]u8, 0, CODE_BUF_TINY)
 	emit_instruction(Wasm_Local_Get{index = 0}, &buf)
 	emit_instruction(Wasm_End{}, &buf)
 	locals := make([]Wasm_Local_Decl, 0)
@@ -575,7 +575,7 @@ emit_camp_parallel_any_body :: proc(runtime_indices: [RUNTIME_FUNC_COUNT]int) ->
 	// camp_parallel_any(fn_idx: i32, fn_env: i32, items_ptr: i32, items_len: i32) -> i32
 	// Sequential fallback: iterate items, return first truthy result.
 	buf: [dynamic]u8
-	buf = make([dynamic]u8, 0, 192)
+	buf = make([dynamic]u8, 0, CODE_BUF_LARGE)
 	emit_instruction(Wasm_I32_Const{value = 0}, &buf)
 	emit_instruction(Wasm_Local_Set{index = 4}, &buf)
 	emit_instruction(Wasm_Block{block_type = .I32}, &buf)
@@ -627,13 +627,13 @@ emit_camp_parallel_all_body :: proc(runtime_indices: [RUNTIME_FUNC_COUNT]int) ->
 	// camp_parallel_all(fn_idx: i32, fn_env: i32, items_ptr: i32, items_len: i32, chunk_size: i32) -> i32
 	// Sequential fallback: iterate items, call fn on each, collect all results.
 	buf: [dynamic]u8
-	buf = make([dynamic]u8, 0, 256)
+	buf = make([dynamic]u8, 0, CODE_BUF_MAJOR)
 	emit_instruction(Wasm_I32_Const{value = i32(CAMP_TAG_HEADER_SIZE)}, &buf)
 	emit_instruction(Wasm_Local_Get{index = 3}, &buf)
 	emit_instruction(Wasm_I32_Const{value = 8}, &buf)
 	emit_instruction(Wasm_I32_Mul{}, &buf)
 	emit_instruction(Wasm_I32_Add{}, &buf)
-	emit_instruction(Wasm_Call{index = u32(runtime_indices[RUNTIME_ALLOC])}, &buf)
+	emit_instruction(Wasm_Call{index = u32(runtime_indices[Runtime_Func.Alloc])}, &buf)
 	emit_instruction(Wasm_Local_Set{index = 5}, &buf)
 	emit_instruction(Wasm_Local_Get{index = 5}, &buf)
 	emit_instruction(Wasm_I32_Const{value = 1}, &buf)
@@ -698,7 +698,7 @@ emit_camp_parallel_all_body :: proc(runtime_indices: [RUNTIME_FUNC_COUNT]int) ->
 emit_camp_async_dequeue_body :: proc() -> Wasm_Code {
 	// camp_async_dequeue() -> i32 (closure_fn, 0 = empty)
 	buf: [dynamic]u8
-	buf = make([dynamic]u8, 0, 8)
+	buf = make([dynamic]u8, 0, CODE_BUF_SMALL)
 	emit_instruction(Wasm_I32_Const{value = 0}, &buf)
 	emit_instruction(Wasm_End{}, &buf)
 	locals := make([]Wasm_Local_Decl, 0)
@@ -716,7 +716,7 @@ emit_camp_parallel_filter_body :: proc(runtime_indices: [RUNTIME_FUNC_COUNT]int)
 	// Params: local 0 = fn_idx, local 1 = fn_env, local 2 = items_ptr, local 3 = items_len, local 4 = chunk_size
 	// Locals: 5 = result_ptr, 6 = i, 7 = item_val, 8 = result_val, 9 = match_count
 	buf: [dynamic]u8
-	buf = make([dynamic]u8, 0, 256)
+	buf = make([dynamic]u8, 0, CODE_BUF_MAJOR)
 
 	// Allocate result record with items_len fields (worst case, may waste space)
 	emit_instruction(Wasm_I32_Const{value = i32(CAMP_TAG_HEADER_SIZE)}, &buf)
@@ -724,7 +724,7 @@ emit_camp_parallel_filter_body :: proc(runtime_indices: [RUNTIME_FUNC_COUNT]int)
 	emit_instruction(Wasm_I32_Const{value = 8}, &buf)
 	emit_instruction(Wasm_I32_Mul{}, &buf)
 	emit_instruction(Wasm_I32_Add{}, &buf)
-	emit_instruction(Wasm_Call{index = u32(runtime_indices[RUNTIME_ALLOC])}, &buf)
+	emit_instruction(Wasm_Call{index = u32(runtime_indices[Runtime_Func.Alloc])}, &buf)
 	emit_instruction(Wasm_Local_Set{index = 5}, &buf)
 
 	// Set refcount = 1
@@ -831,7 +831,7 @@ emit_camp_async_run_body :: proc() -> Wasm_Code {
 	// camp_async_run() -> i32 (exit code)
 	// Simplified: return 0
 	buf: [dynamic]u8
-	buf = make([dynamic]u8, 0, 8)
+	buf = make([dynamic]u8, 0, CODE_BUF_SMALL)
 	emit_instruction(Wasm_I32_Const{value = 0}, &buf)
 	emit_instruction(Wasm_End{}, &buf)
 	locals := make([]Wasm_Local_Decl, 0)
@@ -850,7 +850,7 @@ emit_camp_parallel_for_each_body :: proc(runtime_indices: [RUNTIME_FUNC_COUNT]in
 	// Params: local 0 = fn_idx, local 1 = fn_env, local 2 = items_ptr, local 3 = items_len, local 4 = chunk_size
 	// Locals: 5 = i, 6 = item_val
 	buf: [dynamic]u8
-	buf = make([dynamic]u8, 0, 192)
+	buf = make([dynamic]u8, 0, CODE_BUF_LARGE)
 
 	// i = 0
 	emit_instruction(Wasm_I32_Const{value = 0}, &buf)
@@ -908,7 +908,7 @@ emit_camp_parallel_for_each_body :: proc(runtime_indices: [RUNTIME_FUNC_COUNT]in
 
 emit_camp_sched_init_body :: proc() -> Wasm_Code {
 	buf: [dynamic]u8
-	buf = make([dynamic]u8, 0, 256)
+	buf = make([dynamic]u8, 0, CODE_BUF_MAJOR)
 	emit_instruction(Wasm_I32_Const{value = i32(SCHED_BASE)}, &buf)
 	emit_instruction(Wasm_Local_Get{index = 0}, &buf)
 	emit_instruction(Wasm_I32_Store{align = 2, offset = 0}, &buf)
@@ -925,7 +925,7 @@ emit_camp_sched_init_body :: proc() -> Wasm_Code {
 
 emit_camp_sched_spawn_body :: proc() -> Wasm_Code {
 	buf: [dynamic]u8
-	buf = make([dynamic]u8, 0, 256)
+	buf = make([dynamic]u8, 0, CODE_BUF_MAJOR)
 	handle_table_base := SCHED_BASE + SCHED_WORKER_COUNT_SIZE + SCHED_SPINNING_SIZE + SCHED_NOTIFICATION_SIZE
 	emit_instruction(Wasm_I32_Const{value = i32(handle_table_base)}, &buf)
 	emit_instruction(Wasm_I32_Const{value = 1}, &buf)
@@ -995,7 +995,7 @@ emit_camp_sched_spawn_body :: proc() -> Wasm_Code {
 
 emit_camp_sched_complete_body :: proc() -> Wasm_Code {
 	buf: [dynamic]u8
-	buf = make([dynamic]u8, 0, 256)
+	buf = make([dynamic]u8, 0, CODE_BUF_MAJOR)
 	handle_table_base := SCHED_BASE + SCHED_WORKER_COUNT_SIZE + SCHED_SPINNING_SIZE + SCHED_NOTIFICATION_SIZE
 	emit_instruction(Wasm_I32_Const{value = i32(handle_table_base + 4)}, &buf)
 	emit_instruction(Wasm_Local_Get{index = 0}, &buf)
@@ -1032,7 +1032,7 @@ emit_camp_sched_complete_body :: proc() -> Wasm_Code {
 
 emit_camp_sched_join_body :: proc() -> Wasm_Code {
 	buf: [dynamic]u8
-	buf = make([dynamic]u8, 0, 256)
+	buf = make([dynamic]u8, 0, CODE_BUF_MAJOR)
 	handle_table_base := SCHED_BASE + SCHED_WORKER_COUNT_SIZE + SCHED_SPINNING_SIZE + SCHED_NOTIFICATION_SIZE
 	emit_instruction(Wasm_I32_Const{value = i32(handle_table_base + 4)}, &buf)
 	emit_instruction(Wasm_Local_Get{index = 0}, &buf)
@@ -1089,7 +1089,7 @@ emit_camp_sched_join_body :: proc() -> Wasm_Code {
 
 emit_camp_sched_cancel_body :: proc() -> Wasm_Code {
 	buf: [dynamic]u8
-	buf = make([dynamic]u8, 0, 128)
+	buf = make([dynamic]u8, 0, CODE_BUF_MODERATE)
 	handle_table_base := SCHED_BASE + SCHED_WORKER_COUNT_SIZE + SCHED_SPINNING_SIZE + SCHED_NOTIFICATION_SIZE
 	emit_instruction(Wasm_I32_Const{value = i32(handle_table_base + 4)}, &buf)
 	emit_instruction(Wasm_Local_Get{index = 0}, &buf)
@@ -1120,7 +1120,7 @@ emit_camp_sched_cancel_body :: proc() -> Wasm_Code {
 
 emit_camp_sched_yield_body :: proc() -> Wasm_Code {
 	buf: [dynamic]u8
-	buf = make([dynamic]u8, 0, 64)
+	buf = make([dynamic]u8, 0, CODE_BUF_DEFAULT)
 	emit_instruction(Wasm_End{}, &buf)
 	locals := make([]Wasm_Local_Decl, 0)
 	body := make([]u8, len(buf))
@@ -1131,7 +1131,7 @@ emit_camp_sched_yield_body :: proc() -> Wasm_Code {
 
 emit_camp_sched_block_io_body :: proc() -> Wasm_Code {
 	buf: [dynamic]u8
-	buf = make([dynamic]u8, 0, 128)
+	buf = make([dynamic]u8, 0, CODE_BUF_MODERATE)
 	wait_map_base := SCHED_BASE + SCHED_WORKER_COUNT_SIZE + SCHED_SPINNING_SIZE + SCHED_NOTIFICATION_SIZE + SCHED_HANDLE_TABLE_SIZE + SCHED_GLOBAL_QUEUE_SIZE
 	emit_instruction(Wasm_I32_Const{value = i32(wait_map_base)}, &buf)
 	emit_instruction(Wasm_I32_Const{value = 1}, &buf)
@@ -1161,7 +1161,7 @@ emit_camp_sched_block_io_body :: proc() -> Wasm_Code {
 
 emit_camp_sched_timer_insert_body :: proc() -> Wasm_Code {
 	buf: [dynamic]u8
-	buf = make([dynamic]u8, 0, 256)
+	buf = make([dynamic]u8, 0, CODE_BUF_MAJOR)
 	timer_wheel_base := SCHED_BASE + SCHED_WORKER_COUNT_SIZE + SCHED_SPINNING_SIZE + SCHED_NOTIFICATION_SIZE + SCHED_HANDLE_TABLE_SIZE + SCHED_GLOBAL_QUEUE_SIZE + SCHED_WAIT_MAP_SIZE + SCHED_JOIN_MAP_SIZE
 	emit_instruction(Wasm_I32_Const{value = i32(timer_wheel_base)}, &buf)
 	emit_instruction(Wasm_I64_Load{align = 3, offset = 0}, &buf)
@@ -1268,7 +1268,7 @@ emit_camp_sched_timer_insert_body :: proc() -> Wasm_Code {
 
 emit_camp_sched_timer_cancel_body :: proc() -> Wasm_Code {
 	buf: [dynamic]u8
-	buf = make([dynamic]u8, 0, 64)
+	buf = make([dynamic]u8, 0, CODE_BUF_DEFAULT)
 	timer_wheel_base := SCHED_BASE + SCHED_WORKER_COUNT_SIZE + SCHED_SPINNING_SIZE + SCHED_NOTIFICATION_SIZE + SCHED_HANDLE_TABLE_SIZE + SCHED_GLOBAL_QUEUE_SIZE + SCHED_WAIT_MAP_SIZE + SCHED_JOIN_MAP_SIZE
 	timer_pool_base := timer_wheel_base + SCHED_TIMER_WHEEL_SIZE
 	emit_instruction(Wasm_I32_Const{value = i32(timer_pool_base + 4)}, &buf)
@@ -1288,7 +1288,7 @@ emit_camp_sched_timer_cancel_body :: proc() -> Wasm_Code {
 
 emit_camp_sched_notify_body :: proc() -> Wasm_Code {
 	buf: [dynamic]u8
-	buf = make([dynamic]u8, 0, 64)
+	buf = make([dynamic]u8, 0, CODE_BUF_DEFAULT)
 	notification_base := SCHED_BASE + SCHED_WORKER_COUNT_SIZE + SCHED_SPINNING_SIZE
 	emit_instruction(Wasm_I32_Const{value = i32(notification_base)}, &buf)
 	emit_instruction(Wasm_I32_Const{value = 1}, &buf)
@@ -1308,7 +1308,7 @@ emit_camp_sched_notify_body :: proc() -> Wasm_Code {
 
 emit_camp_sched_park_body :: proc() -> Wasm_Code {
 	buf: [dynamic]u8
-	buf = make([dynamic]u8, 0, 64)
+	buf = make([dynamic]u8, 0, CODE_BUF_DEFAULT)
 	notification_base := SCHED_BASE + SCHED_WORKER_COUNT_SIZE + SCHED_SPINNING_SIZE
 	emit_instruction(Wasm_I32_Const{value = i32(notification_base)}, &buf)
 	emit_instruction(Wasm_I32_Const{value = i32(notification_base)}, &buf)
@@ -1326,7 +1326,7 @@ emit_camp_sched_park_body :: proc() -> Wasm_Code {
 
 emit_camp_sched_worker_loop_body :: proc() -> Wasm_Code {
 	buf: [dynamic]u8
-	buf = make([dynamic]u8, 0, 512)
+	buf = make([dynamic]u8, 0, CODE_BUF_XL)
 	handle_table_base := SCHED_BASE + SCHED_WORKER_COUNT_SIZE + SCHED_SPINNING_SIZE + SCHED_NOTIFICATION_SIZE
 	global_queue_base := handle_table_base + SCHED_HANDLE_TABLE_SIZE
 	timer_wheel_base := SCHED_BASE + SCHED_WORKER_COUNT_SIZE + SCHED_SPINNING_SIZE + SCHED_NOTIFICATION_SIZE + SCHED_HANDLE_TABLE_SIZE + SCHED_GLOBAL_QUEUE_SIZE + SCHED_WAIT_MAP_SIZE + SCHED_JOIN_MAP_SIZE
@@ -1415,13 +1415,13 @@ emit_camp_sched_worker_loop_body :: proc() -> Wasm_Code {
 emit_camp_parallel_map_body :: proc(runtime_indices: [RUNTIME_FUNC_COUNT]int) -> Wasm_Code {
 	// camp_parallel_map(fn_idx: i32, fn_env: i32, items_ptr: i32, items_len: i32, chunk_size: i32) -> i32
 	buf: [dynamic]u8
-	buf = make([dynamic]u8, 0, 256)
+	buf = make([dynamic]u8, 0, CODE_BUF_MAJOR)
 	emit_instruction(Wasm_I32_Const{value = i32(CAMP_TAG_HEADER_SIZE)}, &buf)
 	emit_instruction(Wasm_Local_Get{index = 3}, &buf)
 	emit_instruction(Wasm_I32_Const{value = 8}, &buf)
 	emit_instruction(Wasm_I32_Mul{}, &buf)
 	emit_instruction(Wasm_I32_Add{}, &buf)
-	emit_instruction(Wasm_Call{index = u32(runtime_indices[RUNTIME_ALLOC])}, &buf)
+	emit_instruction(Wasm_Call{index = u32(runtime_indices[Runtime_Func.Alloc])}, &buf)
 	emit_instruction(Wasm_Local_Set{index = 5}, &buf)
 	emit_instruction(Wasm_Local_Get{index = 5}, &buf)
 	emit_instruction(Wasm_I32_Const{value = 1}, &buf)
@@ -1485,7 +1485,7 @@ emit_camp_i64_to_str_body :: proc() -> Wasm_Code {
 	// camp_i64_to_str(val: i64) -> i32 (Str pointer)
 	// Stub: returns null — real implementation later
 	buf: [dynamic]u8
-	buf = make([dynamic]u8, 0, 8)
+	buf = make([dynamic]u8, 0, CODE_BUF_SMALL)
 	emit_instruction(Wasm_I32_Const{value = 0}, &buf)
 	emit_instruction(Wasm_End{}, &buf)
 	locals := make([]Wasm_Local_Decl, 0)
@@ -1499,7 +1499,7 @@ emit_camp_i32_to_str_body :: proc() -> Wasm_Code {
 	// camp_i32_to_str(val: i32) -> i32 (Str pointer)
 	// Stub: returns null — real implementation later
 	buf: [dynamic]u8
-	buf = make([dynamic]u8, 0, 8)
+	buf = make([dynamic]u8, 0, CODE_BUF_SMALL)
 	emit_instruction(Wasm_I32_Const{value = 0}, &buf)
 	emit_instruction(Wasm_End{}, &buf)
 	locals := make([]Wasm_Local_Decl, 0)
@@ -1513,7 +1513,7 @@ emit_camp_f64_to_str_body :: proc() -> Wasm_Code {
 	// camp_f64_to_str(val: f64) -> i32 (Str pointer)
 	// Stub: returns null — real implementation later
 	buf: [dynamic]u8
-	buf = make([dynamic]u8, 0, 8)
+	buf = make([dynamic]u8, 0, CODE_BUF_SMALL)
 	emit_instruction(Wasm_I32_Const{value = 0}, &buf)
 	emit_instruction(Wasm_End{}, &buf)
 	locals := make([]Wasm_Local_Decl, 0)
@@ -1527,7 +1527,7 @@ emit_camp_bool_to_str_body :: proc() -> Wasm_Code {
 	// camp_bool_to_str(val: i32) -> i32 (Str pointer)
 	// Stub: returns null — real implementation later
 	buf: [dynamic]u8
-	buf = make([dynamic]u8, 0, 8)
+	buf = make([dynamic]u8, 0, CODE_BUF_SMALL)
 	emit_instruction(Wasm_I32_Const{value = 0}, &buf)
 	emit_instruction(Wasm_End{}, &buf)
 	locals := make([]Wasm_Local_Decl, 0)

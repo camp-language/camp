@@ -5,15 +5,15 @@ import "camp:base"
 import "camp:diagnostics"
 import "camp:semantics"
 import "camp:mono"
-import "camp:frontend"
 import "camp:build"
 
 @(test)
 test_mono_annotate_preserves_type_info :: proc(t: ^testing.T) {
-	store, ctx, canon, annot_tfile := typecheck_source_full("x = 42\ny = x + 1")
-	defer build.context_destroy(ctx)
+	store, ctx, annot_tfile := setup_for_typecheck("x = 42\ny = x + 1")
 	defer free(ctx)
-	defer semantics.type_store_destroy(&store)
+	defer free(store)
+	defer build.context_destroy(ctx)
+	defer semantics.type_store_destroy(store)
 
 	testing.expect(t, !diagnostics.diag_collector_has_errors(&ctx.collector))
 
@@ -29,10 +29,11 @@ test_mono_annotate_preserves_type_info :: proc(t: ^testing.T) {
 
 @(test)
 test_mono_annotate_expr_preserves_span :: proc(t: ^testing.T) {
-	store, ctx, canon, annot_tfile := typecheck_source_full("val = 42")
-	defer build.context_destroy(ctx)
+	store, ctx, annot_tfile := setup_for_typecheck("val = 42")
 	defer free(ctx)
-	defer semantics.type_store_destroy(&store)
+	defer free(store)
+	defer build.context_destroy(ctx)
+	defer semantics.type_store_destroy(store)
 
 	testing.expect(t, !diagnostics.diag_collector_has_errors(&ctx.collector))
 
@@ -46,10 +47,11 @@ test_mono_annotate_expr_preserves_span :: proc(t: ^testing.T) {
 
 @(test)
 test_mono_annotate_list_expr :: proc(t: ^testing.T) {
-	store, ctx, canon, annot_tfile := typecheck_source_full("l = [1, 2, 3]")
-	defer build.context_destroy(ctx)
+	store, ctx, annot_tfile := setup_for_typecheck("l = [1, 2, 3]")
 	defer free(ctx)
-	defer semantics.type_store_destroy(&store)
+	defer free(store)
+	defer build.context_destroy(ctx)
+	defer semantics.type_store_destroy(store)
 
 	testing.expect(t, !diagnostics.diag_collector_has_errors(&ctx.collector))
 
@@ -59,10 +61,11 @@ test_mono_annotate_list_expr :: proc(t: ^testing.T) {
 
 @(test)
 test_mono_annotate_let_binding :: proc(t: ^testing.T) {
-	store, ctx, canon, annot_tfile := typecheck_source_full("r = 1")
-	defer build.context_destroy(ctx)
+	store, ctx, annot_tfile := setup_for_typecheck("r = 1")
 	defer free(ctx)
-	defer semantics.type_store_destroy(&store)
+	defer free(store)
+	defer build.context_destroy(ctx)
+	defer semantics.type_store_destroy(store)
 
 	testing.expect(t, !diagnostics.diag_collector_has_errors(&ctx.collector))
 
@@ -72,10 +75,11 @@ test_mono_annotate_let_binding :: proc(t: ^testing.T) {
 
 @(test)
 test_mono_annotate_binop_expr :: proc(t: ^testing.T) {
-	store, ctx, canon, annot_tfile := typecheck_source_full("result = 1 + 2")
-	defer build.context_destroy(ctx)
+	store, ctx, annot_tfile := setup_for_typecheck("result = 1 + 2")
 	defer free(ctx)
-	defer semantics.type_store_destroy(&store)
+	defer free(store)
+	defer build.context_destroy(ctx)
+	defer semantics.type_store_destroy(store)
 
 	testing.expect(t, !diagnostics.diag_collector_has_errors(&ctx.collector))
 
@@ -85,10 +89,11 @@ test_mono_annotate_binop_expr :: proc(t: ^testing.T) {
 
 @(test)
 test_mono_annotate_simple_binding :: proc(t: ^testing.T) {
-	store, ctx, canon, annot_tfile := typecheck_source_full("x = 5")
-	defer build.context_destroy(ctx)
+	store, ctx, annot_tfile := setup_for_typecheck("x = 5")
 	defer free(ctx)
-	defer semantics.type_store_destroy(&store)
+	defer free(store)
+	defer build.context_destroy(ctx)
+	defer semantics.type_store_destroy(store)
 
 	testing.expect(t, !diagnostics.diag_collector_has_errors(&ctx.collector))
 
@@ -98,14 +103,15 @@ test_mono_annotate_simple_binding :: proc(t: ^testing.T) {
 
 @(test)
 test_mono_substitute_ir_type_noop :: proc(t: ^testing.T) {
-	store, ctx, canon, annot_tfile := typecheck_source_full("x = 42")
-	defer build.context_destroy(ctx)
+	store, ctx, annot_tfile := setup_for_typecheck("x = 42")
 	defer free(ctx)
-	defer semantics.type_store_destroy(&store)
+	defer free(store)
+	defer build.context_destroy(ctx)
+	defer semantics.type_store_destroy(store)
 
 	testing.expect(t, !diagnostics.diag_collector_has_errors(&ctx.collector))
 
-	mono_tfile := mono.mono(annot_tfile, &store, &ctx.interner)
+	mono_tfile := mono.mono(annot_tfile, store, &ctx.interner)
 
 	testing.expect(t, len(mono_tfile.decls) > 0)
 
@@ -119,10 +125,11 @@ test_mono_substitute_ir_type_noop :: proc(t: ^testing.T) {
 
 @(test)
 test_mono_annotate_if_expr :: proc(t: ^testing.T) {
-	store, ctx, canon, annot_tfile := typecheck_source_full("val = if True { 1 } else { 0 }")
-	defer build.context_destroy(ctx)
+	store, ctx, annot_tfile := setup_for_typecheck("val = if True { 1 } else { 0 }")
 	defer free(ctx)
-	defer semantics.type_store_destroy(&store)
+	defer free(store)
+	defer build.context_destroy(ctx)
+	defer semantics.type_store_destroy(store)
 
 	testing.expect(t, !diagnostics.diag_collector_has_errors(&ctx.collector))
 
@@ -132,10 +139,11 @@ test_mono_annotate_if_expr :: proc(t: ^testing.T) {
 
 @(test)
 test_mono_annotate_block_expr :: proc(t: ^testing.T) {
-	store, ctx, canon, annot_tfile := typecheck_source_full("val = { x = 1\nx + 2 }")
-	defer build.context_destroy(ctx)
+	store, ctx, annot_tfile := setup_for_typecheck("val = { x = 1\nx + 2 }")
 	defer free(ctx)
-	defer semantics.type_store_destroy(&store)
+	defer free(store)
+	defer build.context_destroy(ctx)
+	defer semantics.type_store_destroy(store)
 
 	testing.expect(t, !diagnostics.diag_collector_has_errors(&ctx.collector))
 
@@ -145,10 +153,11 @@ test_mono_annotate_block_expr :: proc(t: ^testing.T) {
 
 @(test)
 test_mono_annotate_value_binding :: proc(t: ^testing.T) {
-	store, ctx, canon, annot_tfile := typecheck_source_full("val = 1")
-	defer build.context_destroy(ctx)
+	store, ctx, annot_tfile := setup_for_typecheck("val = 1")
 	defer free(ctx)
-	defer semantics.type_store_destroy(&store)
+	defer free(store)
+	defer build.context_destroy(ctx)
+	defer semantics.type_store_destroy(store)
 
 	testing.expect(t, !diagnostics.diag_collector_has_errors(&ctx.collector))
 

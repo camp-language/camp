@@ -651,12 +651,75 @@ lower_tif :: proc(e: ^semantics.TExpr_If, env: ^Lower_Env) -> IR_Expr {
 	return IR_Expr(result)
 }
 
+texpr_type_id :: proc(e: semantics.TExpr) -> base.Type_Var_ID {
+	if e == nil do return base.Type_Var_ID(0)
+	#partial switch expr in e {
+	case ^semantics.TExpr_Int: return expr.type_.type_id
+	case ^semantics.TExpr_Float: return expr.type_.type_id
+	case ^semantics.TExpr_String: return expr.type_.type_id
+	case ^semantics.TExpr_Bool: return expr.type_.type_id
+	case ^semantics.TExpr_Tag: return expr.type_.type_id
+	case ^semantics.TExpr_Nominal_Construct: return expr.resolved_type
+	case ^semantics.TExpr_Record: return expr.type_.type_id
+	case ^semantics.TExpr_List: return expr.type_.type_id
+	case ^semantics.TExpr_Name: return expr.type_.type_id
+	case ^semantics.TExpr_Call: return expr.type_.type_id
+	case ^semantics.TExpr_Method_Call: return expr.type_.type_id
+	case ^semantics.TExpr_Lambda: return expr.type_.type_id
+	case ^semantics.TExpr_Block: return expr.type_.type_id
+	case ^semantics.TExpr_If: return expr.type_.type_id
+	case ^semantics.TExpr_Match: return expr.type_.type_id
+	case ^semantics.TExpr_BinOp: return expr.type_.type_id
+	case ^semantics.TExpr_PrefixOp: return expr.type_.type_id
+	case ^semantics.TExpr_Field_Access: return expr.type_.type_id
+	case ^semantics.TExpr_Record_Update: return expr.type_.type_id
+	case ^semantics.TExpr_Assign: return expr.type_.type_id
+	case ^semantics.TExpr_Return: return expr.type_.type_id
+	case ^semantics.TExpr_Crash: return expr.type_.type_id
+	case ^semantics.TExpr_Interpolated_String: return expr.type_.type_id
+	case ^semantics.TExpr_Handle: return expr.type_.type_id
+	case ^semantics.TExpr_Perform: return expr.type_.type_id
+	case ^semantics.TExpr_For: return expr.type_.type_id
+	case ^semantics.TExpr_Par: return expr.type_.type_id
+	case:
+		return base.Type_Var_ID(0)
+	}
+}
+
+resolve_tag_payload_wasm_types :: proc(store: ^semantics.Type_Store, scrutinee_type_id: base.Type_Var_ID, tag_name: base.Intern_ID) -> []base.IR_Wasm_Type {
+	if scrutinee_type_id == base.Type_Var_ID(0) {
+		return nil
+	}
+	resolved := semantics.resolve_var(store, scrutinee_type_id)
+	v := semantics.get_var(store, resolved)
+	inf, is_inf := v.link.(semantics.Inferred_Type)
+	if !is_inf {
+		return nil
+	}
+	if inf.tag == .Newtype {
+		return resolve_tag_payload_wasm_types(store, inf.inner_id, tag_name)
+	}
+	if inf.tag == .Tag_Union_Row {
+		for entry in inf.tag_entries {
+			if entry.name == tag_name {
+				types := make([]base.IR_Wasm_Type, len(entry.payload))
+				for i in 0..<len(entry.payload) {
+					types[i] = semantics.lower_type(store, entry.payload[i]).wasm_type
+				}
+				return types
+			}
+		}
+	}
+	return nil
+}
+
 lower_tmatch :: proc(e: ^semantics.TExpr_Match, env: ^Lower_Env) -> IR_Expr {
 	scrut_ir := lower_texpr(e.scrutinee, env)
+	scrutinee_type_id := texpr_type_id(e.scrutinee)
 	arms := make([dynamic]IR_Match_Arm, len(e.arms))
 	for i in 0..<len(e.arms) {
 		arms[i] = IR_Match_Arm{
-			pattern = lower_tpattern(e.arms[i].pattern, env),
+			pattern = lower_tpattern(e.arms[i].pattern, env, scrutinee_type_id),
 			body = lower_texpr(e.arms[i].body, env),
 		}
 	}
@@ -670,7 +733,7 @@ lower_tmatch :: proc(e: ^semantics.TExpr_Match, env: ^Lower_Env) -> IR_Expr {
 	return IR_Expr(result)
 }
 
-lower_tpattern :: proc(pattern: semantics.TPattern, env: ^Lower_Env) -> IR_Pattern {
+lower_tpattern :: proc(pattern: semantics.TPattern, env: ^Lower_Env, scrutinee_type_id: base.Type_Var_ID = base.Type_Var_ID(0)) -> IR_Pattern {
 	switch p in pattern {
 	case ^semantics.TPattern_Tag:
 		payload_ids := make([dynamic]base.Intern_ID, 0, len(p.payload))
@@ -685,6 +748,7 @@ lower_tpattern :: proc(pattern: semantics.TPattern, env: ^Lower_Env) -> IR_Patte
 		result := new(IR_Pat_Tag)
 		result.name = p.name.name
 		result.payload = payload_ids
+		result.payload_wasm_types = resolve_tag_payload_wasm_types(env.store, scrutinee_type_id, p.name.name)
 		return IR_Pattern(result)
 
 	case ^semantics.TPattern_Record:
@@ -704,23 +768,26 @@ lower_tpattern :: proc(pattern: semantics.TPattern, env: ^Lower_Env) -> IR_Patte
 		nil_tag := new(IR_Pat_Tag)
 		nil_tag.name = base.intern(env.interner, "Nil")
 		nil_tag.payload = make([dynamic]base.Intern_ID, 0)
+		nil_tag.payload_wasm_types = nil
 
 		list_var := fresh_ir_name(env)
 		cons_tag := new(IR_Pat_Tag)
 		cons_tag.name = base.intern(env.interner, "Cons")
 		cons_tag.payload = make([dynamic]base.Intern_ID, 0)
 		append(&cons_tag.payload, list_var)
+		cons_tag.payload_wasm_types = []base.IR_Wasm_Type{.I32}
 
 		pat := IR_Pattern(cons_tag)
 		for i := len(p.elements) - 1; i >= 0; i -= 1 {
 			elem_pat := lower_tpattern(p.elements[i], env)
 			if elem_pat != nil {
 				if elem_var, ok := elem_pat.(^IR_Pat_Var); ok {
-					prev_cons := new(IR_Pat_Tag)
-					prev_cons.name = base.intern(env.interner, "Cons")
-					prev_cons.payload = make([dynamic]base.Intern_ID, 0)
-					append(&prev_cons.payload, elem_var.name)
-					append(&prev_cons.payload, list_var)
+				prev_cons := new(IR_Pat_Tag)
+				prev_cons.name = base.intern(env.interner, "Cons")
+				prev_cons.payload = make([dynamic]base.Intern_ID, 0)
+				append(&prev_cons.payload, elem_var.name)
+				append(&prev_cons.payload, list_var)
+				prev_cons.payload_wasm_types = []base.IR_Wasm_Type{.I32, .I32}
 					list_var = elem_var.name
 					pat = IR_Pattern(prev_cons)
 				}

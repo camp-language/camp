@@ -18,15 +18,15 @@ import "core:time"
 
 run_command_counter: int
 
-old_allocator_save :: proc() -> mem.Allocator {
-	return context.allocator
-}
-
 run_build_single :: proc(file_path: string, thread_count: int = 1) {
 	ctx: Compilation_Context
 	context_init(&ctx)
 	ctx.thread_count = thread_count
 	defer context_destroy(&ctx)
+
+	old_allocator := context.allocator
+	context.allocator = ctx.allocator
+	defer context.allocator = old_allocator
 
 	if filepath.ext(file_path) != ".camp" {
 		ext := filepath.ext(file_path)
@@ -48,36 +48,29 @@ run_build_single :: proc(file_path: string, thread_count: int = 1) {
 	lexer: frontend.Lexer
 	frontend.lexer_init(&lexer, file_rec, &ctx.collector, &ctx.interner)
 
-	old_allocator := context.allocator
-	context.allocator = ctx.allocator
 	parser: frontend.Parser
 	frontend.parser_init(&parser, &lexer, &ctx.collector, &ctx.interner)
 	ast_file := frontend.parser_parse_file(&parser)
-	context.allocator = old_allocator
 
 	if diagnostics.diag_collector_has_errors(&ctx.collector) {
 		diagnostics.render_all(&ctx.collector, file_path, source)
 		os.exit(1)
 	}
 
-	context.allocator = ctx.allocator
 	canon := semantics.canonicalize(ast_file, &ctx.interner, &ctx.collector)
-	context.allocator = old_allocator
 
 	fmt.printfln("canonicalized {}: {} declaration(s), {} import(s)", file_path, len(canon.decls), len(canon.imports))
 
-	context.allocator = ctx.allocator
 	store: semantics.Type_Store
 	semantics.type_store_init(&store, &ctx.interner, &ctx.collector)
+	defer semantics.type_store_destroy(&store)
 	semantics.inject_prelude(&store)
 	tfile := semantics.typecheck_file(canon, &store)
-	context.allocator = old_allocator
 
 	if diagnostics.diag_collector_has_errors(&ctx.collector) {
 		diagnostics.render_all(&ctx.collector, file_path, source)
 		os.exit(1)
 	}
-	defer semantics.type_store_destroy(&store)
 
 	fmt.printfln("typecheck passed for {}", file_path)
 
@@ -89,23 +82,17 @@ run_build_single :: proc(file_path: string, thread_count: int = 1) {
 		os.exit(1)
 	}
 
-	context.allocator = ctx.allocator
 	mono_tfile := mono.mono(tfile, &store, &ctx.interner)
-	context.allocator = old_allocator
 
-	context.allocator = ctx.allocator
 	ctx.type_store = &store
 	ir_mod := ir.lower_tfile(mono_tfile, &store)
 	ir_mod = ir.effect_lower(&ir_mod, &ctx.interner, &ctx.collector, &store)
 	ir_mod = ir.closure_convert(&ir_mod, &ctx.interner)
 	ir_mod = ir.cps_transform(&ir_mod, &ctx.interner)
 	ir.rc_insert(&ir_mod, &ctx.interner)
-	context.allocator = old_allocator
 
-	context.allocator = ctx.allocator
-	wasm_mod := codegen.codegen(ir_mod, &ctx.interner, &store, ctx.thread_count)
+	wasm_mod := codegen.codegen(ir_mod, &ctx.interner, ctx.thread_count)
 	wasm_bytes := codegen.wasm_serialize(wasm_mod)
-	context.allocator = old_allocator
 
 	dir := filepath.dir(file_path)
 	stem := filepath.stem(file_path)
@@ -465,7 +452,7 @@ compile_test_canon :: proc(orig_canon: semantics.CFile, test_body: semantics.CEx
 	ir.rc_insert(&ir_mod, interner)
 
 	// Codegen + serialize
-	wasm_mod := codegen.codegen(ir_mod, interner, &store, 1)
+	wasm_mod := codegen.codegen(ir_mod, interner, 1)
 	wasm_bytes := codegen.wasm_serialize(wasm_mod)
 
 	// Write to output path
