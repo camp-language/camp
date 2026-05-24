@@ -479,7 +479,7 @@ typecheck_method_call :: proc(e: ^CExpr_Method_Call, env: ^Type_Env, store: ^Typ
 	inner_name := base.intern(store.interner, "inner")
 	if e.method.name == inner_name && len(e.args) == 0 {
 		receiver_result := typecheck_synth(e.receiver, env, store)
-		receiver_resolved := get_var(store, resolve_var(store, receiver_result.var_id))
+		receiver_resolved := store.vars[int(resolve_var(store, receiver_result.var_id))]
 		if inf, is_inf := receiver_resolved.link.(Inferred_Type); is_inf && inf.tag == .Newtype {
 			nt_info, nt_ok := store.newtype_decls[inf.primitive_name]
 			if nt_ok && !is_same_module(env, nt_info.module) {
@@ -554,7 +554,7 @@ typecheck_method_call :: proc(e: ^CExpr_Method_Call, env: ^Type_Env, store: ^Typ
 			unify(store, eff, arg_result.effects)
 			append(&args_t, arg_result.texpr)
 
-			arg_resolved := get_var(store, resolve_var(store, arg_result.var_id))
+			arg_resolved := store.vars[int(resolve_var(store, arg_result.var_id))]
 			if inf, is_inf := arg_resolved.link.(Inferred_Type); is_inf && inf.tag == .Function {
 				handle_var := fresh_value_var(store, e.span)
 				link_var(store, handle_var, Inferred_Type{
@@ -602,7 +602,7 @@ typecheck_method_call :: proc(e: ^CExpr_Method_Call, env: ^Type_Env, store: ^Typ
 			unify(store, eff, arg_result.effects)
 			append(&args_t, arg_result.texpr)
 
-			arg_resolved := get_var(store, resolve_var(store, arg_result.var_id))
+			arg_resolved := store.vars[int(resolve_var(store, arg_result.var_id))]
 			if inf, is_inf := arg_resolved.link.(Inferred_Type); is_inf && inf.tag == .Handle {
 				unify(store, eff, inf.effect_id)
 				t := new(TExpr_Method_Call)
@@ -693,7 +693,7 @@ typecheck_method_call :: proc(e: ^CExpr_Method_Call, env: ^Type_Env, store: ^Typ
 
 		if is_effect_op {
 			arg_resolved := resolve_var(store, arg_result.var_id)
-			arg_var := get_var(store, arg_resolved)
+			arg_var := store.vars[int(arg_resolved)]
 			if inf, is_inf := arg_var.link.(Inferred_Type); is_inf && inf.tag == .Function {
 				unify(store, eff, inf.effect_id)
 			}
@@ -780,11 +780,11 @@ typecheck_qualified_tag_construct :: proc(receiver: ^CExpr_Tag, e: ^CExpr_Method
 	}
 	inst_binding := instantiate(store, nt_binding)
 
-	nt_resolved := get_var(store, resolve_var(store, inst_binding))
+	nt_resolved := store.vars[int(resolve_var(store, inst_binding))]
 	nt_inf, is_nt := nt_resolved.link.(Inferred_Type)
 
 	if is_nt && nt_inf.tag == .Newtype {
-		inner_resolved := get_var(store, resolve_var(store, nt_inf.inner_id))
+		inner_resolved := store.vars[int(resolve_var(store, nt_inf.inner_id))]
 		if inner_inf, inner_ok := inner_resolved.link.(Inferred_Type); inner_ok && inner_inf.tag == .Tag_Union_Row {
 			for te in inner_inf.tag_entries {
 				if te.name == e.method.name && len(te.payload) == len(e.args) {

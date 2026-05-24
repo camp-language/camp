@@ -57,8 +57,8 @@ test_unify_level_propagation :: proc(t: ^testing.T) {
 	ok := semantics.unify(&store, a, b)
 	testing.expect(t, ok)
 
-	va := semantics.get_var(&store, semantics.resolve_var(&store, a))
-	vb := semantics.get_var(&store, semantics.resolve_var(&store, b))
+	va := store.vars[int(semantics.resolve_var(&store, a))]
+	vb := store.vars[int(semantics.resolve_var(&store, b))]
 	max_level := max(va.level, vb.level)
 	testing.expect(t, va.level == max_level)
 	testing.expect(t, vb.level == max_level)

@@ -280,7 +280,7 @@ typecheck_match :: proc(e: ^CExpr_Match, env: ^Type_Env, store: ^Type_Store) -> 
 	}
 
 	// Exhaustiveness checking
-	resolved_scrut := get_var(store, resolve_var(store, scrutinee_result.var_id))
+	resolved_scrut := store.vars[int(resolve_var(store, scrutinee_result.var_id))]
 	#partial switch inf in resolved_scrut.link {
 	case Inferred_Type:
 		if inf.tag == .Tag_Union_Row && len(inf.tag_entries) > 0 && !cov.saturated {

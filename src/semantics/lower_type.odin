@@ -4,7 +4,7 @@ import "camp:base"
 
 lower_type :: proc(store: ^Type_Store, type_var: base.Type_Var_ID) -> base.IR_Type {
 	resolved := resolve_var(store, type_var)
-	v := get_var(store, resolved)
+	v := &store.vars[int(resolved)]
 
 	wasm_type: base.IR_Wasm_Type = .I64
 
@@ -45,7 +45,7 @@ lower_type :: proc(store: ^Type_Store, type_var: base.Type_Var_ID) -> base.IR_Ty
 
 lower_effect_type :: proc(store: ^Type_Store, eff_var: base.Type_Var_ID) -> base.IR_Type {
 	resolved := resolve_var(store, eff_var)
-	v := get_var(store, resolved)
+	v := &store.vars[int(resolved)]
 	if inf, is_inf := v.link.(Inferred_Type); is_inf && inf.tag == .Effect_Row {
 		return base.IR_Type{wasm_type = .Void, type_id = resolved}
 	}

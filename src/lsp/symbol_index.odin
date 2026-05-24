@@ -153,7 +153,7 @@ format_type_ann :: proc(type_ann: ^semantics.CType, store: ^semantics.Type_Store
 
 format_resolved_type :: proc(store: ^semantics.Type_Store, var_id: base.Type_Var_ID) -> string {
 	resolved := semantics.resolve_var(store, var_id)
-	v := semantics.get_var(store, resolved)
+	v := &store.vars[int(resolved)]
 	inf, is_inf := v.link.(semantics.Inferred_Type)
 	if !is_inf {
 		return "?"

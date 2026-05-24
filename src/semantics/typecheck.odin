@@ -114,7 +114,7 @@ find_similar_names :: proc(name: string, env: ^Type_Env, interner: ^base.Intern_
 
 format_effect_row :: proc(store: ^Type_Store, effects: base.Type_Var_ID) -> string {
 	rid := resolve_var(store, effects)
-	rv := get_var(store, rid)
+	rv := store.vars[int(rid)]
 	it, is_inferred := rv.link.(Inferred_Type)
 	if is_inferred && it.tag == .Effect_Row {
 		if len(it.effects) == 0 do return "[]"
@@ -238,7 +238,7 @@ typecheck_decl :: proc(decl: CDecl, env: ^Type_Env, store: ^Type_Store) -> TDecl
 
 		if !d.is_effectful {
 			resolved := resolve_var(store, result.var_id)
-			v := get_var(store, resolved)
+			v := store.vars[int(resolved)]
 			if inf, ok := v.link.(Inferred_Type); ok && inf.tag == .Function {
 				if effect_row_nonempty(store, inf.effect_id) {
 					name_str := base.intern_get(store.interner, d.name.name)
@@ -473,7 +473,7 @@ typecheck_newtype_decl :: proc(d: ^CDecl_Newtype, env: ^Type_Env, store: ^Type_S
 	inner_type_var := convert_type_to_var(d.inner_type, store, env)
 
 	owned_tags := make([dynamic]base.Intern_ID, 0, 8)
-	inner_resolved := get_var(store, resolve_var(store, inner_type_var))
+	inner_resolved := store.vars[int(resolve_var(store, inner_type_var))]
 	if inf, is_inf := inner_resolved.link.(Inferred_Type); is_inf && inf.tag == .Tag_Union_Row {
 		for te in inf.tag_entries {
 			append(&owned_tags, te.name)
@@ -708,7 +708,7 @@ typecheck_synth :: proc(expr: CExpr, env: ^Type_Env, store: ^Type_Store) -> Synt
 				expr_part.expr = part_result.texpr
 
 				resolved := resolve_var(store, part_result.var_id)
-				v := get_var(store, resolved)
+				v := store.vars[int(resolved)]
 				type_name: base.Intern_ID = base.NO_NAME
 				if inf, ok := v.link.(Inferred_Type); ok {
 					type_name = inf.primitive_name
@@ -1101,7 +1101,7 @@ instantiate :: proc(store: ^Type_Store, var_id: base.Type_Var_ID) -> base.Type_V
 
 instantiate_rec :: proc(store: ^Type_Store, var_id: base.Type_Var_ID, subst: ^map[base.Type_Var_ID]base.Type_Var_ID) -> base.Type_Var_ID {
 	resolved := resolve_var(store, var_id)
-	v := get_var(store, resolved)
+	v := store.vars[int(resolved)]
 
 	_, is_unlinked := v.link.(Type_Unlinked)
 	if is_unlinked && is_generic(store, resolved) {
@@ -1235,7 +1235,7 @@ deep_clone_type :: proc(store: ^Type_Store, id: base.Type_Var_ID, span: base.Sou
 		return existing
 	}
 
-	v := get_var(store, resolved)
+	v := store.vars[int(resolved)]
 
 	_, is_unlinked := v.link.(Type_Unlinked)
 	if is_unlinked {
@@ -1367,7 +1367,7 @@ deep_clone_type :: proc(store: ^Type_Store, id: base.Type_Var_ID, span: base.Sou
 
 subtract_effect_from_row :: proc(store: ^Type_Store, row: base.Type_Var_ID, effect: base.Intern_ID, span: base.Source_Span) -> base.Type_Var_ID {
 	rid := resolve_var(store, row)
-	rv := get_var(store, rid)
+	rv := store.vars[int(rid)]
 
 	inf, is_inf := rv.link.(Inferred_Type)
 	if is_inf && inf.tag == .Effect_Row {
@@ -1421,7 +1421,7 @@ subtract_effect_from_row :: proc(store: ^Type_Store, row: base.Type_Var_ID, effe
 
 effect_row_nonempty :: proc(store: ^Type_Store, effect_var: base.Type_Var_ID) -> bool {
 	resolved := resolve_var(store, effect_var)
-	v := get_var(store, resolved)
+	v := store.vars[int(resolved)]
 
 	inf, is_inf := v.link.(Inferred_Type)
 	if !is_inf || inf.tag != .Effect_Row {
@@ -1433,7 +1433,7 @@ effect_row_nonempty :: proc(store: ^Type_Store, effect_var: base.Type_Var_ID) ->
 	}
 
 	rest_resolved := resolve_var(store, inf.rest_id)
-	rest_v := get_var(store, rest_resolved)
+	rest_v := store.vars[int(rest_resolved)]
 	_, rest_unlinked := rest_v.link.(Type_Unlinked)
 	if rest_unlinked && !is_generic(store, rest_resolved) {
 		return true
@@ -1490,7 +1490,7 @@ typecheck_newtype_construct :: proc(e: ^CExpr_Tag, env: ^Type_Env, store: ^Type_
 	}
 	inst_binding := instantiate(store, nt_binding)
 
-	nt_resolved := get_var(store, resolve_var(store, inst_binding))
+	nt_resolved := store.vars[int(resolve_var(store, inst_binding))]
 	nt_inf, is_nt := nt_resolved.link.(Inferred_Type)
 
 	arg_var: base.Type_Var_ID
@@ -1506,7 +1506,7 @@ typecheck_newtype_construct :: proc(e: ^CExpr_Tag, env: ^Type_Env, store: ^Type_
 			is_float_lit = true
 		}
 
-		inner_resolved := get_var(store, resolve_var(store, nt_inf.inner_id))
+		inner_resolved := store.vars[int(resolve_var(store, nt_inf.inner_id))]
 		if inner_inf, inner_ok := inner_resolved.link.(Inferred_Type); inner_ok && inner_inf.tag == .Primitive {
 			if is_int_lit || is_float_lit {
 				arg_var = make_primitive_type(store, inner_inf.primitive_name, e.span)
@@ -1830,7 +1830,7 @@ check_constraint_violation :: proc(type_var_id: base.Type_Var_ID, store: ^Type_S
 	}
 
 	resolved := resolve_var(store, type_var_id)
-	rv := get_var(store, resolved)
+	rv := store.vars[int(resolved)]
 
 	impl_type_name: base.Intern_ID = base.NO_NAME
 	if inf, is_inf := rv.link.(Inferred_Type); is_inf {

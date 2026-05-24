@@ -13,8 +13,8 @@ unify :: proc(store: ^Type_Store, a: base.Type_Var_ID, b: base.Type_Var_ID) -> b
 		return true
 	}
 
-	va := get_var(store, ra)
-	vb := get_var(store, rb)
+	va := store.vars[int(ra)]
+	vb := store.vars[int(rb)]
 
 	if va.kind != vb.kind {
 		if va.kind == .Value && vb.kind != .Value {
@@ -68,8 +68,8 @@ unify :: proc(store: ^Type_Store, a: base.Type_Var_ID, b: base.Type_Var_ID) -> b
 	}
 
 	max_level := max(va.level, vb.level)
-	va.level = max_level
-	vb.level = max_level
+	store.vars[int(ra)].level = max_level
+	store.vars[int(rb)].level = max_level
 
 	_, a_unlinked := va.link.(Type_Unlinked)
 	_, b_unlinked := vb.link.(Type_Unlinked)
@@ -123,8 +123,8 @@ unify_inferred :: proc(store: ^Type_Store, a: Inferred_Type, b: Inferred_Type, a
 	if a.tag != b.tag {
 		type_a_str := format_inferred_type(store, a)
 		type_b_str := format_inferred_type(store, b)
-		va := get_var(store, resolve_var(store, a_id))
-		vb := get_var(store, resolve_var(store, b_id))
+		va := store.vars[int(resolve_var(store, a_id))]
+		vb := store.vars[int(resolve_var(store, b_id))]
 		diagnostics.collector_add_diag(store.collector, diagnostics.diag_type_mismatch(type_a_str, type_b_str, va.span, vb.span))
 		return false
 	}
@@ -138,8 +138,8 @@ unify_inferred :: proc(store: ^Type_Store, a: Inferred_Type, b: Inferred_Type, a
 		}
 		name_a := base.intern_get(store.interner, a.primitive_name)
 		name_b := base.intern_get(store.interner, b.primitive_name)
-		va := get_var(store, resolve_var(store, a_id))
-		vb := get_var(store, resolve_var(store, b_id))
+		va := store.vars[int(resolve_var(store, a_id))]
+		vb := store.vars[int(resolve_var(store, b_id))]
 		diagnostics.collector_add_diag(store.collector, diagnostics.diag_primitive_mismatch(name_a, name_b, va.span, vb.span))
 		return false
 	}
@@ -147,8 +147,8 @@ unify_inferred :: proc(store: ^Type_Store, a: Inferred_Type, b: Inferred_Type, a
 	switch a.tag {
 	case .Function:
 		if len(a.param_ids) != len(b.param_ids) {
-			va := get_var(store, resolve_var(store, a_id))
-			vb := get_var(store, resolve_var(store, b_id))
+			va := store.vars[int(resolve_var(store, a_id))]
+			vb := store.vars[int(resolve_var(store, b_id))]
 			diagnostics.collector_add_diag(store.collector, diagnostics.diag_arity_mismatch(len(a.param_ids), len(b.param_ids), va.span, vb.span))
 			return false
 		}
@@ -183,14 +183,14 @@ unify_inferred :: proc(store: ^Type_Store, a: Inferred_Type, b: Inferred_Type, a
 		if a.primitive_name != b.primitive_name {
 			name_a := base.intern_get(store.interner, a.primitive_name)
 			name_b := base.intern_get(store.interner, b.primitive_name)
-			va := get_var(store, resolve_var(store, a_id))
-			vb := get_var(store, resolve_var(store, b_id))
+			va := store.vars[int(resolve_var(store, a_id))]
+			vb := store.vars[int(resolve_var(store, b_id))]
 			diagnostics.collector_add_diag(store.collector, diagnostics.diag_primitive_mismatch(name_a, name_b, va.span, vb.span))
 			return false
 		}
 		if len(a.param_ids) != len(b.param_ids) {
-			va := get_var(store, resolve_var(store, a_id))
-			vb := get_var(store, resolve_var(store, b_id))
+			va := store.vars[int(resolve_var(store, a_id))]
+			vb := store.vars[int(resolve_var(store, b_id))]
 			diagnostics.collector_add_diag(store.collector, diagnostics.diag_arity_mismatch(len(a.param_ids), len(b.param_ids), va.span, vb.span))
 			return false
 		}
@@ -425,8 +425,8 @@ unify_tag_union_rows :: proc(store: ^Type_Store, a: Inferred_Type, b: Inferred_T
 				found = true
 				if len(at.payload) != len(bt.payload) {
 					tag_name := base.intern_get(store.interner, at.name)
-					va := get_var(store, resolve_var(store, a_id))
-					vb := get_var(store, resolve_var(store, b_id))
+					va := store.vars[int(resolve_var(store, a_id))]
+					vb := store.vars[int(resolve_var(store, b_id))]
 					diagnostics.collector_add_diag(store.collector, diagnostics.diag_tag_arity_mismatch(tag_name, len(at.payload), len(bt.payload), va.span, vb.span))
 					return false
 				}
@@ -513,7 +513,7 @@ occurs_check :: proc(store: ^Type_Store, target: base.Type_Var_ID, in_var: base.
 		return !store.rec_vars[target]
 	}
 
-	v := get_var(store, rv)
+	v := store.vars[int(rv)]
 
 	inf, is_inf := v.link.(Inferred_Type)
 	if is_inf {
@@ -611,7 +611,7 @@ format_inferred_type :: proc(store: ^Type_Store, t: Inferred_Type) -> string {
 
 format_type_var :: proc(store: ^Type_Store, id: base.Type_Var_ID) -> string {
 	rid := resolve_var(store, id)
-	rv := get_var(store, rid)
+	rv := store.vars[int(rid)]
 	it, is_inferred := rv.link.(Inferred_Type)
 	if rv.kind == .Value && is_inferred {
 		return format_inferred_type(store, it)

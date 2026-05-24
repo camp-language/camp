@@ -81,7 +81,7 @@ extract_effects_from_fn_binding :: proc(store: ^semantics.Type_Store, fn_name: b
 		return make([dynamic]base.Canonical_Name, 0)
 	}
 	resolved := semantics.resolve_var(store, binding_var)
-	v := semantics.get_var(store, resolved)
+	v := &store.vars[int(resolved)]
 	inf, is_inf := v.link.(semantics.Inferred_Type)
 	tag_str := "none"
 	if is_inf { tag_str = fmt.tprintf("%v", inf.tag) }
@@ -94,40 +94,19 @@ extract_effects_from_fn_binding :: proc(store: ^semantics.Type_Store, fn_name: b
 
 collect_effects_from_row :: proc(store: ^semantics.Type_Store, effect_var: base.Type_Var_ID, effect_defs: []IR_Effect_Def, result: ^[dynamic]base.Canonical_Name) {
 	resolved := semantics.resolve_var(store, effect_var)
-	v := semantics.get_var(store, resolved)
+	v := &store.vars[int(resolved)]
 
 	inf, is_inf := v.link.(semantics.Inferred_Type)
 	if !is_inf || inf.tag != .Effect_Row {
 		return
 	}
 
-	for entry in inf.effects {
-		entry_str := base.intern_get(store.interner, entry.name)
-		// Typechecker stores effect names with trailing '!' (e.g. "Spawn!"),
-		// but effect defs use the base name (e.g. "Spawn"). Strip the '!' for comparison.
-		if strings.has_suffix(entry_str, "!") {
-			entry_str = entry_str[:len(entry_str)-1]
-		}
-		entry_base := base.intern(store.interner, entry_str)
-		for def in effect_defs {
-			if def.name.name == entry_base || def.name.name == entry.name {
-				already := false
-				for e in result^ {
-					if e == def.name {
-						already = true
-						break
-					}
-				}
-				if !already {
-					append(result, def.name)
-				}
-				break
-			}
-		}
+	if len(inf.effects) > 0 {
+		return
 	}
 
 	rest_resolved := semantics.resolve_var(store, inf.rest_id)
-	rest_v := semantics.get_var(store, rest_resolved)
+	rest_v := &store.vars[int(rest_resolved)]
 	rest_inf, rest_is_inf := rest_v.link.(semantics.Inferred_Type)
 	if rest_is_inf && rest_inf.tag == .Effect_Row {
 		collect_effects_from_row(store, inf.rest_id, effect_defs, result)
@@ -529,7 +508,7 @@ lower_tmethod_call :: proc(e: ^semantics.TExpr_Method_Call, env: ^Lower_Env) -> 
 
 	if receiver_type_var != 0 {
 		resolved_type := semantics.resolve_var(env.store, receiver_type_var)
-		v := semantics.get_var(env.store, resolved_type)
+		v := &env.store.vars[int(resolved_type)]
 		if inf, ok := v.link.(semantics.Inferred_Type); ok && inf.tag == .Primitive {
 			type_name_str := base.intern_get(env.interner, inf.primitive_name)
 			if type_name_str == "Str" {
@@ -691,7 +670,7 @@ resolve_tag_payload_wasm_types :: proc(store: ^semantics.Type_Store, scrutinee_t
 		return nil
 	}
 	resolved := semantics.resolve_var(store, scrutinee_type_id)
-	v := semantics.get_var(store, resolved)
+	v := store.vars[int(resolved)]
 	inf, is_inf := v.link.(semantics.Inferred_Type)
 	if !is_inf {
 		return nil
@@ -861,7 +840,7 @@ lower_tbinop :: proc(e: ^semantics.TExpr_BinOp, env: ^Lower_Env) -> IR_Expr {
 	// String concatenation: convert `a + b` (when both operands are Str) to Str.concat(a, b)
 	if e.op == .Plus {
 		resolved := semantics.resolve_var(env.store, e.type_.type_id)
-		v := semantics.get_var(env.store, resolved)
+		v := &env.store.vars[int(resolved)]
 		if inf, ok := v.link.(semantics.Inferred_Type); ok && inf.tag == .Primitive {
 			name_str := base.intern_get(env.interner, inf.primitive_name)
 			if name_str == "Str" {
@@ -918,7 +897,7 @@ lower_tprefixop :: proc(e: ^semantics.TExpr_PrefixOp, env: ^Lower_Env) -> IR_Exp
 
 resolve_tag_index :: proc(store: ^semantics.Type_Store, type_var: base.Type_Var_ID, tag_name: base.Intern_ID) -> int {
 	resolved := semantics.resolve_var(store, type_var)
-	v := semantics.get_var(store, resolved)
+	v := store.vars[int(resolved)]
 	inf, is_inf := v.link.(semantics.Inferred_Type)
 	if !is_inf {
 		return 0

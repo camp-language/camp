@@ -118,7 +118,7 @@ el_lower_decl :: proc(decl: IR_Decl, env: ^Effect_Lower_Env, throw_name: base.In
 el_effect_row_has_throw :: proc(effect_row: base.IR_Type, throw_name: base.Intern_ID, store: ^semantics.Type_Store) -> bool {
 	effect_var_id := effect_row.type_id
 	resolved := semantics.resolve_var(store, effect_var_id)
-	v := semantics.get_var(store, resolved)
+	v := &store.vars[int(resolved)]
 	inf, is_inf := v.link.(semantics.Inferred_Type)
 	if !is_inf || inf.tag != .Effect_Row {
 		return false

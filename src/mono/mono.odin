@@ -90,7 +90,7 @@ specialization_key :: proc(item: Mono_Item, store: ^semantics.Type_Store, intern
 	type_parts: [dynamic]string
 	for _, type_var in item.type_args {
 		resolved := semantics.resolve_var(store, type_var)
-		v := semantics.get_var(store, resolved)
+		v := &store.vars[int(resolved)]
 		type_str := format_type_var_for_key(store, v, interner)
 		append(&type_parts, type_str)
 	}
@@ -110,7 +110,7 @@ format_type_var_for_key :: proc(store: ^semantics.Type_Store, v: ^semantics.Type
 		linked, is_id := link.(base.Type_Var_ID)
 		if !is_id do break
 		resolved := semantics.resolve_var(store, linked)
-		v2 := semantics.get_var(store, resolved)
+		v2 := &store.vars[int(resolved)]
 		link = v2.link
 	}
 
@@ -146,7 +146,7 @@ mangle :: proc(name: base.Canonical_Name, type_args: map[base.Intern_ID]base.Typ
 		parts: [dynamic]string
 		for _, type_var in type_args {
 			resolved := semantics.resolve_var(store, type_var)
-			v := semantics.get_var(store, resolved)
+			v := &store.vars[int(resolved)]
 			type_str := format_type_var_for_key(store, v, interner)
 			append(&parts, type_str)
 		}
@@ -586,7 +586,7 @@ substitute_ir_type :: proc(ir_type: base.IR_Type, type_args: map[base.Intern_ID]
 	}
 
 	resolved := semantics.resolve_var(env.store, ir_type.type_id)
-	v := semantics.get_var(env.store, resolved)
+	v := &env.store.vars[int(resolved)]
 
 	if _, is_inf := v.link.(semantics.Inferred_Type); is_inf {
 		return ir_type
@@ -600,7 +600,7 @@ substitute_ir_type :: proc(ir_type: base.IR_Type, type_args: map[base.Intern_ID]
 		tp_resolved := semantics.resolve_var(env.store, tp_binding)
 		if tp_resolved == resolved {
 			concrete_resolved := semantics.resolve_var(env.store, concrete_var_id)
-			cv := semantics.get_var(env.store, concrete_resolved)
+			cv := &env.store.vars[int(concrete_resolved)]
 			wasm_type := ir_type.wasm_type
 			if cinf, cis_inf := cv.link.(semantics.Inferred_Type); cis_inf && cinf.tag == .Newtype {
 				wasm_type = semantics.lower_type(env.store, cinf.inner_id).wasm_type
@@ -677,7 +677,7 @@ resolve_mono_type :: proc(expr: semantics.TExpr, type_args: map[base.Intern_ID]b
 
 	subbed := substitute_ir_type(ir_type, type_args, env)
 	resolved := semantics.resolve_var(env.store, subbed.type_id)
-	v := semantics.get_var(env.store, resolved)
+	v := &env.store.vars[int(resolved)]
 
 	inf, is_inf := v.link.(semantics.Inferred_Type)
 	if !is_inf {
@@ -754,7 +754,7 @@ walk_expr_for_call_sites :: proc(expr: semantics.TExpr, env: ^Mono_Env) {
 						callee_type_id, has_type := env.store.bindings[callee.name.name]
 						if has_type {
 							resolved_id := semantics.resolve_var(env.store, callee_type_id)
-							callee_v := semantics.get_var(env.store, resolved_id)
+							callee_v := &env.store.vars[int(resolved_id)]
 							if inf, is_inf := callee_v.link.(semantics.Inferred_Type); is_inf && inf.tag == .Function {
 								type_args := make(map[base.Intern_ID]base.Type_Var_ID, len(body.type_params))
 								param_idx := 0

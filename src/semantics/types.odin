@@ -254,48 +254,48 @@ all_children_at_or_below :: proc(store: ^Type_Store, link: Type_Link, max_level:
 	#partial switch inf.tag {
 	case .Function:
 		for pid in inf.param_ids {
-			child := get_var(store, resolve_var(store, pid))
+			child := store.vars[int(resolve_var(store, pid))]
 			if child.level > max_level do return false
 		}
-		child_ret := get_var(store, resolve_var(store, inf.return_id))
+		child_ret := store.vars[int(resolve_var(store, inf.return_id))]
 		if child_ret.level > max_level do return false
-		child_eff := get_var(store, resolve_var(store, inf.effect_id))
+		child_eff := store.vars[int(resolve_var(store, inf.effect_id))]
 		if child_eff.level > max_level do return false
 
 	case .Record_Row:
 		for f in inf.record_fields {
-			child := get_var(store, resolve_var(store, f.var))
+			child := store.vars[int(resolve_var(store, f.var))]
 			if child.level > max_level do return false
 		}
-		child_rest := get_var(store, resolve_var(store, inf.record_rest))
+		child_rest := store.vars[int(resolve_var(store, inf.record_rest))]
 		if child_rest.level > max_level do return false
 
 	case .Tag_Union_Row:
 		for te in inf.tag_entries {
 			for pid in te.payload {
-				child := get_var(store, resolve_var(store, pid))
+				child := store.vars[int(resolve_var(store, pid))]
 				if child.level > max_level do return false
 			}
 		}
-		child_rest := get_var(store, resolve_var(store, inf.tag_rest))
+		child_rest := store.vars[int(resolve_var(store, inf.tag_rest))]
 		if child_rest.level > max_level do return false
 
 	case .Effect_Row:
-		child_rest := get_var(store, resolve_var(store, inf.rest_id))
+		child_rest := store.vars[int(resolve_var(store, inf.rest_id))]
 		if child_rest.level > max_level do return false
 
 	case .Newtype:
 		for pid in inf.param_ids {
-			child := get_var(store, resolve_var(store, pid))
+			child := store.vars[int(resolve_var(store, pid))]
 			if child.level > max_level do return false
 		}
-		child_inner := get_var(store, resolve_var(store, inf.inner_id))
+		child_inner := store.vars[int(resolve_var(store, inf.inner_id))]
 		if child_inner.level > max_level do return false
 
 	case .Handle:
-		child_inner := get_var(store, resolve_var(store, inf.inner_id))
+		child_inner := store.vars[int(resolve_var(store, inf.inner_id))]
 		if child_inner.level > max_level do return false
-		child_eff := get_var(store, resolve_var(store, inf.effect_id))
+		child_eff := store.vars[int(resolve_var(store, inf.effect_id))]
 		if child_eff.level > max_level do return false
 
 	case .Primitive, .Constructor:
@@ -314,10 +314,6 @@ generalize_at_level :: proc(store: ^Type_Store, level: int) {
 	}
 }
 
-get_var :: proc(store: ^Type_Store, id: base.Type_Var_ID) -> ^Type_Var {
-	return &store.vars[int(id)]
-}
-
 is_generic :: proc(store: ^Type_Store, id: base.Type_Var_ID) -> bool {
 	return store.vars[int(id)].level == base.LEVEL_GENERIC
 }
@@ -327,7 +323,7 @@ link_var :: proc(store: ^Type_Store, id: base.Type_Var_ID, target: Type_Link) {
 }
 
 resolve_var :: proc(store: ^Type_Store, id: base.Type_Var_ID) -> base.Type_Var_ID {
-	v := get_var(store, id)
+	v := &store.vars[int(id)]
 	_, is_unlinked := v.link.(Type_Unlinked)
 	if is_unlinked {
 		return id
@@ -345,8 +341,7 @@ resolve_var :: proc(store: ^Type_Store, id: base.Type_Var_ID) -> base.Type_Var_I
 
 make_primitive_type :: proc(store: ^Type_Store, name: base.Intern_ID, span: base.Source_Span) -> base.Type_Var_ID {
 	var_id := fresh_value_var(store, span)
-	v := get_var(store, var_id)
-	v.link = Inferred_Type{tag = .Primitive, primitive_name = name}
+	store.vars[int(var_id)].link = Inferred_Type{tag = .Primitive, primitive_name = name}
 	return var_id
 }
 
@@ -369,7 +364,7 @@ is_declared_newtype :: proc(store: ^Type_Store, name: base.Intern_ID) -> bool {
 }
 
 is_numeric_primitive :: proc(store: ^Type_Store, var_id: base.Type_Var_ID) -> bool {
-	resolved := get_var(store, resolve_var(store, var_id))
+	resolved := store.vars[int(resolve_var(store, var_id))]
 	if inf, ok := resolved.link.(Inferred_Type); ok && inf.tag == .Primitive {
 		i64_name := base.intern(store.interner, "I64")
 		i32_name := base.intern(store.interner, "I32")
