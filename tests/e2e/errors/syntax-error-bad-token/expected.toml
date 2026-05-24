@@ -1,9 +1,9 @@
 stdout = """
 -- SYNTAX ERROR --- /tmp/camp-e2e/errors/syntax-error-bad-token/src/Main.camp
 
-I was not expecting `@` here.
-   1 | x = @
-           ^
+I expected `uppercase identifier` here, but I got `` instead.
+   2 | 
+       ^
 compilation failed with 1 error(s)
 """
 stderr = ""

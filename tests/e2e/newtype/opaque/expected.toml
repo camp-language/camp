@@ -1,34 +1,7 @@
 stdout = """
--- SYNTAX ERROR --- /tmp/camp-e2e/newtype/opaque/src/Main.camp
-
-I was not expecting `@` here.
-   2 | uid = @UserId(42)
-             ^
-
--- SYNTAX ERROR --- /tmp/camp-e2e/newtype/opaque/src/Main.camp
-
-I expected `=` here, but I got `(` instead.
-   2 | uid = @UserId(42)
-                    ^
-
--- SYNTAX ERROR --- /tmp/camp-e2e/newtype/opaque/src/Main.camp
-
-I expected `=` here, but I got `n` instead.
-   3 | n = uid + 1
-       ^
-
--- SYNTAX ERROR --- /tmp/camp-e2e/newtype/opaque/src/Main.camp
-
-I was not expecting `=` here.
-   3 | n = uid + 1
-         ^
-
--- SYNTAX ERROR --- /tmp/camp-e2e/newtype/opaque/src/Main.camp
-
-I expected `=` here, but I got `+` instead.
-   3 | n = uid + 1
-               ^
-compilation failed with 5 error(s)
+canonicalized /tmp/camp-e2e/newtype/opaque/src/Main.camp: 3 declaration(s), 0 import(s)
+typecheck passed for /tmp/camp-e2e/newtype/opaque/src/Main.camp
+compiled /tmp/camp-e2e/newtype/opaque/src/Main.camp -> /tmp/camp-e2e/newtype/opaque/src/Main.wasm
 """
 stderr = ""
-exit = 1
+exit = 0
