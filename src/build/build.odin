@@ -91,7 +91,7 @@ run_build_single :: proc(file_path: string, thread_count: int = 1) {
 	ir_mod = ir.cps_transform(&ir_mod, &ctx.interner)
 	ir.rc_insert(&ir_mod, &ctx.interner)
 
-	wasm_mod := codegen.codegen(ir_mod, &ctx.interner, &store, ctx.thread_count)
+	wasm_mod := codegen.codegen(ir_mod, &ctx.interner, ctx.thread_count)
 	wasm_bytes := codegen.wasm_serialize(wasm_mod)
 
 	dir := filepath.dir(file_path)
@@ -452,7 +452,7 @@ compile_test_canon :: proc(orig_canon: semantics.CFile, test_body: semantics.CEx
 	ir.rc_insert(&ir_mod, interner)
 
 	// Codegen + serialize
-	wasm_mod := codegen.codegen(ir_mod, interner, &store, 1)
+	wasm_mod := codegen.codegen(ir_mod, interner, 1)
 	wasm_bytes := codegen.wasm_serialize(wasm_mod)
 
 	// Write to output path

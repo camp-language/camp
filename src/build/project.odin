@@ -195,7 +195,7 @@ run_build_project :: proc(thread_count: int = 1) {
 	context.allocator = context.allocator
 
 	context.allocator = ctx.allocator
-	wasm_mod := codegen.codegen(combined_ir, &ctx.interner, ctx.type_store, ctx.thread_count)
+	wasm_mod := codegen.codegen(combined_ir, &ctx.interner, ctx.thread_count)
 	wasm_bytes := codegen.wasm_serialize(wasm_mod)
 	context.allocator = context.allocator
 

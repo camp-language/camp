@@ -34,7 +34,7 @@ compile_source :: proc(source: string) -> ([]u8, ^build.Compilation_Context) {
 	ir_mod = ir.cps_transform(&ir_mod, &ctx.interner)
 	ir.rc_insert(&ir_mod, &ctx.interner)
 
-	wasm_mod := codegen.codegen(ir_mod, &ctx.interner, &store, ctx.thread_count)
+	wasm_mod := codegen.codegen(ir_mod, &ctx.interner, ctx.thread_count)
 	wasm_bytes := codegen.wasm_serialize(wasm_mod)
 
 	semantics.type_store_destroy(&store)

@@ -2,9 +2,8 @@ package codegen
 
 import "camp:base"
 import "camp:ir"
-import "camp:semantics"
 
-collect_locals :: proc(expr: ir.IR_Expr, locals: ^map[base.Intern_ID]base.IR_Type, store: ^semantics.Type_Store = nil) {
+collect_locals :: proc(expr: ir.IR_Expr, locals: ^map[base.Intern_ID]base.IR_Type) {
 	if expr == nil do return
 
 	#partial switch e in expr {
@@ -12,130 +11,123 @@ collect_locals :: proc(expr: ir.IR_Expr, locals: ^map[base.Intern_ID]base.IR_Typ
 		if e.type.wasm_type != .Void {
 			locals^[e.binding] = e.type
 		}
-		collect_locals(e.value, locals, store)
-		collect_locals(e.body, locals, store)
+		collect_locals(e.value, locals)
+		collect_locals(e.body, locals)
 	case ^ir.IR_Call:
 		for arg in e.args {
-			collect_locals(arg, locals, store)
+			collect_locals(arg, locals)
 		}
 	case ^ir.IR_Closure_Call:
 		for arg in e.args {
-			collect_locals(arg, locals, store)
+			collect_locals(arg, locals)
 		}
 	case ^ir.IR_Tail_Call:
 		for arg in e.args {
-			collect_locals(arg, locals, store)
+			collect_locals(arg, locals)
 		}
 	case ^ir.IR_If:
-		collect_locals(e.condition, locals, store)
-		collect_locals(e.then_branch, locals, store)
-		collect_locals(e.else_branch, locals, store)
+		collect_locals(e.condition, locals)
+		collect_locals(e.then_branch, locals)
+		collect_locals(e.else_branch, locals)
 	case ^ir.IR_Match:
-		collect_locals(e.scrutinee, locals, store)
-		scrutinee_type_id := ir_expr_type_id(e.scrutinee)
+		collect_locals(e.scrutinee, locals)
 		for arm in e.arms {
-			collect_pattern_locals(arm.pattern, e.scrutinee, locals, store, scrutinee_type_id)
-			collect_locals(arm.body, locals, store)
+			collect_pattern_locals(arm.pattern, locals)
+			collect_locals(arm.body, locals)
 		}
 	case ^ir.IR_BinOp:
-		collect_locals(e.left, locals, store)
-		collect_locals(e.right, locals, store)
+		collect_locals(e.left, locals)
+		collect_locals(e.right, locals)
 	case ^ir.IR_Return:
-		collect_locals(e.value, locals, store)
+		collect_locals(e.value, locals)
 	case ^ir.IR_Block:
 		for stmt in e.statements {
-			collect_locals(stmt, locals, store)
+			collect_locals(stmt, locals)
 		}
 	case ^ir.IR_Construct_Tag:
 		for p in e.payload {
-			collect_locals(p, locals, store)
+			collect_locals(p, locals)
 		}
 	case ^ir.IR_Construct_Record:
 		for f in e.fields {
-			collect_locals(f.value, locals, store)
+			collect_locals(f.value, locals)
 		}
-		collect_locals(e.rest, locals, store)
+		collect_locals(e.rest, locals)
 	case ^ir.IR_Field_Access:
-		collect_locals(e.record, locals, store)
+		collect_locals(e.record, locals)
 	case ^ir.IR_Method_Call:
-		collect_locals(e.receiver, locals, store)
+		collect_locals(e.receiver, locals)
 		for arg in e.args {
-			collect_locals(arg, locals, store)
+			collect_locals(arg, locals)
 		}
 	case ^ir.IR_Handle:
-		collect_locals(e.body, locals, store)
+		collect_locals(e.body, locals)
 		for arm in e.arms {
-			collect_locals(arm.body, locals, store)
+			collect_locals(arm.body, locals)
 		}
 	case ^ir.IR_Perform:
 		for arg in e.args {
-			collect_locals(arg, locals, store)
+			collect_locals(arg, locals)
 		}
 	case ^ir.IR_Closure:
-		collect_locals(e.env, locals, store)
-		collect_locals(e.body, locals, store)
+		collect_locals(e.env, locals)
+		collect_locals(e.body, locals)
 	case ^ir.IR_Crash:
-		collect_locals(e.message, locals, store)
+		collect_locals(e.message, locals)
 	case ^ir.IR_Resume:
-		collect_locals(e.value, locals, store)
+		collect_locals(e.value, locals)
 		if e.ev != nil {
-			collect_locals(e.ev, locals, store)
+			collect_locals(e.ev, locals)
 		}
 	case ^ir.IR_I32_Load:
-		collect_locals(e.base, locals, store)
+		collect_locals(e.base, locals)
 	case ^ir.IR_I32_Store:
-		collect_locals(e.base, locals, store)
-		collect_locals(e.value, locals, store)
+		collect_locals(e.base, locals)
+		collect_locals(e.value, locals)
 	case ^ir.IR_Atomic_Load:
-		collect_locals(e.base, locals, store)
+		collect_locals(e.base, locals)
 	case ^ir.IR_Atomic_Store:
-		collect_locals(e.base, locals, store)
-		collect_locals(e.value, locals, store)
+		collect_locals(e.base, locals)
+		collect_locals(e.value, locals)
 	case ^ir.IR_Atomic_RMW:
-		collect_locals(e.base, locals, store)
-		collect_locals(e.value, locals, store)
+		collect_locals(e.base, locals)
+		collect_locals(e.value, locals)
 	case ^ir.IR_Atomic_Fence:
 	case ^ir.IR_Wait:
-		collect_locals(e.base, locals, store)
-		collect_locals(e.expected, locals, store)
+		collect_locals(e.base, locals)
+		collect_locals(e.expected, locals)
 	case ^ir.IR_Notify:
-		collect_locals(e.base, locals, store)
-		collect_locals(e.count, locals, store)
+		collect_locals(e.base, locals)
+		collect_locals(e.count, locals)
 	case ^ir.IR_Assign:
 		if e.type.wasm_type != .Void {
 			locals^[e.binding] = e.type
 		}
-		collect_locals(e.value, locals, store)
+		collect_locals(e.value, locals)
 	case ^ir.IR_Loop:
 		if e.type.wasm_type != .Void {
 			locals^[e.var] = e.type
 		}
-		collect_locals(e.iterable, locals, store)
-		collect_locals(e.body, locals, store)
+		collect_locals(e.iterable, locals)
+		collect_locals(e.body, locals)
 	case:
 	}
 }
 
-collect_pattern_locals :: proc(pattern: ir.IR_Pattern, scrutinee: ir.IR_Expr, locals: ^map[base.Intern_ID]base.IR_Type, store: ^semantics.Type_Store, scrutinee_type_id: base.Type_Var_ID) {
+collect_pattern_locals :: proc(pattern: ir.IR_Pattern, locals: ^map[base.Intern_ID]base.IR_Type) {
 	if pattern == nil do return
-
-	scrutinee_type := ir.ir_expr_wasm_type(scrutinee)
 
 	#partial switch p in pattern {
 	case ^ir.IR_Pat_Tag:
-		payload_wasm_types: []base.IR_Wasm_Type
-		if store != nil && scrutinee_type_id != base.Type_Var_ID(0) {
-			payload_wasm_types = resolve_tag_payload_wasm_types(store, scrutinee_type_id, p.name)
-		}
 		for name, j in p.payload {
 			wt: base.IR_Wasm_Type = .I32
-			if j < len(payload_wasm_types) {
-				wt = payload_wasm_types[j]
+			if j < len(p.payload_wasm_types) {
+				wt = p.payload_wasm_types[j]
 			}
 			locals^[name] = base.IR_Type{wasm_type = wt, type_id = base.Type_Var_ID(0)}
 		}
 	case ^ir.IR_Pat_Var:
-		locals^[p.name] = base.IR_Type{wasm_type = scrutinee_type, type_id = base.Type_Var_ID(0)}
+		locals^[p.name] = base.IR_Type{wasm_type = .I32, type_id = base.Type_Var_ID(0)}
 	case ^ir.IR_Pat_Record:
 		for f in p.fields {
 			locals^[f.binding] = base.IR_Type{wasm_type = .I32, type_id = base.Type_Var_ID(0)}
@@ -537,23 +529,20 @@ emit_expr :: proc(expr: ir.IR_Expr, buf: ^[dynamic]u8, env: ^Codegen_Env, runtim
 
 			emit_instruction(Wasm_BrTable{targets = targets, default_idx = default_target}, buf)
 
-			scrutinee_type_id := ir_expr_type_id(e.scrutinee)
-
 			for arm_idx in 0..<len(e.arms) {
 				arm := e.arms[arm_idx]
 				emit_instruction(Wasm_Block{block_type = block_type}, buf)
 
 				#partial switch p in arm.pattern {
 				case ^ir.IR_Pat_Tag:
-					payload_wasm_types := resolve_tag_payload_wasm_types(env.store, scrutinee_type_id, p.name)
 					for j in 0..<len(p.payload) {
 						payload_name := p.payload[j]
 						emit_instruction(Wasm_Local_Get{index = scrutinee_local}, buf)
 						emit_instruction(Wasm_I32_Const{value = i32(CAMP_TAG_FIELDS_OFFSET + j * 8)}, buf)
 						emit_instruction(Wasm_I32_Add{}, buf)
 						wt : base.IR_Wasm_Type = .I32
-						if j < len(payload_wasm_types) {
-							wt = payload_wasm_types[j]
+						if j < len(p.payload_wasm_types) {
+							wt = p.payload_wasm_types[j]
 						}
 						emit_load_for_type(wt, buf)
 						if local_idx, ok := env.local_map[payload_name]; ok {
@@ -1415,54 +1404,6 @@ emit_load_for_type :: proc(wasm_type: base.IR_Wasm_Type, buf: ^[dynamic]u8) {
 	case .F64: emit_instruction(Wasm_F64_Load{align = 3, offset = 0}, buf)
 	case: emit_instruction(Wasm_I32_Load{align = 2, offset = 0}, buf)
 	}
-}
-
-ir_expr_type_id :: proc(expr: ir.IR_Expr) -> base.Type_Var_ID {
-	if expr == nil do return base.Type_Var_ID(0)
-	#partial switch e in expr {
-	case ^ir.IR_Literal_Int: return e.type.type_id
-	case ^ir.IR_Literal_Float: return e.type.type_id
-	case ^ir.IR_Literal_Bool: return e.type.type_id
-	case ^ir.IR_Literal_String: return e.type.type_id
-	case ^ir.IR_Var: return e.type.type_id
-	case ^ir.IR_Let: return e.type.type_id
-	case ^ir.IR_Assign: return e.type.type_id
-	case ^ir.IR_Loop: return e.type.type_id
-	case ^ir.IR_Call: return e.type.type_id
-	case ^ir.IR_If: return e.type.type_id
-	case ^ir.IR_Match: return e.type.type_id
-	case ^ir.IR_Field_Access: return e.type.type_id
-	case ^ir.IR_BinOp: return e.type.type_id
-	case ^ir.IR_Closure_Call: return e.type.type_id
-	case ^ir.IR_Resume: return e.type.type_id
-	case:
-		return base.Type_Var_ID(0)
-	}
-	return base.Type_Var_ID(0)
-}
-
-resolve_tag_payload_wasm_types :: proc(store: ^semantics.Type_Store, scrutinee_type_id: base.Type_Var_ID, tag_name: base.Intern_ID) -> []base.IR_Wasm_Type {
-	resolved := semantics.resolve_var(store, scrutinee_type_id)
-	v := semantics.get_var(store, resolved)
-	inf, is_inf := v.link.(semantics.Inferred_Type)
-	if !is_inf {
-		return nil
-	}
-	if inf.tag == .Newtype {
-		return resolve_tag_payload_wasm_types(store, inf.inner_id, tag_name)
-	}
-	if inf.tag == .Tag_Union_Row {
-		for entry in inf.tag_entries {
-			if entry.name == tag_name {
-				types := make([]base.IR_Wasm_Type, len(entry.payload))
-				for i in 0..<len(entry.payload) {
-					types[i] = semantics.lower_type(store, entry.payload[i]).wasm_type
-				}
-				return types
-			}
-		}
-	}
-	return nil
 }
 
 emit_handler_into_evidence :: proc(buf: ^[dynamic]u8, env: ^Codegen_Env, ev_local_idx: int, slot_offset: int, fn_idx: int, runtime_indices: []int) {

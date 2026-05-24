@@ -2,7 +2,6 @@ package codegen
 
 import "camp:base"
 import "camp:ir"
-import "camp:semantics"
 
 WASI_MODULE :: "wasi_snapshot_preview1"
 
@@ -71,7 +70,6 @@ Codegen_Env :: struct {
 	console_id:     base.Intern_ID,
 	time_id:        base.Intern_ID,
 	decl_to_wasm_fn_idx: map[int]int,
-	store:          ^semantics.Type_Store,
 	string_offsets: map[base.Intern_ID]u32,
 }
 
@@ -180,7 +178,7 @@ emit_runtime_types :: proc(env: ^Codegen_Env) {
 	get_or_create_type(env, []Wasm_Value_Type{.I32, .I32}, []Wasm_Value_Type{.I32})
 }
 
-codegen :: proc(ir_mod: ir.IR_Module, interner: ^base.Intern_Table, type_store: ^semantics.Type_Store, thread_count: int) -> Wasm_Module {
+codegen :: proc(ir_mod: ir.IR_Module, interner: ^base.Intern_Table, thread_count: int) -> Wasm_Module {
 	mod: Wasm_Module
 	mod.types = make([dynamic]Wasm_Func_Type, 0, 64)
 	mod.imports = make([dynamic]Wasm_Import, 0, 16)
@@ -206,7 +204,6 @@ codegen :: proc(ir_mod: ir.IR_Module, interner: ^base.Intern_Table, type_store: 
 	env.locals = make([dynamic]Wasm_Local_Decl, 0, 32)
 	env.local_map = make(map[base.Intern_ID]u32, 32)
 	env.local_types = make(map[base.Intern_ID]base.IR_Type, 32)
-	env.store = type_store
 	env.string_offsets = make(map[base.Intern_ID]u32, 16)
 	env.table_idx = -1
 	env.func_type_indices = make([dynamic]u32, 0, 64)
@@ -569,7 +566,7 @@ codegen :: proc(ir_mod: ir.IR_Module, interner: ^base.Intern_Table, type_store: 
 
 			collected_locals: map[base.Intern_ID]base.IR_Type
 			collected_locals = make(map[base.Intern_ID]base.IR_Type, 32)
-			collect_locals(d.body, &collected_locals, env.store)
+			collect_locals(d.body, &collected_locals)
 
 			local_groups: map[Wasm_Value_Type][dynamic]base.Intern_ID
 			local_groups = make(map[Wasm_Value_Type][dynamic]base.Intern_ID, 8)
@@ -852,7 +849,7 @@ codegen :: proc(ir_mod: ir.IR_Module, interner: ^base.Intern_Table, type_store: 
 
 			collected_locals: map[base.Intern_ID]base.IR_Type
 			collected_locals = make(map[base.Intern_ID]base.IR_Type, 32)
-			collect_locals(main_body, &collected_locals, env.store)
+			collect_locals(main_body, &collected_locals)
 			for name, typ in collected_locals {
 				env.local_map[name] = env.next_local
 				env.local_types[name] = typ
