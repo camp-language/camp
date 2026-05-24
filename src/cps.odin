@@ -81,6 +81,7 @@ cps_transform_decl :: proc(decl: IR_Decl, env: ^CPS_Env) -> IR_Decl {
 
 		k_name := fresh_id(&env.fresh_state, "_k")
 		append(&new_fn.params, IR_Param{name = k_name, type = IR_Type{.I32, Type_Var_ID(0)}})
+		new_fn.return_type = IR_Type{.Void, Type_Var_ID(0)}
 
 		transformed_body := cps_transform_expr(d.body, k_name, env)
 
@@ -97,7 +98,7 @@ cps_transform_decl :: proc(decl: IR_Decl, env: ^CPS_Env) -> IR_Decl {
 		cc^ = IR_Closure_Call{
 			callee = IR_Expr(k_var),
 			args = k_args,
-			type = d.return_type,
+			type = IR_Type{.Void, Type_Var_ID(0)},
 			span = d.span,
 		}
 

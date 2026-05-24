@@ -518,8 +518,7 @@ codegen :: proc(ir_mod: IR_Module, ctx: ^Compilation_Context) -> Wasm_Module {
 	cont_func_idx := -1
 	main_ret_type := get_main_return_type(ir_mod, &ctx.interner)
 	if main_fn_idx >= 0 && main_decl != nil && main_decl.is_effectful && len(main_decl.effects) > 0 {
-		cont_ret_types := []Wasm_Value_Type{ir_wasm_type_to_value_type(main_ret_type)}
-		cont_type_idx := get_or_create_type(&env, []Wasm_Value_Type{.I32, .I64}, cont_ret_types)
+		cont_type_idx := get_or_create_type(&env, []Wasm_Value_Type{.I32, .I64}, []Wasm_Value_Type{})
 		cont_func_idx = add_function(&env, cont_type_idx)
 
 		for len(env.func_type_indices) <= cont_func_idx {
@@ -644,6 +643,9 @@ codegen :: proc(ir_mod: IR_Module, ctx: ^Compilation_Context) -> Wasm_Module {
 		delete(elem_func_indices)
 	}
 
+	deferred_handler_codes: [dynamic]Wasm_Code
+	deferred_handler_codes = make([dynamic]Wasm_Code, 0, 8)
+
 	if start_func_idx >= 0 && main_decl != nil {
 		env.next_local = 4
 		env.tmp_local_base = 0
@@ -715,10 +717,12 @@ codegen :: proc(ir_mod: IR_Module, ctx: ^Compilation_Context) -> Wasm_Module {
 							for op_idx in 0..<len(eff_def.operations) {
 								op_name := intern_get(&ctx.interner, eff_def.operations[op_idx].name)
 								if op_name == "println!" {
-									println_handler_idx := emit_console_println_handler_fn(&env, &mod, cont_func_idx)
+									println_handler_idx, println_code := emit_console_println_handler_fn(&env, cont_func_idx)
+									append(&deferred_handler_codes, println_code)
 									emit_handler_into_evidence(&code_buf, &env, ev_local_idx, slot_offset, println_handler_idx, runtime_func_indices[:])
 								} else if op_name == "readln!" {
-									readln_handler_idx := emit_console_readln_handler_fn(&env, &mod)
+									readln_handler_idx, readln_code := emit_console_readln_handler_fn(&env)
+									append(&deferred_handler_codes, readln_code)
 									emit_handler_into_evidence(&code_buf, &env, ev_local_idx, slot_offset, readln_handler_idx, runtime_func_indices[:])
 								}
 								slot_offset += 4
@@ -733,7 +737,8 @@ codegen :: proc(ir_mod: IR_Module, ctx: ^Compilation_Context) -> Wasm_Module {
 							for op_idx in 0..<len(eff_def.operations) {
 								op_name := intern_get(&ctx.interner, eff_def.operations[op_idx].name)
 								if op_name == "throw!" {
-									throw_handler_idx := emit_throw_handler_fn(&env, &mod, runtime_func_indices[:])
+									throw_handler_idx, throw_code := emit_throw_handler_fn(&env, runtime_func_indices[:])
+									append(&deferred_handler_codes, throw_code)
 									emit_handler_into_evidence(&code_buf, &env, ev_local_idx, slot_offset, throw_handler_idx, runtime_func_indices[:])
 								}
 								slot_offset += 4
@@ -747,7 +752,8 @@ codegen :: proc(ir_mod: IR_Module, ctx: ^Compilation_Context) -> Wasm_Module {
 					for eff_def in ir_mod.effect_defs {
 						if eff_def.name == eff {
 							for op_idx in 0..<len(eff_def.operations) {
-								handler_idx := emit_unhandled_effect_handler_fn(&env, &mod, eff_name, runtime_func_indices[:])
+								handler_idx, handler_code := emit_unhandled_effect_handler_fn(&env, eff_name, runtime_func_indices[:])
+								append(&deferred_handler_codes, handler_code)
 								emit_handler_into_evidence(&code_buf, &env, ev_local_idx, slot_offset, handler_idx, runtime_func_indices[:])
 								slot_offset += 4
 							}
@@ -883,7 +889,7 @@ codegen :: proc(ir_mod: IR_Module, ctx: ^Compilation_Context) -> Wasm_Module {
 			emit_instruction(Wasm_End{}, &worker_buf)
 
 			worker_locals := make([]Wasm_Local_Decl, 0)
-			append(&mod.codes, Wasm_Code{locals = worker_locals, body = copy_dynamic_bytes(worker_buf)})
+			append(&deferred_handler_codes, Wasm_Code{locals = worker_locals, body = copy_dynamic_bytes(worker_buf)})
 			delete(worker_buf)
 
 			append(&mod.exports, Wasm_Export{name = "camp_worker_entry", kind = .Func, index = worker_entry_func_idx})
@@ -916,6 +922,13 @@ codegen :: proc(ir_mod: IR_Module, ctx: ^Compilation_Context) -> Wasm_Module {
 
 		append(&mod.exports, Wasm_Export{name = "camp_worker_entry", kind = .Func, index = worker_func_idx})
 	}
+
+	// Append deferred handler code bodies after _start and worker,
+	// preserving the invariant that codes[k] maps to function index import_count + k
+	for code in deferred_handler_codes {
+		append(&mod.codes, code)
+	}
+	delete(deferred_handler_codes)
 
 	env.data_offset = 0
 	for entry in ir_mod.string_table {
@@ -2168,8 +2181,13 @@ emit_expr :: proc(expr: IR_Expr, buf: ^[dynamic]u8, env: ^Codegen_Env, runtime_i
 		for idx := 0; idx < len(e.args); idx += 1 {
 			closure_params[idx + 1] = ir_wasm_type_to_value_type(ir_expr_wasm_type(e.args[idx]))
 		}
-		closure_results := make([]Wasm_Value_Type, 1)
-		closure_results[0] = ir_wasm_type_to_value_type(e.type.wasm_type)
+		closure_results: []Wasm_Value_Type
+		if e.type.wasm_type != .Void {
+			closure_results = make([]Wasm_Value_Type, 1)
+			closure_results[0] = ir_wasm_type_to_value_type(e.type.wasm_type)
+		} else {
+			closure_results = make([]Wasm_Value_Type, 0)
+		}
 		closure_type_idx := get_or_create_type(env, closure_params, closure_results)
 		delete(closure_params)
 		delete(closure_results)
@@ -2478,7 +2496,7 @@ emit_handler_into_evidence :: proc(buf: ^[dynamic]u8, env: ^Codegen_Env, ev_loca
 	emit_store_for_type(.I32, buf)                           // store closure_ptr at [ev_ptr + slot_offset]
 }
 
-emit_throw_handler_fn :: proc(env: ^Codegen_Env, mod: ^Wasm_Module, runtime_indices: []int) -> int {
+emit_throw_handler_fn :: proc(env: ^Codegen_Env, runtime_indices: []int) -> (int, Wasm_Code) {
 	// Handler type: (i32=env, i32=err_arg, i32=resume, i32=ev) -> i64
 	handler_type_idx := get_or_create_type(env, []Wasm_Value_Type{.I32, .I32, .I32, .I32}, []Wasm_Value_Type{.I64})
 	handler_fn_idx := add_function(env, handler_type_idx)
@@ -2498,13 +2516,13 @@ emit_throw_handler_fn :: proc(env: ^Codegen_Env, mod: ^Wasm_Module, runtime_indi
 	emit_instruction(Wasm_End{}, &buf)
 
 	locals := make([]Wasm_Local_Decl, 0)
-	append(&mod.codes, Wasm_Code{locals = locals, body = copy_dynamic_bytes(buf)})
+	code := Wasm_Code{locals = locals, body = copy_dynamic_bytes(buf)}
 	delete(buf)
 
-	return handler_fn_idx
+	return handler_fn_idx, code
 }
 
-emit_console_println_handler_fn :: proc(env: ^Codegen_Env, mod: ^Wasm_Module, cont_fn_idx: int) -> int {
+emit_console_println_handler_fn :: proc(env: ^Codegen_Env, cont_fn_idx: int) -> (int, Wasm_Code) {
 	// Handler type: (i32=env, i32=str_arg, i32=resume, i32=ev) -> i64
 	handler_type_idx := get_or_create_type(env, []Wasm_Value_Type{.I32, .I32, .I32, .I32}, []Wasm_Value_Type{.I64})
 	handler_fn_idx := add_function(env, handler_type_idx)
@@ -2525,13 +2543,13 @@ emit_console_println_handler_fn :: proc(env: ^Codegen_Env, mod: ^Wasm_Module, co
 	emit_instruction(Wasm_End{}, &buf)
 
 	locals := make([]Wasm_Local_Decl, 0)
-	append(&mod.codes, Wasm_Code{locals = locals, body = copy_dynamic_bytes(buf)})
+	code := Wasm_Code{locals = locals, body = copy_dynamic_bytes(buf)}
 	delete(buf)
 
-	return handler_fn_idx
+	return handler_fn_idx, code
 }
 
-emit_console_readln_handler_fn :: proc(env: ^Codegen_Env, mod: ^Wasm_Module) -> int {
+emit_console_readln_handler_fn :: proc(env: ^Codegen_Env) -> (int, Wasm_Code) {
 	// Handler type: (i32=env, i32=resume, i32=ev) -> i32 (Str)
 	handler_type_idx := get_or_create_type(env, []Wasm_Value_Type{.I32, .I32, .I32}, []Wasm_Value_Type{.I32})
 	handler_fn_idx := add_function(env, handler_type_idx)
@@ -2549,13 +2567,13 @@ emit_console_readln_handler_fn :: proc(env: ^Codegen_Env, mod: ^Wasm_Module) -> 
 	emit_instruction(Wasm_End{}, &buf)
 
 	locals := make([]Wasm_Local_Decl, 0)
-	append(&mod.codes, Wasm_Code{locals = locals, body = copy_dynamic_bytes(buf)})
+	code := Wasm_Code{locals = locals, body = copy_dynamic_bytes(buf)}
 	delete(buf)
 
-	return handler_fn_idx
+	return handler_fn_idx, code
 }
 
-emit_unhandled_effect_handler_fn :: proc(env: ^Codegen_Env, mod: ^Wasm_Module, eff_name: string, runtime_indices: []int) -> int {
+emit_unhandled_effect_handler_fn :: proc(env: ^Codegen_Env, eff_name: string, runtime_indices: []int) -> (int, Wasm_Code) {
 	// Generic handler for unhandled effects: exit(1)
 	// Handler type: (i32=env, i32..=op_args, i32=resume, i32=ev) -> i64
 	handler_type_idx := get_or_create_type(env, []Wasm_Value_Type{.I32, .I32, .I32, .I32}, []Wasm_Value_Type{.I64})
@@ -2576,10 +2594,10 @@ emit_unhandled_effect_handler_fn :: proc(env: ^Codegen_Env, mod: ^Wasm_Module, e
 	emit_instruction(Wasm_End{}, &buf)
 
 	locals := make([]Wasm_Local_Decl, 0)
-	append(&mod.codes, Wasm_Code{locals = locals, body = copy_dynamic_bytes(buf)})
+	code := Wasm_Code{locals = locals, body = copy_dynamic_bytes(buf)}
 	delete(buf)
 
-	return handler_fn_idx
+	return handler_fn_idx, code
 }
 
 hash_string :: proc(s: string) -> int {
