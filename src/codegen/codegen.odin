@@ -12,6 +12,8 @@ CAMP_TAG_TAG_OFFSET :: 4
 CAMP_TAG_SCAN_SIZE_OFFSET :: 5
 CAMP_TAG_FIELDS_OFFSET :: 8
 
+CAMP_EXIT_MASK :: 127
+
 Match_Kind :: enum {
 	Tag_Union,
 	Bool,
@@ -59,10 +61,6 @@ Codegen_Env :: struct {
 	decl_to_wasm_fn_idx: map[int]int,
 	store:          ^semantics.Type_Store,
 	string_offsets: map[base.Intern_ID]u32,
-}
-
-cg_is_scheduler_effect :: proc(effect: base.Canonical_Name, env: ^Codegen_Env) -> bool {
-	return ir.is_scheduler_effect_by_ids(effect.name, env.async_id, env.spawn_id, env.parallel_id, env.file_id, env.console_id, env.time_id)
 }
 
 
@@ -667,7 +665,7 @@ codegen :: proc(ir_mod: ir.IR_Module, interner: ^base.Intern_Table, type_store: 
 			cont_body_buf = make([dynamic]u8, 0, 32)
 			emit_instruction(Wasm_Local_Get{index = 1}, &cont_body_buf)  // result (i64)
 			emit_instruction(Wasm_I32_Wrap_I64{}, &cont_body_buf)         // to i32
-			emit_instruction(Wasm_I32_Const{value = 127}, &cont_body_buf)
+			emit_instruction(Wasm_I32_Const{value = CAMP_EXIT_MASK}, &cont_body_buf)
 			emit_instruction(Wasm_I32_And{}, &cont_body_buf)              // result & 127
 			emit_instruction(Wasm_Call{index = u32(runtime_func_indices[RUNTIME_EXIT])}, &cont_body_buf)
 			emit_instruction(Wasm_Unreachable{}, &cont_body_buf)          // camp_exit doesn't return
@@ -854,7 +852,7 @@ codegen :: proc(ir_mod: ir.IR_Module, interner: ^base.Intern_Table, type_store: 
 			main_ret_type := get_main_return_type(ir_mod, interner)
 			if main_ret_type == .I64 {
 				emit_instruction(Wasm_I32_Wrap_I64{}, &code_buf)
-				emit_instruction(Wasm_I32_Const{value = 127}, &code_buf)
+				emit_instruction(Wasm_I32_Const{value = CAMP_EXIT_MASK}, &code_buf)
 				emit_instruction(Wasm_I32_And{}, &code_buf)
 			}
 
@@ -1787,7 +1785,7 @@ emit_expr :: proc(expr: ir.IR_Expr, buf: ^[dynamic]u8, env: ^Codegen_Env, runtim
 		emit_instruction(Wasm_Call{index = u32(runtime_indices[RUNTIME_EXIT])}, buf)
 		emit_instruction(Wasm_Unreachable{}, buf)
 	case ^ir.IR_Handle:
-		if cg_is_scheduler_effect(e.effect, env) {
+		if ir.is_scheduler_effect_by_ids(e.effect.name, env.async_id, env.spawn_id, env.parallel_id, env.file_id, env.console_id, env.time_id) {
 			// Allocate scope_id for structured concurrency cleanup
 			scope_id := env.next_scope_id
 			env.next_scope_id += 1
@@ -1860,7 +1858,7 @@ emit_expr :: proc(expr: ir.IR_Expr, buf: ^[dynamic]u8, env: ^Codegen_Env, runtim
 			emit_expr(e.body, buf, env, runtime_indices)
 		}
 	case ^ir.IR_Perform:
-		if cg_is_scheduler_effect(e.effect, env) {
+		if ir.is_scheduler_effect_by_ids(e.effect.name, env.async_id, env.spawn_id, env.parallel_id, env.file_id, env.console_id, env.time_id) {
 			effect_str := base.intern_get(env.interner, e.effect.name)
 			op_str := base.intern_get(env.interner, e.op)
 

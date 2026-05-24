@@ -5,7 +5,6 @@ import "camp:base"
 import "camp:diagnostics"
 import "camp:semantics"
 import "camp:mono"
-import "camp:frontend"
 import "camp:build"
 
 @(test)

@@ -18,10 +18,6 @@ import "core:time"
 
 run_command_counter: int
 
-old_allocator_save :: proc() -> mem.Allocator {
-	return context.allocator
-}
-
 run_build_single :: proc(file_path: string, thread_count: int = 1) {
 	ctx: Compilation_Context
 	context_init(&ctx)

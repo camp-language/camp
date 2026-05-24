@@ -133,7 +133,7 @@ run_build_project :: proc(thread_count: int = 1) {
 
 		context.allocator = ctx.allocator
 		semantics.typecheck_file(mi.cfile^, &store, mod_id)
-		context.allocator = old_allocator_save()
+		context.allocator = context.allocator
 
 		if diagnostics.diag_collector_has_errors(&ctx.collector) {
 			diagnostics.render_all(&ctx.collector, mi.path, mi.source)
@@ -192,12 +192,12 @@ run_build_project :: proc(thread_count: int = 1) {
 	combined_ir = ir.closure_convert(&combined_ir, &ctx.interner)
 	combined_ir = ir.cps_transform(&combined_ir, &ctx.interner)
 	ir.rc_insert(&combined_ir, &ctx.interner)
-	context.allocator = old_allocator_save()
+	context.allocator = context.allocator
 
 	context.allocator = ctx.allocator
 	wasm_mod := codegen.codegen(combined_ir, &ctx.interner, ctx.type_store, ctx.thread_count)
 	wasm_bytes := codegen.wasm_serialize(wasm_mod)
-	context.allocator = old_allocator_save()
+	context.allocator = context.allocator
 
 	output_path := "a.wasm"
 	write_err := os.write_entire_file_from_bytes(output_path, wasm_bytes)
@@ -218,7 +218,7 @@ parse_and_canonicalize :: proc(mi: ^Module_Info, ctx: ^Compilation_Context) {
 	parser: frontend.Parser
 	frontend.parser_init(&parser, &lexer, &ctx.collector, &ctx.interner)
 	ast_file := frontend.parser_parse_file(&parser)
-	context.allocator = old_allocator_save()
+	context.allocator = context.allocator
 
 	if diagnostics.diag_collector_has_errors(&ctx.collector) {
 		diagnostics.render_all(&ctx.collector, mi.path, mi.source)
@@ -227,7 +227,7 @@ parse_and_canonicalize :: proc(mi: ^Module_Info, ctx: ^Compilation_Context) {
 
 	context.allocator = ctx.allocator
 	canon := semantics.canonicalize(ast_file, &ctx.interner, &ctx.collector)
-	context.allocator = old_allocator_save()
+	context.allocator = context.allocator
 
 	cfile_ptr := new(semantics.CFile)
 	cfile_ptr^ = canon
@@ -236,7 +236,7 @@ parse_and_canonicalize :: proc(mi: ^Module_Info, ctx: ^Compilation_Context) {
 
 	context.allocator = ctx.allocator
 	cache_write_manifest(mi, &ctx.interner)
-	context.allocator = old_allocator_save()
+	context.allocator = context.allocator
 }
 
 combine_module_irs :: proc(sorted: []base.Intern_ID, project: ^Project_Discovery, ctx: ^Compilation_Context) -> ir.IR_Module {
