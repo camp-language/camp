@@ -315,6 +315,32 @@ lower_texpr :: proc(expr: TExpr, env: ^Lower_Env) -> IR_Expr {
 			span     = e.span,
 		}
 		return IR_Expr(loop)
+
+	case ^TExpr_Par:
+		if e.for_var != 0 {
+			iterable := lower_texpr(e.for_iter, env)
+			body := lower_texpr(e.for_body, env)
+			loop := new(IR_Loop)
+			loop^ = IR_Loop{
+				var      = e.for_var,
+				iterable = iterable,
+				body     = body,
+				type     = e.type_,
+				span     = e.span,
+			}
+			return IR_Expr(loop)
+		}
+		stmts := make([dynamic]IR_Expr, 0, len(e.expressions))
+		for expr in e.expressions {
+			append(&stmts, lower_texpr(expr, env))
+		}
+		block := new(IR_Block)
+		block^ = IR_Block{
+			statements = stmts,
+			type        = e.type_,
+			span        = e.span,
+		}
+		return IR_Expr(block)
 	}
 
 	return make_ir_lit_int(0, IR_Type{.I64, Type_Var_ID(-1)}, Source_Span_ZERO)

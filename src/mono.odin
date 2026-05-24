@@ -544,6 +544,21 @@ substitute_types_in_expr :: proc(expr: TExpr, type_args: map[Intern_ID]Type_Var_
 		result.eff_ = substitute_ir_type(e.eff_, type_args, env)
 		result.span = e.span
 		return TExpr(result)
+
+	case ^TExpr_Par:
+		result := new(TExpr_Par)
+		result.for_var = e.for_var
+		result.for_iter = substitute_types_in_expr(e.for_iter, type_args, env)
+		result.for_body = substitute_types_in_expr(e.for_body, type_args, env)
+		result.type_ = substitute_ir_type(e.type_, type_args, env)
+		result.eff_ = substitute_ir_type(e.eff_, type_args, env)
+		result.span = e.span
+		exprs := make([dynamic]TExpr, 0, len(e.expressions))
+		for expr in e.expressions {
+			append(&exprs, substitute_types_in_expr(expr, type_args, env))
+		}
+		result.expressions = exprs
+		return TExpr(result)
 	}
 	return expr
 }
@@ -631,6 +646,8 @@ get_expr_ir_type :: proc(expr: TExpr) -> IR_Type {
 	case ^TExpr_Perform:
 		return e.type_
 	case ^TExpr_For:
+		return e.type_
+	case ^TExpr_Par:
 		return e.type_
 	}
 	return IR_Type{}
@@ -802,7 +819,7 @@ walk_expr_for_call_sites :: proc(expr: TExpr, env: ^Mono_Env) {
 		}
 	case ^TExpr_Int, ^TExpr_Float, ^TExpr_String, ^TExpr_Bool,
 		^TExpr_Tag, ^TExpr_Record, ^TExpr_List, ^TExpr_Name,
-		^TExpr_For:
+		^TExpr_For, ^TExpr_Par:
 	}
 }
 
@@ -926,7 +943,7 @@ rewrite_calls_in_expr :: proc(expr: TExpr, specializations: map[string]Canonical
 		}
 	case ^TExpr_Int, ^TExpr_Float, ^TExpr_String, ^TExpr_Bool,
 		^TExpr_Tag, ^TExpr_Record, ^TExpr_List, ^TExpr_Name,
-		^TExpr_For:
+		^TExpr_For, ^TExpr_Par:
 	}
 	return expr
 }

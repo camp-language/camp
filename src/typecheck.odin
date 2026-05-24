@@ -829,10 +829,45 @@ typecheck_synth :: proc(expr: CExpr, env: ^Type_Env, store: ^Type_Store) -> Synt
 		return Synth_Result{var_id = var_id, effects = effects, texpr = TExpr(t)}
 
 	case ^CExpr_Par:
-		var_id := fresh_value_var(store, e.span)
 		eff := fresh_effect_row(store, e.span)
-		t := new(TExpr_Int)
-		t^ = TExpr_Int{type_ = tc_ir_type(store, var_id), eff_ = tc_eff_type(store, eff), span = e.span}
+		var_id := fresh_value_var(store, e.span)
+
+		if e.for_var != 0 {
+			iter_result := typecheck_synth(e.for_iter, env, store)
+			unify(store, eff, iter_result.effects)
+			element_var := fresh_value_var(store, e.span)
+			check_shadow(env, e.for_var, store, e.span)
+			env.bindings[e.for_var] = element_var
+			body_result := typecheck_synth(e.for_body, env, store)
+			unify(store, eff, body_result.effects)
+			t := new(TExpr_Par)
+			t^ = TExpr_Par{
+				for_var = e.for_var,
+				for_iter = iter_result.texpr,
+				for_body = body_result.texpr,
+				type_ = tc_ir_type(store, var_id),
+				eff_ = tc_eff_type(store, eff),
+				span = e.span,
+			}
+			return Synth_Result{var_id = var_id, effects = eff, texpr = TExpr(t)}
+		}
+
+		exprs := make([dynamic]TExpr, 0, len(e.expressions))
+		last_var_id: Type_Var_ID = var_id
+		for expr in e.expressions {
+			result := typecheck_synth(expr, env, store)
+			unify(store, eff, result.effects)
+			append(&exprs, result.texpr)
+			last_var_id = result.var_id
+		}
+		unify(store, var_id, last_var_id)
+		t := new(TExpr_Par)
+		t^ = TExpr_Par{
+			expressions = exprs,
+			type_ = tc_ir_type(store, var_id),
+			eff_ = tc_eff_type(store, eff),
+			span = e.span,
+		}
 		return Synth_Result{var_id = var_id, effects = eff, texpr = TExpr(t)}
 
 	case ^CExpr_For:
