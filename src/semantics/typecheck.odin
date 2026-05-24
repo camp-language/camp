@@ -273,7 +273,7 @@ typecheck_decl :: proc(decl: CDecl, env: ^Type_Env, store: ^Type_Store) -> TDecl
 		op_sigs := make([dynamic]Effect_Op_Sig, 0, len(d.operations))
 		ops_t := make([dynamic]TEffect_Op, len(d.operations))
 		for op, i in d.operations {
-			param_types := make([]base.Type_Var_ID, len(op.params))
+			param_types := make([]base.Type_Var_ID, len(op.params), store.allocator)
 			params_t := make([dynamic]TFunc_Param, len(op.params))
 			for p, j in op.params {
 				if p.type_ann != nil {
@@ -314,7 +314,7 @@ typecheck_decl :: proc(decl: CDecl, env: ^Type_Env, store: ^Type_Store) -> TDecl
 
 		tp_t := make([dynamic]frontend.Type_Param, len(d.type_params))
 		for tp, i in d.type_params {
-			constraints := make([dynamic]base.Intern_ID, len(tp.constraints))
+			constraints := make([dynamic]base.Intern_ID, len(tp.constraints), store.allocator)
 			for c, j in tp.constraints {
 				constraints[j] = c
 			}
@@ -470,7 +470,7 @@ typecheck_newtype_decl :: proc(d: ^CDecl_Newtype, env: ^Type_Env, store: ^Type_S
 		}
 	}
 
-	param_ids_slice := make([]base.Intern_ID, len(d.type_params))
+	param_ids_slice := make([]base.Intern_ID, len(d.type_params), store.allocator)
 	for i in 0..<len(d.type_params) {
 		param_ids_slice[i] = d.type_params[i]
 	}
@@ -496,7 +496,7 @@ typecheck_newtype_decl :: proc(d: ^CDecl_Newtype, env: ^Type_Env, store: ^Type_S
 	env.bindings[d.name.name] = nt_var
 	store.bindings[d.name.name] = nt_var
 
-	owned_tags_slice := make([]base.Intern_ID, len(owned_tags))
+	owned_tags_slice := make([]base.Intern_ID, len(owned_tags), store.allocator)
 	for i in 0..<len(owned_tags) {
 		owned_tags_slice[i] = owned_tags[i]
 	}

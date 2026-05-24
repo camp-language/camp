@@ -20,8 +20,16 @@ handle_definition :: proc(server: ^LSP_Server, id: int, params: json.Value) {
 		send_error(server, id, int(JSON_RPC_Error_Code.InvalidParams), "missing position")
 		return
 	}
-	line, _ := json_get_int(position, "line")
-	character, _ := json_get_int(position, "character")
+	line, line_ok := json_get_int(position, "line")
+	if !line_ok {
+		send_error(server, id, int(JSON_RPC_Error_Code.InvalidParams), "missing line")
+		return
+	}
+	character, char_ok := json_get_int(position, "character")
+	if !char_ok {
+		send_error(server, id, int(JSON_RPC_Error_Code.InvalidParams), "missing character")
+		return
+	}
 
 	doc := store_get(&server.doc_store, uri)
 	if doc == nil {
@@ -29,7 +37,7 @@ handle_definition :: proc(server: ^LSP_Server, id: int, params: json.Value) {
 		return
 	}
 
-	offset := position_to_offset(doc.text, int(line), int(character))
+	offset := position_to_offset(doc.text, line, character)
 	if offset < 0 {
 		send_result(server, id, json.Null{})
 		return
@@ -72,8 +80,16 @@ handle_hover :: proc(server: ^LSP_Server, id: int, params: json.Value) {
 		send_error(server, id, int(JSON_RPC_Error_Code.InvalidParams), "missing position")
 		return
 	}
-	line, _ := json_get_int(position, "line")
-	character, _ := json_get_int(position, "character")
+	line, line_ok := json_get_int(position, "line")
+	if !line_ok {
+		send_error(server, id, int(JSON_RPC_Error_Code.InvalidParams), "missing line")
+		return
+	}
+	character, char_ok := json_get_int(position, "character")
+	if !char_ok {
+		send_error(server, id, int(JSON_RPC_Error_Code.InvalidParams), "missing character")
+		return
+	}
 
 	doc := store_get(&server.doc_store, uri)
 	if doc == nil {
@@ -81,7 +97,7 @@ handle_hover :: proc(server: ^LSP_Server, id: int, params: json.Value) {
 		return
 	}
 
-	offset := position_to_offset(doc.text, int(line), int(character))
+	offset := position_to_offset(doc.text, line, character)
 	if offset < 0 {
 		send_result(server, id, json.Null{})
 		return

@@ -14,6 +14,9 @@ import "core:os"
 run_build_project :: proc(thread_count: int = 1) {
 	ctx: Compilation_Context
 	context_init(&ctx)
+	old_allocator := context.allocator
+	context.allocator = ctx.allocator
+	defer context.allocator = old_allocator
 	ctx.thread_count = thread_count
 	defer context_destroy(&ctx)
 
@@ -131,9 +134,7 @@ run_build_project :: proc(thread_count: int = 1) {
 			}
 		}
 
-		context.allocator = ctx.allocator
 		semantics.typecheck_file(mi.cfile^, &store, mod_id)
-		context.allocator = context.allocator
 
 		if diagnostics.diag_collector_has_errors(&ctx.collector) {
 			diagnostics.render_all(&ctx.collector, mi.path, mi.source)
@@ -185,19 +186,15 @@ run_build_project :: proc(thread_count: int = 1) {
 		os.exit(1)
 	}
 
-	context.allocator = ctx.allocator
 	ctx.type_store = &ctx.module_stores[project.entry_point]
 	combined_ir := combine_module_irs(sorted, &project, &ctx)
 	combined_ir = ir.effect_lower(&combined_ir, &ctx.interner, &ctx.collector, ctx.type_store)
 	combined_ir = ir.closure_convert(&combined_ir, &ctx.interner)
 	combined_ir = ir.cps_transform(&combined_ir, &ctx.interner)
 	ir.rc_insert(&combined_ir, &ctx.interner)
-	context.allocator = context.allocator
 
-	context.allocator = ctx.allocator
 	wasm_mod := codegen.codegen(combined_ir, &ctx.interner, ctx.thread_count)
 	wasm_bytes := codegen.wasm_serialize(wasm_mod)
-	context.allocator = context.allocator
 
 	output_path := "a.wasm"
 	write_err := os.write_entire_file_from_bytes(output_path, wasm_bytes)
@@ -210,36 +207,38 @@ run_build_project :: proc(thread_count: int = 1) {
 }
 
 parse_and_canonicalize :: proc(mi: ^Module_Info, ctx: ^Compilation_Context) {
+	old_allocator := context.allocator
+	context.allocator = ctx.allocator
+	defer context.allocator = old_allocator
+
 	source_file := base.Source_File{path = mi.path, contents = mi.source, id = 0}
 	lexer: frontend.Lexer
 	frontend.lexer_init(&lexer, source_file, &ctx.collector, &ctx.interner)
 
-	context.allocator = ctx.allocator
 	parser: frontend.Parser
 	frontend.parser_init(&parser, &lexer, &ctx.collector, &ctx.interner)
 	ast_file := frontend.parser_parse_file(&parser)
-	context.allocator = context.allocator
 
 	if diagnostics.diag_collector_has_errors(&ctx.collector) {
 		diagnostics.render_all(&ctx.collector, mi.path, mi.source)
 		os.exit(1)
 	}
 
-	context.allocator = ctx.allocator
 	canon := semantics.canonicalize(ast_file, &ctx.interner, &ctx.collector)
-	context.allocator = context.allocator
 
 	cfile_ptr := new(semantics.CFile)
 	cfile_ptr^ = canon
 	mi.cfile = cfile_ptr
 	mi.imports = canon.imports
 
-	context.allocator = ctx.allocator
 	cache_write_manifest(mi, &ctx.interner)
-	context.allocator = context.allocator
 }
 
 combine_module_irs :: proc(sorted: []base.Intern_ID, project: ^Project_Discovery, ctx: ^Compilation_Context) -> ir.IR_Module {
+	old_allocator := context.allocator
+	context.allocator = ctx.allocator
+	defer context.allocator = old_allocator
+
 	combined: ir.IR_Module
 	combined.decls = make([dynamic]ir.IR_Decl, 0, 64)
 	combined.effect_defs = make([dynamic]ir.IR_Effect_Def, 0, 16)
@@ -252,7 +251,6 @@ combine_module_irs :: proc(sorted: []base.Intern_ID, project: ^Project_Discovery
 		store, ok := ctx.module_stores[mod_id]
 		if !ok do continue
 
-		context.allocator = ctx.allocator
 		tfile := semantics.typecheck_file(mi.cfile^, &store)
 		mono_tfile := mono.mono(tfile, &store, &ctx.interner)
 		ir_mod := ir.lower_tfile(mono_tfile, &store)
