@@ -1,19 +1,142 @@
 stdout = """
-canonicalized /tmp/camp-e2e/traits/overlapping-instance/src/Main.camp: 5 declaration(s), 0 import(s)
--- SHADOWING --- /tmp/camp-e2e/traits/overlapping-instance/src/Main.camp
+-- SYNTAX ERROR --- /tmp/camp-e2e/traits/overlapping-instance/src/Main.camp
 
-`UserId` shadows a binding from an enclosing scope. All shadowing is forbidden.
+I expected `|` here, but I got `Self` instead.
+   1 | Eq : { eq: |Self, Self| -> Bool }
+                   ^^^^
+
+-- SYNTAX ERROR --- /tmp/camp-e2e/traits/overlapping-instance/src/Main.camp
+
+I expected `identifier` here, but I got `Self` instead.
+   1 | Eq : { eq: |Self, Self| -> Bool }
+                         ^^^^
+
+-- SYNTAX ERROR --- /tmp/camp-e2e/traits/overlapping-instance/src/Main.camp
+
+I expected `:` here, but I got `|` instead.
+   1 | Eq : { eq: |Self, Self| -> Bool }
+                             ^
+
+-- SYNTAX ERROR --- /tmp/camp-e2e/traits/overlapping-instance/src/Main.camp
+
+I was expecting a type here, but I found `->` instead.
+   1 | Eq : { eq: |Self, Self| -> Bool }
+                               ^^
+
+-- SYNTAX ERROR --- /tmp/camp-e2e/traits/overlapping-instance/src/Main.camp
+
+I expected `identifier` here, but I got `Bool` instead.
+   1 | Eq : { eq: |Self, Self| -> Bool }
+                                  ^^^^
+
+-- SYNTAX ERROR --- /tmp/camp-e2e/traits/overlapping-instance/src/Main.camp
+
+I expected `:` here, but I got `}` instead.
+   1 | Eq : { eq: |Self, Self| -> Bool }
+                                       ^
+
+-- SYNTAX ERROR --- /tmp/camp-e2e/traits/overlapping-instance/src/Main.camp
+
+I was expecting a type here, but I found `@` instead.
+   2 | @UserId is Eq : U64
+       ^
+
+-- SYNTAX ERROR --- /tmp/camp-e2e/traits/overlapping-instance/src/Main.camp
+
+I expected `identifier` here, but I got `UserId` instead.
+   2 | @UserId is Eq : U64
+        ^^^^^^
+
+-- SYNTAX ERROR --- /tmp/camp-e2e/traits/overlapping-instance/src/Main.camp
+
+I expected `:` here, but I got `is` instead.
+   2 | @UserId is Eq : U64
+               ^^
+
+-- SYNTAX ERROR --- /tmp/camp-e2e/traits/overlapping-instance/src/Main.camp
+
+I expected `identifier` here, but I got `:` instead.
+   2 | @UserId is Eq : U64
+                     ^
+
+-- SYNTAX ERROR --- /tmp/camp-e2e/traits/overlapping-instance/src/Main.camp
+
+I expected `:` here, but I got `U64` instead.
+   2 | @UserId is Eq : U64
+                       ^^^
+
+-- SYNTAX ERROR --- /tmp/camp-e2e/traits/overlapping-instance/src/Main.camp
+
+I expected `identifier` here, but I got `=` instead.
+   3 | UserId_eq = |x, y| True
+                 ^
+
+-- SYNTAX ERROR --- /tmp/camp-e2e/traits/overlapping-instance/src/Main.camp
+
+I expected `:` here, but I got `|` instead.
+   3 | UserId_eq = |x, y| True
+                   ^
+
+-- SYNTAX ERROR --- /tmp/camp-e2e/traits/overlapping-instance/src/Main.camp
+
+I expected `:` here, but I got `|` instead.
+   3 | UserId_eq = |x, y| True
+                        ^
+
+-- SYNTAX ERROR --- /tmp/camp-e2e/traits/overlapping-instance/src/Main.camp
+
+I expected `identifier` here, but I got `@` instead.
    4 | @UserId is Eq : U64
        ^
-  Use a different name for this binding.
 
--- OVERLAPPING INSTANCE --- /tmp/camp-e2e/traits/overlapping-instance/src/Main.camp
+-- SYNTAX ERROR --- /tmp/camp-e2e/traits/overlapping-instance/src/Main.camp
 
-`UserId` already implements `Eq` — cannot implement the same trait for the
-same type twice.
+I expected `:` here, but I got `UserId` instead.
    4 | @UserId is Eq : U64
+        ^^^^^^
+
+-- SYNTAX ERROR --- /tmp/camp-e2e/traits/overlapping-instance/src/Main.camp
+
+I was expecting a type here, but I found `is` instead.
+   4 | @UserId is Eq : U64
+               ^^
+
+-- SYNTAX ERROR --- /tmp/camp-e2e/traits/overlapping-instance/src/Main.camp
+
+I expected `identifier` here, but I got `Eq` instead.
+   4 | @UserId is Eq : U64
+                  ^^
+
+-- SYNTAX ERROR --- /tmp/camp-e2e/traits/overlapping-instance/src/Main.camp
+
+I expected `identifier` here, but I got `UserId_eq2` instead.
+   5 | UserId_eq2 = |x, y| True
+       ^^^^^^^^^^
+
+-- SYNTAX ERROR --- /tmp/camp-e2e/traits/overlapping-instance/src/Main.camp
+
+I expected `:` here, but I got `=` instead.
+   5 | UserId_eq2 = |x, y| True
+                  ^
+
+-- SYNTAX ERROR --- /tmp/camp-e2e/traits/overlapping-instance/src/Main.camp
+
+I expected `|` here, but I got `x` instead.
+   5 | UserId_eq2 = |x, y| True
+                     ^
+
+-- SYNTAX ERROR --- /tmp/camp-e2e/traits/overlapping-instance/src/Main.camp
+
+I expected `:` here, but I got `|` instead.
+   5 | UserId_eq2 = |x, y| True
+                         ^
+
+-- SYNTAX ERROR --- /tmp/camp-e2e/traits/overlapping-instance/src/Main.camp
+
+I expected `}` here, but I got `` instead.
+   6 | 
        ^
-compilation failed with 2 error(s)
+compilation failed with 23 error(s)
 """
 stderr = ""
 exit = 1

@@ -3,10 +3,10 @@ canonicalized /tmp/camp-e2e/typechecking/if-branch-mismatch/src/Main.camp: 1 dec
 -- TYPE MISMATCH --- /tmp/camp-e2e/typechecking/if-branch-mismatch/src/Main.camp
 
 `I64` does not match `Str`.
-   1 | x = if True 1 else "no"
-                   ^
-   1 | x = if True 1 else "no"
-                          ~~~~ this has type `Str`
+   1 | x = if True { 1 } else { "no" }
+                     ^
+   1 | x = if True { 1 } else { "no" }
+                                ~~~~ this has type `Str`
 compilation failed with 1 error(s)
 """
 stderr = ""

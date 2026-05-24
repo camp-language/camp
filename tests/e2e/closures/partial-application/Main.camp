@@ -1,2 +1,2 @@
 add = |a, b| -> I64 { a + b }
-inc = add(1, _)
+inc = |b| add(1, b)

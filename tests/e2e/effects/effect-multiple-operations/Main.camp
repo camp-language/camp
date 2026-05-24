@@ -1,3 +1,3 @@
-IO! : { println!: || -> (), readln!: || -> Str }
+IO! : { println!: || -[IO!]-> {}, readln!: || -[IO!]-> Str }
 
 main! = || -> I64 { 0 }

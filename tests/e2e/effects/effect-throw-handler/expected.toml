@@ -1,7 +1,160 @@
 stdout = """
-canonicalized /tmp/camp-e2e/effects/effect-throw-handler/src/Main.camp: 2 declaration(s), 0 import(s)
-typecheck passed for /tmp/camp-e2e/effects/effect-throw-handler/src/Main.camp
-compiled /tmp/camp-e2e/effects/effect-throw-handler/src/Main.camp -> /tmp/camp-e2e/effects/effect-throw-handler/src/Main.wasm
+-- SYNTAX ERROR --- /tmp/camp-e2e/effects/effect-throw-handler/src/Main.camp
+
+I expected `|` here, but I got `I64` instead.
+   1 | Throw! : { throw!: |I64| -[Throw!(I64)]-> I64 }
+                           ^^^
+
+-- SYNTAX ERROR --- /tmp/camp-e2e/effects/effect-throw-handler/src/Main.camp
+
+I expected `identifier` here, but I got `|` instead.
+   1 | Throw! : { throw!: |I64| -[Throw!(I64)]-> I64 }
+                              ^
+
+-- SYNTAX ERROR --- /tmp/camp-e2e/effects/effect-throw-handler/src/Main.camp
+
+I expected `:` here, but I got `-` instead.
+   1 | Throw! : { throw!: |I64| -[Throw!(I64)]-> I64 }
+                                ^
+
+-- SYNTAX ERROR --- /tmp/camp-e2e/effects/effect-throw-handler/src/Main.camp
+
+I expected `identifier` here, but I got `->` instead.
+   1 | Throw! : { throw!: |I64| -[Throw!(I64)]-> I64 }
+                                              ^^
+
+-- SYNTAX ERROR --- /tmp/camp-e2e/effects/effect-throw-handler/src/Main.camp
+
+I expected `:` here, but I got `I64` instead.
+   1 | Throw! : { throw!: |I64| -[Throw!(I64)]-> I64 }
+                                                 ^^^
+
+-- SYNTAX ERROR --- /tmp/camp-e2e/effects/effect-throw-handler/src/Main.camp
+
+I was expecting a type here, but I found `}` instead.
+   1 | Throw! : { throw!: |I64| -[Throw!(I64)]-> I64 }
+                                                     ^
+
+-- SYNTAX ERROR --- /tmp/camp-e2e/effects/effect-throw-handler/src/Main.camp
+
+I expected `:` here, but I got `=` instead.
+   2 | main! = || -[Throw!(I64)]-> I64 {
+             ^
+
+-- SYNTAX ERROR --- /tmp/camp-e2e/effects/effect-throw-handler/src/Main.camp
+
+I expected `identifier` here, but I got `-` instead.
+   2 | main! = || -[Throw!(I64)]-> I64 {
+                  ^
+
+-- SYNTAX ERROR --- /tmp/camp-e2e/effects/effect-throw-handler/src/Main.camp
+
+I expected `:` here, but I got `[` instead.
+   2 | main! = || -[Throw!(I64)]-> I64 {
+                   ^
+
+-- SYNTAX ERROR --- /tmp/camp-e2e/effects/effect-throw-handler/src/Main.camp
+
+I expected `identifier` here, but I got `]` instead.
+   2 | main! = || -[Throw!(I64)]-> I64 {
+                               ^
+
+-- SYNTAX ERROR --- /tmp/camp-e2e/effects/effect-throw-handler/src/Main.camp
+
+I expected `:` here, but I got `->` instead.
+   2 | main! = || -[Throw!(I64)]-> I64 {
+                                ^^
+
+-- SYNTAX ERROR --- /tmp/camp-e2e/effects/effect-throw-handler/src/Main.camp
+
+I expected `identifier` here, but I got `{` instead.
+   2 | main! = || -[Throw!(I64)]-> I64 {
+                                       ^
+
+-- SYNTAX ERROR --- /tmp/camp-e2e/effects/effect-throw-handler/src/Main.camp
+
+I expected `:` here, but I got `handle` instead.
+   3 |   handle Throw! in Throw!.throw!(0) with {
+         ^^^^^^
+
+-- SYNTAX ERROR --- /tmp/camp-e2e/effects/effect-throw-handler/src/Main.camp
+
+I expected `identifier` here, but I got `in` instead.
+   3 |   handle Throw! in Throw!.throw!(0) with {
+                       ^^
+
+-- SYNTAX ERROR --- /tmp/camp-e2e/effects/effect-throw-handler/src/Main.camp
+
+I expected `:` here, but I got `Throw!` instead.
+   3 |   handle Throw! in Throw!.throw!(0) with {
+                          ^^^^^^
+
+-- SYNTAX ERROR --- /tmp/camp-e2e/effects/effect-throw-handler/src/Main.camp
+
+I was expecting a type here, but I found `.` instead.
+   3 |   handle Throw! in Throw!.throw!(0) with {
+                                ^
+
+-- SYNTAX ERROR --- /tmp/camp-e2e/effects/effect-throw-handler/src/Main.camp
+
+I expected `:` here, but I got `(` instead.
+   3 |   handle Throw! in Throw!.throw!(0) with {
+                                       ^
+
+-- SYNTAX ERROR --- /tmp/camp-e2e/effects/effect-throw-handler/src/Main.camp
+
+I was expecting a type here, but I found `0` instead.
+   3 |   handle Throw! in Throw!.throw!(0) with {
+                                        ^
+
+-- SYNTAX ERROR --- /tmp/camp-e2e/effects/effect-throw-handler/src/Main.camp
+
+I expected `identifier` here, but I got `)` instead.
+   3 |   handle Throw! in Throw!.throw!(0) with {
+                                         ^
+
+-- SYNTAX ERROR --- /tmp/camp-e2e/effects/effect-throw-handler/src/Main.camp
+
+I expected `:` here, but I got `with` instead.
+   3 |   handle Throw! in Throw!.throw!(0) with {
+                                           ^^^^
+
+-- SYNTAX ERROR --- /tmp/camp-e2e/effects/effect-throw-handler/src/Main.camp
+
+I expected `identifier` here, but I got `.` instead.
+   4 |     .throw!(resume, _code) => 1
+           ^
+
+-- SYNTAX ERROR --- /tmp/camp-e2e/effects/effect-throw-handler/src/Main.camp
+
+I expected `:` here, but I got `throw!` instead.
+   4 |     .throw!(resume, _code) => 1
+            ^^^^^^
+
+-- SYNTAX ERROR --- /tmp/camp-e2e/effects/effect-throw-handler/src/Main.camp
+
+I expected `identifier` here, but I got `=>` instead.
+   4 |     .throw!(resume, _code) => 1
+                                  ^^
+
+-- SYNTAX ERROR --- /tmp/camp-e2e/effects/effect-throw-handler/src/Main.camp
+
+I expected `:` here, but I got `1` instead.
+   4 |     .throw!(resume, _code) => 1
+                                     ^
+
+-- SYNTAX ERROR --- /tmp/camp-e2e/effects/effect-throw-handler/src/Main.camp
+
+I was expecting a type here, but I found `}` instead.
+   5 |   }
+         ^
+
+-- SYNTAX ERROR --- /tmp/camp-e2e/effects/effect-throw-handler/src/Main.camp
+
+I expected `}` here, but I got `` instead.
+   7 | 
+       ^
+compilation failed with 26 error(s)
 """
 stderr = ""
-exit = 0
+exit = 1

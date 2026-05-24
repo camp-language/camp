@@ -1,2 +1,2 @@
-IO! : { println!: || -> () }
-result = handle IO in IO.println("hi") with { .println!(resume) => resume(()) }
+IO! : { println!: || -[IO!]-> {} }
+result = handle IO! in IO!.println!("hi") with { .println!(resume) => resume({}) }

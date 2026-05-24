@@ -1,4 +1,4 @@
-import Module.{ foo, bar }
+import Module exposing [foo, bar]
 
 main! = || -> I64 {
   foo()

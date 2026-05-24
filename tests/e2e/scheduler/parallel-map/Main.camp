@@ -1,4 +1,4 @@
-main! = || ->{Parallel!} I64 {
+main! = || -[Parallel!]-> I64 {
   handle Parallel! in {
     Parallel!.map!(|x| x, [1, 2, 3])
   } with {

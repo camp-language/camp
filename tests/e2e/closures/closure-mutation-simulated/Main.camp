@@ -1,7 +1,7 @@
 main! = || -> I64 {
     x = { val: 0 }
     f = || -> I64 {
-        x.val()
+        x.val
     }
     f()
 }

@@ -1,2 +1,2 @@
-IO! : { println!: || -> () }
-main! = || -> I64 { IO.println("hi") 0 }
+IO! : { println!: || -[IO!]-> {} }
+main! = || -> I64 { IO!.println!("hi") 0 }

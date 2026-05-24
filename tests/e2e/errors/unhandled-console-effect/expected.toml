@@ -1,12 +1,34 @@
 stdout = """
-canonicalized /tmp/camp-e2e/errors/unhandled-console-effect/src/Main.camp: 2 declaration(s), 0 import(s)
--- UNHANDLED EFFECT --- /tmp/camp-e2e/errors/unhandled-console-effect/src/Main.camp
+-- SYNTAX ERROR --- /tmp/camp-e2e/errors/unhandled-console-effect/src/Main.camp
 
-This expression performs effect `IO`, but there is no `handle` block around it.
-   2 | main! = || -> -[IO]-> I64 { IO.println("hello") 0 }
-                                      ^^^^^^^
-  Try wrapping it with a `handle` block.
-compilation failed with 1 error(s)
+I expected `identifier` here, but I got `-` instead.
+   1 | IO! : { println!: || -[IO!]-> {} }
+                            ^
+
+-- SYNTAX ERROR --- /tmp/camp-e2e/errors/unhandled-console-effect/src/Main.camp
+
+I expected `:` here, but I got `[` instead.
+   1 | IO! : { println!: || -[IO!]-> {} }
+                             ^
+
+-- SYNTAX ERROR --- /tmp/camp-e2e/errors/unhandled-console-effect/src/Main.camp
+
+I expected `identifier` here, but I got `]` instead.
+   1 | IO! : { println!: || -[IO!]-> {} }
+                                 ^
+
+-- SYNTAX ERROR --- /tmp/camp-e2e/errors/unhandled-console-effect/src/Main.camp
+
+I expected `:` here, but I got `->` instead.
+   1 | IO! : { println!: || -[IO!]-> {} }
+                                  ^^
+
+-- SYNTAX ERROR --- /tmp/camp-e2e/errors/unhandled-console-effect/src/Main.camp
+
+I expected `=` here, but I got `I64` instead.
+   2 | main! = || -[IO!]-> I64 { IO!.println!("hello") 0 }
+                           ^^^
+compilation failed with 5 error(s)
 """
 stderr = ""
 exit = 1

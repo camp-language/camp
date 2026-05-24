@@ -1,5 +1,5 @@
-Eq : { eq: (Self, Self) -> Bool }
+Eq : { eq: |Self, Self| -> Bool }
 @UserId is Eq : U64
-UserId_eq = |x, y| true
+UserId_eq = |x, y| True
 @UserId is Eq : U64
-UserId_eq2 = |x, y| true
+UserId_eq2 = |x, y| True

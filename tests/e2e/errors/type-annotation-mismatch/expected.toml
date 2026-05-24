@@ -2,11 +2,11 @@ stdout = """
 canonicalized /tmp/camp-e2e/errors/type-annotation-mismatch/src/Main.camp: 1 declaration(s), 0 import(s)
 -- TYPE MISMATCH --- /tmp/camp-e2e/errors/type-annotation-mismatch/src/Main.camp
 
-`I64` does not match `String`.
-   1 | x: String = 42
-                   ^^
-   1 | x: String = 42
-          ~~~~~~ this has type `String`
+`I64` does not match `Str`.
+   1 | x: Str = 42
+                ^^
+   1 | x: Str = 42
+          ~~~ this has type `Str`
 compilation failed with 1 error(s)
 """
 stderr = ""

@@ -1,4 +1,4 @@
-main! = || ->{Async!} I64 {
+main! = || -[Async!]-> I64 {
   handle Async! in {
     Async!.yield!()
     42

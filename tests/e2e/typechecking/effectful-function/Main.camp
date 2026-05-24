@@ -1,1 +1,1 @@
-greet! = |name| -> -[IO]-> String { name }
+greet! = |name| -[IO!]-> Str { name }

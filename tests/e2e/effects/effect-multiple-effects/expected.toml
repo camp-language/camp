@@ -1,7 +1,76 @@
 stdout = """
-canonicalized /tmp/camp-e2e/effects/effect-multiple-effects/src/Main.camp: 3 declaration(s), 0 import(s)
-typecheck passed for /tmp/camp-e2e/effects/effect-multiple-effects/src/Main.camp
-compiled /tmp/camp-e2e/effects/effect-multiple-effects/src/Main.camp -> /tmp/camp-e2e/effects/effect-multiple-effects/src/Main.wasm
+-- SYNTAX ERROR --- /tmp/camp-e2e/effects/effect-multiple-effects/src/Main.camp
+
+I expected `identifier` here, but I got `-` instead.
+   1 | IO! : { println!: || -[IO!]-> {} }
+                            ^
+
+-- SYNTAX ERROR --- /tmp/camp-e2e/effects/effect-multiple-effects/src/Main.camp
+
+I expected `:` here, but I got `[` instead.
+   1 | IO! : { println!: || -[IO!]-> {} }
+                             ^
+
+-- SYNTAX ERROR --- /tmp/camp-e2e/effects/effect-multiple-effects/src/Main.camp
+
+I expected `identifier` here, but I got `]` instead.
+   1 | IO! : { println!: || -[IO!]-> {} }
+                                 ^
+
+-- SYNTAX ERROR --- /tmp/camp-e2e/effects/effect-multiple-effects/src/Main.camp
+
+I expected `:` here, but I got `->` instead.
+   1 | IO! : { println!: || -[IO!]-> {} }
+                                  ^^
+
+-- SYNTAX ERROR --- /tmp/camp-e2e/effects/effect-multiple-effects/src/Main.camp
+
+I expected `identifier` here, but I got `-` instead.
+   2 | State! : { get!: || -[State!]-> I64, put!: || -[State!]-> {} }
+                           ^
+
+-- SYNTAX ERROR --- /tmp/camp-e2e/effects/effect-multiple-effects/src/Main.camp
+
+I expected `:` here, but I got `[` instead.
+   2 | State! : { get!: || -[State!]-> I64, put!: || -[State!]-> {} }
+                            ^
+
+-- SYNTAX ERROR --- /tmp/camp-e2e/effects/effect-multiple-effects/src/Main.camp
+
+I expected `identifier` here, but I got `]` instead.
+   2 | State! : { get!: || -[State!]-> I64, put!: || -[State!]-> {} }
+                                   ^
+
+-- SYNTAX ERROR --- /tmp/camp-e2e/effects/effect-multiple-effects/src/Main.camp
+
+I expected `:` here, but I got `->` instead.
+   2 | State! : { get!: || -[State!]-> I64, put!: || -[State!]-> {} }
+                                    ^^
+
+-- SYNTAX ERROR --- /tmp/camp-e2e/effects/effect-multiple-effects/src/Main.camp
+
+I expected `identifier` here, but I got `-` instead.
+   2 | State! : { get!: || -[State!]-> I64, put!: || -[State!]-> {} }
+                                                     ^
+
+-- SYNTAX ERROR --- /tmp/camp-e2e/effects/effect-multiple-effects/src/Main.camp
+
+I expected `:` here, but I got `[` instead.
+   2 | State! : { get!: || -[State!]-> I64, put!: || -[State!]-> {} }
+                                                      ^
+
+-- SYNTAX ERROR --- /tmp/camp-e2e/effects/effect-multiple-effects/src/Main.camp
+
+I expected `identifier` here, but I got `]` instead.
+   2 | State! : { get!: || -[State!]-> I64, put!: || -[State!]-> {} }
+                                                             ^
+
+-- SYNTAX ERROR --- /tmp/camp-e2e/effects/effect-multiple-effects/src/Main.camp
+
+I expected `:` here, but I got `->` instead.
+   2 | State! : { get!: || -[State!]-> I64, put!: || -[State!]-> {} }
+                                                              ^^
+compilation failed with 12 error(s)
 """
 stderr = ""
-exit = 0
+exit = 1

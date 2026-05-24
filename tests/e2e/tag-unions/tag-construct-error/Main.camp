@@ -1,4 +1,4 @@
-main!! = || -> I64 {
+main! = || -> I64 {
     x = Error("fail")
     0
 }

@@ -1,4 +1,4 @@
-Ask! : { read!: || -> I64 }
+Ask! : { read!: || -[Ask!]-> I64 }
 main! = || -> I64 {
-  Ask.read!()
+  Ask!.read!()
 }

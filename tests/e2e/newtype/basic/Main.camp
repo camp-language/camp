@@ -1,2 +1,2 @@
 @UserId : U64
-x = UserId(42)
+x = @UserId(42)

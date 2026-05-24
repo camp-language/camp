@@ -1,5 +1,5 @@
 main! = || -> I64 {
     match { x: 1, y: 2 } {
-    | { x: a, y: b } -> a + b
+    | { x: a, y: b } => a + b
     }
 }

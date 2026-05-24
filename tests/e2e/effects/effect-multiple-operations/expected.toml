@@ -1,7 +1,52 @@
 stdout = """
-canonicalized /tmp/camp-e2e/effects/effect-multiple-operations/src/Main.camp: 2 declaration(s), 0 import(s)
-typecheck passed for /tmp/camp-e2e/effects/effect-multiple-operations/src/Main.camp
-compiled /tmp/camp-e2e/effects/effect-multiple-operations/src/Main.camp -> /tmp/camp-e2e/effects/effect-multiple-operations/src/Main.wasm
+-- SYNTAX ERROR --- /tmp/camp-e2e/effects/effect-multiple-operations/src/Main.camp
+
+I expected `identifier` here, but I got `-` instead.
+   1 | IO! : { println!: || -[IO!]-> {}, readln!: || -[IO!]-> Str }
+                            ^
+
+-- SYNTAX ERROR --- /tmp/camp-e2e/effects/effect-multiple-operations/src/Main.camp
+
+I expected `:` here, but I got `[` instead.
+   1 | IO! : { println!: || -[IO!]-> {}, readln!: || -[IO!]-> Str }
+                             ^
+
+-- SYNTAX ERROR --- /tmp/camp-e2e/effects/effect-multiple-operations/src/Main.camp
+
+I expected `identifier` here, but I got `]` instead.
+   1 | IO! : { println!: || -[IO!]-> {}, readln!: || -[IO!]-> Str }
+                                 ^
+
+-- SYNTAX ERROR --- /tmp/camp-e2e/effects/effect-multiple-operations/src/Main.camp
+
+I expected `:` here, but I got `->` instead.
+   1 | IO! : { println!: || -[IO!]-> {}, readln!: || -[IO!]-> Str }
+                                  ^^
+
+-- SYNTAX ERROR --- /tmp/camp-e2e/effects/effect-multiple-operations/src/Main.camp
+
+I expected `identifier` here, but I got `-` instead.
+   1 | IO! : { println!: || -[IO!]-> {}, readln!: || -[IO!]-> Str }
+                                                     ^
+
+-- SYNTAX ERROR --- /tmp/camp-e2e/effects/effect-multiple-operations/src/Main.camp
+
+I expected `:` here, but I got `[` instead.
+   1 | IO! : { println!: || -[IO!]-> {}, readln!: || -[IO!]-> Str }
+                                                      ^
+
+-- SYNTAX ERROR --- /tmp/camp-e2e/effects/effect-multiple-operations/src/Main.camp
+
+I expected `identifier` here, but I got `]` instead.
+   1 | IO! : { println!: || -[IO!]-> {}, readln!: || -[IO!]-> Str }
+                                                          ^
+
+-- SYNTAX ERROR --- /tmp/camp-e2e/effects/effect-multiple-operations/src/Main.camp
+
+I expected `:` here, but I got `->` instead.
+   1 | IO! : { println!: || -[IO!]-> {}, readln!: || -[IO!]-> Str }
+                                                           ^^
+compilation failed with 8 error(s)
 """
 stderr = ""
-exit = 0
+exit = 1

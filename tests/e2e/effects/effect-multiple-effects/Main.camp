@@ -1,4 +1,4 @@
-IO! : { println!: || -> () }
-State! : { get!: || -> I64, put!: || -> () }
+IO! : { println!: || -[IO!]-> {} }
+State! : { get!: || -[State!]-> I64, put!: || -[State!]-> {} }
 
 main! = || -> I64 { 0 }

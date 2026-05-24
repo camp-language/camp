@@ -1,13 +1,34 @@
 stdout = """
-canonicalized /tmp/camp-e2e/newtype/opaque/src/Main.camp: 3 declaration(s), 0 import(s)
--- TYPE MISMATCH --- /tmp/camp-e2e/newtype/opaque/src/Main.camp
+-- SYNTAX ERROR --- /tmp/camp-e2e/newtype/opaque/src/Main.camp
 
-`UserId` does not match `I64`.
-   1 | @UserId : U64
-       ^
+I was not expecting `@` here.
+   2 | uid = @UserId(42)
+             ^
+
+-- SYNTAX ERROR --- /tmp/camp-e2e/newtype/opaque/src/Main.camp
+
+I expected `=` here, but I got `(` instead.
+   2 | uid = @UserId(42)
+                    ^
+
+-- SYNTAX ERROR --- /tmp/camp-e2e/newtype/opaque/src/Main.camp
+
+I expected `=` here, but I got `n` instead.
    3 | n = uid + 1
-                 ~ this has type `I64`
-compilation failed with 1 error(s)
+       ^
+
+-- SYNTAX ERROR --- /tmp/camp-e2e/newtype/opaque/src/Main.camp
+
+I was not expecting `=` here.
+   3 | n = uid + 1
+         ^
+
+-- SYNTAX ERROR --- /tmp/camp-e2e/newtype/opaque/src/Main.camp
+
+I expected `=` here, but I got `+` instead.
+   3 | n = uid + 1
+               ^
+compilation failed with 5 error(s)
 """
 stderr = ""
 exit = 1

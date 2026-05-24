@@ -1,4 +1,4 @@
-main! = || ->{Spawn!} I64 {
+main! = || -[Spawn!]-> I64 {
   handle Spawn! in {
     Spawn!.spawn!(|| -> I64 { 42 })
     0

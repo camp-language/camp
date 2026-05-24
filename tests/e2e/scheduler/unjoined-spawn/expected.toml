@@ -1,17 +1,10 @@
 stdout = """
-canonicalized /tmp/camp-e2e/scheduler/unjoined-spawn/src/Main.camp: 1 declaration(s), 0 import(s)
-typecheck passed for /tmp/camp-e2e/scheduler/unjoined-spawn/src/Main.camp
-compiled /tmp/camp-e2e/scheduler/unjoined-spawn/src/Main.camp -> /tmp/camp-e2e/scheduler/unjoined-spawn/src/Main.wasm
+-- SYNTAX ERROR --- /tmp/camp-e2e/scheduler/unjoined-spawn/src/Main.camp
+
+I expected `=` here, but I got `I64` instead.
+   1 | main! = || -[Spawn!]-> I64 {
+                              ^^^
+compilation failed with 1 error(s)
 """
 stderr = ""
-exit = 0
-wasm_exit = 1
-wasm_stdout = ""
-wasm_stderr = """
-Error: failed to compile: wasm[0]::function[32]
-
-Caused by:
-    0: WebAssembly translation error
-    1: Invalid input WebAssembly code at offset 1145: type mismatch: values remaining on stack at end of block
-
-"""
+exit = 1

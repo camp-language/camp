@@ -1,2 +1,2 @@
-IO! : { println!: || -> () }
-IO.println("hi")
+IO! : { println!: || -[IO!]-> {} }
+IO!.println!("hi")

@@ -1,11 +1,82 @@
 stdout = """
-canonicalized /tmp/camp-e2e/traits/missing-method/src/Main.camp: 2 declaration(s), 0 import(s)
--- MISSING TRAIT METHOD --- /tmp/camp-e2e/traits/missing-method/src/Main.camp
+-- SYNTAX ERROR --- /tmp/camp-e2e/traits/missing-method/src/Main.camp
 
-`UserId` does not implement method `eq` required by trait `Eq`.
+I expected `|` here, but I got `Self` instead.
+   1 | Eq : { eq: |Self, Self| -> Bool }
+                   ^^^^
+
+-- SYNTAX ERROR --- /tmp/camp-e2e/traits/missing-method/src/Main.camp
+
+I expected `identifier` here, but I got `Self` instead.
+   1 | Eq : { eq: |Self, Self| -> Bool }
+                         ^^^^
+
+-- SYNTAX ERROR --- /tmp/camp-e2e/traits/missing-method/src/Main.camp
+
+I expected `:` here, but I got `|` instead.
+   1 | Eq : { eq: |Self, Self| -> Bool }
+                             ^
+
+-- SYNTAX ERROR --- /tmp/camp-e2e/traits/missing-method/src/Main.camp
+
+I was expecting a type here, but I found `->` instead.
+   1 | Eq : { eq: |Self, Self| -> Bool }
+                               ^^
+
+-- SYNTAX ERROR --- /tmp/camp-e2e/traits/missing-method/src/Main.camp
+
+I expected `identifier` here, but I got `Bool` instead.
+   1 | Eq : { eq: |Self, Self| -> Bool }
+                                  ^^^^
+
+-- SYNTAX ERROR --- /tmp/camp-e2e/traits/missing-method/src/Main.camp
+
+I expected `:` here, but I got `}` instead.
+   1 | Eq : { eq: |Self, Self| -> Bool }
+                                       ^
+
+-- SYNTAX ERROR --- /tmp/camp-e2e/traits/missing-method/src/Main.camp
+
+I was expecting a type here, but I found `@` instead.
    2 | @UserId is Eq : U64
        ^
-compilation failed with 1 error(s)
+
+-- SYNTAX ERROR --- /tmp/camp-e2e/traits/missing-method/src/Main.camp
+
+I expected `identifier` here, but I got `UserId` instead.
+   2 | @UserId is Eq : U64
+        ^^^^^^
+
+-- SYNTAX ERROR --- /tmp/camp-e2e/traits/missing-method/src/Main.camp
+
+I expected `:` here, but I got `is` instead.
+   2 | @UserId is Eq : U64
+               ^^
+
+-- SYNTAX ERROR --- /tmp/camp-e2e/traits/missing-method/src/Main.camp
+
+I expected `identifier` here, but I got `:` instead.
+   2 | @UserId is Eq : U64
+                     ^
+
+-- SYNTAX ERROR --- /tmp/camp-e2e/traits/missing-method/src/Main.camp
+
+I expected `:` here, but I got `U64` instead.
+   2 | @UserId is Eq : U64
+                       ^^^
+
+-- SYNTAX ERROR --- /tmp/camp-e2e/traits/missing-method/src/Main.camp
+
+I was expecting a type here, but I found `` instead.
+   3 | 
+       ^
+
+-- SYNTAX ERROR --- /tmp/camp-e2e/traits/missing-method/src/Main.camp
+
+I expected `}` here, but I got `` instead.
+   3 | 
+       ^
+compilation failed with 13 error(s)
 """
 stderr = ""
 exit = 1
