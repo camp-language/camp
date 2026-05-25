@@ -90,7 +90,7 @@ render_all_json :: proc(collector: ^Diagnostic_Collector, file_path: string, sou
 	}
 	root["diagnostics"] = diags
 
-	bytes, err := json.marshal(root, {pretty = true, use_spaces = true, spaces = 2})
+	bytes, err := json.marshal(root, {pretty = false})
 	if err != nil {
 		fmt.eprintfln("internal: failed to marshal diagnostics: {}", err)
 		return
