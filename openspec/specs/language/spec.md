@@ -209,25 +209,25 @@ Nominal types SHALL be opaque outside their defining module unless their variant
 
 #### Scenario: Opaque by default
 - GIVEN a nominal type `@UserId : U64` defined in module `UserId`
-- WHEN another module imports `UserId` without exposing variants
+- WHEN another module imports `UserId` without importing variants
 - THEN the other module SHALL NOT construct or destructure `@UserId` values; it SHALL only pass them and call functions on them
 
 #### Scenario: Non-tag-union nominal type is always opaque
 - GIVEN a nominal type `@UserId : U64` defined in module `UserId`
 - WHEN another module imports `UserId`
-- THEN the other module SHALL NOT construct or destructure `@UserId` values regardless of import exposing; the defining module SHALL provide constructor/destructor functions (e.g., `makeUserId : U64 -> UserId`)
+- THEN the other module SHALL NOT construct or destructure `@UserId` values regardless of import list; the defining module SHALL provide constructor/destructor functions (e.g., `makeUserId : U64 -> UserId`)
 
 #### Scenario: pub variants enable cross-module construction
 - GIVEN a nominal type `@Result(a, e) : pub [Ok(a) | Err(e)]` defined in module `Result`
 - WHEN another module imports `Result`
 - THEN the other module SHALL be able to construct values via `Result.Ok(42)`
 
-#### Scenario: pub variants with import exposing enable unqualified access
+#### Scenario: pub variants with variant import enable unqualified access
 - GIVEN a nominal type `@Result(a, e) : pub [Ok(a) | Err(e)]` and `import Result { [Ok, Err] }`
 - WHEN constructing a value
 - THEN `Ok(42)` SHALL be valid without the `Result.` qualifier
 
-#### Scenario: Exposing non-pub variants is an error
+#### Scenario: Importing non-pub variants is an error
 - GIVEN a nominal type `@Result(a, e) : [Ok(a) | Err(e)]` (without `pub`)
 - WHEN another module writes `import Result { [Ok, Err] }`
 - THEN the compiler SHALL produce an error because the variants are not exposed
