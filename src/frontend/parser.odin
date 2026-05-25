@@ -532,6 +532,9 @@ parser_parse_tag_or_call :: proc(p: ^Parser) -> Expr {
 				parser_skip_backslashes(p)
 			}
 		}
+		if len(tag.payload) == 0 {
+			diagnostics.collector_add_diag(p.collector, diagnostics.diag_empty_tag_parens(name_tok.text, tag.span))
+		}
 		parser_expect(p, .RParen)
 	}
 
@@ -1042,7 +1045,7 @@ parser_parse_match :: proc(p: ^Parser) -> Expr {
 		parser_expect(p, .Fat_Arrow)
 		body := parser_parse_expr(p)
 		append(&arms, Match_Arm{pattern = pattern, guard = guard, body = body, span = p.current.span})
-		if p.current.kind == .Comma || p.current.kind == .Pipe {
+		if p.current.kind == .Pipe {
 			parser_advance(p)
 		}
 	}
@@ -1607,16 +1610,19 @@ parser_parse_effect_row_type_inner :: proc(p: ^Parser, terminator: base.Token_Ki
 			span = name_tok.span,
 		})
 
-		if p.current.kind == .Comma {
+		if p.current.kind == .Pipe {
 			parser_advance(p)
 			parser_skip_backslashes(p)
-		} else if p.current.kind == .Pipe {
-			parser_advance(p)
 		}
 	}
 
 	row := new(Type_Effect_Row)
 	row^ = Type_Effect_Row{effects = effects, rest = rest, is_open = is_open, span = start}
+
+	if len(effects) == 0 && !is_open {
+		diagnostics.collector_add_diag(p.collector, diagnostics.diag_empty_effect_row(start))
+	}
+
 	result := new(Type)
 	result^ = row
 	return result
@@ -1743,7 +1749,7 @@ parser_parse_import_decl :: proc(p: ^Parser, is_pub: bool) -> Decl {
 	module_tok := parser_expect(p, .Upper_Id)
 	module_name := module_tok.text
 
-	exposing := make([dynamic]base.Intern_ID, 0, 8)
+	names := make([dynamic]Import_Item, 0, 8)
 	alias: base.Intern_ID = 0
 
 	if p.current.kind == .Kw_As {
@@ -1752,8 +1758,51 @@ parser_parse_import_decl :: proc(p: ^Parser, is_pub: bool) -> Decl {
 		alias = base.intern(p.intern, alias_tok.text)
 	}
 
+	if p.current.kind == .LBrace {
+		parser_advance(p)
+
+		for p.current.kind != .RBrace && p.current.kind != .Eof {
+			if p.current.kind == .LBrack {
+				parser_advance(p)
+				vg_span := p.current.span
+				variants := make([dynamic]base.Intern_ID, 0, 8)
+
+				for p.current.kind != .RBrack && p.current.kind != .Eof {
+					variant_tok := parser_expect(p, .Upper_Id)
+					append(&variants, base.intern(p.intern, variant_tok.text))
+
+					if p.current.kind == .Comma {
+						parser_advance(p)
+					} else if p.current.kind != .RBrack {
+						break
+					}
+				}
+
+				parser_expect(p, .RBrack)
+
+				vg := new(Import_Variant_Group)
+				vg^ = Import_Variant_Group{variants = variants, span = vg_span}
+				append(&names, Import_Item(vg))
+			} else if p.current.kind == .Upper_Id || p.current.kind == .Identifier {
+				name_tok := p.current
+				parser_advance(p)
+				append(&names, Import_Item(base.intern(p.intern, name_tok.text)))
+			} else {
+				break
+			}
+
+			if p.current.kind == .Comma {
+				parser_advance(p)
+			} else if p.current.kind != .RBrace {
+				break
+			}
+		}
+
+		parser_expect(p, .RBrace)
+	}
+
 	decl := new(Decl_Import)
-	decl^ = Decl_Import{module = module_name, exposing = exposing, alias = alias, span = start}
+	decl^ = Decl_Import{module = module_name, names = names, alias = alias, span = start}
 	return decl
 }
 
@@ -1762,9 +1811,11 @@ parser_parse_test_decl :: proc(p: ^Parser) -> Decl {
 	parser_advance(p)
 
 	name_tok := parser_expect(p, .String_Literal)
-	parser_expect(p, .Eq)
+	parser_expect(p, .LBrace)
 
-	body := parser_parse_expr(p)
+	body := parser_parse_block_or_record(p)
+
+	parser_expect(p, .RBrace)
 
 	decl := new(Decl_Test)
 	decl^ = Decl_Test{name = name_tok.text, body = body, span = start}

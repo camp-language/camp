@@ -366,9 +366,9 @@ test_manifest_round_trip :: proc(t: ^testing.T) {
 
 	imp: build.Manifest_Import
 	imp.module = "Maybe"
-	imp.exposing = make([dynamic]string, 0, 4)
-	append(&imp.exposing, "just")
-	append(&imp.exposing, "nothing")
+	imp.names = make([dynamic]string, 0, 4)
+	append(&imp.names, "just")
+	append(&imp.names, "nothing")
 	imp.alias = ""
 	append(&manifest.imports, imp)
 
@@ -398,8 +398,8 @@ test_manifest_round_trip :: proc(t: ^testing.T) {
 
 	if len(result.imports) > 0 {
 		testing.expect(t, result.imports[0].module == "Maybe")
-		testing.expect(t, len(result.imports[0].exposing) == 2)
-		testing.expect(t, result.imports[0].exposing[0] == "just")
+		testing.expect(t, len(result.imports[0].names) == 2)
+		testing.expect(t, result.imports[0].names[0] == "just")
 	}
 
 	if len(result.exports) > 0 {

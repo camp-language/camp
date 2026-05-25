@@ -58,9 +58,9 @@ run_build_project :: proc(thread_count: int = 1) -> Build_Result {
 			for m_imp in manifest.imports {
 				di: base.Deferred_Import
 				di.module = base.intern(&ctx.interner, m_imp.module)
-				di.exposing = make([dynamic]base.Intern_ID, 0, len(m_imp.exposing))
-				for exp in m_imp.exposing {
-					append(&di.exposing, base.intern(&ctx.interner, exp))
+				di.names = make([dynamic]base.Intern_ID, 0, len(m_imp.names))
+				for name in m_imp.names {
+					append(&di.names, base.intern(&ctx.interner, name))
 				}
 				if len(m_imp.alias) > 0 {
 					di.alias = base.intern(&ctx.interner, m_imp.alias)

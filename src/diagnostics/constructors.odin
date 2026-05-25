@@ -425,3 +425,15 @@ diag_ambiguous_type :: proc(name: string, span: base.Source_Span) -> Diagnostic 
 		fmt.tprintf("Cannot determine type for generic parameter `{}`. Provide a type annotation.", name))
 	return d
 }
+
+diag_empty_tag_parens :: proc(name: string, span: base.Source_Span) -> Diagnostic {
+	d := diag_init(.Error, "EMPTY TAG PARENS", span,
+		fmt.tprintf("Tag `{}` has no payload — write `{}` without parentheses.", name, name))
+	return d
+}
+
+diag_empty_effect_row :: proc(span: base.Source_Span) -> Diagnostic {
+	d := diag_init(.Error, "EMPTY EFFECT ROW", span,
+		"An effect row cannot be empty. Use `->` for a pure function instead of `-[ ]->`.")
+	return d
+}

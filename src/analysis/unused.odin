@@ -216,7 +216,7 @@ collect_uses_cfile :: proc(analysis: ^Unused_Analysis, cfile: semantics.CFile) {
 		if di.alias != base.NO_NAME {
 			register_import(analysis, di.alias, di.module, di.span)
 		}
-		for name in di.exposing {
+		for name in di.names {
 			register_import(analysis, name, di.module, di.span)
 		}
 	}

@@ -151,7 +151,7 @@ test_integration_typecheck_import :: proc(t: ^testing.T) {
 	context.allocator = alloc
 	defer build.context_destroy(&ctx)
 
-	source := "import List exposing [map]\nx = 42"
+	source := "import List { map }\nx = 42"
 	file_rec := base.Source_File{path = "<integration>", contents = source, id = 0}
 	lexer: frontend.Lexer
 	frontend.lexer_init(&lexer, file_rec, &ctx.collector, &ctx.interner)

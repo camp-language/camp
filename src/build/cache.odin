@@ -13,7 +13,7 @@ Cache_Entry :: struct {
 }
 
 MODULE_MANIFEST_MAGIC :u32 : 0x434D4D46
-MODULE_MANIFEST_VERSION :u32 : 3
+MODULE_MANIFEST_VERSION :u32 : 4
 
 Module_Manifest :: struct {
 	content_hash:  string,
@@ -24,7 +24,7 @@ Module_Manifest :: struct {
 
 Manifest_Import :: struct {
 	module:   string,
-	exposing: [dynamic]string,
+	names:    [dynamic]string,
 	alias:    string,
 }
 
@@ -115,7 +115,7 @@ cache_key_for_typecheck :: proc(mi: ^Module_Info, project: ^Project_Discovery, i
 
 manifest_destroy :: proc(manifest: ^Module_Manifest) {
 	for &imp in manifest.imports {
-		delete(imp.exposing)
+		delete(imp.names)
 	}
 	delete(manifest.imports)
 	delete(manifest.exports)
@@ -134,9 +134,9 @@ serialize_manifest :: proc(manifest: Module_Manifest, allocator: mem.Allocator) 
 	write_u32_le(&buf, u32(len(manifest.imports)))
 	for imp in manifest.imports {
 		write_string(&buf, imp.module)
-		write_u32_le(&buf, u32(len(imp.exposing)))
-		for exp in imp.exposing {
-			write_string(&buf, exp)
+		write_u32_le(&buf, u32(len(imp.names)))
+		for name in imp.names {
+			write_string(&buf, name)
 		}
 		write_string(&buf, imp.alias)
 	}
@@ -186,19 +186,19 @@ deserialize_manifest :: proc(data: []byte, allocator: mem.Allocator) -> (Module_
 	num_imports := int(num_imports_val)
 	for i := 0; i < num_imports; i += 1 {
 		imp: Manifest_Import
-		imp.exposing = make([dynamic]string, 0, 8)
+		imp.names = make([dynamic]string, 0, 8)
 
 		mod_str, mod_ok := read_string(data, &pos, allocator)
 		if !mod_ok { manifest_destroy(&manifest); return Module_Manifest{}, false }
 		imp.module = mod_str
 
-		num_exposing_val, exp_cnt_ok := read_u32_le(data, &pos)
-		if !exp_cnt_ok { manifest_destroy(&manifest); return Module_Manifest{}, false }
-		num_exposing := int(num_exposing_val)
-		for j := 0; j < num_exposing; j += 1 {
-			exp_str, exp_ok := read_string(data, &pos, allocator)
-			if !exp_ok { manifest_destroy(&manifest); return Module_Manifest{}, false }
-			append(&imp.exposing, exp_str)
+		num_names_val, name_cnt_ok := read_u32_le(data, &pos)
+		if !name_cnt_ok { manifest_destroy(&manifest); return Module_Manifest{}, false }
+		num_names := int(num_names_val)
+		for j := 0; j < num_names; j += 1 {
+			name_str, name_ok := read_string(data, &pos, allocator)
+			if !name_ok { manifest_destroy(&manifest); return Module_Manifest{}, false }
+			append(&imp.names, name_str)
 		}
 
 		alias_str, alias_ok := read_string(data, &pos, allocator)
@@ -253,9 +253,9 @@ build_manifest :: proc(mi: ^Module_Info, interner: ^base.Intern_Table) -> Module
 	for imp in mi.imports {
 		mi_imp: Manifest_Import
 		mi_imp.module = base.intern_get(interner, imp.module)
-		mi_imp.exposing = make([dynamic]string, 0, len(imp.exposing))
-		for exp in imp.exposing {
-			append(&mi_imp.exposing, base.intern_get(interner, exp))
+		mi_imp.names = make([dynamic]string, 0, len(imp.names))
+		for name in imp.names {
+			append(&mi_imp.names, base.intern_get(interner, name))
 		}
 		if imp.alias != base.NO_NAME {
 			mi_imp.alias = base.intern_get(interner, imp.alias)

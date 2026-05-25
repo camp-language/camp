@@ -78,9 +78,19 @@ Decl_Newtype :: struct {
 	span:           base.Source_Span,
 }
 
+Import_Item :: union {
+	base.Intern_ID,
+	^Import_Variant_Group,
+}
+
+Import_Variant_Group :: struct {
+	variants: [dynamic]base.Intern_ID,
+	span:     base.Source_Span,
+}
+
 Decl_Import :: struct {
 	module:   string,
-	exposing: [dynamic]base.Intern_ID,
+	names:    [dynamic]Import_Item,
 	alias:    base.Intern_ID,
 	span:     base.Source_Span,
 }

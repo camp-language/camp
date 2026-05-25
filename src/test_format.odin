@@ -1110,9 +1110,9 @@ test_format_decl_import_exposing :: proc(t: ^testing.T) {
 
 	di := new(frontend.Decl_Import)
 	di.module = "List"
-	di.exposing = make([dynamic]base.Intern_ID)
-	append(&di.exposing, map_id)
-	append(&di.exposing, filter_id)
+	di.names = make([dynamic]frontend.Import_Item)
+	append(&di.names, frontend.Import_Item(map_id))
+	append(&di.names, frontend.Import_Item(filter_id))
 	di.span = base.Source_Span_ZERO
 
 	info := format.Format_Source_Info{}

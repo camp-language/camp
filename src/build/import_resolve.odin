@@ -114,8 +114,8 @@ resolve_single_import :: proc(
 		scope.qualified[name_id] = qualified_name
 	}
 
-	if len(imp.exposing) > 0 {
-		for exposed_name in imp.exposing {
+	if len(imp.names) > 0 {
+		for exposed_name in imp.names {
 			ei, found := export_lookup(&et, exposed_name)
 			if !found || !ei.is_pub {
 				name_str := base.intern_get(interner, exposed_name)

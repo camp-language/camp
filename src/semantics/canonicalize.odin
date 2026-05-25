@@ -196,12 +196,19 @@ canonicalize_decl :: proc(decl: frontend.Decl, scope: ^Canonicalize_Scope, impor
 	case ^frontend.Decl_Import:
 		di := base.Deferred_Import{
 			module = base.intern(interner, d.module),
-			exposing = make([dynamic]base.Intern_ID, len(d.exposing)),
+			names = make([dynamic]base.Intern_ID, 0, len(d.names)),
 			alias = d.alias,
 			span = d.span,
 		}
-		for i, name in d.exposing {
-			di.exposing[i] = base.Intern_ID(name)
+		for item in d.names {
+			switch it in item {
+			case base.Intern_ID:
+				append(&di.names, it)
+			case ^frontend.Import_Variant_Group:
+				for variant in it.variants {
+					append(&di.names, variant)
+				}
+			}
 		}
 		append(imports, di)
 		cdecl := new(CDecl_Import)

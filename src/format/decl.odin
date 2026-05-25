@@ -214,6 +214,26 @@ format_decl_newtype :: proc(v: ^frontend.Decl_Newtype, info: ^Format_Source_Info
 	return doc_concat(parts[:])
 }
 
+format_import_item :: proc(item: frontend.Import_Item, interner: ^base.Intern_Table) -> Doc {
+	switch it in item {
+	case base.Intern_ID:
+		return doc_text(base.intern_get(interner, it))
+	case ^frontend.Import_Variant_Group:
+		parts: [dynamic]Doc
+		defer delete(parts)
+		append(&parts, doc_text("["))
+		for variant, j in it.variants {
+			if j > 0 {
+				append(&parts, doc_text(", "))
+			}
+			append(&parts, doc_text(base.intern_get(interner, variant)))
+		}
+		append(&parts, doc_text("]"))
+		return doc_concat(parts[:])
+	}
+	return doc_text("?")
+}
+
 format_decl_import :: proc(v: ^frontend.Decl_Import, info: ^Format_Source_Info, interner: ^base.Intern_Table) -> Doc {
 	parts: [dynamic]Doc
 	defer delete(parts)
@@ -225,20 +245,20 @@ format_decl_import :: proc(v: ^frontend.Decl_Import, info: ^Format_Source_Info, 
 		append(&parts, doc_text(base.intern_get(interner, v.alias)))
 	}
 
-	if len(v.exposing) > 0 {
+	if len(v.names) > 0 {
 		multiline := info.first_separator_break[v.span.start]
 		if multiline {
 			append(&parts, doc_text(" {"))
-			append(&parts, doc_nest(4, format_import_names_multiline(v.exposing[:], interner)))
+			append(&parts, doc_nest(4, format_import_names_multiline(v.names[:], interner)))
 			append(&parts, doc_line())
 			append(&parts, doc_text("}"))
 		} else {
 			append(&parts, doc_text(" { "))
-			for name, i in v.exposing {
+			for item, i in v.names {
 				if i > 0 {
 					append(&parts, doc_text(", "))
 				}
-				append(&parts, doc_text(base.intern_get(interner, name)))
+				append(&parts, format_import_item(item, interner))
 			}
 			append(&parts, doc_text(" }"))
 		}
@@ -247,15 +267,15 @@ format_decl_import :: proc(v: ^frontend.Decl_Import, info: ^Format_Source_Info, 
 	return doc_concat(parts[:])
 }
 
-format_import_names_multiline :: proc(names: []base.Intern_ID, interner: ^base.Intern_Table) -> Doc {
+format_import_names_multiline :: proc(names: []frontend.Import_Item, interner: ^base.Intern_Table) -> Doc {
 	inner: [dynamic]Doc
 	defer delete(inner)
 	append(&inner, doc_line())
-	for name, i in names {
+	for item, i in names {
 		if i > 0 {
 			append(&inner, doc_line())
 		}
-		append(&inner, doc_text(base.intern_get(interner, name)))
+		append(&inner, format_import_item(item, interner))
 		append(&inner, doc_text(","))
 	}
 	append(&inner, doc_line())

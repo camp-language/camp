@@ -10,7 +10,7 @@ Canonical_Name :: struct {
 
 Deferred_Import :: struct {
 	module:   Intern_ID,
-	exposing: [dynamic]Intern_ID,
+	names:    [dynamic]Intern_ID,
 	alias:    Intern_ID,
 	span:     Source_Span,
 }
