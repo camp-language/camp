@@ -57,10 +57,72 @@ The compiler SHALL use WASM `call_indirect` for all calls where the callee is no
 
 The compiler SHALL preserve variable reads during Perceus RC insertion. `IR_Var` nodes SHALL NOT be replaced by `IR_Dup` or `IR_Drop`. Instead, `dup` and `drop` SHALL be inserted around variable uses: `dup` before non-last uses, `drop` at scope end, and `drop` of the binding when a variable has zero uses.
 
+The RC pass SHALL use the `is_heap` flag on `IR_Type` to determine whether a binding holds a heap-allocated reference. `IR_Drop` SHALL only be emitted for bindings where `is_heap` is true. Non-heap bindings (integers, booleans) SHALL NOT receive drops.
+
 #### Scenario: Perceus preserves variable reads
 
 - **WHEN** an `IR_Let` binding `x` is used twice in its body
 - **THEN** the first use of `x` SHALL be preceded by `dup(x)` and the `IR_Var(x)` node SHALL be preserved — it SHALL NOT be replaced by `IR_Dup`
+
+#### Scenario: Unused heap binding receives drop
+
+- **WHEN** an `IR_Let` binding `x` with `is_heap = true` is not used in its body
+- **THEN** the RC pass SHALL emit `IR_Drop{x}` after the body expression
+
+#### Scenario: Non-heap binding receives no drop
+
+- **WHEN** an `IR_Let` binding `x` with `is_heap = false` (e.g., `I64`) is not used in its body
+- **THEN** the RC pass SHALL NOT emit `IR_Drop` for `x`
+
+#### Scenario: Branch-independent drops
+
+- **WHEN** a heap binding `x` is used in one branch of an `if` but not the other
+- **THEN** the branch that does not use `x` SHALL emit `IR_Drop{x}`; the branch that uses `x` SHALL NOT
+
+#### Scenario: Unused heap-typed function parameter receives drop
+
+- **WHEN** a function parameter `p` with `is_heap = true` is not used in the function body
+- **THEN** the RC pass SHALL emit `IR_Drop{p}` at the end of the function body
+
+### Requirement: Perceus Drop Runtime
+
+The `camp_drop` runtime function SHALL decrement the reference count of a heap object. When the reference count reaches zero, `camp_drop` SHALL recursively drop all pointer fields (as indicated by `scan_size` in the object header) and call `camp_dealloc`. The function SHALL accept a depth parameter for overflow protection: when depth ≥ 256, it SHALL report the overflow (writing to stderr and exiting with code 1) rather than continuing recursion.
+
+#### Scenario: Drop with zero refcount frees object
+
+- **WHEN** `camp_drop` is called on an object whose refcount becomes zero
+- **THEN** it SHALL recursively drop each pointer field (up to `scan_size` fields at offset `CAMP_TAG_FIELDS_OFFSET + i * 8`), then call `camp_dealloc`
+
+#### Scenario: Drop with non-zero refcount returns
+
+- **WHEN** `camp_drop` is called on an object whose refcount is still positive after decrement
+- **THEN** it SHALL return without recursive dropping or deallocation
+
+#### Scenario: Drop overflow protection
+
+- **WHEN** `camp_drop` is called with depth ≥ 256
+- **THEN** it SHALL write an error message to stderr and call `proc_exit(1)` — it SHALL NOT continue recursion
+
+### Requirement: Perceus In-Place Reuse
+
+The compiler SHALL support Perceus in-place reuse optimization. `IR_Construct_Tag` and `IR_Construct_Record` nodes SHALL carry an optional `reuse_addr` field. When `reuse_addr` is set (not `NO_REUSE_ADDR`), the construct codegen SHALL emit inline WASM that: decrements the refcount of the reuse candidate, checks if it reached zero, checks if the candidate's `scan_size` is large enough for the new object, and either reuses the candidate's address or falls back to a fresh `camp_alloc`.
+
+A reuse analysis pass SHALL run after the RC pass. It SHALL identify patterns where an `IR_Drop` of a heap binding immediately precedes a construction of a new heap value, and optimize by: setting the dropped binding as `reuse_addr` on the construct node, and removing the `IR_Drop`. This applies both to `let x = construct in { drop y; rest }` (parent-child pattern) and `{ drop y; let x = construct in ... }` (sibling pattern within `IR_Block`).
+
+#### Scenario: Drop-then-construct optimized to reuse
+
+- **WHEN** the RC pass emits `let x = Cons(head, tail) in { drop y; body }` where `y` is a heap binding with no remaining uses
+- **THEN** the reuse analysis pass SHALL set `reuse_addr = y` on the `IR_Construct_Tag` node and remove the `IR_Drop{y}`
+
+#### Scenario: Non-construct value not optimized
+
+- **WHEN** the RC pass emits `let x = f() in { drop y; body }` where the value is not a construct node
+- **THEN** the reuse analysis pass SHALL NOT set `reuse_addr` and SHALL preserve the `IR_Drop{y}`
+
+#### Scenario: Reuse candidate too small
+
+- **WHEN** construct codegen with `reuse_addr` set finds the candidate's `scan_size` is less than the new object's field count
+- **THEN** it SHALL fall back to a fresh `camp_alloc` allocation
 
 ### Requirement: CPS Transformation
 
