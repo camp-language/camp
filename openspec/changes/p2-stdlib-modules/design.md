@@ -60,7 +60,7 @@ random_crypto : Handler(Random!)                // NEW: WASI random_get, cryptog
 
 ### AD5: URI Query — Raw String + Parsed Accessor (D36)
 
-**Decision**: Store `query` as `Option(Str)` (raw percent-encoded string), with `parse_query`/`format_query` helper functions for `application/x-www-form-urlencoded` parsing.
+**Decision**: Store `query` as `Result(Str, [Absent])` (raw percent-encoded string), with `parse_query`/`format_query` helper functions for `application/x-www-form-urlencoded` parsing. Per D40: Camp has no `Option` type — `Result(a, [Absent])` is used instead.
 
 **Rationale**: Following Rust's `url` crate: query strings have diverse formats (form-encoded, matrix parameters, custom). Storing raw preserves all information; parsing is opt-in. Eager parsing would lose the original encoding, force a single query format, and add allocation for programs that never inspect query parameters.
 
@@ -155,7 +155,7 @@ to_bytes  : Uuid -> Bytes
 // Inspection — pure Camp
 version   : Uuid -> U8
 variant   : Uuid -> UuidVariant
-timestamp : Uuid -> Result(I64, [])            // V7 only; Err if not V7
+timestamp : Uuid -> Result(I64, [Absent])            // V7 only; Err if not V7
 
 // Intrinsic implementations
 // v4!() — crash "intrinsic: Uuid.v4"
@@ -198,9 +198,9 @@ variant = fn u -> UuidVariant {
   // 10xx -> V4/V7, 110x -> Microsoft, 111x -> reserved
 }
 
-timestamp = fn u -> Result(I64, []) {
+timestamp = fn u -> Result(I64, [Absent]) {
   // V7: extract 48-bit millisecond timestamp from bytes 0-5
-  // Err([]) if not V7
+  // Err(Absent) if not V7
 }
 ```
 
@@ -238,16 +238,16 @@ encode_pretty : JsonValue -> Str                // 2-space indent
 // JsonNumber accessors — pure Camp
 is_int   : JsonNumber -> Bool
 is_float : JsonNumber -> Bool
-as_i64   : JsonNumber -> Option(I64)           // None if PosInt > I64_MAX or Float
-as_u64   : JsonNumber -> Option(U64)           // None if NegInt or Float
-as_f64   : JsonNumber -> Option(F64)           // Always Some (every JsonNumber can be F64)
+as_i64   : JsonNumber -> Result(I64, [Absent])    // Err if PosInt > I64_MAX or Float
+as_u64   : JsonNumber -> Result(U64, [Absent])    // Err if NegInt or Float
+as_f64   : JsonNumber -> Result(F64, [Absent])    // Always Ok (every JsonNumber can be F64)
 
 // JsonValue convenience accessors — pure Camp
 get     : JsonValue, Str -> Result(JsonValue, JsonErr)
 get_at  : JsonValue, U64 -> Result(JsonValue, JsonErr)
-keys    : JsonValue -> Result(List(Str), [])              // Err if not Obj
-values  : JsonValue -> Result(List(JsonValue), [])        // Err if not Obj
-length  : JsonValue -> Result(U64, [])                    // Arr length or Obj key count
+keys    : JsonValue -> Result(List(Str), [Absent])         // Err if not Obj
+values  : JsonValue -> Result(List(JsonValue), [Absent])   // Err if not Obj
+length  : JsonValue -> Result(U64, [Absent])               // Arr length or Obj key count
 
 // Streaming parser — intrinsic
 @JsonEvent : pub [
@@ -278,8 +278,8 @@ parse_all  : Str -> Result(List(JsonEvent), JsonErr)
 ```
 
 **Design notes**:
-- `as_f64` always returns `Some` — every `JsonNumber` can be lossily represented as F64 (large integers lose precision, but the conversion is always valid). Mirrors Rust's `serde_json::Number::as_f64`.
-- `as_i64` returns `None` for `PosInt` values exceeding `I64_MAX` and for `Float` variants. Mirrors Rust's `is_i64`/`as_i64`.
+- `as_f64` always returns `Ok` — every `JsonNumber` can be lossily represented as F64 (large integers lose precision, but the conversion is always valid). Mirrors Rust's `serde_json::Number::as_f64`.
+- `as_i64` returns `Err(Absent)` for `PosInt` values exceeding `I64_MAX` and for `Float` variants. Mirrors Rust's `is_i64`/`as_i64`.
 - Streaming parser is a state machine: `parse_next` returns `(new_state, event)` for lazy consumption. `parse_all` materializes all events eagerly.
 - `depth` field in `JsonParser` tracks nesting depth — reject input exceeding a configurable limit (e.g., 128) to prevent stack overflow on maliciously deep input.
 - `Obj` deduplicates keys: later values overwrite earlier ones (per JSON spec).
@@ -299,35 +299,35 @@ is_float = fn n -> match n {
 }
 
 as_i64 = fn n -> match n {
-  NegInt(i)  -> Some(i)
-  PosInt(u)  -> if u <= 9223372036854775807 { Some(I64.from(u)) } else { None }
-  Float(_)   -> None
+  NegInt(i)  -> Ok(i)
+  PosInt(u)  -> if u <= 9223372036854775807 { Ok(I64.from(u)) } else { Err(Absent) }
+  Float(_)   -> Err(Absent)
 }
 
 as_u64 = fn n -> match n {
-  PosInt(u)  -> Some(u)
-  NegInt(_)  -> None
-  Float(_)   -> None
+  PosInt(u)  -> Ok(u)
+  NegInt(_)  -> Err(Absent)
+  Float(_)   -> Err(Absent)
 }
 
 as_f64 = fn n -> match n {
-  Float(f)   -> Some(f)
-  PosInt(u)  -> Some(F64.from(u))
-  NegInt(i)  -> Some(F64.from(i))
+  Float(f)   -> Ok(f)
+  PosInt(u)  -> Ok(F64.from(u))
+  NegInt(i)  -> Ok(F64.from(i))
 }
 
 get = fn v, key -> match v {
   Obj(m) -> match Map.get(m, key) {
-    Some(child) -> Ok(child)
-    None        -> Err(UnexpectedChar(0, "key not found: " ++ key))
+    Ok(child)  -> Ok(child)
+    Err(_)     -> Err(UnexpectedChar(0, "key not found: " ++ key))
   }
   _ -> Err(UnexpectedChar(0, "not an object"))
 }
 
 get_at = fn v, idx -> match v {
   Arr(items) -> match List.get_at(items, idx) {
-    Some(child) -> Ok(child)
-    None        -> Err(UnexpectedChar(0, "index out of bounds"))
+    Ok(child)  -> Ok(child)
+    Err(_)     -> Err(UnexpectedChar(0, "index out of bounds"))
   }
   _ -> Err(UnexpectedChar(0, "not an array"))
 }
@@ -353,7 +353,7 @@ compile  : Str -> Result(Regex, RegexErr)
 is_match : Regex, Str -> Bool
 
 // Search — intrinsic
-find      : Regex, Str -> Option(Match)         // first match only
+find      : Regex, Str -> Result(Match, [Absent])   // first match only
 find_all  : Regex, Str -> List(Match)           // all non-overlapping matches
 
 // Transformation — intrinsic
@@ -400,17 +400,17 @@ escape = fn s -> {
 ```camp
 // Uri.camp — NEW — all pure Camp
 @UriAuthority : pub {
-    userinfo : Option(Str)
+    userinfo : Result(Str, [Absent])
     host     : Str
-    port     : Option(U16)
+    port     : Result(U16, [Absent])
 }
 
 @Uri : pub {
     scheme    : Str
-    authority : Option(UriAuthority)
+    authority : Result(UriAuthority, [Absent])
     path      : Str
-    query     : Option(Str)                     // D36: raw percent-encoded string
-    fragment  : Option(Str)
+    query     : Result(Str, [Absent])                     // D36: raw percent-encoded string
+    fragment  : Result(Str, [Absent])
 }
 
 @UriErr : pub [
@@ -435,10 +435,10 @@ format_query : List((Str, Str)) -> Str         // reverse
 
 // Functional construction helpers
 with_scheme    : Str, Uri -> Uri
-with_authority : Option(UriAuthority), Uri -> Uri
+with_authority : Result(UriAuthority, [Absent]), Uri -> Uri
 with_path      : Str, Uri -> Uri
-with_query     : Option(Str), Uri -> Uri
-with_fragment  : Option(Str), Uri -> Uri
+with_query     : Result(Str, [Absent]), Uri -> Uri
+with_fragment  : Result(Str, [Absent]), Uri -> Uri
 ```
 
 **Design notes**:
@@ -554,7 +554,8 @@ Base64  (standalone — Bytes, Str, Result)
 | D33 | Crypto.Random! as separate module | Eliminated | Folded into Random! handler |
 | D34 | Json Obj representation | Map(Str, JsonValue) | O(log n) lookup; loses insertion order, deduplicates keys |
 | D35 | Json number type | JsonNumber [PosInt\|NegInt\|Float] | Preserves int/float distinction; adds type complexity |
-| D36 | Uri query storage | Raw Option(Str) + parse_query helper | Preserves original encoding; parsed access is opt-in |
+| D36 | Uri query storage | Raw Result(Str, [Absent]) + parse_query helper | Preserves original encoding; parsed access is opt-in |
 | D37 | Regex engine class | RE2-style (no backtracking) | Safe against ReDoS; no backreferences/lookahead |
 | D38 | Uuid generation effect | Random! only | Simpler API; crypto choice at handler level |
 | D39 | Base64 API shape | Parameterized + shorthands | More API surface; convenience for common cases |
+| D40 | No Option type | Result(a, [Absent]) everywhere | Consistent with D1; Absent tag for semantically meaningful absence |

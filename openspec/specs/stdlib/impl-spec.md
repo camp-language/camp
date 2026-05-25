@@ -1530,7 +1530,7 @@ pub version = |_u| crash "intrinsic: Uuid.version"  -- TODO: pure Camp implement
 pub variant : Uuid -> UuidVariant
 pub variant = |_u| crash "intrinsic: Uuid.variant"  -- TODO: pure Camp implementation
 
-pub timestamp : Uuid -> Result(I64, [])         -- V7 only; Err if not V7
+pub timestamp : Uuid -> Result(I64, [Absent])   -- V7 only; Err if not V7
 pub timestamp = |_u| crash "intrinsic: Uuid.timestamp"  -- TODO: pure Camp implementation
 ```
 
@@ -1601,25 +1601,25 @@ pub is_float = |n| match n {
   NegInt(_) -> False
 }
 
-pub as_i64 : JsonNumber -> Option(I64)
+pub as_i64 : JsonNumber -> Result(I64, [Absent])
 pub as_i64 = |n| match n {
-  NegInt(i)  -> Some(i)
-  PosInt(_)  -> None   -- TODO: check if <= I64_MAX
-  Float(_)   -> None
+  NegInt(i) -> Ok(i)
+  PosInt(_) -> Err(Absent)   -- TODO: check if <= I64_MAX
+  Float(_)  -> Err(Absent)
 }
 
-pub as_u64 : JsonNumber -> Option(U64)
+pub as_u64 : JsonNumber -> Result(U64, [Absent])
 pub as_u64 = |n| match n {
-  PosInt(u)  -> Some(u)
-  NegInt(_)  -> None
-  Float(_)   -> None
+  PosInt(u) -> Ok(u)
+  NegInt(_) -> Err(Absent)
+  Float(_)  -> Err(Absent)
 }
 
-pub as_f64 : JsonNumber -> Option(F64)
+pub as_f64 : JsonNumber -> Result(F64, [Absent])
 pub as_f64 = |n| match n {
-  Float(f)   -> Some(f)
-  PosInt(_)  -> None   -- TODO: always Some (every JsonNumber can be F64)
-  NegInt(_)  -> None   -- TODO: always Some
+  Float(f)  -> Ok(f)
+  PosInt(_) -> Err(Absent)   -- TODO: always Ok (every JsonNumber can be F64)
+  NegInt(_) -> Err(Absent)   -- TODO: always Ok
 }
 
 -- JsonValue convenience accessors — pure Camp
@@ -1630,13 +1630,13 @@ pub get = |_v, _key| crash "intrinsic: Json.get"  -- TODO: pure Camp implementat
 pub get_at : JsonValue, U64 -> Result(JsonValue, JsonErr)
 pub get_at = |_v, _idx| crash "intrinsic: Json.get_at"  -- TODO: pure Camp implementation
 
-pub keys : JsonValue -> Result(List(Str), [])
+pub keys : JsonValue -> Result(List(Str), [Absent])
 pub keys = |_v| crash "intrinsic: Json.keys"  -- TODO: pure Camp implementation
 
-pub values : JsonValue -> Result(List(JsonValue), [])
+pub values : JsonValue -> Result(List(JsonValue), [Absent])
 pub values = |_v| crash "intrinsic: Json.values"  -- TODO: pure Camp implementation
 
-pub length : JsonValue -> Result(U64, [])
+pub length : JsonValue -> Result(U64, [Absent])
 pub length = |_v| crash "intrinsic: Json.length"  -- TODO: pure Camp implementation
 
 -- Streaming parser — intrinsic
@@ -1666,8 +1666,8 @@ pub parse_all = |_s| crash "intrinsic: Json.parse_all"
 ```
 
 **Design notes**:
-- `as_f64` always returns `Some` — every `JsonNumber` can be lossily represented as F64 (large integers lose precision, but the conversion is always valid). Mirrors Rust's `serde_json::Number::as_f64`.
-- `as_i64` returns `None` for `PosInt` values exceeding `I64_MAX` and for `Float` variants.
+- `as_f64` always returns `Ok` — every `JsonNumber` can be lossily represented as F64 (large integers lose precision, but the conversion is always valid). Mirrors Rust's `serde_json::Number::as_f64`.
+- `as_i64` returns `Err(Absent)` for `PosInt` values exceeding `I64_MAX` and for `Float` variants.
 - Streaming parser is a state machine: `parse_next` returns `(new_state, event)` for lazy consumption.
 - `depth` field in `JsonParser` tracks nesting depth — reject input exceeding a configurable limit (e.g., 128) to prevent stack overflow on maliciously deep input.
 - `Obj` deduplicates keys: later values overwrite earlier ones (per JSON spec recommendation).
@@ -1702,7 +1702,7 @@ pub is_match = |_r, _s| crash "intrinsic: Regex.is_match"
 
 -- Search — intrinsic
 
-pub find : Regex, Str -> Option(Match)          -- first match only
+pub find : Regex, Str -> Result(Match, [Absent])   -- first match only
 pub find = |_r, _s| crash "intrinsic: Regex.find"
 
 pub find_all : Regex, Str -> List(Match)        -- all non-overlapping matches
@@ -1746,17 +1746,17 @@ pub escape = |_s| crash "intrinsic: Regex.escape"  -- TODO: pure Camp implementa
 -- Uri.camp
 
 @UriAuthority : pub {
-    userinfo : Option(Str),                     -- "user:password" (deprecated per RFC 3986 §3.2.1)
+    userinfo : Result(Str, [Absent]),              -- "user:password" (deprecated per RFC 3986 §3.2.1)
     host     : Str,
-    port     : Option(U16)
+    port     : Result(U16, [Absent])
 }
 
 @Uri : pub {
     scheme    : Str,
-    authority : Option(UriAuthority),
+    authority : Result(UriAuthority, [Absent]),
     path      : Str,
-    query     : Option(Str),                    -- D36: raw percent-encoded string
-    fragment  : Option(Str)
+    query     : Result(Str, [Absent]),             -- D36: raw percent-encoded string
+    fragment  : Result(Str, [Absent])
 }
 
 @UriErr : pub [
@@ -1796,16 +1796,16 @@ pub format_query = |_pairs| crash "intrinsic: Uri.format_query"  -- TODO: pure C
 pub with_scheme : Str, Uri -> Uri
 pub with_scheme = |s, u| { scheme: s, authority: u.authority, path: u.path, query: u.query, fragment: u.fragment }
 
-pub with_authority : Option(UriAuthority), Uri -> Uri
+pub with_authority : Result(UriAuthority, [Absent]), Uri -> Uri
 pub with_authority = |a, u| { scheme: u.scheme, authority: a, path: u.path, query: u.query, fragment: u.fragment }
 
 pub with_path : Str, Uri -> Uri
 pub with_path = |p, u| { scheme: u.scheme, authority: u.authority, path: p, query: u.query, fragment: u.fragment }
 
-pub with_query : Option(Str), Uri -> Uri
+pub with_query : Result(Str, [Absent]), Uri -> Uri
 pub with_query = |q, u| { scheme: u.scheme, authority: u.authority, path: u.path, query: q, fragment: u.fragment }
 
-pub with_fragment : Option(Str), Uri -> Uri
+pub with_fragment : Result(Str, [Absent]), Uri -> Uri
 pub with_fragment = |f, u| { scheme: u.scheme, authority: u.authority, path: u.path, query: u.query, fragment: f }
 ```
 
@@ -1909,7 +1909,7 @@ The separate `Crypto.Random!` module is eliminated from both spec and impl-spec.
 
 ### D36: Uri Query Storage
 
-`query` stores raw `Option(Str)` (percent-encoded), with `parse_query`/`format_query` helpers for form-encoded parsing. Follows Rust's `url` crate design. Preserves original encoding; parsed access is opt-in.
+`query` stores raw `Result(Str, [Absent])` (percent-encoded), with `parse_query`/`format_query` helpers for form-encoded parsing. Follows Rust's `url` crate design. Preserves original encoding; parsed access is opt-in. Per D40: uses `Result(Str, [Absent])` instead of `Option(Str)`.
 
 ### D37: Regex Engine Class
 
@@ -1922,6 +1922,10 @@ RE2-style engine: guaranteed O(n) time, no backtracking, no backreferences, no l
 ### D39: Base64 API Shape
 
 Parameterized core (`encode : Base64Format, Bytes -> Str`) plus shorthand convenience functions (`encode64`, `encode64url`, `encode16`). Parameterization is extensible; shorthands reduce boilerplate for the 90% case.
+
+### D40: No Option Type — Use Result(a, [Absent])
+
+Camp has no `Option` type (per D1: "Drop Option, keep Result + Throw!"). All P2 modules use `Result(a, [Absent])` where `Option(a)` would traditionally appear: nullable URI components (authority, query, fragment, userinfo, port), optional JSON number conversions (`as_i64`, `as_u64`, `as_f64`), and regex match results (`find`). `Absent` is a zero-cost tag — no error message needed since the absence is semantically meaningful, not erroneous.
 
 ---
 
