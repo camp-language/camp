@@ -2,6 +2,7 @@ package camp
 
 import "core:fmt"
 import "core:os"
+import "core:strconv"
 
 import "camp:base"
 import "camp:diagnostics"
@@ -31,11 +32,19 @@ main :: proc() {
 	}
 
 	remaining_args := args[2:]
+
+	thread_count := 1
+	if threads_str := os.get_env_alloc("CAMP_THREADS", context.allocator); threads_str != "" {
+		if n, ok := strconv.parse_int(threads_str); ok {
+			thread_count = n
+		}
+	}
+
 	result: build.Build_Result
 	switch cmd {
 	case .Build:
 		file_path := len(remaining_args) > 0 ? remaining_args[0] : ""
-		result = build.run_build_single(file_path)
+		result = build.run_build_single(file_path, thread_count)
 	case .Test:
 		result = build.run_test(remaining_args)
 	case .Fmt:
