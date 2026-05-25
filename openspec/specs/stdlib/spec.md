@@ -106,40 +106,38 @@ The `Log` effect SHALL include a `Log!` effect with `debug!`, `info!`, `warn!`, 
 - When a Log handler is installed
 - Then the handler SHALL receive the message string and structured key-value context
 
-### Requirement: Crypto.Random Effect
+### Requirement: Random! Effect with Multiple Handlers
 
-The stdlib SHALL include a `Crypto.Random!` effect separate from the non-cryptographic `Random!` effect, providing `bytes!`, `int!`, and `uuid!` operations suitable for token/nonce/key generation.
+The stdlib SHALL provide a single `Random!` effect with two handler implementations: `random_prng` (fast, non-cryptographic) and `random_crypto` (WASI `random_get`, cryptographically secure). The effect interface includes `bytes!`, `int!`, `float!`, and `bool!` operations. The handler choice determines the security guarantee — the effect signature alone does not guarantee cryptographic security.
 
-#### Scenario: Cryptographic random generation
+#### Scenario: Cryptographic random generation via handler
 
-- Given a `Crypto.Random` handler installed
-- When `Crypto.Random.bytes!(16)` is called
-- Then the result SHALL be 16 bytes of cryptographically secure random data
+- Given a `random_crypto` handler is installed
+- When `Random.bytes!(16)` is called
+- Then the result SHALL be 16 bytes of cryptographically secure random data sourced from WASI's `random_get` syscall
 
-#### Scenario: Separation from non-crypto Random
+#### Scenario: Fast PRNG via handler
 
-- Given `Random.int!(1, 100)` uses a fast PRNG seeded from WASI
-- And `Crypto.Random.int!(1, 100)` uses WASI's `random_get` syscall directly
-- Then `Random!` SHALL trade security for speed and `Crypto.Random!` SHALL trade speed for security
-
-### Requirement: Two Distinct Random Sources
-
-The `Random` effect SHALL use a fast non-cryptographic PRNG and `Crypto.Random` SHALL use WASI's `random_get` syscall directly, with distinct performance/security tradeoffs.
-
-#### Scenario: Random is not suitable for secrets
-
-- Given `Random.int!(1, 100)` is used for shuffling a list
+- Given a `random_prng` handler is installed with seed 42
+- When `Random.int!(1, 100)` is called
 - Then the result SHALL be fast but MUST NOT be used for token or key generation
+
+#### Scenario: Same effect interface, different security
+
+- Given `Random.int!(1, 100)` is called
+- When the `random_prng` handler is installed, the result uses a fast PRNG
+- And when the `random_crypto` handler is installed, the result uses WASI's `random_get` syscall
+- Then both produce valid random integers but with different security guarantees
 
 ### Requirement: Uuid Module
 
-The stdlib SHALL include a `Uuid` module supporting v4, v7 generation, parsing, and formatting, depending on `Crypto.Random!` for generation.
+The stdlib SHALL include a `Uuid` module supporting v4, v7 generation, parsing, and formatting, depending on `Random!` for generation. The handler choice (fast PRNG vs cryptographic) determines the security guarantee of generated UUIDs.
 
 #### Scenario: UUID v7 generation
 
-- Given a `Crypto.Random!` handler is installed
-- When `Uuid.v7!()` is called
-- Then the result SHALL be a time-sortable UUID
+- Given a `Random!` handler is installed
+- When `Uuid.v7!(timestamp_ms)` is called
+- Then the result SHALL be a time-sortable UUID with the given timestamp embedded
 
 ### Requirement: Base64 Module
 
@@ -311,6 +309,6 @@ The compiler SHALL embed stdlib `.camp` source files at build time. Stdlib modul
 
 - Given the embedded stdlib
 - When the compiler initializes
-- Then the following stdlib modules SHALL be available: `Result`, `Bool`, `Str`, `List`, `Iter`, `Map`, `Set`, `Display`, `Num.I64`, `Num.I32`, `Num.I16`, `Num.I8`, `Num.U64`, `Num.U32`, `Num.U16`, `Num.U8`, `Num.F64`, `Num.F32`, `Bytes`, `Eq`, `Ord`, `Hash`, `Debug`, `Default`, `IntoIter`, `FromIter`, `From`, `TryFrom`, `Console!`, `Throw!`, `File!`, `Env!`, `Time!`, `Random!`, `Log!`, `Path`, `Duration`, `Fmt`
+- Then the following stdlib modules SHALL be available: `Result`, `Bool`, `Str`, `List`, `Iter`, `Map`, `Set`, `Display`, `Num.I64`, `Num.I32`, `Num.I16`, `Num.I8`, `Num.U64`, `Num.U32`, `Num.U16`, `Num.U8`, `Num.F64`, `Num.F32`, `Bytes`, `Eq`, `Ord`, `Hash`, `Debug`, `Default`, `IntoIter`, `FromIter`, `From`, `TryFrom`, `Console!`, `Throw!`, `File!`, `Env!`, `Time!`, `Random!`, `Log!`, `Path`, `Duration`, `Fmt`, `Json`, `Regex`, `Uri`, `Uuid`, `Base64`
 
 For the complete syntax reference, see `docs/syntax-recipe.md`.

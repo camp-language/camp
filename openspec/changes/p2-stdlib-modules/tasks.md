@@ -90,9 +90,9 @@
 
 ## Phase 7: Spec Updates & Integration
 
-- [ ] Update `openspec/specs/stdlib/spec.md`: remove Crypto.Random! as separate module, update Random! description, mark P2 modules as specified
-- [ ] Update `openspec/specs/stdlib/impl-spec.md`: add all 5 new module sections + Random! modification, update module registry table
-- [ ] Record D31–D39 in design decision section of impl-spec
+- [x] Update `openspec/specs/stdlib/spec.md`: remove Crypto.Random! as separate module, update Random! description, mark P2 modules as specified
+- [x] Update `openspec/specs/stdlib/impl-spec.md`: add all 5 new module sections + Random! modification, update module registry table
+- [x] Record D31–D39 in design decision section of impl-spec
 - [ ] Update kitchen-sink test (`tests/e2e/language/kitchen-sink/Main.camp`) with P2 module examples
 - [ ] Update kitchen-sink `expected.toml` via `just update-snapshots`
 - [ ] Verify all existing tests pass: `odin test src`

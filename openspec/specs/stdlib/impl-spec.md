@@ -2,7 +2,7 @@
 
 ## Overview
 
-This spec documents the 38 stdlib modules implemented as `.camp` source files, embedded in the compiler via `src/build/stdlib.odin`. Each module specifies:
+This spec documents the 43 stdlib modules implemented as `.camp` source files, embedded in the compiler via `src/build/stdlib.odin`. Each module specifies:
 1. The type declaration (if any)
 2. Which functions are **intrinsic** (need runtime/WASM support) vs **pure Camp** (implementable in the language itself)
 3. The exact implementation code using correct syntax from `docs/syntax-recipe.md`
@@ -12,7 +12,7 @@ This spec documents the 38 stdlib modules implemented as `.camp` source files, e
 
 Functions requiring runtime support use `crash "intrinsic: Module.function"` as their body. The compiler's lowering pass recognizes these signatures and replaces them with calls to the Odin/WASM runtime. This is a compiler-internal convention, not a language feature.
 
-### Module Registry (38 modules)
+### Module Registry (43 modules)
 
 | Module | File | Lines | Category | Pure/Intrinsic |
 |--------|------|-------|----------|----------------|
@@ -49,11 +49,16 @@ Functions requiring runtime support use `crash "intrinsic: Module.function"` as 
 | File | `stdlib/File.camp` | 19 | Effect | Declaration only |
 | Env | `stdlib/Env.camp` | 9 | Effect | Declaration only |
 | Time | `stdlib/Time.camp` | 7 | Effect | Declaration only |
-| Random | `stdlib/Random.camp` | 9 | Effect | Declaration only |
+| Random | `stdlib/Random.camp` | 12 | Effect | Declaration only (two handlers) |
 | Log | `stdlib/Log.camp` | 9 | Effect | Declaration only |
 | Path | `stdlib/Path.camp` | 56 | Data type | All intrinsic |
 | Duration | `stdlib/Duration.camp` | 72 | Data type | All intrinsic |
 | Fmt | `stdlib/Fmt.camp` | 26 | Formatting | All intrinsic |
+| Json | `stdlib/Json.camp` | ~120 | Type + Functions | Intrinsic (parsing/encoding) + Pure (accessors) |
+| Regex | `stdlib/Regex.camp` | ~50 | Type + Functions | Intrinsic (engine) + Pure (escape) |
+| Uri | `stdlib/Uri.camp` | ~80 | Type + Functions | Pure Camp |
+| Uuid | `stdlib/Uuid.camp` | ~70 | Type + Functions | Mixed (generation intrinsic, parse/format pure) |
+| Base64 | `stdlib/Base64.camp` | ~60 | Functions | Pure Camp |
 
 ---
 
@@ -1219,7 +1224,7 @@ effect Time! : {
 
 ### Random!
 
-Fast PRNG (not cryptographic). For cryptographic random, use `Crypto.Random!`.
+Per D31: Single `Random!` effect with two handler implementations. `random_prng` provides fast non-cryptographic randomness; `random_crypto` provides WASI `random_get`-backed cryptographic randomness. The handler choice determines the security guarantee — the effect signature alone does not guarantee cryptographic security.
 
 ```camp
 effect Random! : {
@@ -1228,6 +1233,10 @@ effect Random! : {
   bytes! : I64 -> -[Random!]-> Bytes,
   bool!  : -[Random!]-> Bool,
 }
+
+-- Handlers
+random_prng   : U64 -> Handler(Random!)    -- seeded fast PRNG
+random_crypto : Handler(Random!)           -- WASI random_get, cryptographically secure
 ```
 
 ### Log!
@@ -1468,17 +1477,457 @@ Follows the same pattern as `Num.F64` with `F32` type annotations. Same intrinsi
 
 ---
 
-## 15. Not Yet Implemented (Priority 2/3)
+## 15. Uuid Module
+
+**Mixed pure/intrinsic.** Generation is intrinsic (needs `Random!` effect). Parsing, formatting, and inspection are pure Camp. Per D38: uses `Random!` only — no separate crypto variant. Handler choice determines security guarantee.
+
+```camp
+-- Uuid.camp
+
+@Uuid : pub Bytes                              -- 16 bytes, opaque
+
+@UuidErr : pub [
+    InvalidFormat(Str)
+  | InvalidLength(U64)
+  | InvalidVersion(U8)
+]
+
+@UuidVariant : pub [V4 | V7 | Unknown(U8)]
+@UuidFormat  : pub [Standard | Compact | Urn | Braced]
+
+-- Generation — effectful (intrinsic)
+
+pub v4! : -[Random!]-> Uuid
+pub v4! = || crash "intrinsic: Uuid.v4"
+
+pub v7! : I64 -> -[Random!]-> Uuid              -- timestamp in milliseconds
+pub v7! = |_ts| crash "intrinsic: Uuid.v7"
+
+-- Parsing — pure Camp
+
+pub parse : Str -> Result(Uuid, UuidErr)
+pub parse = |_s| crash "intrinsic: Uuid.parse"  -- TODO: pure Camp implementation
+
+pub from_bytes : Bytes -> Result(Uuid, UuidErr)
+pub from_bytes = |_b| crash "intrinsic: Uuid.from_bytes"  -- TODO: pure Camp implementation
+
+-- Formatting — pure Camp
+
+pub to_str : Uuid -> Str
+pub to_str = |_u| crash "intrinsic: Uuid.to_str"  -- TODO: pure Camp implementation
+
+pub format : UuidFormat, Uuid -> Str
+pub format = |_fmt, _u| crash "intrinsic: Uuid.format"  -- TODO: pure Camp implementation
+
+pub to_bytes : Uuid -> Bytes
+pub to_bytes = |u| u                           -- @Uuid wraps Bytes
+
+-- Inspection — pure Camp
+
+pub version : Uuid -> U8
+pub version = |_u| crash "intrinsic: Uuid.version"  -- TODO: pure Camp implementation
+
+pub variant : Uuid -> UuidVariant
+pub variant = |_u| crash "intrinsic: Uuid.variant"  -- TODO: pure Camp implementation
+
+pub timestamp : Uuid -> Result(I64, [])         -- V7 only; Err if not V7
+pub timestamp = |_u| crash "intrinsic: Uuid.timestamp"  -- TODO: pure Camp implementation
+```
+
+**Design notes**:
+- `@Uuid` wraps 16 `Bytes` — lightweight, no allocation beyond the byte storage
+- `v7!` takes explicit `I64` timestamp — no coupling to `Time!` effect. Callers pass `Time!.now!()` if desired.
+- `format(Standard, u)` → `"550e8400-e29b-41d4-a716-446655440000"`
+- `format(Compact, u)` → `"550e8400e29b41d4a716446655440000"`
+- `format(Urn, u)` → `"urn:uuid:550e8400-e29b-41d4-a716-446655440000"`
+- `format(Braced, u)` → `"{550e8400-e29b-41d4-a716-446655440000}"`
+- Pure Camp functions are marked `crash "intrinsic: ..."` as TODO placeholders until the compiler supports enough Camp syntax for real implementations
+
+---
+
+## 16. Json Module
+
+**Intrinsic (parsing/encoding) + Pure Camp (accessors).** Complex recursive-descent parser needs performant C runtime. Per D34: `Obj` uses `Map(Str, JsonValue)` for O(log n) lookup. Per D35: `JsonNumber` preserves integer/float distinction.
+
+```camp
+-- Json.camp
+
+@JsonNumber : pub [
+    PosInt(U64)                                -- non-negative integer
+  | NegInt(I64)                                -- negative integer
+  | Float(F64)                                 -- finite float (never NaN/Inf)
+]
+
+@JsonValue : pub [
+    Null
+  | Bool(Bool)
+  | Num(JsonNumber)                            -- D35: preserves int/float distinction
+  | Str(Str)
+  | Arr(List(JsonValue))
+  | Obj(Map(Str, JsonValue))                   -- D34: Map for O(log n) lookup
+]
+
+@JsonErr : pub [
+    UnexpectedChar(U64, Str)                  -- position + description
+  | InvalidNumber(U64, Str)
+  | UnexpectedEnd
+  | TrailingContent(U64)
+]
+
+-- Core DOM API — intrinsic
+
+pub decode : Str -> Result(JsonValue, JsonErr)
+pub decode = |_s| crash "intrinsic: Json.decode"
+
+pub encode : JsonValue -> Str
+pub encode = |_v| crash "intrinsic: Json.encode"
+
+pub encode_pretty : JsonValue -> Str            -- 2-space indent
+pub encode_pretty = |_v| crash "intrinsic: Json.encode_pretty"
+
+-- JsonNumber accessors — pure Camp
+
+pub is_int : JsonNumber -> Bool
+pub is_int = |n| match n {
+  PosInt(_) -> True
+  NegInt(_) -> True
+  Float(_)  -> False
+}
+
+pub is_float : JsonNumber -> Bool
+pub is_float = |n| match n {
+  Float(_)  -> True
+  PosInt(_) -> False
+  NegInt(_) -> False
+}
+
+pub as_i64 : JsonNumber -> Option(I64)
+pub as_i64 = |n| match n {
+  NegInt(i)  -> Some(i)
+  PosInt(_)  -> None   -- TODO: check if <= I64_MAX
+  Float(_)   -> None
+}
+
+pub as_u64 : JsonNumber -> Option(U64)
+pub as_u64 = |n| match n {
+  PosInt(u)  -> Some(u)
+  NegInt(_)  -> None
+  Float(_)   -> None
+}
+
+pub as_f64 : JsonNumber -> Option(F64)
+pub as_f64 = |n| match n {
+  Float(f)   -> Some(f)
+  PosInt(_)  -> None   -- TODO: always Some (every JsonNumber can be F64)
+  NegInt(_)  -> None   -- TODO: always Some
+}
+
+-- JsonValue convenience accessors — pure Camp
+
+pub get : JsonValue, Str -> Result(JsonValue, JsonErr)
+pub get = |_v, _key| crash "intrinsic: Json.get"  -- TODO: pure Camp implementation
+
+pub get_at : JsonValue, U64 -> Result(JsonValue, JsonErr)
+pub get_at = |_v, _idx| crash "intrinsic: Json.get_at"  -- TODO: pure Camp implementation
+
+pub keys : JsonValue -> Result(List(Str), [])
+pub keys = |_v| crash "intrinsic: Json.keys"  -- TODO: pure Camp implementation
+
+pub values : JsonValue -> Result(List(JsonValue), [])
+pub values = |_v| crash "intrinsic: Json.values"  -- TODO: pure Camp implementation
+
+pub length : JsonValue -> Result(U64, [])
+pub length = |_v| crash "intrinsic: Json.length"  -- TODO: pure Camp implementation
+
+-- Streaming parser — intrinsic
+
+@JsonEvent : pub [
+    StartObj
+  | EndObj
+  | StartArr
+  | EndArr
+  | Key(Str)
+  | Null
+  | Bool(Bool)
+  | Num(JsonNumber)
+  | Str(Str)
+]
+
+@JsonParser : pub { source : Str, pos : U64, depth : U64 }
+
+pub parse_init : Str -> JsonParser
+pub parse_init = |_s| crash "intrinsic: Json.parse_init"
+
+pub parse_next : JsonParser -> Result((JsonParser, JsonEvent), JsonErr)
+pub parse_next = |_p| crash "intrinsic: Json.parse_next"
+
+pub parse_all : Str -> Result(List(JsonEvent), JsonErr)
+pub parse_all = |_s| crash "intrinsic: Json.parse_all"
+```
+
+**Design notes**:
+- `as_f64` always returns `Some` — every `JsonNumber` can be lossily represented as F64 (large integers lose precision, but the conversion is always valid). Mirrors Rust's `serde_json::Number::as_f64`.
+- `as_i64` returns `None` for `PosInt` values exceeding `I64_MAX` and for `Float` variants.
+- Streaming parser is a state machine: `parse_next` returns `(new_state, event)` for lazy consumption.
+- `depth` field in `JsonParser` tracks nesting depth — reject input exceeding a configurable limit (e.g., 128) to prevent stack overflow on maliciously deep input.
+- `Obj` deduplicates keys: later values overwrite earlier ones (per JSON spec recommendation).
+
+---
+
+## 17. Regex Module
+
+**Intrinsic (engine) + Pure Camp (escape).** RE2-style NFA engine needs performant C runtime. Per D37: guaranteed O(n), no backtracking, no backreferences, no lookahead/lookbehind.
+
+```camp
+-- Regex.camp
+
+@Regex : pub { pattern : Str }                  -- opaque compiled regex
+
+@RegexErr : pub [
+    CompileError(Str)
+  | InvalidEscape(Str)
+  | InvalidRepeat(Str)
+]
+
+@MatchGroup : pub { value : Str, start : U64, end : U64 }
+@Match : pub { full : Str, start : U64, end : U64, groups : List(MatchGroup) }
+
+-- Compilation — intrinsic
+
+pub compile : Str -> Result(Regex, RegexErr)
+pub compile = |_pat| crash "intrinsic: Regex.compile"
+
+pub is_match : Regex, Str -> Bool
+pub is_match = |_r, _s| crash "intrinsic: Regex.is_match"
+
+-- Search — intrinsic
+
+pub find : Regex, Str -> Option(Match)          -- first match only
+pub find = |_r, _s| crash "intrinsic: Regex.find"
+
+pub find_all : Regex, Str -> List(Match)        -- all non-overlapping matches
+pub find_all = |_r, _s| crash "intrinsic: Regex.find_all"
+
+-- Transformation — intrinsic
+
+pub replace : Regex, Str, Str -> Str            -- first match, literal replacement
+pub replace = |_r, _s, _rep| crash "intrinsic: Regex.replace"
+
+pub replace_all : Regex, Str, Str -> Str        -- all matches, literal replacement
+pub replace_all = |_r, _s, _rep| crash "intrinsic: Regex.replace_all"
+
+pub split : Regex, Str -> List(Str)             -- split on matches
+pub split = |_r, _s| crash "intrinsic: Regex.split"
+
+pub splitn : Regex, Str, U64 -> List(Str)       -- at most n-1 splits
+pub splitn = |_r, _s, _n| crash "intrinsic: Regex.splitn"
+
+-- Utility — pure Camp
+
+pub escape : Str -> Str                          -- escape regex metacharacters
+pub escape = |_s| crash "intrinsic: Regex.escape"  -- TODO: pure Camp implementation
+```
+
+**Design notes**:
+- RE2-style engine per D37: guaranteed O(n) time, no backtracking, no backreferences, no lookahead/lookbehind
+- `@Regex` is opaque — compiled NFA can't be inspected, only used via the API
+- `replace`/`replace_all` take *literal* replacement strings (no `$1`/`\1` backreference substitution — RE2 doesn't support backreferences)
+- `find_all` returns all non-overlapping matches, leftmost-first
+- `splitn(r, s, n)` produces at most n elements (n-1 splits)
+- `escape` escapes `.` `*` `+` `?` `(` `)` `[` `]` `{` `}` `|` `\` `^` `$`
+
+---
+
+## 18. Uri Module
+
+**Pure Camp.** RFC 3986 parsing is bounded-complexity string scanning — no C runtime needed. Per D36: query stored as raw string with `parse_query`/`format_query` helpers.
+
+```camp
+-- Uri.camp
+
+@UriAuthority : pub {
+    userinfo : Option(Str),                     -- "user:password" (deprecated per RFC 3986 §3.2.1)
+    host     : Str,
+    port     : Option(U16)
+}
+
+@Uri : pub {
+    scheme    : Str,
+    authority : Option(UriAuthority),
+    path      : Str,
+    query     : Option(Str),                    -- D36: raw percent-encoded string
+    fragment  : Option(Str)
+}
+
+@UriErr : pub [
+    InvalidScheme(Str)
+  | InvalidHost(Str)
+  | InvalidPort(Str)
+  | InvalidEscape(Str)
+  | MissingScheme
+]
+
+-- Parsing and formatting — pure Camp
+
+pub parse : Str -> Result(Uri, UriErr)
+pub parse = |_s| crash "intrinsic: Uri.parse"  -- TODO: pure Camp implementation
+
+pub to_str : Uri -> Str
+pub to_str = |_u| crash "intrinsic: Uri.to_str"  -- TODO: pure Camp implementation
+
+-- Component-level percent encoding — pure Camp
+
+pub encode_component : Str -> Str               -- percent-encode for URI component
+pub encode_component = |_s| crash "intrinsic: Uri.encode_component"  -- TODO: pure Camp implementation
+
+pub decode_component : Str -> Result(Str, UriErr)  -- percent-decode
+pub decode_component = |_s| crash "intrinsic: Uri.decode_component"  -- TODO: pure Camp implementation
+
+-- Query string parsing (convenience) — pure Camp
+
+pub parse_query : Str -> List((Str, Str))        -- "a=1&b=2" -> [("a","1"), ("b","2")]
+pub parse_query = |_s| crash "intrinsic: Uri.parse_query"  -- TODO: pure Camp implementation
+
+pub format_query : List((Str, Str)) -> Str      -- reverse
+pub format_query = |_pairs| crash "intrinsic: Uri.format_query"  -- TODO: pure Camp implementation
+
+-- Functional construction helpers — pure Camp
+
+pub with_scheme : Str, Uri -> Uri
+pub with_scheme = |s, u| { scheme: s, authority: u.authority, path: u.path, query: u.query, fragment: u.fragment }
+
+pub with_authority : Option(UriAuthority), Uri -> Uri
+pub with_authority = |a, u| { scheme: u.scheme, authority: a, path: u.path, query: u.query, fragment: u.fragment }
+
+pub with_path : Str, Uri -> Uri
+pub with_path = |p, u| { scheme: u.scheme, authority: u.authority, path: p, query: u.query, fragment: u.fragment }
+
+pub with_query : Option(Str), Uri -> Uri
+pub with_query = |q, u| { scheme: u.scheme, authority: u.authority, path: u.path, query: q, fragment: u.fragment }
+
+pub with_fragment : Option(Str), Uri -> Uri
+pub with_fragment = |f, u| { scheme: u.scheme, authority: u.authority, path: u.path, query: u.query, fragment: f }
+```
+
+**Design notes**:
+- Pure Camp — RFC 3986 parsing is bounded-complexity string scanning, no C runtime needed
+- `query` stores raw string per D36; `parse_query`/`format_query` handle form-encoded conversion separately
+- `userinfo` includes password for backward compatibility but is documented as deprecated per RFC 3986 §3.2.1
+- `encode_component` encodes everything except unreserved characters `[A-Za-z0-9_.~-]` per RFC 3986 §2.3
+- `with_*` helpers return new `Uri` with one field changed (records are immutable)
+- Pure Camp functions are marked `crash "intrinsic: ..."` as TODO placeholders until the compiler supports enough Camp syntax for real implementations
+
+---
+
+## 19. Base64 Module
+
+**Pure Camp.** Lookup table + bit shifting — no C runtime needed. Per D39: parameterized by `Base64Format` plus shorthand convenience functions.
+
+```camp
+-- Base64.camp
+
+@Base64Format : pub [Standard | UrlSafe | Base32 | Hex]
+
+@Base64Err : pub [
+    InvalidChar(U64, Str)                       -- position + bad character
+  | InvalidLength
+  | InvalidPadding
+]
+
+-- Core encode/decode (parameterized) — pure Camp
+
+pub encode : Base64Format, Bytes -> Str
+pub encode = |_fmt, _bytes| crash "intrinsic: Base64.encode"  -- TODO: pure Camp implementation
+
+pub decode : Base64Format, Str -> Result(Bytes, Base64Err)
+pub decode = |_fmt, _s| crash "intrinsic: Base64.decode"  -- TODO: pure Camp implementation
+
+-- String convenience (UTF-8 encode/decode internally) — pure Camp
+
+pub encode_str : Base64Format, Str -> Str
+pub encode_str = |fmt, s| encode(fmt, Str.to_bytes(s))
+
+pub decode_str : Base64Format, Str -> Result(Str, Base64Err)
+pub decode_str = |fmt, s| match decode(fmt, s) {
+  Ok(bytes) -> Ok(Bytes.to_str(bytes))
+  Err(e)    -> Err(e)
+}
+
+-- Format-specific shorthands — pure Camp
+
+pub encode64 : Bytes -> Str                     -- Standard Base64
+pub encode64 = |b| encode(Standard, b)
+
+pub decode64 : Str -> Result(Bytes, Base64Err)
+pub decode64 = |s| decode(Standard, s)
+
+pub encode64url : Bytes -> Str                  -- URL-safe Base64
+pub encode64url = |b| encode(UrlSafe, b)
+
+pub decode64url : Str -> Result(Bytes, Base64Err)
+pub decode64url = |s| decode(UrlSafe, s)
+
+pub encode16 : Bytes -> Str                     -- Hex, lowercase
+pub encode16 = |b| encode(Hex, b)
+
+pub decode16 : Str -> Result(Bytes, Base64Err)
+pub decode16 = |s| decode(Hex, s)
+```
+
+**Design notes**:
+- Pure Camp — lookup table + bit shifting, no C runtime needed
+- `Standard`: RFC 4648 Base64 with `A-Za-z0-9+/` and `=` padding
+- `UrlSafe`: RFC 4648 Base64url with `A-Za-z0-9-_` and no padding
+- `Base32`: RFC 4648 Base32 with `A-Z2-7` and `=` padding
+- `Hex`: lowercase hex `0-9a-f` (Base16)
+- `decode_str` returns `Result(Str, Base64Err)` — invalid UTF-8 after decoding is an error, not silent replacement
+- Core `encode`/`decode` are marked as TODO placeholders; shorthand functions delegate to them
+
+---
+
+## 20. Design Decisions
+
+### D31: One Random! Effect + Two Handlers
+
+`Crypto.Random!` is folded into `Random!` as a second handler (`random_crypto`). Algebraic effects separate interface from implementation — `Random!` declares *what* you need; handlers decide *how* to provide it. Two separate effects with identical operation signatures is near-duplication. The handler choice determines security guarantees.
+
+### D32: Random! bytes! Operation
+
+`bytes!` is added to the existing `Random!` effect. Needed by `Uuid` and any binary random use case. Already present in the existing impl-spec.
+
+### D33: Crypto.Random! Eliminated
+
+The separate `Crypto.Random!` module is eliminated from both spec and impl-spec. Its functionality is provided by the `random_crypto` handler for `Random!`.
+
+### D34: Json Obj Representation
+
+`Obj(Map(Str, JsonValue))` provides O(log n) field lookup. Tradeoff: loses insertion order and deduplicates keys (later values overwrite earlier ones, per JSON spec recommendation). Programs needing insertion order can use the streaming parser (`JsonEvent`).
+
+### D35: Json Number Type
+
+`JsonNumber` uses `[PosInt(U64) | NegInt(I64) | Float(F64)]`, following Rust's `serde_json::Number` design. Preserves integer/float distinction for correct round-tripping — `42` stays `42`, not `42.0`. `Float(F64)` only stores finite values (NaN/Infinity are not valid JSON numbers).
+
+### D36: Uri Query Storage
+
+`query` stores raw `Option(Str)` (percent-encoded), with `parse_query`/`format_query` helpers for form-encoded parsing. Follows Rust's `url` crate design. Preserves original encoding; parsed access is opt-in.
+
+### D37: Regex Engine Class
+
+RE2-style engine: guaranteed O(n) time, no backtracking, no backreferences, no lookahead/lookbehind. Safe against ReDoS attacks on malicious input. Users needing PCRE features can use an external package.
+
+### D38: Uuid Generation Effect
+
+`v4!` and `v7!` use `Random!` only — no separate crypto variant. UUIDs are about uniqueness, not cryptographic security. Users who need crypto-grade randomness handle `Random!` with `random_crypto` at the call site.
+
+### D39: Base64 API Shape
+
+Parameterized core (`encode : Base64Format, Bytes -> Str`) plus shorthand convenience functions (`encode64`, `encode64url`, `encode16`). Parameterization is extensible; shorthands reduce boilerplate for the 90% case.
+
+---
+
+## 21. Not Yet Implemented (Priority 3)
 
 The following modules are specified in `openspec/specs/stdlib/spec.md` but not yet implemented:
-
-### Priority 2 (required for most REST APIs)
-- **Json** — parsing, stringification, Value type, Encode/Decode trait instances, streaming parser
-- **Regex** — compile, match, find, replace, split, capture groups
-- **Uri** — URI/URL parsing and construction, percent encoding
-- **Crypto.Random!** — cryptographically secure random (separate from fast PRNG `Random!`)
-- **Uuid** — v4, v7 generation, parsing, formatting (depends on `Crypto.Random!`)
-- **Base64** — Base64, Base64URL, Base32, Base16 (Hex) encoding/decoding
 
 ### Priority 3 (important for completeness)
 - **Gzip** — pure compression/decompression on Bytes
