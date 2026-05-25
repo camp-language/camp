@@ -294,6 +294,18 @@ lexer_next :: proc(l: ^Lexer) -> base.Token {
 lexer_lex_number :: proc(l: ^Lexer, start: int) -> base.Token {
 	is_float := false
 
+	if pos := start; pos + 1 < len(l.source) && l.source[pos] == '0' {
+		next := l.source[pos + 1]
+		switch next {
+		case 'x':
+			return lexer_lex_hex_number(l, start)
+		case 'o':
+			return lexer_lex_octal_number(l, start)
+		case 'b':
+			return lexer_lex_binary_number(l, start)
+		}
+	}
+
 	when simd.HAS_HARDWARE_SIMD {
 		scan_number_simd(l, &is_float)
 	} else {
@@ -326,6 +338,73 @@ lexer_lex_number :: proc(l: ^Lexer, start: int) -> base.Token {
 		tok.int_value, _ = strconv.parse_i64(text)
 	}
 
+	return tok
+}
+
+lexer_lex_hex_number :: proc(l: ^Lexer, start: int) -> base.Token {
+	// Skip '0x'
+	l.pos += 2
+	for l.pos < len(l.source) {
+		ch := l.source[l.pos]
+		switch {
+		case (ch >= '0' && ch <= '9') || (ch >= 'a' && ch <= 'f') || (ch >= 'A' && ch <= 'F'):
+			l.pos += 1
+		case ch == '_':
+			l.pos += 1
+		case:
+			break
+		}
+	}
+	text := l.source[start:l.pos]
+	tok := lexer_make_token(l, .Int_Literal, start, text)
+	// skip '0x' prefix for parsing
+	if len(text) > 2 {
+		tok.int_value, _ = strconv.parse_i64_of_base(text[2:], 16)
+	}
+	return tok
+}
+
+lexer_lex_octal_number :: proc(l: ^Lexer, start: int) -> base.Token {
+	// Skip '0o'
+	l.pos += 2
+	for l.pos < len(l.source) {
+		ch := l.source[l.pos]
+		switch {
+		case ch >= '0' && ch <= '7':
+			l.pos += 1
+		case ch == '_':
+			l.pos += 1
+		case:
+			break
+		}
+	}
+	text := l.source[start:l.pos]
+	tok := lexer_make_token(l, .Int_Literal, start, text)
+	if len(text) > 2 {
+		tok.int_value, _ = strconv.parse_i64_of_base(text[2:], 8)
+	}
+	return tok
+}
+
+lexer_lex_binary_number :: proc(l: ^Lexer, start: int) -> base.Token {
+	// Skip '0b'
+	l.pos += 2
+	for l.pos < len(l.source) {
+		ch := l.source[l.pos]
+		switch {
+		case ch == '0' || ch == '1':
+			l.pos += 1
+		case ch == '_':
+			l.pos += 1
+		case:
+			break
+		}
+	}
+	text := l.source[start:l.pos]
+	tok := lexer_make_token(l, .Int_Literal, start, text)
+	if len(text) > 2 {
+		tok.int_value, _ = strconv.parse_i64_of_base(text[2:], 2)
+	}
 	return tok
 }
 
