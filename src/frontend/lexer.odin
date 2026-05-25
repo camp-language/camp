@@ -435,8 +435,14 @@ lexer_lex_perline_string :: proc(l: ^Lexer, start: int) -> base.Token {
 lexer_lex_identifier :: proc(l: ^Lexer, start: int) -> base.Token {
 	is_upper := l.source[l.pos] >= 'A' && l.source[l.pos] <= 'Z'
 
-	for l.pos < len(l.source) && is_identifier_continue(l.source[l.pos]) {
-		l.pos += 1
+	l.pos += 1 // consume identifier-start byte
+
+	when simd.HAS_HARDWARE_SIMD {
+		scan_identifier_simd(l)
+	} else {
+		for l.pos < len(l.source) && is_identifier_continue(l.source[l.pos]) {
+			l.pos += 1
+		}
 	}
 
 	base_text := l.source[start:l.pos]
@@ -465,6 +471,35 @@ lexer_lex_identifier :: proc(l: ^Lexer, start: int) -> base.Token {
 	}
 
 	return lexer_make_token(l, .Identifier, start, text)
+}
+
+when simd.HAS_HARDWARE_SIMD {
+
+scan_identifier_simd :: proc(l: ^Lexer) {
+	source_len := len(l.source)
+	for l.pos + 16 <= source_len {
+		chunk := load_chunk(l.source, l.pos)
+		ident_bits := extract_mask(is_identifier_continue_simd(chunk))
+
+		not_ident_bits := ~ident_bits
+		if not_ident_bits == 0 {
+			// All 16 bytes are identifier-continue chars
+			l.pos += 16
+			continue
+		}
+
+		// Found non-identifier byte within this chunk
+		first_non_ident := int(intrinsics.count_trailing_zeros(not_ident_bits))
+		l.pos += first_non_ident
+		return
+	}
+
+	// Scalar fallback for remaining bytes
+	for l.pos < source_len && is_identifier_continue(l.source[l.pos]) {
+		l.pos += 1
+	}
+}
+
 }
 
 is_identifier_start :: proc(ch: u8) -> bool {
