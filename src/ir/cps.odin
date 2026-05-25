@@ -82,7 +82,7 @@ cps_transform_decl :: proc(decl: IR_Decl, env: ^CPS_Env) -> IR_Decl {
 		new_fn^ = d^
 
 		k_name := base.fresh_id(&env.fresh_state, "_k")
-		append(&new_fn.params, IR_Param{name = k_name, type = base.IR_Type{wasm_type = .I32, type_id = base.Type_Var_ID(0)}})
+		append(&new_fn.params, IR_Param{name = k_name, type = base.IR_Type{wasm_type = .I32, type_id = base.Type_Var_ID(0), is_heap = true}})
 		new_fn.return_type = base.IR_Type{wasm_type = .Void, type_id = base.Type_Var_ID(0)}
 
 		transformed_body := cps_transform_expr(d.body, k_name, env)
@@ -94,7 +94,7 @@ cps_transform_decl :: proc(decl: IR_Decl, env: ^CPS_Env) -> IR_Decl {
 		append(&k_args, IR_Expr(result_var))
 
 		k_var := new(IR_Var)
-		k_var^ = IR_Var{name = k_name, type = base.IR_Type{wasm_type = .I32, type_id = base.Type_Var_ID(0)}, span = d.span}
+		k_var^ = IR_Var{name = k_name, type = base.IR_Type{wasm_type = .I32, type_id = base.Type_Var_ID(0), is_heap = true}, span = d.span}
 
 		cc := new(IR_Closure_Call)
 		cc^ = IR_Closure_Call{
@@ -124,7 +124,7 @@ cps_transform_expr :: proc(expr: IR_Expr, k_name: base.Intern_ID, env: ^CPS_Env)
 	#partial switch e in expr {
 	case ^IR_Return:
 		k_var := new(IR_Var)
-		k_var^ = IR_Var{name = k_name, type = base.IR_Type{wasm_type = .I32, type_id = base.Type_Var_ID(0)}, span = e.span}
+		k_var^ = IR_Var{name = k_name, type = base.IR_Type{wasm_type = .I32, type_id = base.Type_Var_ID(0), is_heap = true}, span = e.span}
 
 		transformed_value := cps_transform_expr(e.value, k_name, env)
 

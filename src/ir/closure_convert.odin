@@ -292,7 +292,7 @@ cc_convert_expr :: proc(expr: IR_Expr, env: ^Closure_Convert_Env) -> IR_Expr {
 			rec^ = IR_Construct_Record{
 				fields = fields,
 				rest = IR_Expr(rest_nil),
-				type = base.IR_Type{wasm_type = .I32, type_id = base.Type_Var_ID(0)},
+				type = base.IR_Type{wasm_type = .I32, type_id = base.Type_Var_ID(0), is_heap = true},
 				span = e.span,
 			}
 			return IR_Expr(rec)
@@ -310,7 +310,7 @@ cc_convert_expr :: proc(expr: IR_Expr, env: ^Closure_Convert_Env) -> IR_Expr {
 		free := cc_free_vars(e.body, &bound)
 
 		params := make([dynamic]IR_Param, 0, len(e.params) + 1)
-		append(&params, IR_Param{name = env_param_name, type = base.IR_Type{wasm_type = .I32, type_id = base.Type_Var_ID(0)}})
+		append(&params, IR_Param{name = env_param_name, type = base.IR_Type{wasm_type = .I32, type_id = base.Type_Var_ID(0), is_heap = true}})
 		for p in e.params {
 			append(&params, p)
 		}
@@ -362,11 +362,11 @@ cc_convert_expr :: proc(expr: IR_Expr, env: ^Closure_Convert_Env) -> IR_Expr {
 
 		rec := new(IR_Construct_Record)
 		rec^ = IR_Construct_Record{
-			fields = fields,
-			rest = IR_Expr(rest_nil),
-			type = base.IR_Type{wasm_type = .I32, type_id = base.Type_Var_ID(0)},
-			span = e.span,
-		}
+				fields = fields,
+				rest = IR_Expr(rest_nil),
+				type = base.IR_Type{wasm_type = .I32, type_id = base.Type_Var_ID(0), is_heap = true},
+				span = e.span,
+			}
 
 		delete(env_access_map)
 		delete(bound)
@@ -596,7 +596,7 @@ cc_convert_expr :: proc(expr: IR_Expr, env: ^Closure_Convert_Env) -> IR_Expr {
 
 make_env_field_access :: proc(env_name: base.Intern_ID, offset: u32, span: base.Source_Span, interner: ^base.Intern_Table) -> IR_Expr {
 	env_var := new(IR_Var)
-	env_var^ = IR_Var{name = env_name, type = base.IR_Type{wasm_type = .I32, type_id = base.Type_Var_ID(0)}, span = span}
+	env_var^ = IR_Var{name = env_name, type = base.IR_Type{wasm_type = .I32, type_id = base.Type_Var_ID(0), is_heap = true}, span = span}
 
 	field_access := new(IR_Field_Access)
 	field_access^ = IR_Field_Access{
