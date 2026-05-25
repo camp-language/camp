@@ -2,7 +2,7 @@
 
 ## Purpose
 
-Define the behavioral requirements for string interpolation in Camp — the syntax, Display trait constraint, effect row propagation, raw and multiline string kinds, nested brace handling, and the compiler's compilation strategy for interpolated strings.
+Define the behavioral requirements for string interpolation in Camp — the syntax, Display trait constraint, effect row propagation, per-line prefix multiline strings, nested brace handling, and the compiler's compilation strategy for interpolated strings.
 
 ## Requirements
 
@@ -93,47 +93,34 @@ An interpolated string SHALL have type `Str`.
 - **WHEN** the compiler infers its type
 - **THEN** the type SHALL be `Str`
 
-### Requirement: Raw Interpolated Strings
-An `r"..."` string SHALL NOT process backslash escape sequences (the backslash SHALL be a literal character), EXCEPT for `\$` which SHALL escape the interpolation delimiter. The `r` prefix SHALL indicate raw mode. Interpolation `${expr}` SHALL be active in raw strings.
 
-#### Scenario: Raw string with interpolation
-- **GIVEN** a binding `dir = "home"`
-- **WHEN** the expression `r"C:\${dir}\file.txt"` is evaluated
-- **THEN** the result SHALL be the string `"C:\\home\\file.txt"` — backslashes are literal, `${dir}` interpolates
-
-#### Scenario: Raw string escape is literal
-- **GIVEN** the expression `r"line1\nline2"`
-- **WHEN** evaluated
-- **THEN** the result SHALL be the string `"line1\\nline2"` — `\n` is literal, not a newline
-
-#### Scenario: Raw string interpolation escaping
-- **GIVEN** the expression `r"var: \${HOME}"`
-- **WHEN** evaluated
-- **THEN** the result SHALL be the string `"var: ${HOME}"` — `\$` escapes interpolation even in raw strings
-
-#### Scenario: Plain raw string without interpolation
-- **GIVEN** the expression `r"C:\Users"`
-- **WHEN** evaluated
-- **THEN** the result SHALL be the string `"C:\\Users"` — no interpolation, no escape processing
-
-### Requirement: Multiline Interpolated Strings
-A `"""..."""` string SHALL allow newlines in the string body. Interpolation `${expr}` SHALL be active. Backslash escape sequences SHALL be processed. Expressions inside `${...}` SHALL be single-line.
+### Requirement: Per-Line Prefix Multiline Strings
+A `\` at the start of a line SHALL indicate that line is part of a multiline string literal. Per-line prefix strings are raw — no `\n`, `\t`, or other backslash escape sequences are processed. Interpolation `${expr}` SHALL be active. Expressions inside `${...}` SHALL be single-line (for SIMD-friendly lexing). The newline between consecutive `\` lines SHALL be appended to the string content. Non-empty lines that do not start with `\` within a multiline string block SHALL produce an error with a suggestion to add the `\` prefix.
 
 #### Scenario: Multiline with interpolation
 - **GIVEN** a binding `name = "Camp"`
-- **WHEN** the expression `"""Hello, ${name}!\nWelcome."""` is evaluated
-- **THEN** the result SHALL contain the interpolated name, a newline, and "Welcome."
+- **WHEN** the expression `\Hello, ${name}!
+\Welcome.` is evaluated
+- **THEN** the result SHALL contain "Hello, Camp!" followed by a newline and "Welcome."
 
-#### Scenario: Multiline with literal newline
-- **GIVEN** a binding `name = "Camp"`
-- **WHEN** the expression `"""Hello, ${name}!
-Welcome."""` is evaluated
-- **THEN** the result SHALL contain "Hello, Camp!", a newline, and "Welcome."
+#### Scenario: Raw backslash is literal
+- **GIVEN** the expression `\C:\Users\${dir}` where `dir = "camp"`
+- **WHEN** evaluated
+- **THEN** the result SHALL be `"C:\\Users\\camp"` — backslashes are literal characters, `${dir}` interpolates
 
-#### Scenario: Expression must be single-line in multiline string
-- **GIVEN** a multiline string `"""Result: ${1 +\n2}"""`
+#### Scenario: Expression must be single-line
+- **GIVEN** a per-line string `\Result: ${1 +
+2}`
 - **WHEN** the compiler parses it
 - **THEN** it SHALL produce an error because the interpolation expression spans multiple lines
+
+#### Scenario: Missing prefix error
+- **GIVEN** the following lines:
+  `\Hello`
+  `world`
+  `\!`
+- **WHEN** the compiler parses them
+- **THEN** it SHALL produce an error for the line `world` suggesting to add a `\` prefix
 
 ### Requirement: Nested Braces in Interpolation
 An expression inside `${...}` SHALL support nested `{}` pairs for records, blocks, and other brace-delimited constructs. The matching `}` SHALL be determined by brace-depth tracking.
@@ -149,7 +136,7 @@ An expression inside `${...}` SHALL support nested `{}` pairs for records, block
 - **THEN** the brace-depth tracking SHALL correctly match the interpolation-closing `}`
 
 ### Requirement: Interpolated String Literal Kinds
-The language SHALL support four string literal kinds: plain (`"..."`), interpolated (auto-detected `${` in `"..."`), raw interpolated (`r"..."`), and multiline interpolated (`"""..."""`).
+The language SHALL support two string literal kinds: plain (`"..."`) and per-line prefix (`\`). A `"..."` string without `${` SHALL be a plain string literal. A `"..."` string containing `${` SHALL be automatically detected as an interpolated string. Lines starting with `\` SHALL be per-line prefix multiline strings with interpolation support.
 
 #### Scenario: Plain string
 - **GIVEN** the expression `"Hello"`
@@ -161,18 +148,15 @@ The language SHALL support four string literal kinds: plain (`"..."`), interpola
 - **WHEN** the compiler processes it
 - **THEN** it SHALL be an interpolated string with escape processing and `Display.to_str(name)` inserted
 
-#### Scenario: Raw interpolated string
-- **GIVEN** the expression `r"C:\${dir}"`
+#### Scenario: Per-line prefix multiline string
+- **GIVEN** the expression `\Line 1
+\${val}
+\Line 3`
 - **WHEN** the compiler processes it
-- **THEN** it SHALL be a raw string with no escape processing (except `\$`) and `Display.to_str(dir)` inserted
-
-#### Scenario: Multiline interpolated string
-- **GIVEN** the expression `"""Line 1\n${val}"""`
-- **WHEN** the compiler processes it
-- **THEN** it SHALL be a multiline string with escape processing, newlines allowed in the body, and `Display.to_str(val)` inserted
+- **THEN** it SHALL be a multiline raw string with no escape processing, interpolation active, and `Display.to_str(val)` inserted
 
 ### Requirement: String Interpolation Escape
-The `\$` escape sequence SHALL produce a literal `$` character in all string kinds. A `$` not followed by `{` SHALL be literal without escaping.
+The `\$` escape sequence SHALL produce a literal `$` character in plain `"..."` strings. In `\` per-line strings, which are raw, `\$` SHALL be the literal characters `\$` (no escape processing). A `$` not followed by `{` SHALL be literal without escaping in all string kinds.
 
 #### Scenario: Escaped dollar-brace in interpolated string
 - **GIVEN** the expression `"Var: \${HOME}"`
@@ -183,11 +167,6 @@ The `\$` escape sequence SHALL produce a literal `$` character in all string kin
 - **GIVEN** the expression `"Price: $5"`
 - **WHEN** evaluated
 - **THEN** the result SHALL be `"Price: $5"`
-
-#### Scenario: Escaped dollar in raw string
-- **GIVEN** the expression `r"Escaped: \${var}"`
-- **WHEN** evaluated
-- **THEN** the result SHALL be `"Escaped: ${var}"`
 
 ### Requirement: Display Trait
 The language SHALL provide a `Display` trait in the prelude defining a `to_str : Self -> Str` method. Types that implement `Display` SHALL be usable inside string interpolation holes without explicit conversion.
@@ -267,27 +246,24 @@ The compiler SHALL desugar `TExpr_Interpolated_String` to nested `Str.concat` an
 - **THEN** it SHALL produce `Str.concat(Display.to_str(a), Display.to_str(b))` with no empty string literals
 
 ### Requirement: Interpolated String Lexer Tokens
-The compiler SHALL emit token kinds for interpolated, raw, and multiline string literals. A `"..."` string containing `${` SHALL be emitted as an interpolated string token. An `r"..."` string SHALL be emitted as a raw string token. A `"""..."""` string SHALL be emitted as a multiline string token.
+The compiler SHALL emit token kinds for plain, interpolated, and per-line prefix string literals. A `"..."` string without `${` SHALL be emitted as a plain string token. A `"..."` string containing `${` SHALL be emitted as an interpolated string token. Lines starting with `\` SHALL be emitted as per-line string tokens.
+
+#### Scenario: Plain string token
+- **GIVEN** source text `"Hello, world!"`
+- **WHEN** the lexer tokenizes it
+- **THEN** it SHALL emit a plain string literal token
 
 #### Scenario: Interpolated string token
 - **GIVEN** source text `"Hello ${name}!"`
 - **WHEN** the lexer tokenizes it
 - **THEN** it SHALL emit a single interpolated string token containing the full text
 
-#### Scenario: Plain string token
-- **GIVEN** source text `"Hello, world!"`
-- **WHEN** the lexer tokenizes it
-- **THEN** it SHALL emit a plain string literal token (no interpolation)
-
-#### Scenario: Raw string token
-- **GIVEN** source text `r"C:\Users"`
-- **WHEN** the lexer tokenizes it
-- **THEN** it SHALL emit a raw string token
-
-#### Scenario: Multiline string token
-- **GIVEN** source text `"""Line 1\nLine 2"""`
-- **WHEN** the lexer tokenizes it
-- **THEN** it SHALL emit a multiline string token
+#### Scenario: Per-line string token
+- **GIVEN** source text `\Hello
+\${name}
+\!`
+- **WHEN** the lexer tokenizes each line
+- **THEN** it SHALL emit per-line string tokens for each `\`-prefixed line
 
 ### Requirement: Interpolated String Parsing
 The parser SHALL split interpolated string tokens into literal text segments and expression holes. Each expression hole SHALL be parsed by recursively invoking the expression parser. Brace-depth tracking SHALL determine the matching `}` for each interpolation hole.
@@ -306,3 +282,5 @@ The parser SHALL split interpolated string tokens into literal text segments and
 - **GIVEN** an interpolated string token `"${name"` with no closing `}`
 - **WHEN** the parser processes it
 - **THEN** it SHALL produce a parse error for the unterminated interpolation hole
+
+For the complete syntax reference, see `docs/syntax-recipe.md`.
