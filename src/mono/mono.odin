@@ -52,6 +52,7 @@ mono :: proc(tfile: semantics.TFile, store: ^semantics.Type_Store, interner: ^ba
 		specialized_decl := specialize_decl(item, &env)
 		if specialized_decl != nil {
 			append(&env.output_decls, semantics.TDecl(specialized_decl))
+			walk_expr_for_call_sites(specialized_decl.body, &env)
 		} else {
 			specialized_newtype := specialize_newtype(item, &env)
 			if specialized_newtype != nil {
@@ -61,6 +62,12 @@ mono :: proc(tfile: semantics.TFile, store: ^semantics.Type_Store, interner: ^ba
 	}
 
 	for decl in tfile.decls {
+		// Skip generic const decls — they've been specialized
+		if d, ok := decl.(^semantics.TDecl_Const); ok {
+			if lambda, ok := d.body.(^semantics.TExpr_Lambda); ok && len(lambda.type_params) > 0 {
+				continue
+			}
+		}
 		rewritten := rewrite_calls_in_decl(decl, env.specializations, &env)
 		append(&env.output_decls, rewritten)
 	}
@@ -80,8 +87,13 @@ mono :: proc(tfile: semantics.TFile, store: ^semantics.Type_Store, interner: ^ba
 
 specialization_key :: proc(item: Mono_Item, store: ^semantics.Type_Store, interner: ^base.Intern_Table) -> string {
 	name_str := base.intern_get(interner, item.original.name)
-	module_str := base.intern_get(interner, item.original.module)
-	base_str := fmt.tprintf("{}.{}", module_str, name_str)
+	base_str: string
+	if item.original.module != base.NO_NAME {
+		module_str := base.intern_get(interner, item.original.module)
+		base_str = fmt.tprintf("{}.{}", module_str, name_str)
+	} else {
+		base_str = name_str
+	}
 
 	if len(item.type_args) == 0 {
 		return base_str
@@ -781,8 +793,8 @@ walk_expr_for_call_sites :: proc(expr: semantics.TExpr, env: ^Mono_Env) {
 				#partial switch body in d.body {
 				case ^semantics.TExpr_Lambda:
 					if len(body.type_params) > 0 {
-						callee_type_id, has_type := env.store.bindings[callee.name.name]
-						if has_type {
+						callee_type_id := callee.type_.type_id
+						if callee_type_id != base.Type_Var_ID(-1) {
 							resolved_id := semantics.resolve_var(env.store, callee_type_id)
 							callee_v := &env.store.vars[int(resolved_id)]
 							if cit, cit_ok := callee_v.link.(semantics.Inferred_Type); cit_ok {
@@ -920,6 +932,39 @@ rewrite_calls_in_decl :: proc(decl: semantics.TDecl, specializations: map[string
 rewrite_calls_in_expr :: proc(expr: semantics.TExpr, specializations: map[string]base.Canonical_Name, env: ^Mono_Env) -> semantics.TExpr {
 	switch e in expr {
 	case ^semantics.TExpr_Call:
+		// Rewrite generic callee names to specialized names
+		if name_expr, is_name := e.callee.(^semantics.TExpr_Name); is_name {
+			if d, ok := env.decl_map[name_expr.name]; ok {
+				if lambda, is_lambda := d.body.(^semantics.TExpr_Lambda); is_lambda && len(lambda.type_params) > 0 {
+					callee_type_id := name_expr.type_.type_id
+					if callee_type_id != base.Type_Var_ID(-1) {
+						resolved_id := semantics.resolve_var(env.store, callee_type_id)
+						callee_v := &env.store.vars[int(resolved_id)]
+						if cit, cit_ok := callee_v.link.(semantics.Inferred_Type); cit_ok {
+							if inf, is_inf := cit.(semantics.Inferred_Function); is_inf {
+								type_args := make(map[base.Intern_ID]base.Type_Var_ID, len(lambda.type_params))
+								param_idx := 0
+								for tp in lambda.type_params {
+									if param_idx < len(inf.param_ids) {
+										concrete := semantics.resolve_var(env.store, inf.param_ids[param_idx])
+										type_args[tp.name] = concrete
+										param_idx += 1
+									}
+								}
+								if len(type_args) > 0 {
+									item := Mono_Item{original = name_expr.name, type_args = type_args, span = e.span}
+									key := specialization_key(item, env.store, env.interner)
+									if spec_name, ok := specializations[key]; ok {
+										name_expr.name = spec_name
+									}
+								}
+								delete(type_args)
+							}
+						}
+					}
+				}
+			}
+		}
 		for i in 0..<len(e.args) {
 			e.args[i] = rewrite_calls_in_expr(e.args[i], specializations, env)
 		}
