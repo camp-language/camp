@@ -1652,6 +1652,7 @@ test_rc_insert_heap_drop :: proc(t: ^testing.T) {
 	record^ = ir.IR_Construct_Record{
 		fields = make([dynamic]ir.IR_Record_Field, 0),
 		rest = nil,
+		reuse_addr = ir.NO_REUSE_ADDR,
 		type = heap_type,
 		span = base.Source_Span{},
 	}
@@ -1734,6 +1735,7 @@ test_rc_insert_branch_heap_drop :: proc(t: ^testing.T) {
 	record^ = ir.IR_Construct_Record{
 		fields = make([dynamic]ir.IR_Record_Field, 0),
 		rest = nil,
+		reuse_addr = ir.NO_REUSE_ADDR,
 		type = heap_type,
 		span = base.Source_Span{},
 	}

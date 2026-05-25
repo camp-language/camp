@@ -292,6 +292,7 @@ cc_convert_expr :: proc(expr: IR_Expr, env: ^Closure_Convert_Env) -> IR_Expr {
 			rec^ = IR_Construct_Record{
 				fields = fields,
 				rest = IR_Expr(rest_nil),
+				reuse_addr = NO_REUSE_ADDR,
 				type = base.IR_Type{wasm_type = .I32, type_id = base.Type_Var_ID(0), is_heap = true},
 				span = e.span,
 			}
@@ -364,6 +365,7 @@ cc_convert_expr :: proc(expr: IR_Expr, env: ^Closure_Convert_Env) -> IR_Expr {
 		rec^ = IR_Construct_Record{
 				fields = fields,
 				rest = IR_Expr(rest_nil),
+				reuse_addr = NO_REUSE_ADDR,
 				type = base.IR_Type{wasm_type = .I32, type_id = base.Type_Var_ID(0), is_heap = true},
 				span = e.span,
 			}
@@ -447,7 +449,7 @@ cc_convert_expr :: proc(expr: IR_Expr, env: ^Closure_Convert_Env) -> IR_Expr {
 			append(&new_payload, cc_convert_expr(p, env))
 		}
 		new_tag := new(IR_Construct_Tag)
-		new_tag^ = IR_Construct_Tag{tag_name = e.tag_name, tag_index = e.tag_index, payload = new_payload, type = e.type, span = e.span}
+		new_tag^ = IR_Construct_Tag{tag_name = e.tag_name, tag_index = e.tag_index, payload = new_payload, reuse_addr = e.reuse_addr, type = e.type, span = e.span}
 		return IR_Expr(new_tag)
 
 	case ^IR_Construct_Record:
@@ -459,6 +461,7 @@ cc_convert_expr :: proc(expr: IR_Expr, env: ^Closure_Convert_Env) -> IR_Expr {
 		new_rec^ = IR_Construct_Record{
 			fields = new_fields,
 			rest = cc_convert_expr(e.rest, env),
+			reuse_addr = e.reuse_addr,
 			type = e.type,
 			span = e.span,
 		}
@@ -700,7 +703,7 @@ rewrite_free_var_access :: proc(expr: IR_Expr, env_map: ^map[base.Intern_ID]IR_E
 			append(&new_payload, rewrite_free_var_access(p, env_map))
 		}
 		new_tag := new(IR_Construct_Tag)
-		new_tag^ = IR_Construct_Tag{tag_name = e.tag_name, tag_index = e.tag_index, payload = new_payload, type = e.type, span = e.span}
+		new_tag^ = IR_Construct_Tag{tag_name = e.tag_name, tag_index = e.tag_index, payload = new_payload, reuse_addr = e.reuse_addr, type = e.type, span = e.span}
 		return IR_Expr(new_tag)
 	case ^IR_Construct_Record:
 		new_fields := make([dynamic]IR_Record_Field, 0, len(e.fields))
@@ -711,6 +714,7 @@ rewrite_free_var_access :: proc(expr: IR_Expr, env_map: ^map[base.Intern_ID]IR_E
 		new_rec^ = IR_Construct_Record{
 			fields = new_fields,
 			rest = rewrite_free_var_access(e.rest, env_map),
+			reuse_addr = e.reuse_addr,
 			type = e.type,
 			span = e.span,
 		}

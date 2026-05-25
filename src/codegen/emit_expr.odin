@@ -725,6 +725,7 @@ emit_expr :: proc(expr: ir.IR_Expr, buf: ^[dynamic]u8, env: ^Codegen_Env, runtim
 		}
 
 	case ^ir.IR_Construct_Tag:
+		// reuse_addr handled in future reuse analysis pass
 		num_fields := len(e.payload)
 		total_size := CAMP_TAG_HEADER_SIZE + num_fields * 8
 
@@ -757,6 +758,7 @@ emit_expr :: proc(expr: ir.IR_Expr, buf: ^[dynamic]u8, env: ^Codegen_Env, runtim
 		emit_instruction(Wasm_Local_Get{index = tmp_local_idx}, buf)
 
 	case ^ir.IR_Construct_Record:
+		// reuse_addr handled in future reuse analysis pass
 		num_fields := len(e.fields)
 		total_size := CAMP_TAG_HEADER_SIZE + num_fields * 8
 

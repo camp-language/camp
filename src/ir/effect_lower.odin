@@ -340,7 +340,7 @@ el_replace_resume :: proc(expr: IR_Expr, resume_id: base.Intern_ID, resume_param
 			append(&new_payload, el_replace_resume(p, resume_id, resume_param, ev_param, env))
 		}
 		new_tag := new(IR_Construct_Tag)
-		new_tag^ = IR_Construct_Tag{tag_name = e.tag_name, tag_index = e.tag_index, payload = new_payload, type = e.type, span = e.span}
+		new_tag^ = IR_Construct_Tag{tag_name = e.tag_name, tag_index = e.tag_index, payload = new_payload, reuse_addr = e.reuse_addr, type = e.type, span = e.span}
 		return IR_Expr(new_tag)
 
 	case ^IR_Construct_Record:
@@ -352,6 +352,7 @@ el_replace_resume :: proc(expr: IR_Expr, resume_id: base.Intern_ID, resume_param
 		new_rec^ = IR_Construct_Record{
 			fields = new_fields,
 			rest = el_replace_resume(e.rest, resume_id, resume_param, ev_param, env),
+			reuse_addr = e.reuse_addr,
 			type = e.type,
 			span = e.span,
 		}
@@ -1086,7 +1087,7 @@ el_lower_expr :: proc(expr: IR_Expr, env: ^Effect_Lower_Env) -> IR_Expr {
 			append(&new_payload, el_lower_expr(p, env))
 		}
 		new_tag := new(IR_Construct_Tag)
-		new_tag^ = IR_Construct_Tag{tag_name = e.tag_name, tag_index = e.tag_index, payload = new_payload, type = e.type, span = e.span}
+		new_tag^ = IR_Construct_Tag{tag_name = e.tag_name, tag_index = e.tag_index, payload = new_payload, reuse_addr = e.reuse_addr, type = e.type, span = e.span}
 		return IR_Expr(new_tag)
 
 	case ^IR_Construct_Record:
@@ -1098,6 +1099,7 @@ el_lower_expr :: proc(expr: IR_Expr, env: ^Effect_Lower_Env) -> IR_Expr {
 		new_rec^ = IR_Construct_Record{
 			fields = new_fields,
 			rest = el_lower_expr(e.rest, env),
+			reuse_addr = e.reuse_addr,
 			type = e.type,
 			span = e.span,
 		}

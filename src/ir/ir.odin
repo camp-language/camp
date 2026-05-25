@@ -2,6 +2,8 @@ package ir
 
 import ba "camp:base"
 
+NO_REUSE_ADDR :: ba.Intern_ID(-1)
+
 IR_Module :: struct {
 	decls:        [dynamic]IR_Decl,
 	effect_defs:  [dynamic]IR_Effect_Def,
@@ -245,11 +247,12 @@ IR_Pat_Int :: struct { value: i64 }
 IR_Pat_String :: struct { string_id: ba.Intern_ID }
 
 IR_Construct_Tag :: struct {
-	tag_name:  ba.Intern_ID,
-	tag_index: int,
-	payload:   [dynamic]IR_Expr,
-	type:      ba.IR_Type,
-	span:      ba.Source_Span,
+	tag_name:   ba.Intern_ID,
+	tag_index:  int,
+	payload:    [dynamic]IR_Expr,
+	reuse_addr: ba.Intern_ID,
+	type:       ba.IR_Type,
+	span:       ba.Source_Span,
 }
 
 IR_Expr_Nominal_Construct :: struct {
@@ -260,10 +263,11 @@ IR_Expr_Nominal_Construct :: struct {
 }
 
 IR_Construct_Record :: struct {
-	fields: [dynamic]IR_Record_Field,
-	rest:   IR_Expr,
-	type:   ba.IR_Type,
-	span:   ba.Source_Span,
+	fields:     [dynamic]IR_Record_Field,
+	rest:       IR_Expr,
+	reuse_addr: ba.Intern_ID,
+	type:       ba.IR_Type,
+	span:       ba.Source_Span,
 }
 
 IR_Record_Field :: struct { name: ba.Intern_ID, value: IR_Expr }

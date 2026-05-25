@@ -959,6 +959,7 @@ lower_ttag :: proc(e: ^semantics.TExpr_Tag, env: ^Lower_Env) -> IR_Expr {
 		tag_name = e.name.name,
 		tag_index = tag_index,
 		payload = payload,
+		reuse_addr = NO_REUSE_ADDR,
 		type = e.type_,
 		span = e.span,
 	}
@@ -975,6 +976,7 @@ lower_trecord :: proc(e: ^semantics.TExpr_Record, env: ^Lower_Env) -> IR_Expr {
 	result^ = IR_Construct_Record{
 		fields = fields,
 		rest = rest,
+		reuse_addr = NO_REUSE_ADDR,
 		type = e.type_,
 		span = e.span,
 	}
@@ -1003,6 +1005,7 @@ lower_trecord_update :: proc(e: ^semantics.TExpr_Record_Update, env: ^Lower_Env)
 	result^ = IR_Construct_Record{
 		fields = fields,
 		rest = rest_ir,
+		reuse_addr = NO_REUSE_ADDR,
 		type = e.type_,
 		span = e.span,
 	}
@@ -1095,6 +1098,7 @@ lower_tlist :: proc(e: ^semantics.TExpr_List, env: ^Lower_Env) -> IR_Expr {
 		tag_name = nil_name,
 		tag_index = nil_index,
 		payload = make([dynamic]IR_Expr, 0),
+		reuse_addr = NO_REUSE_ADDR,
 		type = e.type_,
 		span = e.span,
 	}
@@ -1110,6 +1114,7 @@ lower_tlist :: proc(e: ^semantics.TExpr_List, env: ^Lower_Env) -> IR_Expr {
 			tag_name = cons_name,
 			tag_index = cons_index,
 			payload = cons_payload,
+			reuse_addr = NO_REUSE_ADDR,
 			type = e.type_,
 			span = e.span,
 		}
