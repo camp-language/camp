@@ -1,0 +1,19 @@
+-- File! effect — filesystem access
+-- Per D23: Only foo! variants. FileErr keeps IoErr as catch-all for v1.
+
+@FileErr : pub [NotFound | PermissionDenied | AlreadyExists | InvalidUtf8 | IoErr]
+
+effect File! : {
+  read_all!    : Path -> -[File!, Throw!([FileErr])]-> Str,
+  write_all!   : Path, Str -> -[File!, Throw!([FileErr])]-> (),
+  append_all!  : Path, Str -> -[File!, Throw!([FileErr])]-> (),
+  read_bytes!  : Path -> -[File!, Throw!([FileErr])]-> Bytes,
+  write_bytes! : Path, Bytes -> -[File!, Throw!([FileErr])]-> (),
+  list_dir!    : Path -> -[File!, Throw!([FileErr])]-> List(Path),
+  create_dir!  : Path -> -[File!, Throw!([FileErr])]-> (),
+  remove!      : Path -> -[File!, Throw!([FileErr])]-> (),
+  copy!        : Path, Path -> -[File!, Throw!([FileErr])]-> (),
+  exists!      : Path -> -[File!]-> Bool,
+  is_dir!      : Path -> -[File!]-> Bool,
+  is_file!     : Path -> -[File!]-> Bool,
+}

@@ -1,0 +1,5 @@
+-- From trait — infallible type conversion
+
+From(source, target) : {
+  from : source -> target,
+}

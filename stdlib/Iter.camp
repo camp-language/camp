@@ -123,6 +123,9 @@ pub all = |iter, pred| {
   go()
 }
 
+pub contains : Iter(a, e), a -> Bool
+pub contains = |iter, target| any(iter, |x| Eq.eq(x, target))
+
 -- ========================
 -- Slicing
 -- ========================

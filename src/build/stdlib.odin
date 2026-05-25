@@ -56,6 +56,10 @@ pub unwrap_or_else : Result(a, e), (e) -> a -> a
 pub unwrap_or_else = |r, f|
   match r { Ok(v) => v | Err(e) => f(e) }
 
+pub unwrap_or_default : Result(a, e) -> a
+pub unwrap_or_default = |r|
+  match r { Ok(v) => v | Err(_) => Default.default }
+
 -- Boolean composition
 
 pub or : Result(a, e), Result(a, e) -> Result(a, e)
@@ -295,9 +299,13 @@ pub to_iter = |xs| crash "intrinsic: List.to_iter"
 pub from_iter : Iter(a) -> List(a)
 pub from_iter = |iter| crash "intrinsic: List.from_iter"`
 
-ITER_CAMP :: `@Iter(a, e): { next: || -[e]-> [Yield(a) | Done] }
+ITER_CAMP :: `-- Iter.camp
 
+@Iter(a, e): { next: || -[e]-> [Yield(a) | Done] }
+
+-- ========================
 -- Construction
+-- ========================
 
 pub empty : Iter(a, e)
 pub empty = @Iter({ next = || Done })
@@ -319,7 +327,9 @@ pub from_list = |$list| {
   })
 }
 
+-- ========================
 -- Core transformations
+-- ========================
 
 pub map : Iter(a, e), (a) -> b -> Iter(b, e)
 pub map = |iter, f| @Iter({
@@ -358,7 +368,9 @@ pub filter_map = |iter, f|
     Err(_) => empty
   })
 
+-- ========================
 -- Consumption
+-- ========================
 
 pub fold : Iter(a, e), b, (b, a) -> b -> b
 pub fold = |iter, init, f| {
@@ -381,7 +393,9 @@ pub for_each = |iter, f| {
 pub count : Iter(a, e) -> I64
 pub count = |iter| fold(iter, 0, |n, _| n + 1)
 
+-- ========================
 -- Search
+-- ========================
 
 pub find : Iter(a, e), (a) -> Bool -> Result(a, [NotFound])
 pub find = |iter, pred| {
@@ -410,7 +424,13 @@ pub all = |iter, pred| {
   go()
 }
 
+pub contains : Iter(a, e), a -> Bool
+pub contains = |iter, target| any(iter, |x| Eq.eq(x, target))
+
+-- ========================
+-- ========================
 -- Slicing
+-- ========================
 
 pub take : Iter(a, e), I64 -> Iter(a, e)
 pub take = |iter, n| {
@@ -471,7 +491,9 @@ pub skip_while = |iter, pred| {
   @Iter({ next = go })
 }
 
+-- ========================
 -- Composition
+-- ========================
 
 pub chain : Iter(a, e), Iter(a, e) -> Iter(a, e)
 pub chain = |first, second| @Iter({
@@ -1438,6 +1460,356 @@ pub to_i64 = |n| crash "intrinsic: Num.F32.to_i64"
 pub from_i64 : I64 -> F32
 pub from_i64 = |n| crash "intrinsic: Num.F32.from_i64"`
 
+BYTES_CAMP :: `-- @Bytes -- opaque contiguous byte buffer, provided by runtime
+-- Per D19: Lean module (construction, queries, access, slicing, concat).
+-- Conversions via traits: From(Str, Bytes) infallible,
+-- TryFrom(Bytes, Str, [InvalidUtf8]) fallible.
+
+-- Construction
+
+pub new : Bytes
+pub new = crash "intrinsic: Bytes.new"
+
+pub from_list : List(U8) -> Bytes
+pub from_list = |xs| crash "intrinsic: Bytes.from_list"
+
+pub singleton : U8 -> Bytes
+pub singleton = |b| crash "intrinsic: Bytes.singleton"
+
+-- Queries
+
+pub length : Bytes -> I64
+pub length = |b| crash "intrinsic: Bytes.length"
+
+pub is_empty : Bytes -> Bool
+pub is_empty = |b| length(b) == 0
+
+-- Access
+
+pub get : I64, Bytes -> Result(U8, [IndexOutOfBounds])
+pub get = |i, b| crash "intrinsic: Bytes.get"
+
+-- Slicing
+
+pub take : Bytes, I64 -> Bytes
+pub take = |b, n| crash "intrinsic: Bytes.take"
+
+pub drop : Bytes, I64 -> Bytes
+pub drop = |b, n| crash "intrinsic: Bytes.drop"
+
+pub slice : Bytes, I64, I64 -> Bytes
+pub slice = |b, start, len| crash "intrinsic: Bytes.slice"
+
+-- Concatenation
+
+pub concat : Bytes, Bytes -> Bytes
+pub concat = |a, b| crash "intrinsic: Bytes.concat"
+
+-- Iteration
+
+pub to_iter : Bytes -> Iter(U8)
+pub to_iter = |b| crash "intrinsic: Bytes.to_iter"
+
+-- Conversion
+
+pub to_list : Bytes -> List(U8)
+pub to_list = |b| crash "intrinsic: Bytes.to_list"
+
+pub to_str : Bytes -> Str
+pub to_str = |b| crash "intrinsic: Bytes.to_str"`
+
+EQ_CAMP :: `-- Eq trait -- structural equality
+
+Eq(a) : {
+  eq : (a, a) -> Bool,
+}`
+
+ORD_CAMP :: `-- Ord trait -- total ordering
+-- Per D16: Order is structural tag union [Less | Equal | Greater]
+
+@Order : pub [Less | Equal | Greater]
+
+Ord(a) : is Eq(a) {
+  compare : (a, a) -> Order,
+}`
+
+HASH_CAMP :: `-- Hash trait -- hashing for map/set keys
+-- Per D29: Hasher is opaque (SipHash-1-3 internally)
+
+@Hasher : -- opaque, provided by runtime
+
+Hash(a) : {
+  hash : (a, Hasher) -> Hasher,
+}`
+
+DEBUG_CAMP :: `-- Debug trait -- developer-facing string representation
+
+Debug(a) : {
+  debug : a -> Str,
+}`
+
+DEFAULT_CAMP :: `-- Default trait -- default/zero values
+
+Default(a) : {
+  default : a,
+}`
+
+INTO_ITER_CAMP :: `-- IntoIter trait -- convert a collection into an iterator
+
+IntoIter(a) : {
+  to_iter : Self(a) -> Iter(a),
+}`
+
+FROM_ITER_CAMP :: `-- FromIter trait -- construct a collection from an iterator
+
+FromIter(c, a) : {
+  from_iter : Iter(a) -> c,
+}`
+
+FROM_CAMP :: `-- From trait -- infallible type conversion
+
+From(source, target) : {
+  from : source -> target,
+}`
+
+TRY_FROM_CAMP :: `-- TryFrom trait -- fallible type conversion
+
+TryFrom(source, target, e) : {
+  try_from : source -> Result(target, e),
+}`
+
+CONSOLE_CAMP :: `-- Console! effect -- standard I/O
+-- Per D23: Only foo! variants. Use Result.catch for Result versions.
+
+effect Console! : {
+  println! : Str -> -[Console!]-> (),
+  print!   : Str -> -[Console!]-> (),
+  readline! : -[Console!]-> Str,
+}`
+
+THROW_CAMP :: `-- Throw! effect -- error propagation
+-- Per D4: Throw! for propagated, effectful, action-level errors.
+-- Bridge: Result.catch (Throw!-->Result) and Result.unwrap! (Result-->Throw!)
+
+effect Throw!(e) : {
+  raise! : e -> -[Throw!(e)]-> a,
+}`
+
+FILE_CAMP :: `-- File! effect -- filesystem access
+-- Per D23: Only foo! variants. FileErr keeps IoErr as catch-all for v1.
+
+@FileErr : pub [NotFound | PermissionDenied | AlreadyExists | InvalidUtf8 | IoErr]
+
+effect File! : {
+  read_all!    : Path -> -[File!, Throw!([FileErr])]-> Str,
+  write_all!   : Path, Str -> -[File!, Throw!([FileErr])]-> (),
+  append_all!  : Path, Str -> -[File!, Throw!([FileErr])]-> (),
+  read_bytes!  : Path -> -[File!, Throw!([FileErr])]-> Bytes,
+  write_bytes! : Path, Bytes -> -[File!, Throw!([FileErr])]-> (),
+  list_dir!    : Path -> -[File!, Throw!([FileErr])]-> List(Path),
+  create_dir!  : Path -> -[File!, Throw!([FileErr])]-> (),
+  remove!      : Path -> -[File!, Throw!([FileErr])]-> (),
+  copy!        : Path, Path -> -[File!, Throw!([FileErr])]-> (),
+  exists!      : Path -> -[File!]-> Bool,
+  is_dir!      : Path -> -[File!]-> Bool,
+  is_file!     : Path -> -[File!]-> Bool,
+}`
+
+ENV_CAMP :: `-- Env! effect -- environment variables
+-- Per D23: Env.try_get returns Result, not Throw!
+
+effect Env! : {
+  get!     : Str -> -[Env!, Throw!([VarNotFound])]-> Str,
+  try_get  : Str -> -[Env!]-> Result(Str, [VarNotFound]),
+  vars!    : -[Env!]-> List((Str, Str)),
+  args!    : -[Env!]-> List(Str),
+}`
+
+TIME_CAMP :: `-- Time! effect -- time access
+-- Per D24: Duration only; DateTime is a separate package.
+
+effect Time! : {
+  now!       : -[Time!]-> Duration,
+  monotonic! : -[Time!]-> Duration,
+}`
+
+RANDOM_CAMP :: `-- Random! effect -- fast PRNG (not cryptographic)
+-- For cryptographic random, use Crypto.Random!
+
+effect Random! : {
+  int!   : I64, I64 -> -[Random!]-> I64,
+  float! : F64, F64 -> -[Random!]-> F64,
+  bytes! : I64 -> -[Random!]-> Bytes,
+  bool!  : -[Random!]-> Bool,
+}`
+
+LOG_CAMP :: `-- Log! effect -- message-only logging
+-- Per D15: Message-only. Structured logging is a package concern.
+
+effect Log! : {
+  debug! : Str -> -[Log!]-> (),
+  info!  : Str -> -[Log!]-> (),
+  warn!  : Str -> -[Log!]-> (),
+  error! : Str -> -[Log!]-> (),
+}`
+
+PATH_CAMP :: `-- @Path -- opaque filesystem path, normalized on construction
+-- Per D25: Opaque type, auto-normalized. No I/O on Path -- that's in File!.
+
+@Path : -- opaque, provided by runtime
+
+-- Construction
+
+pub new : Str -> Path
+pub new = |s| crash "intrinsic: Path.new"
+
+pub join : Path, Path -> Path
+pub join = |a, b| crash "intrinsic: Path.join"
+
+pub from_list : List(Str) -> Path
+pub from_list = |parts| crash "intrinsic: Path.from_list"
+
+-- Decomposition
+
+pub parent : Path -> Result(Path, [HasNoParent])
+pub parent = |p| crash "intrinsic: Path.parent"
+
+pub filename : Path -> Str
+pub filename = |p| crash "intrinsic: Path.filename"
+
+pub stem : Path -> Str
+pub stem = |p| crash "intrinsic: Path.stem"
+
+pub extension : Path -> Str
+pub extension = |p| crash "intrinsic: Path.extension"
+
+-- Manipulation
+
+pub with_extension : Path, Str -> Path
+pub with_extension = |p, ext| crash "intrinsic: Path.with_extension"
+
+pub with_filename : Path, Str -> Path
+pub with_filename = |p, name| crash "intrinsic: Path.with_filename"
+
+pub with_parent : Path, Path -> Path
+pub with_parent = |p, parent| crash "intrinsic: Path.with_parent"
+
+-- Queries
+
+pub is_absolute : Path -> Bool
+pub is_absolute = |p| crash "intrinsic: Path.is_absolute"
+
+pub is_relative : Path -> Bool
+pub is_relative = |p| crash "intrinsic: Path.is_relative"
+
+-- Conversion
+
+pub to_str : Path -> Str
+pub to_str = |p| crash "intrinsic: Path.to_str"
+
+pub to_iter : Path -> Iter(Str)
+pub to_iter = |p| crash "intrinsic: Path.to_iter"`
+
+DURATION_CAMP :: `-- @Duration -- time duration (Rust-style signed struct)
+-- Per D24: { secs: I64, nanos: I64 } internally. Signed, ~584B yr range.
+-- DateTime is a separate package, not stdlib.
+
+@Duration : -- opaque, internally { secs: I64, nanos: I64 }
+
+-- Constructors
+
+pub from_seconds : F64 -> Duration
+pub from_seconds = |s| crash "intrinsic: Duration.from_seconds"
+
+pub from_millis : I64 -> Duration
+pub from_millis = |ms| crash "intrinsic: Duration.from_millis"
+
+pub from_micros : I64 -> Duration
+pub from_micros = |us| crash "intrinsic: Duration.from_micros"
+
+pub from_nanos : I64 -> Duration
+pub from_nanos = |ns| crash "intrinsic: Duration.from_nanos"
+
+-- Accessors
+
+pub as_seconds : Duration -> F64
+pub as_seconds = |d| crash "intrinsic: Duration.as_seconds"
+
+pub as_millis : Duration -> I64
+pub as_millis = |d| crash "intrinsic: Duration.as_millis"
+
+pub as_micros : Duration -> I64
+pub as_micros = |d| crash "intrinsic: Duration.as_micros"
+
+pub as_nanos : Duration -> I64
+pub as_nanos = |d| crash "intrinsic: Duration.as_nanos"
+
+-- Arithmetic
+
+pub add : Duration, Duration -> Duration
+pub add = |a, b| crash "intrinsic: Duration.add"
+
+pub sub : Duration, Duration -> Duration
+pub sub = |a, b| crash "intrinsic: Duration.sub"
+
+pub mul : Duration, I64 -> Duration
+pub mul = |d, n| crash "intrinsic: Duration.mul"
+
+pub neg : Duration -> Duration
+pub neg = |d| crash "intrinsic: Duration.neg"
+
+pub abs : Duration -> Duration
+pub abs = |d| crash "intrinsic: Duration.abs"
+
+-- Comparison (via Ord)
+
+pub is_zero : Duration -> Bool
+pub is_zero = |d| crash "intrinsic: Duration.is_zero"
+
+-- Constants
+
+pub zero : Duration
+pub zero = crash "intrinsic: Duration.zero"
+
+pub second : Duration
+pub second = crash "intrinsic: Duration.second"
+
+pub millisecond : Duration
+pub millisecond = crash "intrinsic: Duration.millisecond"
+
+pub microsecond : Duration
+pub microsecond = crash "intrinsic: Duration.microsecond"
+
+pub nanosecond : Duration
+pub nanosecond = crash "intrinsic: Duration.nanosecond"`
+
+FMT_CAMP :: `-- Fmt module -- formatting utilities
+-- Per D28: Houses Display/Debug traits. Format specifiers go in interpolation syntax.
+
+-- Display is declared separately in Display.camp
+-- Debug is declared separately in Debug.camp
+
+-- Concatenation helper for building formatted strings
+
+pub concat : Str, Str -> Str
+pub concat = |a, b| crash "intrinsic: Fmt.concat"
+
+-- Numeric formatting with precision
+
+pub f64_with_precision : F64, I64 -> Str
+pub f64_with_precision = |n, precision| crash "intrinsic: Fmt.f64_with_precision"
+
+pub f32_with_precision : F32, I64 -> Str
+pub f32_with_precision = |n, precision| crash "intrinsic: Fmt.f32_with_precision"
+
+-- Padding/alignment (used by interpolation runtime)
+
+pub pad_left : Str, I64, Str -> Str
+pub pad_left = |s, width, fill| crash "intrinsic: Fmt.pad_left"
+
+pub pad_right : Str, I64, Str -> Str
+pub pad_right = |s, width, fill| crash "intrinsic: Fmt.pad_right"`
+
 STDLIB_MODULES: []Stdlib_Module = []Stdlib_Module{
 	{"Result", RESULT_CAMP, "stdlib/Result.camp"},
 	{"Bool", BOOL_CAMP, "stdlib/Bool.camp"},
@@ -1457,6 +1829,26 @@ STDLIB_MODULES: []Stdlib_Module = []Stdlib_Module{
 	{"Num.U8", NUM_U8_CAMP, "stdlib/Num/U8.camp"},
 	{"Num.F64", NUM_F64_CAMP, "stdlib/Num/F64.camp"},
 	{"Num.F32", NUM_F32_CAMP, "stdlib/Num/F32.camp"},
+	{"Bytes", BYTES_CAMP, "stdlib/Bytes.camp"},
+	{"Eq", EQ_CAMP, "stdlib/Eq.camp"},
+	{"Ord", ORD_CAMP, "stdlib/Ord.camp"},
+	{"Hash", HASH_CAMP, "stdlib/Hash.camp"},
+	{"Debug", DEBUG_CAMP, "stdlib/Debug.camp"},
+	{"Default", DEFAULT_CAMP, "stdlib/Default.camp"},
+	{"IntoIter", INTO_ITER_CAMP, "stdlib/IntoIter.camp"},
+	{"FromIter", FROM_ITER_CAMP, "stdlib/FromIter.camp"},
+	{"From", FROM_CAMP, "stdlib/From.camp"},
+	{"TryFrom", TRY_FROM_CAMP, "stdlib/TryFrom.camp"},
+	{"Console", CONSOLE_CAMP, "stdlib/Console.camp"},
+	{"Throw", THROW_CAMP, "stdlib/Throw.camp"},
+	{"File", FILE_CAMP, "stdlib/File.camp"},
+	{"Env", ENV_CAMP, "stdlib/Env.camp"},
+	{"Time", TIME_CAMP, "stdlib/Time.camp"},
+	{"Random", RANDOM_CAMP, "stdlib/Random.camp"},
+	{"Log", LOG_CAMP, "stdlib/Log.camp"},
+	{"Path", PATH_CAMP, "stdlib/Path.camp"},
+	{"Duration", DURATION_CAMP, "stdlib/Duration.camp"},
+	{"Fmt", FMT_CAMP, "stdlib/Fmt.camp"},
 }
 
 stdlib_lookup :: proc(name: string) -> (Stdlib_Module, bool) {

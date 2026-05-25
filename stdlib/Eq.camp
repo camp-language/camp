@@ -1,0 +1,5 @@
+-- Eq trait — structural equality
+
+Eq(a) : {
+  eq : (a, a) -> Bool,
+}

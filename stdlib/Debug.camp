@@ -1,0 +1,5 @@
+-- Debug trait — developer-facing string representation
+
+Debug(a) : {
+  debug : a -> Str,
+}

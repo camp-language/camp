@@ -1,0 +1,7 @@
+-- Time! effect — time access
+-- Per D24: Duration only; DateTime is a separate package.
+
+effect Time! : {
+  now!       : -[Time!]-> Duration,
+  monotonic! : -[Time!]-> Duration,
+}

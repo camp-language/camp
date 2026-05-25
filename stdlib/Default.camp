@@ -1,0 +1,5 @@
+-- Default trait — default/zero values
+
+Default(a) : {
+  default : a,
+}

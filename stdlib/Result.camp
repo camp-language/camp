@@ -42,6 +42,10 @@ pub unwrap_or_else : Result(a, e), (e) -> a -> a
 pub unwrap_or_else = |r, f|
   match r { Ok(v) => v | Err(e) => f(e) }
 
+pub unwrap_or_default : Result(a, e) -> a
+pub unwrap_or_default = |r|
+  match r { Ok(v) => v | Err(_) => Default.default }
+
 -- Boolean composition
 
 pub or : Result(a, e), Result(a, e) -> Result(a, e)
