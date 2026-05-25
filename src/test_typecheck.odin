@@ -891,7 +891,7 @@ find_tdecl_by_name :: proc(tfile: semantics.TFile, name: base.Intern_ID) -> sema
 
 @(test)
 test_mono_mangle_generic :: proc(t: ^testing.T) {
-	mono_tfile, ctx, store := mono_source("id = <a>|x: a| -> a { x }\nresult! = id(42)")
+	mono_tfile, ctx, store := mono_source("id = |x: a| -> a { x }\nresult! = id(42)")
 	defer teardown_mono(ctx, &store)
 
 	id_name := base.intern(&ctx.interner, "id")

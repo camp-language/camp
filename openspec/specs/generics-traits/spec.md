@@ -231,7 +231,7 @@ Camp SHALL support four dispatch mechanisms: nominal dispatch via `obj.method(ar
 
 #### Scenario: UFCS inside generic function
 
-- GIVEN a generic function `format = <a is Display>|x: a| -> Str { x.display() }`
+- GIVEN a generic function `format = |x: a| -> Str where a is Display { x.display() }`
 - WHEN monomorphized at `a = UserId`
 - THEN `x.display()` SHALL resolve to `UserId_display(x)`
 
@@ -247,9 +247,9 @@ Type parameters SHALL always be kind `*`. Type constructor parameters SHALL NOT 
 
 #### Scenario: Higher-kinded type parameter rejected
 
-- GIVEN a function signature using a type constructor parameter like `<f: * -> *>`
+- GIVEN a function signature using a type constructor parameter (higher-kinded type)
 - WHEN the compiler processes it
-- THEN it SHALL produce a syntax error
+- THEN it SHALL produce a type error
 
 ### Requirement: Static-Only Dispatch
 
