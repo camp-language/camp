@@ -2,7 +2,9 @@
 package frontend
 
 import "core:fmt"
+import "core:simd"
 import "core:strconv"
+import "base:intrinsics"
 import "camp:base"
 import "camp:diagnostics"
 
@@ -63,6 +65,42 @@ lexer_advance :: proc(l: ^Lexer) -> u8 {
 }
 
 lexer_skip_whitespace :: proc(l: ^Lexer) {
+	when simd.HAS_HARDWARE_SIMD {
+		lexer_skip_whitespace_simd(l)
+	}
+	lexer_skip_whitespace_scalar(l)
+}
+
+when simd.HAS_HARDWARE_SIMD {
+
+lexer_skip_whitespace_simd :: proc(l: ^Lexer) {
+	source_len := len(l.source)
+	for l.pos + 16 <= source_len {
+		chunk := load_chunk(l.source, l.pos)
+		ws_bits := extract_mask(is_whitespace_simd(chunk))
+		nl_bits := extract_mask(is_newline_simd(chunk))
+		all_ws_bits := ws_bits | nl_bits
+
+		not_ws_bits := ~all_ws_bits
+		if not_ws_bits == 0 {
+			// All 16 bytes are whitespace
+			if nl_bits != 0 { l.at_line_start = true }
+			l.pos += 16
+			continue
+		}
+
+		// Found non-whitespace within this chunk
+		first_non_ws := int(intrinsics.count_trailing_zeros(not_ws_bits))
+		prefix_mask := u16(1 << u16(first_non_ws)) - 1
+		if (nl_bits & prefix_mask) != 0 { l.at_line_start = true }
+		l.pos += first_non_ws
+		return
+	}
+}
+
+}
+
+lexer_skip_whitespace_scalar :: proc(l: ^Lexer) {
 	for l.pos < len(l.source) {
 		ch := l.source[l.pos]
 		if ch == ' ' || ch == '\t' || ch == '\r' {
