@@ -150,6 +150,148 @@ format_type_var_for_key :: proc(store: ^semantics.Type_Store, v: ^semantics.Type
 	return "var"
 }
 
+// Extract concrete type args for a generic function call by walking the original
+// generic type tree and the instantiated call-site type tree in parallel.
+//
+// The positional mapping (type_params[i] → param_ids[i]) only works when type
+// params correspond 1:1 with value params (e.g. id = |x: a| -> a { x }).
+// For non-trivial cases like map = |f: a -> b, xs: List(a)| -> List(b),
+// param_ids[0] is the type of f (a function), not the type param a.
+//
+// After instantiate(), the type tree structure is preserved — only leaf type
+// vars are replaced with fresh copies. So we walk both trees in parallel:
+// when the original tree has a leaf matching a type param's Type_Var_ID,
+// the corresponding leaf in the instantiated tree gives the concrete type.
+extract_type_args :: proc(
+	callee: ^semantics.TExpr_Name,
+	generic_lambda: ^semantics.TExpr_Lambda,
+	env: ^Mono_Env,
+) -> map[base.Intern_ID]base.Type_Var_ID {
+	type_args := make(map[base.Intern_ID]base.Type_Var_ID, len(generic_lambda.type_params))
+	if len(generic_lambda.type_params) == 0 {
+		return type_args
+	}
+
+	// Collect type param var IDs from store.bindings
+	tp_var_ids := make(map[base.Type_Var_ID]base.Intern_ID, len(generic_lambda.type_params))
+	for tp in generic_lambda.type_params {
+		if binding, ok := env.store.bindings[tp.name]; ok {
+			tp_var_ids[binding] = tp.name
+		}
+	}
+
+	if len(tp_var_ids) == 0 {
+		return type_args
+	}
+
+	// Get the original generic function type
+	orig_type_id, has_orig := env.store.bindings[callee.name.name]
+	if !has_orig {
+		return type_args
+	}
+
+	// Get the instantiated call-site type
+	inst_type_id := callee.type_.type_id
+	if inst_type_id == base.Type_Var_ID(-1) {
+		return type_args
+	}
+
+	// Walk both type trees in parallel, collecting type param → concrete mappings
+	find_type_params_in_trees(env.store, orig_type_id, inst_type_id, tp_var_ids, &type_args)
+
+	delete(tp_var_ids)
+	return type_args
+}
+
+find_type_params_in_trees :: proc(
+	store: ^semantics.Type_Store,
+	orig_id: base.Type_Var_ID,
+	inst_id: base.Type_Var_ID,
+	tp_var_ids: map[base.Type_Var_ID]base.Intern_ID,
+	type_args: ^map[base.Intern_ID]base.Type_Var_ID,
+) {
+	orig_resolved := semantics.resolve_var(store, orig_id)
+	inst_resolved := semantics.resolve_var(store, inst_id)
+
+	// If the original resolves to a type param, the instantiated side gives the concrete type
+	if tp_name, is_tp := tp_var_ids[orig_resolved]; is_tp {
+		concrete := inst_resolved
+		// Follow links to get the truly resolved concrete type
+		v := &store.vars[int(concrete)]
+		if linked_id, is_link := v.link.(base.Type_Var_ID); is_link {
+			concrete = semantics.resolve_var(store, linked_id)
+		}
+		type_args[tp_name] = concrete
+		return
+	}
+
+	orig_v := &store.vars[int(orig_resolved)]
+	inst_v := &store.vars[int(inst_resolved)]
+
+	orig_inf, orig_is_inf := orig_v.link.(semantics.Inferred_Type)
+	inst_inf, inst_is_inf := inst_v.link.(semantics.Inferred_Type)
+	if !orig_is_inf || !inst_is_inf {
+		return
+	}
+
+	// Walk both inferred types in parallel
+	switch orig_link in orig_inf {
+	case semantics.Inferred_Function:
+		inst_link, ok := inst_inf.(semantics.Inferred_Function)
+		if !ok do return
+		for i in 0..<min(len(orig_link.param_ids), len(inst_link.param_ids)) {
+			find_type_params_in_trees(store, orig_link.param_ids[i], inst_link.param_ids[i], tp_var_ids, type_args)
+		}
+		find_type_params_in_trees(store, orig_link.return_id, inst_link.return_id, tp_var_ids, type_args)
+		find_type_params_in_trees(store, orig_link.effect_id, inst_link.effect_id, tp_var_ids, type_args)
+
+	case semantics.Inferred_Newtype:
+		inst_link, ok := inst_inf.(semantics.Inferred_Newtype)
+		if !ok do return
+		for i in 0..<min(len(orig_link.param_ids), len(inst_link.param_ids)) {
+			find_type_params_in_trees(store, orig_link.param_ids[i], inst_link.param_ids[i], tp_var_ids, type_args)
+		}
+		find_type_params_in_trees(store, orig_link.inner_id, inst_link.inner_id, tp_var_ids, type_args)
+
+	case semantics.Inferred_Tag_Union_Row:
+		inst_link, ok := inst_inf.(semantics.Inferred_Tag_Union_Row)
+		if !ok do return
+		for i in 0..<min(len(orig_link.tag_entries), len(inst_link.tag_entries)) {
+			for j in 0..<min(len(orig_link.tag_entries[i].payload), len(inst_link.tag_entries[i].payload)) {
+				find_type_params_in_trees(store, orig_link.tag_entries[i].payload[j], inst_link.tag_entries[i].payload[j], tp_var_ids, type_args)
+			}
+		}
+		find_type_params_in_trees(store, orig_link.tag_rest, inst_link.tag_rest, tp_var_ids, type_args)
+
+	case semantics.Inferred_Record_Row:
+		inst_link, ok := inst_inf.(semantics.Inferred_Record_Row)
+		if !ok do return
+		for i in 0..<min(len(orig_link.record_fields), len(inst_link.record_fields)) {
+			find_type_params_in_trees(store, orig_link.record_fields[i].var, inst_link.record_fields[i].var, tp_var_ids, type_args)
+		}
+		find_type_params_in_trees(store, orig_link.record_rest, inst_link.record_rest, tp_var_ids, type_args)
+
+	case semantics.Inferred_Effect_Row:
+		inst_link, ok := inst_inf.(semantics.Inferred_Effect_Row)
+		if !ok do return
+		for i in 0..<min(len(orig_link.effects), len(inst_link.effects)) {
+			for j in 0..<min(len(orig_link.effects[i].type_args), len(inst_link.effects[i].type_args)) {
+				find_type_params_in_trees(store, orig_link.effects[i].type_args[j], inst_link.effects[i].type_args[j], tp_var_ids, type_args)
+			}
+		}
+		find_type_params_in_trees(store, orig_link.rest_id, inst_link.rest_id, tp_var_ids, type_args)
+
+	case semantics.Inferred_Handle:
+		inst_link, ok := inst_inf.(semantics.Inferred_Handle)
+		if !ok do return
+		find_type_params_in_trees(store, orig_link.inner_id, inst_link.inner_id, tp_var_ids, type_args)
+		find_type_params_in_trees(store, orig_link.effect_id, inst_link.effect_id, tp_var_ids, type_args)
+
+	case semantics.Inferred_Primitive, semantics.Inferred_Constructor:
+		// Leaf types — no type params inside
+	}
+}
+
 mangle :: proc(name: base.Canonical_Name, type_args: map[base.Intern_ID]base.Type_Var_ID, interner: ^base.Intern_Table, store: ^semantics.Type_Store) -> base.Canonical_Name {
 	name_str := base.intern_get(interner, name.name)
 	base_str := name_str
@@ -793,32 +935,15 @@ walk_expr_for_call_sites :: proc(expr: semantics.TExpr, env: ^Mono_Env) {
 				#partial switch body in d.body {
 				case ^semantics.TExpr_Lambda:
 					if len(body.type_params) > 0 {
-						callee_type_id := callee.type_.type_id
-						if callee_type_id != base.Type_Var_ID(-1) {
-							resolved_id := semantics.resolve_var(env.store, callee_type_id)
-							callee_v := &env.store.vars[int(resolved_id)]
-							if cit, cit_ok := callee_v.link.(semantics.Inferred_Type); cit_ok {
-								if inf, is_inf := cit.(semantics.Inferred_Function); is_inf {
-									type_args := make(map[base.Intern_ID]base.Type_Var_ID, len(body.type_params))
-									param_idx := 0
-									for tp in body.type_params {
-										if param_idx < len(inf.param_ids) {
-											concrete := semantics.resolve_var(env.store, inf.param_ids[param_idx])
-											type_args[tp.name] = concrete
-											param_idx += 1
-										}
-									}
-									if len(type_args) > 0 {
-										append(&env.worklist, Mono_Item{
-											original = callee.name,
-											type_args = type_args,
-											span = e.span,
-										})
-									} else {
-										delete(type_args)
-									}
-								}
-							}
+						type_args := extract_type_args(callee, body, env)
+						if len(type_args) > 0 {
+							append(&env.worklist, Mono_Item{
+								original = callee.name,
+								type_args = type_args,
+								span = e.span,
+							})
+						} else {
+							delete(type_args)
 						}
 					}
 				case ^semantics.TExpr_Int, ^semantics.TExpr_Float, ^semantics.TExpr_String, ^semantics.TExpr_Bool, ^semantics.TExpr_Char, ^semantics.TExpr_Todo,
@@ -936,32 +1061,15 @@ rewrite_calls_in_expr :: proc(expr: semantics.TExpr, specializations: map[string
 		if name_expr, is_name := e.callee.(^semantics.TExpr_Name); is_name {
 			if d, ok := env.decl_map[name_expr.name]; ok {
 				if lambda, is_lambda := d.body.(^semantics.TExpr_Lambda); is_lambda && len(lambda.type_params) > 0 {
-					callee_type_id := name_expr.type_.type_id
-					if callee_type_id != base.Type_Var_ID(-1) {
-						resolved_id := semantics.resolve_var(env.store, callee_type_id)
-						callee_v := &env.store.vars[int(resolved_id)]
-						if cit, cit_ok := callee_v.link.(semantics.Inferred_Type); cit_ok {
-							if inf, is_inf := cit.(semantics.Inferred_Function); is_inf {
-								type_args := make(map[base.Intern_ID]base.Type_Var_ID, len(lambda.type_params))
-								param_idx := 0
-								for tp in lambda.type_params {
-									if param_idx < len(inf.param_ids) {
-										concrete := semantics.resolve_var(env.store, inf.param_ids[param_idx])
-										type_args[tp.name] = concrete
-										param_idx += 1
-									}
-								}
-								if len(type_args) > 0 {
-									item := Mono_Item{original = name_expr.name, type_args = type_args, span = e.span}
-									key := specialization_key(item, env.store, env.interner)
-									if spec_name, ok := specializations[key]; ok {
-										name_expr.name = spec_name
-									}
-								}
-								delete(type_args)
-							}
+					type_args := extract_type_args(name_expr, lambda, env)
+					if len(type_args) > 0 {
+						item := Mono_Item{original = name_expr.name, type_args = type_args, span = e.span}
+						key := specialization_key(item, env.store, env.interner)
+						if spec_name, ok := specializations[key]; ok {
+							name_expr.name = spec_name
 						}
 					}
+					delete(type_args)
 				}
 			}
 		}
