@@ -663,9 +663,12 @@ check_immutable_binding :: proc(analysis: ^Unused_Analysis, name: base.Intern_ID
 	if bi.classification == .Wildcard {
 		for use in bi.use_sites {
 			if use.kind == .Discard {
-				// Pipeline integration will use Type_Store to determine
-				// if the RHS is pure vs effectful for the pointless eval warning
-				// TODO: implement pointless evaluation diagnostic
+				for &assign in bi.assignments {
+					if !expr_is_structural_effectful(assign.value_expr) {
+						diagnostics.collector_add_diag(analysis.collector,
+							diagnostics.diag_pointless_evaluation("", use.span))
+					}
+				}
 			}
 		}
 	}
@@ -680,6 +683,81 @@ binding_has_essential_use :: proc(bi: Binding_Info) -> bool {
 		case .Self_Assign_Rhs, .Discard:
 			{}
 		}
+	}
+	return false
+}
+
+expr_is_structural_effectful :: proc(expr: semantics.CExpr) -> bool {
+	#partial switch e in expr {
+	case ^semantics.CExpr_Int, ^semantics.CExpr_Float, ^semantics.CExpr_String,
+	     ^semantics.CExpr_Bool, ^semantics.CExpr_Char, ^semantics.CExpr_Name,
+	     ^semantics.CExpr_Lambda:
+		return false
+	case ^semantics.CExpr_Call, ^semantics.CExpr_Method_Call, ^semantics.CExpr_Perform,
+	     ^semantics.CExpr_Handle, ^semantics.CExpr_For, ^semantics.CExpr_Par,
+	     ^semantics.CExpr_Return, ^semantics.CExpr_Crash:
+		return true
+	case ^semantics.CExpr_Assign:
+		return expr_is_structural_effectful(e.value)
+	case ^semantics.CExpr_Tag:
+		for &payload in e.payload {
+			if expr_is_structural_effectful(payload) do return true
+		}
+		return false
+	case ^semantics.CExpr_Nominal_Construct:
+		for &p in e.payload {
+			if expr_is_structural_effectful(p) do return true
+		}
+		return false
+	case ^semantics.CExpr_Record:
+		for &field in e.fields {
+			if expr_is_structural_effectful(field.value) do return true
+		}
+		if e.rest != nil && expr_is_structural_effectful(e.rest) do return true
+		return false
+	case ^semantics.CExpr_List:
+		for &elem in e.elements {
+			if expr_is_structural_effectful(elem) do return true
+		}
+		return false
+	case ^semantics.CExpr_BinOp:
+		return expr_is_structural_effectful(e.left) || expr_is_structural_effectful(e.right)
+	case ^semantics.CExpr_PrefixOp:
+		return expr_is_structural_effectful(e.operand)
+	case ^semantics.CExpr_Field_Access:
+		return expr_is_structural_effectful(e.record)
+	case ^semantics.CExpr_Record_Update:
+		for &field in e.updates {
+			if expr_is_structural_effectful(field.value) do return true
+		}
+		return expr_is_structural_effectful(e.rest)
+	case ^semantics.CExpr_Block:
+		for &stmt in e.statements {
+			if expr_is_structural_effectful(stmt) do return true
+		}
+		return false
+	case ^semantics.CExpr_If:
+		if expr_is_structural_effectful(e.condition) do return true
+		if expr_is_structural_effectful(e.then_branch) do return true
+		if e.else_branch != nil && expr_is_structural_effectful(e.else_branch) do return true
+		return false
+	case ^semantics.CExpr_Match:
+		if expr_is_structural_effectful(e.scrutinee) do return true
+		for &arm in e.arms {
+			if expr_is_structural_effectful(arm.body) do return true
+		}
+		return false
+	case ^semantics.CExpr_Todo:
+		return false
+	case ^semantics.CExpr_Interpolated_String:
+		for &part in e.parts {
+			#partial switch p in part {
+			case ^semantics.CExpr_String_Literal:
+			case:
+				if expr_is_structural_effectful(p.(semantics.CExpr)) do return true
+			}
+		}
+		return false
 	}
 	return false
 }
