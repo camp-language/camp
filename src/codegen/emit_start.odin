@@ -38,9 +38,7 @@ emit_start_function :: proc(
 		code_buf: [dynamic]u8
 		code_buf = make([dynamic]u8, 0, CODE_BUF_MAJOR)
 
-		// is_effectful is set by the `!` suffix even when no effects are
-		// inferred; cont_func_idx is only reserved when effects > 0. Gate
-		// here too or the function/code sections drift out of sync.
+		// `!` suffix sets is_effectful even with no inferred effects; cont_func_idx tracks the stronger condition.
 		if main_decl.is_effectful && cont_func_idx >= 0 {
 			// Effectful main: _start allocates evidence records, calls main!, exits
 
