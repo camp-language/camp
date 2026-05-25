@@ -1,0 +1,85 @@
+-- Map.camp
+-- @Map(k, v) -- opaque ordered tree map, provided by runtime
+-- Keys require Eq and Ord for ordered tree operations.
+
+-- Construction
+
+pub new : Map(k, v)
+pub new = crash "intrinsic: Map.new"
+
+pub singleton : k, v -> Map(k, v)
+pub singleton = |k, v| crash "intrinsic: Map.singleton"
+
+-- Lookup
+
+pub get : k, Map(k, v) -> Result(v, [KeyNotFound])
+pub get = |k, m| crash "intrinsic: Map.get"
+
+pub contains : k, Map(k, v) -> Bool
+pub contains = |k, m| crash "intrinsic: Map.contains"
+
+pub size : Map(k, v) -> I64
+pub size = |m| crash "intrinsic: Map.size"
+
+pub is_empty : Map(k, v) -> Bool
+pub is_empty = |m| size(m) == 0
+
+-- Min/Max (O(log n) on ordered tree)
+
+pub min : Map(k, v) -> Result((k, v), [EmptyMap])
+pub min = |m| crash "intrinsic: Map.min"
+
+pub max : Map(k, v) -> Result((k, v), [EmptyMap])
+pub max = |m| crash "intrinsic: Map.max"
+
+-- Modification
+
+pub insert : k, v, Map(k, v) -> Map(k, v)
+pub insert = |k, v, m| crash "intrinsic: Map.insert"
+
+pub remove : k, Map(k, v) -> Map(k, v)
+pub remove = |k, m| crash "intrinsic: Map.remove"
+
+-- Update: callback receives Err(KeyNotFound) if absent, Ok(v) if present.
+-- Return Err(KeyNotFound) to remove, Ok(new_v) to insert/update.
+pub update : k, (Result(v, [KeyNotFound]) -> Result(v, [KeyNotFound])) -> Map(k, v) -> Map(k, v)
+pub update = |k, f, m| crash "intrinsic: Map.update"
+
+-- Transformation
+
+pub map : Map(k, v), (v) -> w -> Map(k, w)
+pub map = |m, f| crash "intrinsic: Map.map"
+
+pub filter : Map(k, v), (k, v) -> Bool -> Map(k, v)
+pub filter = |m, pred| crash "intrinsic: Map.filter"
+
+pub fold : Map(k, v), b, (b, k, v) -> b -> b
+pub fold = |m, init, f| crash "intrinsic: Map.fold"
+
+-- Conversion
+
+pub to_iter : Map(k, v) -> Iter((k, v))
+pub to_iter = |m| crash "intrinsic: Map.to_iter"
+
+pub keys : Map(k, v) -> Iter(k)
+pub keys = |m| crash "intrinsic: Map.keys"
+
+pub values : Map(k, v) -> Iter(v)
+pub values = |m| crash "intrinsic: Map.values"
+
+pub from_list : List((k, v)) -> Map(k, v)
+pub from_list = |entries| crash "intrinsic: Map.from_list"
+
+pub to_list : Map(k, v) -> List((k, v))
+pub to_list = |m| crash "intrinsic: Map.to_list"
+
+-- Set-like operations (efficient on ordered trees)
+
+pub union : Map(k, v), Map(k, v) -> Map(k, v)
+pub union = |m1, m2| crash "intrinsic: Map.union"
+
+pub intersection : Map(k, v), Map(k, v) -> Map(k, v)
+pub intersection = |m1, m2| crash "intrinsic: Map.intersection"
+
+pub difference : Map(k, v), Map(k, v) -> Map(k, v)
+pub difference = |m1, m2| crash "intrinsic: Map.difference"

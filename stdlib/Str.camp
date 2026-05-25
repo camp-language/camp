@@ -1,17 +1,105 @@
-pub length = |s: Str| -> I64 {
-  crash "Str.length: not yet implemented"
-}
+-- Str.camp
+-- Str is a builtin type. This file declares the public API.
+-- All functions are intrinsic (require runtime UTF-8/Unicode support).
 
-pub is_empty = |s: Str| -> Bool {
-  length(s) == 0
-}
+-- Queries
+pub length : Str -> I64
+pub length = |s| crash "intrinsic: Str.length"
 
-pub concat = |a: Str, b: Str| -> Str {
-  crash "Str.concat: not yet implemented"
-}
+pub byte_size : Str -> I64
+pub byte_size = |s| crash "intrinsic: Str.byte_size"
 
-pub eq = |a: Str, b: Str| -> Bool {
-  crash "Str.eq: not yet implemented"
-}
+pub is_empty : Str -> Bool
+pub is_empty = |s| byte_size(s) == 0
 
--- TODO: Str should derive Eq; remove standalone eq when trait system supports it
+-- Comparison
+pub starts_with : Str, Str -> Bool
+pub starts_with = |s, prefix| crash "intrinsic: Str.starts_with"
+
+pub ends_with : Str, Str -> Bool
+pub ends_with = |s, suffix| crash "intrinsic: Str.ends_with"
+
+pub contains : Str, Str -> Bool
+pub contains = |s, substr| crash "intrinsic: Str.contains"
+
+-- Slicing (grapheme-safe)
+pub take : Str, I64 -> Str
+pub take = |s, n| crash "intrinsic: Str.take"
+
+pub drop : Str, I64 -> Str
+pub drop = |s, n| crash "intrinsic: Str.drop"
+
+pub slice : Str, I64, I64 -> Str
+pub slice = |s, start, len| crash "intrinsic: Str.slice"
+
+-- Splitting
+pub split : Str, Str -> List(Str)
+pub split = |s, sep| crash "intrinsic: Str.split"
+
+pub split_first : Str, Str -> Result((Str, Str), [NotFound])
+pub split_first = |s, sep| crash "intrinsic: Str.split_first"
+
+pub split_last : Str, Str -> Result((Str, Str), [NotFound])
+pub split_last = |s, sep| crash "intrinsic: Str.split_last"
+
+-- Trimming (Unicode whitespace)
+pub trim : Str -> Str
+pub trim = |s| crash "intrinsic: Str.trim"
+
+pub trim_start : Str -> Str
+pub trim_start = |s| crash "intrinsic: Str.trim_start"
+
+pub trim_end : Str -> Str
+pub trim_end = |s| crash "intrinsic: Str.trim_end"
+
+-- Case (Unicode)
+pub to_lower : Str -> Str
+pub to_lower = |s| crash "intrinsic: Str.to_lower"
+
+pub to_upper : Str -> Str
+pub to_upper = |s| crash "intrinsic: Str.to_upper"
+
+-- Concatenation
+pub concat : Str, Str -> Str
+pub concat = |a, b| crash "intrinsic: Str.concat"
+
+pub join : List(Str), Str -> Str
+pub join = |parts, sep| crash "intrinsic: Str.join"
+
+pub repeat : Str, I64 -> Str
+pub repeat = |s, n| crash "intrinsic: Str.repeat"
+
+-- Replacement
+pub replace : Str, Str, Str -> Str
+pub replace = |s, pattern, replacement| crash "intrinsic: Str.replace"
+
+pub replace_first : Str, Str, Str -> Str
+pub replace_first = |s, pattern, replacement| crash "intrinsic: Str.replace_first"
+
+-- Prefix/Suffix manipulation
+pub drop_prefix : Str, Str -> Str
+pub drop_prefix = |s, prefix| crash "intrinsic: Str.drop_prefix"
+
+pub drop_suffix : Str, Str -> Str
+pub drop_suffix = |s, suffix| crash "intrinsic: Str.drop_suffix"
+
+-- Conversion
+pub to_bytes : Str -> Bytes
+pub to_bytes = |s| crash "intrinsic: Str.to_bytes"
+
+pub from_bytes : Bytes -> Result(Str, [InvalidUtf8])
+pub from_bytes = |b| crash "intrinsic: Str.from_bytes"
+
+pub from_bytes_lossy : Bytes -> Str
+pub from_bytes_lossy = |b| crash "intrinsic: Str.from_bytes_lossy"
+
+-- Parsing (numeric)
+pub to_i64 : Str -> Result(I64, [InvalidFormat])
+pub to_i64 = |s| crash "intrinsic: Str.to_i64"
+
+pub to_f64 : Str -> Result(F64, [InvalidFormat])
+pub to_f64 = |s| crash "intrinsic: Str.to_f64"
+
+-- Iteration (grapheme-by-grapheme)
+pub to_iter : Str -> Iter(Str)
+pub to_iter = |s| crash "intrinsic: Str.to_iter"

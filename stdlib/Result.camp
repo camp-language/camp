@@ -1,33 +1,89 @@
-pub @Result : <a, e> [Ok(a) | Err(e)]
+@Result(a, e): pub [Ok(a) | Err(e)]
 
-pub is_ok = <a, e>|r: Result(a, e)| -> Bool {
-  match r { Ok(_) => True | Err(_) => False }
-}
+-- Core combinators
 
-pub is_err = <a, e>|r: Result(a, e)| -> Bool {
-  match r { Ok(_) => False | Err(_) => True }
-}
-
-pub map = <a, b, e>|f: |a| -> b, r: Result(a, e)| -> Result(b, e) {
+pub map : Result(a, e), (a) -> b -> Result(b, e)
+pub map = |r, f|
   match r { Ok(v) => Ok(f(v)) | Err(e) => Err(e) }
-}
 
-pub map_err = <a, e, f>|f: |e| -> f, r: Result(a, e)| -> Result(a, f) {
+pub map_err : Result(a, e), (e) -> f -> Result(a, f)
+pub map_err = |r, f|
   match r { Ok(v) => Ok(v) | Err(e) => Err(f(e)) }
-}
 
-pub and_then = <a, b, e>|f: |a| -> Result(b, e), r: Result(a, e)| -> Result(b, e) {
+pub and_then : Result(a, e), (a) -> Result(b, e) -> Result(b, e)
+pub and_then = |r, f|
   match r { Ok(v) => f(v) | Err(e) => Err(e) }
-}
 
-pub or_else = <a, e, f>|f: || -> Result(a, f), r: Result(a, e)| -> Result(a, e | f) {
+pub or_else : Result(a, e), || -> Result(a, f) -> Result(a, e | f)
+pub or_else = |r, f|
   match r { Ok(v) => Ok(v) | Err(_) => f() }
-}
 
-pub unwrap = <a, e>|r: Result(a, e)| -> a {
-  match r { Ok(v) => v | Err(_) => crash "unwrap on Err" }
-}
+-- Predicates
 
-pub unwrap_or = <a, e>|default: a, r: Result(a, e)| -> a {
+pub is_ok : Result(a, e) -> Bool
+pub is_ok = |r|
+  match r { Ok(_) => True | Err(_) => False }
+
+pub is_err : Result(a, e) -> Bool
+pub is_err = |r|
+  match r { Ok(_) => False | Err(_) => True }
+
+-- Unwrapping
+
+pub unwrap : Result(a, e) -> a
+pub unwrap = |r|
+  match r { Ok(v) => v | Err(_) => crash "Result.unwrap: called on Err" }
+
+pub unwrap_or : Result(a, e), a -> a
+pub unwrap_or = |r, default|
   match r { Ok(v) => v | Err(_) => default }
-}
+
+pub unwrap_or_else : Result(a, e), (e) -> a -> a
+pub unwrap_or_else = |r, f|
+  match r { Ok(v) => v | Err(e) => f(e) }
+
+-- Boolean composition
+
+pub or : Result(a, e), Result(a, e) -> Result(a, e)
+pub or = |r1, r2|
+  match r1 { Ok(v) => Ok(v) | Err(_) => r2 }
+
+-- Filtering
+
+pub filter : Result(a, e), (a) -> Bool, e -> Result(a, e)
+pub filter = |r, pred, err|
+  match r {
+    Ok(v) => if pred(v) { Ok(v) } else { Err(err) }
+    Err(e) => Err(e)
+  }
+
+-- Flattening
+
+pub flatten : Result(Result(a, e), e) -> Result(a, e)
+pub flatten = |r|
+  match r { Ok(inner) => inner | Err(e) => Err(e) }
+
+-- Conversion
+
+pub to_list : Result(a, e) -> List(a)
+pub to_list = |r|
+  match r { Ok(v) => [v] | Err(_) => [] }
+
+pub from_list : List(a) -> Result(a, [EmptyList])
+pub from_list = |xs|
+  match xs {
+    Cons(h, _) => Ok(h)
+    Nil => Err(EmptyList)
+  }
+
+-- Effect bridging
+
+pub unwrap! : Result(a, e) -> -[Throw!(e)]-> a
+pub unwrap! = |r|
+  match r { Ok(v) => v | Err(e) => Throw.raise!(e) }
+
+pub catch : || -[Throw!(e)]-> a -> Result(a, e)
+pub catch = |action|
+  handle Throw! in { Ok(action()) } with {
+    .raise!(resume, err) => Err(err)
+  }

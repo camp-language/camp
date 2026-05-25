@@ -44,7 +44,6 @@ PRELUDE_CONSTRUCTOR_TYPES :: []Prelude_Constructor_Type{
 	{"Handle",   1},
 	{"Ordering", 0},
 	{"Result",   2},
-	{"Option",   1},
 }
 
 PRELUDE_TAG_DECLS :: []Prelude_Tag_Decl{
@@ -52,8 +51,6 @@ PRELUDE_TAG_DECLS :: []Prelude_Tag_Decl{
 	{"False", false},
 	{"Ok",    true},
 	{"Err",   true},
-	{"Some",  true},
-	{"None",  false},
 	{"Less",  false},
 	{"Equal", false},
 	{"Greater", false},

@@ -1,30 +1,70 @@
-pub length = <a>|xs: List(a)| -> I64 {
-  crash "List.length: not yet implemented"
-}
+-- List.camp
+-- @List(a): pub [Cons(a, List(a)) | Nil]  -- declared by compiler
 
-pub is_empty = <a>|xs: List(a)| -> Bool {
-  length(xs) == 0
-}
+-- Construction
 
-pub map = <a, b>|f: |a| -> b, xs: List(a)| -> List(b) {
-  crash "List.map: not yet implemented"
-}
+pub empty : List(a)
+pub empty = Nil
 
-pub filter = <a>|pred: |a| -> Bool, xs: List(a)| -> List(a) {
-  crash "List.filter: not yet implemented"
-}
+pub singleton : a -> List(a)
+pub singleton = |x| Cons(x, Nil)
 
-pub fold = <a, b>|f: |b, a| -> b, init: b, xs: List(a)| -> b {
-  crash "List.fold: not yet implemented"
-}
-
-pub append = <a>|xs: List(a), ys: List(a)| -> List(a) {
-  crash "List.append: not yet implemented"
-}
-
-pub head = <a>|xs: List(a)| -> Option(a) {
+pub append : List(a), List(a) -> List(a)
+pub append = |xs, ys|
   match xs {
-    Cons(h, _) => Some(h),
-    Nil => None,
+    Nil => ys
+    Cons(h, t) => Cons(h, append(t, ys))
   }
-}
+
+-- Structural queries
+
+pub length : List(a) -> I64
+pub length = |xs|
+  match xs {
+    Nil => 0
+    Cons(_, t) => 1 + length(t)
+  }
+
+pub is_empty : List(a) -> Bool
+pub is_empty = |xs|
+  match xs { Nil => True | Cons(_, _) => False }
+
+-- Head/tail access (Result per D3)
+
+pub first : List(a) -> Result(a, [ListWasEmpty])
+pub first = |xs|
+  match xs {
+    Cons(h, _) => Ok(h)
+    Nil => Err(ListWasEmpty)
+  }
+
+pub last : List(a) -> Result(a, [ListWasEmpty])
+pub last = |xs|
+  match xs {
+    Nil => Err(ListWasEmpty)
+    Cons(h, Nil) => Ok(h)
+    Cons(_, t) => last(t)
+  }
+
+pub rest : List(a) -> Result(List(a), [ListWasEmpty])
+pub rest = |xs|
+  match xs {
+    Cons(_, t) => Ok(t)
+    Nil => Err(ListWasEmpty)
+  }
+
+-- Sorting (intrinsic — needs Ord dispatch + merge sort)
+
+pub sort : List(a) -> List(a)
+pub sort = |xs| crash "intrinsic: List.sort"
+
+pub sort_by : List(a), (a, a) -> Order -> List(a)
+pub sort_by = |xs, cmp| crash "intrinsic: List.sort_by"
+
+-- Conversion (gateway to/from Iter)
+
+pub to_iter : List(a) -> Iter(a)
+pub to_iter = |xs| crash "intrinsic: List.to_iter"
+
+pub from_iter : Iter(a) -> List(a)
+pub from_iter = |iter| crash "intrinsic: List.from_iter"

@@ -1,7 +1,18 @@
-pub not = |b: Bool| -> Bool {
-  match b { True => False | False => True }
-}
+-- Bool.camp
+-- @Bool: pub [True | False]  -- declared by compiler
 
-pub xor = |a: Bool, b: Bool| -> Bool {
+pub not : Bool -> Bool
+pub not = |b|
+  match b { True => False | False => True }
+
+pub xor : Bool, Bool -> Bool
+pub xor = |a, b|
   match a { True => not(b) | False => b }
-}
+
+pub and : Bool, Bool -> Bool
+pub and = |a, b|
+  match a { True => b | False => False }
+
+pub or : Bool, Bool -> Bool
+pub or = |a, b|
+  match a { True => True | False => b }

@@ -1,0 +1,77 @@
+-- Set.camp
+-- @Set(a) -- opaque, Map(a, {}) internally
+
+-- Construction
+
+pub new : Set(a)
+pub new = crash "intrinsic: Set.new"
+
+pub singleton : a -> Set(a)
+pub singleton = |x| crash "intrinsic: Set.singleton"
+
+-- Queries
+
+pub contains : a, Set(a) -> Bool
+pub contains = |x, s| crash "intrinsic: Set.contains"
+
+pub size : Set(a) -> I64
+pub size = |s| crash "intrinsic: Set.size"
+
+pub is_empty : Set(a) -> Bool
+pub is_empty = |s| size(s) == 0
+
+pub min : Set(a) -> Result(a, [EmptySet])
+pub min = |s| crash "intrinsic: Set.min"
+
+pub max : Set(a) -> Result(a, [EmptySet])
+pub max = |s| crash "intrinsic: Set.max"
+
+-- Modification
+
+pub insert : a, Set(a) -> Set(a)
+pub insert = |x, s| crash "intrinsic: Set.insert"
+
+pub remove : a, Set(a) -> Set(a)
+pub remove = |x, s| crash "intrinsic: Set.remove"
+
+-- Set operations
+
+pub union : Set(a), Set(a) -> Set(a)
+pub union = |s1, s2| crash "intrinsic: Set.union"
+
+pub intersection : Set(a), Set(a) -> Set(a)
+pub intersection = |s1, s2| crash "intrinsic: Set.intersection"
+
+pub difference : Set(a), Set(a) -> Set(a)
+pub difference = |s1, s2| crash "intrinsic: Set.difference"
+
+pub symmetric_difference : Set(a), Set(a) -> Set(a)
+pub symmetric_difference = |s1, s2| crash "intrinsic: Set.symmetric_difference"
+
+pub is_subset : Set(a), Set(a) -> Bool
+pub is_subset = |s1, s2| crash "intrinsic: Set.is_subset"
+
+pub is_disjoint : Set(a), Set(a) -> Bool
+pub is_disjoint = |s1, s2| crash "intrinsic: Set.is_disjoint"
+
+-- Transformation
+
+pub map : Set(a), (a) -> b -> Set(b)
+pub map = |s, f| crash "intrinsic: Set.map"
+
+pub filter : Set(a), (a) -> Bool -> Set(a)
+pub filter = |s, pred| crash "intrinsic: Set.filter"
+
+pub fold : Set(a), b, (b, a) -> b -> b
+pub fold = |s, init, f| crash "intrinsic: Set.fold"
+
+-- Conversion
+
+pub to_iter : Set(a) -> Iter(a)
+pub to_iter = |s| crash "intrinsic: Set.to_iter"
+
+pub from_list : List(a) -> Set(a)
+pub from_list = |xs| crash "intrinsic: Set.from_list"
+
+pub to_list : Set(a) -> List(a)
+pub to_list = |s| crash "intrinsic: Set.to_list"

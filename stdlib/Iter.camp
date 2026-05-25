@@ -1,134 +1,226 @@
-pub Iter : @{
-  next: || -[e]-> [Some(a) | None],
+-- Iter.camp
+
+@Iter(a, e): { next: || -[e]-> [Yield(a) | Done] }
+
+-- ========================
+-- Construction
+-- ========================
+
+pub empty : Iter(a, e)
+pub empty = @Iter({ next = || Done })
+
+pub singleton : a -> Iter(a, e)
+pub singleton = |x| {
+  $consumed = False
+  @Iter({ next = || if $consumed { Done } else { $consumed = True; Yield(x) } })
 }
 
-pub empty : || -[]-> Iter(a)
-pub empty = || @{
-  next = || None,
+pub from_list : List(a) -> Iter(a, e)
+pub from_list = |$list| {
+  @Iter({
+    next = ||
+      match $list {
+        Cons(head, rest) => $list = rest; Yield(head)
+        Nil => Done
+      }
+  })
 }
 
-pub singleton : a -[]-> Iter(a)
-pub singleton = |x| @{
-  next = ||
-    $consumed = False
-    if $consumed { None } else { $consumed = True; Some(x) },
-}
+-- ========================
+-- Core transformations
+-- ========================
 
-pub from_list : List(a) -[]-> Iter(a)
-pub from_list = |$list| @{
-  next = ||
-    match $list {
-      Cons(head, rest) => $list = rest; Some(head),
-      Nil => None,
-    },
-}
-
-pub map : Iter(a), |a| -[e]-> b -[]-> Iter(b)
-pub map = |iter, f| @{
+pub map : Iter(a, e), (a) -> b -> Iter(b, e)
+pub map = |iter, f| @Iter({
   next = || match iter.next() {
-    Some(x) => Some(f(x)),
-    None => None,
-  },
+    Yield(x) => Yield(f(x))
+    Done => Done
+  }
+})
+
+pub filter : Iter(a, e), (a) -> Bool -> Iter(a, e)
+pub filter = |iter, pred| {
+  go = || match iter.next() {
+    Yield(x) => if pred(x) { Yield(x) } else { go() }
+    Done => Done
+  }
+  @Iter({ next = go })
 }
 
-pub filter : Iter(a), |a| -[e]-> Bool -[]-> Iter(a)
-pub filter = |iter, pred| @{
-  next = ||
-    match iter.next() {
-      Some(x) => if pred(x) { Some(x) } else { iter.next() },
-      None => None,
-    },
+pub flat_map : Iter(a, e), (a) -> Iter(b, e) -> Iter(b, e)
+pub flat_map = |iter, f| {
+  $inner = empty
+  advance = || match $inner.next() {
+    Yield(b) => Yield(b)
+    Done => match iter.next() {
+      Yield(a) => $inner = f(a); advance()
+      Done => Done
+    }
+  }
+  @Iter({ next = advance })
 }
 
-pub fold : Iter(a), b, |b, a| -[e]-> b -[]-> b
+pub filter_map : Iter(a, e), (a) -> Result(b, err) -> Iter(b, e)
+pub filter_map = |iter, f|
+  flat_map(iter, |x| match f(x) {
+    Ok(b) => singleton(b)
+    Err(_) => empty
+  })
+
+-- ========================
+-- Consumption
+-- ========================
+
+pub fold : Iter(a, e), b, (b, a) -> b -> b
 pub fold = |iter, init, f| {
-  $acc = init
-  $cur = iter.next()
-  while $cur != None {
-    Some(x) = $cur
-    $acc = f($acc, x)
-    $cur = iter.next()
+  go = |acc| match iter.next() {
+    Yield(x) => go(f(acc, x))
+    Done => acc
   }
-  $acc
+  go(init)
 }
 
-pub collect : Iter(a) -[]-> List(a)
-pub collect = |iter| {
-  $acc = []
-  $cur = iter.next()
-  while $cur != None {
-    Some(x) = $cur
-    $acc = List.append($acc, [x])
-    $cur = iter.next()
+pub for_each : Iter(a, e), (a) -> () -> ()
+pub for_each = |iter, f| {
+  go = || match iter.next() {
+    Yield(x) => f(x); go()
+    Done => {}
   }
-  $acc
+  go()
 }
 
-pub count : Iter(a) -[]-> I64
+pub count : Iter(a, e) -> I64
 pub count = |iter| fold(iter, 0, |n, _| n + 1)
 
-pub for_each : Iter(a), |a| -[e]-> {} -[]-> {}
-pub for_each = |iter, f| fold(iter, {}, |_, x| f(x))
+-- ========================
+-- Search
+-- ========================
 
-pub find : Iter(a), |a| -[]-> Bool -[]-> Option(a)
+pub find : Iter(a, e), (a) -> Bool -> Result(a, [NotFound])
 pub find = |iter, pred| {
-  $cur = iter.next()
-  while $cur != None {
-    Some(x) = $cur
-    if pred(x) { return Some(x) }
-    $cur = iter.next()
+  go = || match iter.next() {
+    Yield(x) => if pred(x) { Ok(x) } else { go() }
+    Done => Err(NotFound)
   }
-  None
+  go()
 }
 
-pub chain : Iter(a), Iter(a) -[]-> Iter(a)
-pub chain = |first, second| @{
-  next = ||
-    match first.next() {
-      Some(x) => Some(x),
-      None => second.next(),
-    },
+pub any : Iter(a, e), (a) -> Bool -> Bool
+pub any = |iter, pred| {
+  go = || match iter.next() {
+    Yield(x) => if pred(x) { True } else { go() }
+    Done => False
+  }
+  go()
 }
 
-pub take : Iter(a), I64 -[]-> Iter(a)
-pub take = |iter, n| @{
+pub all : Iter(a, e), (a) -> Bool -> Bool
+pub all = |iter, pred| {
+  go = || match iter.next() {
+    Yield(x) => if not pred(x) { False } else { go() }
+    Done => True
+  }
+  go()
+}
+
+-- ========================
+-- Slicing
+-- ========================
+
+pub take : Iter(a, e), I64 -> Iter(a, e)
+pub take = |iter, n| {
   $remaining = n
-  next = ||
-    if $remaining <= 0 { None } else {
+  @Iter({
+    next = || if $remaining <= 0 { Done } else {
       $remaining = $remaining - 1
       iter.next()
-    },
-}
-
-pub skip : Iter(a), I64 -[]-> Iter(a)
-pub skip = |iter, $n| @{
-  next = ||
-    $i = 0
-    while $i < $n {
-      iter.next()
-      $i = $i + 1
     }
-    $n = 0
-    iter.next()
+  })
 }
 
-pub enumerate : Iter(a) -[]-> Iter((I64, a))
-pub enumerate = |iter| @{
-  $index = 0
-  next = || match iter.next() {
-    Some(x) => idx = $index; $index = $index + 1; Some((idx, x)),
-    None => None,
-  },
+pub skip : Iter(a, e), I64 -> Iter(a, e)
+pub skip = |iter, n| {
+  $remaining = n
+  go = || {
+    if $remaining > 0 {
+      $remaining = $remaining - 1
+      match iter.next() {
+        Yield(_) => go()
+        Done => Done
+      }
+    } else {
+      iter.next()
+    }
+  }
+  @Iter({ next = go })
 }
 
-pub zip : Iter(a), Iter(b) -[]-> Iter((a, b))
-pub zip = |left, right| @{
+pub take_while : Iter(a, e), (a) -> Bool -> Iter(a, e)
+pub take_while = |iter, pred| {
+  $done = False
+  @Iter({
+    next = || {
+      if $done { Done } else {
+        match iter.next() {
+          Yield(x) => if pred(x) { Yield(x) } else { $done = True; Done }
+          Done => Done
+        }
+      }
+    }
+  })
+}
+
+pub skip_while : Iter(a, e), (a) -> Bool -> Iter(a, e)
+pub skip_while = |iter, pred| {
+  $skipping = True
+  go = || {
+    if $skipping {
+      match iter.next() {
+        Yield(x) => if pred(x) { go() } else { $skipping = False; Yield(x) }
+        Done => Done
+      }
+    } else {
+      iter.next()
+    }
+  }
+  @Iter({ next = go })
+}
+
+-- ========================
+-- Composition
+-- ========================
+
+pub chain : Iter(a, e), Iter(a, e) -> Iter(a, e)
+pub chain = |first, second| @Iter({
+  next = || match first.next() {
+    Yield(x) => Yield(x)
+    Done => second.next()
+  }
+})
+
+pub zip : Iter(a, e), Iter(b, e) -> Iter((a, b), e)
+pub zip = |left, right| @Iter({
   next = ||
     match left.next() {
-      Some(a) => match right.next() {
-        Some(b) => Some((a, b)),
-        None => None,
-      },
-      None => None,
-    },
+      Yield(a) => match right.next() {
+        Yield(b) => Yield((a, b))
+        Done => Done
+      }
+      Done => Done
+    }
+})
+
+pub enumerate : Iter(a, e) -> Iter((I64, a), e)
+pub enumerate = |iter| {
+  $index = 0
+  @Iter({
+    next = || match iter.next() {
+      Yield(x) => {
+        idx = $index
+        $index = $index + 1
+        Yield((idx, x))
+      }
+      Done => Done
+    }
+  })
 }

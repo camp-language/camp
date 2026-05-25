@@ -1,0 +1,62 @@
+-- Num/U16.camp
+-- Operations on U16. Unsigned — no abs or neg.
+
+pub clamp : U16, U16, U16 -> U16
+pub clamp = |lo, hi, n| if n < lo { lo } else if n > hi { hi } else { n }
+
+pub max : U16, U16 -> U16
+pub max = |a, b| if a > b { a } else { b }
+
+pub min : U16, U16 -> U16
+pub min = |a, b| if a < b { a } else { b }
+
+pub checked_add : U16, U16 -> Result(U16, [Overflow])
+pub checked_add = |a, b| crash "intrinsic: Num.U16.checked_add"
+
+pub checked_sub : U16, U16 -> Result(U16, [Overflow])
+pub checked_sub = |a, b| crash "intrinsic: Num.U16.checked_sub"
+
+pub checked_mul : U16, U16 -> Result(U16, [Overflow])
+pub checked_mul = |a, b| crash "intrinsic: Num.U16.checked_mul"
+
+pub wrapping_add : U16, U16 -> U16
+pub wrapping_add = |a, b| crash "intrinsic: Num.U16.wrapping_add"
+
+pub saturating_add : U16, U16 -> U16
+pub saturating_add = |a, b| crash "intrinsic: Num.U16.saturating_add"
+
+pub saturating_sub : U16, U16 -> U16
+pub saturating_sub = |a, b| crash "intrinsic: Num.U16.saturating_sub"
+
+pub to_str : U16 -> Str
+pub to_str = |n| crash "intrinsic: Num.U16.to_str"
+
+pub from_str : Str -> Result(U16, [InvalidFormat])
+pub from_str = |s| crash "intrinsic: Num.U16.from_str"
+
+pub bitwise_and : U16, U16 -> U16
+pub bitwise_and = |a, b| a & b
+
+pub bitwise_or : U16, U16 -> U16
+pub bitwise_or = |a, b| a | b
+
+pub bitwise_xor : U16, U16 -> U16
+pub bitwise_xor = |a, b| a ^ b
+
+pub bitwise_not : U16 -> U16
+pub bitwise_not = |a| ~a
+
+pub shift_left : U16, U16 -> U16
+pub shift_left = |a, n| a << n
+
+pub shift_right : U16, U16 -> U16
+pub shift_right = |a, n| a >> n
+
+pub count_ones : U16 -> U16
+pub count_ones = |n| crash "intrinsic: Num.U16.count_ones"
+
+pub leading_zeros : U16 -> U16
+pub leading_zeros = |n| crash "intrinsic: Num.U16.leading_zeros"
+
+pub trailing_zeros : U16 -> U16
+pub trailing_zeros = |n| crash "intrinsic: Num.U16.trailing_zeros"
