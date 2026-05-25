@@ -82,10 +82,9 @@ extract_effects_from_fn_binding :: proc(store: ^semantics.Type_Store, fn_name: b
 	}
 	resolved := semantics.resolve_var(store, binding_var)
 	v := &store.vars[int(resolved)]
-	inf, is_inf := v.link.(semantics.Inferred_Type)
-	tag_str := "none"
-	if is_inf { tag_str = fmt.tprintf("%v", inf.tag) }
-	if !is_inf || inf.tag != .Function {
+	it, it_ok := v.link.(semantics.Inferred_Type)
+	inf, is_inf := it.(semantics.Inferred_Function)
+	if !is_inf || !it_ok {
 		return make([dynamic]base.Canonical_Name, 0)
 	}
 	result := extract_effects(store, inf.effect_id, effect_defs)
@@ -96,8 +95,9 @@ collect_effects_from_row :: proc(store: ^semantics.Type_Store, effect_var: base.
 	resolved := semantics.resolve_var(store, effect_var)
 	v := &store.vars[int(resolved)]
 
-	inf, is_inf := v.link.(semantics.Inferred_Type)
-	if !is_inf || inf.tag != .Effect_Row {
+	it, ok := v.link.(semantics.Inferred_Type)
+	inf, is_inf := it.(semantics.Inferred_Effect_Row)
+	if !is_inf || !ok {
 		return
 	}
 
@@ -107,8 +107,9 @@ collect_effects_from_row :: proc(store: ^semantics.Type_Store, effect_var: base.
 
 	rest_resolved := semantics.resolve_var(store, inf.rest_id)
 	rest_v := &store.vars[int(rest_resolved)]
-	rest_inf, rest_is_inf := rest_v.link.(semantics.Inferred_Type)
-	if rest_is_inf && rest_inf.tag == .Effect_Row {
+	rit, rok := rest_v.link.(semantics.Inferred_Type)
+	rest_inf, rest_is_inf := rit.(semantics.Inferred_Effect_Row)
+	if rest_is_inf && rok {
 		collect_effects_from_row(store, inf.rest_id, effect_defs, result)
 	}
 }
@@ -510,22 +511,25 @@ lower_tmethod_call :: proc(e: ^semantics.TExpr_Method_Call, env: ^Lower_Env) -> 
 	if receiver_type_var != 0 {
 		resolved_type := semantics.resolve_var(env.store, receiver_type_var)
 		v := &env.store.vars[int(resolved_type)]
-		if inf, ok := v.link.(semantics.Inferred_Type); ok && inf.tag == .Primitive {
-			type_name_str := base.intern_get(env.interner, inf.primitive_name)
-			if type_name_str == "Str" {
-				if method_str == "len" && len(e.args) == 0 {
-					str_name := base.intern(env.interner, "Str")
-					len_name := base.intern(env.interner, "length")
-					args := make([dynamic]IR_Expr, 0, 1)
-					append(&args, receiver_ir)
-					call := new(IR_Call)
-					call^ = IR_Call{
-						callee = base.Canonical_Name{module = str_name, name = len_name},
-						args = args,
-						type = e.type_,
-						span = e.span,
+		if it, ok := v.link.(semantics.Inferred_Type); ok {
+			prim, prim_ok := it.(semantics.Inferred_Primitive)
+			if prim_ok {
+				type_name_str := base.intern_get(env.interner, prim.primitive_name)
+				if type_name_str == "Str" {
+					if method_str == "len" && len(e.args) == 0 {
+						str_name := base.intern(env.interner, "Str")
+						len_name := base.intern(env.interner, "length")
+						args := make([dynamic]IR_Expr, 0, 1)
+						append(&args, receiver_ir)
+						call := new(IR_Call)
+						call^ = IR_Call{
+							callee = base.Canonical_Name{module = str_name, name = len_name},
+							args = args,
+							type = e.type_,
+							span = e.span,
+						}
+						return IR_Expr(call)
 					}
-					return IR_Expr(call)
 				}
 			}
 		}
@@ -675,11 +679,11 @@ resolve_tag_payload_wasm_types :: proc(store: ^semantics.Type_Store, scrutinee_t
 	if !is_inf {
 		return nil
 	}
-	if inf.tag == .Newtype {
-		return resolve_tag_payload_wasm_types(store, inf.inner_id, tag_name)
-	}
-	if inf.tag == .Tag_Union_Row {
-		for entry in inf.tag_entries {
+	#partial switch vi in inf {
+	case semantics.Inferred_Newtype:
+		return resolve_tag_payload_wasm_types(store, vi.inner_id, tag_name)
+	case semantics.Inferred_Tag_Union_Row:
+		for entry in vi.tag_entries {
 			if entry.name == tag_name {
 				types := make([]base.IR_Wasm_Type, len(entry.payload))
 				for i in 0..<len(entry.payload) {
@@ -841,24 +845,27 @@ lower_tbinop :: proc(e: ^semantics.TExpr_BinOp, env: ^Lower_Env) -> IR_Expr {
 	if e.op == .Plus {
 		resolved := semantics.resolve_var(env.store, e.type_.type_id)
 		v := &env.store.vars[int(resolved)]
-		if inf, ok := v.link.(semantics.Inferred_Type); ok && inf.tag == .Primitive {
-			name_str := base.intern_get(env.interner, inf.primitive_name)
-			if name_str == "Str" {
-				left_ir := lower_texpr(e.left, env)
-				right_ir := lower_texpr(e.right, env)
-				args := make([dynamic]IR_Expr, 0, 2)
-				append(&args, left_ir)
-				append(&args, right_ir)
-				call := new(IR_Call)
-				str_name := base.intern(env.interner, "Str")
-				concat_name := base.intern(env.interner, "concat")
-				call^ = IR_Call{
-					callee = base.Canonical_Name{module = str_name, name = concat_name},
-					args = args,
-					type = e.type_,
-					span = e.span,
+		if it, ok := v.link.(semantics.Inferred_Type); ok {
+			prim, prim_ok := it.(semantics.Inferred_Primitive)
+			if prim_ok {
+				name_str := base.intern_get(env.interner, prim.primitive_name)
+				if name_str == "Str" {
+					left_ir := lower_texpr(e.left, env)
+					right_ir := lower_texpr(e.right, env)
+					args := make([dynamic]IR_Expr, 0, 2)
+					append(&args, left_ir)
+					append(&args, right_ir)
+					call := new(IR_Call)
+					str_name := base.intern(env.interner, "Str")
+					concat_name := base.intern(env.interner, "concat")
+					call^ = IR_Call{
+						callee = base.Canonical_Name{module = str_name, name = concat_name},
+						args = args,
+						type = e.type_,
+						span = e.span,
+					}
+					return IR_Expr(call)
 				}
-				return IR_Expr(call)
 			}
 		}
 	}
@@ -903,11 +910,11 @@ resolve_tag_index :: proc(store: ^semantics.Type_Store, type_var: base.Type_Var_
 	if !is_inf {
 		return 0
 	}
-	if inf.tag == .Newtype {
-		return resolve_tag_index(store, inf.inner_id, tag_name)
-	}
-	if inf.tag == .Tag_Union_Row {
-		for entry, i in inf.tag_entries {
+	#partial switch vi in inf {
+	case semantics.Inferred_Newtype:
+		return resolve_tag_index(store, vi.inner_id, tag_name)
+	case semantics.Inferred_Tag_Union_Row:
+		for entry, i in vi.tag_entries {
 			if entry.name == tag_name {
 				return i
 			}

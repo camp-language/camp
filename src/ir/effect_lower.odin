@@ -121,10 +121,11 @@ el_effect_row_has_throw :: proc(effect_row: base.IR_Type, throw_name: base.Inter
 	resolved := semantics.resolve_var(store, effect_var_id)
 	v := &store.vars[int(resolved)]
 	inf, is_inf := v.link.(semantics.Inferred_Type)
-	if !is_inf || inf.tag != .Effect_Row {
+	inf_effect, inf_is_effect := inf.(semantics.Inferred_Effect_Row)
+	if !is_inf || !inf_is_effect {
 		return false
 	}
-	for entry in inf.effects {
+	for entry in inf_effect.effects {
 		if entry.name == throw_name {
 			return true
 		}

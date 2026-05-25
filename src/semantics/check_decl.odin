@@ -29,11 +29,13 @@ typecheck_decl :: proc(decl: CDecl, env: ^Type_Env, store: ^Type_Store) -> TDecl
 		if !d.is_effectful {
 			resolved := resolve_var(store, result.var_id)
 			v := store.vars[int(resolved)]
-			if inf, ok := v.link.(Inferred_Type); ok && inf.tag == .Function {
-				if effect_row_nonempty(store, inf.effect_id) {
-					name_str := base.intern_get(store.interner, d.name.name)
-					effects_str := format_effect_row(store, inf.effect_id)
-					diagnostics.collector_add_diag(store.collector, diagnostics.diag_effectful_naming(name_str, effects_str, d.span))
+			if it, ok := v.link.(Inferred_Type); ok {
+				if inf, ok := it.(Inferred_Function); ok {
+					if effect_row_nonempty(store, inf.effect_id) {
+						name_str := base.intern_get(store.interner, d.name.name)
+						effects_str := format_effect_row(store, inf.effect_id)
+						diagnostics.collector_add_diag(store.collector, diagnostics.diag_effectful_naming(name_str, effects_str, d.span))
+					}
 				}
 			}
 		}
@@ -264,9 +266,11 @@ typecheck_newtype_decl :: proc(d: ^CDecl_Newtype, env: ^Type_Env, store: ^Type_S
 
 	owned_tags := make([dynamic]base.Intern_ID, 0, 8)
 	inner_resolved := store.vars[int(resolve_var(store, inner_type_var))]
-	if inf, is_inf := inner_resolved.link.(Inferred_Type); is_inf && inf.tag == .Tag_Union_Row {
-		for te in inf.tag_entries {
-			append(&owned_tags, te.name)
+	if inf, is_inf := inner_resolved.link.(Inferred_Type); is_inf {
+		if tu_inf, tu_ok := inf.(Inferred_Tag_Union_Row); tu_ok {
+			for te in tu_inf.tag_entries {
+				append(&owned_tags, te.name)
+			}
 		}
 	}
 
@@ -276,8 +280,7 @@ typecheck_newtype_decl :: proc(d: ^CDecl_Newtype, env: ^Type_Env, store: ^Type_S
 	}
 
 	nt_var := fresh_value_var(store, d.span)
-	link_var(store, nt_var, Inferred_Type{
-		tag = .Newtype,
+	link_var(store, nt_var, Inferred_Newtype{
 		primitive_name = d.name.name,
 		arity = len(d.type_params),
 		param_ids = param_vars[:],
@@ -437,8 +440,7 @@ verify_trait_conformance :: proc(type_name: base.Intern_ID, type_module: base.In
 			expected_effect := fresh_effect_row(store, span)
 
 			expected_fn_var := fresh_value_var(store, span)
-			link_var(store, expected_fn_var, Inferred_Type{
-				tag = .Function,
+			link_var(store, expected_fn_var, Inferred_Function{
 				param_ids = expected_params,
 				return_id = expected_return,
 				effect_id = expected_effect,
@@ -581,8 +583,12 @@ check_constraint_violation :: proc(type_var_id: base.Type_Var_ID, store: ^Type_S
 
 	impl_type_name: base.Intern_ID = base.NO_NAME
 	if inf, is_inf := rv.link.(Inferred_Type); is_inf {
-		if inf.tag == .Newtype || inf.tag == .Primitive || inf.tag == .Constructor {
-			impl_type_name = inf.primitive_name
+		if nt, nt_ok := inf.(Inferred_Newtype); nt_ok {
+			impl_type_name = nt.primitive_name
+		} else if prim, prim_ok := inf.(Inferred_Primitive); prim_ok {
+			impl_type_name = prim.primitive_name
+		} else if cons, cons_ok := inf.(Inferred_Constructor); cons_ok {
+			impl_type_name = cons.primitive_name
 		}
 	}
 

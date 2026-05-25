@@ -116,12 +116,13 @@ format_effect_row :: proc(store: ^Type_Store, effects: base.Type_Var_ID) -> stri
 	rid := resolve_var(store, effects)
 	rv := store.vars[int(rid)]
 	it, is_inferred := rv.link.(Inferred_Type)
-	if is_inferred && it.tag == .Effect_Row {
-		if len(it.effects) == 0 do return "[]"
+	it_effect, is_effect := it.(Inferred_Effect_Row)
+	if is_inferred && is_effect {
+		if len(it_effect.effects) == 0 do return "[]"
 		builder: strings.Builder
 		strings.builder_init_len_cap(&builder, 0, 64)
 		strings.write_rune(&builder, '[')
-		for entry, i in it.effects {
+		for entry, i in it_effect.effects {
 			if i > 0 do strings.write_string(&builder, " | ")
 			strings.write_string(&builder, base.intern_get(store.interner, base.Intern_ID(entry.name)))
 		}
@@ -178,18 +179,18 @@ inject_prelude :: proc(store: ^Type_Store) {
 	for bt in PRELUDE_BUILTIN_TYPES {
 		name_id := base.intern(store.interner, bt.name)
 		var_id := fresh_value_var(store, base.Source_Span_ZERO)
-		inf := Inferred_Type{tag = bt.kind, primitive_name = name_id}
-		if bt.kind == .Constructor {
-			inf = Inferred_Type{tag = .Constructor, primitive_name = name_id, arity = 0}
+		if bt.is_constructor {
+			link_var(store, var_id, Inferred_Constructor{primitive_name = name_id, arity = 0})
+		} else {
+			link_var(store, var_id, Inferred_Primitive{primitive_name = name_id})
 		}
-		link_var(store, var_id, inf)
 		store.bindings[name_id] = var_id
 	}
 
 	for ct in PRELUDE_CONSTRUCTOR_TYPES {
 		name_id := base.intern(store.interner, ct.name)
 		var_id := fresh_value_var(store, base.Source_Span_ZERO)
-		link_var(store, var_id, Inferred_Type{tag = .Constructor, primitive_name = name_id, arity = ct.arity})
+		link_var(store, var_id, Inferred_Constructor{primitive_name = name_id, arity = ct.arity})
 		store.bindings[name_id] = var_id
 	}
 
@@ -205,8 +206,7 @@ inject_prelude :: proc(store: ^Type_Store) {
 		}
 		tag_entries[0] = Type_Tag_Entry{name = name_id, payload = payload}
 		rest := fresh_tag_row(store, base.Source_Span_ZERO)
-		link_var(store, var_id, Inferred_Type{
-			tag = .Tag_Union_Row,
+		link_var(store, var_id, Inferred_Tag_Union_Row{
 			tag_entries = tag_entries,
 			tag_rest = rest,
 		})
@@ -400,7 +400,12 @@ typecheck_synth :: proc(expr: CExpr, env: ^Type_Env, store: ^Type_Store) -> Synt
 				v := store.vars[int(resolved)]
 				type_name: base.Intern_ID = base.NO_NAME
 				if inf, ok := v.link.(Inferred_Type); ok {
-					type_name = inf.primitive_name
+					switch nf in inf {
+					case Inferred_Primitive: type_name = nf.primitive_name
+					case Inferred_Constructor: type_name = nf.primitive_name
+					case Inferred_Newtype: type_name = nf.primitive_name
+					case Inferred_Function, Inferred_Record_Row, Inferred_Tag_Union_Row, Inferred_Effect_Row, Inferred_Handle:
+					}
 				}
 
 				if type_name == str_name {
@@ -685,8 +690,7 @@ convert_type_to_var_val :: proc(t: CType, store: ^Type_Store, env: ^Type_Env) ->
 			effect_id = convert_type_to_var(ft.effects, store, env)
 		}
 		vid := fresh_value_var(store, ft.span)
-		link_var(store, vid, Inferred_Type{
-			tag = .Function,
+		link_var(store, vid, Inferred_Function{
 			param_ids = param_ids,
 			return_id = return_id,
 			effect_id = effect_id,
@@ -701,14 +705,12 @@ convert_type_to_var_val :: proc(t: CType, store: ^Type_Store, env: ^Type_Env) ->
 		vid := fresh_value_var(store, ty.span)
 		handle_name := base.intern(store.interner, "Handle")
 		if ty.name == handle_name && len(ty.args) == 2 {
-			link_var(store, vid, Inferred_Type{
-				tag = .Handle,
+			link_var(store, vid, Inferred_Handle{
 				inner_id = arg_ids[0],
 				effect_id = arg_ids[1],
 			})
 		} else {
-			link_var(store, vid, Inferred_Type{
-				tag = .Constructor,
+			link_var(store, vid, Inferred_Constructor{
 				primitive_name = ty.name,
 				arity = len(ty.args),
 			})
@@ -726,8 +728,7 @@ convert_type_to_var_val :: proc(t: CType, store: ^Type_Store, env: ^Type_Env) ->
 		}
 		record_rest := fresh_record_row(store, rt.span)
 		vid := fresh_value_var(store, rt.span)
-		link_var(store, vid, Inferred_Type{
-			tag = .Record_Row,
+		link_var(store, vid, Inferred_Record_Row{
 			record_fields = record_fields,
 			record_rest = record_rest,
 		})
@@ -749,8 +750,7 @@ convert_type_to_var_val :: proc(t: CType, store: ^Type_Store, env: ^Type_Env) ->
 		}
 		tag_rest := fresh_tag_row(store, tt.span)
 		vid := fresh_value_var(store, tt.span)
-		link_var(store, vid, Inferred_Type{
-			tag = .Tag_Union_Row,
+		link_var(store, vid, Inferred_Tag_Union_Row{
 			tag_entries = tag_entries,
 			tag_rest = tag_rest,
 		})
@@ -772,8 +772,7 @@ convert_type_to_var_val :: proc(t: CType, store: ^Type_Store, env: ^Type_Env) ->
 		}
 		rest_id := fresh_effect_row(store, ert.span)
 		vid := fresh_effect_row(store, ert.span)
-		link_var(store, vid, Inferred_Type{
-			tag = .Effect_Row,
+		link_var(store, vid, Inferred_Effect_Row{
 			effects = effect_entries,
 			rest_id = rest_id,
 		})
@@ -807,83 +806,79 @@ instantiate_rec :: proc(store: ^Type_Store, var_id: base.Type_Var_ID, subst: ^ma
 		return resolved
 	}
 
-	switch inf.tag {
-	case .Primitive, .Constructor:
+	switch f in inf {
+	case Inferred_Primitive, Inferred_Constructor:
 		return resolved
 
-	case .Newtype:
-		param_ids := store_alloc(store, base.Type_Var_ID, len(inf.param_ids))
-		for i in 0..<len(inf.param_ids) {
-			param_ids[i] = instantiate_rec(store, inf.param_ids[i], subst)
+	case Inferred_Newtype:
+		param_ids := store_alloc(store, base.Type_Var_ID, len(f.param_ids))
+		for i in 0..<len(f.param_ids) {
+			param_ids[i] = instantiate_rec(store, f.param_ids[i], subst)
 		}
-		inner_id := instantiate_rec(store, inf.inner_id, subst)
+		inner_id := instantiate_rec(store, f.inner_id, subst)
 		vid := fresh_value_var(store, v.span)
-		link_var(store, vid, Inferred_Type{
-			tag = .Newtype,
-			primitive_name = inf.primitive_name,
-			arity = inf.arity,
+		link_var(store, vid, Inferred_Newtype{
+			primitive_name = f.primitive_name,
+			arity = f.arity,
 			param_ids = param_ids,
 			inner_id = inner_id,
 		})
 		return vid
 
-	case .Function:
-		param_ids := store_alloc(store, base.Type_Var_ID, len(inf.param_ids))
-		for i in 0..<len(inf.param_ids) {
-			param_ids[i] = instantiate_rec(store, inf.param_ids[i], subst)
+	case Inferred_Function:
+		param_ids := store_alloc(store, base.Type_Var_ID, len(f.param_ids))
+		for i in 0..<len(f.param_ids) {
+			param_ids[i] = instantiate_rec(store, f.param_ids[i], subst)
 		}
-		return_id := instantiate_rec(store, inf.return_id, subst)
-		effect_id := instantiate_rec(store, inf.effect_id, subst)
+		return_id := instantiate_rec(store, f.return_id, subst)
+		effect_id := instantiate_rec(store, f.effect_id, subst)
 		vid := fresh_value_var(store, v.span)
-		link_var(store, vid, Inferred_Type{
-			tag = .Function,
+		link_var(store, vid, Inferred_Function{
 			param_ids = param_ids,
 			return_id = return_id,
 			effect_id = effect_id,
 		})
 		return vid
 
-	case .Effect_Row:
-		effect_entries := store_alloc(store, Effect_Row_Entry, len(inf.effects))
-		for i in 0..<len(inf.effects) {
-			entry := inf.effects[i]
+	case Inferred_Effect_Row:
+		effect_entries := store_alloc(store, Effect_Row_Entry, len(f.effects))
+		for i in 0..<len(f.effects) {
+			entry := f.effects[i]
 			type_args := store_alloc(store, base.Type_Var_ID, len(entry.type_args))
 			for j in 0..<len(entry.type_args) {
 				type_args[j] = instantiate_rec(store, entry.type_args[j], subst)
 			}
 			effect_entries[i] = Effect_Row_Entry{name = entry.name, type_args = type_args}
 		}
-		rest_id := instantiate_rec(store, inf.rest_id, subst)
+		rest_id := instantiate_rec(store, f.rest_id, subst)
 		vid := fresh_effect_row(store, v.span)
-		link_var(store, vid, Inferred_Type{
-			tag = .Effect_Row,
+		link_var(store, vid, Inferred_Effect_Row{
 			effects = effect_entries,
 			rest_id = rest_id,
 		})
 		return vid
 
-	case .Record_Row:
-		record_fields := store_alloc(store, Type_Field_Entry, len(inf.record_fields))
-		for i in 0..<len(inf.record_fields) {
-			f := inf.record_fields[i]
+	case Inferred_Record_Row:
+		record_fields := store_alloc(store, Type_Field_Entry, len(f.record_fields))
+		for i in 0..<len(f.record_fields) {
+			rf := f.record_fields[i]
 			record_fields[i] = Type_Field_Entry{
-				name = f.name,
-				var  = instantiate_rec(store, f.var, subst),
+				name = rf.name,
+				var  = instantiate_rec(store, rf.var, subst),
 			}
 		}
-		record_rest := instantiate_rec(store, inf.record_rest, subst)
+		record_rest := instantiate_rec(store, f.record_rest, subst)
 		vid := fresh_value_var(store, v.span)
-		link_var(store, vid, Inferred_Type{
-			tag = .Record_Row,
+		link_var(store, vid, Inferred_Record_Row{
 			record_fields = record_fields,
 			record_rest = record_rest,
 		})
 		return vid
 
-	case .Tag_Union_Row:
-		tag_entries := store_alloc(store, Type_Tag_Entry, len(inf.tag_entries))
-		for i in 0..<len(inf.tag_entries) {
-			te := inf.tag_entries[i]
+	case Inferred_Tag_Union_Row:
+		tag_entries := store_alloc(store, Type_Tag_Entry, len(f.tag_entries))
+		for i in 0..<len(f.tag_entries) {
+			te := f.tag_entries[i]
 			payload := store_alloc(store, base.Type_Var_ID, len(te.payload))
 			for j in 0..<len(te.payload) {
 				payload[j] = instantiate_rec(store, te.payload[j], subst)
@@ -893,21 +888,19 @@ instantiate_rec :: proc(store: ^Type_Store, var_id: base.Type_Var_ID, subst: ^ma
 				payload = payload,
 			}
 		}
-		tag_rest := instantiate_rec(store, inf.tag_rest, subst)
+		tag_rest := instantiate_rec(store, f.tag_rest, subst)
 		vid := fresh_value_var(store, v.span)
-		link_var(store, vid, Inferred_Type{
-			tag = .Tag_Union_Row,
+		link_var(store, vid, Inferred_Tag_Union_Row{
 			tag_entries = tag_entries,
 			tag_rest = tag_rest,
 		})
 		return vid
 
-	case .Handle:
-		inner_id := instantiate_rec(store, inf.inner_id, subst)
-		effect_id := instantiate_rec(store, inf.effect_id, subst)
+	case Inferred_Handle:
+		inner_id := instantiate_rec(store, f.inner_id, subst)
+		effect_id := instantiate_rec(store, f.effect_id, subst)
 		vid := fresh_value_var(store, v.span)
-		link_var(store, vid, Inferred_Type{
-			tag = .Handle,
+		link_var(store, vid, Inferred_Handle{
 			inner_id = inner_id,
 			effect_id = effect_id,
 		})
@@ -938,37 +931,35 @@ deep_clone_type :: proc(store: ^Type_Store, id: base.Type_Var_ID, span: base.Sou
 		return resolved
 	}
 
-	switch inf.tag {
-	case .Primitive, .Constructor:
+	switch f in inf {
+	case Inferred_Primitive, Inferred_Constructor:
 		return resolved
 
-	case .Newtype:
-		param_ids := store_alloc(store, base.Type_Var_ID, len(inf.param_ids))
-		for i in 0..<len(inf.param_ids) {
-			param_ids[i] = deep_clone_type(store, inf.param_ids[i], span, subst)
+	case Inferred_Newtype:
+		param_ids := store_alloc(store, base.Type_Var_ID, len(f.param_ids))
+		for i in 0..<len(f.param_ids) {
+			param_ids[i] = deep_clone_type(store, f.param_ids[i], span, subst)
 		}
-		inner_id := deep_clone_type(store, inf.inner_id, span, subst)
+		inner_id := deep_clone_type(store, f.inner_id, span, subst)
 		fresh := fresh_value_var(store, span)
-		link_var(store, fresh, Inferred_Type{
-			tag = .Newtype,
-			primitive_name = inf.primitive_name,
-			arity = inf.arity,
+		link_var(store, fresh, Inferred_Newtype{
+			primitive_name = f.primitive_name,
+			arity = f.arity,
 			param_ids = param_ids,
 			inner_id = inner_id,
 		})
 		subst[resolved] = fresh
 		return fresh
 
-	case .Function:
-		param_ids := store_alloc(store, base.Type_Var_ID, len(inf.param_ids))
-		for i in 0..<len(inf.param_ids) {
-			param_ids[i] = deep_clone_type(store, inf.param_ids[i], span, subst)
+	case Inferred_Function:
+		param_ids := store_alloc(store, base.Type_Var_ID, len(f.param_ids))
+		for i in 0..<len(f.param_ids) {
+			param_ids[i] = deep_clone_type(store, f.param_ids[i], span, subst)
 		}
-		return_id := deep_clone_type(store, inf.return_id, span, subst)
-		effect_id := deep_clone_type(store, inf.effect_id, span, subst)
+		return_id := deep_clone_type(store, f.return_id, span, subst)
+		effect_id := deep_clone_type(store, f.effect_id, span, subst)
 		fresh := fresh_value_var(store, span)
-		link_var(store, fresh, Inferred_Type{
-			tag = .Function,
+		link_var(store, fresh, Inferred_Function{
 			param_ids = param_ids,
 			return_id = return_id,
 			effect_id = effect_id,
@@ -976,49 +967,47 @@ deep_clone_type :: proc(store: ^Type_Store, id: base.Type_Var_ID, span: base.Sou
 		subst[resolved] = fresh
 		return fresh
 
-	case .Effect_Row:
-		effect_entries := store_alloc(store, Effect_Row_Entry, len(inf.effects))
-		for i in 0..<len(inf.effects) {
-			entry := inf.effects[i]
+	case Inferred_Effect_Row:
+		effect_entries := store_alloc(store, Effect_Row_Entry, len(f.effects))
+		for i in 0..<len(f.effects) {
+			entry := f.effects[i]
 			type_args := store_alloc(store, base.Type_Var_ID, len(entry.type_args))
 			for j in 0..<len(entry.type_args) {
 				type_args[j] = deep_clone_type(store, entry.type_args[j], span, subst)
 			}
 			effect_entries[i] = Effect_Row_Entry{name = entry.name, type_args = type_args}
 		}
-		rest_id := deep_clone_type(store, inf.rest_id, span, subst)
+		rest_id := deep_clone_type(store, f.rest_id, span, subst)
 		fresh := fresh_effect_row(store, span)
-		link_var(store, fresh, Inferred_Type{
-			tag = .Effect_Row,
+		link_var(store, fresh, Inferred_Effect_Row{
 			effects = effect_entries,
 			rest_id = rest_id,
 		})
 		subst[resolved] = fresh
 		return fresh
 
-	case .Record_Row:
-		record_fields := store_alloc(store, Type_Field_Entry, len(inf.record_fields))
-		for i in 0..<len(inf.record_fields) {
-			f := inf.record_fields[i]
+	case Inferred_Record_Row:
+		record_fields := store_alloc(store, Type_Field_Entry, len(f.record_fields))
+		for i in 0..<len(f.record_fields) {
+			rf := f.record_fields[i]
 			record_fields[i] = Type_Field_Entry{
-				name = f.name,
-				var  = deep_clone_type(store, f.var, span, subst),
+				name = rf.name,
+				var  = deep_clone_type(store, rf.var, span, subst),
 			}
 		}
-		record_rest := deep_clone_type(store, inf.record_rest, span, subst)
+		record_rest := deep_clone_type(store, f.record_rest, span, subst)
 		fresh := fresh_record_row(store, span)
-		link_var(store, fresh, Inferred_Type{
-			tag = .Record_Row,
+		link_var(store, fresh, Inferred_Record_Row{
 			record_fields = record_fields,
 			record_rest = record_rest,
 		})
 		subst[resolved] = fresh
 		return fresh
 
-	case .Tag_Union_Row:
-		tag_entries := store_alloc(store, Type_Tag_Entry, len(inf.tag_entries))
-		for i in 0..<len(inf.tag_entries) {
-			te := inf.tag_entries[i]
+	case Inferred_Tag_Union_Row:
+		tag_entries := store_alloc(store, Type_Tag_Entry, len(f.tag_entries))
+		for i in 0..<len(f.tag_entries) {
+			te := f.tag_entries[i]
 			payload := store_alloc(store, base.Type_Var_ID, len(te.payload))
 			for j in 0..<len(te.payload) {
 				payload[j] = deep_clone_type(store, te.payload[j], span, subst)
@@ -1028,22 +1017,20 @@ deep_clone_type :: proc(store: ^Type_Store, id: base.Type_Var_ID, span: base.Sou
 				payload = payload,
 			}
 		}
-		tag_rest := deep_clone_type(store, inf.tag_rest, span, subst)
+		tag_rest := deep_clone_type(store, f.tag_rest, span, subst)
 		fresh := fresh_tag_row(store, span)
-		link_var(store, fresh, Inferred_Type{
-			tag = .Tag_Union_Row,
+		link_var(store, fresh, Inferred_Tag_Union_Row{
 			tag_entries = tag_entries,
 			tag_rest = tag_rest,
 		})
 		subst[resolved] = fresh
 		return fresh
 
-	case .Handle:
-		inner_id := deep_clone_type(store, inf.inner_id, span, subst)
-		effect_id := deep_clone_type(store, inf.effect_id, span, subst)
+	case Inferred_Handle:
+		inner_id := deep_clone_type(store, f.inner_id, span, subst)
+		effect_id := deep_clone_type(store, f.effect_id, span, subst)
 		fresh := fresh_value_var(store, span)
-		link_var(store, fresh, Inferred_Type{
-			tag = .Handle,
+		link_var(store, fresh, Inferred_Handle{
 			inner_id = inner_id,
 			effect_id = effect_id,
 		})
@@ -1059,31 +1046,31 @@ subtract_effect_from_row :: proc(store: ^Type_Store, row: base.Type_Var_ID, effe
 	rv := store.vars[int(rid)]
 
 	inf, is_inf := rv.link.(Inferred_Type)
-	if is_inf && inf.tag == .Effect_Row {
+	inf_effect, inf_is_effect := inf.(Inferred_Effect_Row)
+	if is_inf && inf_is_effect {
 		found := false
-		for entry in inf.effects {
+		for entry in inf_effect.effects {
 			if entry.name == effect {
 				found = true
 				break
 			}
 		}
 		if found {
-			if len(inf.effects) == 1 {
-				return inf.rest_id
+			if len(inf_effect.effects) == 1 {
+				return inf_effect.rest_id
 			}
-			new_entries := store_alloc(store, Effect_Row_Entry, len(inf.effects) - 1)
+			new_entries := store_alloc(store, Effect_Row_Entry, len(inf_effect.effects) - 1)
 			j := 0
-			for entry in inf.effects {
+			for entry in inf_effect.effects {
 				if entry.name != effect {
 					new_entries[j] = entry
 					j += 1
 				}
 			}
 			new_row := fresh_effect_row(store, span)
-			link_var(store, new_row, Inferred_Type{
-				tag = .Effect_Row,
+			link_var(store, new_row, Inferred_Effect_Row{
 				effects = new_entries,
-				rest_id = inf.rest_id,
+				rest_id = inf_effect.rest_id,
 			})
 			return new_row
 		}
@@ -1096,8 +1083,7 @@ subtract_effect_from_row :: proc(store: ^Type_Store, row: base.Type_Var_ID, effe
 		effect_entries := store_alloc(store, Effect_Row_Entry, 1)
 		effect_entries[0] = Effect_Row_Entry{name = effect, type_args = {}}
 		handled_row := fresh_effect_row(store, span)
-		link_var(store, handled_row, Inferred_Type{
-			tag = .Effect_Row,
+		link_var(store, handled_row, Inferred_Effect_Row{
 			effects = effect_entries,
 			rest_id = handled_rest,
 		})
@@ -1113,15 +1099,16 @@ effect_row_nonempty :: proc(store: ^Type_Store, effect_var: base.Type_Var_ID) ->
 	v := store.vars[int(resolved)]
 
 	inf, is_inf := v.link.(Inferred_Type)
-	if !is_inf || inf.tag != .Effect_Row {
+	inf_effect, inf_is_effect := inf.(Inferred_Effect_Row)
+	if !is_inf || !inf_is_effect {
 		return false
 	}
 
-	if len(inf.effects) > 0 {
+	if len(inf_effect.effects) > 0 {
 		return true
 	}
 
-	rest_resolved := resolve_var(store, inf.rest_id)
+	rest_resolved := resolve_var(store, inf_effect.rest_id)
 	rest_v := store.vars[int(rest_resolved)]
 	_, rest_unlinked := rest_v.link.(Type_Unlinked)
 	if rest_unlinked && !is_generic(store, rest_resolved) {
@@ -1129,8 +1116,9 @@ effect_row_nonempty :: proc(store: ^Type_Store, effect_var: base.Type_Var_ID) ->
 	}
 
 	rest_inf, rest_is_inf := rest_v.link.(Inferred_Type)
-	if rest_is_inf && rest_inf.tag == .Effect_Row {
-		return effect_row_nonempty(store, inf.rest_id)
+	rest_effect, rest_is_effect := rest_inf.(Inferred_Effect_Row)
+	if rest_is_inf && rest_is_effect {
+		return effect_row_nonempty(store, inf_effect.rest_id)
 	}
 
 	return false
@@ -1181,11 +1169,12 @@ typecheck_newtype_construct :: proc(e: ^CExpr_Tag, env: ^Type_Env, store: ^Type_
 
 	nt_resolved := store.vars[int(resolve_var(store, inst_binding))]
 	nt_inf, is_nt := nt_resolved.link.(Inferred_Type)
+	nt_newtype, nt_is_newtype := nt_inf.(Inferred_Newtype)
 
 	arg_var: base.Type_Var_ID
 	arg_texpr: TExpr
 	arg_typed := false
-	if is_nt && nt_inf.tag == .Newtype && is_numeric_primitive(store, nt_inf.inner_id) {
+	if is_nt && nt_is_newtype && is_numeric_primitive(store, nt_newtype.inner_id) {
 		is_int_lit := false
 		is_float_lit := false
 		#partial switch arg in e.payload[0] {
@@ -1195,13 +1184,16 @@ typecheck_newtype_construct :: proc(e: ^CExpr_Tag, env: ^Type_Env, store: ^Type_
 			is_float_lit = true
 		}
 
-		inner_resolved := store.vars[int(resolve_var(store, nt_inf.inner_id))]
-		if inner_inf, inner_ok := inner_resolved.link.(Inferred_Type); inner_ok && inner_inf.tag == .Primitive {
-			if is_int_lit || is_float_lit {
-				arg_var = make_primitive_type(store, inner_inf.primitive_name, e.span)
-				arg_typed = true
-				arg_synth := typecheck_synth(e.payload[0], env, store)
-				arg_texpr = arg_synth.texpr
+		inner_resolved := store.vars[int(resolve_var(store, nt_newtype.inner_id))]
+		if inner_inf, inner_ok := inner_resolved.link.(Inferred_Type); inner_ok {
+			inner_prim, inner_is_prim := inner_inf.(Inferred_Primitive)
+			if inner_is_prim {
+				if is_int_lit || is_float_lit {
+					arg_var = make_primitive_type(store, inner_prim.primitive_name, e.span)
+					arg_typed = true
+					arg_synth := typecheck_synth(e.payload[0], env, store)
+					arg_texpr = arg_synth.texpr
+				}
 			}
 		}
 	}
@@ -1213,8 +1205,8 @@ typecheck_newtype_construct :: proc(e: ^CExpr_Tag, env: ^Type_Env, store: ^Type_
 		arg_texpr = arg_result.texpr
 	}
 
-	if is_nt && nt_inf.tag == .Newtype {
-		unify(store, arg_var, nt_inf.inner_id)
+	if is_nt && nt_is_newtype {
+		unify(store, arg_var, nt_newtype.inner_id)
 	}
 
 	payload_t := make([dynamic]TExpr, 1)

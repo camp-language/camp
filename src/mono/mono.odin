@@ -117,22 +117,22 @@ format_type_var_for_key :: proc(store: ^semantics.Type_Store, v: ^semantics.Type
 	inf, is_inf := link.(semantics.Inferred_Type)
 	if !is_inf do return "var"
 
-	switch inf.tag {
-	case .Primitive:
-		return base.intern_get(interner, inf.primitive_name)
-	case .Newtype:
-		return base.intern_get(interner, inf.primitive_name)
-	case .Constructor:
-		return base.intern_get(interner, inf.primitive_name)
-	case .Handle:
+	switch v in inf {
+	case semantics.Inferred_Primitive:
+		return base.intern_get(interner, v.primitive_name)
+	case semantics.Inferred_Newtype:
+		return base.intern_get(interner, v.primitive_name)
+	case semantics.Inferred_Constructor:
+		return base.intern_get(interner, v.primitive_name)
+	case semantics.Inferred_Handle:
 		return "Handle"
-	case .Record_Row:
+	case semantics.Inferred_Record_Row:
 		return "Record"
-	case .Tag_Union_Row:
+	case semantics.Inferred_Tag_Union_Row:
 		return "Tag"
-	case .Effect_Row:
+	case semantics.Inferred_Effect_Row:
 		return "Eff"
-	case .Function:
+	case semantics.Inferred_Function:
 		return "Fn"
 	}
 	return "var"
@@ -602,8 +602,10 @@ substitute_ir_type :: proc(ir_type: base.IR_Type, type_args: map[base.Intern_ID]
 			concrete_resolved := semantics.resolve_var(env.store, concrete_var_id)
 			cv := &env.store.vars[int(concrete_resolved)]
 			wasm_type := ir_type.wasm_type
-			if cinf, cis_inf := cv.link.(semantics.Inferred_Type); cis_inf && cinf.tag == .Newtype {
-				wasm_type = semantics.lower_type(env.store, cinf.inner_id).wasm_type
+			if cit, cit_ok := cv.link.(semantics.Inferred_Type); cit_ok {
+				if cinf, cis_inf := cit.(semantics.Inferred_Newtype); cis_inf {
+					wasm_type = semantics.lower_type(env.store, cinf.inner_id).wasm_type
+				}
 			}
 			return base.IR_Type{wasm_type = wasm_type, type_id = concrete_resolved}
 		}
@@ -684,9 +686,13 @@ resolve_mono_type :: proc(expr: semantics.TExpr, type_args: map[base.Intern_ID]b
 		return base.NO_NAME
 	}
 
-	#partial switch inf.tag {
-	case .Primitive, .Newtype, .Constructor:
-		return inf.primitive_name
+	#partial switch vi in inf {
+	case semantics.Inferred_Primitive:
+		return vi.primitive_name
+	case semantics.Inferred_Newtype:
+		return vi.primitive_name
+	case semantics.Inferred_Constructor:
+		return vi.primitive_name
 	}
 
 	return base.NO_NAME
@@ -755,24 +761,26 @@ walk_expr_for_call_sites :: proc(expr: semantics.TExpr, env: ^Mono_Env) {
 						if has_type {
 							resolved_id := semantics.resolve_var(env.store, callee_type_id)
 							callee_v := &env.store.vars[int(resolved_id)]
-							if inf, is_inf := callee_v.link.(semantics.Inferred_Type); is_inf && inf.tag == .Function {
-								type_args := make(map[base.Intern_ID]base.Type_Var_ID, len(body.type_params))
-								param_idx := 0
-								for tp in body.type_params {
-									if param_idx < len(inf.param_ids) {
-										concrete := semantics.resolve_var(env.store, inf.param_ids[param_idx])
-										type_args[tp.name] = concrete
-										param_idx += 1
+							if cit, cit_ok := callee_v.link.(semantics.Inferred_Type); cit_ok {
+								if inf, is_inf := cit.(semantics.Inferred_Function); is_inf {
+									type_args := make(map[base.Intern_ID]base.Type_Var_ID, len(body.type_params))
+									param_idx := 0
+									for tp in body.type_params {
+										if param_idx < len(inf.param_ids) {
+											concrete := semantics.resolve_var(env.store, inf.param_ids[param_idx])
+											type_args[tp.name] = concrete
+											param_idx += 1
+										}
 									}
-								}
-								if len(type_args) > 0 {
-									append(&env.worklist, Mono_Item{
-										original = callee.name,
-										type_args = type_args,
-										span = e.span,
-									})
-								} else {
-									delete(type_args)
+									if len(type_args) > 0 {
+										append(&env.worklist, Mono_Item{
+											original = callee.name,
+											type_args = type_args,
+											span = e.span,
+										})
+									} else {
+										delete(type_args)
+									}
 								}
 							}
 						}

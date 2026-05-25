@@ -72,8 +72,7 @@ typecheck_lambda :: proc(e: ^CExpr_Lambda, env: ^Type_Env, store: ^Type_Store) -
 	}
 
 	fn_var := fresh_value_var(store, e.span)
-	link_var(store, fn_var, Inferred_Type{
-		tag = .Function,
+	link_var(store, fn_var, Inferred_Function{
 		param_ids = param_ids,
 		return_id = return_id,
 		effect_id = effect_id,
@@ -111,8 +110,7 @@ typecheck_call :: proc(e: ^CExpr_Call, env: ^Type_Env, store: ^Type_Store) -> Sy
 	return_var := fresh_value_var(store, e.span)
 	callee_effect := fresh_effect_row(store, e.span)
 
-	expected_fn := Inferred_Type{
-		tag = .Function,
+	expected_fn := Inferred_Function{
 		param_ids = param_ids,
 		return_id = return_var,
 		effect_id = callee_effect,
@@ -325,8 +323,7 @@ typecheck_tag :: proc(e: ^CExpr_Tag, env: ^Type_Env, store: ^Type_Store) -> Synt
 	rest_var := fresh_tag_row(store, e.span)
 	tag_entries := store_alloc(store, Type_Tag_Entry, 1)
 	tag_entries[0] = Type_Tag_Entry{name = e.name.name, payload = payload_ids}
-	inf := Inferred_Type{
-		tag = .Tag_Union_Row,
+	inf := Inferred_Tag_Union_Row{
 		tag_entries = tag_entries,
 		tag_rest = resolve_var(store, rest_var),
 	}
@@ -387,8 +384,7 @@ typecheck_record :: proc(e: ^CExpr_Record, env: ^Type_Env, store: ^Type_Store) -
 	}
 
 	var_id := fresh_value_var(store, e.span)
-	link_var(store, var_id, Inferred_Type{
-		tag = .Record_Row,
+	link_var(store, var_id, Inferred_Record_Row{
 		record_fields = record_fields,
 		record_rest = record_rest,
 	})
@@ -411,8 +407,7 @@ typecheck_field_access :: proc(e: ^CExpr_Field_Access, env: ^Type_Env, store: ^T
 	rest_var := fresh_record_row(store, e.span)
 	record_fields := store_alloc(store, Type_Field_Entry, 1)
 	record_fields[0] = Type_Field_Entry{name = e.field, var = resolve_var(store, field_var)}
-	inf := Inferred_Type{
-		tag = .Record_Row,
+	inf := Inferred_Record_Row{
 		record_fields = record_fields,
 		record_rest = resolve_var(store, rest_var),
 	}
@@ -480,24 +475,26 @@ typecheck_method_call :: proc(e: ^CExpr_Method_Call, env: ^Type_Env, store: ^Typ
 	if e.method.name == inner_name && len(e.args) == 0 {
 		receiver_result := typecheck_synth(e.receiver, env, store)
 		receiver_resolved := store.vars[int(resolve_var(store, receiver_result.var_id))]
-		if inf, is_inf := receiver_resolved.link.(Inferred_Type); is_inf && inf.tag == .Newtype {
-			nt_info, nt_ok := store.newtype_decls[inf.primitive_name]
-			if nt_ok && !is_same_module(env, nt_info.module) {
-				nt_str := base.intern_get(store.interner, inf.primitive_name)
-				diagnostics.collector_add_diag(store.collector, diagnostics.diag_newtype_opaque_violation(nt_str, "unwrap", e.span))
+		if inf, is_inf := receiver_resolved.link.(Inferred_Type); is_inf {
+			if nt, nt_ok := inf.(Inferred_Newtype); nt_ok {
+				nt_info, nt_ok_nt := store.newtype_decls[nt.primitive_name]
+				if nt_ok_nt && !is_same_module(env, nt_info.module) {
+					nt_str := base.intern_get(store.interner, nt.primitive_name)
+					diagnostics.collector_add_diag(store.collector, diagnostics.diag_newtype_opaque_violation(nt_str, "unwrap", e.span))
+				}
+				args_t := make([dynamic]TExpr, 0)
+				t := new(TExpr_Method_Call)
+				t^ = TExpr_Method_Call{
+					receiver = receiver_result.texpr,
+					method = e.method,
+					args = args_t,
+					type_ = lower_type(store, nt.inner_id),
+					eff_ = lower_effect_type(store, receiver_result.effects),
+					resolved_ = e.method,
+					span = e.span,
+				}
+				return Synth_Result{var_id = nt.inner_id, effects = receiver_result.effects, texpr = TExpr(t)}
 			}
-			args_t := make([dynamic]TExpr, 0)
-			t := new(TExpr_Method_Call)
-			t^ = TExpr_Method_Call{
-				receiver = receiver_result.texpr,
-				method = e.method,
-				args = args_t,
-				type_ = lower_type(store, inf.inner_id),
-				eff_ = lower_effect_type(store, receiver_result.effects),
-				resolved_ = e.method,
-				span = e.span,
-			}
-			return Synth_Result{var_id = inf.inner_id, effects = receiver_result.effects, texpr = TExpr(t)}
 		}
 	}
 
@@ -537,8 +534,7 @@ typecheck_method_call :: proc(e: ^CExpr_Method_Call, env: ^Type_Env, store: ^Typ
 		effect_entries[0] = Effect_Row_Entry{name = effect_name, type_args = {}}
 		rest := fresh_effect_row(store, e.span)
 		row := fresh_effect_row(store, e.span)
-		link_var(store, row, Inferred_Type{
-			tag = .Effect_Row,
+		link_var(store, row, Inferred_Effect_Row{
 			effects = effect_entries,
 			rest_id = rest,
 		})
@@ -555,31 +551,31 @@ typecheck_method_call :: proc(e: ^CExpr_Method_Call, env: ^Type_Env, store: ^Typ
 			append(&args_t, arg_result.texpr)
 
 			arg_resolved := store.vars[int(resolve_var(store, arg_result.var_id))]
-			if inf, is_inf := arg_resolved.link.(Inferred_Type); is_inf && inf.tag == .Function {
-				handle_var := fresh_value_var(store, e.span)
-				link_var(store, handle_var, Inferred_Type{
-					tag = .Handle,
-					inner_id = inf.return_id,
-					effect_id = inf.effect_id,
-				})
-				append(&env.spawned_handles, e.span)
-				t := new(TExpr_Method_Call)
-				t^ = TExpr_Method_Call{
-					receiver = receiver_result.texpr,
-					method = e.method,
-					args = args_t,
-					type_ = lower_type(store, handle_var),
-					eff_ = lower_effect_type(store, eff),
-					resolved_ = e.method,
-					span = e.span,
+			if inf, is_inf := arg_resolved.link.(Inferred_Type); is_inf {
+				if fn_inf, fn_ok := inf.(Inferred_Function); fn_ok {
+					handle_var := fresh_value_var(store, e.span)
+					link_var(store, handle_var, Inferred_Handle{
+						inner_id = fn_inf.return_id,
+						effect_id = fn_inf.effect_id,
+					})
+					append(&env.spawned_handles, e.span)
+					t := new(TExpr_Method_Call)
+					t^ = TExpr_Method_Call{
+						receiver = receiver_result.texpr,
+						method = e.method,
+						args = args_t,
+						type_ = lower_type(store, handle_var),
+						eff_ = lower_effect_type(store, eff),
+						resolved_ = e.method,
+						span = e.span,
+					}
+					return Synth_Result{var_id = handle_var, effects = eff, texpr = TExpr(t)}
 				}
-				return Synth_Result{var_id = handle_var, effects = eff, texpr = TExpr(t)}
 			}
 			inner_var := fresh_value_var(store, e.span)
 			effect_var := fresh_effect_row(store, e.span)
 			handle_var := fresh_value_var(store, e.span)
-			link_var(store, handle_var, Inferred_Type{
-				tag = .Handle,
+			link_var(store, handle_var, Inferred_Handle{
 				inner_id = inner_var,
 				effect_id = effect_var,
 			})
@@ -603,19 +599,21 @@ typecheck_method_call :: proc(e: ^CExpr_Method_Call, env: ^Type_Env, store: ^Typ
 			append(&args_t, arg_result.texpr)
 
 			arg_resolved := store.vars[int(resolve_var(store, arg_result.var_id))]
-			if inf, is_inf := arg_resolved.link.(Inferred_Type); is_inf && inf.tag == .Handle {
-				unify(store, eff, inf.effect_id)
-				t := new(TExpr_Method_Call)
-				t^ = TExpr_Method_Call{
-					receiver = receiver_result.texpr,
-					method = e.method,
-					args = args_t,
-					type_ = lower_type(store, inf.inner_id),
-					eff_ = lower_effect_type(store, eff),
-					resolved_ = e.method,
-					span = e.span,
+			if inf, is_inf := arg_resolved.link.(Inferred_Type); is_inf {
+				if h_inf, h_ok := inf.(Inferred_Handle); h_ok {
+					unify(store, eff, h_inf.effect_id)
+					t := new(TExpr_Method_Call)
+					t^ = TExpr_Method_Call{
+						receiver = receiver_result.texpr,
+						method = e.method,
+						args = args_t,
+						type_ = lower_type(store, h_inf.inner_id),
+						eff_ = lower_effect_type(store, eff),
+						resolved_ = e.method,
+						span = e.span,
+					}
+					return Synth_Result{var_id = h_inf.inner_id, effects = eff, texpr = TExpr(t)}
 				}
-				return Synth_Result{var_id = inf.inner_id, effects = eff, texpr = TExpr(t)}
 			}
 			return_var := fresh_value_var(store, e.span)
 			t := new(TExpr_Method_Call)
@@ -638,8 +636,7 @@ typecheck_method_call :: proc(e: ^CExpr_Method_Call, env: ^Type_Env, store: ^Typ
 			spawn_effect_entries[0] = Effect_Row_Entry{name = spawn_effect_name, type_args = {}}
 			spawn_rest := fresh_effect_row(store, e.span)
 			spawn_row := fresh_effect_row(store, e.span)
-			link_var(store, spawn_row, Inferred_Type{
-				tag = .Effect_Row,
+			link_var(store, spawn_row, Inferred_Effect_Row{
 				effects = spawn_effect_entries,
 				rest_id = spawn_rest,
 			})
@@ -694,8 +691,10 @@ typecheck_method_call :: proc(e: ^CExpr_Method_Call, env: ^Type_Env, store: ^Typ
 		if is_effect_op {
 			arg_resolved := resolve_var(store, arg_result.var_id)
 			arg_var := store.vars[int(arg_resolved)]
-			if inf, is_inf := arg_var.link.(Inferred_Type); is_inf && inf.tag == .Function {
-				unify(store, eff, inf.effect_id)
+			if inf, is_inf := arg_var.link.(Inferred_Type); is_inf {
+				if fn_inf, fn_ok := inf.(Inferred_Function); fn_ok {
+					unify(store, eff, fn_inf.effect_id)
+				}
 			}
 		}
 	}
@@ -783,28 +782,32 @@ typecheck_qualified_tag_construct :: proc(receiver: ^CExpr_Tag, e: ^CExpr_Method
 	nt_resolved := store.vars[int(resolve_var(store, inst_binding))]
 	nt_inf, is_nt := nt_resolved.link.(Inferred_Type)
 
-	if is_nt && nt_inf.tag == .Newtype {
-		inner_resolved := store.vars[int(resolve_var(store, nt_inf.inner_id))]
-		if inner_inf, inner_ok := inner_resolved.link.(Inferred_Type); inner_ok && inner_inf.tag == .Tag_Union_Row {
-			for te in inner_inf.tag_entries {
-				if te.name == e.method.name && len(te.payload) == len(e.args) {
-					for a, i in e.args {
-						arg_result := typecheck_synth(a, env, store)
-						unify(store, eff, arg_result.effects)
-						unify(store, arg_result.var_id, te.payload[i])
-						append(&args_t, arg_result.texpr)
+	if is_nt {
+		if nt, nt_ok := nt_inf.(Inferred_Newtype); nt_ok {
+			inner_resolved := store.vars[int(resolve_var(store, nt.inner_id))]
+			if inner_inf, inner_ok := inner_resolved.link.(Inferred_Type); inner_ok {
+				if tu_inf, tu_ok := inner_inf.(Inferred_Tag_Union_Row); tu_ok {
+					for te in tu_inf.tag_entries {
+						if te.name == e.method.name && len(te.payload) == len(e.args) {
+							for a, i in e.args {
+								arg_result := typecheck_synth(a, env, store)
+								unify(store, eff, arg_result.effects)
+								unify(store, arg_result.var_id, te.payload[i])
+								append(&args_t, arg_result.texpr)
+							}
+							t := new(TExpr_Method_Call)
+							t^ = TExpr_Method_Call{
+								receiver = TExpr(new(TExpr_Tag)),
+								method = e.method,
+								args = args_t,
+								type_ = lower_type(store, inst_binding),
+								eff_ = lower_effect_type(store, eff),
+								resolved_ = e.method,
+								span = e.span,
+							}
+							return Synth_Result{var_id = inst_binding, effects = eff, texpr = TExpr(t)}
+						}
 					}
-					t := new(TExpr_Method_Call)
-					t^ = TExpr_Method_Call{
-						receiver = TExpr(new(TExpr_Tag)),
-						method = e.method,
-						args = args_t,
-						type_ = lower_type(store, inst_binding),
-						eff_ = lower_effect_type(store, eff),
-						resolved_ = e.method,
-						span = e.span,
-					}
-					return Synth_Result{var_id = inst_binding, effects = eff, texpr = TExpr(t)}
 				}
 			}
 		}

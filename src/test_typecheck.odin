@@ -272,8 +272,7 @@ test_unify_function_same_arity :: proc(t: ^testing.T) {
 	params_a := semantics.store_alloc(&store, base.Type_Var_ID, 1)
 	params_a[0] = param_a
 	fn_a := semantics.fresh_value_var(&store, base.Source_Span_ZERO)
-	semantics.link_var(&store, fn_a, semantics.Inferred_Type{
-		tag = .Function,
+	semantics.link_var(&store, fn_a, semantics.Inferred_Function{
 		param_ids = params_a,
 		return_id = ret_a,
 		effect_id = eff_a,
@@ -285,8 +284,7 @@ test_unify_function_same_arity :: proc(t: ^testing.T) {
 	params_b := semantics.store_alloc(&store, base.Type_Var_ID, 1)
 	params_b[0] = param_b
 	fn_b := semantics.fresh_value_var(&store, base.Source_Span_ZERO)
-	semantics.link_var(&store, fn_b, semantics.Inferred_Type{
-		tag = .Function,
+	semantics.link_var(&store, fn_b, semantics.Inferred_Function{
 		param_ids = params_b,
 		return_id = ret_b,
 		effect_id = eff_b,
@@ -307,8 +305,7 @@ test_unify_function_arity_mismatch :: proc(t: ^testing.T) {
 	ret_a := semantics.fresh_value_var(&store, base.Source_Span_ZERO)
 	eff_a := semantics.fresh_effect_row(&store, base.Source_Span_ZERO)
 	fn_a := semantics.fresh_value_var(&store, base.Source_Span_ZERO)
-	semantics.link_var(&store, fn_a, semantics.Inferred_Type{
-		tag = .Function,
+	semantics.link_var(&store, fn_a, semantics.Inferred_Function{
 		param_ids = params_a,
 		return_id = ret_a,
 		effect_id = eff_a,
@@ -320,8 +317,7 @@ test_unify_function_arity_mismatch :: proc(t: ^testing.T) {
 	ret_b := semantics.fresh_value_var(&store, base.Source_Span_ZERO)
 	eff_b := semantics.fresh_effect_row(&store, base.Source_Span_ZERO)
 	fn_b := semantics.fresh_value_var(&store, base.Source_Span_ZERO)
-	semantics.link_var(&store, fn_b, semantics.Inferred_Type{
-		tag = .Function,
+	semantics.link_var(&store, fn_b, semantics.Inferred_Function{
 		param_ids = params_b,
 		return_id = ret_b,
 		effect_id = eff_b,
@@ -344,8 +340,7 @@ test_unify_function_param_mismatch :: proc(t: ^testing.T) {
 	ret_a := semantics.fresh_value_var(&store, base.Source_Span_ZERO)
 	eff_a := semantics.fresh_effect_row(&store, base.Source_Span_ZERO)
 	fn_a := semantics.fresh_value_var(&store, base.Source_Span_ZERO)
-	semantics.link_var(&store, fn_a, semantics.Inferred_Type{
-		tag = .Function,
+	semantics.link_var(&store, fn_a, semantics.Inferred_Function{
 		param_ids = params_a,
 		return_id = ret_a,
 		effect_id = eff_a,
@@ -356,8 +351,7 @@ test_unify_function_param_mismatch :: proc(t: ^testing.T) {
 	ret_b := semantics.fresh_value_var(&store, base.Source_Span_ZERO)
 	eff_b := semantics.fresh_effect_row(&store, base.Source_Span_ZERO)
 	fn_b := semantics.fresh_value_var(&store, base.Source_Span_ZERO)
-	semantics.link_var(&store, fn_b, semantics.Inferred_Type{
-		tag = .Function,
+	semantics.link_var(&store, fn_b, semantics.Inferred_Function{
 		param_ids = params_b,
 		return_id = ret_b,
 		effect_id = eff_b,
@@ -379,8 +373,7 @@ test_unify_effect_row_same_effects :: proc(t: ^testing.T) {
 	eff_entries_a[0] = semantics.Effect_Row_Entry{name = console_name, type_args = {}}
 	rest_a := semantics.fresh_effect_row(&store, base.Source_Span_ZERO)
 	row_a := semantics.fresh_effect_row(&store, base.Source_Span_ZERO)
-	semantics.link_var(&store, row_a, semantics.Inferred_Type{
-		tag = .Effect_Row,
+	semantics.link_var(&store, row_a, semantics.Inferred_Effect_Row{
 		effects = eff_entries_a,
 		rest_id = rest_a,
 	})
@@ -389,8 +382,7 @@ test_unify_effect_row_same_effects :: proc(t: ^testing.T) {
 	eff_entries_b[0] = semantics.Effect_Row_Entry{name = console_name, type_args = {}}
 	rest_b := semantics.fresh_effect_row(&store, base.Source_Span_ZERO)
 	row_b := semantics.fresh_effect_row(&store, base.Source_Span_ZERO)
-	semantics.link_var(&store, row_b, semantics.Inferred_Type{
-		tag = .Effect_Row,
+	semantics.link_var(&store, row_b, semantics.Inferred_Effect_Row{
 		effects = eff_entries_b,
 		rest_id = rest_b,
 	})
@@ -411,8 +403,7 @@ test_unify_effect_row_different_effects :: proc(t: ^testing.T) {
 	eff_entries_a[0] = semantics.Effect_Row_Entry{name = console_name, type_args = {}}
 	rest_a := semantics.fresh_effect_row(&store, base.Source_Span_ZERO)
 	row_a := semantics.fresh_effect_row(&store, base.Source_Span_ZERO)
-	semantics.link_var(&store, row_a, semantics.Inferred_Type{
-		tag = .Effect_Row,
+	semantics.link_var(&store, row_a, semantics.Inferred_Effect_Row{
 		effects = eff_entries_a,
 		rest_id = rest_a,
 	})
@@ -421,8 +412,7 @@ test_unify_effect_row_different_effects :: proc(t: ^testing.T) {
 	eff_entries_b[0] = semantics.Effect_Row_Entry{name = file_name, type_args = {}}
 	rest_b := semantics.fresh_effect_row(&store, base.Source_Span_ZERO)
 	row_b := semantics.fresh_effect_row(&store, base.Source_Span_ZERO)
-	semantics.link_var(&store, row_b, semantics.Inferred_Type{
-		tag = .Effect_Row,
+	semantics.link_var(&store, row_b, semantics.Inferred_Effect_Row{
 		effects = eff_entries_b,
 		rest_id = rest_b,
 	})
@@ -446,8 +436,7 @@ test_unify_record_row_same_fields :: proc(t: ^testing.T) {
 	fields_a[1] = semantics.Type_Field_Entry{name = y_name, var = semantics.make_primitive_type(&store, str_name, base.Source_Span_ZERO)}
 	rest_a := semantics.fresh_record_row(&store, base.Source_Span_ZERO)
 	rec_a := semantics.fresh_value_var(&store, base.Source_Span_ZERO)
-	semantics.link_var(&store, rec_a, semantics.Inferred_Type{
-		tag = .Record_Row,
+	semantics.link_var(&store, rec_a, semantics.Inferred_Record_Row{
 		record_fields = fields_a,
 		record_rest = rest_a,
 	})
@@ -457,8 +446,7 @@ test_unify_record_row_same_fields :: proc(t: ^testing.T) {
 	fields_b[1] = semantics.Type_Field_Entry{name = y_name, var = semantics.make_primitive_type(&store, str_name, base.Source_Span_ZERO)}
 	rest_b := semantics.fresh_record_row(&store, base.Source_Span_ZERO)
 	rec_b := semantics.fresh_value_var(&store, base.Source_Span_ZERO)
-	semantics.link_var(&store, rec_b, semantics.Inferred_Type{
-		tag = .Record_Row,
+	semantics.link_var(&store, rec_b, semantics.Inferred_Record_Row{
 		record_fields = fields_b,
 		record_rest = rest_b,
 	})
@@ -480,8 +468,7 @@ test_unify_record_row_field_mismatch :: proc(t: ^testing.T) {
 	fields_a[0] = semantics.Type_Field_Entry{name = x_name, var = semantics.make_primitive_type(&store, i64_name, base.Source_Span_ZERO)}
 	rest_a := semantics.fresh_record_row(&store, base.Source_Span_ZERO)
 	rec_a := semantics.fresh_value_var(&store, base.Source_Span_ZERO)
-	semantics.link_var(&store, rec_a, semantics.Inferred_Type{
-		tag = .Record_Row,
+	semantics.link_var(&store, rec_a, semantics.Inferred_Record_Row{
 		record_fields = fields_a,
 		record_rest = rest_a,
 	})
@@ -490,8 +477,7 @@ test_unify_record_row_field_mismatch :: proc(t: ^testing.T) {
 	fields_b[0] = semantics.Type_Field_Entry{name = x_name, var = semantics.make_primitive_type(&store, str_name, base.Source_Span_ZERO)}
 	rest_b := semantics.fresh_record_row(&store, base.Source_Span_ZERO)
 	rec_b := semantics.fresh_value_var(&store, base.Source_Span_ZERO)
-	semantics.link_var(&store, rec_b, semantics.Inferred_Type{
-		tag = .Record_Row,
+	semantics.link_var(&store, rec_b, semantics.Inferred_Record_Row{
 		record_fields = fields_b,
 		record_rest = rest_b,
 	})
@@ -588,8 +574,7 @@ test_newtype_nominal_distinctness :: proc(t: ^testing.T) {
 	i64_name := base.intern(store.interner, "I64")
 
 	uid_var := semantics.fresh_value_var(&store, base.Source_Span_ZERO)
-	semantics.link_var(&store, uid_var, semantics.Inferred_Type{
-		tag = .Newtype,
+	semantics.link_var(&store, uid_var, semantics.Inferred_Newtype{
 		primitive_name = uid_name,
 		arity = 0,
 		param_ids = nil,
@@ -597,8 +582,7 @@ test_newtype_nominal_distinctness :: proc(t: ^testing.T) {
 	})
 
 	oid_var := semantics.fresh_value_var(&store, base.Source_Span_ZERO)
-	semantics.link_var(&store, oid_var, semantics.Inferred_Type{
-		tag = .Newtype,
+	semantics.link_var(&store, oid_var, semantics.Inferred_Newtype{
 		primitive_name = oid_name,
 		arity = 0,
 		param_ids = nil,
@@ -621,8 +605,7 @@ test_newtype_no_semantics_unify_with_inner :: proc(t: ^testing.T) {
 	i64_var := semantics.make_primitive_type(&store, i64_name, base.Source_Span_ZERO)
 
 	uid_var := semantics.fresh_value_var(&store, base.Source_Span_ZERO)
-	semantics.link_var(&store, uid_var, semantics.Inferred_Type{
-		tag = .Newtype,
+	semantics.link_var(&store, uid_var, semantics.Inferred_Newtype{
 		primitive_name = uid_name,
 		arity = 0,
 		param_ids = nil,
@@ -645,8 +628,7 @@ test_newtype_same_name_unifies :: proc(t: ^testing.T) {
 	inner := semantics.make_primitive_type(&store, i64_name, base.Source_Span_ZERO)
 
 	uid_a := semantics.fresh_value_var(&store, base.Source_Span_ZERO)
-	semantics.link_var(&store, uid_a, semantics.Inferred_Type{
-		tag = .Newtype,
+	semantics.link_var(&store, uid_a, semantics.Inferred_Newtype{
 		primitive_name = uid_name,
 		arity = 0,
 		param_ids = nil,
@@ -654,8 +636,7 @@ test_newtype_same_name_unifies :: proc(t: ^testing.T) {
 	})
 
 	uid_b := semantics.fresh_value_var(&store, base.Source_Span_ZERO)
-	semantics.link_var(&store, uid_b, semantics.Inferred_Type{
-		tag = .Newtype,
+	semantics.link_var(&store, uid_b, semantics.Inferred_Newtype{
 		primitive_name = uid_name,
 		arity = 0,
 		param_ids = nil,

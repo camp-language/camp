@@ -157,31 +157,33 @@ format_resolved_type :: proc(store: ^semantics.Type_Store, var_id: base.Type_Var
 	if !is_inf {
 		return "?"
 	}
-	switch inf.tag {
-	case .Primitive:
-		return base.intern_get(store.interner, inf.primitive_name)
-	case .Function:
+	switch v in inf {
+	case semantics.Inferred_Primitive:
+		return base.intern_get(store.interner, v.primitive_name)
+	case semantics.Inferred_Function:
 		b: strings.Builder
 		strings.builder_init_len_cap(&b, 0, 64)
-		for i in 0 ..< len(inf.param_ids) {
+		for i in 0 ..< len(v.param_ids) {
 			if i > 0 do strings.write_string(&b, ", ")
-			strings.write_string(&b, format_resolved_type(store, inf.param_ids[i]))
+			strings.write_string(&b, format_resolved_type(store, v.param_ids[i]))
 		}
 		strings.write_string(&b, " -> ")
-		strings.write_string(&b, format_resolved_type(store, inf.return_id))
+		strings.write_string(&b, format_resolved_type(store, v.return_id))
 		result := strings.to_string(b)
 		cloned := strings.clone(result, context.allocator)
 		strings.builder_destroy(&b)
 		return cloned
-	case .Constructor, .Newtype:
-		return base.intern_get(store.interner, inf.primitive_name)
-	case .Handle:
+	case semantics.Inferred_Constructor:
+		return base.intern_get(store.interner, v.primitive_name)
+	case semantics.Inferred_Newtype:
+		return base.intern_get(store.interner, v.primitive_name)
+	case semantics.Inferred_Handle:
 		return "Handle"
-	case .Record_Row:
+	case semantics.Inferred_Record_Row:
 		return "{ ... }"
-	case .Tag_Union_Row:
+	case semantics.Inferred_Tag_Union_Row:
 		return "[ ... ]"
-	case .Effect_Row:
+	case semantics.Inferred_Effect_Row:
 		return "{}"
 	}
 	return "?"

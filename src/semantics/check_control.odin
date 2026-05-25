@@ -69,8 +69,7 @@ typecheck_pattern :: proc(pattern: CPattern, scrutinee_var: base.Type_Var_ID, en
 		tag_entries := store_alloc(store, Type_Tag_Entry, 1)
 		tag_entries[0] = Type_Tag_Entry{name = p.name.name, payload = payload_ids}
 		tag_var := fresh_value_var(store, p.span)
-		link_var(store, tag_var, Inferred_Type{
-			tag = .Tag_Union_Row,
+		link_var(store, tag_var, Inferred_Tag_Union_Row{
 			tag_entries = tag_entries,
 			tag_rest = resolve_var(store, rest_var),
 		})
@@ -90,8 +89,7 @@ typecheck_pattern :: proc(pattern: CPattern, scrutinee_var: base.Type_Var_ID, en
 		}
 		rest_var := fresh_record_row(store, p.span)
 		rec_var := fresh_value_var(store, p.span)
-		link_var(store, rec_var, Inferred_Type{
-			tag = .Record_Row,
+		link_var(store, rec_var, Inferred_Record_Row{
 			record_fields = field_entries,
 			record_rest = resolve_var(store, rest_var),
 		})
@@ -283,48 +281,52 @@ typecheck_match :: proc(e: ^CExpr_Match, env: ^Type_Env, store: ^Type_Store) -> 
 	resolved_scrut := store.vars[int(resolve_var(store, scrutinee_result.var_id))]
 	#partial switch inf in resolved_scrut.link {
 	case Inferred_Type:
-		if inf.tag == .Tag_Union_Row && len(inf.tag_entries) > 0 && !cov.saturated {
-			missing_list: [dynamic]string
-			missing_list = make([dynamic]string, 0, len(inf.tag_entries))
-			defer delete(missing_list)
-			for te in inf.tag_entries {
-				if !cov.tags[te.name] {
-					append(&missing_list, base.intern_get(store.interner, te.name))
+		#partial switch v in inf {
+		case Inferred_Tag_Union_Row:
+			if len(v.tag_entries) > 0 && !cov.saturated {
+				missing_list: [dynamic]string
+				missing_list = make([dynamic]string, 0, len(v.tag_entries))
+				defer delete(missing_list)
+				for te in v.tag_entries {
+					if !cov.tags[te.name] {
+						append(&missing_list, base.intern_get(store.interner, te.name))
+					}
+				}
+				if len(missing_list) > 0 {
+					missing := missing_list[0]
+					for j := 1; j < len(missing_list); j += 1 {
+						missing = fmt.tprintf("{}, {}", missing, missing_list[j])
+					}
+					diagnostics.collector_add_diag(store.collector, diagnostics.diag_internal(
+						fmt.tprintf("non-exhaustive match: missing branch for {}", missing),
+						e.span))
 				}
 			}
-			if len(missing_list) > 0 {
-				missing := missing_list[0]
-				for j := 1; j < len(missing_list); j += 1 {
-					missing = fmt.tprintf("{}, {}", missing, missing_list[j])
+		case Inferred_Primitive:
+			// Bool exhaustiveness: must cover both true and false
+			if v.primitive_name == base.intern(store.interner, "Bool") && !cov.saturated {
+				if !cov.bool_values[true] || !cov.bool_values[false] {
+					missing: string
+					if !cov.bool_values[true] && !cov.bool_values[false] {
+						missing = "True and False"
+					} else if !cov.bool_values[true] {
+						missing = "True"
+					} else {
+						missing = "False"
+					}
+					diagnostics.collector_add_diag(store.collector, diagnostics.diag_non_exhaustive_bool(missing, e.span))
 				}
-				diagnostics.collector_add_diag(store.collector, diagnostics.diag_internal(
-					fmt.tprintf("non-exhaustive match: missing branch for {}", missing),
-					e.span))
 			}
-		}
-		// Bool exhaustiveness: must cover both true and false
-		if inf.tag == .Primitive && inf.primitive_name == base.intern(store.interner, "Bool") && !cov.saturated {
-			if !cov.bool_values[true] || !cov.bool_values[false] {
-				missing: string
-				if !cov.bool_values[true] && !cov.bool_values[false] {
-					missing = "True and False"
-				} else if !cov.bool_values[true] {
-					missing = "True"
-				} else {
-					missing = "False"
+			// Int/String exhaustiveness: can never be exhaustive without wildcard
+			if !cov.saturated {
+				prim_name := base.intern_get(store.interner, v.primitive_name)
+				if prim_name == "I64" || prim_name == "I32" || prim_name == "I16" || prim_name == "I8" ||
+				   prim_name == "U64" || prim_name == "U32" || prim_name == "U16" || prim_name == "U8" {
+					diagnostics.collector_add_diag(store.collector, diagnostics.diag_non_exhaustive_int_string(prim_name, e.span))
 				}
-				diagnostics.collector_add_diag(store.collector, diagnostics.diag_non_exhaustive_bool(missing, e.span))
-			}
-		}
-		// Int/String exhaustiveness: can never be exhaustive without wildcard
-		if inf.tag == .Primitive && !cov.saturated {
-			prim_name := base.intern_get(store.interner, inf.primitive_name)
-			if prim_name == "I64" || prim_name == "I32" || prim_name == "I16" || prim_name == "I8" ||
-			   prim_name == "U64" || prim_name == "U32" || prim_name == "U16" || prim_name == "U8" {
-				diagnostics.collector_add_diag(store.collector, diagnostics.diag_non_exhaustive_int_string(prim_name, e.span))
-			}
-			if prim_name == "Str" {
-				diagnostics.collector_add_diag(store.collector, diagnostics.diag_non_exhaustive_int_string(prim_name, e.span))
+				if prim_name == "Str" {
+					diagnostics.collector_add_diag(store.collector, diagnostics.diag_non_exhaustive_int_string(prim_name, e.span))
+				}
 			}
 		}
 	case Type_Unlinked, base.Type_Var_ID:

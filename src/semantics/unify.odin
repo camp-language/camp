@@ -19,13 +19,21 @@ unify :: proc(store: ^Type_Store, a: base.Type_Var_ID, b: base.Type_Var_ID) -> b
 	if va.kind != vb.kind {
 		if va.kind == .Value && vb.kind != .Value {
 			inf, is_inf := va.link.(Inferred_Type)
-			if is_inf && ((inf.tag == .Tag_Union_Row && vb.kind == .Row_Tag) || (inf.tag == .Record_Row && vb.kind == .Row_Record) || (inf.tag == .Effect_Row && vb.kind == .Row_Effect)) {
-				if vb.kind == .Row_Tag {
-					return unify(store, inf.tag_rest, rb)
-				} else if vb.kind == .Row_Record {
-					return unify(store, inf.record_rest, rb)
-				} else if vb.kind == .Row_Effect {
-					return unify(store, inf.rest_id, rb)
+			if is_inf {
+				switch v in inf {
+				case Inferred_Tag_Union_Row:
+					if vb.kind == .Row_Tag {
+						return unify(store, v.tag_rest, rb)
+					}
+				case Inferred_Record_Row:
+					if vb.kind == .Row_Record {
+						return unify(store, v.record_rest, rb)
+					}
+				case Inferred_Effect_Row:
+					if vb.kind == .Row_Effect {
+						return unify(store, v.rest_id, rb)
+					}
+				case Inferred_Primitive, Inferred_Constructor, Inferred_Function, Inferred_Newtype, Inferred_Handle:
 				}
 			}
 			diagnostics.collector_add_diag(store.collector, diagnostics.diag_value_row_conflict("value", "row", va.span, vb.span))
@@ -33,13 +41,21 @@ unify :: proc(store: ^Type_Store, a: base.Type_Var_ID, b: base.Type_Var_ID) -> b
 		}
 		if va.kind != .Value && vb.kind == .Value {
 			inf, is_inf := vb.link.(Inferred_Type)
-			if is_inf && ((inf.tag == .Tag_Union_Row && va.kind == .Row_Tag) || (inf.tag == .Record_Row && va.kind == .Row_Record) || (inf.tag == .Effect_Row && va.kind == .Row_Effect)) {
-				if va.kind == .Row_Tag {
-					return unify(store, ra, inf.tag_rest)
-				} else if va.kind == .Row_Record {
-					return unify(store, ra, inf.record_rest)
-				} else if va.kind == .Row_Effect {
-					return unify(store, ra, inf.rest_id)
+			if is_inf {
+				switch v in inf {
+				case Inferred_Tag_Union_Row:
+					if va.kind == .Row_Tag {
+						return unify(store, ra, v.tag_rest)
+					}
+				case Inferred_Record_Row:
+					if va.kind == .Row_Record {
+						return unify(store, ra, v.record_rest)
+					}
+				case Inferred_Effect_Row:
+					if va.kind == .Row_Effect {
+						return unify(store, ra, v.rest_id)
+					}
+				case Inferred_Primitive, Inferred_Constructor, Inferred_Function, Inferred_Newtype, Inferred_Handle:
 				}
 			}
 			diagnostics.collector_add_diag(store.collector, diagnostics.diag_value_row_conflict("row", "value", va.span, vb.span))
@@ -120,98 +136,162 @@ unify :: proc(store: ^Type_Store, a: base.Type_Var_ID, b: base.Type_Var_ID) -> b
 }
 
 unify_inferred :: proc(store: ^Type_Store, a: Inferred_Type, b: Inferred_Type, a_id: base.Type_Var_ID, b_id: base.Type_Var_ID) -> bool {
-	if a.tag != b.tag {
-		type_a_str := format_inferred_type(store, a)
-		type_b_str := format_inferred_type(store, b)
-		va := store.vars[int(resolve_var(store, a_id))]
-		vb := store.vars[int(resolve_var(store, b_id))]
-		diagnostics.collector_add_diag(store.collector, diagnostics.diag_type_mismatch(type_a_str, type_b_str, va.span, vb.span))
-		return false
-	}
-
-	if a.tag == .Primitive && a.primitive_name != b.primitive_name {
-		if try_narrow_literal(store, a, b, a_id, b_id) {
-			return true
-		}
-		if try_narrow_literal(store, b, a, b_id, a_id) {
-			return true
-		}
-		name_a := base.intern_get(store.interner, a.primitive_name)
-		name_b := base.intern_get(store.interner, b.primitive_name)
-		va := store.vars[int(resolve_var(store, a_id))]
-		vb := store.vars[int(resolve_var(store, b_id))]
-		diagnostics.collector_add_diag(store.collector, diagnostics.diag_primitive_mismatch(name_a, name_b, va.span, vb.span))
-		return false
-	}
-
-	switch a.tag {
-	case .Function:
-		if len(a.param_ids) != len(b.param_ids) {
-			va := store.vars[int(resolve_var(store, a_id))]
-			vb := store.vars[int(resolve_var(store, b_id))]
-			diagnostics.collector_add_diag(store.collector, diagnostics.diag_arity_mismatch(len(a.param_ids), len(b.param_ids), va.span, vb.span))
+	switch va in a {
+	case Inferred_Primitive:
+		vb, ok := b.(Inferred_Primitive)
+		if !ok {
+			type_a_str := format_inferred_type(store, a)
+			type_b_str := format_inferred_type(store, b)
+			va_var := store.vars[int(resolve_var(store, a_id))]
+			vb_var := store.vars[int(resolve_var(store, b_id))]
+			diagnostics.collector_add_diag(store.collector, diagnostics.diag_type_mismatch(type_a_str, type_b_str, va_var.span, vb_var.span))
 			return false
 		}
-		for i in 0..<len(a.param_ids) {
-			if !unify(store, a.param_ids[i], b.param_ids[i]) {
+		if va.primitive_name != vb.primitive_name {
+			if try_narrow_literal(store, va, vb, a_id, b_id) {
+				return true
+			}
+			if try_narrow_literal(store, vb, va, b_id, a_id) {
+				return true
+			}
+			name_a := base.intern_get(store.interner, va.primitive_name)
+			name_b := base.intern_get(store.interner, vb.primitive_name)
+			va_var := store.vars[int(resolve_var(store, a_id))]
+			vb_var := store.vars[int(resolve_var(store, b_id))]
+			diagnostics.collector_add_diag(store.collector, diagnostics.diag_primitive_mismatch(name_a, name_b, va_var.span, vb_var.span))
+			return false
+		}
+
+	case Inferred_Constructor:
+		_, ok := b.(Inferred_Constructor)
+		if !ok {
+			type_a_str := format_inferred_type(store, a)
+			type_b_str := format_inferred_type(store, b)
+			va_var := store.vars[int(resolve_var(store, a_id))]
+			vb_var := store.vars[int(resolve_var(store, b_id))]
+			diagnostics.collector_add_diag(store.collector, diagnostics.diag_type_mismatch(type_a_str, type_b_str, va_var.span, vb_var.span))
+			return false
+		}
+
+	case Inferred_Function:
+		vb, ok := b.(Inferred_Function)
+		if !ok {
+			type_a_str := format_inferred_type(store, a)
+			type_b_str := format_inferred_type(store, b)
+			va_var := store.vars[int(resolve_var(store, a_id))]
+			vb_var := store.vars[int(resolve_var(store, b_id))]
+			diagnostics.collector_add_diag(store.collector, diagnostics.diag_type_mismatch(type_a_str, type_b_str, va_var.span, vb_var.span))
+			return false
+		}
+		if len(va.param_ids) != len(vb.param_ids) {
+			va_var := store.vars[int(resolve_var(store, a_id))]
+			vb_var := store.vars[int(resolve_var(store, b_id))]
+			diagnostics.collector_add_diag(store.collector, diagnostics.diag_arity_mismatch(len(va.param_ids), len(vb.param_ids), va_var.span, vb_var.span))
+			return false
+		}
+		for i in 0..<len(va.param_ids) {
+			if !unify(store, va.param_ids[i], vb.param_ids[i]) {
 				return false
 			}
 		}
-		if !unify(store, a.return_id, b.return_id) {
+		if !unify(store, va.return_id, vb.return_id) {
 			return false
 		}
-		if !unify(store, a.effect_id, b.effect_id) {
-			return false
-		}
-
-	case .Effect_Row:
-		if !unify_effect_rows(store, a, b) {
+		if !unify(store, va.effect_id, vb.effect_id) {
 			return false
 		}
 
-	case .Record_Row:
-		if !unify_record_rows(store, a, b) {
+	case Inferred_Newtype:
+		vb, ok := b.(Inferred_Newtype)
+		if !ok {
+			type_a_str := format_inferred_type(store, a)
+			type_b_str := format_inferred_type(store, b)
+			va_var := store.vars[int(resolve_var(store, a_id))]
+			vb_var := store.vars[int(resolve_var(store, b_id))]
+			diagnostics.collector_add_diag(store.collector, diagnostics.diag_type_mismatch(type_a_str, type_b_str, va_var.span, vb_var.span))
 			return false
 		}
-
-	case .Tag_Union_Row:
-		if !unify_tag_union_rows(store, a, b, a_id, b_id) {
+		if va.primitive_name != vb.primitive_name {
+			name_a := base.intern_get(store.interner, va.primitive_name)
+			name_b := base.intern_get(store.interner, vb.primitive_name)
+			va_var := store.vars[int(resolve_var(store, a_id))]
+			vb_var := store.vars[int(resolve_var(store, b_id))]
+			diagnostics.collector_add_diag(store.collector, diagnostics.diag_primitive_mismatch(name_a, name_b, va_var.span, vb_var.span))
 			return false
 		}
-
-	case .Newtype:
-		if a.primitive_name != b.primitive_name {
-			name_a := base.intern_get(store.interner, a.primitive_name)
-			name_b := base.intern_get(store.interner, b.primitive_name)
-			va := store.vars[int(resolve_var(store, a_id))]
-			vb := store.vars[int(resolve_var(store, b_id))]
-			diagnostics.collector_add_diag(store.collector, diagnostics.diag_primitive_mismatch(name_a, name_b, va.span, vb.span))
+		if len(va.param_ids) != len(vb.param_ids) {
+			va_var := store.vars[int(resolve_var(store, a_id))]
+			vb_var := store.vars[int(resolve_var(store, b_id))]
+			diagnostics.collector_add_diag(store.collector, diagnostics.diag_arity_mismatch(len(va.param_ids), len(vb.param_ids), va_var.span, vb_var.span))
 			return false
 		}
-		if len(a.param_ids) != len(b.param_ids) {
-			va := store.vars[int(resolve_var(store, a_id))]
-			vb := store.vars[int(resolve_var(store, b_id))]
-			diagnostics.collector_add_diag(store.collector, diagnostics.diag_arity_mismatch(len(a.param_ids), len(b.param_ids), va.span, vb.span))
-			return false
-		}
-		for i in 0..<len(a.param_ids) {
-			if !unify(store, a.param_ids[i], b.param_ids[i]) {
+		for i in 0..<len(va.param_ids) {
+			if !unify(store, va.param_ids[i], vb.param_ids[i]) {
 				return false
 			}
 		}
-		if !unify(store, a.inner_id, b.inner_id) {
+		if !unify(store, va.inner_id, vb.inner_id) {
 			return false
 		}
 
-	case .Handle:
-		if !unify(store, a.inner_id, b.inner_id) {
+	case Inferred_Record_Row:
+		vb, ok := b.(Inferred_Record_Row)
+		if !ok {
+			type_a_str := format_inferred_type(store, a)
+			type_b_str := format_inferred_type(store, b)
+			va_var := store.vars[int(resolve_var(store, a_id))]
+			vb_var := store.vars[int(resolve_var(store, b_id))]
+			diagnostics.collector_add_diag(store.collector, diagnostics.diag_type_mismatch(type_a_str, type_b_str, va_var.span, vb_var.span))
 			return false
 		}
-		if !unify(store, a.effect_id, b.effect_id) {
+		if !unify_record_rows(store, va, vb) {
 			return false
 		}
 
-	case .Primitive, .Constructor:
+	case Inferred_Tag_Union_Row:
+		vb, ok := b.(Inferred_Tag_Union_Row)
+		if !ok {
+			type_a_str := format_inferred_type(store, a)
+			type_b_str := format_inferred_type(store, b)
+			va_var := store.vars[int(resolve_var(store, a_id))]
+			vb_var := store.vars[int(resolve_var(store, b_id))]
+			diagnostics.collector_add_diag(store.collector, diagnostics.diag_type_mismatch(type_a_str, type_b_str, va_var.span, vb_var.span))
+			return false
+		}
+		if !unify_tag_union_rows(store, va, vb, a_id, b_id) {
+			return false
+		}
+
+	case Inferred_Effect_Row:
+		vb, ok := b.(Inferred_Effect_Row)
+		if !ok {
+			type_a_str := format_inferred_type(store, a)
+			type_b_str := format_inferred_type(store, b)
+			va_var := store.vars[int(resolve_var(store, a_id))]
+			vb_var := store.vars[int(resolve_var(store, b_id))]
+			diagnostics.collector_add_diag(store.collector, diagnostics.diag_type_mismatch(type_a_str, type_b_str, va_var.span, vb_var.span))
+			return false
+		}
+		if !unify_effect_rows(store, va, vb) {
+			return false
+		}
+
+	case Inferred_Handle:
+		vb, ok := b.(Inferred_Handle)
+		if !ok {
+			type_a_str := format_inferred_type(store, a)
+			type_b_str := format_inferred_type(store, b)
+			va_var := store.vars[int(resolve_var(store, a_id))]
+			vb_var := store.vars[int(resolve_var(store, b_id))]
+			diagnostics.collector_add_diag(store.collector, diagnostics.diag_type_mismatch(type_a_str, type_b_str, va_var.span, vb_var.span))
+			return false
+		}
+		if !unify(store, va.inner_id, vb.inner_id) {
+			return false
+		}
+		if !unify(store, va.effect_id, vb.effect_id) {
+			return false
+		}
 	}
 
 	return true
@@ -223,7 +303,7 @@ unify_inferred :: proc(store: ^Type_Store, a: Inferred_Type, b: Inferred_Type, a
 // and inner unification logic (tag_union has arity checking).
 // Extracting a common helper would require Odin generics or function pointer dispatch.
 
-unify_effect_rows :: proc(store: ^Type_Store, a: Inferred_Type, b: Inferred_Type) -> bool {
+unify_effect_rows :: proc(store: ^Type_Store, a: Inferred_Effect_Row, b: Inferred_Effect_Row) -> bool {
 	a_only: [dynamic]Effect_Row_Entry
 	a_only = make([dynamic]Effect_Row_Entry, 0, len(a.effects))
 	defer delete(a_only)
@@ -280,8 +360,7 @@ unify_effect_rows :: proc(store: ^Type_Store, a: Inferred_Type, b: Inferred_Type
 		for i in 0..<len(b_only) {
 			b_only_entries[i] = b_only[i]
 		}
-		rem_type := Inferred_Type{
-			tag = .Effect_Row,
+		rem_type := Inferred_Effect_Row{
 			effects = b_only_entries,
 			rest_id = shared_rest,
 		}
@@ -301,8 +380,7 @@ unify_effect_rows :: proc(store: ^Type_Store, a: Inferred_Type, b: Inferred_Type
 		for i in 0..<len(a_only) {
 			a_only_entries[i] = a_only[i]
 		}
-		rem_type := Inferred_Type{
-			tag = .Effect_Row,
+		rem_type := Inferred_Effect_Row{
 			effects = a_only_entries,
 			rest_id = shared_rest,
 		}
@@ -320,7 +398,7 @@ unify_effect_rows :: proc(store: ^Type_Store, a: Inferred_Type, b: Inferred_Type
 	return true
 }
 
-unify_record_rows :: proc(store: ^Type_Store, a: Inferred_Type, b: Inferred_Type) -> bool {
+unify_record_rows :: proc(store: ^Type_Store, a: Inferred_Record_Row, b: Inferred_Record_Row) -> bool {
 	a_only: [dynamic]Type_Field_Entry
 	a_only = make([dynamic]Type_Field_Entry, 0, len(a.record_fields))
 	defer delete(a_only)
@@ -369,8 +447,7 @@ unify_record_rows :: proc(store: ^Type_Store, a: Inferred_Type, b: Inferred_Type
 		for i in 0..<len(b_only) {
 			fields[i] = b_only[i]
 		}
-		rem_type := Inferred_Type{
-			tag = .Record_Row,
+		rem_type := Inferred_Record_Row{
 			record_fields = fields,
 			record_rest = shared_rest,
 		}
@@ -390,8 +467,7 @@ unify_record_rows :: proc(store: ^Type_Store, a: Inferred_Type, b: Inferred_Type
 		for i in 0..<len(a_only) {
 			fields[i] = a_only[i]
 		}
-		rem_type := Inferred_Type{
-			tag = .Record_Row,
+		rem_type := Inferred_Record_Row{
 			record_fields = fields,
 			record_rest = shared_rest,
 		}
@@ -409,7 +485,7 @@ unify_record_rows :: proc(store: ^Type_Store, a: Inferred_Type, b: Inferred_Type
 	return true
 }
 
-unify_tag_union_rows :: proc(store: ^Type_Store, a: Inferred_Type, b: Inferred_Type, a_id: base.Type_Var_ID, b_id: base.Type_Var_ID) -> bool {
+unify_tag_union_rows :: proc(store: ^Type_Store, a: Inferred_Tag_Union_Row, b: Inferred_Tag_Union_Row, a_id: base.Type_Var_ID, b_id: base.Type_Var_ID) -> bool {
 	a_only: [dynamic]Type_Tag_Entry
 	a_only = make([dynamic]Type_Tag_Entry, 0, len(a.tag_entries))
 	defer delete(a_only)
@@ -467,8 +543,7 @@ unify_tag_union_rows :: proc(store: ^Type_Store, a: Inferred_Type, b: Inferred_T
 		for i in 0..<len(b_only) {
 			entries[i] = b_only[i]
 		}
-		rem_type := Inferred_Type{
-			tag = .Tag_Union_Row,
+		rem_type := Inferred_Tag_Union_Row{
 			tag_entries = entries,
 			tag_rest = shared_rest,
 		}
@@ -488,8 +563,7 @@ unify_tag_union_rows :: proc(store: ^Type_Store, a: Inferred_Type, b: Inferred_T
 		for i in 0..<len(a_only) {
 			entries[i] = a_only[i]
 		}
-		rem_type := Inferred_Type{
-			tag = .Tag_Union_Row,
+		rem_type := Inferred_Tag_Union_Row{
 			tag_entries = entries,
 			tag_rest = shared_rest,
 		}
@@ -528,82 +602,82 @@ occurs_check :: proc(store: ^Type_Store, target: base.Type_Var_ID, in_var: base.
 }
 
 occurs_check_inferred :: proc(store: ^Type_Store, target: base.Type_Var_ID, inf: Inferred_Type) -> bool {
-	switch inf.tag {
-	case .Function:
-		for pid in inf.param_ids {
+	switch v in inf {
+	case Inferred_Function:
+		for pid in v.param_ids {
 			if occurs_check(store, target, pid) {
 				return true
 			}
 		}
-		if occurs_check(store, target, inf.return_id) {
+		if occurs_check(store, target, v.return_id) {
 			return true
 		}
-		if occurs_check(store, target, inf.effect_id) {
+		if occurs_check(store, target, v.effect_id) {
 			return true
 		}
-	case .Effect_Row:
-		if occurs_check(store, target, inf.rest_id) {
+	case Inferred_Effect_Row:
+		if occurs_check(store, target, v.rest_id) {
 			return true
 		}
-	case .Record_Row:
-		for f in inf.record_fields {
+	case Inferred_Record_Row:
+		for f in v.record_fields {
 			if occurs_check(store, target, f.var) {
 				return true
 			}
 		}
-		if occurs_check(store, target, inf.record_rest) {
+		if occurs_check(store, target, v.record_rest) {
 			return true
 		}
-	case .Tag_Union_Row:
-		for te in inf.tag_entries {
+	case Inferred_Tag_Union_Row:
+		for te in v.tag_entries {
 			for pid in te.payload {
 				if occurs_check(store, target, pid) {
 					return true
 				}
 			}
 		}
-		if occurs_check(store, target, inf.tag_rest) {
+		if occurs_check(store, target, v.tag_rest) {
 			return true
 		}
-	case .Newtype:
-		for pid in inf.param_ids {
+	case Inferred_Newtype:
+		for pid in v.param_ids {
 			if occurs_check(store, target, pid) {
 				return true
 			}
 		}
-		if occurs_check(store, target, inf.inner_id) {
+		if occurs_check(store, target, v.inner_id) {
 			return true
 		}
-	case .Handle:
-		if occurs_check(store, target, inf.inner_id) {
+	case Inferred_Handle:
+		if occurs_check(store, target, v.inner_id) {
 			return true
 		}
-		if occurs_check(store, target, inf.effect_id) {
+		if occurs_check(store, target, v.effect_id) {
 			return true
 		}
-	case .Primitive, .Constructor:
+	case Inferred_Primitive, Inferred_Constructor:
 	}
 	return false
 }
 
 format_inferred_type :: proc(store: ^Type_Store, t: Inferred_Type) -> string {
-	#partial switch t.tag {
-	case .Primitive:
-		return base.intern_get(store.interner, t.primitive_name)
-	case .Constructor:
-		return base.intern_get(store.interner, t.primitive_name)
-	case .Newtype:
-		return base.intern_get(store.interner, t.primitive_name)
-	case .Function:
-		return fmt.tprintf("({} params) -> {}", len(t.param_ids), format_type_var(store, t.return_id))
-	case .Record_Row:
+	switch v in t {
+	case Inferred_Primitive:
+		return base.intern_get(store.interner, v.primitive_name)
+	case Inferred_Constructor:
+		return base.intern_get(store.interner, v.primitive_name)
+	case Inferred_Newtype:
+		return base.intern_get(store.interner, v.primitive_name)
+	case Inferred_Function:
+		return fmt.tprintf("({} params) -> {}", len(v.param_ids), format_type_var(store, v.return_id))
+	case Inferred_Record_Row:
 		return "record"
-	case .Tag_Union_Row:
+	case Inferred_Tag_Union_Row:
 		return "tag union"
-	case .Effect_Row:
+	case Inferred_Effect_Row:
 		return "effect row"
-	case .Handle:
-		return fmt.tprintf("Handle({}, {})", format_type_var(store, t.inner_id), format_type_var(store, t.effect_id))
+	case Inferred_Handle:
+		return fmt.tprintf("Handle({}, {})", format_type_var(store, v.inner_id), format_type_var(store, v.effect_id))
 	}
 	return "unknown"
 }
@@ -632,7 +706,7 @@ is_rec_var_reachable :: proc(store: ^Type_Store, var_id: base.Type_Var_ID) -> bo
 	return false
 }
 
-try_narrow_literal :: proc(store: ^Type_Store, lit_inf: Inferred_Type, target_inf: Inferred_Type, lit_id: base.Type_Var_ID, target_id: base.Type_Var_ID) -> bool {
+try_narrow_literal :: proc(store: ^Type_Store, lit_inf: Inferred_Primitive, target_inf: Inferred_Primitive, lit_id: base.Type_Var_ID, target_id: base.Type_Var_ID) -> bool {
 	target_name_str := base.intern_get(store.interner, target_inf.primitive_name)
 
 	if int_val, ok := store.literal_int_values[lit_id]; ok {

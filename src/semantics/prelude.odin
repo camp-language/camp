@@ -5,8 +5,8 @@ import "core:fmt"
 import "camp:base"
 
 Prelude_Builtin_Type :: struct {
-	name: string,
-	kind: Inferred_Tag,
+	name:          string,
+	is_constructor: bool,
 }
 
 Prelude_Constructor_Type :: struct {
@@ -20,20 +20,20 @@ Prelude_Tag_Decl :: struct {
 }
 
 PRELUDE_BUILTIN_TYPES :: []Prelude_Builtin_Type{
-	{"Bool",  .Constructor},
-	{"I64",   .Primitive},
-	{"I32",   .Primitive},
-	{"U64",   .Primitive},
-	{"F64",   .Primitive},
-	{"F32",   .Primitive},
-	{"Str",   .Primitive},
-	{"Unit",  .Primitive},
-	{"I8",    .Primitive},
-	{"I16",   .Primitive},
-	{"U8",    .Primitive},
-	{"U16",   .Primitive},
-	{"U32",   .Primitive},
-	{"Bytes", .Primitive},
+	{"Bool",  true},
+	{"I64",   false},
+	{"I32",   false},
+	{"U64",   false},
+	{"F64",   false},
+	{"F32",   false},
+	{"Str",   false},
+	{"Unit",  false},
+	{"I8",    false},
+	{"I16",   false},
+	{"U8",    false},
+	{"U16",   false},
+	{"U32",   false},
+	{"Bytes", false},
 }
 
 PRELUDE_CONSTRUCTOR_TYPES :: []Prelude_Constructor_Type{

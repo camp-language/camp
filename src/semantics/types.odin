@@ -49,17 +49,6 @@ Type_Link :: union {
 
 Type_Unlinked :: struct {}
 
-Inferred_Tag :: enum {
-	Primitive,
-	Constructor,
-	Newtype,
-	Function,
-	Record_Row,
-	Tag_Union_Row,
-	Effect_Row,
-	Handle,
-}
-
 Type_Field_Entry :: struct {
 	name: base.Intern_ID,
 	var:  base.Type_Var_ID,
@@ -75,25 +64,57 @@ Effect_Row_Entry :: struct {
 	type_args: []base.Type_Var_ID,  // empty for unparameterized effects
 }
 
-Inferred_Type :: struct {
-	tag:            Inferred_Tag,
+Inferred_Primitive :: struct {
+	primitive_name: base.Intern_ID,
+}
+
+Inferred_Constructor :: struct {
 	primitive_name: base.Intern_ID,
 	arity:          int,
+}
 
+Inferred_Function :: struct {
 	param_ids:  []base.Type_Var_ID,
 	return_id:  base.Type_Var_ID,
 	effect_id:  base.Type_Var_ID,
+}
 
-	inner_id: base.Type_Var_ID,
+Inferred_Newtype :: struct {
+	primitive_name: base.Intern_ID,
+	arity:          int,
+	param_ids:  []base.Type_Var_ID,
+	inner_id:   base.Type_Var_ID,
+}
 
-	effects: []Effect_Row_Entry,
-	rest_id: base.Type_Var_ID,
-
+Inferred_Record_Row :: struct {
 	record_fields: []Type_Field_Entry,
 	record_rest:   base.Type_Var_ID,
+}
 
+Inferred_Tag_Union_Row :: struct {
 	tag_entries: []Type_Tag_Entry,
 	tag_rest:    base.Type_Var_ID,
+}
+
+Inferred_Effect_Row :: struct {
+	effects: []Effect_Row_Entry,
+	rest_id: base.Type_Var_ID,
+}
+
+Inferred_Handle :: struct {
+	inner_id:  base.Type_Var_ID,
+	effect_id: base.Type_Var_ID,
+}
+
+Inferred_Type :: union {
+	Inferred_Primitive,
+	Inferred_Constructor,
+	Inferred_Function,
+	Inferred_Newtype,
+	Inferred_Record_Row,
+	Inferred_Tag_Union_Row,
+	Inferred_Effect_Row,
+	Inferred_Handle,
 }
 
 Newtype_Decl_Info :: struct {
@@ -154,26 +175,28 @@ type_store_destroy :: proc(store: ^Type_Store) {
 	for v in store.vars {
 		inf, ok := v.link.(Inferred_Type)
 		if !ok do continue
-		#partial switch inf.tag {
-		case .Function, .Newtype:
-			if inf.param_ids != nil do delete(inf.param_ids, store.allocator)
-		case .Record_Row:
-			if inf.record_fields != nil do delete(inf.record_fields, store.allocator)
-		case .Tag_Union_Row:
-			if inf.tag_entries != nil {
-				for te in inf.tag_entries {
+		switch f in inf {
+		case Inferred_Function:
+			if f.param_ids != nil do delete(f.param_ids, store.allocator)
+		case Inferred_Newtype:
+			if f.param_ids != nil do delete(f.param_ids, store.allocator)
+		case Inferred_Record_Row:
+			if f.record_fields != nil do delete(f.record_fields, store.allocator)
+		case Inferred_Tag_Union_Row:
+			if f.tag_entries != nil {
+				for te in f.tag_entries {
 					if te.payload != nil do delete(te.payload, store.allocator)
 				}
-				delete(inf.tag_entries, store.allocator)
+				delete(f.tag_entries, store.allocator)
 			}
-		case .Effect_Row:
-			if inf.effects != nil {
-				for e in inf.effects {
+		case Inferred_Effect_Row:
+			if f.effects != nil {
+				for e in f.effects {
 					if e.type_args != nil do delete(e.type_args, store.allocator)
 				}
-				delete(inf.effects, store.allocator)
+				delete(f.effects, store.allocator)
 			}
-		case .Primitive, .Constructor, .Handle:
+		case Inferred_Primitive, Inferred_Constructor, Inferred_Handle:
 		}
 	}
 	for _, sigs in store.effect_ops {
@@ -251,54 +274,54 @@ all_children_at_or_below :: proc(store: ^Type_Store, link: Type_Link, max_level:
 	inf, is_inferred := link.(Inferred_Type)
 	if !is_inferred do return true
 
-	#partial switch inf.tag {
-	case .Function:
-		for pid in inf.param_ids {
+	switch f in inf {
+	case Inferred_Function:
+		for pid in f.param_ids {
 			child := store.vars[int(resolve_var(store, pid))]
 			if child.level > max_level do return false
 		}
-		child_ret := store.vars[int(resolve_var(store, inf.return_id))]
+		child_ret := store.vars[int(resolve_var(store, f.return_id))]
 		if child_ret.level > max_level do return false
-		child_eff := store.vars[int(resolve_var(store, inf.effect_id))]
+		child_eff := store.vars[int(resolve_var(store, f.effect_id))]
 		if child_eff.level > max_level do return false
 
-	case .Record_Row:
-		for f in inf.record_fields {
-			child := store.vars[int(resolve_var(store, f.var))]
+	case Inferred_Record_Row:
+		for field in f.record_fields {
+			child := store.vars[int(resolve_var(store, field.var))]
 			if child.level > max_level do return false
 		}
-		child_rest := store.vars[int(resolve_var(store, inf.record_rest))]
+		child_rest := store.vars[int(resolve_var(store, f.record_rest))]
 		if child_rest.level > max_level do return false
 
-	case .Tag_Union_Row:
-		for te in inf.tag_entries {
+	case Inferred_Tag_Union_Row:
+		for te in f.tag_entries {
 			for pid in te.payload {
 				child := store.vars[int(resolve_var(store, pid))]
 				if child.level > max_level do return false
 			}
 		}
-		child_rest := store.vars[int(resolve_var(store, inf.tag_rest))]
+		child_rest := store.vars[int(resolve_var(store, f.tag_rest))]
 		if child_rest.level > max_level do return false
 
-	case .Effect_Row:
-		child_rest := store.vars[int(resolve_var(store, inf.rest_id))]
+	case Inferred_Effect_Row:
+		child_rest := store.vars[int(resolve_var(store, f.rest_id))]
 		if child_rest.level > max_level do return false
 
-	case .Newtype:
-		for pid in inf.param_ids {
+	case Inferred_Newtype:
+		for pid in f.param_ids {
 			child := store.vars[int(resolve_var(store, pid))]
 			if child.level > max_level do return false
 		}
-		child_inner := store.vars[int(resolve_var(store, inf.inner_id))]
+		child_inner := store.vars[int(resolve_var(store, f.inner_id))]
 		if child_inner.level > max_level do return false
 
-	case .Handle:
-		child_inner := store.vars[int(resolve_var(store, inf.inner_id))]
+	case Inferred_Handle:
+		child_inner := store.vars[int(resolve_var(store, f.inner_id))]
 		if child_inner.level > max_level do return false
-		child_eff := store.vars[int(resolve_var(store, inf.effect_id))]
+		child_eff := store.vars[int(resolve_var(store, f.effect_id))]
 		if child_eff.level > max_level do return false
 
-	case .Primitive, .Constructor:
+	case Inferred_Primitive, Inferred_Constructor:
 	}
 	return true
 }
@@ -341,7 +364,7 @@ resolve_var :: proc(store: ^Type_Store, id: base.Type_Var_ID) -> base.Type_Var_I
 
 make_primitive_type :: proc(store: ^Type_Store, name: base.Intern_ID, span: base.Source_Span) -> base.Type_Var_ID {
 	var_id := fresh_value_var(store, span)
-	store.vars[int(var_id)].link = Inferred_Type{tag = .Primitive, primitive_name = name}
+	store.vars[int(var_id)].link = Inferred_Primitive{primitive_name = name}
 	return var_id
 }
 
@@ -365,21 +388,23 @@ is_declared_newtype :: proc(store: ^Type_Store, name: base.Intern_ID) -> bool {
 
 is_numeric_primitive :: proc(store: ^Type_Store, var_id: base.Type_Var_ID) -> bool {
 	resolved := store.vars[int(resolve_var(store, var_id))]
-	if inf, ok := resolved.link.(Inferred_Type); ok && inf.tag == .Primitive {
-		i64_name := base.intern(store.interner, "I64")
-		i32_name := base.intern(store.interner, "I32")
-		i16_name := base.intern(store.interner, "I16")
-		i8_name := base.intern(store.interner, "I8")
-		u64_name := base.intern(store.interner, "U64")
-		u32_name := base.intern(store.interner, "U32")
-		u16_name := base.intern(store.interner, "U16")
-		u8_name := base.intern(store.interner, "U8")
-		f64_name := base.intern(store.interner, "F64")
-		f32_name := base.intern(store.interner, "F32")
-		name := inf.primitive_name
-		return name == i64_name || name == i32_name || name == i16_name || name == i8_name ||
-			name == u64_name || name == u32_name || name == u16_name || name == u8_name ||
-			name == f64_name || name == f32_name
+	if inf, ok := resolved.link.(Inferred_Type); ok {
+		if p, ok := inf.(Inferred_Primitive); ok {
+			i64_name := base.intern(store.interner, "I64")
+			i32_name := base.intern(store.interner, "I32")
+			i16_name := base.intern(store.interner, "I16")
+			i8_name := base.intern(store.interner, "I8")
+			u64_name := base.intern(store.interner, "U64")
+			u32_name := base.intern(store.interner, "U32")
+			u16_name := base.intern(store.interner, "U16")
+			u8_name := base.intern(store.interner, "U8")
+			f64_name := base.intern(store.interner, "F64")
+			f32_name := base.intern(store.interner, "F32")
+			name := p.primitive_name
+			return name == i64_name || name == i32_name || name == i16_name || name == i8_name ||
+				name == u64_name || name == u32_name || name == u16_name || name == u8_name ||
+				name == f64_name || name == f32_name
+		}
 	}
 	return false
 }
