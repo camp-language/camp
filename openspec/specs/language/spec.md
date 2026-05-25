@@ -18,6 +18,8 @@ full in their authoritative spec:
 - **Parallelism** (par block syntax, Parallel!/Spawn!/Async! effects): `openspec/specs/parallelism/spec.md`
 - **Modules** (visibility, unified namespace, import conflicts): `openspec/specs/modules/spec.md`
 
+For the complete syntax reference (declarations, expressions, patterns, imports, effects, entry point), see `docs/syntax-recipe.md`.
+
 ## Requirements
 
 ### Requirement: Primitive Types
@@ -39,7 +41,7 @@ The language SHALL provide fixed-size numeric types I8, I16, I32, I64, U8, U16, 
 - THEN the literal SHALL have the annotated type
 
 ### Requirement: Tag Union Construction
-Tags SHALL be structural discriminated unions constructed with bare UpperCamelCase names, with no prefix symbol.
+Tag variants SHALL be constructed with bare UpperCamelCase names and no prefix symbol (e.g., `Ok(42)`, `None`). Newtype construction SHALL use an `@`-prefixed name (e.g., `@UserId(42)`).
 
 #### Scenario: Tag with payload
 - GIVEN a tag name starting with an uppercase letter followed by a parenthesized payload
@@ -88,17 +90,17 @@ The type of a tag union SHALL be inferred from the tags that appear in a scope.
 - THEN the inferred type SHALL widen to `[Ok(I64) | Err(Str) | Timeout]`
 
 ### Requirement: Nominal Tag Qualification
-Tags belonging to a nominal type SHALL be qualified by the `@`-prefixed type name at construction.
+Tags belonging to a nominal type SHALL be module-qualified at construction (e.g., `Result.Ok(42)`), never `@`-prefixed. Newtypes SHALL use the `@` prefix at construction (e.g., `@UserId(42)`).
 
 #### Scenario: Qualified tag construction
 - GIVEN a nominal type `@Result` and a tag `Ok` belonging to it
-- WHEN constructing a value
-- THEN the construction SHALL use `@Result.Ok(42)` unless the tag is imported unqualified
+- WHEN constructing a value from outside `Result` module
+- THEN the construction SHALL use `Result.Ok(42)` unless the tag is imported unqualified
 
 #### Scenario: Unqualified import of nominal tags
-- GIVEN an import statement `import Result exposing [@[Ok, Err]]`
+- GIVEN an import statement `import Result { [Ok, Err] }`
 - WHEN constructing a value using `Ok`
-- THEN `Ok(42)` SHALL be valid without the `@Result.` qualifier
+- THEN `Ok(42)` SHALL be valid without the `Result.` qualifier
 
 ### Requirement: Record Types
 Records SHALL be structural products with insignificant field order, supporting closed, open, and row-variable forms.
@@ -155,7 +157,7 @@ Type aliases SHALL create transparent structural shorthands using the `:` syntax
 - THEN they SHALL unify as the same type
 
 ### Requirement: Nominal Types
-Nominal types SHALL create a distinct type based on its name rather than its structure, using the `@` prefix and `:` syntax. Nominal types provide encapsulation, trait implementations, and tag ownership. The `@` prefix SHALL appear at the definition site and at construction/destruction, but NOT in type annotations.
+Nominal types SHALL create a distinct type based on its name rather than its structure, using the `@` prefix at the definition site and `:` syntax. Nominal types provide encapsulation, trait implementations, and tag ownership. The `@` prefix SHALL appear at the definition site for all nominal types (e.g., `@UserId`, `@Result`). At construction/destruction, the `@` prefix SHALL be used for NEWTYPES only (e.g., `@UserId(42)`), NOT for tag variants (e.g., `Ok(42)`, `Result.Ok(42)`). The `@` prefix SHALL NOT appear in type annotations.
 
 #### Scenario: Nominal type definition
 - GIVEN a definition `@UserId : U64`
@@ -195,7 +197,7 @@ Nominal types SHALL create a distinct type based on its name rather than its str
 #### Scenario: Nominal type wrapping a tag union
 - GIVEN a nominal type `@Result(a, e) : [Ok(a) | Err(e)]`
 - WHEN constructing a value with the `Ok` tag
-- THEN `@Result.Ok(42)` SHALL be required — bare `Ok(42)` SHALL NOT resolve unless exposed via import
+- THEN `Result.Ok(42)` SHALL be required — bare `Ok(42)` SHALL NOT resolve unless exposed via import
 
 #### Scenario: One nominal type per module
 - GIVEN a module named `Result`
@@ -218,25 +220,25 @@ Nominal types SHALL be opaque outside their defining module unless their variant
 #### Scenario: pub variants enable cross-module construction
 - GIVEN a nominal type `@Result(a, e) : pub [Ok(a) | Err(e)]` defined in module `Result`
 - WHEN another module imports `Result`
-- THEN the other module SHALL be able to construct values via `@Result.Ok(42)`
+- THEN the other module SHALL be able to construct values via `Result.Ok(42)`
 
 #### Scenario: pub variants with import exposing enable unqualified access
-- GIVEN a nominal type `@Result(a, e) : pub [Ok(a) | Err(e)]` and `import Result exposing [@[Ok, Err]]`
+- GIVEN a nominal type `@Result(a, e) : pub [Ok(a) | Err(e)]` and `import Result { [Ok, Err] }`
 - WHEN constructing a value
-- THEN `Ok(42)` SHALL be valid without the `@Result.` qualifier
+- THEN `Ok(42)` SHALL be valid without the `Result.` qualifier
 
 #### Scenario: Exposing non-pub variants is an error
 - GIVEN a nominal type `@Result(a, e) : [Ok(a) | Err(e)]` (without `pub`)
-- WHEN another module writes `import Result exposing [@[Ok, Err]]`
+- WHEN another module writes `import Result { [Ok, Err] }`
 - THEN the compiler SHALL produce an error because the variants are not exposed
 
 ### Requirement: Nominal Type Tag Ownership
-When a nominal type wraps a tag union, its tags SHALL be owned by that nominal type and qualified by the `@`-prefixed type name at construction. The `@` prefix on the variant name makes construction unambiguous.
+When a nominal type wraps a tag union, its tags SHALL be owned by that nominal type and module-qualified at construction (e.g., `Result.Ok(42)`). The `@` prefix is NOT used on tag variants — it is reserved for newtype construction (e.g., `@UserId(42)`).
 
 #### Scenario: Qualified tag construction with @ prefix
 - GIVEN a nominal type `@Result(a, e) : [Ok(a) | Err(e)]`
 - WHEN constructing a value with the `Ok` tag
-- THEN `@Result.Ok(42)` SHALL be required — bare `Ok(42)` SHALL NOT resolve unless exposed via import
+- THEN `Result.Ok(42)` SHALL be required — bare `Ok(42)` SHALL NOT resolve unless exposed via import
 
 #### Scenario: Structural tags remain unqualified
 - GIVEN a tag `Some(42)` that does NOT belong to any nominal type
@@ -246,17 +248,17 @@ When a nominal type wraps a tag union, its tags SHALL be owned by that nominal t
 #### Scenario: Tag ownership prevents collision
 - GIVEN nominal types `@Result(a, e) : [Ok(a) | Err(e)]` and `@Option(a) : [Ok(a) | None]` in different modules
 - WHEN both are in scope
-- THEN the `Ok` tag SHALL be disambiguated by its owning type: `@Result.Ok` vs `@Option.Ok`
+- THEN the `Ok` tag SHALL be disambiguated by its owning type: `Result.Ok` vs `Option.Ok`
 
 #### Scenario: Qualified tag in pattern matching
 - GIVEN a nominal type `@Result(a, e) : [Ok(a) | Err(e)]`
 - WHEN pattern matching a value of type `Result(I64, Str)`
-- THEN `@Result.Ok(n) => n` SHALL match the `Ok` tag and bind `n` to the inner `I64`
+- THEN `Result.Ok(n) => n` SHALL match the `Ok` tag and bind `n` to the inner `I64`
 
 #### Scenario: Unqualified tag in pattern matching via import
-- GIVEN a nominal type `@Result(a, e) : [Ok(a) | Err(e)]` and `import Result exposing [@[Ok, Err]]`
+- GIVEN a nominal type `@Result(a, e) : [Ok(a) | Err(e)]` and `import Result { [Ok, Err] }`
 - WHEN pattern matching
-- THEN `Ok(n) => n` SHALL be valid and equivalent to `@Result.Ok(n) => n`
+- THEN `Ok(n) => n` SHALL be valid and equivalent to `Result.Ok(n) => n`
 
 ### Requirement: Parameterized Nominal Types
 Nominal types SHALL support type parameters, enabling generic nominal types.
@@ -268,7 +270,7 @@ Nominal types SHALL support type parameters, enabling generic nominal types.
 
 #### Scenario: Parameterized nominal type instantiation
 - GIVEN a nominal type `@Result(a, e) : [Ok(a) | Err(e)]`
-- WHEN constructing `@Result.Ok(42)` where the context expects `Result(I64, Str)`
+- WHEN constructing `Result.Ok(42)` where the context expects `Result(I64, Str)`
 - THEN the type parameters SHALL be inferred as `a = I64`, `e = Str`
 
 #### Scenario: Different instantiations are distinct
@@ -285,7 +287,7 @@ The compiler SHALL perform principal type inference using bidirectional checking
 - THEN it SHALL produce a principal type including generic type variables and any constraints
 
 ### Requirement: Function Syntax
-All functions SHALL use `|args| body` syntax as the sole function form.
+All functions SHALL use `|args| body` syntax as the sole function form. Generic constraints via `where` clauses SHALL appear after the parameters and before the body.
 
 #### Scenario: Named function definition
 - GIVEN a binding `add = |x: Int, y: Int| -> Int { x + y }`
@@ -307,6 +309,11 @@ All functions SHALL use `|args| body` syntax as the sole function form.
 - WHEN the body is provided
 - THEN the body SHALL be wrapped in `{ }` braces
 
+#### Scenario: Where clause on function
+- GIVEN a function `map = |f: a -> b, items: List(a)| where a is Eq, b is Ord -> List(b) { ... }`
+- WHEN compiled
+- THEN the `where` clause SHALL constrain the type parameters, appearing after the parameters and before the body
+
 ### Requirement: Effectful Function Naming
 A function with a non-empty effect row SHALL be named with a `!` suffix; a function named without `!` SHALL have an empty effect row.
 
@@ -319,6 +326,19 @@ A function with a non-empty effect row SHALL be named with a `!` suffix; a funct
 - GIVEN a function whose effect row is empty
 - WHEN the function is named with a `!` suffix
 - THEN the compiler SHALL produce an error
+
+### Requirement: Entry Point
+The program entry point SHALL be a `pub` function named `main!` returning a value that implements the `Termination` trait (I64, {}, Result(a, e)). The effect row of `main!` SHALL include `Console!` and `Throw!([..])`.
+
+#### Scenario: Main function definition
+- GIVEN a program entry point `pub main! = || -[Console! | Throw!([..])]-> I64 { 0 }`
+- WHEN the compiler processes it
+- THEN the function SHALL be the entry point with effect row `[Console! | Throw!([..])]`
+
+#### Scenario: Main returns any Termination type
+- GIVEN `pub main! = || -[Console! | Throw!([..])]-> {} { {} }`
+- WHEN the runtime executes the program
+- THEN the runtime SHALL call `Termination.report` on the returned value
 
 ### Requirement: Naming Conventions
 Types and tags SHALL use UpperCamelCase; functions and variables SHALL use lowercase identifiers; type and effect variables SHALL use lowercase. For underscore and dollar prefix rules (unused markers, discard semantics, contradictory prefixes, top-level unused rules), see `openspec/specs/unused-analysis/spec.md`.
@@ -375,12 +395,22 @@ Boolean logic SHALL use `and` and `or` keywords; the operators `&&` and `||` SHA
 - THEN it SHALL produce a syntax error
 
 ### Requirement: Dot Lambda
-A leading `.` followed by a method/field chain SHALL create an anonymous function that applies the chain to its argument.
+A leading `.` SHALL create an anonymous function that applies a method/function/field chain to its argument. Three call syntaxes SHALL be supported: `.method(args)` for nominal dispatch, `.->func(args)` for lexical UFCS, and `.(field)(args)` for structural dispatch.
 
-#### Scenario: Dot lambda with method call
+#### Scenario: Dot lambda with method call (nominal dispatch)
 - GIVEN an expression `.foo(x)`
 - WHEN the compiler desugars it
 - THEN it SHALL be equivalent to `|a| a.foo(x)`
+
+#### Scenario: Dot lambda with lexical UFCS
+- GIVEN an expression `.->func(x)`
+- WHEN the compiler desugars it
+- THEN it SHALL be equivalent to `|a| a->func(x)`
+
+#### Scenario: Dot lambda with structural dispatch
+- GIVEN an expression `.(field)(x)`
+- WHEN the compiler desugars it
+- THEN it SHALL be equivalent to `|a| (a.field)(x)`
 
 #### Scenario: Dot lambda with field access
 - GIVEN an expression `.name`
@@ -527,9 +557,9 @@ Pattern matching SHALL require exhaustive coverage; the wildcard `_` SHALL match
 The language SHALL provide two error mechanisms: the `Throw!` effect for exceptional errors and tag union returns for structural absence; there SHALL be no `?` operator. For full effect semantics, handler behavior, and prelude effect definitions, see `openspec/specs/effects/spec.md`.
 
 #### Scenario: Throw! effect for exceptional errors
-- GIVEN a function that calls `Throw!.throw!(NotFound)`
+- GIVEN a function that calls `Throw!.raise!("error")`
 - WHEN the compiler infers the effect row
-- THEN the function's effect row SHALL include `Throw!([NotFound])`
+- THEN the function's effect row SHALL include `Throw!([Str])`
 
 #### Scenario: Tag union return for structural absence
 - GIVEN a function `List.first` returning `Some(a) | None`
@@ -542,7 +572,7 @@ The language SHALL provide two error mechanisms: the `Throw!` effect for excepti
 - THEN it SHALL produce a syntax error
 
 #### Scenario: Handler bridging Throw! to tag union
-- GIVEN a handler `handle Throw! in { Ok(action()) } with { .throw!(resume, err) => Err(err) }`
+- GIVEN a handler `handle Throw! in { Ok(action()) } with { .raise!(resume, err) => Err(err) }`
 - WHEN the handler executes
 - THEN a thrown error SHALL be caught and returned as `Err(err)`
 
@@ -565,10 +595,10 @@ The `..` operator SHALL mean "and possibly more" consistently across type annota
 - THEN it SHALL extract `name` and ignore any additional fields
 
 ### Requirement: Effects, Handlers, and Prelude Effects
-Effect row syntax, effect safety, effect polymorphism, parameterized effects with variant widening, one-shot continuations, deep and shallow handlers, effect composition via aliases, and prelude effect definitions (Console!, Throw!, Parallel!, Spawn!, Async!, File!, Env!, Time!, Random!, Log!, Crypto.Random!) are defined in `openspec/specs/effects/spec.md`.
+Effect row syntax, effect safety, effect polymorphism, parameterized effects with variant widening, one-shot continuations, deep handlers only (handler reinstalls on continuation), effect composition via aliases, and prelude effect definitions (Console!, Throw!, Parallel!, Spawn!, Async!, File!, Env!, Time!, Random!, Log!, Crypto.Random!) are defined in `openspec/specs/effects/spec.md`.
 
 ### Requirement: Traits, Generics, and UFCS
-Trait definitions, nominal type trait conformance (`is`/`derives`), trait structural verification, trait orphan rule, UFCS dispatch, generic type parameters with `where` clause constraints, trait tree inheritance, and the prohibition on higher-kinded types are defined in `openspec/specs/generics-traits/spec.md`.
+Trait definitions, nominal type trait conformance (`is`/`derives`), trait structural verification, the strict orphan rule (type must be local), UFCS dispatch, generic type parameters with `where` clause constraints, trait inheritance (`is` on trait definitions), and the prohibition on higher-kinded types are defined in `openspec/specs/generics-traits/spec.md`.
 
 ### Requirement: String Interpolation and Display
 The Display trait, interpolated string literal kinds (plain, interpolated, raw, multiline), string interpolation escape (`\$`), and the Display constraint on interpolation holes are defined in `openspec/specs/string-interpolation/spec.md`.
