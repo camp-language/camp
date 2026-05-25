@@ -14,7 +14,7 @@ The compiler SHALL accept Camp source text and produce valid WASM/WASI modules.
 
 #### Scenario: Compile a simple program
 
-- **WHEN** Camp source `"main! = || -> I64 { 42 }"` is compiled
+- **WHEN** Camp source `"pub main! = || -[Console! | Throw!([..])]-> I64 { 42 }"` is compiled
 - **THEN** the compiler SHALL produce a valid WASM/WASI module that exits with code 42
 
 ### Requirement: No Silent Crashes
@@ -68,7 +68,7 @@ The compiler SHALL generate continuation functions for every effectful sub-expre
 
 #### Scenario: CPS generates continuations
 
-- **WHEN** Camp source contains `y = Foo!.get!() in y + 1` (within a handler block)
+- **WHEN** Camp source contains `y = Foo.get!() in y + 1` (within a handler block)
 - **THEN** CPS transformation SHALL create a continuation function `fun(y) { y + 1 }` and pass it as an extra argument to the `perform`
 
 ### Requirement: Effect Lowering Evidence
@@ -153,3 +153,5 @@ The compiler SHALL run an unused binding analysis pass after typechecking and be
 
 - **WHEN** the compiler processes a Camp source file
 - **THEN** it SHALL run the unused binding analysis after typechecking and before lowering, emitting diagnostics for any detected issues
+
+For the complete syntax reference, see `docs/syntax-recipe.md`.

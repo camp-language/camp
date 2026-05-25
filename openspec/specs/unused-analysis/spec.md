@@ -139,11 +139,11 @@ Private top-level bindings that are never referenced SHALL produce a hard error.
 Import bindings that are never referenced SHALL produce a hard error. The `_` prefix SHALL NOT provide an exemption for imports, since imports are always pure.
 
 #### Scenario: Unused named import
-- **WHEN** `import Module.{ foo, bar }` is compiled and `bar` is never referenced
+- **WHEN** `import Module { foo, bar }` is compiled and `bar` is never referenced
 - **THEN** the compiler SHALL produce an unused-import error for `bar`
 
 #### Scenario: Underscore prefix does not exempt imports
-- **WHEN** `import Module.{ foo, _bar }` is compiled and `_bar` is never referenced
+- **WHEN** `import Module { foo, _bar }` is compiled and `_bar` is never referenced
 - **THEN** the compiler SHALL still produce an unused-import error
 
 #### Scenario: Unused whole-module import
@@ -226,3 +226,5 @@ A type annotation on a binding SHALL NOT exempt it from unused checking. An unus
 #### Scenario: Unused binding with type annotation
 - **WHEN** `x: ComplexType = expr` is compiled and `x` is never referenced
 - **THEN** the compiler SHALL produce an unused-binding error
+
+For the complete syntax reference, see `docs/syntax-recipe.md`.

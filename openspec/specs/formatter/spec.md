@@ -191,11 +191,11 @@ String content SHALL never be reflowed or reformatted.
 - When formatted
 - Then the string content SHALL remain unchanged
 
-#### Scenario: Triple-quoted string indentation
+#### Scenario: Per-line prefix multiline string indentation
 
-- Given a triple-quoted string `"""..."""`
+- Given a per-line prefix multiline string using `\` at line start
 - When formatted
-- Then only the `"""` delimiters' indentation SHALL be adjusted; content indentation SHALL be recalculated relative to the closing `"""` position
+- Then the `\` prefix indentation SHALL be adjusted to match surrounding context; content indentation SHALL be recalculated relative to the `\` prefix position
 
 ### Requirement: Comment Preservation
 
@@ -273,3 +273,5 @@ Where clauses SHALL have three rendering states: single-line, where-only multili
 - Given a function with multiline parameters
 - When formatted
 - Then the where clause SHALL use multiline style regardless of constraint count
+
+For the complete syntax reference, see `docs/syntax-recipe.md`.

@@ -176,3 +176,5 @@ The diagnostic system SHALL define constructors for all error variants: lexer er
 
 - Given unused bindings, unused record fields, unused imports, pointless evaluations, contradictory prefixes, no-op assignments, or unused assignments
 - Then `diag_unused_binding`, `diag_unused_record_field`, `diag_unused_import`, `diag_pointless_evaluation`, `diag_contradictory_prefix`, `diag_noop_assignment`, and `diag_unused_assignment` SHALL produce diagnostics with appropriate messages and hints
+
+For the complete syntax reference, see `docs/syntax-recipe.md`.

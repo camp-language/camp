@@ -8,6 +8,7 @@ You are an AI assistant helping develop the Camp programming language - a strict
 
 ### DO
 - Read relevant specs in `openspec/specs/<domain>/spec.md` before implementing
+- Consult `docs/syntax-recipe.md` as the authoritative source of truth for all syntax decisions — when specs and recipe conflict, the recipe wins
 - Read the code to understand current implementation — code is the source of truth
 - Follow existing type system design (Level inference + row unification)
 - Respect effect tracking in type signatures

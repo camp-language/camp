@@ -132,7 +132,7 @@ Hover SHALL display the inferred/resolved type for declarations, not just source
 
 #### Scenario: Annotated declaration
 
-- Given a declaration `x: String = "hello"`
+- Given a declaration `x: Str = "hello"`
 - When the client sends `textDocument/hover` at position of `x`
 - Then the server SHALL display the resolved type
 
@@ -166,3 +166,5 @@ The server SHALL defer analysis until all pending messages are drained.
 - Given the client sends multiple `didChange` notifications in quick succession
 - When the event loop processes them
 - Then the server SHALL mark documents dirty for each change but re-analyze only after all pending messages are processed
+
+For the complete syntax reference, see `docs/syntax-recipe.md`.

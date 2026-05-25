@@ -135,3 +135,5 @@ The `todo` keyword SHALL be a placeholder expression that compiles in debug mode
 - **GIVEN** `camp test` completes
 - **WHEN** results are reported
 - **THEN** the runner SHALL display a summary showing the number of doctests and named tests that passed, failed, or were skipped
+
+For the complete syntax reference, see `docs/syntax-recipe.md`.

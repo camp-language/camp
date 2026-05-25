@@ -118,8 +118,8 @@ The stdlib SHALL include a `Crypto.Random!` effect separate from the non-cryptog
 
 #### Scenario: Separation from non-crypto Random
 
-- Given `Random!.int!(1, 100)` uses a fast PRNG seeded from WASI
-- And `Crypto.Random!.int!(1, 100)` uses WASI's `random_get` syscall directly
+- Given `Random.int!(1, 100)` uses a fast PRNG seeded from WASI
+- And `Crypto.Random.int!(1, 100)` uses WASI's `random_get` syscall directly
 - Then `Random!` SHALL trade security for speed and `Crypto.Random!` SHALL trade speed for security
 
 ### Requirement: Two Distinct Random Sources
@@ -128,7 +128,7 @@ The `Random` effect SHALL use a fast non-cryptographic PRNG and `Crypto.Random` 
 
 #### Scenario: Random is not suitable for secrets
 
-- Given `Random!.int!(1, 100)` is used for shuffling a list
+- Given `Random.int!(1, 100)` is used for shuffling a list
 - Then the result SHALL be fast but MUST NOT be used for token or key generation
 
 ### Requirement: Uuid Module
@@ -178,13 +178,13 @@ The `Http.Server` package SHALL define `Http.Server!` and `Http.Client!` effects
 #### Scenario: HTTP server route registration
 
 - Given an `Http.Server!` handler is installed
-- When `Http.Server!.route!(Get, "/api/users", handler_fn)` is called
+- When `Http.Server.route!(Get, "/api/users", handler_fn)` is called
 - Then the handler SHALL route GET requests to `/api/users` to `handler_fn`
 
 #### Scenario: HTTP client request
 
 - Given an `Http.Client!` handler is installed
-- When `Http.Client!.get!("https://example.com/api")` is called
+- When `Http.Client.get!("https://example.com/api")` is called
 - Then it SHALL return an `Http.Response` with status, headers, and body
 
 ### Requirement: Database Effect Design
@@ -194,13 +194,13 @@ The `Database` package SHALL define a `Database!` effect with `query!`, `execute
 #### Scenario: Parameterized query
 
 - Given a `Database!` handler connected to PostgreSQL
-- When `Database!.query!("SELECT * FROM users WHERE id = $1", [user_id])` is called
+- When `Database.query!("SELECT * FROM users WHERE id = $1", [user_id])` is called
 - Then it SHALL return rows matching the parameterized query
 
 #### Scenario: Transaction execution
 
 - Given a `Database!` handler with transaction support
-- When `Database!.transaction!(|| { query!(...); execute!(...) })` is called
+- When `Database.transaction!(|| { query!(...); execute!(...) })` is called
 - Then all operations SHALL execute atomically — either all succeed or all roll back
 
 ### Requirement: Database Drivers
@@ -312,3 +312,5 @@ The compiler SHALL embed stdlib `.camp` source files at build time. Stdlib modul
 - Given the embedded stdlib
 - When the compiler initializes
 - Then the following stdlib modules SHALL be available: `Result`, `Option`, `Bool`, `Int`, `Str`, `List`, `Iter`, `Map`, `Set`, `Eq`, `Ord`, `Hash`, `Fmt`, `Path`, `Console!`, `Throw!`, `File!`, `Env!`, `Time!`, `Random!`, `Log!`, `Crypto.Random!`, `Bytes`, `Encode`, `Decode`
+
+For the complete syntax reference, see `docs/syntax-recipe.md`.

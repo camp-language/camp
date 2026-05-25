@@ -150,7 +150,7 @@ The tree-sitter grammar SHALL stay synchronized with Camp's compiler parser.
 
 ### Requirement: Interpolated String Grammar
 
-The tree-sitter grammar SHALL include rules for interpolated strings, raw strings, and multiline strings with interpolation support.
+The tree-sitter grammar SHALL include rules for interpolated strings and per-line prefix multiline strings with interpolation support.
 
 #### Scenario: Interpolated string parse tree
 
@@ -164,17 +164,11 @@ The tree-sitter grammar SHALL include rules for interpolated strings, raw string
 - When tree-sitter parses it
 - Then it SHALL produce an `interpolation` node containing `${`, the expression, and `}`
 
-#### Scenario: Raw string parse tree
+#### Scenario: Per-line prefix multiline string parse tree
 
-- Given Camp source `r"C:\${dir}"`
+- Given Camp source with `\` per-line prefix multiline string
 - When tree-sitter parses it
-- Then it SHALL produce a `raw_string` node with interpolation support
-
-#### Scenario: Multiline string parse tree
-
-- Given Camp source `"""Line 1\n${x}"""`
-- When tree-sitter parses it
-- Then it SHALL produce a `multiline_string` node with interpolation support
+- Then it SHALL produce a `per_line_string` node with interpolation support
 
 ### Requirement: Interpolation Highlighting
 
@@ -185,3 +179,5 @@ The tree-sitter highlights query SHALL provide distinct highlighting for interpo
 - Given Camp source `"Hello ${name}!"`
 - When `highlights.scm` is applied
 - Then `${` and `}` SHALL be captured as `@punctuation.special` and the expression SHALL be captured as `@embedded`
+
+For the complete syntax reference, see `docs/syntax-recipe.md`.

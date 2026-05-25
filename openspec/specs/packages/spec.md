@@ -25,3 +25,5 @@ Package dependencies SHALL initially be git-based with no central registry. When
 - Given a `camp.toml` with a git dependency
 - When the build tool resolves dependencies
 - Then it SHALL clone the referenced git repository and use the package at the specified commit/branch
+
+For the complete syntax reference, see `docs/syntax-recipe.md`.

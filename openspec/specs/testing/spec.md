@@ -170,3 +170,5 @@ Running `--update` on already-passing snapshots SHALL produce no changes.
 - Given a test's `expected.toml` matches actual output
 - When `--update` is run
 - Then the `expected.toml` file SHALL remain unchanged
+
+For the complete syntax reference, see `docs/syntax-recipe.md`.
