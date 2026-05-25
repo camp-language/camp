@@ -329,13 +329,17 @@ lexer_lex_string :: proc(l: ^Lexer, start: int) -> base.Token {
 
 	has_interpolation := false
 
-	for l.pos < len(l.source) && l.source[l.pos] != '"' {
-		if l.source[l.pos] == '\\' {
+	when simd.HAS_HARDWARE_SIMD {
+		scan_string_body_simd(l, &has_interpolation)
+	} else {
+		for l.pos < len(l.source) && l.source[l.pos] != '"' {
+			if l.source[l.pos] == '\\' {
+				l.pos += 1
+			} else if l.source[l.pos] == '$' && l.pos + 1 < len(l.source) && l.source[l.pos + 1] == '{' {
+				has_interpolation = true
+			}
 			l.pos += 1
-		} else if l.source[l.pos] == '$' && l.pos + 1 < len(l.source) && l.source[l.pos + 1] == '{' {
-			has_interpolation = true
 		}
-		l.pos += 1
 	}
 
 	if l.pos < len(l.source) {
@@ -350,6 +354,87 @@ lexer_lex_string :: proc(l: ^Lexer, start: int) -> base.Token {
 		kind = .Interpolated_String_Literal
 	}
 	return base.Token{kind = kind, text = text, span = lexer_make_span(l, start)}
+}
+
+when simd.HAS_HARDWARE_SIMD {
+
+scan_string_body_simd :: proc(l: ^Lexer, has_interpolation: ^bool) {
+	source_len := len(l.source)
+	for {
+		// SIMD scan for ", \, $
+		for l.pos + 16 <= source_len {
+			chunk := load_chunk(l.source, l.pos)
+			interesting_bits := extract_mask(is_string_interesting_simd(chunk))
+
+			if interesting_bits == 0 {
+				l.pos += 16
+				continue
+			}
+
+			// Found interesting byte within this chunk
+			first := int(intrinsics.count_trailing_zeros(interesting_bits))
+			l.pos += first
+			break
+		}
+
+		// Handle the interesting byte (or scalar tail)
+		if l.pos >= source_len { return }
+		ch := l.source[l.pos]
+
+		if ch == '"' {
+			return
+		} else if ch == '\\' {
+			l.pos += 1 // skip escape char
+			if l.pos < source_len { l.pos += 1 } // skip escaped char
+			continue
+		} else if ch == '$' && l.pos + 1 < source_len && l.source[l.pos + 1] == '{' {
+			has_interpolation^ = true
+			l.pos += 1
+			continue
+		} else {
+			l.pos += 1
+			continue
+		}
+	}
+}
+
+scan_perline_content_simd :: proc(l: ^Lexer, has_interpolation: ^bool) {
+	source_len := len(l.source)
+	for {
+		for l.pos + 16 <= source_len {
+			chunk := load_chunk(l.source, l.pos)
+			interesting_bits := extract_mask(is_perline_interesting_simd(chunk))
+
+			if interesting_bits == 0 {
+				l.pos += 16
+				continue
+			}
+
+			first := int(intrinsics.count_trailing_zeros(interesting_bits))
+			l.pos += first
+			break
+		}
+
+		if l.pos >= source_len { return }
+		ch := l.source[l.pos]
+
+		if ch == '\n' {
+			return
+		} else if ch == '\\' {
+			l.pos += 1
+			if l.pos < source_len { l.pos += 1 }
+			continue
+		} else if ch == '$' && l.pos + 1 < source_len && l.source[l.pos + 1] == '{' {
+			has_interpolation^ = true
+			l.pos += 1
+			continue
+		} else {
+			l.pos += 1
+			continue
+		}
+	}
+}
+
 }
 
 lexer_lex_char :: proc(l: ^Lexer, start: int) -> base.Token {
@@ -390,11 +475,15 @@ lexer_lex_perline_string :: proc(l: ^Lexer, start: int) -> base.Token {
 		}
 
 		// Read content until end of line
-		for l.pos < len(l.source) && l.source[l.pos] != '\n' {
-			if l.source[l.pos] == '$' && l.pos + 1 < len(l.source) && l.source[l.pos + 1] == '{' {
-				has_interpolation = true
+		when simd.HAS_HARDWARE_SIMD {
+			scan_perline_content_simd(l, &has_interpolation)
+		} else {
+			for l.pos < len(l.source) && l.source[l.pos] != '\n' {
+				if l.source[l.pos] == '$' && l.pos + 1 < len(l.source) && l.source[l.pos + 1] == '{' {
+					has_interpolation = true
+				}
+				l.pos += 1
 			}
-			l.pos += 1
 		}
 
 		// Consume the newline (it becomes part of the string content)
@@ -420,10 +509,47 @@ lexer_lex_perline_string :: proc(l: ^Lexer, start: int) -> base.Token {
 				}
 			} else {
 				break
+	}
+}
+
+scan_perline_content_simd :: proc(l: ^Lexer, has_interpolation: ^bool) {
+	source_len := len(l.source)
+	for {
+		for l.pos + 16 <= source_len {
+			chunk := load_chunk(l.source, l.pos)
+			interesting_bits := extract_mask(is_perline_interesting_simd(chunk))
+
+			if interesting_bits == 0 {
+				l.pos += 16
+				continue
 			}
+
+			first := int(intrinsics.count_trailing_zeros(interesting_bits))
+			l.pos += first
+			break
+		}
+
+		if l.pos >= source_len { return }
+		ch := l.source[l.pos]
+
+		if ch == '\n' {
+			return
+		} else if ch == '\\' {
+			l.pos += 1
+			if l.pos < source_len { l.pos += 1 }
+			continue
+		} else if ch == '$' && l.pos + 1 < source_len && l.source[l.pos + 1] == '{' {
+			has_interpolation^ = true
+			l.pos += 1
+			continue
+		} else {
+			l.pos += 1
+			continue
 		}
 	}
+}
 
+}
 	text := l.source[start:l.pos]
 	kind := base.Token_Kind.Perline_String_Literal
 	if has_interpolation {

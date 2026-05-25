@@ -118,6 +118,22 @@ when simd.HAS_HARDWARE_SIMD {
 		return simd.lanes_eq(chunk, simd.u8x16('\n'))
 	}
 
+	// Find interesting bytes in string bodies: ", \, $
+	is_string_interesting_simd :: proc(chunk: simd.u8x16) -> simd.u8x16 {
+		quotes  := simd.lanes_eq(chunk, simd.u8x16('"'))
+		slashes := simd.lanes_eq(chunk, simd.u8x16('\\'))
+		dollars := simd.lanes_eq(chunk, simd.u8x16('$'))
+		return quotes | slashes | dollars
+	}
+
+	// Find interesting bytes in per-line string content: \n, \, $
+	is_perline_interesting_simd :: proc(chunk: simd.u8x16) -> simd.u8x16 {
+		newlines := simd.lanes_eq(chunk, simd.u8x16('\n'))
+		slashes  := simd.lanes_eq(chunk, simd.u8x16('\\'))
+		dollars  := simd.lanes_eq(chunk, simd.u8x16('$'))
+		return newlines | slashes | dollars
+	}
+
 	// Extract bitmask from u8x16 comparison result as u16 for ctz/popcount
 	extract_mask :: proc(v: simd.u8x16) -> u16 {
 		return transmute(u16)simd.extract_msbs(v)
