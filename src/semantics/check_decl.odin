@@ -247,6 +247,29 @@ typecheck_decl :: proc(decl: CDecl, env: ^Type_Env, store: ^Type_Store) -> TDecl
 			span = d.span,
 		}
 		return TDecl(td)
+
+	case ^CDecl_Is_Impl:
+		methods := make([dynamic]TIs_Method, len(d.methods))
+		for m, i in d.methods {
+			body_result := typecheck_synth(m.body, env, store)
+			methods[i] = TIs_Method{
+				name = m.name,
+				params = make([dynamic]TFunc_Param, 0),
+				body = body_result.texpr,
+				type_ = lower_type(store, body_result.var_id),
+				eff_ = lower_effect_type(store, body_result.effects),
+				is_pub = false,
+				span = m.span,
+			}
+		}
+		td := new(TDecl_Is_Impl)
+		td^ = TDecl_Is_Impl{
+			type_name = d.type_name,
+			trait_name = d.trait_name,
+			methods = methods,
+			span = d.span,
+		}
+		return TDecl(td)
 	}
 	unreachable()
 }

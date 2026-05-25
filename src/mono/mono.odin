@@ -223,6 +223,19 @@ substitute_types_in_expr :: proc(expr: semantics.TExpr, type_args: map[base.Inte
 	case ^semantics.TExpr_Bool:
 		return expr
 
+	case ^semantics.TExpr_Char:
+		return expr
+
+	case ^semantics.TExpr_Todo:
+		if e.message != nil {
+			msg := substitute_types_in_expr(e.message, type_args, env)
+			result := new(semantics.TExpr_Todo)
+			result^ = e^
+			result.message = msg
+			return semantics.TExpr(result)
+		}
+		return expr
+
 	case ^semantics.TExpr_Tag:
 		payload_t := make([dynamic]semantics.TExpr, len(e.payload))
 		for i in 0..<len(e.payload) {
@@ -510,7 +523,10 @@ substitute_types_in_expr :: proc(expr: semantics.TExpr, type_args: map[base.Inte
 			}
 		}
 		result := new(semantics.TExpr_Handle)
-		result.effect = e.effect
+		result.effects = make([dynamic]base.Canonical_Name, 0, len(e.effects))
+		for eff in e.effects {
+			append(&result.effects, eff)
+		}
 		result.body = substitute_types_in_expr(e.body, type_args, env)
 		result.arms = arms_t
 		result.type_ = substitute_ir_type(e.type_, type_args, env)
@@ -619,6 +635,13 @@ get_expr_ir_type :: proc(expr: semantics.TExpr) -> base.IR_Type {
 		return e.type_
 	case ^semantics.TExpr_Bool:
 		return e.type_
+
+	case ^semantics.TExpr_Char:
+		return e.type_
+
+	case ^semantics.TExpr_Todo:
+		return e.type_
+
 	case ^semantics.TExpr_Tag:
 		return e.type_
 	case ^semantics.TExpr_Record:
@@ -740,6 +763,7 @@ walk_decl_for_call_sites :: proc(decl: semantics.TDecl, env: ^Mono_Env) {
 		walk_expr_for_call_sites(d.body, env)
 	case ^semantics.TDecl_Expect:
 		walk_expr_for_call_sites(d.condition, env)
+	case ^semantics.TDecl_Is_Impl:
 	}
 }
 
@@ -780,7 +804,7 @@ walk_expr_for_call_sites :: proc(expr: semantics.TExpr, env: ^Mono_Env) {
 							}
 						}
 					}
-				case ^semantics.TExpr_Int, ^semantics.TExpr_Float, ^semantics.TExpr_String, ^semantics.TExpr_Bool,
+				case ^semantics.TExpr_Int, ^semantics.TExpr_Float, ^semantics.TExpr_String, ^semantics.TExpr_Bool, ^semantics.TExpr_Char, ^semantics.TExpr_Todo,
 				     ^semantics.TExpr_Tag, ^semantics.TExpr_Nominal_Construct, ^semantics.TExpr_Record, ^semantics.TExpr_List,
 				     ^semantics.TExpr_Name, ^semantics.TExpr_Call, ^semantics.TExpr_Method_Call, ^semantics.TExpr_Block,
 				     ^semantics.TExpr_If, ^semantics.TExpr_Match, ^semantics.TExpr_BinOp, ^semantics.TExpr_PrefixOp,
@@ -789,7 +813,7 @@ walk_expr_for_call_sites :: proc(expr: semantics.TExpr, env: ^Mono_Env) {
 				     ^semantics.TExpr_Handle, ^semantics.TExpr_Perform, ^semantics.TExpr_For, ^semantics.TExpr_Par:
 				}
 			}
-		case ^semantics.TExpr_Int, ^semantics.TExpr_Float, ^semantics.TExpr_String, ^semantics.TExpr_Bool,
+		case ^semantics.TExpr_Int, ^semantics.TExpr_Float, ^semantics.TExpr_String, ^semantics.TExpr_Bool, ^semantics.TExpr_Char, ^semantics.TExpr_Todo,
 		     ^semantics.TExpr_Tag, ^semantics.TExpr_Nominal_Construct, ^semantics.TExpr_Record, ^semantics.TExpr_List,
 		     ^semantics.TExpr_Call, ^semantics.TExpr_Method_Call, ^semantics.TExpr_Lambda, ^semantics.TExpr_Block,
 		     ^semantics.TExpr_If, ^semantics.TExpr_Match, ^semantics.TExpr_BinOp, ^semantics.TExpr_PrefixOp,
@@ -851,7 +875,7 @@ walk_expr_for_call_sites :: proc(expr: semantics.TExpr, env: ^Mono_Env) {
 		for arg in e.args {
 			walk_expr_for_call_sites(arg, env)
 		}
-	case ^semantics.TExpr_Int, ^semantics.TExpr_Float, ^semantics.TExpr_String, ^semantics.TExpr_Bool,
+	case ^semantics.TExpr_Int, ^semantics.TExpr_Float, ^semantics.TExpr_String, ^semantics.TExpr_Bool, ^semantics.TExpr_Char, ^semantics.TExpr_Todo,
 		^semantics.TExpr_Tag, ^semantics.TExpr_Nominal_Construct, ^semantics.TExpr_Record, ^semantics.TExpr_List, ^semantics.TExpr_Name,
 		^semantics.TExpr_For, ^semantics.TExpr_Par:
 	}
@@ -882,6 +906,7 @@ rewrite_calls_in_decl :: proc(decl: semantics.TDecl, specializations: map[string
 			}
 			delete(type_args)
 		}
+	case ^semantics.TDecl_Is_Impl:
 	case ^semantics.TDecl_Effect, ^semantics.TDecl_Trait, ^semantics.TDecl_Alias, ^semantics.TDecl_Import:
 	}
 	return decl
@@ -975,7 +1000,7 @@ rewrite_calls_in_expr :: proc(expr: semantics.TExpr, specializations: map[string
 		for i in 0..<len(e.args) {
 			e.args[i] = rewrite_calls_in_expr(e.args[i], specializations, env)
 		}
-	case ^semantics.TExpr_Int, ^semantics.TExpr_Float, ^semantics.TExpr_String, ^semantics.TExpr_Bool,
+	case ^semantics.TExpr_Int, ^semantics.TExpr_Float, ^semantics.TExpr_String, ^semantics.TExpr_Bool, ^semantics.TExpr_Char, ^semantics.TExpr_Todo,
 		^semantics.TExpr_Tag, ^semantics.TExpr_Nominal_Construct, ^semantics.TExpr_Record, ^semantics.TExpr_List, ^semantics.TExpr_Name,
 		^semantics.TExpr_For, ^semantics.TExpr_Par:
 	}

@@ -298,9 +298,13 @@ cps_transform_expr :: proc(expr: IR_Expr, k_name: base.Intern_ID, env: ^CPS_Env)
 				body = cps_transform_expr(arm.body, arm.params[0], env),
 			})
 		}
+		effects := make([dynamic]base.Canonical_Name, 0, len(e.effects))
+		for eff in e.effects {
+			append(&effects, eff)
+		}
 		new_handle := new(IR_Handle)
 		new_handle^ = IR_Handle{
-			effect = e.effect,
+			effects = effects,
 			body = cps_transform_expr(e.body, k_name, env),
 			arms = new_arms,
 			type = e.type,

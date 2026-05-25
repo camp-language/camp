@@ -74,6 +74,8 @@ format_expr :: proc(e: frontend.Expr, info: ^Format_Source_Info, interner: ^base
 		return doc_text(float_to_string(v.value))
 	case ^frontend.Expr_String:
 		return doc_text(v.value)
+	case ^frontend.Expr_Char:
+		return format_expr_char(v)
 	case ^frontend.Expr_Bool:
 		if v.value do return doc_text("True")
 		return doc_text("False")
@@ -115,6 +117,8 @@ format_expr :: proc(e: frontend.Expr, info: ^Format_Source_Info, interner: ^base
 		return format_expr_return(v, info, interner)
 	case ^frontend.Expr_Crash:
 		return format_expr_crash(v, info, interner)
+	case ^frontend.Expr_Todo:
+		return format_expr_todo(v, info, interner)
 	case ^frontend.Expr_Interpolated_String:
 		return format_expr_interpolated_string(v, info, interner)
 	case ^frontend.Expr_Handle:
@@ -453,6 +457,8 @@ format_pattern :: proc(p: frontend.Pattern, info: ^Format_Source_Info, interner:
 		return doc_text(int_to_string(v.value))
 	case ^frontend.Pattern_String:
 		return doc_text(v.value)
+	case ^frontend.Pattern_Char:
+		return format_pattern_char(v)
 	case ^frontend.Pattern_Bool:
 		if v.value do return doc_text("True")
 		return doc_text("False")
@@ -686,8 +692,12 @@ format_expr_handle :: proc(e: ^frontend.Expr_Handle, info: ^Format_Source_Info, 
 	defer delete(parts)
 
 	append(&parts, doc_text("handle "))
-	effect_id := len(e.effects) > 0 ? e.effects[0] : 0
-	append(&parts, doc_text(base.intern_get(interner, effect_id)))
+	for effect, i in e.effects {
+		if i > 0 {
+			append(&parts, doc_text(", "))
+		}
+		append(&parts, doc_text(base.intern_get(interner, effect)))
+	}
 	append(&parts, doc_text(" in "))
 	append(&parts, format_expr(e.body, info, interner))
 	append(&parts, doc_text(" with {"))
@@ -792,4 +802,38 @@ format_exprs_comma_multiline :: proc(parts: ^[dynamic]Doc, exprs: []frontend.Exp
 	append(&inner, doc_line())
 
 	append(parts, doc_nest(4, doc_group(inner[:])))
+}
+
+format_expr_char :: proc(e: ^frontend.Expr_Char) -> Doc {
+	return format_char_literal(e.value)
+}
+
+format_expr_todo :: proc(e: ^frontend.Expr_Todo, info: ^Format_Source_Info, interner: ^base.Intern_Table) -> Doc {
+	if e.message == nil {
+		return doc_text("todo")
+	}
+	return doc_concat([]Doc{
+		doc_text("todo "),
+		format_expr(e.message, info, interner),
+	})
+}
+
+format_char_literal :: proc(value: u8) -> Doc {
+	switch value {
+	case '\n':
+		return doc_text("'\\n'")
+	case '\t':
+		return doc_text("'\\t'")
+	case '\\':
+		return doc_text("'\\\\'")
+	case '\'':
+		return doc_text("'\\''")
+	case 32 ..= 126:
+		return doc_concat([]Doc{doc_text("'"), doc_text(string([]u8{value})), doc_text("'")})
+	}
+	return doc_text("'?'")
+}
+
+format_pattern_char :: proc(p: ^frontend.Pattern_Char) -> Doc {
+	return format_char_literal(p.value)
 }

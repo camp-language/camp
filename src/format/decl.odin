@@ -22,6 +22,8 @@ format_decl :: proc(d: frontend.Decl, info: ^Format_Source_Info, interner: ^base
 		return format_decl_test(v, info, interner)
 	case ^frontend.Decl_Expect:
 		return format_decl_expect(v, info, interner)
+	case ^frontend.Decl_Is_Impl:
+		return format_decl_is_impl(v, info, interner)
 	}
 	return doc_text("?")
 }
@@ -300,6 +302,35 @@ format_decl_expect :: proc(v: ^frontend.Decl_Expect, info: ^Format_Source_Info, 
 	return doc_concat(parts[:])
 }
 
+format_decl_is_impl :: proc(v: ^frontend.Decl_Is_Impl, info: ^Format_Source_Info, interner: ^base.Intern_Table) -> Doc {
+	parts: [dynamic]Doc
+	defer delete(parts)
+	append(&parts, doc_text(base.intern_get(interner, v.type_name)))
+	append(&parts, doc_text(" is "))
+	append(&parts, doc_text(base.intern_get(interner, v.trait_name)))
+	append(&parts, doc_text(" {"))
+	append(&parts, doc_line())
+	append(&parts, doc_nest(4, format_is_methods(v.methods[:], info, interner)))
+	append(&parts, doc_line())
+	append(&parts, doc_text("}"))
+	return doc_concat(parts[:])
+}
+
+format_is_methods :: proc(methods: []frontend.Is_Method, info: ^Format_Source_Info, interner: ^base.Intern_Table) -> Doc {
+	m_parts: [dynamic]Doc
+	defer delete(m_parts)
+	append(&m_parts, doc_line())
+	for m, i in methods {
+		if i > 0 {
+			append(&m_parts, doc_line())
+		}
+		append(&m_parts, doc_text(base.intern_get(interner, m.name)))
+		append(&m_parts, doc_text(" = "))
+		append(&m_parts, format_expr(m.body, info, interner))
+	}
+	return doc_group(m_parts[:])
+}
+
 format_file :: proc(f: frontend.File, info: ^Format_Source_Info, interner: ^base.Intern_Table) -> Doc {
 	if len(f.decls) == 0 {
 		return doc_empty()
@@ -353,6 +384,8 @@ decl_span_start :: proc(d: frontend.Decl) -> int {
 	case ^frontend.Decl_Test:
 		return v.span.start
 	case ^frontend.Decl_Expect:
+		return v.span.start
+	case ^frontend.Decl_Is_Impl:
 		return v.span.start
 	}
 	return 0

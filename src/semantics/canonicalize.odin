@@ -664,7 +664,11 @@ canonicalize_expr :: proc(expr: frontend.Expr, scope: ^Canonicalize_Scope, inter
 			})
 		}
 		c := new(CExpr_Handle)
-		c^ = CExpr_Handle{effect = effect_name, body = cbody, arms = arms, span = e.span}
+		c.effects = make([dynamic]base.Canonical_Name, 0, 1)
+		append(&c.effects, effect_name)
+		c.body = cbody
+		c.arms = arms
+		c.span = e.span
 		return c
 
 	case ^frontend.Expr_Par:

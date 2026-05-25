@@ -490,9 +490,13 @@ cc_convert_expr :: proc(expr: IR_Expr, env: ^Closure_Convert_Env) -> IR_Expr {
 		for arm in e.arms {
 			append(&new_arms, IR_Handler_Arm{op = arm.op, params = arm.params, body = cc_convert_expr(arm.body, env)})
 		}
+		effects := make([dynamic]base.Canonical_Name, 0, len(e.effects))
+		for eff in e.effects {
+			append(&effects, eff)
+		}
 		new_handle := new(IR_Handle)
 		new_handle^ = IR_Handle{
-			effect = e.effect,
+			effects = effects,
 			body = body,
 			arms = new_arms,
 			type = e.type,

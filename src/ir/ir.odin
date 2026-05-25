@@ -279,11 +279,11 @@ IR_Method_Call :: struct {
 }
 
 IR_Handle :: struct {
-	effect: ba.Canonical_Name,
-	body:   IR_Expr,
-	arms:       [dynamic]IR_Handler_Arm,
-	type:       ba.IR_Type,
-	span:       ba.Source_Span,
+	effects: [dynamic]ba.Canonical_Name,
+	body:    IR_Expr,
+	arms:    [dynamic]IR_Handler_Arm,
+	type:    ba.IR_Type,
+	span:    ba.Source_Span,
 }
 
 IR_Handler_Arm :: struct {

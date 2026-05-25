@@ -164,9 +164,11 @@ el_wrap_throw_handler :: proc(body: IR_Expr, fn_decl: ^IR_Decl_Fn, throw_name: b
 	arms := make([dynamic]IR_Handler_Arm, 0, 1)
 	append(&arms, arm)
 
+	effects := make([dynamic]base.Canonical_Name, 0, 1)
+	append(&effects, throw_effect_name)
 	handle := new(IR_Handle)
 	handle^ = IR_Handle{
-		effect = throw_effect_name,
+		effects = effects,
 		body = body,
 		arms = arms,
 		type = fn_decl.return_type,
@@ -375,9 +377,13 @@ el_replace_resume :: proc(expr: IR_Expr, resume_id: base.Intern_ID, resume_param
 				body = el_replace_resume(arm.body, resume_id, resume_param, ev_param, env),
 			})
 		}
+		effects := make([dynamic]base.Canonical_Name, 0, len(e.effects))
+		for eff in e.effects {
+			append(&effects, eff)
+		}
 		new_handle := new(IR_Handle)
 		new_handle^ = IR_Handle{
-			effect = e.effect,
+			effects = effects,
 			body = el_replace_resume(e.body, resume_id, resume_param, ev_param, env),
 			arms = new_arms,
 			type = e.type,
@@ -662,10 +668,18 @@ el_lower_expr :: proc(expr: IR_Expr, env: ^Effect_Lower_Env) -> IR_Expr {
 	case ^IR_Handle:
 		// Scheduler-mediated effects are handled directly by the codegen
 		// (they call camp_sched_* runtime functions, not CPS evidence passing)
-		if is_scheduler_effect(e.effect, env) {
+		// Check if any effect is a scheduler effect
+		all_scheduler := len(e.effects) > 0
+		for eff in e.effects {
+			if !is_scheduler_effect(eff, env) {
+				all_scheduler = false
+				break
+			}
+		}
+		if all_scheduler {
 			new_handle := new(IR_Handle)
 			new_handle^ = IR_Handle{
-				effect = e.effect,
+				effects = e.effects,
 				body = el_lower_expr(e.body, env),
 				arms = e.arms, // arms kept for scope_id tracking but not transformed
 				type = e.type,
@@ -676,7 +690,7 @@ el_lower_expr :: proc(expr: IR_Expr, env: ^Effect_Lower_Env) -> IR_Expr {
 
 		ev_var := base.fresh_id(&env.fresh_state, "_ev")
 
-		effect_ops := el_find_effect_ops(e.effect, env)
+		// effect_ops removed - search across effects per arm instead
 		resume_param := base.fresh_id(&env.fresh_state, "_resume")
 		ev_param := base.fresh_id(&env.fresh_state, "_ev_arm")
 		env_param := base.fresh_id(&env.fresh_state, "_env")
@@ -698,20 +712,32 @@ el_lower_expr :: proc(expr: IR_Expr, env: ^Effect_Lower_Env) -> IR_Expr {
 			params := make([dynamic]IR_Param, 0, 4 + len(arm.params))
 			append(&params, IR_Param{name = env_param, type = base.IR_Type{wasm_type = .I32, type_id = base.Type_Var_ID(0)}})
 
+			// Find the operation definition across all effects
+			found_op: IR_Effect_Op
+			op_found := false
+			for eff in e.effects {
+				ops := el_find_effect_ops(eff, env)
+				if ops != nil {
+					for op in ops {
+						if op.name == arm.op {
+							found_op = op
+							op_found = true
+							break
+						}
+					}
+				}
+				if op_found do break
+			}
+
 			// Add operation params from the handler arm (arm.params[1:] are op params, arm.params[0] is resume_id)
 			for i := 1; i < len(arm.params); i += 1 {
 				param_id := arm.params[i]
 				// Look up the param type from the effect definition
-				if effect_ops != nil {
-					for op in effect_ops {
-						if op.name == arm.op {
-							if i-1 < len(op.params) {
-								append(&params, op.params[i-1])
-							} else {
-								append(&params, IR_Param{name = param_id, type = base.IR_Type{wasm_type = .I32, type_id = base.Type_Var_ID(0)}})
-							}
-							break
-						}
+				if op_found {
+					if i-1 < len(found_op.params) {
+						append(&params, found_op.params[i-1])
+					} else {
+						append(&params, IR_Param{name = param_id, type = base.IR_Type{wasm_type = .I32, type_id = base.Type_Var_ID(0)}})
 					}
 				} else {
 					append(&params, IR_Param{name = param_id, type = base.IR_Type{wasm_type = .I32, type_id = base.Type_Var_ID(0)}})
@@ -759,15 +785,19 @@ el_lower_expr :: proc(expr: IR_Expr, env: ^Effect_Lower_Env) -> IR_Expr {
 			arm_indices[arm.op] = arm_idx
 		}
 
-		append(&env.evidence_stack, Effect_Evidence{
-			effect = e.effect,
-			ev_var = ev_var,
-			arm_indices = arm_indices,
-			handle_type = e.type,
-		})
+		for eff in e.effects {
+			append(&env.evidence_stack, Effect_Evidence{
+				effect = eff,
+				ev_var = ev_var,
+				arm_indices = arm_indices,
+				handle_type = e.type,
+			})
+		}
 		transformed_body := el_lower_expr(e.body, env)
-		if len(env.evidence_stack) > 0 {
-			pop(&env.evidence_stack)
+		for _ in e.effects {
+			if len(env.evidence_stack) > 0 {
+				pop(&env.evidence_stack)
+			}
 		}
 
 		ev_record_size := num_arms * 4
@@ -779,21 +809,32 @@ el_lower_expr :: proc(expr: IR_Expr, env: ^Effect_Lower_Env) -> IR_Expr {
 		for arm, arm_idx in e.arms {
 			handler_name := arm_handler_names[arm_idx]
 
+			found_op2: IR_Effect_Op
+			op_found2 := false
+			for eff in e.effects {
+				ops := el_find_effect_ops(eff, env)
+				if ops != nil {
+					for op in ops {
+						if op.name == arm.op {
+							found_op2 = op
+							op_found2 = true
+							break
+						}
+					}
+				}
+				if op_found2 do break
+			}
+
 			closure_params := make([dynamic]IR_Param, 0, 2 + len(arm.params))
 			append(&closure_params, IR_Param{name = env_param, type = base.IR_Type{wasm_type = .I32, type_id = base.Type_Var_ID(0)}})
 			// Add operation params from the handler arm (arm.params[1:] are op params)
 			for i := 1; i < len(arm.params); i += 1 {
 				param_id := arm.params[i]
-				if effect_ops != nil {
-					for op in effect_ops {
-						if op.name == arm.op {
-							if i-1 < len(op.params) {
-								append(&closure_params, op.params[i-1])
-							} else {
-								append(&closure_params, IR_Param{name = param_id, type = base.IR_Type{wasm_type = .I32, type_id = base.Type_Var_ID(0)}})
-							}
-							break
-						}
+				if op_found2 {
+					if i-1 < len(found_op2.params) {
+						append(&closure_params, found_op2.params[i-1])
+					} else {
+						append(&closure_params, IR_Param{name = param_id, type = base.IR_Type{wasm_type = .I32, type_id = base.Type_Var_ID(0)}})
 					}
 				} else {
 					append(&closure_params, IR_Param{name = param_id, type = base.IR_Type{wasm_type = .I32, type_id = base.Type_Var_ID(0)}})

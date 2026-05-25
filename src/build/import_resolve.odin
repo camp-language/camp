@@ -333,9 +333,11 @@ resolve_expr_names :: proc(expr: semantics.CExpr, scope: ^Import_Scope, export_t
 		}
 
 	case ^semantics.CExpr_Handle:
-		if e.effect.module == base.NO_NAME {
-			if resolved, ok := resolve_name(e.effect.name, scope, interner); ok {
-				e.effect = resolved
+		for &eff in e.effects {
+			if eff.module == base.NO_NAME {
+				if resolved, ok := resolve_name(eff.name, scope, interner); ok {
+					eff = resolved
+				}
 			}
 		}
 		resolve_expr_names(e.body, scope, export_tables, interner, collector)
@@ -343,7 +345,7 @@ resolve_expr_names :: proc(expr: semantics.CExpr, scope: ^Import_Scope, export_t
 			resolve_expr_names(arm.body, scope, export_tables, interner, collector)
 		}
 
-	case ^semantics.CExpr_Int, ^semantics.CExpr_Float, ^semantics.CExpr_String, ^semantics.CExpr_Bool:
+	case ^semantics.CExpr_Int, ^semantics.CExpr_Float, ^semantics.CExpr_String, ^semantics.CExpr_Bool, ^semantics.CExpr_Char, ^semantics.CExpr_Todo:
 
 	case ^semantics.CExpr_Perform:
 		for &arg in e.args {

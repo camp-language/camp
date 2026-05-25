@@ -808,7 +808,14 @@ emit_expr :: proc(expr: ir.IR_Expr, buf: ^[dynamic]u8, env: ^Codegen_Env, runtim
 		emit_instruction(Wasm_Call{index = u32(runtime_indices[Runtime_Func.Exit])}, buf)
 		emit_instruction(Wasm_Unreachable{}, buf)
 	case ^ir.IR_Handle:
-		if ir.is_scheduler_effect_by_ids(e.effect.name, env.async_id, env.spawn_id, env.parallel_id, env.file_id, env.console_id, env.time_id) {
+		is_sched := false
+		for eff in e.effects {
+			if ir.is_scheduler_effect_by_ids(eff.name, env.async_id, env.spawn_id, env.parallel_id, env.file_id, env.console_id, env.time_id) {
+				is_sched = true
+				break
+			}
+		}
+		if is_sched {
 			// Allocate scope_id for structured concurrency cleanup
 			scope_id := env.next_scope_id
 			env.next_scope_id += 1

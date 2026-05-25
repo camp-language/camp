@@ -491,6 +491,7 @@ typecheck_method_call :: proc(e: ^CExpr_Method_Call, env: ^Type_Env, store: ^Typ
 					type_ = lower_type(store, nt.inner_id),
 					eff_ = lower_effect_type(store, receiver_result.effects),
 					resolved_ = e.method,
+					dispatch = e.dispatch,
 					span = e.span,
 				}
 				return Synth_Result{var_id = nt.inner_id, effects = receiver_result.effects, texpr = TExpr(t)}
@@ -567,6 +568,7 @@ typecheck_method_call :: proc(e: ^CExpr_Method_Call, env: ^Type_Env, store: ^Typ
 						type_ = lower_type(store, handle_var),
 						eff_ = lower_effect_type(store, eff),
 						resolved_ = e.method,
+						dispatch = e.dispatch,
 						span = e.span,
 					}
 					return Synth_Result{var_id = handle_var, effects = eff, texpr = TExpr(t)}
@@ -588,6 +590,7 @@ typecheck_method_call :: proc(e: ^CExpr_Method_Call, env: ^Type_Env, store: ^Typ
 				type_ = lower_type(store, handle_var),
 				eff_ = lower_effect_type(store, eff),
 				resolved_ = e.method,
+				dispatch = e.dispatch,
 				span = e.span,
 			}
 			return Synth_Result{var_id = handle_var, effects = eff, texpr = TExpr(t)}
@@ -610,6 +613,7 @@ typecheck_method_call :: proc(e: ^CExpr_Method_Call, env: ^Type_Env, store: ^Typ
 						type_ = lower_type(store, h_inf.inner_id),
 						eff_ = lower_effect_type(store, eff),
 						resolved_ = e.method,
+						dispatch = e.dispatch,
 						span = e.span,
 					}
 					return Synth_Result{var_id = h_inf.inner_id, effects = eff, texpr = TExpr(t)}
@@ -624,6 +628,7 @@ typecheck_method_call :: proc(e: ^CExpr_Method_Call, env: ^Type_Env, store: ^Typ
 				type_ = lower_type(store, return_var),
 				eff_ = lower_effect_type(store, eff),
 				resolved_ = e.method,
+				dispatch = e.dispatch,
 				span = e.span,
 			}
 			return Synth_Result{var_id = return_var, effects = eff, texpr = TExpr(t)}
@@ -677,6 +682,7 @@ typecheck_method_call :: proc(e: ^CExpr_Method_Call, env: ^Type_Env, store: ^Typ
 				type_ = lower_type(store, result_var),
 				eff_ = lower_effect_type(store, eff),
 				resolved_ = e.method,
+				dispatch = e.dispatch,
 				span = e.span,
 			}
 			return Synth_Result{var_id = result_var, effects = eff, texpr = TExpr(t)}
@@ -708,6 +714,7 @@ typecheck_method_call :: proc(e: ^CExpr_Method_Call, env: ^Type_Env, store: ^Typ
 		type_ = lower_type(store, return_var),
 		eff_ = lower_effect_type(store, eff),
 		resolved_ = e.method,
+		dispatch = e.dispatch,
 		span = e.span,
 	}
 	return Synth_Result{var_id = return_var, effects = eff, texpr = TExpr(t)}
@@ -733,6 +740,7 @@ typecheck_qualified_tag_construct :: proc(receiver: ^CExpr_Tag, e: ^CExpr_Method
 			type_ = lower_type(store, return_var),
 			eff_ = lower_effect_type(store, eff),
 			resolved_ = e.method,
+			dispatch = e.dispatch,
 			span = e.span,
 		}
 		return Synth_Result{var_id = return_var, effects = eff, texpr = TExpr(t)}
@@ -768,6 +776,7 @@ typecheck_qualified_tag_construct :: proc(receiver: ^CExpr_Tag, e: ^CExpr_Method
 			type_ = lower_type(store, return_var),
 			eff_ = lower_effect_type(store, eff),
 			resolved_ = e.method,
+			dispatch = e.dispatch,
 			span = e.span,
 		}
 		return Synth_Result{var_id = return_var, effects = eff, texpr = TExpr(t)}
@@ -803,6 +812,7 @@ typecheck_qualified_tag_construct :: proc(receiver: ^CExpr_Tag, e: ^CExpr_Method
 								type_ = lower_type(store, inst_binding),
 								eff_ = lower_effect_type(store, eff),
 								resolved_ = e.method,
+								dispatch = e.dispatch,
 								span = e.span,
 							}
 							return Synth_Result{var_id = inst_binding, effects = eff, texpr = TExpr(t)}
@@ -827,6 +837,7 @@ typecheck_qualified_tag_construct :: proc(receiver: ^CExpr_Tag, e: ^CExpr_Method
 		type_ = lower_type(store, inst_binding),
 		eff_ = lower_effect_type(store, eff),
 		resolved_ = e.method,
+		dispatch = e.dispatch,
 		span = e.span,
 	}
 	return Synth_Result{var_id = inst_binding, effects = eff, texpr = TExpr(t)}

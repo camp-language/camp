@@ -329,9 +329,13 @@ rc_insert_expr_inner :: proc(expr: IR_Expr, remaining: ^map[base.Intern_ID]int, 
 				body = rc_insert_expr_inner(arm.body, remaining, interner),
 			})
 		}
+		effects := make([dynamic]base.Canonical_Name, 0, len(e.effects))
+		for eff in e.effects {
+			append(&effects, eff)
+		}
 		new_handle := new(IR_Handle)
 		new_handle^ = IR_Handle{
-			effect = e.effect,
+			effects = effects,
 			body = rc_insert_expr_inner(e.body, remaining, interner),
 			arms = new_arms,
 			type = e.type,

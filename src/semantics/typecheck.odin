@@ -251,6 +251,28 @@ typecheck_synth :: proc(expr: CExpr, env: ^Type_Env, store: ^Type_Store) -> Synt
 		t^ = TExpr_Bool{value = e.value, type_ = type_ir, eff_ = eff_ir, span = e.span}
 		return Synth_Result{var_id = var_id, effects = eff, texpr = TExpr(t)}
 
+	case ^CExpr_Char:
+		i64_name := base.intern(store.interner, "I64")
+		var_id := make_primitive_type(store, i64_name, e.span)
+		eff := fresh_effect_row(store, e.span)
+		t := new(TExpr_Char)
+		type_ir, eff_ir := type_eff_pair(store, var_id, eff)
+		t^ = TExpr_Char{value = e.value, type_ = type_ir, eff_ = eff_ir, span = e.span}
+		return Synth_Result{var_id = var_id, effects = eff, texpr = TExpr(t)}
+
+	case ^CExpr_Todo:
+		var_id, eff := fresh_with_effects(store, e.span)
+		msg: TExpr
+		if e.message != nil {
+			msg_result := typecheck_synth(e.message, env, store)
+			msg = msg_result.texpr
+			unify(store, eff, msg_result.effects)
+		}
+		t := new(TExpr_Todo)
+		type_ir, eff_ir := type_eff_pair(store, var_id, eff)
+		t^ = TExpr_Todo{message = msg, type_ = type_ir, eff_ = eff_ir, span = e.span}
+		return Synth_Result{var_id = var_id, effects = eff, texpr = TExpr(t)}
+
 	case ^CExpr_Name:
 		if existing, ok := env_lookup(env, e.name.name); ok {
 			inst := instantiate(store, existing)
@@ -340,7 +362,7 @@ typecheck_synth :: proc(expr: CExpr, env: ^Type_Env, store: ^Type_Store) -> Synt
 			type_ir, eff_ir := type_eff_pair(store, result.var_id, result.effects)
 			t_name^ = TExpr_Name{name = target.name, type_ = type_ir, eff_ = eff_ir, span = target.span}
 			target_t = TExpr(t_name)
-		case ^CExpr_Int, ^CExpr_Float, ^CExpr_String, ^CExpr_Bool, ^CExpr_Tag, ^CExpr_Nominal_Construct, ^CExpr_Record, ^CExpr_List, ^CExpr_Call, ^CExpr_Method_Call, ^CExpr_Lambda, ^CExpr_Block, ^CExpr_If, ^CExpr_Match, ^CExpr_BinOp, ^CExpr_PrefixOp, ^CExpr_Field_Access, ^CExpr_Record_Update, ^CExpr_Return, ^CExpr_Crash, ^CExpr_Interpolated_String, ^CExpr_Handle, ^CExpr_Perform, ^CExpr_Par, ^CExpr_For:
+		case ^CExpr_Int, ^CExpr_Float, ^CExpr_String, ^CExpr_Bool, ^CExpr_Char, ^CExpr_Tag, ^CExpr_Nominal_Construct, ^CExpr_Record, ^CExpr_List, ^CExpr_Call, ^CExpr_Method_Call, ^CExpr_Lambda, ^CExpr_Block, ^CExpr_If, ^CExpr_Match, ^CExpr_BinOp, ^CExpr_PrefixOp, ^CExpr_Field_Access, ^CExpr_Record_Update, ^CExpr_Return, ^CExpr_Crash, ^CExpr_Todo, ^CExpr_Interpolated_String, ^CExpr_Handle, ^CExpr_Perform, ^CExpr_Par, ^CExpr_For:
 			target_t = typecheck_synth(e.target, env, store).texpr
 		}
 		t := new(TExpr_Assign)
@@ -445,14 +467,16 @@ typecheck_synth :: proc(expr: CExpr, env: ^Type_Env, store: ^Type_Store) -> Synt
 		return typecheck_method_call(e, env, store)
 
 	case ^CExpr_Handle:
-		append(&env.handled_effects, e.effect.name)
-		saved_handles_len := len(env.spawned_handles)
+		for eff in e.effects {
+			append(&env.handled_effects, eff.name)
+		}
 		body_result := typecheck_synth(e.body, env, store)
-		_ = pop(&env.handled_effects)
+		for _ in e.effects {
+			_ = pop(&env.handled_effects)
+		}
 
 		arms_t := make([dynamic]THandler_Arm, len(e.arms))
 
-		op_sigs, has_sigs := store.effect_ops[e.effect.name]
 		for arm, arm_idx in e.arms {
 			arm_env: Type_Env
 			arm_env.bindings = make(map[base.Intern_ID]base.Type_Var_ID, len(arm.params) + 4)
@@ -462,58 +486,64 @@ typecheck_synth :: proc(expr: CExpr, env: ^Type_Env, store: ^Type_Store) -> Synt
 
 			arm_body_result: Synth_Result
 
-			if has_sigs {
-				sig_idx := -1
-				for sig, si in op_sigs {
-					if sig.name == arm.op {
-						sig_idx = si
-						break
-					}
-				}
-				if sig_idx >= 0 {
-					sig := op_sigs[sig_idx]
-					for i in 0..<len(arm.params) {
-						pv := fresh_value_var(store, arm.span)
-						check_shadow(&arm_env, arm.params[i], store, arm.span)
-						arm_env.bindings[arm.params[i]] = pv
-						param_sig_idx := i - 1
-						if param_sig_idx >= 0 && param_sig_idx < len(sig.param_types) {
-							inst_param := instantiate(store, sig.param_types[param_sig_idx])
-							unify(store, pv, inst_param)
+			found_sig: Effect_Op_Sig
+			sig_found := false
+			for eff in e.effects {
+				if op_sigs, has_sigs := store.effect_ops[eff.name]; has_sigs {
+					for sig in op_sigs {
+						if sig.name == arm.op {
+							found_sig = sig
+							sig_found = true
+							break
 						}
 					}
+				}
+				if sig_found do break
+			}
 
-					arm_body_result = typecheck_synth(arm.body, &arm_env, store)
-
-					inst_ret := instantiate(store, sig.return_type)
-					unify(store, arm_body_result.var_id, inst_ret)
-					unify(store, arm_body_result.effects, body_result.effects)
-
-					actual_param_count := len(arm.params) - 1
-					expected_param_count := sig.param_count
-					if actual_param_count != expected_param_count {
-						diagnostics.collector_add_diag(store.collector, diagnostics.diag_internal(fmt.tprintf(
-							"handler arm `{}` has {} parameters, expected {}",
-							base.intern_get(store.interner, arm.op),
-							actual_param_count,
-							expected_param_count,
-						), arm.span))
+			if sig_found {
+				sig := found_sig
+				for i in 0..<len(arm.params) {
+					pv := fresh_value_var(store, arm.span)
+					check_shadow(&arm_env, arm.params[i], store, arm.span)
+					arm_env.bindings[arm.params[i]] = pv
+					param_sig_idx := i - 1
+					if param_sig_idx >= 0 && param_sig_idx < len(sig.param_types) {
+						inst_param := instantiate(store, sig.param_types[param_sig_idx])
+						unify(store, pv, inst_param)
 					}
-				} else {
-					effect_str := base.intern_get(store.interner, e.effect.name)
-					op_str := base.intern_get(store.interner, arm.op)
+				}
+
+				arm_body_result = typecheck_synth(arm.body, &arm_env, store)
+
+				inst_ret := instantiate(store, sig.return_type)
+				unify(store, arm_body_result.var_id, inst_ret)
+				unify(store, arm_body_result.effects, body_result.effects)
+
+				actual_param_count := len(arm.params) - 1
+				expected_param_count := sig.param_count
+				if actual_param_count != expected_param_count {
 					diagnostics.collector_add_diag(store.collector, diagnostics.diag_internal(fmt.tprintf(
-						"operation `{}` not found in effect `{}`",
-						op_str, effect_str,
+						"handler arm `{}` has {} parameters, expected {}",
+						base.intern_get(store.interner, arm.op),
+						actual_param_count,
+						expected_param_count,
 					), arm.span))
-					for p in arm.params {
-						check_shadow(&arm_env, p, store, arm.span)
-						arm_env.bindings[p] = fresh_value_var(store, arm.span)
-					}
-					arm_body_result = typecheck_synth(arm.body, &arm_env, store)
-					unify(store, arm_body_result.effects, body_result.effects)
 				}
 			} else {
+				effect_str := "unknown"
+				for eff, ei in e.effects {
+					if ei == 0 {
+						effect_str = base.intern_get(store.interner, eff.name)
+					} else {
+						effect_str = fmt.tprintf("{}, {}", effect_str, base.intern_get(store.interner, eff.name))
+					}
+				}
+				op_str := base.intern_get(store.interner, arm.op)
+				diagnostics.collector_add_diag(store.collector, diagnostics.diag_internal(fmt.tprintf(
+					"operation `{}` not found in effects `{}`",
+					op_str, effect_str,
+				), arm.span))
 				for p in arm.params {
 					check_shadow(&arm_env, p, store, arm.span)
 					arm_env.bindings[p] = fresh_value_var(store, arm.span)
@@ -528,11 +558,14 @@ typecheck_synth :: proc(expr: CExpr, env: ^Type_Env, store: ^Type_Store) -> Synt
 			delete(arm_env.handled_effects)
 		}
 
-		result_effects := subtract_effect_from_row(store, body_result.effects, e.effect.name, e.span)
+		result_effects := body_result.effects
+		for eff in e.effects {
+			result_effects = subtract_effect_from_row(store, result_effects, eff.name, e.span)
+		}
 		t := new(TExpr_Handle)
 		type_ir, eff_ir := type_eff_pair(store, body_result.var_id, result_effects)
 		t^ = TExpr_Handle{
-			effect = e.effect,
+			effects = e.effects,
 			body = body_result.texpr,
 			arms = arms_t,
 			type_ = type_ir,

@@ -10,6 +10,8 @@ TExpr :: union {
 	^TExpr_Float,
 	^TExpr_String,
 	^TExpr_Bool,
+	^TExpr_Char,
+	^TExpr_Todo,
 	^TExpr_Tag,
 	^TExpr_Nominal_Construct,
 	^TExpr_Record,
@@ -61,6 +63,13 @@ TExpr_Bool :: struct {
 	type_:  base.IR_Type,
 	eff_:   base.IR_Type,
 	span:   base.Source_Span,
+}
+
+TExpr_Char :: struct {
+	value: u8,
+	type_: base.IR_Type,
+	eff_:  base.IR_Type,
+	span:  base.Source_Span,
 }
 
 TExpr_Tag :: struct {
@@ -123,6 +132,7 @@ TExpr_Method_Call :: struct {
 	type_:     base.IR_Type,
 	eff_:      base.IR_Type,
 	resolved_: base.Canonical_Name,
+	dispatch:  frontend.Dispatch_Kind,
 	span:      base.Source_Span,
 }
 
@@ -181,6 +191,7 @@ TPattern :: union {
 	^TPattern_Int,
 	^TPattern_String,
 	^TPattern_Bool,
+	^TPattern_Char,
 	^TPattern_Identifier,
 	^TPattern_Wildcard,
 	^TPattern_Destructure,
@@ -222,6 +233,11 @@ TPattern_String :: struct {
 
 TPattern_Bool :: struct {
 	value: bool,
+	span:  base.Source_Span,
+}
+
+TPattern_Char :: struct {
+	value: u8,
 	span:  base.Source_Span,
 }
 
@@ -300,6 +316,13 @@ TExpr_Crash :: struct {
 	span:    base.Source_Span,
 }
 
+TExpr_Todo :: struct {
+	message: TExpr,
+	type_:   base.IR_Type,
+	eff_:    base.IR_Type,
+	span:    base.Source_Span,
+}
+
 TExpr_Interpolated_String :: struct {
 	parts: [dynamic]TExpr_String_Part,
 	type_: base.IR_Type,
@@ -326,7 +349,7 @@ TExpr_String_Expr :: struct {
 }
 
 TExpr_Handle :: struct {
-	effect: base.Canonical_Name,
+	effects: [dynamic]base.Canonical_Name,
 	body:   TExpr,
 	arms:   [dynamic]THandler_Arm,
 	type_:  base.IR_Type,
@@ -378,6 +401,7 @@ TDecl :: union {
 	^TDecl_Import,
 	^TDecl_Test,
 	^TDecl_Expect,
+	^TDecl_Is_Impl,
 }
 
 TDecl_Const :: struct {
@@ -456,6 +480,23 @@ TDecl_Test :: struct {
 TDecl_Expect :: struct {
 	condition: TExpr,
 	span:      base.Source_Span,
+}
+
+TDecl_Is_Impl :: struct {
+	type_name:  base.Canonical_Name,
+	trait_name: base.Canonical_Name,
+	methods:    [dynamic]TIs_Method,
+	span:       base.Source_Span,
+}
+
+TIs_Method :: struct {
+	name:    base.Intern_ID,
+	params:  [dynamic]TFunc_Param,
+	body:    TExpr,
+	type_:   base.IR_Type,
+	eff_:    base.IR_Type,
+	is_pub:  bool,
+	span:    base.Source_Span,
 }
 
 TFile :: struct {

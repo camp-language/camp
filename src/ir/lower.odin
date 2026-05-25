@@ -19,7 +19,7 @@ lower_tfile :: proc(tfile: semantics.TFile, store: ^semantics.Type_Store) -> IR_
 		case ^semantics.TDecl_Effect:
 			eff_def := lower_teffect_def(&d^, &env)
 			append(&mod.effect_defs, eff_def)
-		case ^semantics.TDecl_Const, ^semantics.TDecl_Trait, ^semantics.TDecl_Alias, ^semantics.TDecl_Newtype, ^semantics.TDecl_Import, ^semantics.TDecl_Test, ^semantics.TDecl_Expect:
+		case ^semantics.TDecl_Const, ^semantics.TDecl_Trait, ^semantics.TDecl_Alias, ^semantics.TDecl_Newtype, ^semantics.TDecl_Import, ^semantics.TDecl_Test, ^semantics.TDecl_Expect, ^semantics.TDecl_Is_Impl:
 		}
 	}
 
@@ -40,6 +40,7 @@ lower_tfile :: proc(tfile: semantics.TFile, store: ^semantics.Type_Store) -> IR_
 		case ^semantics.TDecl_Import:
 		case ^semantics.TDecl_Test:
 		case ^semantics.TDecl_Expect:
+		case ^semantics.TDecl_Is_Impl:
 		}
 	}
 
@@ -149,6 +150,23 @@ lower_texpr :: proc(expr: semantics.TExpr, env: ^Lower_Env) -> IR_Expr {
 	case ^semantics.TExpr_Bool:
 		type_var := semantics.make_primitive_type(env.store, base.intern(env.interner, "Bool"), e.span)
 		return make_ir_lit_bool(e.value, semantics.lower_type(env.store, type_var), e.span)
+
+	case ^semantics.TExpr_Char:
+		type_var := semantics.make_primitive_type(env.store, base.intern(env.interner, "I64"), e.span)
+		return make_ir_lit_int(i64(e.value), semantics.lower_type(env.store, type_var), e.span)
+
+	case ^semantics.TExpr_Todo:
+		msg: IR_Expr
+		if e.message != nil {
+			msg = lower_texpr(e.message, env)
+		} else {
+			lit := new(IR_Literal_String)
+			lit^ = IR_Literal_String{value = "todo: not implemented", type = base.IR_Type{wasm_type = .I32, type_id = base.Type_Var_ID(0)}, span = e.span}
+			msg = IR_Expr(lit)
+		}
+		crash := new(IR_Crash)
+		crash^ = IR_Crash{message = msg, span = e.span}
+		return IR_Expr(crash)
 
 	case ^semantics.TExpr_Name:
 		v := new(IR_Var)
@@ -642,6 +660,8 @@ texpr_type_id :: proc(e: semantics.TExpr) -> base.Type_Var_ID {
 	case ^semantics.TExpr_Float: return expr.type_.type_id
 	case ^semantics.TExpr_String: return expr.type_.type_id
 	case ^semantics.TExpr_Bool: return expr.type_.type_id
+	case ^semantics.TExpr_Char: return expr.type_.type_id
+	case ^semantics.TExpr_Todo: return expr.type_.type_id
 	case ^semantics.TExpr_Tag: return expr.type_.type_id
 	case ^semantics.TExpr_Nominal_Construct: return expr.resolved_type
 	case ^semantics.TExpr_Record: return expr.type_.type_id
@@ -793,6 +813,11 @@ lower_tpattern :: proc(pattern: semantics.TPattern, env: ^Lower_Env, scrutinee_t
 		append(&env.module.string_table, String_Table_Entry{id = string_id, value = p.value})
 		result := new(IR_Pat_String)
 		result.string_id = string_id
+		return IR_Pattern(result)
+
+	case ^semantics.TPattern_Char:
+		result := new(IR_Pat_Int)
+		result.value = i64(p.value)
 		return IR_Pattern(result)
 
 	case ^semantics.TPattern_Identifier:
@@ -1050,7 +1075,7 @@ lower_thandle :: proc(e: ^semantics.TExpr_Handle, env: ^Lower_Env) -> IR_Expr {
 	}
 	result := new(IR_Handle)
 		result^ = IR_Handle{
-		effect = e.effect,
+		effects = e.effects,
 		body = body_ir,
 		arms = arms,
 		type = e.type_,

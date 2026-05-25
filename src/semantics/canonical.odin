@@ -7,6 +7,7 @@ CDecl :: union {
 	^CDecl_Const,
 	^CDecl_Effect,
 	^CDecl_Trait,
+	^CDecl_Is_Impl,
 	^CDecl_Alias,
 	^CDecl_Newtype,
 	^CDecl_Import,
@@ -90,11 +91,25 @@ CDecl_Expect :: struct {
 	span:      base.Source_Span,
 }
 
+CDecl_Is_Impl :: struct {
+	type_name:  base.Canonical_Name,
+	trait_name: base.Canonical_Name,
+	methods:    [dynamic]CIs_Method,
+	span:       base.Source_Span,
+}
+
+CIs_Method :: struct {
+	name: base.Intern_ID,
+	body: CExpr,
+	span: base.Source_Span,
+}
+
 CExpr :: union {
 	^CExpr_Int,
 	^CExpr_Float,
 	^CExpr_String,
 	^CExpr_Bool,
+	^CExpr_Char,
 	^CExpr_Tag,
 	^CExpr_Nominal_Construct,
 	^CExpr_Record,
@@ -113,6 +128,7 @@ CExpr :: union {
 	^CExpr_Assign,
 	^CExpr_Return,
 	^CExpr_Crash,
+	^CExpr_Todo,
 	^CExpr_Interpolated_String,
 	^CExpr_Handle,
 	^CExpr_Perform,
@@ -137,6 +153,11 @@ CExpr_String :: struct {
 
 CExpr_Bool :: struct {
 	value: bool,
+	span:  base.Source_Span,
+}
+
+CExpr_Char :: struct {
+	value: u8,
 	span:  base.Source_Span,
 }
 
@@ -187,6 +208,7 @@ CExpr_Method_Call :: struct {
 	method:        base.Canonical_Name,
 	args:          [dynamic]CExpr,
 	is_effectful:  bool,
+	dispatch:      frontend.Dispatch_Kind,
 	span:          base.Source_Span,
 }
 
@@ -266,6 +288,11 @@ CExpr_Crash :: struct {
 	span:    base.Source_Span,
 }
 
+CExpr_Todo :: struct {
+	message: CExpr,
+	span:    base.Source_Span,
+}
+
 CExpr_Interpolated_String :: struct {
 	parts: [dynamic]CExpr_String_Part,
 	span:  base.Source_Span,
@@ -282,7 +309,7 @@ CExpr_String_Literal :: struct {
 }
 
 CExpr_Handle :: struct {
-	effect: base.Canonical_Name,
+	effects: [dynamic]base.Canonical_Name,
 	body:   CExpr,
 	arms:   [dynamic]CHandler_Arm,
 	span:   base.Source_Span,
@@ -331,6 +358,7 @@ CPattern :: union {
 	^CPattern_Int,
 	^CPattern_String,
 	^CPattern_Bool,
+	^CPattern_Char,
 	^CPattern_Identifier,
 	^CPattern_Wildcard,
 	^CPattern_Destructure,
@@ -372,6 +400,11 @@ CPattern_String :: struct {
 
 CPattern_Bool :: struct {
 	value: bool,
+	span:  base.Source_Span,
+}
+
+CPattern_Char :: struct {
+	value: u8,
 	span:  base.Source_Span,
 }
 
