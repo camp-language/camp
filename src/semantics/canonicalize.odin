@@ -222,6 +222,23 @@ canonicalize_decl :: proc(decl: frontend.Decl, scope: ^Canonicalize_Scope, impor
 		cdecl^ = CDecl_Test{name = d.name, body = cbody, span = d.span}
 		return cdecl
 
+	case ^frontend.Decl_Is_Impl:
+		type_name := canonicalize_local_name(d.type_name, .Const, scope, interner, collector)
+		trait_name := canonicalize_local_name(d.trait_name, .Trait, scope, interner, collector)
+		methods := make([dynamic]CIs_Method, 0, len(d.methods))
+		for m in d.methods {
+			cbody := canonicalize_expr(m.body, scope, interner, collector)
+			append(&methods, CIs_Method{name = m.name, body = cbody, span = m.span})
+		}
+		cdecl := new(CDecl_Is_Impl)
+		cdecl^ = CDecl_Is_Impl{
+			type_name = type_name,
+			trait_name = trait_name,
+			methods = methods,
+			span = d.span,
+		}
+		return cdecl
+
 	case ^frontend.Decl_Expect:
 		ccond := canonicalize_expr(d.condition, scope, interner, collector)
 		cdecl := new(CDecl_Expect)
