@@ -50,7 +50,7 @@ The compiler SHALL use `src/Main.camp` as the default entry point. The entry poi
 
 #### Scenario: Standard entry point
 
-- GIVEN a file `src/Main.camp` containing `pub main! = || ->{ Console, Throw([..]) } { ... }`
+- GIVEN a file `src/Main.camp` containing `pub main! = || -[Console! | Throw!([..])]-> I64 { ... }`
 - WHEN the compiler builds the project
 - THEN `Main` SHALL be the entry point and `main!` SHALL be the program entry function
 
@@ -76,27 +76,27 @@ The compiler SHALL resolve imports by verifying that imported modules exist in t
 - WHEN the compiler resolves the import
 - THEN the module `List` SHALL be accessible via qualified access `List.member` for all `pub` members of `List`
 
-#### Scenario: Exposing import
+#### Scenario: Selective import
 
-- GIVEN an import declaration `import List exposing [map, filter]`
+- GIVEN an import declaration `import List { map, filter }`
 - WHEN the compiler resolves the import
 - THEN `map` and `filter` SHALL be accessible unqualified AND `List.map` and `List.filter` SHALL also be accessible
 
-#### Scenario: Exposing nominal type variants
+#### Scenario: Importing nominal type variants
 
-- GIVEN an import declaration `import Result exposing [@[Ok, Err], other_fn]`
+- GIVEN an import declaration `import Result { [Ok, Err], other_fn }`
 - WHEN the compiler resolves the import
-- THEN `Ok` and `Err` SHALL be accessible unqualified for construction and pattern matching, AND `@Result.Ok` SHALL also be accessible; the `@[...]` syntax signals nominal type variant exposure
+- THEN `Ok` and `Err` SHALL be accessible unqualified for construction and pattern matching, AND `Result.Ok` SHALL also be accessible; the `[Ok, Err]` syntax signals nominal type variant exposure
 
 #### Scenario: Exposing nominal variants requires pub on type definition
 
-- GIVEN a nominal type `@Result(a, e) : [Ok(a) | Err(e)]` (without `pub`) and `import Result exposing [@[Ok, Err]]`
+- GIVEN a nominal type `@Result(a, e) : [Ok(a) | Err(e)]` (without `pub`) and `import Result { [Ok, Err] }`
 - WHEN the compiler resolves the import
 - THEN it SHALL produce an error because the variants are not publicly exposed on the type definition
 
-#### Scenario: Exposing effect operations
+#### Scenario: Importing effect operations
 
-- GIVEN an import declaration `import Console exposing [Console!, println!, readline!]`
+- GIVEN an import declaration `import Console { Console!, println!, readline! }`
 - WHEN the compiler resolves the import
 - THEN `Console!` and its operations `println!` and `readline!` SHALL be accessible unqualified; the `!` is part of the actual name
 
@@ -112,9 +112,9 @@ The compiler SHALL resolve imports by verifying that imported modules exist in t
 - WHEN the compiler resolves the import
 - THEN it SHALL produce an error: "module 'Nonexistent' not found"
 
-#### Scenario: Exposing a non-exported name
+#### Scenario: Importing a non-exported name
 
-- GIVEN an import declaration `import List exposing [helper]` where `helper` is not `pub` in `List`
+- GIVEN an import declaration `import List { helper }` where `helper` is not `pub` in `List`
 - WHEN the compiler resolves the import
 - THEN it SHALL produce an error: "'helper' is not exported from module 'List'"
 
@@ -128,15 +128,15 @@ The compiler SHALL resolve imports by verifying that imported modules exist in t
 
 An import that brings a name into unqualified scope that already exists SHALL be an error.
 
-#### Scenario: Exposing conflicts with local binding
+#### Scenario: Import conflicts with local binding
 
-- GIVEN a local binding `map = 42` and an import `import List exposing [map]`
+- GIVEN a local binding `map = 42` and an import `import List { map }`
 - WHEN the compiler resolves the import
 - THEN it SHALL produce an error: "'map' imported from List conflicts with existing binding — use qualified access List.map"
 
-#### Scenario: Two imports exposing the same name
+#### Scenario: Two imports bringing in the same name
 
-- GIVEN `import List exposing [map]` and `import Dict exposing [map]`
+- GIVEN `import List { map }` and `import Dict { map }`
 - WHEN the compiler resolves the imports
 - THEN it SHALL produce an error: "'map' is ambiguous — imported from both List and Dict; use qualified access"
 
@@ -181,7 +181,7 @@ The `pub` keyword SHALL mark declarations as exported from their defining module
 #### Scenario: Newtype with pub tags
 
 - GIVEN a `pub` nominal type `@Result(a, e) : [Ok(a) | Err(e)]`
-- WHEN another module imports `Result exposing [Ok, Err]`
+- WHEN another module imports `Result { [Ok, Err] }`
 - THEN `Ok(42)` SHALL be valid without the `Result.` qualifier
 
 ### Requirement: Unified Namespace per Module
@@ -212,7 +212,7 @@ Every Camp file SHALL implicitly import builtin types and operations before proc
 
 #### Scenario: Prelude opt-out
 
-- GIVEN a file containing `import Camp exposing []`
+- GIVEN a file containing `import Camp {}`
 - WHEN the compiler processes the file
 - THEN no builtin types or operations SHALL be in implicit scope
 
@@ -295,3 +295,5 @@ The runtime helper functions (`camp_alloc`, `camp_dup`, `camp_drop`, `camp_print
 - GIVEN a project with 5 modules
 - WHEN the compiler generates the WASM binary
 - THEN runtime helper functions SHALL appear exactly once
+
+For the complete syntax reference, see `docs/syntax-recipe.md`.
