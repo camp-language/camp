@@ -31,6 +31,7 @@ typecheck_lambda :: proc(e: ^CExpr_Lambda, env: ^Type_Env, store: ^Type_Store) -
 		}
 		check_shadow(&child_env, tp.name, store, e.span)
 		child_env.bindings[tp.name] = tv
+		env.bindings[tp.name] = tv
 		store.type_constraints[tv] = tp.constraints[:]
 	}
 

@@ -894,9 +894,15 @@ test_mono_mangle_generic :: proc(t: ^testing.T) {
 	mono_tfile, ctx, store := mono_source("id = |x: a| -> a { x }\nresult! = id(42)")
 	defer teardown_mono(ctx, &store)
 
+	// Generic decls are replaced by specialized versions in mono output
+	id_spec_name := base.intern(&ctx.interner, "id$I64")
+	id_spec_decl := find_tdecl_by_name(mono_tfile, id_spec_name)
+	testing.expect(t, id_spec_decl != nil)
+
+	// The original generic decl should NOT be in the output
 	id_name := base.intern(&ctx.interner, "id")
 	id_decl := find_tdecl_by_name(mono_tfile, id_name)
-	testing.expect(t, id_decl != nil)
+	testing.expect(t, id_decl == nil)
 }
 
 @(test)
