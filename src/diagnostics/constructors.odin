@@ -311,7 +311,7 @@ diag_unexpected_tokens_after_interpolation :: proc(tok: base.Token) -> Diagnosti
 }
 
 diag_display_not_implemented :: proc(type_name: string, span: base.Source_Span) -> Diagnostic {
-	d := diag_init(.Error, "C0312", "DISPLAY NOT IMPLEMENTED", span,
+	d := diag_init(.Error, "C0319", "DISPLAY NOT IMPLEMENTED", span,
 		fmt.tprintf("Type `{}` does not implement `Display`. Only types that implement `Display` can be used in string interpolation.", type_name))
 	append(&d.hints, fmt.tprintf("Implement `Display` for `{}`, or convert the value to `Str` before interpolation.", type_name))
 	return d
@@ -436,5 +436,521 @@ diag_empty_tag_parens :: proc(name: string, span: base.Source_Span) -> Diagnosti
 diag_empty_effect_row :: proc(span: base.Source_Span) -> Diagnostic {
 	d := diag_init(.Error, "C0106", "EMPTY EFFECT ROW", span,
 		"An effect row cannot be empty. Use `->` for a pure function instead of `-[ ]->`.")
+	return d
+}
+
+// --- Lexer ---
+
+diag_invalid_escape :: proc(escape: string, span: base.Source_Span) -> Diagnostic {
+	d := diag_init(.Error, "C0003", "INVALID ESCAPE SEQUENCE", span,
+		fmt.tprintf("\\{} is not a valid escape sequence.", escape))
+	append(&d.hints, "Valid escape sequences are: \\n, \\t, \\r, \\\\, \\\", \\0.")
+	return d
+}
+
+diag_unterminated_per_line_string :: proc(span: base.Source_Span) -> Diagnostic {
+	d := diag_init(.Error, "C0004", "UNTERMINATED PER-LINE STRING", span,
+		"This per-line string (starting with `\\`) is never closed. The closing `\\` must appear alone on its own line.")
+	return d
+}
+
+diag_invalid_numeric_literal :: proc(text: string, hint: string, span: base.Source_Span) -> Diagnostic {
+	d := diag_init(.Error, "C0005", "INVALID NUMERIC LITERAL", span,
+		fmt.tprintf("Invalid numeric literal `{}`.", text))
+	if len(hint) > 0 {
+		append(&d.hints, hint)
+	}
+	return d
+}
+
+diag_unterminated_block_comment :: proc(span: base.Source_Span) -> Diagnostic {
+	d := diag_init(.Error, "C0006", "UNTERMINATED BLOCK COMMENT", span,
+		"This block comment was never closed. Add a closing `*/`.")
+	return d
+}
+
+// --- Parser ---
+
+diag_duplicate_field_literal :: proc(field_name: string, span: base.Source_Span) -> Diagnostic {
+	d := diag_init(.Error, "C0110", "DUPLICATE FIELD IN RECORD LITERAL", span,
+		fmt.tprintf("Field `{}` appears more than once in this record literal.", field_name))
+	return d
+}
+
+diag_duplicate_field_pattern :: proc(field_name: string, span: base.Source_Span) -> Diagnostic {
+	d := diag_init(.Error, "C0111", "DUPLICATE FIELD IN RECORD PATTERN", span,
+		fmt.tprintf("Field `{}` appears more than once in this record pattern.", field_name))
+	return d
+}
+
+diag_duplicate_variant :: proc(variant_name: string, span: base.Source_Span) -> Diagnostic {
+	d := diag_init(.Error, "C0112", "DUPLICATE VARIANT IN TAG UNION", span,
+		fmt.tprintf("Variant `{}` appears more than once in this tag union type.", variant_name))
+	return d
+}
+
+diag_duplicate_effect_row :: proc(effect_name: string, span: base.Source_Span) -> Diagnostic {
+	d := diag_init(.Error, "C0113", "DUPLICATE EFFECT IN ROW", span,
+		fmt.tprintf("Effect `{}` appears more than once in this effect row.", effect_name))
+	append(&d.hints, "Each effect should appear at most once in an effect row.")
+	return d
+}
+
+diag_invalid_match_arm :: proc(span: base.Source_Span) -> Diagnostic {
+	d := diag_init(.Error, "C0114", "INVALID MATCH ARM", span,
+		"This match arm is missing a `=>` and a body.")
+	return d
+}
+
+diag_missing_arrow_fn_type :: proc(span: base.Source_Span) -> Diagnostic {
+	d := diag_init(.Error, "C0115", "MISSING ARROW IN FUNCTION TYPE", span,
+		"This function type is missing an arrow. Use `->` for pure functions or `-[effects]->` for effectful ones.")
+	return d
+}
+
+diag_invalid_visibility :: proc(span: base.Source_Span) -> Diagnostic {
+	d := diag_init(.Error, "C0116", "INVALID VISIBILITY MODIFIER", span,
+		"`pub` can only be applied to top-level declarations.")
+	return d
+}
+
+diag_invalid_effect_row_syntax :: proc(span: base.Source_Span) -> Diagnostic {
+	d := diag_init(.Error, "C0117", "INVALID EFFECT ROW SYNTAX", span,
+		"Effect rows use `|` as a separator, not `,`. Write `-[A! | B!]->` instead of `-[A!, B!]->`.")
+	return d
+}
+
+// --- Name Resolution ---
+
+diag_undefined_type :: proc(type_name: string, similar: []string, span: base.Source_Span) -> Diagnostic {
+	d := diag_init(.Error, "C0203", "UNDEFINED TYPE", span,
+		fmt.tprintf("Type `{}` is not defined.", type_name))
+	if len(similar) > 0 {
+		append(&d.hints, fmt.tprintf("Did you mean `{}`?", similar[0]))
+	}
+	return d
+}
+
+diag_undefined_effect :: proc(effect_name: string, similar: []string, span: base.Source_Span) -> Diagnostic {
+	d := diag_init(.Error, "C0204", "UNDEFINED EFFECT", span,
+		fmt.tprintf("Effect `{}` is not defined.", effect_name))
+	if len(similar) > 0 {
+		append(&d.hints, fmt.tprintf("Did you mean `{}`?", similar[0]))
+	}
+	return d
+}
+
+diag_private_access :: proc(name: string, module_name: string, span: base.Source_Span) -> Diagnostic {
+	d := diag_init(.Error, "C0205", "PRIVATE MEMBER ACCESS", span,
+		fmt.tprintf("`{}` is private to module `{}` and cannot be accessed here.", name, module_name))
+	append(&d.hints, fmt.tprintf("Use a public member, or access `{}` from within module `{}`.", name, module_name))
+	return d
+}
+
+diag_ambiguous_reference :: proc(name: string, scope_a: string, scope_b: string, span: base.Source_Span) -> Diagnostic {
+	d := diag_init(.Error, "C0206", "AMBIGUOUS REFERENCE", span,
+		fmt.tprintf("`{}` is ambiguous — it could refer to the binding from `{}` or the binding from `{}`.", name, scope_a, scope_b))
+	append(&d.hints, "Use qualified access to disambiguate.")
+	return d
+}
+
+diag_not_a_function :: proc(name: string, type_name: string, span: base.Source_Span) -> Diagnostic {
+	d := diag_init(.Error, "C0207", "NOT A FUNCTION", span,
+		fmt.tprintf("`{}` has type `{}`, which is not a function. It cannot be called.", name, type_name))
+	return d
+}
+
+diag_not_a_type :: proc(name: string, kind: string, span: base.Source_Span) -> Diagnostic {
+	d := diag_init(.Error, "C0208", "NOT A TYPE", span,
+		fmt.tprintf("`{}` has kind `{}`, which is not a type. It cannot be used in a type position.", name, kind))
+	return d
+}
+
+diag_raw_id_not_needed :: proc(name: string, span: base.Source_Span) -> Diagnostic {
+	d := diag_init(.Warning, "C0209", "RAW IDENTIFIER NOT NEEDED", span,
+		fmt.tprintf("`r#{}` is not a keyword — you can write `{}` without the `r#` prefix.", name, name))
+	return d
+}
+
+// --- Type System ---
+
+diag_cannot_infer_return :: proc(span: base.Source_Span) -> Diagnostic {
+	d := diag_init(.Error, "C0307", "CANNOT INFER RETURN TYPE", span,
+		"Cannot infer the return type of this function. Add a type annotation to the function or its body.")
+	return d
+}
+
+diag_type_annotation_mismatch :: proc(annotated: string, inferred: string, annotation_span: base.Source_Span, span: base.Source_Span) -> Diagnostic {
+	d := diag_init(.Error, "C0308", "TYPE ANNOTATION MISMATCH", span,
+		fmt.tprintf("This expression was annotated with type `{}`, but it has type `{}`.", annotated, inferred))
+	if annotation_span != base.Source_Span_ZERO {
+		append(&d.labels, Span_Label{span = annotation_span, label = "type annotation here"})
+	}
+	return d
+}
+
+diag_missing_field :: proc(type_name: string, field_name: string, span: base.Source_Span) -> Diagnostic {
+	d := diag_init(.Error, "C0309", "MISSING FIELDS IN RECORD", span,
+		fmt.tprintf("Record type `{}` requires field `{}`, but it is missing from this literal.", type_name, field_name))
+	append(&d.hints, fmt.tprintf("Add `{}`: <value> to the record literal.", field_name))
+	return d
+}
+
+diag_unknown_field :: proc(field_name: string, type_name: string, similar: []string, span: base.Source_Span) -> Diagnostic {
+	d := diag_init(.Error, "C0310", "UNKNOWN FIELD IN RECORD", span,
+		fmt.tprintf("Field `{}` does not exist on record type `{}`.", field_name, type_name))
+	if len(similar) > 0 {
+		append(&d.hints, fmt.tprintf("Did you mean `{}`?", similar[0]))
+	}
+	return d
+}
+
+diag_field_type_mismatch :: proc(field_name: string, expected: string, actual: string, span: base.Source_Span) -> Diagnostic {
+	d := diag_init(.Error, "C0311", "FIELD TYPE MISMATCH", span,
+		fmt.tprintf("Field `{}` has type `{}`, but the provided value has type `{}`.", field_name, expected, actual))
+	return d
+}
+
+diag_cannot_unify_effect_rows :: proc(actual_row: string, expected_row: string, effect_name: string, effect_span: base.Source_Span, span: base.Source_Span) -> Diagnostic {
+	d := diag_init(.Error, "C0312", "CANNOT UNIFY EFFECT ROWS", span,
+		fmt.tprintf("Effect row `{}` does not match expected row `{}`. The extra effect `{}` is not handled.", actual_row, expected_row, effect_name))
+	if effect_span != base.Source_Span_ZERO {
+		append(&d.labels, Span_Label{span = effect_span, label = fmt.tprintf("this expression introduces effect `{}`", effect_name)})
+	}
+	append(&d.hints, fmt.tprintf("Add `{}` to the function's effect row, or handle it with a `handle` block.", effect_name))
+	return d
+}
+
+diag_row_label_mismatch :: proc(actual_row: string, expected_row: string, missing_label: string, extra_label: string, span: base.Source_Span) -> Diagnostic {
+	d := diag_init(.Error, "C0313", "ROW LABEL MISMATCH", span,
+		fmt.tprintf("Record row `{}` does not match expected row `{}`. Missing label `{}`, extra label `{}`.", actual_row, expected_row, missing_label, extra_label))
+	return d
+}
+
+diag_type_param_kind_mismatch :: proc(param_name: string, expected_kind: string, actual_name: string, actual_kind: string, span: base.Source_Span) -> Diagnostic {
+	d := diag_init(.Error, "C0314", "TYPE PARAMETER KIND MISMATCH", span,
+		fmt.tprintf("Type parameter `{}` expects a {} type, but `{}` is a {} type.", param_name, expected_kind, actual_name, actual_kind))
+	return d
+}
+
+diag_recursive_type_alias :: proc(alias_name: string, span: base.Source_Span) -> Diagnostic {
+	d := diag_init(.Error, "C0315", "RECURSIVE TYPE ALIAS", span,
+		fmt.tprintf("Type alias `{}` is directly recursive, which would expand infinitely. Use a tag union or newtype to introduce indirection.", alias_name))
+	return d
+}
+
+diag_invalid_main_signature :: proc(actual_type: string, span: base.Source_Span) -> Diagnostic {
+	d := diag_init(.Error, "C0316", "INVALID MAIN SIGNATURE", span,
+		fmt.tprintf("`main!` has type `{}`, but it must have type `() -[effects]-> I64`.", actual_type))
+	append(&d.hints, "`main!` must return `I64`. Use `0` for a successful exit.")
+	return d
+}
+
+diag_duplicate_type_param :: proc(param_name: string, span: base.Source_Span) -> Diagnostic {
+	d := diag_init(.Error, "C0317", "DUPLICATE TYPE PARAMETER", span,
+		fmt.tprintf("Type parameter `{}` appears more than once in this type's parameter list.", param_name))
+	return d
+}
+
+diag_empty_tag_union :: proc(type_name: string, span: base.Source_Span) -> Diagnostic {
+	d := diag_init(.Error, "C0318", "EMPTY TAG UNION", span,
+		fmt.tprintf("Tag union `{}` has no variants. A tag union must have at least one variant.", type_name))
+	return d
+}
+
+// --- Effect System ---
+
+diag_effect_row_mismatch :: proc(actual_row: string, expected_row: string, ctx: string, missing_effect: string, span: base.Source_Span) -> Diagnostic {
+	d := diag_init(.Error, "C0402", "EFFECT ROW MISMATCH", span,
+		fmt.tprintf("This function's effect row `-[{}]->` does not match the expected `-[{}]->`.", actual_row, expected_row))
+	append(&d.labels, Span_Label{span = span, label = fmt.tprintf("expected effect row from {}", ctx)})
+	append(&d.hints, fmt.tprintf("Add `{}` to the function's effect row, or handle it before this point.", missing_effect))
+	return d
+}
+
+diag_unnecessary_effect_in_signature :: proc(effect_name: string, span: base.Source_Span) -> Diagnostic {
+	d := diag_init(.Warning, "C0403", "UNNECESSARY EFFECT IN SIGNATURE", span,
+		fmt.tprintf("Effect `{}` is listed in this function's effect row, but the function never performs it.", effect_name))
+	append(&d.hints, fmt.tprintf("Remove `{}` from the effect row, or the function may need to perform this effect.", effect_name))
+	return d
+}
+
+diag_effect_not_in_scope :: proc(effect_name: string, similar: []string, span: base.Source_Span) -> Diagnostic {
+	d := diag_init(.Error, "C0404", "EFFECT NOT IN SCOPE", span,
+		fmt.tprintf("Effect `{}` is not defined. Did you mean to import it?", effect_name))
+	if len(similar) > 0 {
+		append(&d.hints, fmt.tprintf("Did you mean `{}`?", similar[0]))
+	}
+	return d
+}
+
+diag_handler_signature_mismatch :: proc(effect_name: string, expected: int, actual: int, span: base.Source_Span) -> Diagnostic {
+	d := diag_init(.Error, "C0405", "HANDLER SIGNATURE MISMATCH", span,
+		fmt.tprintf("Handler arm for `{}` expects {} parameter{}, but the effect operation provides {}.", effect_name, expected, plural_s(expected), actual))
+	return d
+}
+
+diag_missing_resume :: proc(effect_name: string, span: base.Source_Span) -> Diagnostic {
+	d := diag_init(.Error, "C0406", "MISSING RESUME IN HANDLER", span,
+		fmt.tprintf("Handler arm for `{}` does not call `resume`. The computation is stuck.", effect_name))
+	append(&d.hints, "Call `resume(value)` to continue the computation, or `resume` with a different value to alter the result.")
+	return d
+}
+
+diag_double_resume :: proc(effect_name: string, span: base.Source_Span) -> Diagnostic {
+	d := diag_init(.Error, "C0407", "DOUBLE RESUME IN HANDLER", span,
+		fmt.tprintf("`resume` was called more than once in this handler arm for `{}`. Each handler arm may call `resume` at most once.", effect_name))
+	return d
+}
+
+diag_invalid_resume :: proc(span: base.Source_Span) -> Diagnostic {
+	d := diag_init(.Error, "C0408", "INVALID RESUME OUTSIDE HANDLER", span,
+		"`resume` can only be used inside a `handle` block.")
+	return d
+}
+
+diag_redundant_handler :: proc(effect_name: string, span: base.Source_Span) -> Diagnostic {
+	d := diag_init(.Warning, "C0409", "REDUNDANT HANDLER", span,
+		fmt.tprintf("This `handle` block handles `{}`, but that effect is never performed in the handled computation.", effect_name))
+	append(&d.hints, fmt.tprintf("Remove the handler arm for `{}`, or the computation may need to perform this effect.", effect_name))
+	return d
+}
+
+diag_effect_row_subtype :: proc(actual_row: string, declared_row: string, span: base.Source_Span) -> Diagnostic {
+	d := diag_init(.Warning, "C0410", "EFFECT ROW SUBTYPE WARNING", span,
+		fmt.tprintf("This function's effect row `-[{}]->` is a subtype of the declared `-[{}]->`. The extra declared effects are unnecessary.", actual_row, declared_row))
+	append(&d.hints, fmt.tprintf("Consider tightening the effect row to `-[{}]->`.", actual_row))
+	return d
+}
+
+// --- Pattern Matching ---
+
+diag_non_exhaustive_tag :: proc(type_name: string, missing_variant: string, span: base.Source_Span) -> Diagnostic {
+	d := diag_init(.Error, "C0502", "NON-EXHAUSTIVE MATCH", span,
+		fmt.tprintf("This match on `{}` is non-exhaustive: missing branch for `{}`.", type_name, missing_variant))
+	append(&d.hints, fmt.tprintf("Add a branch for `{}`, or add a wildcard pattern.", missing_variant))
+	return d
+}
+
+diag_fragile_match :: proc(type_name: string, span: base.Source_Span) -> Diagnostic {
+	d := diag_init(.Warning, "C0504", "FRAGILE MATCH", span,
+		fmt.tprintf("This match on `{}` is exhaustive now, but adding a new variant to `{}` would make it non-exhaustive.", type_name, type_name))
+	append(&d.hints, "Add a wildcard pattern to make this match robust against future changes.")
+	return d
+}
+
+diag_invalid_irrefutable_pattern :: proc(pattern: string, span: base.Source_Span) -> Diagnostic {
+	d := diag_init(.Error, "C0505", "INVALID IRREFUTABLE PATTERN", span,
+		fmt.tprintf("Pattern `{}` is refutable and cannot be used in a `let` binding. Only irrefutable patterns (wildcards, variables, records with all fields) are allowed here.", pattern))
+	append(&d.hints, "Use a `match` expression instead.")
+	return d
+}
+
+diag_missing_field_pattern :: proc(field_name: string, span: base.Source_Span) -> Diagnostic {
+	d := diag_init(.Error, "C0506", "MISSING FIELDS IN RECORD PATTERN", span,
+		fmt.tprintf("Record pattern is missing field `{}`. Use `_` to ignore a field, or `{..}` to ignore remaining fields.", field_name))
+	return d
+}
+
+diag_unknown_field_pattern :: proc(field_name: string, type_name: string, similar: []string, span: base.Source_Span) -> Diagnostic {
+	d := diag_init(.Error, "C0507", "UNKNOWN FIELD IN RECORD PATTERN", span,
+		fmt.tprintf("Field `{}` does not exist on record type `{}`.", field_name, type_name))
+	if len(similar) > 0 {
+		append(&d.hints, fmt.tprintf("Did you mean `{}`?", similar[0]))
+	}
+	return d
+}
+
+diag_duplicate_binding_pattern :: proc(name: string, span: base.Source_Span) -> Diagnostic {
+	d := diag_init(.Error, "C0508", "DUPLICATE BINDING IN PATTERN", span,
+		fmt.tprintf("Variable `{}` appears more than once in this pattern. In Camp, each variable in a pattern must be unique.", name))
+	return d
+}
+
+diag_wildcard_after_catch_all :: proc(span: base.Source_Span) -> Diagnostic {
+	d := diag_init(.Warning, "C0509", "WILDCARD AFTER CATCH-ALL", span,
+		"This wildcard pattern is unreachable — a previous wildcard or variable pattern already matches everything.")
+	return d
+}
+
+// --- Traits/Generics ---
+
+diag_missing_trait_constraint :: proc(param_name: string, constraint: string, span: base.Source_Span) -> Diagnostic {
+	d := diag_init(.Error, "C0605", "MISSING TRAIT CONSTRAINT", span,
+		fmt.tprintf("Type parameter `{}` requires constraint `{}`, but it is not in scope here.", param_name, constraint))
+	append(&d.hints, fmt.tprintf("Add `{}` to the type parameter's constraint list.", constraint))
+	return d
+}
+
+diag_conflicting_implementations :: proc(trait_name: string, type_name: string, other_trait: string, span: base.Source_Span) -> Diagnostic {
+	d := diag_init(.Error, "C0606", "CONFLICTING IMPLEMENTATIONS", span,
+		fmt.tprintf("Implementing `{}` for `{}` would conflict with the existing implementation via `{}`.", trait_name, type_name, other_trait))
+	return d
+}
+
+diag_trait_not_found :: proc(trait_name: string, similar: []string, span: base.Source_Span) -> Diagnostic {
+	d := diag_init(.Error, "C0607", "TRAIT NOT FOUND", span,
+		fmt.tprintf("Trait `{}` is not defined.", trait_name))
+	if len(similar) > 0 {
+		append(&d.hints, fmt.tprintf("Did you mean `{}`?", similar[0]))
+	}
+	return d
+}
+
+diag_supertrait_not_satisfied :: proc(trait_name: string, supertrait: string, type_name: string, span: base.Source_Span) -> Diagnostic {
+	d := diag_init(.Error, "C0608", "SUPERTRAIT NOT SATISFIED", span,
+		fmt.tprintf("Trait `{}` requires supertrait `{}`, but `{}` does not implement it.", trait_name, supertrait, type_name))
+	append(&d.hints, fmt.tprintf("Implement `{}` for `{}` first.", supertrait, type_name))
+	return d
+}
+
+diag_cyclic_trait_dependency :: proc(trait_name: string, cycle: string, span: base.Source_Span) -> Diagnostic {
+	d := diag_init(.Error, "C0609", "CYCLIC TRAIT DEPENDENCY", span,
+		fmt.tprintf("Trait `{}` has a cyclic dependency: {}.", trait_name, cycle))
+	return d
+}
+
+diag_ambiguous_trait_resolution :: proc(trait_name: string, type_name: string, span: base.Source_Span) -> Diagnostic {
+	d := diag_init(.Error, "C0610", "AMBIGUOUS TRAIT RESOLUTION", span,
+		fmt.tprintf("Multiple implementations of `{}` for `{}` are available. Use a qualified call to disambiguate.", trait_name, type_name))
+	return d
+}
+
+// --- Newtype ---
+
+diag_newtype_field_access :: proc(field_name: string, type_name: string, span: base.Source_Span) -> Diagnostic {
+	d := diag_init(.Error, "C0704", "NEWTYPE FIELD ACCESS", span,
+		fmt.tprintf("Cannot access field `{}` on newtype `{}` — newtypes are opaque. Use a method or accessor defined in the defining module.", field_name, type_name))
+	return d
+}
+
+// --- Module/Import ---
+
+diag_duplicate_import :: proc(name: string, module_name: string, span: base.Source_Span) -> Diagnostic {
+	d := diag_init(.Warning, "C0808", "DUPLICATE IMPORT", span,
+		fmt.tprintf("`{}` is imported more than once from module `{}`.", name, module_name))
+	return d
+}
+
+diag_import_shadows_binding :: proc(name: string, span: base.Source_Span) -> Diagnostic {
+	d := diag_init(.Warning, "C0809", "IMPORT SHADOWS BINDING", span,
+		fmt.tprintf("Imported name `{}` shadows a local binding. Use qualified access to disambiguate.", name))
+	return d
+}
+
+diag_self_import :: proc(module_name: string, span: base.Source_Span) -> Diagnostic {
+	d := diag_init(.Error, "C0810", "SELF IMPORT", span,
+		fmt.tprintf("Module `{}` cannot import itself.", module_name))
+	return d
+}
+
+diag_suggest_import :: proc(type_name: string, module_name: string, span: base.Source_Span) -> Diagnostic {
+	d := diag_init(.Warning, "C0811", "MISSING IMPORT FOR TYPE", span,
+		fmt.tprintf("Type `{}` is defined in module `{}`. Consider adding `import {} {{ {} }}`.", type_name, module_name, module_name, type_name))
+	return d
+}
+
+// --- Unused Analysis ---
+
+diag_unused_function :: proc(name: string, span: base.Source_Span) -> Diagnostic {
+	d := diag_init(.Warning, "C0906", "UNUSED FUNCTION", span,
+		fmt.tprintf("Private function `{}` is never called.", name))
+	append(&d.hints, "If this is intentional, consider making it `pub` or prefixing with `_`.")
+	return d
+}
+
+diag_unused_type_definition :: proc(type_name: string, span: base.Source_Span) -> Diagnostic {
+	d := diag_init(.Warning, "C0907", "UNUSED TYPE DEFINITION", span,
+		fmt.tprintf("Type `{}` is defined but never referenced.", type_name))
+	return d
+}
+
+diag_unused_type_parameter :: proc(param_name: string, span: base.Source_Span) -> Diagnostic {
+	d := diag_init(.Warning, "C0908", "UNUSED TYPE PARAMETER", span,
+		fmt.tprintf("Type parameter `{}` is declared but never used in the type definition.", param_name))
+	return d
+}
+
+diag_unused_effect_handler :: proc(effect_name: string, span: base.Source_Span) -> Diagnostic {
+	d := diag_init(.Warning, "C0909", "UNUSED EFFECT HANDLER", span,
+		fmt.tprintf("Handler arm for `{}` never intercepts any operations. The effect is not performed in the handled computation.", effect_name))
+	return d
+}
+
+diag_unreachable_code :: proc(span: base.Source_Span) -> Diagnostic {
+	d := diag_init(.Warning, "C0910", "UNREACHABLE CODE", span,
+		"This code is unreachable — it follows a `return`, `match` with all branches returning, or similar construct.")
+	return d
+}
+
+diag_must_use_discarded :: proc(function_name: string, span: base.Source_Span) -> Diagnostic {
+	d := diag_init(.Warning, "C0911", "MUST_USE DISCARDED", span,
+		fmt.tprintf("Result of `{}` is discarded. This type is marked as `@must_use` — its result should not be ignored.", function_name))
+	append(&d.hints, "Use the result, or explicitly discard with `_ =` if intentional.")
+	return d
+}
+
+diag_redundant_else :: proc(span: base.Source_Span) -> Diagnostic {
+	d := diag_init(.Warning, "C0912", "REDUNDANT ELSE", span,
+		"This `else` branch is redundant — the `if` condition is always true (or the preceding `match` is exhaustive).")
+	return d
+}
+
+diag_unnecessary_mutability :: proc(name: string, span: base.Source_Span) -> Diagnostic {
+	d := diag_init(.Warning, "C0913", "UNNECESSARY MUTABILITY", span,
+		fmt.tprintf("Variable `{}` is declared with `$` but is never reassigned. Use an immutable binding instead.", name))
+	append(&d.hints, fmt.tprintf("Replace `${}` with `{}`.", name, name))
+	return d
+}
+
+// --- Perceus/RC ---
+
+diag_reference_leak :: proc(type_name: string, span: base.Source_Span) -> Diagnostic {
+	d := diag_init(.Warning, "C1100", "REFERENCE LEAK", span,
+		fmt.tprintf("Value of type `{}` is created but never consumed. This may indicate a reference counting leak.", type_name))
+	append(&d.hints, "Ensure the value is used, returned, or explicitly dropped.")
+	return d
+}
+
+diag_unnecessary_copy :: proc(span: base.Source_Span) -> Diagnostic {
+	d := diag_init(.Warning, "C1101", "UNNECESSARY COPY", span,
+		"This value is copied when it could be moved. Use `move` or restructure to avoid the copy.")
+	return d
+}
+
+diag_consume_after_use :: proc(name: string, consume_span: base.Source_Span, span: base.Source_Span) -> Diagnostic {
+	d := diag_init(.Error, "C1102", "CONSUME AFTER USE", span,
+		fmt.tprintf("Value `{}` is consumed (used after it has been moved/consumed). Each value can only be used once under Perceus semantics.", name))
+	if consume_span != base.Source_Span_ZERO {
+		append(&d.labels, Span_Label{span = consume_span, label = "value consumed here"})
+	}
+	return d
+}
+
+// --- CLI/Build ---
+
+diag_output_dir_not_found :: proc(path: string) -> Diagnostic {
+	d := diag_init(.Error, "C1204", "OUTPUT DIRECTORY NOT FOUND", base.Source_Span_ZERO,
+		fmt.tprintf("Output directory `{}` does not exist and could not be created.", path))
+	return d
+}
+
+diag_invalid_option :: proc(option: string) -> Diagnostic {
+	d := diag_init(.Error, "C1205", "INVALID OPTION", base.Source_Span_ZERO,
+		fmt.tprintf("Unknown option `{}`.", option))
+	append(&d.hints, "Run `camp --help` for available options.")
+	return d
+}
+
+diag_conflicting_options :: proc(option_a: string, option_b: string) -> Diagnostic {
+	d := diag_init(.Error, "C1206", "CONFLICTING OPTIONS", base.Source_Span_ZERO,
+		fmt.tprintf("Options `{}` and `{}` conflict — they cannot be used together.", option_a, option_b))
+	return d
+}
+
+diag_compilation_limit :: proc(limit: string) -> Diagnostic {
+	d := diag_init(.Error, "C1207", "COMPILATION LIMIT EXCEEDED", base.Source_Span_ZERO,
+		fmt.tprintf("Compilation limit exceeded: {}. This may indicate an infinite loop in the compiler.", limit))
+	append(&d.hints, "This is likely a compiler bug. Please report it at https://github.com/smores56/camp/issues")
 	return d
 }
