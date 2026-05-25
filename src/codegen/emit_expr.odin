@@ -646,27 +646,35 @@ emit_expr :: proc(expr: ir.IR_Expr, buf: ^[dynamic]u8, env: ^Codegen_Env, runtim
 				arm := e.arms[arm_idx]
 				is_last := arm_idx == len(e.arms) - 1
 
-				if !is_last {
+				is_catchall := false
+				#partial switch _ in arm.pattern {
+				case ^ir.IR_Pat_Wildcard, ^ir.IR_Pat_Var:
+					is_catchall = true
+				}
+
+				// Emit condition + if-wrapper only when the arm has a
+				// discriminant to test. Wildcard / var patterns always match,
+				// so wrapping them in `if true` only emits dead validation
+				// burden and an extra block depth.
+				wrapped_in_if := false
+				if !is_last && !is_catchall {
 					#partial switch p in arm.pattern {
 					case ^ir.IR_Pat_Int:
 						emit_instruction(Wasm_Local_Get{index = scrutinee_local}, buf)
 						emit_instruction(Wasm_I64_Const{value = p.value}, buf)
 						emit_instruction(Wasm_I64_Eq{}, buf)
-					case ^ir.IR_Pat_Wildcard, ^ir.IR_Pat_Var:
-						emit_instruction(Wasm_I32_Const{value = 1}, buf)
 					case ^ir.IR_Pat_Tag, ^ir.IR_Pat_Record, ^ir.IR_Pat_Bool, ^ir.IR_Pat_String:
 						emit_instruction(Wasm_I32_Const{value = 1}, buf)
 					}
 					emit_instruction(Wasm_If{block_type = .Void}, buf)
+					wrapped_in_if = true
 				}
 
 				#partial switch p in arm.pattern {
 				case ^ir.IR_Pat_Var:
-					emit_instruction(Wasm_Local_Get{index = scrutinee_local}, buf)
 					if local_idx, ok := env.local_map[p.name]; ok {
+						emit_instruction(Wasm_Local_Get{index = scrutinee_local}, buf)
 						emit_instruction(Wasm_Local_Set{index = local_idx}, buf)
-					} else {
-						emit_instruction(Wasm_Drop{}, buf)
 					}
 				case ^ir.IR_Pat_Tag, ^ir.IR_Pat_Record, ^ir.IR_Pat_Wildcard, ^ir.IR_Pat_Bool, ^ir.IR_Pat_Int, ^ir.IR_Pat_String:
 				}
@@ -674,9 +682,11 @@ emit_expr :: proc(expr: ir.IR_Expr, buf: ^[dynamic]u8, env: ^Codegen_Env, runtim
 				emit_expr(arm.body, buf, env, runtime_indices)
 				emit_instruction(Wasm_Br{label = 1}, buf)
 
-				if !is_last {
+				if wrapped_in_if {
 					emit_instruction(Wasm_End{}, buf)
 				}
+
+				if is_catchall { break }
 			}
 
 			emit_instruction(Wasm_Unreachable{}, buf)

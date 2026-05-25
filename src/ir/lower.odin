@@ -875,6 +875,14 @@ lower_tpattern :: proc(pattern: semantics.TPattern, env: ^Lower_Env, scrutinee_t
 		return IR_Pattern(result)
 
 	case ^semantics.TPattern_Identifier:
+		// Treat `_` as a wildcard: it shouldn't reserve a local or emit a
+		// binding store. The parser produces Pattern_Identifier for any
+		// lowercase name including `_`, so the wildcard distinction has to
+		// happen here.
+		if base.intern_get(env.interner, p.name) == "_" {
+			result := new(IR_Pat_Wildcard)
+			return IR_Pattern(result)
+		}
 		result := new(IR_Pat_Var)
 		result.name = p.name
 		return IR_Pattern(result)
