@@ -554,10 +554,10 @@ emit_camp_list_grow_body :: proc(alloc_func_idx: int, dealloc_func_idx: int) -> 
 	emit_instruction(Wasm_Call{index = u32(alloc_func_idx)}, &buf)
 	emit_instruction(Wasm_Local_Set{index = 3}, &buf)
 
-	// Load old data_ptr
+	// Load old data_ptr (local.set, not tee — every later use reloads from local 4)
 	emit_instruction(Wasm_Local_Get{index = 0}, &buf)
 	emit_instruction(Wasm_I32_Load{align = 2, offset = 8}, &buf)
-	emit_instruction(Wasm_Local_Tee{index = 4}, &buf)
+	emit_instruction(Wasm_Local_Set{index = 4}, &buf)
 
 	// memory.copy(new_data_ptr, old_data_ptr, old_cap * 8)
 	emit_instruction(Wasm_Local_Get{index = 3}, &buf)
@@ -628,87 +628,87 @@ emit_camp_str_len_body :: proc() -> Wasm_Code {
 emit_camp_str_eq_body :: proc() -> Wasm_Code {
 	// Compare two strings by length then byte-by-byte.
 	// Params: (str_a: i32, str_b: i32) -> i32 (1=equal, 0=not equal)
-	// Locals: 2=len_a, 3=len_b, 4=loop_i, 5=byte_a, 6=byte_b
+	// Locals: 2=len_a, 3=loop_i
+	//
+	// Structure:
+	//   block (result i32):
+	//     if lengths differ: push 0, br 1 (exit block)
+	//     i = 0
+	//     loop:
+	//       if i >= len_a: push 1, br 2 (exit block)
+	//       if a[i] != b[i]: push 0, br 2 (exit block)
+	//       i++; br 0 (continue)
+	//     end loop
+	//     unreachable (loop never falls through; dummy i32 for type-checker)
+	//   end block
 	buf: [dynamic]u8
 	buf = make([dynamic]u8, 0, CODE_BUF_MODERATE)
 
-	// Load len_a and len_b, compare lengths first
+	emit_instruction(Wasm_Block{block_type = .I32}, &buf)
+
+	// Compare lengths
 	emit_instruction(Wasm_Local_Get{index = 0}, &buf)
 	emit_instruction(Wasm_I32_Load{align = 2, offset = 0}, &buf)
 	emit_instruction(Wasm_Local_Tee{index = 2}, &buf)
-
 	emit_instruction(Wasm_Local_Get{index = 1}, &buf)
 	emit_instruction(Wasm_I32_Load{align = 2, offset = 0}, &buf)
-	emit_instruction(Wasm_Local_Tee{index = 3}, &buf)
-
-	emit_instruction(Wasm_I32_Eq{}, &buf)
-
-	// If lengths differ, return 0
-	emit_instruction(Wasm_I32_Eqz{}, &buf)
-	emit_instruction(Wasm_Br{label = 1}, &buf)
-
-	// Loop: compare byte by byte
-	// i = 0
-	emit_instruction(Wasm_I32_Const{value = 0}, &buf)
-	emit_instruction(Wasm_Local_Set{index = 4}, &buf)
-
-	// block $break loop $loop
-	emit_instruction(Wasm_Block{block_type = .Void}, &buf)
-	emit_instruction(Wasm_Loop{block_type = .Void}, &buf)
-
-	// if i >= len_a, break (equal)
-	emit_instruction(Wasm_Local_Get{index = 4}, &buf)
-	emit_instruction(Wasm_Local_Get{index = 2}, &buf)
-	emit_instruction(Wasm_I32_Ge_U{}, &buf)
-	emit_instruction(Wasm_Br{label = 2}, &buf)
-
-	// Load byte from str_a: str_a + 4 + i
-	emit_instruction(Wasm_Local_Get{index = 0}, &buf)
-	emit_instruction(Wasm_I32_Const{value = 4}, &buf)
-	emit_instruction(Wasm_I32_Add{}, &buf)
-	emit_instruction(Wasm_Local_Get{index = 4}, &buf)
-	emit_instruction(Wasm_I32_Add{}, &buf)
-	emit_instruction(Wasm_I32_Load8U{align = 0, offset = 0}, &buf)
-	emit_instruction(Wasm_Local_Tee{index = 5}, &buf)
-
-	// Load byte from str_b: str_b + 4 + i
-	emit_instruction(Wasm_Local_Get{index = 1}, &buf)
-	emit_instruction(Wasm_I32_Const{value = 4}, &buf)
-	emit_instruction(Wasm_I32_Add{}, &buf)
-	emit_instruction(Wasm_Local_Get{index = 4}, &buf)
-	emit_instruction(Wasm_I32_Add{}, &buf)
-	emit_instruction(Wasm_I32_Load8U{align = 0, offset = 0}, &buf)
-	emit_instruction(Wasm_Local_Tee{index = 6}, &buf)
-
-	// If bytes differ, return 0 (jump to end of block)
 	emit_instruction(Wasm_I32_Ne{}, &buf)
-	emit_instruction(Wasm_Br{label = 1}, &buf)
-
-	// i++
-	emit_instruction(Wasm_Local_Get{index = 4}, &buf)
-	emit_instruction(Wasm_I32_Const{value = 1}, &buf)
-	emit_instruction(Wasm_I32_Add{}, &buf)
-	emit_instruction(Wasm_Local_Set{index = 4}, &buf)
-
-	// Continue loop
-	emit_instruction(Wasm_Br{label = 0}, &buf)
-	emit_instruction(Wasm_End{}, &buf) // end loop
-	emit_instruction(Wasm_End{}, &buf) // end block
-
-	// Equal: return 1
-	emit_instruction(Wasm_I32_Const{value = 1}, &buf)
-	emit_instruction(Wasm_Return{}, &buf)
-
-	// Not equal: return 0
+	emit_instruction(Wasm_If{block_type = .Void}, &buf)
 	emit_instruction(Wasm_I32_Const{value = 0}, &buf)
+	emit_instruction(Wasm_Br{label = 1}, &buf)
 	emit_instruction(Wasm_End{}, &buf)
 
-	locals := make([]Wasm_Local_Decl, 5)
+	// i = 0
+	emit_instruction(Wasm_I32_Const{value = 0}, &buf)
+	emit_instruction(Wasm_Local_Set{index = 3}, &buf)
+
+	emit_instruction(Wasm_Loop{block_type = .Void}, &buf)
+
+	// if i >= len_a: exit block with 1
+	emit_instruction(Wasm_Local_Get{index = 3}, &buf)
+	emit_instruction(Wasm_Local_Get{index = 2}, &buf)
+	emit_instruction(Wasm_I32_Ge_U{}, &buf)
+	emit_instruction(Wasm_If{block_type = .Void}, &buf)
+	emit_instruction(Wasm_I32_Const{value = 1}, &buf)
+	emit_instruction(Wasm_Br{label = 2}, &buf)
+	emit_instruction(Wasm_End{}, &buf)
+
+	// load a[i] and b[i]
+	emit_instruction(Wasm_Local_Get{index = 0}, &buf)
+	emit_instruction(Wasm_Local_Get{index = 3}, &buf)
+	emit_instruction(Wasm_I32_Add{}, &buf)
+	emit_instruction(Wasm_I32_Load8U{align = 0, offset = 4}, &buf)
+	emit_instruction(Wasm_Local_Get{index = 1}, &buf)
+	emit_instruction(Wasm_Local_Get{index = 3}, &buf)
+	emit_instruction(Wasm_I32_Add{}, &buf)
+	emit_instruction(Wasm_I32_Load8U{align = 0, offset = 4}, &buf)
+	emit_instruction(Wasm_I32_Ne{}, &buf)
+	emit_instruction(Wasm_If{block_type = .Void}, &buf)
+	emit_instruction(Wasm_I32_Const{value = 0}, &buf)
+	emit_instruction(Wasm_Br{label = 2}, &buf)
+	emit_instruction(Wasm_End{}, &buf)
+
+	// i++
+	emit_instruction(Wasm_Local_Get{index = 3}, &buf)
+	emit_instruction(Wasm_I32_Const{value = 1}, &buf)
+	emit_instruction(Wasm_I32_Add{}, &buf)
+	emit_instruction(Wasm_Local_Set{index = 3}, &buf)
+
+	// continue loop
+	emit_instruction(Wasm_Br{label = 0}, &buf)
+	emit_instruction(Wasm_End{}, &buf) // end loop
+
+	// Unreachable: loop never falls through (every iteration either
+	// continues with br 0 or exits the block with br 2). Validator still
+	// needs an i32 here for the block's result type.
+	emit_instruction(Wasm_Unreachable{}, &buf)
+
+	emit_instruction(Wasm_End{}, &buf) // end block
+	emit_instruction(Wasm_End{}, &buf) // end function
+
+	locals := make([]Wasm_Local_Decl, 2)
 	locals[0] = Wasm_Local_Decl{count = 1, type = .I32} // len_a
-	locals[1] = Wasm_Local_Decl{count = 1, type = .I32} // len_b
-	locals[2] = Wasm_Local_Decl{count = 1, type = .I32} // loop_i
-	locals[3] = Wasm_Local_Decl{count = 1, type = .I32} // byte_a
-	locals[4] = Wasm_Local_Decl{count = 1, type = .I32} // byte_b
+	locals[1] = Wasm_Local_Decl{count = 1, type = .I32} // loop_i
 
 	body := make([]u8, len(buf))
 	for b, i in buf {
