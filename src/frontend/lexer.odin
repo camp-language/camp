@@ -598,47 +598,10 @@ lexer_lex_perline_string :: proc(l: ^Lexer, start: int) -> base.Token {
 				}
 			} else {
 				break
-	}
-}
-
-scan_perline_content_simd :: proc(l: ^Lexer, has_interpolation: ^bool) {
-	source_len := len(l.source)
-	for {
-		for l.pos + 16 <= source_len {
-			chunk := load_chunk(l.source, l.pos)
-			interesting_bits := extract_mask(is_perline_interesting_simd(chunk))
-
-			if interesting_bits == 0 {
-				l.pos += 16
-				continue
 			}
-
-			first := int(intrinsics.count_trailing_zeros(interesting_bits))
-			l.pos += first
-			break
-		}
-
-		if l.pos >= source_len { return }
-		ch := l.source[l.pos]
-
-		if ch == '\n' {
-			return
-		} else if ch == '\\' {
-			l.pos += 1
-			if l.pos < source_len { l.pos += 1 }
-			continue
-		} else if ch == '$' && l.pos + 1 < source_len && l.source[l.pos + 1] == '{' {
-			has_interpolation^ = true
-			l.pos += 1
-			continue
-		} else {
-			l.pos += 1
-			continue
 		}
 	}
-}
 
-}
 	text := l.source[start:l.pos]
 	kind := base.Token_Kind.Perline_String_Literal
 	if has_interpolation {
