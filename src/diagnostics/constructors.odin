@@ -469,6 +469,24 @@ diag_unterminated_block_comment :: proc(span: base.Source_Span) -> Diagnostic {
 	return d
 }
 
+diag_double_bang_suffix :: proc(span: base.Source_Span) -> Diagnostic {
+	d := diag_init(.Error, "C0007", "DOUBLE BANG SUFFIX", span,
+		"Only one `!` suffix is allowed on identifiers. Use `not` for logical negation.")
+	return d
+}
+
+diag_paren_call_syntax :: proc(span: base.Source_Span) -> Diagnostic {
+	d := diag_init(.Error, "C0008", "PAREN CALL SYNTAX", span,
+		"Paren call syntax `name(args)` is not allowed. Use UFCS: `obj->method(arg)` or effect-qualified: `Effect.op!(arg)`.")
+	return d
+}
+
+diag_par_entry_must_be_named :: proc(span: base.Source_Span) -> Diagnostic {
+	d := diag_init(.Error, "C0009", "PAR ENTRY MUST BE NAMED", span,
+		"par block entries must be named: `par { name: expr, ... }`")
+	return d
+}
+
 // --- Parser ---
 
 diag_duplicate_field_literal :: proc(field_name: string, span: base.Source_Span) -> Diagnostic {

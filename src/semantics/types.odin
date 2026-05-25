@@ -89,6 +89,7 @@ Inferred_Newtype :: struct {
 Inferred_Record_Row :: struct {
 	record_fields: []Type_Field_Entry,
 	record_rest:   base.Type_Var_ID,
+	closed:        bool,  // true = no additional fields allowed (type annotation context)
 }
 
 Inferred_Tag_Union_Row :: struct {

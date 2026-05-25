@@ -71,6 +71,8 @@ Codegen_Env :: struct {
 	time_id:        base.Intern_ID,
 	decl_to_wasm_fn_idx: map[int]int,
 	string_offsets: map[base.Intern_ID]u32,
+	throw_err_msg_offset:    u32,
+	throw_err_suffix_offset: u32,
 }
 
 
@@ -239,6 +241,17 @@ codegen :: proc(ir_mod: ir.IR_Module, interner: ^base.Intern_Table, thread_count
 	drop_overflow_msg_offset := env.data_offset
 	env.data_offset += u32(len(drop_overflow_msg))
 
+	// Error message for default Throw handler
+	throw_err_msg := "Error: unhandled exception (tag="
+	throw_err_msg_offset := env.data_offset
+	env.data_offset += u32(len(throw_err_msg))
+	env.throw_err_msg_offset = throw_err_msg_offset
+
+	throw_err_suffix := ")\n"
+	throw_err_suffix_offset := env.data_offset
+	env.data_offset += u32(len(throw_err_suffix))
+	env.throw_err_suffix_offset = throw_err_suffix_offset
+
 	heap_ptr_global_idx := len(mod.globals)
 	heap_ptr_init: [dynamic]u8
 	heap_ptr_init = make([dynamic]u8, 0, CODE_BUF_SMALL)
@@ -262,9 +275,11 @@ codegen :: proc(ir_mod: ir.IR_Module, interner: ^base.Intern_Table, thread_count
 	list_push_type_idx := get_or_create_type(&env, []Wasm_Value_Type{.I32, .I32}, []Wasm_Value_Type{.I32})
 	list_len_type_idx := alloc_type_idx
 	list_get_type_idx := list_push_type_idx
+	list_grow_type_idx := get_or_create_type(&env, []Wasm_Value_Type{.I32}, []Wasm_Value_Type{.I32})
 	str_len_type_idx := alloc_type_idx
 	str_eq_type_idx := list_push_type_idx
 	str_concat_type_idx := list_push_type_idx
+	str_slice_type_idx := get_or_create_type(&env, []Wasm_Value_Type{.I32, .I32, .I32}, []Wasm_Value_Type{.I32})
 	i64_to_str_type_idx := get_or_create_type(&env, []Wasm_Value_Type{.I64}, []Wasm_Value_Type{.I32})
 	i32_to_str_type_idx := alloc_type_idx
 	f64_to_str_type_idx := get_or_create_type(&env, []Wasm_Value_Type{.F64}, []Wasm_Value_Type{.I32})
@@ -295,12 +310,16 @@ codegen :: proc(ir_mod: ir.IR_Module, interner: ^base.Intern_Table, thread_count
 	runtime_func_indices[Runtime_Func.List_Len] = list_len_func_idx
 	list_get_func_idx := add_function(&env, list_get_type_idx)
 	runtime_func_indices[Runtime_Func.List_Get] = list_get_func_idx
+	list_grow_func_idx := add_function(&env, list_grow_type_idx)
+	runtime_func_indices[Runtime_Func.List_Grow] = list_grow_func_idx
 	str_len_func_idx := add_function(&env, str_len_type_idx)
 	runtime_func_indices[Runtime_Func.Str_Len] = str_len_func_idx
 	str_eq_func_idx := add_function(&env, str_eq_type_idx)
 	runtime_func_indices[Runtime_Func.Str_Eq] = str_eq_func_idx
 	str_concat_func_idx := add_function(&env, str_concat_type_idx)
 	runtime_func_indices[Runtime_Func.Str_Concat] = str_concat_func_idx
+	str_slice_func_idx := add_function(&env, str_slice_type_idx)
+	runtime_func_indices[Runtime_Func.Str_Slice] = str_slice_func_idx
 	i64_to_str_func_idx := add_function(&env, i64_to_str_type_idx)
 	runtime_func_indices[Runtime_Func.I64_To_Str] = i64_to_str_func_idx
 	i32_to_str_func_idx := add_function(&env, i32_to_str_type_idx)
@@ -417,7 +436,7 @@ codegen :: proc(ir_mod: ir.IR_Module, interner: ^base.Intern_Table, thread_count
 	camp_list_alloc_code := emit_camp_list_alloc_body(alloc_func_idx)
 	append(&mod.codes, camp_list_alloc_code)
 
-	camp_list_push_code := emit_camp_list_push_body()
+	camp_list_push_code := emit_camp_list_push_body(list_grow_func_idx)
 	append(&mod.codes, camp_list_push_code)
 
 	camp_list_len_code := emit_camp_list_len_body()
@@ -425,6 +444,9 @@ codegen :: proc(ir_mod: ir.IR_Module, interner: ^base.Intern_Table, thread_count
 
 	camp_list_get_code := emit_camp_list_get_body()
 	append(&mod.codes, camp_list_get_code)
+
+	camp_list_grow_code := emit_camp_list_grow_body(alloc_func_idx, dealloc_func_idx)
+	append(&mod.codes, camp_list_grow_code)
 
 	camp_str_len_code := emit_camp_str_len_body()
 	append(&mod.codes, camp_str_len_code)
@@ -434,6 +456,9 @@ codegen :: proc(ir_mod: ir.IR_Module, interner: ^base.Intern_Table, thread_count
 
 	camp_str_concat_code := emit_camp_str_concat_body(alloc_func_idx)
 	append(&mod.codes, camp_str_concat_code)
+
+	camp_str_slice_code := emit_camp_str_slice_body(alloc_func_idx)
+	append(&mod.codes, camp_str_slice_code)
 
 	camp_i64_to_str_code := emit_camp_i64_to_str_body()
 	append(&mod.codes, camp_i64_to_str_code)
@@ -708,6 +733,30 @@ codegen :: proc(ir_mod: ir.IR_Module, interner: ^base.Intern_Table, thread_count
 		bytes = drop_overflow_msg_bytes,
 	})
 	delete(offset_buf_msg)
+
+	// Data segment for throw handler error message prefix
+	throw_err_msg_bytes := transmute([]u8)throw_err_msg
+	offset_buf_throw: [dynamic]u8
+	offset_buf_throw = make([dynamic]u8, 0, CODE_BUF_SMALL)
+	emit_instruction(Wasm_I32_Const{value = i32(throw_err_msg_offset)}, &offset_buf_throw)
+	append(&mod.datas, Wasm_Data{
+		mem_idx = 0,
+		offset = copy_dynamic_bytes(offset_buf_throw),
+		bytes = throw_err_msg_bytes,
+	})
+	delete(offset_buf_throw)
+
+	// Data segment for throw handler error message suffix
+	throw_err_suffix_bytes := transmute([]u8)throw_err_suffix
+	offset_buf_throw_suffix: [dynamic]u8
+	offset_buf_throw_suffix = make([dynamic]u8, 0, CODE_BUF_SMALL)
+	emit_instruction(Wasm_I32_Const{value = i32(throw_err_suffix_offset)}, &offset_buf_throw_suffix)
+	append(&mod.datas, Wasm_Data{
+		mem_idx = 0,
+		offset = copy_dynamic_bytes(offset_buf_throw_suffix),
+		bytes = throw_err_suffix_bytes,
+	})
+	delete(offset_buf_throw_suffix)
 
 	delete(env.type_map)
 	delete(env.func_map)

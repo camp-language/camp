@@ -330,6 +330,7 @@ CExpr_For :: struct {
 }
 
 CExpr_Par :: struct {
+	names:       [dynamic]base.Intern_ID, // field names for par { name: expr, ... }
 	expressions: [dynamic]CExpr,  // for par { e1, e2 }
 	for_var:     base.Intern_ID,      // 0 if not par-for
 	for_iter:    CExpr,          // the xs in "par for x in xs"

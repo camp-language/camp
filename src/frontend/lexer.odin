@@ -636,6 +636,12 @@ lexer_lex_identifier :: proc(l: ^Lexer, start: int) -> base.Token {
 			l.pos += 1
 			bang_count += 1
 		}
+		// Double ! suffix is not allowed (e.g. main!! is invalid)
+		// Only check if we already absorbed one ! (bang_count > 0)
+		if bang_count > 0 && l.pos < len(l.source) && l.source[l.pos] == '!' {
+			diagnostics.collector_add_diag(l.collector, diagnostics.diag_double_bang_suffix(lexer_make_span(l, l.pos)))
+			l.pos += 1 // skip the extra ! to avoid cascading errors
+		}
 	}
 
 	text := l.source[start:l.pos]

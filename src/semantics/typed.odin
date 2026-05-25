@@ -376,6 +376,7 @@ TExpr_For :: struct {
 }
 
 TExpr_Par :: struct {
+	names:       [dynamic]base.Intern_ID, // field names for par { name: expr, ... }
 	expressions: [dynamic]TExpr,
 	for_var:     base.Intern_ID,
 	for_iter:    TExpr,

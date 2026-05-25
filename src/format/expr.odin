@@ -748,8 +748,25 @@ format_expr_par :: proc(e: ^frontend.Expr_Par, info: ^Format_Source_Info, intern
 		append(&parts, doc_nest(4, format_expr(e.for_body, info, interner)))
 		append(&parts, doc_line())
 		append(&parts, doc_text("}"))
+	} else if len(e.names) > 0 {
+		// par { name: expr, name2: expr2 }
+		append(&parts, doc_text("par {"))
+		append(&parts, doc_line())
+		entry_parts: [dynamic]Doc
+		for idx in 0..<len(e.names) {
+			if idx > 0 {
+				append(&entry_parts, doc_text(","))
+				append(&entry_parts, doc_line())
+			}
+			append(&entry_parts, doc_text(base.intern_get(interner, e.names[idx])))
+			append(&entry_parts, doc_text(": "))
+			append(&entry_parts, format_expr(e.expressions[idx], info, interner))
+		}
+		append(&parts, doc_nest(4, doc_concat(entry_parts[:])))
+		append(&parts, doc_line())
+		append(&parts, doc_text("}"))
 	} else {
-		// par { e1, e2, e3 }
+		// par { e1, e2, e3 } (unnamed, legacy)
 		append(&parts, doc_text("par {"))
 		append(&parts, doc_line())
 		append(&parts, doc_nest(4, format_exprs_comma_multiline_inner(e.expressions[:], info, interner)))

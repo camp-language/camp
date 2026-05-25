@@ -1356,12 +1356,38 @@ parser_parse_par :: proc(p: ^Parser) -> Expr {
 		e.for_body = parser_parse_expr(p)
 		parser_expect(p, .RBrace)
 	} else {
-		// par { e1, e2, e3 }
+		// par { name: expr, name2: expr2, ... }
+		// Per syntax recipe, par entries must be named.
 		parser_expect(p, .LBrace)
 		e.expressions = make([dynamic]Expr, 0, 4)
+		e.names = make([dynamic]base.Intern_ID, 0, 4)
 		for p.current.kind != .RBrace && p.current.kind != .Eof {
-			expr := parser_parse_expr(p)
-			append(&e.expressions, expr)
+			if p.current.kind == .Identifier {
+				// Peek: save current, advance to check for ':'
+				name_tok := p.current
+				next_tok := lexer_next(p.lexer)
+				p.current = next_tok
+				if next_tok.kind == .Colon {
+					// Named entry: name: expr
+					parser_advance(p)  // consume ':'
+					expr := parser_parse_expr(p)
+					append(&e.names, base.intern(p.intern, name_tok.text))
+					append(&e.expressions, expr)
+				} else {
+					// Unnamed entry — error per syntax recipe
+					diagnostics.collector_add_diag(p.collector, diagnostics.diag_par_entry_must_be_named(name_tok.span))
+					// Build identifier expr from name_tok and parse the rest as an expression
+					ident := new(Expr_Identifier)
+					ident^ = Expr_Identifier{name = base.intern(p.intern, name_tok.text), span = name_tok.span}
+					append(&e.expressions, Expr(ident))
+				}
+			} else {
+				// Non-identifier start — unnamed entry, error
+				span := p.current.span
+				diagnostics.collector_add_diag(p.collector, diagnostics.diag_par_entry_must_be_named(span))
+				expr := parser_parse_expr(p)
+				append(&e.expressions, expr)
+			}
 			if p.current.kind == .Comma {
 				parser_advance(p)
 			}

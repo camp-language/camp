@@ -571,6 +571,11 @@ substitute_types_in_expr :: proc(expr: semantics.TExpr, type_args: map[base.Inte
 			append(&exprs, substitute_types_in_expr(expr, type_args, env))
 		}
 		result.expressions = exprs
+		names := make([dynamic]base.Intern_ID, len(e.names))
+		for idx in 0..<len(e.names) {
+			names[idx] = e.names[idx]
+		}
+		result.names = names
 		return semantics.TExpr(result)
 
 	case ^semantics.TExpr_Nominal_Construct:

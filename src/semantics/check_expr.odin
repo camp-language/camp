@@ -387,6 +387,7 @@ typecheck_record :: proc(e: ^CExpr_Record, env: ^Type_Env, store: ^Type_Store) -
 	link_var(store, var_id, Inferred_Record_Row{
 		record_fields = record_fields,
 		record_rest = record_rest,
+		closed = false,
 	})
 
 	t := new(TExpr_Record)
@@ -410,6 +411,7 @@ typecheck_field_access :: proc(e: ^CExpr_Field_Access, env: ^Type_Env, store: ^T
 	inf := Inferred_Record_Row{
 		record_fields = record_fields,
 		record_rest = resolve_var(store, rest_var),
+		closed = false,
 	}
 	link_var(store, record_result.var_id, inf)
 
@@ -636,21 +638,30 @@ typecheck_method_call :: proc(e: ^CExpr_Method_Call, env: ^Type_Env, store: ^Typ
 
 		is_parallel := effect_name == base.intern(store.interner, "Parallel!")
 		if is_parallel {
-			spawn_effect_name := base.intern(store.interner, "Spawn!")
-			spawn_effect_entries := store_alloc(store, Effect_Row_Entry, 1)
-			spawn_effect_entries[0] = Effect_Row_Entry{name = spawn_effect_name, type_args = {}}
-			spawn_rest := fresh_effect_row(store, e.span)
-			spawn_row := fresh_effect_row(store, e.span)
-			link_var(store, spawn_row, Inferred_Effect_Row{
-				effects = spawn_effect_entries,
-				rest_id = spawn_rest,
+			// Effect row for Parallel! operations: Parallel! | (callback effects)
+			parallel_effect_entries := store_alloc(store, Effect_Row_Entry, 1)
+			parallel_effect_entries[0] = Effect_Row_Entry{name = effect_name, type_args = {}}
+			parallel_rest := fresh_effect_row(store, e.span)
+			parallel_row := fresh_effect_row(store, e.span)
+			link_var(store, parallel_row, Inferred_Effect_Row{
+				effects = parallel_effect_entries,
+				rest_id = parallel_rest,
 			})
-			unify(store, eff, spawn_row)
+			unify(store, eff, parallel_row)
 
 			for a in e.args {
 				arg_result := typecheck_synth(a, env, store)
 				unify(store, eff, arg_result.effects)
 				append(&args_t, arg_result.texpr)
+
+				// Propagate callback's effect row to caller
+				arg_resolved := resolve_var(store, arg_result.var_id)
+				arg_var := store.vars[int(arg_resolved)]
+				if inf, is_inf := arg_var.link.(Inferred_Type); is_inf {
+					if fn_inf, fn_ok := inf.(Inferred_Function); fn_ok {
+						unify(store, eff, fn_inf.effect_id)
+					}
+				}
 			}
 
 			map_name := base.intern(store.interner, "map!")

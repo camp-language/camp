@@ -453,10 +453,11 @@ Expr_For :: struct {
 }
 
 Expr_Par :: struct {
-	expressions: [dynamic]Expr,  // for par { e1, e2 }
-	for_var:     base.Intern_ID,      // 0 if not par-for
-	for_iter:    Expr,            // the xs in "par for x in xs"
-	for_body:    Expr,            // the body in "par for x in xs { body }"
+	names:       [dynamic]base.Intern_ID, // field names for par { name: expr, ... }
+	expressions: [dynamic]Expr,          // for par { e1, e2 }
+	for_var:     base.Intern_ID,         // 0 if not par-for
+	for_iter:    Expr,                   // the xs in "par for x in xs"
+	for_body:    Expr,                   // the body in "par for x in xs { body }"
 	span:        base.Source_Span,
 }
 

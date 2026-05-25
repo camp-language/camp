@@ -436,6 +436,20 @@ unify_record_rows :: proc(store: ^Type_Store, a: Inferred_Record_Row, b: Inferre
 		}
 	}
 
+	// Closed records reject extra fields on the other side
+	if a.closed && len(b_only) > 0 {
+		type_a_str := format_inferred_type(store, Inferred_Record_Row{record_fields = a.record_fields, record_rest = a.record_rest, closed = a.closed})
+		type_b_str := format_inferred_type(store, Inferred_Record_Row{record_fields = b.record_fields, record_rest = b.record_rest, closed = b.closed})
+		diagnostics.collector_add_diag(store.collector, diagnostics.diag_type_mismatch(type_a_str, type_b_str, base.Source_Span_ZERO, base.Source_Span_ZERO))
+		return false
+	}
+	if b.closed && len(a_only) > 0 {
+		type_a_str := format_inferred_type(store, Inferred_Record_Row{record_fields = a.record_fields, record_rest = a.record_rest, closed = a.closed})
+		type_b_str := format_inferred_type(store, Inferred_Record_Row{record_fields = b.record_fields, record_rest = b.record_rest, closed = b.closed})
+		diagnostics.collector_add_diag(store.collector, diagnostics.diag_type_mismatch(type_a_str, type_b_str, base.Source_Span_ZERO, base.Source_Span_ZERO))
+		return false
+	}
+
 	if len(a_only) == 0 && len(b_only) == 0 {
 		return unify(store, a.record_rest, b.record_rest)
 	}
@@ -450,6 +464,7 @@ unify_record_rows :: proc(store: ^Type_Store, a: Inferred_Record_Row, b: Inferre
 		rem_type := Inferred_Record_Row{
 			record_fields = fields,
 			record_rest = shared_rest,
+			closed = false,
 		}
 		rem_var := fresh_record_row(store, base.Source_Span_ZERO)
 		link_var(store, rem_var, rem_type)
@@ -470,6 +485,7 @@ unify_record_rows :: proc(store: ^Type_Store, a: Inferred_Record_Row, b: Inferre
 		rem_type := Inferred_Record_Row{
 			record_fields = fields,
 			record_rest = shared_rest,
+			closed = false,
 		}
 		rem_var := fresh_record_row(store, base.Source_Span_ZERO)
 		link_var(store, rem_var, rem_type)

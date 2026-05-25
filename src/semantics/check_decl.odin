@@ -557,7 +557,7 @@ convert_ctype_self_aware :: proc(t: CType, self_var: base.Type_Var_ID, store: ^T
 	case ^CType_Self:
 		return self_var
 	case ^CType_Primitive, ^CType_Applied, ^CType_Function, ^CType_Record, ^CType_Tag_Union, ^CType_Effect_Row, ^CType_Variable, ^CType_Wildcard:
-		return convert_type_to_var_val(t, store, env)
+		return convert_type_to_var_val(t, store, env, closed = true)
 	}
 	return fresh_value_var(store, base.Source_Span_ZERO)
 }

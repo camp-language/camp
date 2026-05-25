@@ -611,6 +611,39 @@ typecheck_synth :: proc(expr: CExpr, env: ^Type_Env, store: ^Type_Store) -> Synt
 			return Synth_Result{var_id = var_id, effects = eff, texpr = TExpr(t)}
 		}
 
+		// Named par { name: expr, ... } — infer heterogeneous record type
+		if len(e.names) > 0 {
+			exprs := make([dynamic]TExpr, 0, len(e.expressions))
+			field_entries := make([dynamic]Type_Field_Entry, 0, len(e.names))
+			for idx in 0..<len(e.expressions) {
+				result := typecheck_synth(e.expressions[idx], env, store)
+				unify(store, eff, result.effects)
+				append(&exprs, result.texpr)
+				append(&field_entries, Type_Field_Entry{name = e.names[idx], var = result.var_id})
+			}
+
+			// Build record type: { name: T1, name2: T2, ... }
+			record_rest := fresh_record_row(store, e.span)
+			record_var_id := fresh_value_var(store, e.span)
+			link_var(store, record_var_id, Inferred_Record_Row{
+				record_fields = field_entries[:],
+				record_rest = record_rest,
+				closed = false,
+			})
+
+			t := new(TExpr_Par)
+			type_ir, eff_ir := type_eff_pair(store, record_var_id, eff)
+			t^ = TExpr_Par{
+				names = e.names,
+				expressions = exprs,
+				type_ = type_ir,
+				eff_ = eff_ir,
+				span = e.span,
+			}
+			return Synth_Result{var_id = record_var_id, effects = eff, texpr = TExpr(t)}
+		}
+
+		// Unnamed par { e1, e2 } — homogeneous (legacy, should error at parse)
 		exprs := make([dynamic]TExpr, 0, len(e.expressions))
 		last_var_id: base.Type_Var_ID = var_id
 		for expr in e.expressions {
@@ -684,7 +717,7 @@ convert_type_to_var :: proc(t: ^CType, store: ^Type_Store, env: ^Type_Env) -> ba
 	return convert_type_to_var_val(t^, store, env)
 }
 
-convert_type_to_var_val :: proc(t: CType, store: ^Type_Store, env: ^Type_Env) -> base.Type_Var_ID {
+convert_type_to_var_val :: proc(t: CType, store: ^Type_Store, env: ^Type_Env, closed: bool = false) -> base.Type_Var_ID {
 	switch ty in t {
 	case ^CType_Primitive:
 		return make_primitive_type(store, ty.name, ty.span)
@@ -705,9 +738,9 @@ convert_type_to_var_val :: proc(t: CType, store: ^Type_Store, env: ^Type_Env) ->
 		ft := ty
 		param_ids := store_alloc(store, base.Type_Var_ID, len(ft.params))
 		for i in 0..<len(ft.params) {
-			param_ids[i] = convert_type_to_var_val(ft.params[i], store, env)
+			param_ids[i] = convert_type_to_var_val(ft.params[i], store, env, closed = true)
 		}
-		return_id := convert_type_to_var_val(ft.return_, store, env)
+		return_id := convert_type_to_var_val(ft.return_, store, env, closed = true)
 		effect_id := fresh_effect_row(store, ft.span)
 		if ft.effects != nil {
 			effect_id = convert_type_to_var(ft.effects, store, env)
@@ -746,7 +779,7 @@ convert_type_to_var_val :: proc(t: CType, store: ^Type_Store, env: ^Type_Env) ->
 		for i in 0..<len(rt.fields) {
 			record_fields[i] = Type_Field_Entry{
 				name = rt.fields[i].name,
-				var  = convert_type_to_var_val(rt.fields[i].type, store, env),
+				var  = convert_type_to_var_val(rt.fields[i].type, store, env, closed),
 			}
 		}
 		record_rest := fresh_record_row(store, rt.span)
@@ -754,6 +787,7 @@ convert_type_to_var_val :: proc(t: CType, store: ^Type_Store, env: ^Type_Env) ->
 		link_var(store, vid, Inferred_Record_Row{
 			record_fields = record_fields,
 			record_rest = record_rest,
+			closed = closed,
 		})
 		return vid
 
@@ -895,6 +929,7 @@ instantiate_rec :: proc(store: ^Type_Store, var_id: base.Type_Var_ID, subst: ^ma
 		link_var(store, vid, Inferred_Record_Row{
 			record_fields = record_fields,
 			record_rest = record_rest,
+			closed = f.closed,
 		})
 		return vid
 
@@ -1023,6 +1058,7 @@ deep_clone_type :: proc(store: ^Type_Store, id: base.Type_Var_ID, span: base.Sou
 		link_var(store, fresh, Inferred_Record_Row{
 			record_fields = record_fields,
 			record_rest = record_rest,
+			closed = f.closed,
 		})
 		subst[resolved] = fresh
 		return fresh

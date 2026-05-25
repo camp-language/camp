@@ -100,6 +100,7 @@ typecheck_pattern :: proc(pattern: CPattern, scrutinee_var: base.Type_Var_ID, en
 		link_var(store, rec_var, Inferred_Record_Row{
 			record_fields = field_entries,
 			record_rest = resolve_var(store, rest_var),
+			closed = false,
 		})
 		unify(store, scrutinee_var, rec_var)
 		tp := new(TPattern_Record)

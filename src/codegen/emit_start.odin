@@ -121,7 +121,7 @@ emit_start_function :: proc(
 							for op_idx in 0..<len(eff_def.operations) {
 								op_name := base.intern_get(env.interner, eff_def.operations[op_idx].name)
 								if op_name == "throw!" {
-									throw_handler_idx, throw_code := emit_throw_handler_fn(env, runtime_func_indices[:])
+									throw_handler_idx, throw_code := emit_throw_handler_fn(env, runtime_func_indices[:], env.throw_err_msg_offset, env.throw_err_suffix_offset)
 									append(deferred_handler_codes, throw_code)
 									emit_handler_into_evidence(&code_buf, env, ev_local_idx, slot_offset, throw_handler_idx, runtime_func_indices[:])
 								}

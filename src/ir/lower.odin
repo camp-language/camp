@@ -302,6 +302,28 @@ lower_texpr :: proc(expr: semantics.TExpr, env: ^Lower_Env) -> IR_Expr {
 			}
 			return IR_Expr(loop)
 		}
+
+		// Named par { name: expr, ... } — lower to IR_Construct_Record
+		if len(e.names) > 0 {
+			fields := make([dynamic]IR_Record_Field, 0, len(e.names))
+			for idx in 0..<len(e.names) {
+				append(&fields, IR_Record_Field{
+					name  = e.names[idx],
+					value = lower_texpr(e.expressions[idx], env),
+				})
+			}
+			record := new(IR_Construct_Record)
+			record^ = IR_Construct_Record{
+				fields     = fields,
+				rest       = nil,
+				reuse_addr = NO_REUSE_ADDR,
+				type       = e.type_,
+				span       = e.span,
+			}
+			return IR_Expr(record)
+		}
+
+		// Unnamed par (legacy) — lower as block
 		stmts := make([dynamic]IR_Expr, 0, len(e.expressions))
 		for expr in e.expressions {
 			append(&stmts, lower_texpr(expr, env))

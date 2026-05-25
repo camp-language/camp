@@ -151,6 +151,7 @@ Runtime_Func :: enum {
 	List_Push,
 	List_Len,
 	List_Get,
+	List_Grow,
 	Str_Len,
 	Str_Eq,
 	Async_Init,
@@ -176,6 +177,7 @@ Runtime_Func :: enum {
 	Parallel_Filter,
 	Parallel_For_Each,
 	Str_Concat,
+	Str_Slice,
 	I64_To_Str,
 	I32_To_Str,
 	F64_To_Str,
@@ -1547,7 +1549,7 @@ emit_handler_into_evidence :: proc(buf: ^[dynamic]u8, env: ^Codegen_Env, ev_loca
 	emit_store_for_type(.I32, buf)                           // store closure_ptr at [ev_ptr + slot_offset]
 }
 
-emit_throw_handler_fn :: proc(env: ^Codegen_Env, runtime_indices: []int) -> (int, Wasm_Code) {
+emit_throw_handler_fn :: proc(env: ^Codegen_Env, runtime_indices: []int, throw_err_msg_offset: u32, throw_err_suffix_offset: u32) -> (int, Wasm_Code) {
 	// Handler type: (i32=env, i32=err_arg, i32=resume, i32=ev) -> i64
 	handler_type_idx := get_or_create_type(env, []Wasm_Value_Type{.I32, .I32, .I32, .I32}, []Wasm_Value_Type{.I64})
 	handler_fn_idx := add_function(env, handler_type_idx)
@@ -1558,15 +1560,64 @@ emit_throw_handler_fn :: proc(env: ^Codegen_Env, runtime_indices: []int) -> (int
 	env.func_type_indices[handler_fn_idx] = u32(handler_type_idx)
 
 	buf: [dynamic]u8
-	buf = make([dynamic]u8, 0, CODE_BUF_MINOR)
+	buf = make([dynamic]u8, 0, CODE_BUF_MODERATE)
 
-	// Call camp_exit(1)
+	// Allocate a local to hold the tag-as-string pointer
+	// locals: 0=env, 1=err_arg, 2=resume, 3=ev, 4=tag_str_ptr
+	locals := make([]Wasm_Local_Decl, 1)
+	locals[0] = Wasm_Local_Decl{count = 1, type = .I32}
+
+	// Write "Error: unhandled exception (tag=" to stderr
+	emit_instruction(Wasm_I32_Const{value = 4096}, &buf)
+	emit_instruction(Wasm_I32_Const{value = i32(throw_err_msg_offset)}, &buf)
+	emit_instruction(Wasm_I32_Store{align = 2, offset = 0}, &buf)
+	emit_instruction(Wasm_I32_Const{value = 4100}, &buf)
+	emit_instruction(Wasm_I32_Const{value = i32(len("Error: unhandled exception (tag="))}, &buf)
+	emit_instruction(Wasm_I32_Store{align = 2, offset = 0}, &buf)
+
+	emit_instruction(Wasm_I32_Const{value = 2}, &buf)  // fd=2 (stderr)
+	emit_instruction(Wasm_I32_Const{value = 4096}, &buf)  // iovs
+	emit_instruction(Wasm_I32_Const{value = 1}, &buf)  // iovs_len
+	emit_instruction(Wasm_I32_Const{value = 0}, &buf)  // nwritten
+	emit_instruction(Wasm_Call{index = 1}, &buf)  // fd_write
+	emit_instruction(Wasm_Drop{}, &buf)
+
+	// Convert tag value (local 1 = err_arg) to string via I64_To_Str
+	emit_instruction(Wasm_Local_Get{index = 1}, &buf)  // err_arg (i32)
+	emit_instruction(Wasm_I64_Extend_I32_S{}, &buf)  // sign-extend to i64
+	emit_instruction(Wasm_Call{index = u32(runtime_indices[Runtime_Func.I64_To_Str])}, &buf)
+	emit_instruction(Wasm_Local_Set{index = 4}, &buf)  // store tag_str_ptr in local 4
+
+	// Print the tag string to stderr using Print_Err(str_ptr+4, len)
+	// String layout: [len:4][data...], so data starts at ptr+4
+	emit_instruction(Wasm_Local_Get{index = 4}, &buf)  // tag_str_ptr
+	emit_instruction(Wasm_I32_Const{value = 4}, &buf)
+	emit_instruction(Wasm_I32_Add{}, &buf)  // data_ptr = tag_str_ptr + 4
+	emit_instruction(Wasm_Local_Get{index = 4}, &buf)  // tag_str_ptr
+	emit_instruction(Wasm_I32_Load{align = 2, offset = 0}, &buf)  // len = [tag_str_ptr]
+	emit_instruction(Wasm_Call{index = u32(runtime_indices[Runtime_Func.Print_Err])}, &buf)
+
+	// Write ")\n" to stderr
+	emit_instruction(Wasm_I32_Const{value = 4096}, &buf)
+	emit_instruction(Wasm_I32_Const{value = i32(throw_err_suffix_offset)}, &buf)
+	emit_instruction(Wasm_I32_Store{align = 2, offset = 0}, &buf)
+	emit_instruction(Wasm_I32_Const{value = 4100}, &buf)
+	emit_instruction(Wasm_I32_Const{value = i32(len(")\n"))}, &buf)
+	emit_instruction(Wasm_I32_Store{align = 2, offset = 0}, &buf)
+
+	emit_instruction(Wasm_I32_Const{value = 2}, &buf)
+	emit_instruction(Wasm_I32_Const{value = 4096}, &buf)
+	emit_instruction(Wasm_I32_Const{value = 1}, &buf)
+	emit_instruction(Wasm_I32_Const{value = 0}, &buf)
+	emit_instruction(Wasm_Call{index = 1}, &buf)
+	emit_instruction(Wasm_Drop{}, &buf)
+
+	// proc_exit(1)
 	emit_instruction(Wasm_I32_Const{value = 1}, &buf)
 	emit_instruction(Wasm_Call{index = u32(runtime_indices[Runtime_Func.Exit])}, &buf)
 	emit_instruction(Wasm_Unreachable{}, &buf)
 	emit_instruction(Wasm_End{}, &buf)
 
-	locals := make([]Wasm_Local_Decl, 0)
 	code := Wasm_Code{locals = locals, body = copy_dynamic_bytes(buf)}
 	delete(buf)
 

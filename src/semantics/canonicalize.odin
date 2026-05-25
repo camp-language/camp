@@ -435,6 +435,7 @@ canonicalize_expr :: proc(expr: frontend.Expr, scope: ^Canonicalize_Scope, inter
 		for a in e.args {
 			append(&args, canonicalize_expr(a, scope, interner, collector))
 		}
+
 		c := new(CExpr_Call)
 		c^ = CExpr_Call{callee = ccallee, args = args, span = e.span}
 		return c
@@ -702,36 +703,25 @@ canonicalize_expr :: proc(expr: frontend.Expr, scope: ^Canonicalize_Scope, inter
 			perform^ = CExpr_Perform{effect = parallel_name, op = for_each_op, args = args, span = e.span}
 			return perform
 		} else {
-			// par { e1, e2, e3 } → Parallel!.all!([|| e1, || e2, || e3])
-			lambda_exprs := make([dynamic]CExpr, 0, len(e.expressions))
+			// par { name: expr, ... } — keep as CExpr_Par with names
+			// The typechecker will infer a heterogeneous record type
+			cexprs := make([dynamic]CExpr, 0, len(e.expressions))
 			for expr in e.expressions {
-				cexpr := canonicalize_expr(expr, scope, interner, collector)
-				lambda := new(CExpr_Lambda)
-				lambda^ = CExpr_Lambda{
-					type_params = make([dynamic]frontend.Type_Param, 0),
-					params = make([dynamic]CFunc_Param, 0),
-					return_type = nil,
-					effects = nil,
-					where_clauses = make([dynamic]frontend.Where_Clause, 0),
-					body = cexpr,
-					span = e.span,
-				}
-				append(&lambda_exprs, lambda)
+				append(&cexprs, canonicalize_expr(expr, scope, interner, collector))
 			}
 
-			// Create list of lambdas
-			list_expr := new(CExpr_List)
-			list_expr^ = CExpr_List{elements = lambda_exprs, span = e.span}
+			cnames := make([dynamic]base.Intern_ID, len(e.names))
+			for idx in 0..<len(e.names) {
+				cnames[idx] = e.names[idx]
+			}
 
-			// Create perform: Parallel!.all!(list)
-			parallel_name := base.Canonical_Name{module = base.NO_NAME, name = base.intern(interner, "Parallel"), is_local = true}
-			all_op := base.intern(interner, "all!")
-			args := make([dynamic]CExpr, 0, 1)
-			append(&args, list_expr)
-
-			perform := new(CExpr_Perform)
-			perform^ = CExpr_Perform{effect = parallel_name, op = all_op, args = args, span = e.span}
-			return perform
+			par := new(CExpr_Par)
+			par^ = CExpr_Par{
+				names = cnames,
+				expressions = cexprs,
+				span = e.span,
+			}
+			return par
 		}
 
 	case ^frontend.Expr_For:

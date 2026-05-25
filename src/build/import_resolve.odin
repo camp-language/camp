@@ -361,6 +361,7 @@ resolve_expr_names :: proc(expr: semantics.CExpr, scope: ^Import_Scope, export_t
 				resolve_expr_names(expr, scope, export_tables, interner, collector)
 			}
 		}
+		// names are Intern_IDs, no name resolution needed
 
 	case ^semantics.CExpr_For:
 		resolve_expr_names(e.iterable, scope, export_tables, interner, collector)

@@ -406,11 +406,26 @@ emit_camp_list_alloc_body :: proc(alloc_func_idx: int) -> Wasm_Code {
 	return Wasm_Code{locals = locals, body = body}
 }
 
-emit_camp_list_push_body :: proc() -> Wasm_Code {
+emit_camp_list_push_body :: proc(list_grow_func_idx: int) -> Wasm_Code {
+	// Push element to list. Grows capacity if full.
+	// Params: (list_ptr: i32, value: i32) -> i32 (returns list_ptr)
+	// List layout: [len:4][capacity:4][data_ptr:4]
 	buf: [dynamic]u8
 	buf = make([dynamic]u8, 0, CODE_BUF_MODERATE)
 
-	// data_ptr + len * 8
+	// Check if len >= capacity — if so, grow
+	emit_instruction(Wasm_Local_Get{index = 0}, &buf)
+	emit_instruction(Wasm_I32_Load{align = 2, offset = 0}, &buf)
+	emit_instruction(Wasm_Local_Get{index = 0}, &buf)
+	emit_instruction(Wasm_I32_Load{align = 2, offset = 4}, &buf)
+	emit_instruction(Wasm_I32_Ge_U{}, &buf)
+	emit_instruction(Wasm_If{block_type = .Void}, &buf)
+	emit_instruction(Wasm_Local_Get{index = 0}, &buf)
+	emit_instruction(Wasm_Call{index = u32(list_grow_func_idx)}, &buf)
+	emit_instruction(Wasm_Drop{}, &buf)
+	emit_instruction(Wasm_End{}, &buf)
+
+	// Store value at data_ptr + len * 8
 	emit_instruction(Wasm_Local_Get{index = 0}, &buf)
 	emit_instruction(Wasm_I32_Load{align = 2, offset = 8}, &buf)
 
@@ -423,6 +438,7 @@ emit_camp_list_push_body :: proc() -> Wasm_Code {
 	emit_instruction(Wasm_Local_Get{index = 1}, &buf)
 	emit_instruction(Wasm_I32_Store{align = 2, offset = 0}, &buf)
 
+	// Increment length
 	emit_instruction(Wasm_Local_Get{index = 0}, &buf)
 	emit_instruction(Wasm_Local_Get{index = 0}, &buf)
 	emit_instruction(Wasm_I32_Load{align = 2, offset = 0}, &buf)
@@ -430,6 +446,7 @@ emit_camp_list_push_body :: proc() -> Wasm_Code {
 	emit_instruction(Wasm_I32_Add{}, &buf)
 	emit_instruction(Wasm_I32_Store{align = 2, offset = 0}, &buf)
 
+	// Return list_ptr
 	emit_instruction(Wasm_Local_Get{index = 0}, &buf)
 	emit_instruction(Wasm_End{}, &buf)
 
@@ -464,21 +481,121 @@ emit_camp_list_len_body :: proc() -> Wasm_Code {
 }
 
 emit_camp_list_get_body :: proc() -> Wasm_Code {
+	// Get element at index from list.
+	// Params: (list_ptr: i32, index: i32) -> i32
+	// List layout: [len:4][capacity:4][data_ptr:4][data...]
+	// Bounds check: if index >= length, trap
 	buf: [dynamic]u8
-	buf = make([dynamic]u8, 0, CODE_BUF_MINOR)
+	buf = make([dynamic]u8, 0, CODE_BUF_MODERATE)
 
+	// Bounds check: if index >= length, unreachable
+	emit_instruction(Wasm_Local_Get{index = 1}, &buf)
+	emit_instruction(Wasm_Local_Get{index = 0}, &buf)
+	emit_instruction(Wasm_I32_Load{align = 2, offset = 0}, &buf)
+	emit_instruction(Wasm_I32_Ge_U{}, &buf)
+	emit_instruction(Wasm_If{block_type = .Void}, &buf)
+	emit_instruction(Wasm_Unreachable{}, &buf)
+	emit_instruction(Wasm_End{}, &buf)
+
+	// Load data_ptr
 	emit_instruction(Wasm_Local_Get{index = 0}, &buf)
 	emit_instruction(Wasm_I32_Load{align = 2, offset = 8}, &buf)
 
+	// Add index * 8
 	emit_instruction(Wasm_Local_Get{index = 1}, &buf)
 	emit_instruction(Wasm_I32_Const{value = 8}, &buf)
 	emit_instruction(Wasm_I32_Mul{}, &buf)
 	emit_instruction(Wasm_I32_Add{}, &buf)
 
+	// Load value
 	emit_instruction(Wasm_I32_Load{align = 2, offset = 0}, &buf)
 	emit_instruction(Wasm_End{}, &buf)
 
 	locals := make([]Wasm_Local_Decl, 0)
+
+	body := make([]u8, len(buf))
+	for b, i in buf {
+		body[i] = b
+	}
+	delete(buf)
+
+	return Wasm_Code{locals = locals, body = body}
+}
+
+emit_camp_list_grow_body :: proc(alloc_func_idx: int, dealloc_func_idx: int) -> Wasm_Code {
+	// Grow list capacity when full. Doubles capacity, copies data.
+	// Params: (list_ptr: i32) -> i32 (returns list_ptr)
+	// List layout: [len:4][capacity:4][data_ptr:4]
+	// Locals: 1=old_cap, 2=new_cap, 3=new_data_ptr, 4=old_data_ptr
+	buf: [dynamic]u8
+	buf = make([dynamic]u8, 0, CODE_BUF_MODERATE)
+
+	// Load old capacity
+	emit_instruction(Wasm_Local_Get{index = 0}, &buf)
+	emit_instruction(Wasm_I32_Load{align = 2, offset = 4}, &buf)
+	emit_instruction(Wasm_Local_Tee{index = 1}, &buf)
+
+	// new_cap = old_cap * 2 (or 4 if old_cap was 0)
+	emit_instruction(Wasm_I32_Const{value = 2}, &buf)
+	emit_instruction(Wasm_I32_Mul{}, &buf)
+	emit_instruction(Wasm_Local_Tee{index = 2}, &buf)
+
+	// If new_cap == 0, set to 4
+	emit_instruction(Wasm_I32_Eqz{}, &buf)
+	emit_instruction(Wasm_If{block_type = .Void}, &buf)
+	emit_instruction(Wasm_I32_Const{value = 4}, &buf)
+	emit_instruction(Wasm_Local_Set{index = 2}, &buf)
+	emit_instruction(Wasm_End{}, &buf)
+
+	// Allocate new data block: new_cap * 8 bytes
+	emit_instruction(Wasm_Local_Get{index = 2}, &buf)
+	emit_instruction(Wasm_I32_Const{value = 8}, &buf)
+	emit_instruction(Wasm_I32_Mul{}, &buf)
+	emit_instruction(Wasm_Call{index = u32(alloc_func_idx)}, &buf)
+	emit_instruction(Wasm_Local_Set{index = 3}, &buf)
+
+	// Load old data_ptr
+	emit_instruction(Wasm_Local_Get{index = 0}, &buf)
+	emit_instruction(Wasm_I32_Load{align = 2, offset = 8}, &buf)
+	emit_instruction(Wasm_Local_Tee{index = 4}, &buf)
+
+	// memory.copy(new_data_ptr, old_data_ptr, old_cap * 8)
+	emit_instruction(Wasm_Local_Get{index = 3}, &buf)
+
+	emit_instruction(Wasm_Local_Get{index = 4}, &buf)
+
+	emit_instruction(Wasm_Local_Get{index = 1}, &buf)
+	emit_instruction(Wasm_I32_Const{value = 8}, &buf)
+	emit_instruction(Wasm_I32_Mul{}, &buf)
+
+	emit_instruction(Wasm_Memory_Copy{}, &buf)
+
+	// Dealloc old data block: dealloc(old_data_ptr, old_cap * 8)
+	emit_instruction(Wasm_Local_Get{index = 4}, &buf)
+	emit_instruction(Wasm_Local_Get{index = 1}, &buf)
+	emit_instruction(Wasm_I32_Const{value = 8}, &buf)
+	emit_instruction(Wasm_I32_Mul{}, &buf)
+	emit_instruction(Wasm_Call{index = u32(dealloc_func_idx)}, &buf)
+
+	// Update data_ptr
+	emit_instruction(Wasm_Local_Get{index = 0}, &buf)
+	emit_instruction(Wasm_Local_Get{index = 3}, &buf)
+	emit_instruction(Wasm_I32_Store{align = 2, offset = 8}, &buf)
+
+	// Update capacity
+	emit_instruction(Wasm_Local_Get{index = 0}, &buf)
+	emit_instruction(Wasm_Local_Get{index = 2}, &buf)
+	emit_instruction(Wasm_I32_Store{align = 2, offset = 4}, &buf)
+
+	// Return list_ptr
+	emit_instruction(Wasm_Local_Get{index = 0}, &buf)
+	emit_instruction(Wasm_End{}, &buf)
+
+	locals := make([]Wasm_Local_Decl, 4)
+	locals[0] = Wasm_Local_Decl{count = 1, type = .I32} // old_cap
+	locals[1] = Wasm_Local_Decl{count = 1, type = .I32} // new_cap
+	locals[2] = Wasm_Local_Decl{count = 1, type = .I32} // new_data_ptr
+	locals[3] = Wasm_Local_Decl{count = 1, type = .I32} // old_data_ptr
 
 	body := make([]u8, len(buf))
 	for b, i in buf {
@@ -509,17 +626,89 @@ emit_camp_str_len_body :: proc() -> Wasm_Code {
 }
 
 emit_camp_str_eq_body :: proc() -> Wasm_Code {
+	// Compare two strings by length then byte-by-byte.
+	// Params: (str_a: i32, str_b: i32) -> i32 (1=equal, 0=not equal)
+	// Locals: 2=len_a, 3=len_b, 4=loop_i, 5=byte_a, 6=byte_b
 	buf: [dynamic]u8
-	buf = make([dynamic]u8, 0, CODE_BUF_DEFAULT)
+	buf = make([dynamic]u8, 0, CODE_BUF_MODERATE)
 
+	// Load len_a and len_b, compare lengths first
 	emit_instruction(Wasm_Local_Get{index = 0}, &buf)
 	emit_instruction(Wasm_I32_Load{align = 2, offset = 0}, &buf)
+	emit_instruction(Wasm_Local_Tee{index = 2}, &buf)
+
 	emit_instruction(Wasm_Local_Get{index = 1}, &buf)
 	emit_instruction(Wasm_I32_Load{align = 2, offset = 0}, &buf)
+	emit_instruction(Wasm_Local_Tee{index = 3}, &buf)
+
 	emit_instruction(Wasm_I32_Eq{}, &buf)
+
+	// If lengths differ, return 0
+	emit_instruction(Wasm_I32_Eqz{}, &buf)
+	emit_instruction(Wasm_Br{label = 1}, &buf)
+
+	// Loop: compare byte by byte
+	// i = 0
+	emit_instruction(Wasm_I32_Const{value = 0}, &buf)
+	emit_instruction(Wasm_Local_Set{index = 4}, &buf)
+
+	// block $break loop $loop
+	emit_instruction(Wasm_Block{block_type = .Void}, &buf)
+	emit_instruction(Wasm_Loop{block_type = .Void}, &buf)
+
+	// if i >= len_a, break (equal)
+	emit_instruction(Wasm_Local_Get{index = 4}, &buf)
+	emit_instruction(Wasm_Local_Get{index = 2}, &buf)
+	emit_instruction(Wasm_I32_Ge_U{}, &buf)
+	emit_instruction(Wasm_Br{label = 2}, &buf)
+
+	// Load byte from str_a: str_a + 4 + i
+	emit_instruction(Wasm_Local_Get{index = 0}, &buf)
+	emit_instruction(Wasm_I32_Const{value = 4}, &buf)
+	emit_instruction(Wasm_I32_Add{}, &buf)
+	emit_instruction(Wasm_Local_Get{index = 4}, &buf)
+	emit_instruction(Wasm_I32_Add{}, &buf)
+	emit_instruction(Wasm_I32_Load8U{align = 0, offset = 0}, &buf)
+	emit_instruction(Wasm_Local_Tee{index = 5}, &buf)
+
+	// Load byte from str_b: str_b + 4 + i
+	emit_instruction(Wasm_Local_Get{index = 1}, &buf)
+	emit_instruction(Wasm_I32_Const{value = 4}, &buf)
+	emit_instruction(Wasm_I32_Add{}, &buf)
+	emit_instruction(Wasm_Local_Get{index = 4}, &buf)
+	emit_instruction(Wasm_I32_Add{}, &buf)
+	emit_instruction(Wasm_I32_Load8U{align = 0, offset = 0}, &buf)
+	emit_instruction(Wasm_Local_Tee{index = 6}, &buf)
+
+	// If bytes differ, return 0 (jump to end of block)
+	emit_instruction(Wasm_I32_Ne{}, &buf)
+	emit_instruction(Wasm_Br{label = 1}, &buf)
+
+	// i++
+	emit_instruction(Wasm_Local_Get{index = 4}, &buf)
+	emit_instruction(Wasm_I32_Const{value = 1}, &buf)
+	emit_instruction(Wasm_I32_Add{}, &buf)
+	emit_instruction(Wasm_Local_Set{index = 4}, &buf)
+
+	// Continue loop
+	emit_instruction(Wasm_Br{label = 0}, &buf)
+	emit_instruction(Wasm_End{}, &buf) // end loop
+	emit_instruction(Wasm_End{}, &buf) // end block
+
+	// Equal: return 1
+	emit_instruction(Wasm_I32_Const{value = 1}, &buf)
+	emit_instruction(Wasm_Return{}, &buf)
+
+	// Not equal: return 0
+	emit_instruction(Wasm_I32_Const{value = 0}, &buf)
 	emit_instruction(Wasm_End{}, &buf)
 
-	locals := make([]Wasm_Local_Decl, 0)
+	locals := make([]Wasm_Local_Decl, 5)
+	locals[0] = Wasm_Local_Decl{count = 1, type = .I32} // len_a
+	locals[1] = Wasm_Local_Decl{count = 1, type = .I32} // len_b
+	locals[2] = Wasm_Local_Decl{count = 1, type = .I32} // loop_i
+	locals[3] = Wasm_Local_Decl{count = 1, type = .I32} // byte_a
+	locals[4] = Wasm_Local_Decl{count = 1, type = .I32} // byte_b
 
 	body := make([]u8, len(buf))
 	for b, i in buf {
@@ -603,6 +792,63 @@ emit_camp_str_concat_body :: proc(alloc_func_idx: int) -> Wasm_Code {
 	locals := make([]Wasm_Local_Decl, 2)
 	locals[0] = Wasm_Local_Decl{count = 1, type = .I32}
 	locals[1] = Wasm_Local_Decl{count = 1, type = .I32}
+
+	body := make([]u8, len(buf))
+	for b, i in buf {
+		body[i] = b
+	}
+	delete(buf)
+
+	return Wasm_Code{locals = locals, body = body}
+}
+
+emit_camp_str_slice_body :: proc(alloc_func_idx: int) -> Wasm_Code {
+	// Slice a string: camp_str_slice(str_ptr, start, end) -> str_ptr
+	// String layout: [len:4][data...]
+	// Returns new string with data from start..end (byte offsets into data)
+	// Locals: 3=slice_len, 4=result_ptr
+	buf: [dynamic]u8
+	buf = make([dynamic]u8, 0, CODE_BUF_MEDIUM)
+
+	// slice_len = end - start
+	emit_instruction(Wasm_Local_Get{index = 2}, &buf)
+	emit_instruction(Wasm_Local_Get{index = 1}, &buf)
+	emit_instruction(Wasm_I32_Sub{}, &buf)
+	emit_instruction(Wasm_Local_Tee{index = 3}, &buf)
+
+	// Allocate slice_len + 4 bytes (4 for length prefix)
+	emit_instruction(Wasm_I32_Const{value = 4}, &buf)
+	emit_instruction(Wasm_I32_Add{}, &buf)
+	emit_instruction(Wasm_Call{index = u32(alloc_func_idx)}, &buf)
+	emit_instruction(Wasm_Local_Set{index = 4}, &buf)
+
+	// Store slice_len at offset 0 of result
+	emit_instruction(Wasm_Local_Get{index = 4}, &buf)
+	emit_instruction(Wasm_Local_Get{index = 3}, &buf)
+	emit_instruction(Wasm_I32_Store{align = 2, offset = 0}, &buf)
+
+	// memory.copy(dest=result+4, src=str_ptr+4+start, len=slice_len)
+	emit_instruction(Wasm_Local_Get{index = 4}, &buf)
+	emit_instruction(Wasm_I32_Const{value = 4}, &buf)
+	emit_instruction(Wasm_I32_Add{}, &buf)
+
+	emit_instruction(Wasm_Local_Get{index = 0}, &buf)
+	emit_instruction(Wasm_I32_Const{value = 4}, &buf)
+	emit_instruction(Wasm_I32_Add{}, &buf)
+	emit_instruction(Wasm_Local_Get{index = 1}, &buf)
+	emit_instruction(Wasm_I32_Add{}, &buf)
+
+	emit_instruction(Wasm_Local_Get{index = 3}, &buf)
+
+	emit_instruction(Wasm_Memory_Copy{}, &buf)
+
+	// Return result pointer
+	emit_instruction(Wasm_Local_Get{index = 4}, &buf)
+	emit_instruction(Wasm_End{}, &buf)
+
+	locals := make([]Wasm_Local_Decl, 2)
+	locals[0] = Wasm_Local_Decl{count = 1, type = .I32} // slice_len
+	locals[1] = Wasm_Local_Decl{count = 1, type = .I32} // result_ptr
 
 	body := make([]u8, len(buf))
 	for b, i in buf {

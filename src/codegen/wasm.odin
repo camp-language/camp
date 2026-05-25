@@ -122,10 +122,15 @@ Wasm_I32_Mul :: struct {}
 Wasm_I64_Mul :: struct {}
 Wasm_I32_Eq :: struct {}
 Wasm_I32_Ne :: struct {}
+Wasm_I32_Eqz :: struct {}
 Wasm_I32_Lt_S :: struct {}
+Wasm_I32_Lt_U :: struct {}
 Wasm_I32_Gt_S :: struct {}
+Wasm_I32_Gt_U :: struct {}
 Wasm_I32_Le_S :: struct {}
+Wasm_I32_Le_U :: struct {}
 Wasm_I32_Ge_S :: struct {}
+Wasm_I32_Ge_U :: struct {}
 Wasm_I64_Eq :: struct {}
 Wasm_I64_Ne :: struct {}
 Wasm_I64_Lt_S :: struct {}
@@ -267,10 +272,15 @@ Wasm_Instruction :: union {
 	Wasm_I64_Mul,
 	Wasm_I32_Eq,
 	Wasm_I32_Ne,
+	Wasm_I32_Eqz,
 	Wasm_I32_Lt_S,
+	Wasm_I32_Lt_U,
 	Wasm_I32_Gt_S,
+	Wasm_I32_Gt_U,
 	Wasm_I32_Le_S,
+	Wasm_I32_Le_U,
 	Wasm_I32_Ge_S,
+	Wasm_I32_Ge_U,
 	Wasm_I64_Eq,
 	Wasm_I64_Ne,
 	Wasm_I64_Lt_S,
@@ -390,14 +400,24 @@ emit_instruction :: proc(instr: Wasm_Instruction, buf: ^[dynamic]u8) {
 		append(buf, 0x46)
 	case Wasm_I32_Ne:
 		append(buf, 0x47)
+	case Wasm_I32_Eqz:
+		append(buf, 0x45)
 	case Wasm_I32_Lt_S:
 		append(buf, 0x48)
-	case Wasm_I32_Gt_S:
+	case Wasm_I32_Lt_U:
 		append(buf, 0x49)
-	case Wasm_I32_Le_S:
+	case Wasm_I32_Gt_S:
 		append(buf, 0x4A)
-	case Wasm_I32_Ge_S:
+	case Wasm_I32_Gt_U:
 		append(buf, 0x4B)
+	case Wasm_I32_Le_S:
+		append(buf, 0x4C)
+	case Wasm_I32_Le_U:
+		append(buf, 0x4D)
+	case Wasm_I32_Ge_S:
+		append(buf, 0x4E)
+	case Wasm_I32_Ge_U:
+		append(buf, 0x4F)
 	case Wasm_I64_Eq:
 		append(buf, 0x51)
 	case Wasm_I64_Ne:
