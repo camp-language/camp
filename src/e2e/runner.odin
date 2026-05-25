@@ -242,11 +242,6 @@ run_test :: proc(test: E2E_Test, update: bool) -> Test_Report {
 	has_wasm := false
 	wasm_available := true
 
-	// Run the produced WASM whenever the build succeeded. Earlier this was
-	// opt-in via `wasm_exit` in the expected file, so most tests never
-	// validated that the WASM actually ran — regressions like a malformed
-	// function/code section count slipped through. Run by default; tests
-	// pin specific behavior with wasm_exit/wasm_stdout/wasm_stderr fields.
 	if exit_code == 0 {
 		has_wasm = true
 		wasm_path: string
