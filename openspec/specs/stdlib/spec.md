@@ -311,6 +311,6 @@ The compiler SHALL embed stdlib `.camp` source files at build time. Stdlib modul
 
 - Given the embedded stdlib
 - When the compiler initializes
-- Then the following stdlib modules SHALL be available: `Result`, `Option`, `Bool`, `Int`, `Str`, `List`, `Iter`, `Map`, `Set`, `Eq`, `Ord`, `Hash`, `Fmt`, `Path`, `Console!`, `Throw!`, `File!`, `Env!`, `Time!`, `Random!`, `Log!`, `Crypto.Random!`, `Bytes`, `Encode`, `Decode`
+- Then the following stdlib modules SHALL be available: `Result`, `Bool`, `Str`, `List`, `Iter`, `Map`, `Set`, `Display`, `Num.I64`, `Num.I32`, `Num.I16`, `Num.I8`, `Num.U64`, `Num.U32`, `Num.U16`, `Num.U8`, `Num.F64`, `Num.F32`, `Bytes`, `Eq`, `Ord`, `Hash`, `Debug`, `Default`, `IntoIter`, `FromIter`, `From`, `TryFrom`, `Console!`, `Throw!`, `File!`, `Env!`, `Time!`, `Random!`, `Log!`, `Path`, `Duration`, `Fmt`
 
 For the complete syntax reference, see `docs/syntax-recipe.md`.
