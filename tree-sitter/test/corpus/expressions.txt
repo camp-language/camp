@@ -40,9 +40,9 @@ x = || -> I64 { 42 }
           (integer))))))
 
 ========
-Paren lambda with effect
+Paren lambda with effect row
 ========
-x = (n) -> {IO} String { n }
+x = (n) -[IO]-> String { n }
 ---
 (source_file
   (const_declaration
@@ -52,11 +52,9 @@ x = (n) -> {IO} String { n }
         (lambda_parameters
           (lambda_parameter
             (identifier)))
-        (record_type
-          (ERROR
-            (type_identifier)))
-        (ERROR
+        (effect_row
           (type_identifier))
+        (type_identifier)
         (block
           (identifier))))))
 
@@ -93,13 +91,13 @@ x = { x: 1, y: 2 }
 ========
 Record spread
 ========
-x = { x: 10 ..p }
+x = { x: 10, ..p }
 ---
 (source_file
   (const_declaration
     (identifier)
     (record_expression
-      (ERROR
+      (record_fields
         (record_field
           (identifier)
           (integer)))
@@ -159,13 +157,31 @@ x = handle IO in body with { .op(r) => r }
   (const_declaration
     (identifier)
     (handle_expression
-      (type_identifier)
+      (handle_effects
+        (type_identifier))
       (identifier)
       (handler_arms
         (handler_arm
           (identifier)
-          (ERROR
-            (identifier))
+          (identifier))))))
+
+========
+Handle expression with multiple effects
+========
+x = handle Console, Throw! in body with { .println!(r) => r }
+---
+
+(source_file
+  (const_declaration
+    (identifier)
+    (handle_expression
+      (handle_effects
+        (type_identifier)
+        (type_identifier))
+      (identifier)
+      (handler_arms
+        (handler_arm
+          (identifier)
           (identifier))))))
 
 ========
@@ -188,6 +204,27 @@ x = crash "oops"
   (const_declaration
     (identifier)
     (crash_expression
+      (string))))
+
+========
+Todo expression
+========
+x = todo
+---
+(source_file
+  (const_declaration
+    (identifier)
+    (todo_expression)))
+
+========
+Todo expression with message
+========
+x = todo "not implemented"
+---
+(source_file
+  (const_declaration
+    (identifier)
+    (todo_expression
       (string))))
 
 ========
@@ -250,6 +287,34 @@ x = .record.field.method(y).name
         (arguments
           (identifier)))
       (identifier))))
+
+========
+UFCS call expression
+========
+x = obj->func(arg)
+---
+(source_file
+  (const_declaration
+    (identifier)
+    (ufcs_call_expression
+      (identifier)
+      (identifier)
+      (arguments
+        (identifier)))))
+
+========
+Anonymous structural field
+========
+x = .(field)(arg)
+---
+(source_file
+  (const_declaration
+    (identifier)
+    (call_expression
+      (anonymous_structural_field
+        (identifier))
+      (arguments
+        (identifier)))))
 
 ========
 Par block

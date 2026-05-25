@@ -1,0 +1,3 @@
+pub main! = || -[Console! | Throw!([..])]-> I64 {
+  todo
+}

@@ -1,0 +1,7 @@
+pub main! = || -[Console! | Throw!([..])]-> I64 {
+  0
+}
+
+test "basic arithmetic" {
+  expect 1 + 1 == 2
+}

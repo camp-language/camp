@@ -1,0 +1,5 @@
+import List { map, filter }
+
+pub main! = || -[Console! | Throw!([..])]-> I64 {
+  0
+}

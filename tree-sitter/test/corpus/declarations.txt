@@ -73,23 +73,46 @@ alias UserId = I64
     (type_identifier)))
 
 ========
-Import declaration
+Import declaration with unqualified names
 ========
-import Std exposing [println, read] as IO
+import Result { [Ok, Err], map }
 ---
 
 (source_file
   (import_declaration
     (type_identifier)
-    (exposed_names
-      (identifier)
-      (identifier))
+    (imported_names
+      (imported_name)
+      (imported_name))))
+
+========
+Import declaration with alias
+========
+import Module as M { foo, bar }
+---
+
+(source_file
+  (import_declaration
+    (type_identifier)
+    (type_identifier)
+    (imported_names
+      (imported_name)
+      (imported_name))))
+
+========
+Import declaration qualified only
+========
+import Module
+---
+
+(source_file
+  (import_declaration
     (type_identifier)))
 
 ========
 Test declaration
 ========
-test "it works" = { 42 }
+test "it works" { 42 }
 ---
 
 (source_file
@@ -111,6 +134,30 @@ expect 1 + 1 == 2
         (integer)
         (integer))
       (integer))))
+
+========
+Is block declaration
+========
+Color is Eq { eq = |self, other| self == other }
+---
+
+(source_file
+  (is_block_declaration
+    (type_identifier)
+    (type_identifier)
+    (block
+      (const_declaration
+        (identifier)
+        (lambda_expression
+          (pipe_lambda
+            (lambda_parameters
+              (lambda_parameter
+                (identifier))
+              (lambda_parameter
+                (identifier)))
+            (binary_expression
+              (identifier)
+              (identifier))))))))
 
 ========
 Newtype declaration simple

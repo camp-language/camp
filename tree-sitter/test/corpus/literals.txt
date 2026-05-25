@@ -29,6 +29,16 @@ x = "hello world"
     (string)))
 
 ========
+Char literal
+========
+x = 'a'
+---
+(source_file
+  (const_declaration
+    (identifier)
+    (char)))
+
+========
 Boolean literal
 ========
 x = true
@@ -70,7 +80,7 @@ x = Ok
     (type_identifier)))
 
 ========
-Tag expression
+Tag expression with arguments
 ========
 x = Ok(42)
 ---
@@ -81,6 +91,17 @@ x = Ok(42)
       (type_identifier)
       (arguments
         (integer)))))
+
+========
+Tag expression without arguments
+========
+x = None
+---
+(source_file
+  (const_declaration
+    (identifier)
+    (tag_expression
+      (type_identifier))))
 
 ========
 List expression empty
@@ -131,44 +152,6 @@ x = "Hello ${name}!"
 Interpolated string multiple holes
 ========
 x = "${a} and ${b}"
----
-
-(source_file
-  (const_declaration
-    (identifier)
-    (string)))
-
-========
-Raw interpolated string
-========
-x = r"C:\${dir}"
----
-
-(source_file
-  (const_declaration
-    (identifier)
-    (interpolated_string
-      (string_content))))
-
-========
-Multiline interpolated string
-========
-x = """Hello
-${name}!"""
----
-
-(source_file
-  (const_declaration
-    (identifier)
-    (interpolated_string
-      (string_content)
-      (identifier)
-      (string_content))))
-
-========
-Interpolated string with nested braces
-========
-x = "${record.{name}}"
 ---
 
 (source_file

@@ -1,10 +1,10 @@
 ;; Keywords
 [
   "if" "else" "match" "effect" "trait" "is" "alias"
-  "handle" "intercept" "with" "import" "exposing"
+  "handle" "with" "import"
   "as" "and" "or" "not" "expect" "test"
-  "return" "crash" "pub" "derives" "par" "for"
-  "unsafe" "alias"
+  "return" "crash" "todo" "pub" "derives" "par" "for"
+  "in"
 ] @keyword
 
 ;; Types
@@ -22,6 +22,12 @@
 
 ;; String
 (string) @string
+
+;; Char
+(char) @string.special
+
+;; Per-line string
+(per_line_string) @string
 
 ;; Interpolated strings
 (interpolated_string) @string
@@ -44,7 +50,7 @@
 [
   "+" "-" "*" "/" "%"
   "==" "!=" "<" ">" "<=" ">="
-  "=" "->" "|"
+  "=" "->" "|" "->"
 ] @operator
 
 ;; Comments
@@ -54,4 +60,5 @@
 [
   "(" ")" "[" "]" "{" "}"
   ":" "," "." ".." "$" "!"
+  "'"
 ] @punctuation

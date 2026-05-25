@@ -1,0 +1,6 @@
+inc = |x: I64| -> I64 { x + 1 }
+
+pub main! = || -[Console! | Throw!([..])]-> I64 {
+  x: I64 = 41
+  x->inc()
+}

@@ -1,0 +1,4 @@
+pub main! = || -[Console! | Throw!([..])]-> I64 {
+  s = \"hello\nworld"
+  0
+}

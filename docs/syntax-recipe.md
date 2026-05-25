@@ -597,30 +597,30 @@ Both mechanisms:
 
 | Current (Parser/Spec) | Decision | Action |
 |---|---|---|
-| Effect row `,` separator | `\|` separator | Fix parser |
-| `test "name" = body` | `test "name" { body }` | Fix parser + spec |
-| `intercept` keyword | Remove | Fix parser + spec |
-| `@` in type-use positions | No `@` in type-use | Fix parser |
-| `@` absent in expressions/patterns | `@` for nominal construction/destruction | Add to parser |
-| `r"..."` raw strings | Removed (use `\` per-line) | Fix lexer + spec |
-| `"""..."""` multiline | Removed (use `\` per-line) | Fix lexer + spec |
-| `\|>` pipe operator | Removed | Fix parser |
-| `++` concat operator | Removed | Fix parser |
-| `&& \|\| !` logic operators | `and or not` keywords | Fix parser |
-| `@Variant` in imports | `[Ok, Err]` brackets | Fix parser + spec |
-| `is` on type def header | Separate `is` blocks only | Fix parser + spec |
-| `unsafe` keyword | Removed | Fix parser + spec |
-| `exposing` keyword | Removed (names in `{ }` directly) | Fix parser + spec |
-| `|x| -> is_even(x)` | Parse error (use `\|x\| x->is_even()`) | Fix parser |
-| `obj.method(args)` ambiguity | Rust-style disambiguation | Fix parser |
-| No `->` UFCS syntax | Add `->` for lexical UFCS | Add to parser |
-| No `.(field)()` syntax | Add for structural dispatch | Add to parser |
-| `derives` on type aliases | `derives` only on nominal types | Fix spec |
-| `Self` in free functions | `Self` in traits + method blocks + `is` blocks only | Fix spec |
-| `None()` tag construction | `None` (no parens) | Fix parser + spec |
-| `\|a, b\| -[]-> I64` empty effect row | Compile error, use `->` | Add check |
-| `@inline` annotation | Removed | Fix kitchen sink |
-| Brace-elided if/else | Braces always required | Fix spec |
+| Effect row `,` separator | `\|` separator | Done |
+| `test "name" = body` | `test "name" { body }` | Done |
+| `intercept` keyword | Remove | Done |
+| `@` in type-use positions | No `@` in type-use | Done |
+| `@` absent in expressions/patterns | `@` for nominal construction/destruction | Done |
+| `r"..."` raw strings | Removed (use `\` per-line) | Done |
+| `"""..."""` multiline | Removed (use `\` per-line) | Done |
+| `\|>` pipe operator | Removed | Done |
+| `++` concat operator | Removed | Done |
+| `&& \|\| !` logic operators | `and or not` keywords | Done |
+| `@Variant` in imports | `[Ok, Err]` brackets | Done |
+| `is` on type def header | Separate `is` blocks only | Done |
+| `unsafe` keyword | Removed | Done |
+| `exposing` keyword | Removed (names in `{ }` directly) | Done |
+| `|x| -> is_even(x)` | Parse error (use `\|x\| x->is_even()`) | Done |
+| `obj.method(args)` ambiguity | Rust-style disambiguation | Done |
+| No `->` UFCS syntax | Add `->` for lexical UFCS | Done |
+| No `.(field)()` syntax | Add for structural dispatch | Done |
+| `derives` on type aliases | `derives` only on nominal types | Done |
+| `Self` in free functions | `Self` in traits + method blocks + `is` blocks only | Done |
+| `None()` tag construction | `None` (no parens) | Done |
+| `\|a, b\| -[]-> I64` empty effect row | Compile error, use `->` | Done |
+| `@inline` annotation | Removed | Done |
+| Brace-elided if/else | Braces always required | Done |
 
 ---
 

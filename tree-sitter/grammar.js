@@ -10,8 +10,7 @@ export default grammar({
 
   externals: ($) => [
     $._string_start,
-    $._string_start_r,
-    $._string_start_triple,
+    $._string_start_bslash,
     $._string_content,
     $._interpolation_start,
     $._interpolation_end,
@@ -37,7 +36,7 @@ export default grammar({
   rules: {
     source_file: ($) => repeat($._declaration),
 
-    comment: ($) => token(seq("--", /.*/)),
+    comment: ($) => token(seq("//", /.*/)),
 
     _declaration: ($) => choice(
       $.const_declaration,
@@ -48,6 +47,7 @@ export default grammar({
       $.import_declaration,
       $.test_declaration,
       $.expect_declaration,
+      $.is_block_declaration,
     ),
 
     const_declaration: ($) => seq(
@@ -108,27 +108,37 @@ export default grammar({
       field("target", $._type),
     ),
 
+    // import Module                          -- qualified use only
+    // import Module { foo, bar }             -- unqualified + qualified
+    // import Module as M { foo, bar }        -- alias + unqualified
+    // import Result { [Ok, Err], map }       -- [brackets] for nominal type variants
     import_declaration: ($) => seq(
-      optional("unsafe"),
       "import",
       field("module", $.type_identifier),
-      optional(seq("exposing", "[", optional(field("exposed", $.exposed_names)), "]")),
       optional(seq("as", field("alias", $.type_identifier))),
+      optional(seq(
+        "{",
+        optional(field("imported", $.imported_names)),
+        "}"
+      )),
     ),
 
-    exposed_names: ($) => choice(
-      seq(
-        $.identifier,
-        repeat(seq(",", $.identifier)),
-      ),
-      "..",
+    imported_names: ($) => seq(
+      $.imported_name,
+      repeat(seq(",", $.imported_name)),
+      optional(","),
     ),
 
+    imported_name: ($) => choice(
+      $.identifier,
+      seq("[", $.identifier, repeat(seq(",", $.identifier)), optional(","), "]"),
+    ),
+
+    // test "name" { body }
     test_declaration: ($) => seq(
       "test",
       field("name", $.string),
-      "=",
-      field("body", $._expression),
+      field("body", $.block),
     ),
 
     expect_declaration: ($) => seq(
@@ -136,11 +146,21 @@ export default grammar({
       field("condition", $._expression),
     ),
 
+    // Type is Trait { method = |self| -> ... }
+    is_block_declaration: ($) => seq(
+      field("type_name", $.type_identifier),
+      "is",
+      field("trait_name", $.type_identifier),
+      field("body", $.block),
+    ),
+
     _expression: ($) => choice(
       $.binary_expression,
       $.unary_expression,
       $.call_expression,
       $.method_call_expression,
+      $.ufcs_call_expression,
+      $.structural_field_access,
       $.field_access_expression,
       $._primary_expression,
     ),
@@ -155,6 +175,23 @@ export default grammar({
       ".",
       field("method", $.identifier),
       field("arguments", $.arguments),
+    )),
+
+    // obj->func(args) — lexical UFCS
+    ufcs_call_expression: ($) => prec.left(9, seq(
+      field("receiver", $._expression),
+      "->",
+      field("method", $.identifier),
+      field("arguments", $.arguments),
+    )),
+
+    // obj.(field)(args) — structural dispatch
+    structural_field_access: ($) => prec.left(9, seq(
+      field("object", $._expression),
+      ".",
+      "(",
+      field("field", $.identifier),
+      ")",
     )),
 
     field_access_expression: ($) => prec.left(8, seq(
@@ -188,7 +225,9 @@ export default grammar({
       $.integer,
       $.float,
       $.string,
+      $.char,
       $.interpolated_string,
+      $.per_line_string,
       $.boolean,
       $.dollar_identifier,
       $.identifier,
@@ -203,8 +242,10 @@ export default grammar({
       $.match_expression,
       $.handle_expression,
       $.anonymous_method_expression,
+      $.anonymous_structural_field,
       $.return_expression,
       $.crash_expression,
+      $.todo_expression,
       $.par_expression,
     ),
 
@@ -219,12 +260,10 @@ export default grammar({
       '"',
     ),
 
+    char: ($) => token(seq("'", choice(/[^'\\\n]/, seq("\\", /./)), "'")),
+
     interpolated_string: ($) => seq(
-      field("open", choice(
-        alias($._string_start, '"'),
-        alias($._string_start_r, 'r"'),
-        alias($._string_start_triple, '"""'),
-      )),
+      field("open", alias($._string_start, '"')),
       repeat(choice(
         alias($._string_content, $.string_content),
         seq(
@@ -234,6 +273,18 @@ export default grammar({
         ),
       )),
       field("close", alias($._string_end, '"')),
+    ),
+
+    per_line_string: ($) => seq(
+      field("open", alias($._string_start_bslash, '\\')),
+      repeat(choice(
+        alias($._string_content, $.string_content),
+        seq(
+          alias($._interpolation_start, '${'),
+          field("expression", $._expression),
+          alias($._interpolation_end, '}'),
+        ),
+      )),
     ),
 
     escape_sequence: ($) => token(seq("\\", /[nrt"\\]/)),
@@ -246,7 +297,6 @@ export default grammar({
       /`[a-zA-Z_][a-zA-Z0-9_]*`/,
     )),
 
-    // --- Identifiers (continued) ---
     type_identifier: ($) => /[A-Z][a-zA-Z0-9]*/,
 
     dollar_identifier: ($) => seq("$", $.identifier),
@@ -255,7 +305,7 @@ export default grammar({
     tag_expression: ($) => prec(9, seq(
       optional("@"),
       field("name", $.type_identifier),
-      field("arguments", $.arguments),
+      optional(field("arguments", $.arguments)),
     )),
 
     arguments: ($) => seq(
@@ -388,16 +438,21 @@ export default grammar({
       field("body", $._expression),
     ),
 
-    // --- Handle ---
+    // handle E!, F! in body with { .op1(resume, args) => body1 .op2!(resume, args) => body2 }
     handle_expression: ($) => seq(
-      choice("handle", "intercept"),
-      field("effect", $.type_identifier),
+      "handle",
+      field("effects", $.handle_effects),
       "in",
       field("body", $._expression),
       "with",
       "{",
       field("arms", $.handler_arms),
       "}",
+    ),
+
+    handle_effects: ($) => seq(
+      $.type_identifier,
+      repeat(seq(",", $.type_identifier)),
     ),
 
     handler_arms: ($) => repeat1($.handler_arm),
@@ -420,14 +475,25 @@ export default grammar({
       repeat(seq(",", $.identifier)),
     ),
 
-    // --- Return/Crash ---
+    // --- Return/Crash/Todo ---
     return_expression: ($) => seq("return", $._expression),
 
     crash_expression: ($) => seq("crash", $._expression),
 
+    todo_expression: ($) => seq("todo", optional($._expression)),
+
     anonymous_method_expression: ($) => prec(9, seq(
       ".",
       field("name", $.identifier),
+      optional(field("arguments", $.arguments)),
+    )),
+
+    // .(field)(args) — structural dispatch dot lambda
+    anonymous_structural_field: ($) => prec(9, seq(
+      ".",
+      "(",
+      field("field", $.identifier),
+      ")",
       optional(field("arguments", $.arguments)),
     )),
 
@@ -440,6 +506,7 @@ export default grammar({
       $.list_pattern,
       $.integer,
       $.string,
+      $.char,
       $.boolean,
       $.type_identifier,
       $.identifier,

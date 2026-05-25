@@ -35,7 +35,7 @@ x = match y {
           (integer))))))
 
 ========
-Tag pattern
+Tag pattern with arguments
 ========
 x = match y {
   Ok(v) => v
@@ -53,6 +53,24 @@ x = match y {
             (pattern_arguments
               (identifier)))
           (identifier))))))
+
+========
+Tag pattern without arguments
+========
+x = match y {
+  None => 0
+}
+---
+(source_file
+  (const_declaration
+    (identifier)
+    (match_expression
+      (identifier)
+      (match_arms
+        (match_arm
+          (tag_pattern
+            (type_identifier))
+          (integer))))))
 
 ========
 Record pattern
