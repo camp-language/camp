@@ -906,6 +906,127 @@ test_mono_mangle_generic :: proc(t: ^testing.T) {
 }
 
 @(test)
+test_mono_generic_multiple_specializations :: proc(t: ^testing.T) {
+	mono_tfile, ctx, store := mono_source("id = |x: a| -> a { x }\ny = id(42)\nz = id(True)")
+	defer teardown_mono(ctx, &store)
+
+	// Both I64 and Bool specializations should exist
+	i64_spec_name := base.intern(&ctx.interner, "id$I64")
+	i64_spec_decl := find_tdecl_by_name(mono_tfile, i64_spec_name)
+	testing.expect(t, i64_spec_decl != nil, "id$I64 specialization should exist")
+
+	bool_spec_name := base.intern(&ctx.interner, "id$Bool")
+	bool_spec_decl := find_tdecl_by_name(mono_tfile, bool_spec_name)
+	testing.expect(t, bool_spec_decl != nil, "id$Bool specialization should exist")
+
+	// Original generic should be absent
+	id_name := base.intern(&ctx.interner, "id")
+	id_decl := find_tdecl_by_name(mono_tfile, id_name)
+	testing.expect(t, id_decl == nil, "original generic id should be absent from mono output")
+}
+
+@(test)
+test_mono_generic_call_site_rewritten :: proc(t: ^testing.T) {
+	mono_tfile, ctx, store := mono_source("id = |x: a| -> a { x }\ny = id(42)")
+	defer teardown_mono(ctx, &store)
+
+	y_name := base.intern(&ctx.interner, "y")
+	y_decl := find_tdecl_by_name(mono_tfile, y_name)
+	testing.expect(t, y_decl != nil, "y decl should exist")
+
+	d, ok := y_decl.(^semantics.TDecl_Const)
+	testing.expect(t, ok, "y should be a TDecl_Const")
+	if !ok do return
+
+	call, is_call := d.body.(^semantics.TExpr_Call)
+	testing.expect(t, is_call, "y's body should be a TExpr_Call")
+	if !is_call do return
+
+	name_expr, is_name := call.callee.(^semantics.TExpr_Name)
+	testing.expect(t, is_name, "y's callee should be a TExpr_Name")
+	if !is_name do return
+
+	id_spec_name := base.intern(&ctx.interner, "id$I64")
+	testing.expect(t, name_expr.name.name == id_spec_name, "y should call id$I64, not id")
+}
+
+@(test)
+test_mono_specialized_decl_has_concrete_types :: proc(t: ^testing.T) {
+	mono_tfile, ctx, store := mono_source("id = |x: a| -> a { x }\ny = id(42)")
+	defer teardown_mono(ctx, &store)
+
+	id_spec_name := base.intern(&ctx.interner, "id$I64")
+	id_spec_decl := find_tdecl_by_name(mono_tfile, id_spec_name)
+	testing.expect(t, id_spec_decl != nil, "id$I64 specialization should exist")
+
+	if d, ok := id_spec_decl.(^semantics.TDecl_Const); ok {
+		if lambda, is_lambda := d.body.(^semantics.TExpr_Lambda); is_lambda {
+			testing.expect(t, len(lambda.params) == 1, "id$I64 should have 1 param")
+			if len(lambda.params) > 0 {
+				param_type_id := lambda.params[0].type_.type_id
+				resolved := semantics.resolve_var(&store, param_type_id)
+				v := &store.vars[int(resolved)]
+				if inf, ok := v.link.(semantics.Inferred_Type); ok {
+					if prim, ok := inf.(semantics.Inferred_Primitive); ok {
+						i64_name := base.intern(&ctx.interner, "I64")
+						testing.expect(t, prim.primitive_name == i64_name, "id$I64 param should be I64")
+					}
+				}
+			}
+
+			ret_type_id := lambda.return_type.type_id
+			ret_resolved := semantics.resolve_var(&store, ret_type_id)
+			ret_v := &store.vars[int(ret_resolved)]
+			if inf, ok := ret_v.link.(semantics.Inferred_Type); ok {
+				if prim, ok := inf.(semantics.Inferred_Primitive); ok {
+					i64_name := base.intern(&ctx.interner, "I64")
+					testing.expect(t, prim.primitive_name == i64_name, "id$I64 return should be I64")
+				}
+			}
+		}
+	}
+}
+
+@(test)
+test_lambda_type_params_in_store_bindings :: proc(t: ^testing.T) {
+	// RC1: Lambda type params should be registered in store.bindings
+	// so substitute_ir_type can resolve them during monomorphization
+	store, ctx, tfile := setup_for_typecheck("id = |x: a| -> a { x }")
+	defer free(ctx)
+	defer free(store)
+	defer build.context_destroy(ctx)
+	defer semantics.type_store_destroy(store)
+
+	testing.expect(t, !diagnostics.diag_collector_has_errors(&ctx.collector))
+
+	// The type param 'a' should be in store.bindings
+	a_name := base.intern(&ctx.interner, "a")
+	_, has_binding := store.bindings[a_name]
+	testing.expect(t, has_binding, "type param 'a' should be in store.bindings (RC1)")
+
+	// It should be LEVEL_GENERIC (generalized after typechecking)
+	if has_binding {
+		tv_id := store.bindings[a_name]
+		testing.expect(t, semantics.is_generic(store, tv_id), "type param 'a' should be LEVEL_GENERIC")
+	}
+}
+
+@(test)
+test_mono_non_generic_passes_through :: proc(t: ^testing.T) {
+	mono_tfile, ctx, store := mono_source("x = 42\ny = x + 1")
+	defer teardown_mono(ctx, &store)
+
+	testing.expect(t, len(mono_tfile.decls) == 2, "non-generic code should have 2 decls")
+
+	for decl in mono_tfile.decls {
+		if d, ok := decl.(^semantics.TDecl_Const); ok {
+			testing.expect(t, d.type_.wasm_type != {}, "all decls should have wasm_type")
+			testing.expect(t, d.type_.type_id != base.Type_Var_ID(-1), "all decls should have valid type_id")
+		}
+	}
+}
+
+@(test)
 test_display_trait_registered :: proc(t: ^testing.T) {
 	store, collector := setup_type_store()
 	defer teardown_type_store(&store, collector)
@@ -996,4 +1117,92 @@ check_method_call_resolved :: proc(expr: semantics.TExpr, found: ^bool) {
 		}
 	case:
 	}
+}
+
+@(test)
+test_newtype_wrapping_builtin_type :: proc(t: ^testing.T) {
+	store, ctx, _ := setup_for_typecheck("@Uuid : pub Bytes", { with_prelude = true })
+	defer free(ctx)
+	defer free(store)
+	defer build.context_destroy(ctx)
+	defer semantics.type_store_destroy(store)
+
+	testing.expect(t, !diagnostics.diag_collector_has_errors(&ctx.collector))
+	uuid_name := base.intern(&ctx.interner, "Uuid")
+	_, ok := store.newtype_decls[uuid_name]
+	testing.expect(t, ok)
+}
+
+@(test)
+test_result_with_inline_tag_union_error :: proc(t: ^testing.T) {
+	source := "@Result(a, e) : pub [Ok(a) | Err(e)]\nget_age : Result(I64, [Absent])\n"
+	store, ctx, _ := setup_for_typecheck(source, { with_prelude = true })
+	defer free(ctx)
+	defer free(store)
+	defer build.context_destroy(ctx)
+	defer semantics.type_store_destroy(store)
+
+	testing.expect(t, !diagnostics.diag_collector_has_errors(&ctx.collector))
+}
+
+@(test)
+test_record_with_result_fields :: proc(t: ^testing.T) {
+	source := "@Result(a, e) : pub [Ok(a) | Err(e)]\n@Absent : pub [Absent]\n@Uri : pub { scheme : Str, query : Result(Str, Absent) }\n"
+	store, ctx, _ := setup_for_typecheck(source, { with_prelude = true })
+	defer free(ctx)
+	defer free(store)
+	defer build.context_destroy(ctx)
+	defer semantics.type_store_destroy(store)
+
+	testing.expect(t, !diagnostics.diag_collector_has_errors(&ctx.collector))
+	result_name := base.intern(&ctx.interner, "Result")
+	_, result_ok := store.newtype_decls[result_name]
+	testing.expect(t, result_ok)
+	uri_name := base.intern(&ctx.interner, "Uri")
+	_, uri_ok := store.newtype_decls[uri_name]
+	testing.expect(t, uri_ok)
+}
+
+@(test)
+test_effect_declaration_with_effect_row :: proc(t: ^testing.T) {
+	store, ctx, _ := setup_for_typecheck("effect Random! : { bytes! : I64 -> -[Random!]-> Bytes }", { with_prelude = true })
+	defer free(ctx)
+	defer free(store)
+	defer build.context_destroy(ctx)
+	defer semantics.type_store_destroy(store)
+
+	testing.expect(t, !diagnostics.diag_collector_has_errors(&ctx.collector))
+}
+
+@(test)
+test_crash_intrinsic_body :: proc(t: ^testing.T) {
+	source := "@JsonValue : pub [Null]\n@JsonErr : pub [UnexpectedEnd]\n@Result(a, e) : pub [Ok(a) | Err(e)]\npub decode : Str -> Result(JsonValue, JsonErr)\npub decode = |_s| crash \"intrinsic: Json.decode\"\n"
+	store, ctx, _ := setup_for_typecheck(source, { with_prelude = true })
+	defer free(ctx)
+	defer free(store)
+	defer build.context_destroy(ctx)
+	defer semantics.type_store_destroy(store)
+
+	testing.expect(t, !diagnostics.diag_collector_has_errors(&ctx.collector))
+	json_value_name := base.intern(&ctx.interner, "JsonValue")
+	_, jv_ok := store.newtype_decls[json_value_name]
+	testing.expect(t, jv_ok)
+	json_err_name := base.intern(&ctx.interner, "JsonErr")
+	_, je_ok := store.newtype_decls[json_err_name]
+	testing.expect(t, je_ok)
+}
+
+@(test)
+test_tag_union_with_multiple_payloads :: proc(t: ^testing.T) {
+	store, ctx, _ := setup_for_typecheck("@JsonNumber : pub [PosInt(U64) | NegInt(I64) | Float(F64)]", { with_prelude = true })
+	defer free(ctx)
+	defer free(store)
+	defer build.context_destroy(ctx)
+	defer semantics.type_store_destroy(store)
+
+	testing.expect(t, !diagnostics.diag_collector_has_errors(&ctx.collector))
+	json_number_name := base.intern(&ctx.interner, "JsonNumber")
+	info, ok := store.newtype_decls[json_number_name]
+	testing.expect(t, ok)
+	testing.expect(t, len(info.owned_tags) == 3)
 }
