@@ -8,7 +8,6 @@ You are an AI assistant helping develop the Camp programming language - a strict
 
 ### DO
 - Read relevant specs in `openspec/specs/<domain>/spec.md` before implementing
-- Consult `docs/syntax-recipe.md` as the authoritative source of truth for all syntax decisions — when specs and recipe conflict, the recipe wins
 - Read the code to understand current implementation — code is the source of truth
 - Follow existing type system design (Level inference + row unification)
 - Respect effect tracking in type signatures
@@ -25,6 +24,34 @@ You are an AI assistant helping develop the Camp programming language - a strict
 - Change the WASM/WASI target without design review
 - Trust documentation that contradicts the code — flag the discrepancy, don't follow the doc
 - Commit code changes without updating affected specs — specs and code must stay in sync
+
+## Syntax Recipe — Authoritative Reference
+
+`docs/syntax-recipe.md` is the **single source of truth** for all Camp syntax decisions. It was produced from a comprehensive grilling session and represents the settled consensus on every syntax question.
+
+### Authority
+- When the recipe and a spec conflict, **the recipe wins** — update the spec to match
+- When the recipe and the parser conflict, **the recipe wins** — fix the parser to match
+- When the recipe and the kitchen-sink test conflict, **the recipe wins** — update the test
+
+### Maintenance
+- If a syntax decision changes (through discussion with the project owner), update the recipe **first**, then propagate to specs, parser, and tests in the same commit
+- Never add syntax to the compiler or specs without recording the decision in the recipe
+- Section 13 of the recipe tracks the remaining parser/compiler implementation actions — these are the known gaps between current implementation and the decided syntax
+- Section 14 tracks open TBD items — these need design decisions before implementation
+
+### Key Decisions (quick reference)
+- Effect rows: `|` separator. Pure: `->`, effectful: `-[e]->`
+- Effect invocation: module-qualified `Console.println!()` (never `Console!.println!()`)
+- Test syntax: `test "name" { body }` (not `= body`)
+- `intercept` keyword: removed. Deep handlers only.
+- `exposing` keyword: removed. Imports use `{ names }` directly.
+- Import variant grouping: `import Result { [Ok, Err], map }`
+- `@` prefix: declaration only + newtype construction/destruction. Tags use bare names.
+- String kinds: `"text"` (plain+interpolation) + `\` per-line (multiline, raw)
+- Logic: `and or not` keywords (no `&& || !`)
+- UFCS: `obj->func()` (lexical), `obj.(field)()` (structural)
+- `main!` entry point: `pub main! = || -[Console! | Throw!([..])]-> I64`
 
 ## Working Process
 
@@ -139,7 +166,8 @@ If a command returns unexpected or ambiguous output **more than twice**, stop an
 
 ## When in Doubt
 
-1. Check `openspec/specs/language/spec.md` for core language requirements
-2. Read the code — implementation status lives in `src/`, not in docs
-3. Ask for clarification before implementing major changes
-4. Prefer small, testable increments over large refactors
+1. Check `docs/syntax-recipe.md` — it is the **authoritative source of truth** for all syntax decisions
+2. Check `openspec/specs/language/spec.md` for core language requirements
+3. Read the code — implementation status lives in `src/`, not in docs
+4. Ask for clarification before implementing major changes
+5. Prefer small, testable increments over large refactors
