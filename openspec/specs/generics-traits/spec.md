@@ -46,7 +46,7 @@ After monomorphization, no generic type variables SHALL remain in the program. E
 
 ### Requirement: Trait Declaration
 
-Traits SHALL be defined as structural record type aliases with a built-in `Self` type variable. Constrained traits SHALL use `is` for parent requirements. `Self` SHALL be a built-in type variable, automatically bound within trait definitions.
+Traits SHALL be defined as structural record type aliases where all fields are pure functions, with a built-in `Self` type variable. Constrained traits SHALL use `is` for parent requirements. Traits SHALL have no associated types (methods only) and no default implementations. `Self` SHALL be a built-in type variable, automatically bound within trait definitions, `is` blocks, and method blocks.
 
 #### Scenario: Unconstrained trait definition
 
@@ -66,9 +66,33 @@ Traits SHALL be defined as structural record type aliases with a built-in `Self`
 - WHEN the compiler type-checks implementations
 - THEN `Self` SHALL refer to the type implementing the trait
 
+#### Scenario: Self in is blocks
+
+- GIVEN an `is` block `Color is Eq { eq = |a: Self, b: Self| -> Bool { ... } }`
+- WHEN the compiler type-checks the block
+- THEN `Self` SHALL refer to the nominal type `Color`
+
+#### Scenario: Self in method blocks
+
+- GIVEN a method block on a nominal type `@Color { is_green = |self: Self| -> Bool { ... } }`
+- WHEN the compiler type-checks the method
+- THEN `Self` SHALL refer to the nominal type `Color`
+
+#### Scenario: No associated types
+
+- GIVEN a trait definition with an associated type field (e.g., `Iter : { Item: Type, next: |Self| -> Item }`)
+- WHEN the compiler processes it
+- THEN it SHALL produce an error because traits SHALL NOT have associated types — all type variables must appear on `Self`
+
+#### Scenario: No default implementations
+
+- GIVEN a trait definition that provides a body for a field (e.g., `Eq : { eq: |Self, Self| -> Bool { True } }`)
+- WHEN the compiler processes it
+- THEN it SHALL produce an error because trait fields SHALL NOT have default implementations — implementations belong in `is` blocks
+
 #### Scenario: Self is contextual
 
-- GIVEN the identifier `Self` used outside a trait definition
+- GIVEN the identifier `Self` used outside a trait definition, `is` block, or method block
 - WHEN the compiler processes it
 - THEN `Self` SHALL be treated as an ordinary identifier, not a keyword
 
@@ -96,7 +120,7 @@ When a type declares `is Trait`, the compiler SHALL verify that the type's metho
 
 ### Requirement: Trait Orphan Rule
 
-An `is` declaration SHALL appear only in the module that defines the type or the module that defines the trait. Third-module implementations SHALL be rejected.
+An `is` declaration SHALL appear only in the module that defines the nominal type. Implementations from any other module — including the module that defines the trait — SHALL be rejected.
 
 #### Scenario: Orphan implementation in third module
 
@@ -110,11 +134,11 @@ An `is` declaration SHALL appear only in the module that defines the type or the
 - WHEN the compiler processes module A
 - THEN the `is` declaration SHALL be accepted
 
-#### Scenario: Valid implementation in trait's module
+#### Scenario: Implementation in trait's module rejected
 
-- GIVEN module B defines trait `Foo` and also declares `T is Foo` for a type `T` defined in another module
+- GIVEN module B defines trait `Foo` and declares `T is Foo` for a type `T` defined in module A
 - WHEN the compiler processes module B
-- THEN the `is` declaration SHALL be accepted
+- THEN it SHALL produce an orphan rule violation error because the `is` block must appear in the type's module
 
 ### Requirement: No Overlapping Instances
 
@@ -179,13 +203,31 @@ Type parameters SHALL support trait constraints using `where` clause syntax. Whe
 
 ### Requirement: UFCS Dispatch
 
-Method calls SHALL use Uniform Function Call Syntax: `x.display()` SHALL desugar to a call to the trait's implementing function with `x` as the first argument. For concrete types, the dispatch SHALL resolve to a direct function call at monomorphization time.
+Camp SHALL support four dispatch mechanisms: nominal dispatch via `obj.method(args)`, lexical UFCS via `obj->func(args)`, structural dispatch via `obj.(field)(args)`, and qualified trait dispatch via `Trait.func(obj, args)`. For concrete types, all dispatch SHALL resolve to direct function calls at monomorphization time.
 
 #### Scenario: Trait method call via dot syntax
 
 - GIVEN a value `x` of type `UserId is Display`
 - WHEN `x.display()` is called
-- THEN it SHALL resolve to the implementing function `UserId_display(x)`
+- THEN it SHALL resolve to the implementing function `UserId_display(x)` via nominal dispatch
+
+#### Scenario: Lexical UFCS via arrow syntax
+
+- GIVEN a function `is_even = |n: I64| -> Bool { n % 2 == 0 }` in scope
+- WHEN `x->is_even()` is called on a value of type `I64`
+- THEN it SHALL resolve to the function call `is_even(x)` via lexical UFCS dispatch
+
+#### Scenario: Structural dispatch via field syntax
+
+- GIVEN a record `handler : { handle: |Str| -> I64 }`
+- WHEN `handler.(handle)("data")` is called
+- THEN it SHALL resolve to extracting the field `handle` from `handler` and calling it with `"data"`
+
+#### Scenario: Qualified trait dispatch
+
+- GIVEN a value `x` of type `UserId is Eq`
+- WHEN `Eq.eq(x, y)` is called
+- THEN it SHALL resolve to the implementing function `UserId_eq(x, y)` via qualified trait dispatch
 
 #### Scenario: UFCS inside generic function
 
@@ -224,3 +266,5 @@ All trait dispatch SHALL be resolved at monomorphization time via static functio
 - GIVEN a `List` containing values of type `a is Display` where `a` is a type parameter
 - WHEN monomorphized at `a = UserId`
 - THEN the `List` SHALL be `List(UserId)` and all trait calls resolved statically
+
+For the complete syntax reference, see `docs/syntax-recipe.md`.
