@@ -490,8 +490,11 @@ emit_expr :: proc(expr: ir.IR_Expr, buf: ^[dynamic]u8, env: ^Codegen_Env, runtim
 		}
 	case ^ir.IR_Drop:
 		if idx, ok := env.local_map[e.value]; ok {
-			emit_instruction(Wasm_Local_Get{index = idx}, buf)
-			emit_instruction(Wasm_Call{index = u32(runtime_indices[Runtime_Func.Drop])}, buf)
+			type_info, type_ok := env.local_types[e.value]
+			if type_ok && type_info.is_heap {
+				emit_instruction(Wasm_Local_Get{index = idx}, buf)
+				emit_instruction(Wasm_Call{index = u32(runtime_indices[Runtime_Func.Drop])}, buf)
+			}
 		}
 	case ^ir.IR_Block:
 		for stmt, idx in e.statements {

@@ -1624,12 +1624,78 @@ test_rc_insert_has_drop :: proc(t: ^testing.T) {
 
 	fn_decl := find_decl_fn(mod, false)
 	testing.expect(t, fn_decl != nil)
-	// Current RC pass inserts dups for multi-use bindings but does not yet
-	// insert drops (the last use consumes the original, leaving no surplus).
-	// A future RC pass may add drop-at-end-of-scope; when it does, update this.
+	// a = 42 is I64 (not heap-allocated), so no drop should be emitted
 	testing.expect(t, count_ir_drop(fn_decl.body) == 0)
 	// Verify dups ARE inserted (the real RC signal)
 	testing.expect(t, count_ir_dup(fn_decl.body) >= 1)
+}
+
+@(test)
+test_rc_insert_heap_drop :: proc(t: ^testing.T) {
+	// Construct IR directly: let x = construct_record(...) in 42
+	// where x is heap-typed and never used — should emit 1 drop
+	ctx: ^build.Compilation_Context = new(build.Compilation_Context)
+	alloc := build.context_init(ctx)
+	context.allocator = alloc
+	defer {
+		build.context_destroy(ctx)
+		free(ctx)
+	}
+
+	heap_type := base.IR_Type{wasm_type = .I32, type_id = base.Type_Var_ID(0), is_heap = true}
+	int_type := base.IR_Type{wasm_type = .I64, type_id = base.Type_Var_ID(0)}
+
+	x_name := base.intern(&ctx.interner, "x")
+
+	// value: IR_Construct_Record with empty fields
+	record := new(ir.IR_Construct_Record)
+	record^ = ir.IR_Construct_Record{
+		fields = make([dynamic]ir.IR_Record_Field, 0),
+		rest = nil,
+		type = heap_type,
+		span = base.Source_Span{},
+	}
+
+	// body: IR_Literal_Int(42)
+	lit := new(ir.IR_Literal_Int)
+	lit^ = ir.IR_Literal_Int{value = 42, type = int_type, span = base.Source_Span{}}
+
+	// let x = record in 42
+	let_expr := new(ir.IR_Let)
+	let_expr^ = ir.IR_Let{
+		binding = x_name,
+		type = heap_type,
+		value = ir.IR_Expr(record),
+		body = ir.IR_Expr(lit),
+		span = base.Source_Span{},
+	}
+
+	// Wrap in a function
+	fn_body := ir.IR_Expr(let_expr)
+	fn_decl := new(ir.IR_Decl_Fn)
+	fn_decl^ = ir.IR_Decl_Fn{
+		name = base.Canonical_Name{module = base.NO_NAME, name = x_name},
+		is_effectful = false,
+		params = make([dynamic]ir.IR_Param, 0),
+		return_type = int_type,
+		effect_row = base.IR_Type{},
+		effects = make([dynamic]base.Canonical_Name, 0),
+		body = fn_body,
+		span = base.Source_Span{},
+	}
+
+	mod := ir.IR_Module{
+		decls = make([dynamic]ir.IR_Decl, 1),
+		effect_defs = make([dynamic]ir.IR_Effect_Def, 0),
+		string_table = make([dynamic]ir.String_Table_Entry, 0),
+	}
+	mod.decls[0] = ir.IR_Decl(fn_decl)
+
+	ir.rc_insert(&mod, &ctx.interner)
+
+	// x is heap-typed with 0 uses — should emit 1 drop
+	drop_count := count_ir_drop(fn_decl.body)
+	testing.expect(t, drop_count == 1)
 }
 
 @(test)
@@ -1643,4 +1709,90 @@ test_rc_insert_branch_independent :: proc(t: ^testing.T) {
 	testing.expect(t, fn_decl != nil)
 	// Each branch uses `a` twice (a + a), so each branch should get a dup
 	testing.expect(t, has_dup_or_drop(fn_decl.body))
+}
+
+@(test)
+test_rc_insert_branch_heap_drop :: proc(t: ^testing.T) {
+	// Construct IR: let x = record in if True then 1 else 2
+	// x is heap-typed, used in neither branch — each branch should emit a drop
+	ctx: ^build.Compilation_Context = new(build.Compilation_Context)
+	alloc := build.context_init(ctx)
+	context.allocator = alloc
+	defer {
+		build.context_destroy(ctx)
+		free(ctx)
+	}
+
+	heap_type := base.IR_Type{wasm_type = .I32, type_id = base.Type_Var_ID(0), is_heap = true}
+	int_type := base.IR_Type{wasm_type = .I64, type_id = base.Type_Var_ID(0)}
+	bool_type := base.IR_Type{wasm_type = .I32, type_id = base.Type_Var_ID(0)}
+
+	x_name := base.intern(&ctx.interner, "x")
+
+	// value: IR_Construct_Record
+	record := new(ir.IR_Construct_Record)
+	record^ = ir.IR_Construct_Record{
+		fields = make([dynamic]ir.IR_Record_Field, 0),
+		rest = nil,
+		type = heap_type,
+		span = base.Source_Span{},
+	}
+
+	// condition: True
+	cond := new(ir.IR_Literal_Bool)
+	cond^ = ir.IR_Literal_Bool{value = true, type = bool_type, span = base.Source_Span{}}
+
+	// then: 1
+	then_lit := new(ir.IR_Literal_Int)
+	then_lit^ = ir.IR_Literal_Int{value = 1, type = int_type, span = base.Source_Span{}}
+
+	// else: 2
+	else_lit := new(ir.IR_Literal_Int)
+	else_lit^ = ir.IR_Literal_Int{value = 2, type = int_type, span = base.Source_Span{}}
+
+	// if True then 1 else 2
+	if_expr := new(ir.IR_If)
+	if_expr^ = ir.IR_If{
+		condition = ir.IR_Expr(cond),
+		then_branch = ir.IR_Expr(then_lit),
+		else_branch = ir.IR_Expr(else_lit),
+		type = int_type,
+		span = base.Source_Span{},
+	}
+
+	// let x = record in if ...
+	let_expr := new(ir.IR_Let)
+	let_expr^ = ir.IR_Let{
+		binding = x_name,
+		type = heap_type,
+		value = ir.IR_Expr(record),
+		body = ir.IR_Expr(if_expr),
+		span = base.Source_Span{},
+	}
+
+	fn_body := ir.IR_Expr(let_expr)
+	fn_decl := new(ir.IR_Decl_Fn)
+	fn_decl^ = ir.IR_Decl_Fn{
+		name = base.Canonical_Name{module = base.NO_NAME, name = x_name},
+		is_effectful = false,
+		params = make([dynamic]ir.IR_Param, 0),
+		return_type = int_type,
+		effect_row = base.IR_Type{},
+		effects = make([dynamic]base.Canonical_Name, 0),
+		body = fn_body,
+		span = base.Source_Span{},
+	}
+
+	mod := ir.IR_Module{
+		decls = make([dynamic]ir.IR_Decl, 1),
+		effect_defs = make([dynamic]ir.IR_Effect_Def, 0),
+		string_table = make([dynamic]ir.String_Table_Entry, 0),
+	}
+	mod.decls[0] = ir.IR_Decl(fn_decl)
+
+	ir.rc_insert(&mod, &ctx.interner)
+
+	// x is heap-typed, used in neither branch — each branch should emit 1 drop
+	drop_count := count_ir_drop(fn_decl.body)
+	testing.expect(t, drop_count == 2)
 }
