@@ -206,7 +206,7 @@ test_lower_effect_decl :: proc(t: ^testing.T) {
 
 @(test)
 test_lower_effectful_const :: proc(t: ^testing.T) {
-	mod, ctx, store := lower_source("main! = || { 42 }")
+	mod, ctx, store := lower_source(`main! = || { Console.println!("hi") }`)
 	defer teardown_lower(ctx, &store)
 
 	fn_decl := find_decl_fn(mod, true)
@@ -949,7 +949,7 @@ test_closure_convert_creates_closed_fn :: proc(t: ^testing.T) {
 
 @(test)
 test_cps_transform_effectful_fn :: proc(t: ^testing.T) {
-	mod, ctx, store := lower_source("main! = || { 42 }")
+	mod, ctx, store := lower_source(`main! = || { Console.println!("hi") }`)
 	defer teardown_lower(ctx, &store)
 
 	result := ir.cps_transform(&mod, &ctx.interner)
@@ -961,7 +961,7 @@ test_cps_transform_effectful_fn :: proc(t: ^testing.T) {
 
 @(test)
 test_cps_transform_return_becomes_tail_call :: proc(t: ^testing.T) {
-	mod, ctx, store := lower_source("main! = || { 42 }")
+	mod, ctx, store := lower_source(`main! = || { Console.println!("hi") }`)
 	defer teardown_lower(ctx, &store)
 
 	result := ir.cps_transform(&mod, &ctx.interner)
@@ -1541,7 +1541,7 @@ test_closure_convert_env_param_name :: proc(t: ^testing.T) {
 
 @(test)
 test_cps_transform_adds_k_param :: proc(t: ^testing.T) {
-	mod, ctx, store := lower_source("main! = || { 42 }")
+	mod, ctx, store := lower_source(`main! = || { Console.println!("hi") }`)
 	defer teardown_lower(ctx, &store)
 
 	result := ir.cps_transform(&mod, &ctx.interner)
@@ -1577,7 +1577,7 @@ test_cps_transform_pure_fn_no_k_param :: proc(t: ^testing.T) {
 
 @(test)
 test_cps_transform_return_is_closure_call :: proc(t: ^testing.T) {
-	mod, ctx, store := lower_source("main! = || { 42 }")
+	mod, ctx, store := lower_source(`main! = || { Console.println!("hi") }`)
 	defer teardown_lower(ctx, &store)
 
 	result := ir.cps_transform(&mod, &ctx.interner)
