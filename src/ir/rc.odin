@@ -192,8 +192,6 @@ rc_collect_uses :: proc(expr: IR_Expr, uses: ^map[base.Intern_ID]int) {
 	     ^IR_Literal_String,
 	     ^IR_Literal_Bool,
 	     ^IR_Expr_Nominal_Construct,
-	     ^IR_Drop_Reuse,
-	     ^IR_Alloc_At,
 	     ^IR_I32_Load,
 	     ^IR_I32_Store,
 	     ^IR_Closure:

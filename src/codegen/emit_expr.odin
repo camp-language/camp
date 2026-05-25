@@ -110,7 +110,7 @@ collect_locals :: proc(expr: ir.IR_Expr, locals: ^map[base.Intern_ID]base.IR_Typ
 		}
 		collect_locals(e.iterable, locals)
 		collect_locals(e.body, locals)
-	case ^ir.IR_Literal_Int, ^ir.IR_Literal_Float, ^ir.IR_Literal_String, ^ir.IR_Literal_Bool, ^ir.IR_Var, ^ir.IR_Dup, ^ir.IR_Drop, ^ir.IR_Drop_Reuse, ^ir.IR_Alloc_At, ^ir.IR_Expr_Nominal_Construct:
+	case ^ir.IR_Literal_Int, ^ir.IR_Literal_Float, ^ir.IR_Literal_String, ^ir.IR_Literal_Bool, ^ir.IR_Var, ^ir.IR_Dup, ^ir.IR_Drop, ^ir.IR_Expr_Nominal_Construct:
 	}
 }
 
@@ -191,10 +191,10 @@ extract_effectful_body :: proc(expr: ir.IR_Expr) -> ir.IR_Expr {
 		#partial switch b in e.body {
 		case ^ir.IR_Tail_Call, ^ir.IR_Closure_Call:
 			return e.value
-		case ^ir.IR_Literal_Int, ^ir.IR_Literal_Float, ^ir.IR_Literal_String, ^ir.IR_Literal_Bool, ^ir.IR_Var, ^ir.IR_Let, ^ir.IR_Call, ^ir.IR_If, ^ir.IR_Match, ^ir.IR_Construct_Tag, ^ir.IR_Expr_Nominal_Construct, ^ir.IR_Construct_Record, ^ir.IR_Field_Access, ^ir.IR_Method_Call, ^ir.IR_Handle, ^ir.IR_Perform, ^ir.IR_Resume, ^ir.IR_Closure, ^ir.IR_Return, ^ir.IR_Block, ^ir.IR_BinOp, ^ir.IR_Dup, ^ir.IR_Drop, ^ir.IR_Drop_Reuse, ^ir.IR_Alloc_At, ^ir.IR_Crash, ^ir.IR_I32_Load, ^ir.IR_I32_Store, ^ir.IR_Atomic_Load, ^ir.IR_Atomic_Store, ^ir.IR_Atomic_RMW, ^ir.IR_Atomic_Fence, ^ir.IR_Wait, ^ir.IR_Notify, ^ir.IR_Assign, ^ir.IR_Loop:
+		case ^ir.IR_Literal_Int, ^ir.IR_Literal_Float, ^ir.IR_Literal_String, ^ir.IR_Literal_Bool, ^ir.IR_Var, ^ir.IR_Let, ^ir.IR_Call, ^ir.IR_If, ^ir.IR_Match, ^ir.IR_Construct_Tag, ^ir.IR_Expr_Nominal_Construct, ^ir.IR_Construct_Record, ^ir.IR_Field_Access, ^ir.IR_Method_Call, ^ir.IR_Handle, ^ir.IR_Perform, ^ir.IR_Resume, ^ir.IR_Closure, ^ir.IR_Return, ^ir.IR_Block, ^ir.IR_BinOp, ^ir.IR_Dup, ^ir.IR_Drop, ^ir.IR_Crash, ^ir.IR_I32_Load, ^ir.IR_I32_Store, ^ir.IR_Atomic_Load, ^ir.IR_Atomic_Store, ^ir.IR_Atomic_RMW, ^ir.IR_Atomic_Fence, ^ir.IR_Wait, ^ir.IR_Notify, ^ir.IR_Assign, ^ir.IR_Loop:
 			return expr
 		}
-	case ^ir.IR_Literal_Int, ^ir.IR_Literal_Float, ^ir.IR_Literal_String, ^ir.IR_Literal_Bool, ^ir.IR_Var, ^ir.IR_Call, ^ir.IR_Tail_Call, ^ir.IR_Closure_Call, ^ir.IR_If, ^ir.IR_Match, ^ir.IR_Construct_Tag, ^ir.IR_Expr_Nominal_Construct, ^ir.IR_Construct_Record, ^ir.IR_Field_Access, ^ir.IR_Method_Call, ^ir.IR_Handle, ^ir.IR_Perform, ^ir.IR_Resume, ^ir.IR_Closure, ^ir.IR_Return, ^ir.IR_Block, ^ir.IR_BinOp, ^ir.IR_Dup, ^ir.IR_Drop, ^ir.IR_Drop_Reuse, ^ir.IR_Alloc_At, ^ir.IR_Crash, ^ir.IR_I32_Load, ^ir.IR_I32_Store, ^ir.IR_Atomic_Load, ^ir.IR_Atomic_Store, ^ir.IR_Atomic_RMW, ^ir.IR_Atomic_Fence, ^ir.IR_Wait, ^ir.IR_Notify, ^ir.IR_Assign, ^ir.IR_Loop:
+	case ^ir.IR_Literal_Int, ^ir.IR_Literal_Float, ^ir.IR_Literal_String, ^ir.IR_Literal_Bool, ^ir.IR_Var, ^ir.IR_Call, ^ir.IR_Tail_Call, ^ir.IR_Closure_Call, ^ir.IR_If, ^ir.IR_Match, ^ir.IR_Construct_Tag, ^ir.IR_Expr_Nominal_Construct, ^ir.IR_Construct_Record, ^ir.IR_Field_Access, ^ir.IR_Method_Call, ^ir.IR_Handle, ^ir.IR_Perform, ^ir.IR_Resume, ^ir.IR_Closure, ^ir.IR_Return, ^ir.IR_Block, ^ir.IR_BinOp, ^ir.IR_Dup, ^ir.IR_Drop, ^ir.IR_Crash, ^ir.IR_I32_Load, ^ir.IR_I32_Store, ^ir.IR_Atomic_Load, ^ir.IR_Atomic_Store, ^ir.IR_Atomic_RMW, ^ir.IR_Atomic_Fence, ^ir.IR_Wait, ^ir.IR_Notify, ^ir.IR_Assign, ^ir.IR_Loop:
 		return expr
 	}
 	return expr
@@ -1245,15 +1245,6 @@ emit_expr :: proc(expr: ir.IR_Expr, buf: ^[dynamic]u8, env: ^Codegen_Env, runtim
 
 		emit_instruction(Wasm_Call_Indirect{type_idx = u32(closure_type_idx), table_idx = u32(env.table_idx)}, buf)
 
-	case ^ir.IR_Drop_Reuse:
-		if idx, ok := env.local_map[e.value]; ok {
-			emit_instruction(Wasm_Local_Get{index = idx}, buf)
-			emit_instruction(Wasm_I32_Const{value = 0}, buf)
-			emit_instruction(Wasm_Call{index = u32(runtime_indices[Runtime_Func.Drop])}, buf)
-		}
-	case ^ir.IR_Alloc_At:
-		emit_instruction(Wasm_I32_Const{value = 16}, buf)
-		emit_instruction(Wasm_Call{index = u32(runtime_indices[Runtime_Func.Alloc])}, buf)
 	case ^ir.IR_Crash:
 		emit_expr(e.message, buf, env, runtime_indices)
 		emit_instruction(Wasm_Drop{}, buf)
@@ -1398,7 +1389,7 @@ ir_operand_wasm_type :: proc(expr: ir.IR_Expr) -> base.IR_Wasm_Type {
 	case ^ir.IR_Atomic_RMW: return .I32
 	case ^ir.IR_Wait: return .I32
 	case ^ir.IR_Notify: return .I32
-	case ^ir.IR_Let, ^ir.IR_Tail_Call, ^ir.IR_Match, ^ir.IR_Expr_Nominal_Construct, ^ir.IR_Method_Call, ^ir.IR_Handle, ^ir.IR_Perform, ^ir.IR_Return, ^ir.IR_Block, ^ir.IR_Dup, ^ir.IR_Drop, ^ir.IR_Drop_Reuse, ^ir.IR_Alloc_At, ^ir.IR_Crash, ^ir.IR_I32_Load, ^ir.IR_I32_Store, ^ir.IR_Atomic_Store, ^ir.IR_Atomic_Fence:
+	case ^ir.IR_Let, ^ir.IR_Tail_Call, ^ir.IR_Match, ^ir.IR_Expr_Nominal_Construct, ^ir.IR_Method_Call, ^ir.IR_Handle, ^ir.IR_Perform, ^ir.IR_Return, ^ir.IR_Block, ^ir.IR_Dup, ^ir.IR_Drop, ^ir.IR_Crash, ^ir.IR_I32_Load, ^ir.IR_I32_Store, ^ir.IR_Atomic_Store, ^ir.IR_Atomic_Fence:
 		return .I32
 	}
 	return .I32

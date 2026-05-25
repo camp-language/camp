@@ -149,8 +149,6 @@ IR_Expr :: union {
 	^IR_BinOp,
 	^IR_Dup,
 	^IR_Drop,
-	^IR_Drop_Reuse,
-	^IR_Alloc_At,
 	^IR_Crash,
 	^IR_I32_Load,
 	^IR_I32_Store,
@@ -354,8 +352,6 @@ IR_BinOp :: struct { op: IR_BinOp_Kind, left: IR_Expr, right: IR_Expr, type: ba.
 
 IR_Dup :: struct { value: ba.Intern_ID, span: ba.Source_Span }
 IR_Drop :: struct { value: ba.Intern_ID, span: ba.Source_Span }
-IR_Drop_Reuse :: struct { value: ba.Intern_ID, reuse_as: ba.Intern_ID, span: ba.Source_Span }
-IR_Alloc_At :: struct { value: ba.Intern_ID, at: ba.Intern_ID, span: ba.Source_Span }
 IR_Crash :: struct {
 	message: IR_Expr,
 	span:    ba.Source_Span,
