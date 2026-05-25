@@ -2,17 +2,19 @@
 
 ## Purpose
 
-Define the behavioral requirements for Camp's algebraic effect system: effects as type aliases with `!` names, parameterized effects with tag union widening, Koka-style effect rows for tracking side effects in function types, effect polymorphism via row variables, deep and shallow handlers for intercepting operations, one-shot continuations, and compile-time enforcement that all performed effects are handled.
+For the complete syntax reference, see `docs/syntax-recipe.md`.
+
+Define the behavioral requirements for Camp's algebraic effect system: effects as type aliases with `!` names, parameterized effects with tag union widening, Koka-style effect rows for tracking side effects in function types, effect polymorphism via row variables, deep handlers for intercepting operations, one-shot continuations, and compile-time enforcement that all performed effects are handled.
 
 ## Requirements
 
 ### Requirement: Effect Operations Are Called as Functions
 
-Effect operations SHALL be invoked as ordinary function calls qualified by their effect name. There SHALL be no `perform` or `do` keyword. The `!` suffix on effect type names and operation names SHALL be part of the actual name, not a separate modifier. The effect-qualified call `E!.op!(args)` SHALL be syntactically a function call, not a special form.
+Effect operations SHALL be invoked as ordinary function calls qualified by their effect name. There SHALL be no `perform` or `do` keyword. The `!` suffix on effect type names and operation names SHALL be part of the actual name, not a separate modifier. The effect-qualified call `E.op!(args)` SHALL be syntactically a function call, not a special form.
 
 #### Scenario: Effectful function call syntax
 
-- **WHEN** a Camp program calls `Console!.println!("hello")`
+- **WHEN** a Camp program calls `Console.println!("hello")`
 - **THEN** it SHALL be syntactically a function call qualified by the `Console!` effect, not a special `perform` form
 
 ### Requirement: Effects Are Type Aliases With `!` Names
@@ -49,7 +51,7 @@ Effects MAY have type parameters. When a type parameter is used in a tag union p
 
 #### Scenario: Tag union parameter widens
 
-- **GIVEN** a function that calls `Throw!.throw!(NotFound)` and `Throw!.throw!(PermissionDenied)`
+- **GIVEN** a function that calls `Throw.raise!(NotFound)` and `Throw.raise!(PermissionDenied)`
 - **WHEN** the typechecker infers the effect row
 - **THEN** it SHALL be `-[Throw!([NotFound | PermissionDenied])]->` — the tag union widened through row unification
 
@@ -61,7 +63,7 @@ Effects MAY have type parameters. When a type parameter is used in a tag union p
 
 #### Scenario: Open tag union parameter for handlers
 
-- **GIVEN** a `handle Throw! in body with { .throw!(resume, err) => ... }` where body has row `-[Throw!([NotFound | ..])]->`
+- **GIVEN** a `handle Throw! in body with { .raise!(resume, err) => ... }` where body has row `-[Throw!([NotFound | ..])]->`
 - **WHEN** the handler processes any thrown tag
 - **THEN** the open tag union `[NotFound | ..]` SHALL accept any tag variant
 
@@ -71,13 +73,13 @@ Variant widening — where a tag union type parameter on an effect grows as more
 
 #### Scenario: Custom effect with widening tag union
 
-- **GIVEN** an effect `Signal! : { emit!: |e| -[Signal!(e)]-> {} }` and a function that calls `Signal!.emit!(Click)` then `Signal!.emit!(KeyPress)`
+- **GIVEN** an effect `Signal! : { emit!: |e| -[Signal!(e)]-> {} }` and a function that calls `Signal.emit!(Click)` then `Signal.emit!(KeyPress)`
 - **WHEN** the typechecker infers the effect row
 - **THEN** it SHALL be `-[Signal!([Click | KeyPress])]->` — widened through the same tag row unification as Throw!
 
 #### Scenario: Widening is not Throw-specific
 
-- **GIVEN** the Throw! effect definition `Throw! : { throw!: |e| -[Throw!(e)]-> a }`
+- **GIVEN** the Throw! effect definition `Throw!(e) : { raise!: |e| -[Throw!(e)]-> a }`
 - **WHEN** compared with the Signal! effect definition
 - **THEN** both SHALL use identical tag row unification mechanics — no Throw-specific widening code
 
@@ -100,7 +102,7 @@ Effect row variables SHALL be generic type parameters that can be instantiated a
 - **WHEN** `map` is called with a pure function `|x| x + 1`
 - **THEN** the effect row SHALL be `-[Parallel!]->` only
 
-- **WHEN** `map` is called with an effectful function `|x| Throw!.throw!(x)`
+- **WHEN** `map` is called with an effectful function `|x| Throw.raise!(x)`
 - **THEN** the effect row SHALL be `-[Parallel! | Throw!(a)]->`
 
 #### Scenario: Effect row variable unification
@@ -124,17 +126,8 @@ A deep handler (the `handle` keyword) SHALL be automatically re-installed after 
 
 #### Scenario: Deep handler handles all operations
 
-- **WHEN** a `handle Async!` block contains multiple `Async!.yield!()` calls
+- **WHEN** a `handle Async!` block contains multiple `Async.yield!()` calls
 - **THEN** each call SHALL be caught by the same handler after `resume` reinstalls it
-
-### Requirement: Shallow Handlers Do Not Reinstall
-
-A shallow handler (the `intercept` keyword) SHALL handle only the first matching operation. After `resume`, the handler SHALL NOT be re-installed. Subsequent operations of the same effect SHALL propagate to an outer handler.
-
-#### Scenario: Shallow handler handles first operation only
-
-- **WHEN** an `intercept Async!` block contains two `Async!.yield!()` calls
-- **THEN** the first SHALL be caught by the handler and the second SHALL propagate to an outer handler
 
 ### Requirement: One-Shot Continuations
 
@@ -147,23 +140,23 @@ Each `resume` continuation SHALL be called at most once. A second invocation of 
 
 ### Requirement: Throw! Is a Normal Effect in the Prelude
 
-`Throw!` SHALL be a normal effect defined in the prelude, not a built-in with special syntax. Its definition SHALL be `Throw! : { throw!: |e| -[Throw!(e)]-> a }`. Handlers for `Throw!` MAY call `resume` — there is no non-resuming restriction. The common pattern of not resuming is a handler implementation choice, not a language constraint. The runtime SHALL provide a default handler for `Throw!([..])` in `main!` that renders the unhandled tag to stderr and exits non-zero.
+`Throw!` SHALL be a normal effect defined in the prelude, not a built-in with special syntax. Its definition SHALL be `Throw!(e) : { raise!: |e| -[Throw!(e)]-> a }`. Handlers for `Throw!` MAY call `resume` — there is no non-resuming restriction. The common pattern of not resuming is a handler implementation choice, not a language constraint. The runtime SHALL provide a default handler for `Throw!([..])` in `main!` that renders the unhandled tag to stderr and exits non-zero.
 
 #### Scenario: Throw! as prelude effect
 
-- **GIVEN** the prelude definition `Throw! : { throw!: |e| -[Throw!(e)]-> a }`
-- **WHEN** a program calls `Throw!.throw!(NotFound)`
-- **THEN** it SHALL perform the `throw!` operation of the `Throw!` effect, adding `Throw!([NotFound])` to the effect row
+- **GIVEN** the prelude definition `Throw!(e) : { raise!: |e| -[Throw!(e)]-> a }`
+- **WHEN** a program calls `Throw.raise!(NotFound)`
+- **THEN** it SHALL perform the `raise!` operation of the `Throw!` effect, adding `Throw!([NotFound])` to the effect row
 
 #### Scenario: Resuming Throw! handler
 
-- **GIVEN** a handler `handle Throw! in risky_op() with { .throw!(resume, _) => resume(0) }`
+- **GIVEN** a handler `handle Throw! in risky_op() with { .raise!(resume, _) => resume(0) }`
 - **WHEN** `risky_op()` throws an error
 - **THEN** the handler SHALL provide `0` as the result and computation SHALL continue — resuming from Throw! is permitted
 
 #### Scenario: Non-resuming Throw! handler
 
-- **GIVEN** a handler `handle Throw! in risky_op() with { .throw!(resume, err) => Err(err) }`
+- **GIVEN** a handler `handle Throw! in risky_op() with { .raise!(resume, err) => Err(err) }`
 - **WHEN** `risky_op()` throws an error
 - **THEN** the handler SHALL return `Err(err)` without calling `resume` — computation after the throw is abandoned
 
@@ -178,7 +171,7 @@ A function's effect row SHALL be a subset of the effects handled by its caller's
 
 #### Scenario: Unhandled effect at compile time
 
-- **WHEN** `main!` declares `|| -> I64` and calls `Console!.println!("oops")`
+- **WHEN** `main!` declares `|| -> I64` and calls `Console.println!("oops")`
 - **THEN** the typechecker SHALL emit an error for unhandled effect `Console!`
 
 ### Requirement: Handler Arm Parameters Include Resume and Operation Args
@@ -199,12 +192,12 @@ Handler arms SHALL receive `resume` as their first parameter, followed by the op
 
 ### Requirement: Effect Composition Via Aliases
 
-Effects SHALL compose by set union in the type, not by subtyping. There SHALL be no `effect File! is Io` syntax. Instead, aliases SHALL group effects: `alias Io = File! | Console!`. Operations SHALL always be qualified by their defining effect.
+Effects SHALL compose by set union in the type, not by subtyping. There SHALL be no `effect File! is Io` syntax. Instead, aliases SHALL group effects: `Io!: [File! | Console!]`. Operations SHALL always be qualified by their defining effect.
 
 #### Scenario: Effect composition via alias
 
-- **WHEN** `alias Io = File! | Console!` is defined
-- **THEN** `Io` SHALL expand to `File! | Console!` and operations SHALL still be qualified individually as `File!.write!` and `Console!.println!`
+- **WHEN** `Io!: [File! | Console!]` is defined
+- **THEN** `Io!` SHALL expand to `[File! | Console!]` and operations SHALL still be qualified individually as `File.write!` and `Console.println!`
 
 ### Requirement: Effect Row Subtraction When Handling
 
