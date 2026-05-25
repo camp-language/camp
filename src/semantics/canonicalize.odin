@@ -10,6 +10,7 @@ import "camp:diagnostics"
 DOT_RECEIVER_NAME :: "__dot_receiver__"
 DOT_RECEIVER_INTERN_ID : base.Intern_ID = 0
 dot_lambda_counter : int = 0
+destructure_counter : int = 0
 
 Canonicalize_Scope :: struct {
 	local_names:    map[base.Intern_ID]base.Canonical_Name,
@@ -331,6 +332,55 @@ replace_dot_receiver :: proc(expr: frontend.Expr, replacement: base.Intern_ID) -
 	return expr
 }
 
+desugar_destructure_assign :: proc(rec: ^frontend.Expr_Record, value: CExpr, type_ann: ^CType, span: base.Source_Span, scope: ^Canonicalize_Scope, interner: ^base.Intern_Table, collector: ^diagnostics.Diagnostic_Collector) -> CExpr {
+	destructure_counter += 1
+	tmp_name_str := fmt.tprintf("_$destr_%d", destructure_counter)
+	tmp_name_id := base.intern(interner, tmp_name_str)
+	tmp_cname := canonicalize_local_name(tmp_name_id, .Const, scope, interner, collector)
+
+	stmts := make([dynamic]CExpr, 0, len(rec.fields) + 2)
+
+	tmp_name_expr := new(CExpr_Name)
+	tmp_name_expr^ = CExpr_Name{name = tmp_cname, span = span}
+
+	tmp_assign := new(CExpr_Assign)
+	tmp_assign^ = CExpr_Assign{
+		target   = tmp_name_expr,
+		value    = value,
+		type_ann = type_ann,
+		span     = span,
+	}
+	append(&stmts, tmp_assign)
+
+	for f in rec.fields {
+		field_cname := canonicalize_local_name(f.name, .Const, scope, interner, collector)
+
+		field_access := new(CExpr_Field_Access)
+		field_access^ = CExpr_Field_Access{
+			record = tmp_name_expr,
+			field  = f.name,
+			span   = f.span,
+		}
+
+		field_target := new(CExpr_Name)
+		field_target^ = CExpr_Name{name = field_cname, span = f.span}
+
+		field_assign := new(CExpr_Assign)
+		field_assign^ = CExpr_Assign{
+			target = field_target,
+			value  = field_access,
+			span   = f.span,
+		}
+		append(&stmts, field_assign)
+	}
+
+	append(&stmts, tmp_name_expr)
+
+	block := new(CExpr_Block)
+	block^ = CExpr_Block{statements = stmts, span = span}
+	return block
+}
+
 canonicalize_expr :: proc(expr: frontend.Expr, scope: ^Canonicalize_Scope, interner: ^base.Intern_Table, collector: ^diagnostics.Diagnostic_Collector) -> CExpr {
 	switch e in expr {
 	case ^frontend.Expr_Int:
@@ -594,12 +644,30 @@ canonicalize_expr :: proc(expr: frontend.Expr, scope: ^Canonicalize_Scope, inter
 		if e.type_ann != nil {
 			ctype_ann = canonicalize_type(e.type_ann^, scope, interner, collector)
 		}
+		cvalue := canonicalize_expr(e.value, scope, interner, collector)
+
+		// Desugar { x, y } = expr into block with temp variable
+		if rec, ok := e.target.(^frontend.Expr_Record); ok && rec.rest == nil && !rec.is_open && len(rec.fields) > 0 {
+			destructure := true
+			for f in rec.fields {
+				val_id, val_ok := f.value.(^frontend.Expr_Identifier)
+				if !val_ok || val_id.name != f.name {
+					destructure = false
+					break
+				}
+			}
+			if destructure {
+				return desugar_destructure_assign(rec, cvalue, ctype_ann, e.span, scope, interner, collector)
+			}
+		}
+
+		ctarget := canonicalize_expr(e.target, scope, interner, collector)
 		c := new(CExpr_Assign)
 		c^ = CExpr_Assign{
-			target = canonicalize_expr(e.target, scope, interner, collector),
-			value = canonicalize_expr(e.value, scope, interner, collector),
+			target   = ctarget,
+			value    = cvalue,
 			type_ann = ctype_ann,
-			span = e.span,
+			span     = e.span,
 		}
 		return c
 
