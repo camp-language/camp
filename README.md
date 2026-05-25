@@ -27,9 +27,10 @@ odin build src -collection:camp=src -out:camp
 
 ```bash
 camp build <file.camp>    # Compile a Camp source file to .wasm
-camp test                 # Run tests (not yet implemented)
-camp fmt                  # Format source (not yet implemented)
-camp check                # Type-check only (not yet implemented)
+camp check <file.camp>    # Type-check (and run unused analysis) without codegen
+camp fmt [paths...]       # Format source files in place (defaults to .); --check, --stdin
+camp test [paths...]      # Run tests; --filter <substr>, --verbose
+camp lsp                  # Start the language server (stdio)
 ```
 
 ### Example
