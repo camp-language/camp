@@ -1,0 +1,66 @@
+-- Uri.camp — URI/URL parsing and construction
+-- Per D36: query stored as raw string with parse_query/format_query helpers.
+-- Pure Camp — RFC 3986 parsing is bounded-complexity string scanning.
+
+@UriAuthority : pub {
+    userinfo : Result(Str, [Absent]),              -- "user:password" (deprecated per RFC 3986 §3.2.1)
+    host     : Str,
+    port     : Result(U16, [Absent])
+}
+
+@Uri : pub {
+    scheme    : Str,
+    authority : Result(UriAuthority, [Absent]),
+    path      : Str,
+    query     : Result(Str, [Absent]),             -- D36: raw percent-encoded string
+    fragment  : Result(Str, [Absent])
+}
+
+@UriErr : pub [
+    InvalidScheme(Str)
+  | InvalidHost(Str)
+  | InvalidPort(Str)
+  | InvalidEscape(Str)
+  | MissingScheme
+]
+
+-- Parsing and formatting — pure Camp
+
+pub parse : Str -> Result(Uri, UriErr)
+pub parse = |_s| crash "intrinsic: Uri.parse"  -- TODO: pure Camp implementation
+
+pub to_str : Uri -> Str
+pub to_str = |_u| crash "intrinsic: Uri.to_str"  -- TODO: pure Camp implementation
+
+-- Component-level percent encoding — pure Camp
+
+pub encode_component : Str -> Str               -- percent-encode for URI component
+pub encode_component = |_s| crash "intrinsic: Uri.encode_component"  -- TODO: pure Camp implementation
+
+pub decode_component : Str -> Result(Str, UriErr)  -- percent-decode
+pub decode_component = |_s| crash "intrinsic: Uri.decode_component"  -- TODO: pure Camp implementation
+
+-- Query string parsing (convenience) — pure Camp
+
+pub parse_query : Str -> List((Str, Str))        -- "a=1&b=2" -> [("a","1"), ("b","2")]
+pub parse_query = |_s| crash "intrinsic: Uri.parse_query"  -- TODO: pure Camp implementation
+
+pub format_query : List((Str, Str)) -> Str      -- reverse
+pub format_query = |_pairs| crash "intrinsic: Uri.format_query"  -- TODO: pure Camp implementation
+
+-- Functional construction helpers — pure Camp
+
+pub with_scheme : Str, Uri -> Uri
+pub with_scheme = |s, u| { scheme: s, authority: u.authority, path: u.path, query: u.query, fragment: u.fragment }
+
+pub with_authority : Result(UriAuthority, [Absent]), Uri -> Uri
+pub with_authority = |a, u| { scheme: u.scheme, authority: a, path: u.path, query: u.query, fragment: u.fragment }
+
+pub with_path : Str, Uri -> Uri
+pub with_path = |p, u| { scheme: u.scheme, authority: u.authority, path: p, query: u.query, fragment: u.fragment }
+
+pub with_query : Result(Str, [Absent]), Uri -> Uri
+pub with_query = |q, u| { scheme: u.scheme, authority: u.authority, path: u.path, query: q, fragment: u.fragment }
+
+pub with_fragment : Result(Str, [Absent]), Uri -> Uri
+pub with_fragment = |f, u| { scheme: u.scheme, authority: u.authority, path: u.path, query: u.query, fragment: f }

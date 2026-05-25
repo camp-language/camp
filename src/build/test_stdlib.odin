@@ -2,7 +2,7 @@ package build
 
 import "core:testing"
 
-EXPECTED_STDLIB_MODULE_COUNT :: 38
+EXPECTED_STDLIB_MODULE_COUNT :: 43
 
 ALL_MODULE_NAMES :: []string{
 	"Result",
@@ -43,6 +43,11 @@ ALL_MODULE_NAMES :: []string{
 	"Path",
 	"Duration",
 	"Fmt",
+	"Uuid",
+	"Json",
+	"Regex",
+	"Uri",
+	"Base64",
 }
 
 // substring check without importing core:strings

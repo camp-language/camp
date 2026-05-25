@@ -1,0 +1,48 @@
+-- Regex.camp — RE2-style regular expressions
+-- Per D37: guaranteed O(n), no backtracking, no backreferences, no lookahead/lookbehind.
+
+@Regex : pub { pattern : Str }                  -- opaque compiled regex
+
+@RegexErr : pub [
+    CompileError(Str)
+  | InvalidEscape(Str)
+  | InvalidRepeat(Str)
+]
+
+@MatchGroup : pub { value : Str, start : U64, end : U64 }
+@Match : pub { full : Str, start : U64, end : U64, groups : List(MatchGroup) }
+
+-- Compilation — intrinsic
+
+pub compile : Str -> Result(Regex, RegexErr)
+pub compile = |_pat| crash "intrinsic: Regex.compile"
+
+pub is_match : Regex, Str -> Bool
+pub is_match = |_r, _s| crash "intrinsic: Regex.is_match"
+
+-- Search — intrinsic
+
+pub find : Regex, Str -> Result(Match, [Absent])   -- first match only
+pub find = |_r, _s| crash "intrinsic: Regex.find"
+
+pub find_all : Regex, Str -> List(Match)        -- all non-overlapping matches
+pub find_all = |_r, _s| crash "intrinsic: Regex.find_all"
+
+-- Transformation — intrinsic
+
+pub replace : Regex, Str, Str -> Str            -- first match, literal replacement
+pub replace = |_r, _s, _rep| crash "intrinsic: Regex.replace"
+
+pub replace_all : Regex, Str, Str -> Str        -- all matches, literal replacement
+pub replace_all = |_r, _s, _rep| crash "intrinsic: Regex.replace_all"
+
+pub split : Regex, Str -> List(Str)             -- split on matches
+pub split = |_r, _s| crash "intrinsic: Regex.split"
+
+pub splitn : Regex, Str, U64 -> List(Str)       -- at most n-1 splits
+pub splitn = |_r, _s, _n| crash "intrinsic: Regex.splitn"
+
+-- Utility — pure Camp
+
+pub escape : Str -> Str                          -- escape regex metacharacters
+pub escape = |_s| crash "intrinsic: Regex.escape"  -- TODO: pure Camp implementation

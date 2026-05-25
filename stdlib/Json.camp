@@ -1,0 +1,115 @@
+-- Json.camp — JSON parsing, encoding, and streaming
+-- Per D34: Obj uses Map(Str, JsonValue) for O(log n) lookup.
+-- Per D35: JsonNumber preserves integer/float distinction.
+
+@JsonNumber : pub [
+    PosInt(U64)                                -- non-negative integer
+  | NegInt(I64)                                -- negative integer
+  | Float(F64)                                 -- finite float (never NaN/Inf)
+]
+
+@JsonValue : pub [
+    Null
+  | Bool(Bool)
+  | Num(JsonNumber)                            -- D35: preserves int/float distinction
+  | Str(Str)
+  | Arr(List(JsonValue))
+  | Obj(Map(Str, JsonValue))                   -- D34: Map for O(log n) lookup
+]
+
+@JsonErr : pub [
+    UnexpectedChar(U64, Str)                  -- position + description
+  | InvalidNumber(U64, Str)
+  | UnexpectedEnd
+  | TrailingContent(U64)
+]
+
+-- Core DOM API — intrinsic
+
+pub decode : Str -> Result(JsonValue, JsonErr)
+pub decode = |_s| crash "intrinsic: Json.decode"
+
+pub encode : JsonValue -> Str
+pub encode = |_v| crash "intrinsic: Json.encode"
+
+pub encode_pretty : JsonValue -> Str            -- 2-space indent
+pub encode_pretty = |_v| crash "intrinsic: Json.encode_pretty"
+
+-- JsonNumber accessors — pure Camp
+
+pub is_int : JsonNumber -> Bool
+pub is_int = |n| match n {
+  PosInt(_) -> True
+  NegInt(_) -> True
+  Float(_)  -> False
+}
+
+pub is_float : JsonNumber -> Bool
+pub is_float = |n| match n {
+  Float(_)  -> True
+  PosInt(_) -> False
+  NegInt(_) -> False
+}
+
+pub as_i64 : JsonNumber -> Result(I64, [Absent])
+pub as_i64 = |n| match n {
+  NegInt(i) -> Ok(i)
+  PosInt(_) -> Err(Absent)   -- TODO: check if <= I64_MAX
+  Float(_)  -> Err(Absent)
+}
+
+pub as_u64 : JsonNumber -> Result(U64, [Absent])
+pub as_u64 = |n| match n {
+  PosInt(u) -> Ok(u)
+  NegInt(_) -> Err(Absent)
+  Float(_)  -> Err(Absent)
+}
+
+pub as_f64 : JsonNumber -> Result(F64, [Absent])
+pub as_f64 = |n| match n {
+  Float(f)  -> Ok(f)
+  PosInt(_) -> Err(Absent)   -- TODO: always Ok (every JsonNumber can be F64)
+  NegInt(_) -> Err(Absent)   -- TODO: always Ok
+}
+
+-- JsonValue convenience accessors — pure Camp
+
+pub get : JsonValue, Str -> Result(JsonValue, JsonErr)
+pub get = |_v, _key| crash "intrinsic: Json.get"  -- TODO: pure Camp implementation
+
+pub get_at : JsonValue, U64 -> Result(JsonValue, JsonErr)
+pub get_at = |_v, _idx| crash "intrinsic: Json.get_at"  -- TODO: pure Camp implementation
+
+pub keys : JsonValue -> Result(List(Str), [Absent])
+pub keys = |_v| crash "intrinsic: Json.keys"  -- TODO: pure Camp implementation
+
+pub values : JsonValue -> Result(List(JsonValue), [Absent])
+pub values = |_v| crash "intrinsic: Json.values"  -- TODO: pure Camp implementation
+
+pub length : JsonValue -> Result(U64, [Absent])
+pub length = |_v| crash "intrinsic: Json.length"  -- TODO: pure Camp implementation
+
+-- Streaming parser — intrinsic
+
+@JsonEvent : pub [
+    StartObj
+  | EndObj
+  | StartArr
+  | EndArr
+  | Key(Str)
+  | Null
+  | Bool(Bool)
+  | Num(JsonNumber)
+  | Str(Str)
+]
+
+@JsonParser : pub { source : Str, pos : U64, depth : U64 }
+
+pub parse_init : Str -> JsonParser
+pub parse_init = |_s| crash "intrinsic: Json.parse_init"
+
+pub parse_next : JsonParser -> Result((JsonParser, JsonEvent), JsonErr)
+pub parse_next = |_p| crash "intrinsic: Json.parse_next"
+
+pub parse_all : Str -> Result(List(JsonEvent), JsonErr)
+pub parse_all = |_s| crash "intrinsic: Json.parse_all"

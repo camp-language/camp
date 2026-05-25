@@ -1,5 +1,5 @@
--- Random! effect — fast PRNG (not cryptographic)
--- For cryptographic random, use Crypto.Random!
+-- Random! effect — two handlers: random_prng (fast PRNG) and random_crypto (WASI random_get)
+-- Per D31: one effect, two handlers. Handler choice determines security guarantees.
 
 effect Random! : {
   int!   : I64, I64 -> -[Random!]-> I64,
