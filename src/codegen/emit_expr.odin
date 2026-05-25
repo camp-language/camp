@@ -180,6 +180,7 @@ Runtime_Func :: enum {
 	I32_To_Str,
 	F64_To_Str,
 	Bool_To_Str,
+	Report_Drop_Overflow,
 }
 
 RUNTIME_FUNC_COUNT :: int(len(Runtime_Func))
@@ -493,6 +494,7 @@ emit_expr :: proc(expr: ir.IR_Expr, buf: ^[dynamic]u8, env: ^Codegen_Env, runtim
 			type_info, type_ok := env.local_types[e.value]
 			if type_ok && type_info.is_heap {
 				emit_instruction(Wasm_Local_Get{index = idx}, buf)
+				emit_instruction(Wasm_I32_Const{value = 0}, buf)
 				emit_instruction(Wasm_Call{index = u32(runtime_indices[Runtime_Func.Drop])}, buf)
 			}
 		}
@@ -1244,6 +1246,7 @@ emit_expr :: proc(expr: ir.IR_Expr, buf: ^[dynamic]u8, env: ^Codegen_Env, runtim
 	case ^ir.IR_Drop_Reuse:
 		if idx, ok := env.local_map[e.value]; ok {
 			emit_instruction(Wasm_Local_Get{index = idx}, buf)
+			emit_instruction(Wasm_I32_Const{value = 0}, buf)
 			emit_instruction(Wasm_Call{index = u32(runtime_indices[Runtime_Func.Drop])}, buf)
 		}
 	case ^ir.IR_Alloc_At:
