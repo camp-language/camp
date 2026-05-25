@@ -725,15 +725,59 @@ emit_expr :: proc(expr: ir.IR_Expr, buf: ^[dynamic]u8, env: ^Codegen_Env, runtim
 		}
 
 	case ^ir.IR_Construct_Tag:
-		// reuse_addr handled in future reuse analysis pass
 		num_fields := len(e.payload)
 		total_size := CAMP_TAG_HEADER_SIZE + num_fields * 8
-
-		emit_instruction(Wasm_I32_Const{value = i32(total_size)}, buf)
-		emit_instruction(Wasm_Call{index = u32(runtime_indices[Runtime_Func.Alloc])}, buf)
-
 		tmp_local_idx := env.tmp_local_base
-		emit_instruction(Wasm_Local_Set{index = tmp_local_idx}, buf)
+
+		if e.reuse_addr != ir.NO_REUSE_ADDR {
+			// Perceus inline reuse: decrement reuse_addr refcount, reuse if zero + big enough
+			reuse_local, reuse_ok := env.local_map[e.reuse_addr]
+			if reuse_ok {
+				rc_local := env.tmp_local_base + env.tmp_count
+				env.tmp_count += 1
+
+				// Load refcount, decrement, store back
+				emit_instruction(Wasm_Local_Get{index = reuse_local}, buf)
+				emit_instruction(Wasm_I32_Load{align = 2, offset = CAMP_TAG_REFCOUNT_OFFSET}, buf)
+				emit_instruction(Wasm_I32_Const{value = 1}, buf)
+				emit_instruction(Wasm_I32_Sub{}, buf)
+				emit_instruction(Wasm_Local_Tee{index = rc_local}, buf)
+				emit_instruction(Wasm_Local_Get{index = reuse_local}, buf)
+				emit_instruction(Wasm_I32_Store{align = 2, offset = CAMP_TAG_REFCOUNT_OFFSET}, buf)
+
+				// if refcount == 0
+				emit_instruction(Wasm_Local_Get{index = rc_local}, buf)
+				emit_instruction(Wasm_I32_Const{value = 0}, buf)
+				emit_instruction(Wasm_I32_Eq{}, buf)
+				emit_instruction(Wasm_If{block_type = .I32}, buf)
+					// Check scan_size >= num_fields for safe reuse
+					emit_instruction(Wasm_Local_Get{index = reuse_local}, buf)
+					emit_instruction(Wasm_I32_Load8U{align = 0, offset = CAMP_TAG_SCAN_SIZE_OFFSET}, buf)
+					emit_instruction(Wasm_I32_Const{value = i32(num_fields)}, buf)
+					emit_instruction(Wasm_I32_Ge_S{}, buf)
+					emit_instruction(Wasm_If{block_type = .I32}, buf)
+						emit_instruction(Wasm_Local_Get{index = reuse_local}, buf)
+					emit_instruction(Wasm_Else{}, buf)
+						emit_instruction(Wasm_I32_Const{value = i32(total_size)}, buf)
+						emit_instruction(Wasm_Call{index = u32(runtime_indices[Runtime_Func.Alloc])}, buf)
+					emit_instruction(Wasm_End{}, buf)
+				emit_instruction(Wasm_Else{}, buf)
+					emit_instruction(Wasm_I32_Const{value = i32(total_size)}, buf)
+					emit_instruction(Wasm_Call{index = u32(runtime_indices[Runtime_Func.Alloc])}, buf)
+				emit_instruction(Wasm_End{}, buf)
+
+				emit_instruction(Wasm_Local_Set{index = tmp_local_idx}, buf)
+			} else {
+				// Fallback: reuse_addr not in local_map, fresh alloc
+				emit_instruction(Wasm_I32_Const{value = i32(total_size)}, buf)
+				emit_instruction(Wasm_Call{index = u32(runtime_indices[Runtime_Func.Alloc])}, buf)
+				emit_instruction(Wasm_Local_Set{index = tmp_local_idx}, buf)
+			}
+		} else {
+			emit_instruction(Wasm_I32_Const{value = i32(total_size)}, buf)
+			emit_instruction(Wasm_Call{index = u32(runtime_indices[Runtime_Func.Alloc])}, buf)
+			emit_instruction(Wasm_Local_Set{index = tmp_local_idx}, buf)
+		}
 
 		emit_instruction(Wasm_Local_Get{index = tmp_local_idx}, buf)
 		emit_instruction(Wasm_I32_Const{value = 1}, buf)
@@ -758,15 +802,59 @@ emit_expr :: proc(expr: ir.IR_Expr, buf: ^[dynamic]u8, env: ^Codegen_Env, runtim
 		emit_instruction(Wasm_Local_Get{index = tmp_local_idx}, buf)
 
 	case ^ir.IR_Construct_Record:
-		// reuse_addr handled in future reuse analysis pass
 		num_fields := len(e.fields)
 		total_size := CAMP_TAG_HEADER_SIZE + num_fields * 8
-
-		emit_instruction(Wasm_I32_Const{value = i32(total_size)}, buf)
-		emit_instruction(Wasm_Call{index = u32(runtime_indices[Runtime_Func.Alloc])}, buf)
-
 		tmp_local_idx := env.tmp_local_base
-		emit_instruction(Wasm_Local_Set{index = tmp_local_idx}, buf)
+
+		if e.reuse_addr != ir.NO_REUSE_ADDR {
+			// Perceus inline reuse: decrement reuse_addr refcount, reuse if zero + big enough
+			reuse_local, reuse_ok := env.local_map[e.reuse_addr]
+			if reuse_ok {
+				rc_local := env.tmp_local_base + env.tmp_count
+				env.tmp_count += 1
+
+				// Load refcount, decrement, store back
+				emit_instruction(Wasm_Local_Get{index = reuse_local}, buf)
+				emit_instruction(Wasm_I32_Load{align = 2, offset = CAMP_TAG_REFCOUNT_OFFSET}, buf)
+				emit_instruction(Wasm_I32_Const{value = 1}, buf)
+				emit_instruction(Wasm_I32_Sub{}, buf)
+				emit_instruction(Wasm_Local_Tee{index = rc_local}, buf)
+				emit_instruction(Wasm_Local_Get{index = reuse_local}, buf)
+				emit_instruction(Wasm_I32_Store{align = 2, offset = CAMP_TAG_REFCOUNT_OFFSET}, buf)
+
+				// if refcount == 0
+				emit_instruction(Wasm_Local_Get{index = rc_local}, buf)
+				emit_instruction(Wasm_I32_Const{value = 0}, buf)
+				emit_instruction(Wasm_I32_Eq{}, buf)
+				emit_instruction(Wasm_If{block_type = .I32}, buf)
+					// Check scan_size >= num_fields for safe reuse
+					emit_instruction(Wasm_Local_Get{index = reuse_local}, buf)
+					emit_instruction(Wasm_I32_Load8U{align = 0, offset = CAMP_TAG_SCAN_SIZE_OFFSET}, buf)
+					emit_instruction(Wasm_I32_Const{value = i32(num_fields)}, buf)
+					emit_instruction(Wasm_I32_Ge_S{}, buf)
+					emit_instruction(Wasm_If{block_type = .I32}, buf)
+						emit_instruction(Wasm_Local_Get{index = reuse_local}, buf)
+					emit_instruction(Wasm_Else{}, buf)
+						emit_instruction(Wasm_I32_Const{value = i32(total_size)}, buf)
+						emit_instruction(Wasm_Call{index = u32(runtime_indices[Runtime_Func.Alloc])}, buf)
+					emit_instruction(Wasm_End{}, buf)
+				emit_instruction(Wasm_Else{}, buf)
+					emit_instruction(Wasm_I32_Const{value = i32(total_size)}, buf)
+					emit_instruction(Wasm_Call{index = u32(runtime_indices[Runtime_Func.Alloc])}, buf)
+				emit_instruction(Wasm_End{}, buf)
+
+				emit_instruction(Wasm_Local_Set{index = tmp_local_idx}, buf)
+			} else {
+				// Fallback: reuse_addr not in local_map, fresh alloc
+				emit_instruction(Wasm_I32_Const{value = i32(total_size)}, buf)
+				emit_instruction(Wasm_Call{index = u32(runtime_indices[Runtime_Func.Alloc])}, buf)
+				emit_instruction(Wasm_Local_Set{index = tmp_local_idx}, buf)
+			}
+		} else {
+			emit_instruction(Wasm_I32_Const{value = i32(total_size)}, buf)
+			emit_instruction(Wasm_Call{index = u32(runtime_indices[Runtime_Func.Alloc])}, buf)
+			emit_instruction(Wasm_Local_Set{index = tmp_local_idx}, buf)
+		}
 
 		emit_instruction(Wasm_Local_Get{index = tmp_local_idx}, buf)
 		emit_instruction(Wasm_I32_Const{value = 1}, buf)
