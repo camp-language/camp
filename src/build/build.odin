@@ -74,7 +74,9 @@ run_build_single :: proc(file_path: string, thread_count: int = 1) -> Build_Resu
 
 	canon := semantics.canonicalize(ast_file, &ctx.interner, &ctx.collector)
 
-	fmt.printfln("canonicalized {}: {} declaration(s), {} import(s)", file_path, len(canon.decls), len(canon.imports))
+	if !diagnostics.is_json_mode() {
+		fmt.printfln("canonicalized {}: {} declaration(s), {} import(s)", file_path, len(canon.decls), len(canon.imports))
+	}
 
 	store: semantics.Type_Store
 	semantics.type_store_init(&store, &ctx.interner, &ctx.collector)
@@ -87,7 +89,9 @@ run_build_single :: proc(file_path: string, thread_count: int = 1) -> Build_Resu
 		return Build_Error{message = "typecheck errors", code = 1}
 	}
 
-	fmt.printfln("typecheck passed for {}", file_path)
+	if !diagnostics.is_json_mode() {
+		fmt.printfln("typecheck passed for {}", file_path)
+	}
 
 	// Run unused binding analysis after typecheck, before lowering
 	analysis.run_unused_analysis(canon, &ctx.interner, &ctx.collector)
@@ -120,7 +124,11 @@ run_build_single :: proc(file_path: string, thread_count: int = 1) -> Build_Resu
 		diagnostics.render_all(&ctx.collector, file_path, source)
 		return Build_Error{message = fmt.tprintf("write failed: {}", output_path), code = 1}
 	}
-	fmt.printfln("compiled {} -> {}", file_path, output_path)
+	if diagnostics.is_json_mode() {
+		diagnostics.render_all(&ctx.collector, file_path, source)
+	} else {
+		fmt.printfln("compiled {} -> {}", file_path, output_path)
+	}
 	return Build_Output{wasm_path = output_path, has_errors = false}
 }
 
@@ -194,15 +202,21 @@ run_check :: proc(args: []string) -> Build_Result {
 
 	has_errors := diagnostics.diag_collector_has_errors(&ctx.collector)
 	has_warnings := ctx.collector.warning_count > 0
-	if has_errors || has_warnings {
+
+	if diagnostics.is_json_mode() {
 		diagnostics.render_all(&ctx.collector, file_path, source)
+	} else {
+		if has_errors || has_warnings {
+			diagnostics.render_all(&ctx.collector, file_path, source)
+		}
+		if !has_errors {
+			fmt.printfln("check passed for {}", file_path)
+		}
 	}
 
 	if has_errors {
 		return Build_Error{message = "typecheck errors", code = 1}
 	}
-
-	fmt.printfln("check passed for {}", file_path)
 	return Build_Output{wasm_path = "", has_errors = false}
 }
 

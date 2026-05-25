@@ -13,11 +13,22 @@ import "camp:lsp"
 VERSION :: "0.0.1"
 
 main :: proc() {
-	args := os.args
+	raw_args := os.args
+	args := make([dynamic]string, 0, len(raw_args))
+	defer delete(args)
+	for a in raw_args {
+		if a == "--json" {
+			diagnostics.set_json_mode(true)
+		} else {
+			append(&args, a)
+		}
+	}
+
 	if len(args) < 2 {
 		fmt.printfln("Camp compiler v{}", VERSION)
 		fmt.println("Usage: camp <command> [options] <file>")
 		fmt.println("Commands: build, test, fmt, check, lsp")
+		fmt.println("Global flags: --json (machine-readable diagnostics on stdout)")
 		os.exit(1)
 	}
 
