@@ -165,6 +165,36 @@ Each `resume` continuation SHALL be called at most once. A second invocation of 
 - **WHEN** `main!` declares `-[Throw!([..])]->` and an unhandled tag is thrown
 - **THEN** the runtime default handler SHALL render the tag to stderr and exit with code 1
 
+### Requirement: Parallel!, Spawn!, and Async! Are Prelude Effects
+
+`Parallel!`, `Spawn!`, and `Async!` SHALL be normal effects defined in the prelude by the compiler, alongside `Console!`, `Throw!`, `File!`, `Env!`, `Time!`, and `Random!`.
+
+The prelude SHALL inject these effects with the following operation signatures:
+
+- **Parallel!(a)** : `{ map!: |fn, iterable| -[Parallel!(a) | (fn effects)]-> List(b), for_each!: |fn, iterable| -[Parallel!(a) | (fn effects)]-> {}, filter!: |fn, iterable| -[Parallel!(a) | (fn effects)]-> List(a), any!: |fn, iterable| -[Parallel!(a) | (fn effects)]-> Bool, all!: |fn, iterable| -[Parallel!(a) | (fn effects)]-> Bool, reduce!: |fn, init, iterable| -[Parallel!(a) | (fn effects)]-> b }`
+- **Spawn!** : `{ spawn!: |fn| -[Spawn!]-> Handle(a), join!: |handle| -[Spawn!]-> a }`
+- **Async!** : `{ spawn!: |fn| -[Async!]-> Handle(a), join!: |handle| -[Async!]-> a, cancel!: |handle| -[Async!]-> {}, yield!: || -[Async!]-> {} }`
+
+#### Scenario: Parallel!, Spawn!, Async! available without imports
+
+- **GIVEN** a Camp program without explicit imports of Parallel!, Spawn!, or Async!
+- **WHEN** the program performs `Parallel.map!(fn, xs)`
+- **THEN** it SHALL compile and add `Parallel!(a)` to the effect row
+
+#### Scenario: Shadowing prelude effects
+
+- **WHEN** a module declares a type named `Parallel!` or `Spawn!`
+- **THEN** it SHALL shadow the prelude definition within that module only
+
+### Requirement: Evidence Record Layout
+
+Each handled effect parameter SHALL receive a 4-byte evidence slot on the WASM call stack. The evidence slot SHALL contain a closure pointer (function index) as an `i32`. The callee's function index, environment pointer, and one-shot flag SHALL be loaded from within the closure at dispatch time, rather than stored as separate stack slots.
+
+#### Scenario: Evidence slot size
+
+- **WHEN** the compiler allocates evidence for a handled effect
+- **THEN** each evidence slot SHALL advance the stack offset by exactly 4 bytes
+
 ### Requirement: Effect Safety — Unhandled Effects Are Compile-Time Errors
 
 A function's effect row SHALL be a subset of the effects handled by its caller's context. If a function performs an effect that no enclosing handler covers, the typechecker SHALL emit a compile-time error.
