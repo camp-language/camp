@@ -17,6 +17,7 @@ Span_Label :: struct {
 
 Diagnostic :: struct {
 	category:      Diagnostic_Category,
+	code:          string,
 	span:          base.Source_Span,
 	message:       string,
 	title:         string,

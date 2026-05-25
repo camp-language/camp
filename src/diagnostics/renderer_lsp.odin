@@ -35,6 +35,7 @@ LSP_DiagnosticRelatedInfo :: struct {
 LSP_Diagnostic :: struct {
 	range:    LSP_Range,
 	severity: LSP_DiagnosticSeverity,
+	code:     string,
 	message:  string,
 	related:  [dynamic]LSP_DiagnosticRelatedInfo,
 }
@@ -50,6 +51,7 @@ lsp_from_diagnostic :: proc(d: Diagnostic, source: string, uri: string) -> LSP_D
 	case .Warning:  result.severity = .Warning
 	case .Internal: result.severity = .Error
 	}
+	result.code = d.code
 	b: strings.Builder
 	strings.builder_init_len_cap(&b, 0, len(d.message) + 100)
 	strings.write_string(&b, d.message)

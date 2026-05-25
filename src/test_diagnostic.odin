@@ -63,7 +63,7 @@ test_diag_effectful_naming :: proc(t: ^testing.T) {
 
 @(test)
 test_diag_warning :: proc(t: ^testing.T) {
-	d := diagnostics.diag_init(.Warning, "UNUSED VARIABLE", base.Source_Span_ZERO, "x is unused")
+	d := diagnostics.diag_init(.Warning, "C0900", "UNUSED VARIABLE", base.Source_Span_ZERO, "x is unused")
 	testing.expect(t, d.category == .Warning)
 	testing.expect(t, d.title == "UNUSED VARIABLE")
 }
@@ -105,8 +105,8 @@ test_diag_collector :: proc(t: ^testing.T) {
 	diagnostics.diag_collector_init(&collector)
 	defer diagnostics.diag_collector_destroy(&collector)
 
-	diagnostics.collector_add_diag(&collector, diagnostics.diag_init(.Warning, "TEST", base.Source_Span_ZERO, "warn"))
-	diagnostics.collector_add_diag(&collector, diagnostics.diag_init(.Error, "TEST", base.Source_Span_ZERO, "err"))
+	diagnostics.collector_add_diag(&collector, diagnostics.diag_init(.Warning, "C0000", "TEST", base.Source_Span_ZERO, "warn"))
+	diagnostics.collector_add_diag(&collector, diagnostics.diag_init(.Error, "C0000", "TEST", base.Source_Span_ZERO, "err"))
 	diagnostics.collector_add_diag(&collector, diagnostics.diag_internal("bug", base.Source_Span_ZERO))
 
 	testing.expect(t, collector.warning_count == 1)
