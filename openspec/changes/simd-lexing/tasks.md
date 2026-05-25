@@ -2,46 +2,46 @@
 
 ## Phase 1: Character Classification Lookup Tables
 
-- [ ] Create `src/frontend/char_class.odin` with `Char_Class` bitmask enum, `CHAR_CLASS: [256]Char_Class` table, and `SINGLE_CHAR_TOKEN: [256]Token_Kind` table
-- [ ] Replace `single_char_tokens` map in `lexer_next` with `SINGLE_CHAR_TOKEN[byte]` array lookup
-- [ ] Add SIMD helper procs: `is_identifier_continue_simd`, `classify_chunk` (load + classify 16 bytes)
-- [ ] Verify all 16 existing unit tests pass unchanged
+- [x] Create `src/frontend/char_class.odin` with `Char_Class` bitmask enum, `CHAR_CLASS: [256]Char_Class` table, and `SINGLE_CHAR_TOKEN: [256]Token_Kind` table
+- [x] Replace `single_char_tokens` map in `lexer_next` with `SINGLE_CHAR_TOKEN[byte]` array lookup
+- [x] Add SIMD helper procs: `is_identifier_continue_simd`, `classify_chunk` (load + classify 16 bytes)
+- [x] Verify all 16 existing unit tests pass unchanged
 - [ ] Add benchmark harness: `src/frontend/lexer_benchmark.odin` with large Camp source file, measure scalar baseline throughput in MB/s
 
 ## Phase 2: SIMD Whitespace & Newline Skipping
 
-- [ ] Implement `skip_whitespace_simd` proc using `u8x16` comparisons for space/tab/CR/newline detection
-- [ ] Implement `at_line_start` tracking via `popcount` on newline bitmask within SIMD chunks
-- [ ] Implement `//` comment detection after SIMD whitespace scan (scalar fallback for comment-end)
-- [ ] Implement `///` doc comment break-out (stop SIMD scan, let `lexer_next` produce token)
-- [ ] Gate with `runtime.HAS_HARDWARE_SIMD`; keep `skip_whitespace_scalar` as fallback
+- [x] Implement `skip_whitespace_simd` proc using `u8x16` comparisons for space/tab/CR/newline detection
+- [x] Implement `at_line_start` tracking via `popcount` on newline bitmask within SIMD chunks
+- [x] Implement `//` comment detection after SIMD whitespace scan (scalar fallback for comment-end)
+- [x] Implement `///` doc comment break-out (stop SIMD scan, let `lexer_next` produce token)
+- [x] Gate with `runtime.HAS_HARDWARE_SIMD`; keep `skip_whitespace_scalar` as fallback
 - [ ] Add edge-case tests: empty source, whitespace-only, 32+ consecutive spaces, CRLF, chunk boundaries (15/16/17 bytes), comment at chunk boundary, doc comment detection
 - [ ] Add `at_line_start` tests: `\` at column 0, `  \` with leading whitespace, `x\` (not line start), multiple blank lines before `\`
 - [ ] Add token-stream equivalence test: SIMD path vs scalar path on large varied source
 
 ## Phase 3: SIMD Identifier Scanning
 
-- [ ] Implement `scan_identifier_simd` proc using `u8x16` range comparisons for `[a-z]`, `[A-Z]`, `[0-9]`, `_`
-- [ ] Implement `!` suffix absorption after SIMD scan (same rule: not before `=`)
-- [ ] Gate with `runtime.HAS_HARDWARE_SIMD`; keep `lexer_lex_identifier` as fallback
+- [x] Implement `scan_identifier_simd` proc using `u8x16` range comparisons for `[a-z]`, `[A-Z]`, `[0-9]`, `_`
+- [x] Implement `!` suffix absorption after SIMD scan (same rule: not before `=`)
+- [x] Gate with `runtime.HAS_HARDWARE_SIMD`; keep `lexer_lex_identifier` as fallback
 - [ ] Add edge-case tests: identifiers at 16/32/48 characters (chunk boundaries), keyword boundary, `Upper_Id` vs `Identifier`, `!` suffix with and without `!=` follow, `$` and `_` prefixed identifiers, backtick raw identifiers
 - [ ] Verify token-stream equivalence test passes
 
 ## Phase 4: SIMD String Body Scanning
 
-- [ ] Implement `scan_string_body_simd` proc using `u8x16` comparisons for `"`, `\`, `$`
-- [ ] Implement escape sequence scalar fallback (unchanged logic)
-- [ ] Implement interpolation `${` detection in SIMD context
-- [ ] Implement per-line string inter-line scanning: SIMD whitespace between `\`-prefixed lines
-- [ ] Gate with `runtime.HAS_HARDWARE_SIMD`; keep `lexer_lex_string` as fallback
+- [x] Implement `scan_string_body_simd` proc using `u8x16` comparisons for `"`, `\`, `$`
+- [x] Implement escape sequence scalar fallback (unchanged logic)
+- [x] Implement interpolation `${` detection in SIMD context
+- [x] Implement per-line string inter-line scanning: SIMD whitespace between `\`-prefixed lines
+- [x] Gate with `runtime.HAS_HARDWARE_SIMD`; keep `lexer_lex_string` as fallback
 - [ ] Add edge-case tests: closing `"` at chunk boundaries, all escape sequences, `${` spanning chunk boundary, per-line strings (single line, multiple consecutive, interrupted by blank line, interrupted by comment), long strings (>256 bytes)
 - [ ] Verify token-stream equivalence test passes
 
 ## Phase 5: SIMD Number Scanning
 
-- [ ] Implement `scan_number_simd` proc using `u8x16` range comparisons for digits, hex digits, `_` separators, `.`
-- [ ] Handle `0x`, `0o`, `0b` prefixes (scalar — only 2 bytes)
-- [ ] Gate with `runtime.HAS_HARDWARE_SIMD`; keep `lexer_lex_number` as fallback
+- [x] Implement `scan_number_simd` proc using `u8x16` range comparisons for digits, hex digits, `_` separators, `.`
+- [x] Handle `0x`, `0o`, `0b` prefixes (scalar — only 2 bytes)
+- [x] Gate with `runtime.HAS_HARDWARE_SIMD`; keep `lexer_lex_number` as fallback
 - [ ] Add edge-case tests: hex/octal/binary at chunk boundaries, floats, underscored numbers, `1_000_000`
 - [ ] Verify token-stream equivalence test passes
 

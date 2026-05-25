@@ -154,4 +154,28 @@ The compiler SHALL run an unused binding analysis pass after typechecking and be
 - **WHEN** the compiler processes a Camp source file
 - **THEN** it SHALL run the unused binding analysis after typechecking and before lowering, emitting diagnostics for any detected issues
 
+### Requirement: SIMD Lexer Performance
+
+The lexer SHALL use SIMD-accelerated scanning when hardware SIMD is available (`runtime.HAS_HARDWARE_SIMD`). The SIMD path SHALL produce identical token streams to the scalar fallback path. Character classification SHALL use zero-allocation `[256]` lookup tables instead of per-call map allocation.
+
+#### Scenario: SIMD whitespace skipping
+
+- **WHEN** the lexer encounters a run of whitespace characters (spaces, tabs, carriage returns, newlines)
+- **THEN** it SHALL scan 16 bytes at a time using `u8x16` SIMD comparisons, falling back to scalar for the remaining bytes and for comment handling
+
+#### Scenario: SIMD identifier scanning
+
+- **WHEN** the lexer encounters an identifier-start byte
+- **THEN** it SHALL scan forward in 16-byte chunks using `u8x16` range comparisons for `[a-z]`, `[A-Z]`, `[0-9]`, `_`, falling back to scalar for remaining bytes
+
+#### Scenario: SIMD string body scanning
+
+- **WHEN** the lexer scans a string body
+- **THEN** it SHALL scan 16 bytes at a time for `"`, `\`, and `$` characters, falling back to scalar for escape sequence handling
+
+#### Scenario: SIMD number scanning
+
+- **WHEN** the lexer encounters a digit
+- **THEN** it SHALL scan forward in 16-byte chunks for digits, `_` separators, and `.` decimal points, with scalar fallback for float-dot validation
+
 For the complete syntax reference, see `docs/syntax-recipe.md`.
