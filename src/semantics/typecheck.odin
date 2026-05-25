@@ -144,6 +144,12 @@ typecheck_file :: proc(file: CFile, store: ^Type_Store, current_module: base.Int
 	defer delete(env.bindings)
 	defer delete(env.handled_effects)
 	defer delete(env.spawned_handles)
+	defer {
+		for span in env.spawned_handles {
+			diagnostics.collector_add_diag(store.collector,
+				diagnostics.diag_unjoined_spawn(span))
+		}
+	}
 
 	tdecls := make([dynamic]TDecl, 0, len(file.decls))
 	imports: [dynamic]base.Deferred_Import

@@ -17,6 +17,12 @@ typecheck_lambda :: proc(e: ^CExpr_Lambda, env: ^Type_Env, store: ^Type_Store) -
 	defer delete(child_env.bindings)
 	defer delete(child_env.handled_effects)
 	defer delete(child_env.spawned_handles)
+	defer {
+		for span in child_env.spawned_handles {
+			diagnostics.collector_add_diag(store.collector,
+				diagnostics.diag_unjoined_spawn(span))
+		}
+	}
 
 	param_ids := store_alloc(store, base.Type_Var_ID, len(e.params))
 
@@ -607,6 +613,9 @@ typecheck_method_call :: proc(e: ^CExpr_Method_Call, env: ^Type_Env, store: ^Typ
 			arg_resolved := store.vars[int(resolve_var(store, arg_result.var_id))]
 			if inf, is_inf := arg_resolved.link.(Inferred_Type); is_inf {
 				if h_inf, h_ok := inf.(Inferred_Handle); h_ok {
+					if len(env.spawned_handles) > 0 {
+						pop(&env.spawned_handles)
+					}
 					unify(store, eff, h_inf.effect_id)
 					t := new(TExpr_Method_Call)
 					t^ = TExpr_Method_Call{
