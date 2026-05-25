@@ -49,7 +49,7 @@ Codegen_Env :: struct {
 	mod:            ^Wasm_Module,
 	interner:       ^base.Intern_Table,
 	type_map:       map[int]int,
-	func_map:       map[int]int,
+	func_map:       map[u64]int,
 	next_type_idx:  int,
 	next_func_idx:  int,
 	import_count:   int,
@@ -196,7 +196,7 @@ codegen :: proc(ir_mod: ir.IR_Module, interner: ^base.Intern_Table, thread_count
 	env.mod = &mod
 	env.interner = interner
 	env.type_map = make(map[int]int, 64)
-	env.func_map = make(map[int]int, 64)
+	env.func_map = make(map[u64]int, 64)
 	env.next_type_idx = 0
 	env.next_func_idx = 0
 	env.import_count = 0
@@ -470,9 +470,9 @@ codegen :: proc(ir_mod: ir.IR_Module, interner: ^base.Intern_Table, thread_count
 	append(&mod.codes, emit_camp_parallel_for_each_body(runtime_func_indices))
 
 	camp_alloc_name := base.intern(interner, "camp_alloc")
-	env.func_map[int(camp_alloc_name)] = alloc_func_idx
+	env.func_map[u64(camp_alloc_name)] = alloc_func_idx
 	camp_dealloc_name := base.intern(interner, "camp_dealloc")
-	env.func_map[int(camp_dealloc_name)] = dealloc_func_idx
+	env.func_map[u64(camp_dealloc_name)] = dealloc_func_idx
 
 	main_fn_idx := -1
 	main_decl: ^ir.IR_Decl_Fn = nil
@@ -510,7 +510,7 @@ codegen :: proc(ir_mod: ir.IR_Module, interner: ^base.Intern_Table, thread_count
 				mangled := base.mangle_name(d.name.module, d.name.name, interner)
 				env.func_map[base.hash_string(mangled)] = func_idx
 			}
-			env.func_map[int(d.name.name)] = func_idx
+			env.func_map[u64(d.name.name)] = func_idx
 			env.decl_to_wasm_fn_idx[decl_idx] = func_idx
 
 			for len(env.func_type_indices) <= func_idx {

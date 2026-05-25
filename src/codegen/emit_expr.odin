@@ -223,7 +223,7 @@ emit_expr :: proc(expr: ir.IR_Expr, buf: ^[dynamic]u8, env: ^Codegen_Env, runtim
 	case ^ir.IR_Var:
 		if idx, ok := env.local_map[e.name]; ok {
 			emit_instruction(Wasm_Local_Get{index = idx}, buf)
-		} else if idx, ok := env.func_map[int(e.name)]; ok {
+		} else if idx, ok := env.func_map[u64(e.name)]; ok {
 			emit_instruction(Wasm_I32_Const{value = i32(idx)}, buf)
 		} else {
 			emit_instruction(Wasm_I32_Const{value = 0}, buf)
@@ -382,10 +382,10 @@ emit_expr :: proc(expr: ir.IR_Expr, buf: ^[dynamic]u8, env: ^Codegen_Env, runtim
 			mangled := base.mangle_name(e.callee.module, e.callee.name, env.interner)
 			if idx, ok := env.func_map[base.hash_string(mangled)]; ok {
 				call_idx = idx
-			} else if idx, ok := env.func_map[int(e.callee.name)]; ok {
+			} else if idx, ok := env.func_map[u64(e.callee.name)]; ok {
 				call_idx = idx
 			}
-		} else if idx, ok := env.func_map[int(e.callee.name)]; ok {
+		} else if idx, ok := env.func_map[u64(e.callee.name)]; ok {
 			call_idx = idx
 		}
 		emit_instruction(Wasm_Call{index = u32(call_idx)}, buf)
@@ -459,10 +459,10 @@ emit_expr :: proc(expr: ir.IR_Expr, buf: ^[dynamic]u8, env: ^Codegen_Env, runtim
 			mangled := base.mangle_name(e.callee.module, e.callee.name, env.interner)
 				if idx, ok := env.func_map[base.hash_string(mangled)]; ok {
 					tail_idx = idx
-				} else if idx, ok := env.func_map[int(e.callee.name)]; ok {
+				} else if idx, ok := env.func_map[u64(e.callee.name)]; ok {
 					tail_idx = idx
 				}
-			} else if idx, ok := env.func_map[int(e.callee.name)]; ok {
+			} else if idx, ok := env.func_map[u64(e.callee.name)]; ok {
 				tail_idx = idx
 			}
 			emit_instruction(Wasm_Return_Call{index = u32(tail_idx)}, buf)
@@ -1564,7 +1564,7 @@ resolve_call_idx :: proc(callee: base.Canonical_Name, env: ^Codegen_Env) -> int 
 			return idx
 		}
 	}
-	if idx, ok := env.func_map[int(callee.name)]; ok {
+	if idx, ok := env.func_map[u64(callee.name)]; ok {
 		return idx
 	}
 	return 0

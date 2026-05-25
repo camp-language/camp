@@ -154,7 +154,7 @@ emit_start_function :: proc(
 			delete(ev_local_indices)
 
 			// Call main! with evidence pointers as arguments
-			main_fn_idx, ok := env.func_map[int(main_decl.name.name)]
+			main_fn_idx, ok := env.func_map[u64(main_decl.name.name)]
 			if !ok {
 				mangled := base.mangle_name(main_decl.name.module, main_decl.name.name, env.interner)
 				main_fn_idx = env.func_map[base.hash_string(mangled)]
