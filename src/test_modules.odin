@@ -4,6 +4,7 @@ import "camp:base"
 import "camp:build"
 import "camp:semantics"
 import "camp:diagnostics"
+import "core:strings"
 import "core:testing"
 
 @(test)
@@ -525,4 +526,98 @@ test_export_table_newtype_pub_opaque :: proc(t: ^testing.T) {
 	testing.expect(t, ei.kind == .Newtype)
 	testing.expect(t, ei.is_pub)
 	testing.expect(t, !ei.pub_variants)
+}
+
+@(test)
+test_register_stdlib_modules_populates_project :: proc(t: ^testing.T) {
+	ctx: build.Compilation_Context
+	build.context_init(&ctx)
+	defer build.context_destroy(&ctx)
+
+	project: build.Project_Discovery
+	project.modules = make(map[base.Intern_ID]build.Module_Info, 8)
+	project.module_names = make([dynamic]base.Intern_ID, 0, 8)
+
+	build.register_stdlib_modules(&project, &ctx.interner)
+	defer build.project_discovery_destroy(&project)
+
+	testing.expect(t, len(project.modules) > 0)
+	testing.expect(t, len(project.module_names) > 0)
+
+	result_name := base.intern(&ctx.interner, "Result")
+	_, result_ok := project.modules[result_name]
+	testing.expect(t, result_ok, "Result module should be registered")
+
+	bool_name := base.intern(&ctx.interner, "Bool")
+	_, bool_ok := project.modules[bool_name]
+	testing.expect(t, bool_ok, "Bool module should be registered")
+}
+
+@(test)
+test_register_stdlib_modules_source_populated :: proc(t: ^testing.T) {
+	ctx: build.Compilation_Context
+	build.context_init(&ctx)
+	defer build.context_destroy(&ctx)
+
+	project: build.Project_Discovery
+	project.modules = make(map[base.Intern_ID]build.Module_Info, 8)
+	project.module_names = make([dynamic]base.Intern_ID, 0, 8)
+
+	build.register_stdlib_modules(&project, &ctx.interner)
+	defer build.project_discovery_destroy(&project)
+
+	result_name := base.intern(&ctx.interner, "Result")
+	mi := project.modules[result_name]
+
+	testing.expect(t, len(mi.source) > 0, "Result module source should be non-empty")
+	testing.expect(t, strings.contains(mi.source, "@Result"), "Result module source should contain @Result", )
+}
+
+@(test)
+test_register_stdlib_modules_project_local_shadows_stdlib :: proc(t: ^testing.T) {
+	ctx: build.Compilation_Context
+	build.context_init(&ctx)
+	defer build.context_destroy(&ctx)
+
+	project: build.Project_Discovery
+	project.modules = make(map[base.Intern_ID]build.Module_Info, 8)
+	project.module_names = make([dynamic]base.Intern_ID, 0, 8)
+
+	result_name := base.intern(&ctx.interner, "Result")
+	custom_source := "custom local Result"
+	project.modules[result_name] = build.Module_Info{
+		name = result_name,
+		path = "src/Result.camp",
+		content_hash = "custom_hash",
+		source = custom_source,
+		imports = make([dynamic]base.Deferred_Import, 0, 4),
+		exports = make([dynamic]build.Export_Info, 0, 4),
+	}
+	append(&project.module_names, result_name)
+
+	build.register_stdlib_modules(&project, &ctx.interner)
+	defer build.project_discovery_destroy(&project)
+
+	mi := project.modules[result_name]
+	testing.expect(t, mi.source == custom_source, "Custom module source should not be overwritten by stdlib")
+}
+
+@(test)
+test_register_stdlib_modules_idempotent :: proc(t: ^testing.T) {
+	ctx: build.Compilation_Context
+	build.context_init(&ctx)
+	defer build.context_destroy(&ctx)
+
+	project: build.Project_Discovery
+	project.modules = make(map[base.Intern_ID]build.Module_Info, 8)
+	project.module_names = make([dynamic]base.Intern_ID, 0, 8)
+
+	build.register_stdlib_modules(&project, &ctx.interner)
+	first_count := len(project.modules)
+
+	build.register_stdlib_modules(&project, &ctx.interner)
+	defer build.project_discovery_destroy(&project)
+
+	testing.expect(t, len(project.modules) == first_count,
+		"Calling register_stdlib_modules twice should produce the same module count")
 }
