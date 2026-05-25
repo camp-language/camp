@@ -1,0 +1,9 @@
+-- Random! effect — fast PRNG (not cryptographic)
+-- For cryptographic random, use Crypto.Random!
+
+effect Random! : {
+  int!   : I64, I64 -> -[Random!]-> I64,
+  float! : F64, F64 -> -[Random!]-> F64,
+  bytes! : I64 -> -[Random!]-> Bytes,
+  bool!  : -[Random!]-> Bool,
+}

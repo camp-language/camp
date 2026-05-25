@@ -1,0 +1,7 @@
+-- Throw! effect — error propagation
+-- Per D4: Throw! for propagated, effectful, action-level errors.
+-- Bridge: Result.catch (Throw!→Result) and Result.unwrap! (Result→Throw!)
+
+effect Throw!(e) : {
+  raise! : e -> -[Throw!(e)]-> a,
+}

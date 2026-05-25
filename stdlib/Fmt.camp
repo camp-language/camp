@@ -1,0 +1,26 @@
+-- Fmt module — formatting utilities
+-- Per D28: Houses Display/Debug traits. Format specifiers go in interpolation syntax.
+
+-- Display is declared separately in Display.camp
+-- Debug is declared separately in Debug.camp
+
+-- Concatenation helper for building formatted strings
+
+pub concat : Str, Str -> Str
+pub concat = |a, b| crash "intrinsic: Fmt.concat"
+
+-- Numeric formatting with precision
+
+pub f64_with_precision : F64, I64 -> Str
+pub f64_with_precision = |n, precision| crash "intrinsic: Fmt.f64_with_precision"
+
+pub f32_with_precision : F32, I64 -> Str
+pub f32_with_precision = |n, precision| crash "intrinsic: Fmt.f32_with_precision"
+
+-- Padding/alignment (used by interpolation runtime)
+
+pub pad_left : Str, I64, Str -> Str
+pub pad_left = |s, width, fill| crash "intrinsic: Fmt.pad_left"
+
+pub pad_right : Str, I64, Str -> Str
+pub pad_right = |s, width, fill| crash "intrinsic: Fmt.pad_right"

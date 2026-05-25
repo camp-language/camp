@@ -1,0 +1,57 @@
+-- @Bytes -- opaque contiguous byte buffer, provided by runtime
+-- Per D19: Lean module (construction, queries, access, slicing, concat).
+-- Conversions via traits: From(Str, Bytes) infallible,
+-- TryFrom(Bytes, Str, [InvalidUtf8]) fallible.
+
+-- Construction
+
+pub new : Bytes
+pub new = crash "intrinsic: Bytes.new"
+
+pub from_list : List(U8) -> Bytes
+pub from_list = |xs| crash "intrinsic: Bytes.from_list"
+
+pub singleton : U8 -> Bytes
+pub singleton = |b| crash "intrinsic: Bytes.singleton"
+
+-- Queries
+
+pub length : Bytes -> I64
+pub length = |b| crash "intrinsic: Bytes.length"
+
+pub is_empty : Bytes -> Bool
+pub is_empty = |b| length(b) == 0
+
+-- Access
+
+pub get : I64, Bytes -> Result(U8, [IndexOutOfBounds])
+pub get = |i, b| crash "intrinsic: Bytes.get"
+
+-- Slicing
+
+pub take : Bytes, I64 -> Bytes
+pub take = |b, n| crash "intrinsic: Bytes.take"
+
+pub drop : Bytes, I64 -> Bytes
+pub drop = |b, n| crash "intrinsic: Bytes.drop"
+
+pub slice : Bytes, I64, I64 -> Bytes
+pub slice = |b, start, len| crash "intrinsic: Bytes.slice"
+
+-- Concatenation
+
+pub concat : Bytes, Bytes -> Bytes
+pub concat = |a, b| crash "intrinsic: Bytes.concat"
+
+-- Iteration
+
+pub to_iter : Bytes -> Iter(U8)
+pub to_iter = |b| crash "intrinsic: Bytes.to_iter"
+
+-- Conversion
+
+pub to_list : Bytes -> List(U8)
+pub to_list = |b| crash "intrinsic: Bytes.to_list"
+
+pub to_str : Bytes -> Str
+pub to_str = |b| crash "intrinsic: Bytes.to_str"
