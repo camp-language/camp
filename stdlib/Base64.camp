@@ -1,0 +1,50 @@
+-- Base64.camp — Base64/Base32/Hex encoding and decoding
+-- Per D39: parameterized by Base64Format plus shorthand convenience functions.
+-- Pure Camp — lookup table + bit shifting, no C runtime needed.
+
+@Base64Format : pub [Standard | UrlSafe | Base32 | Hex]
+
+@Base64Err : pub [
+    InvalidChar(U64, Str)                       -- position + bad character
+  | InvalidLength
+  | InvalidPadding
+]
+
+-- Core encode/decode (parameterized) — pure Camp
+
+pub encode : Base64Format, Bytes -> Str
+pub encode = |_fmt, _bytes| crash "intrinsic: Base64.encode"  -- TODO: pure Camp implementation
+
+pub decode : Base64Format, Str -> Result(Bytes, Base64Err)
+pub decode = |_fmt, _s| crash "intrinsic: Base64.decode"  -- TODO: pure Camp implementation
+
+-- String convenience (UTF-8 encode/decode internally) — pure Camp
+
+pub encode_str : Base64Format, Str -> Str
+pub encode_str = |fmt, s| encode(fmt, Str.to_bytes(s))
+
+pub decode_str : Base64Format, Str -> Result(Str, Base64Err)
+pub decode_str = |fmt, s| match decode(fmt, s) {
+  Ok(bytes) -> Ok(Bytes.to_str(bytes))
+  Err(e)    -> Err(e)
+}
+
+-- Format-specific shorthands — pure Camp
+
+pub encode64 : Bytes -> Str                     -- Standard Base64
+pub encode64 = |b| encode(Standard, b)
+
+pub decode64 : Str -> Result(Bytes, Base64Err)
+pub decode64 = |s| decode(Standard, s)
+
+pub encode64url : Bytes -> Str                  -- URL-safe Base64
+pub encode64url = |b| encode(UrlSafe, b)
+
+pub decode64url : Str -> Result(Bytes, Base64Err)
+pub decode64url = |s| decode(UrlSafe, s)
+
+pub encode16 : Bytes -> Str                     -- Hex, lowercase
+pub encode16 = |b| encode(Hex, b)
+
+pub decode16 : Str -> Result(Bytes, Base64Err)
+pub decode16 = |s| decode(Hex, s)

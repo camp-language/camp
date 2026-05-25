@@ -1633,8 +1633,8 @@ effect Time! : {
   monotonic! : -[Time!]-> Duration,
 }`
 
-RANDOM_CAMP :: `-- Random! effect -- fast PRNG (not cryptographic)
--- For cryptographic random, use Crypto.Random!
+RANDOM_CAMP :: `-- Random! effect — two handlers: random_prng (fast PRNG) and random_crypto (WASI random_get)
+-- Per D31: one effect, two handlers. Handler choice determines security guarantees.
 
 effect Random! : {
   int!   : I64, I64 -> -[Random!]-> I64,
@@ -1810,6 +1810,341 @@ pub pad_left = |s, width, fill| crash "intrinsic: Fmt.pad_left"
 pub pad_right : Str, I64, Str -> Str
 pub pad_right = |s, width, fill| crash "intrinsic: Fmt.pad_right"`
 
+UUID_CAMP :: `-- Uuid.camp — Universally Unique Identifiers
+-- Per D38: v4!/v7! use Random! only. Handler choice determines security.
+
+@Uuid : pub Bytes                              -- 16 bytes, opaque
+
+@UuidErr : pub [
+    InvalidFormat(Str)
+  | InvalidLength(U64)
+  | InvalidVersion(U8)
+]
+
+@UuidVariant : pub [V4 | V7 | Unknown(U8)]
+@UuidFormat  : pub [Standard | Compact | Urn | Braced]
+
+-- Generation — effectful (intrinsic)
+
+pub v4! : -[Random!]-> Uuid
+pub v4! = || crash "intrinsic: Uuid.v4"
+
+pub v7! : I64 -> -[Random!]-> Uuid              -- timestamp in milliseconds
+pub v7! = |_ts| crash "intrinsic: Uuid.v7"
+
+-- Parsing — pure Camp
+
+pub parse : Str -> Result(Uuid, UuidErr)
+pub parse = |_s| crash "intrinsic: Uuid.parse"  -- TODO: pure Camp implementation
+
+pub from_bytes : Bytes -> Result(Uuid, UuidErr)
+pub from_bytes = |_b| crash "intrinsic: Uuid.from_bytes"  -- TODO: pure Camp implementation
+
+-- Formatting — pure Camp
+
+pub to_str : Uuid -> Str
+pub to_str = |_u| crash "intrinsic: Uuid.to_str"  -- TODO: pure Camp implementation
+
+pub format : UuidFormat, Uuid -> Str
+pub format = |_fmt, _u| crash "intrinsic: Uuid.format"  -- TODO: pure Camp implementation
+
+pub to_bytes : Uuid -> Bytes
+pub to_bytes = |u| u                           -- @Uuid wraps Bytes
+
+-- Inspection — pure Camp
+
+pub version : Uuid -> U8
+pub version = |_u| crash "intrinsic: Uuid.version"  -- TODO: pure Camp implementation
+
+pub variant : Uuid -> UuidVariant
+pub variant = |_u| crash "intrinsic: Uuid.variant"  -- TODO: pure Camp implementation
+
+pub timestamp : Uuid -> Result(I64, [Absent])   -- V7 only; Err if not V7
+pub timestamp = |_u| crash "intrinsic: Uuid.timestamp"  -- TODO: pure Camp implementation`
+
+URI_CAMP :: `-- Uri.camp — URI/URL parsing and construction
+-- Per D36: query stored as raw string with parse_query/format_query helpers.
+-- Pure Camp — RFC 3986 parsing is bounded-complexity string scanning.
+
+@UriAuthority : pub {
+    userinfo : Result(Str, [Absent]),              -- "user:password" (deprecated per RFC 3986 §3.2.1)
+    host     : Str,
+    port     : Result(U16, [Absent])
+}
+
+@Uri : pub {
+    scheme    : Str,
+    authority : Result(UriAuthority, [Absent]),
+    path      : Str,
+    query     : Result(Str, [Absent]),             -- D36: raw percent-encoded string
+    fragment  : Result(Str, [Absent])
+}
+
+@UriErr : pub [
+    InvalidScheme(Str)
+  | InvalidHost(Str)
+  | InvalidPort(Str)
+  | InvalidEscape(Str)
+  | MissingScheme
+]
+
+-- Parsing and formatting — pure Camp
+
+pub parse : Str -> Result(Uri, UriErr)
+pub parse = |_s| crash "intrinsic: Uri.parse"  -- TODO: pure Camp implementation
+
+pub to_str : Uri -> Str
+pub to_str = |_u| crash "intrinsic: Uri.to_str"  -- TODO: pure Camp implementation
+
+-- Component-level percent encoding — pure Camp
+
+pub encode_component : Str -> Str               -- percent-encode for URI component
+pub encode_component = |_s| crash "intrinsic: Uri.encode_component"  -- TODO: pure Camp implementation
+
+pub decode_component : Str -> Result(Str, UriErr)  -- percent-decode
+pub decode_component = |_s| crash "intrinsic: Uri.decode_component"  -- TODO: pure Camp implementation
+
+-- Query string parsing (convenience) — pure Camp
+
+pub parse_query : Str -> List((Str, Str))        -- "a=1&b=2" -> [("a","1"), ("b","2")]
+pub parse_query = |_s| crash "intrinsic: Uri.parse_query"  -- TODO: pure Camp implementation
+
+pub format_query : List((Str, Str)) -> Str      -- reverse
+pub format_query = |_pairs| crash "intrinsic: Uri.format_query"  -- TODO: pure Camp implementation
+
+-- Functional construction helpers — pure Camp
+
+pub with_scheme : Str, Uri -> Uri
+pub with_scheme = |s, u| { scheme: s, authority: u.authority, path: u.path, query: u.query, fragment: u.fragment }
+
+pub with_authority : Result(UriAuthority, [Absent]), Uri -> Uri
+pub with_authority = |a, u| { scheme: u.scheme, authority: a, path: u.path, query: u.query, fragment: u.fragment }
+
+pub with_path : Str, Uri -> Uri
+pub with_path = |p, u| { scheme: u.scheme, authority: u.authority, path: p, query: u.query, fragment: u.fragment }
+
+pub with_query : Result(Str, [Absent]), Uri -> Uri
+pub with_query = |q, u| { scheme: u.scheme, authority: u.authority, path: u.path, query: q, fragment: u.fragment }
+
+pub with_fragment : Result(Str, [Absent]), Uri -> Uri
+pub with_fragment = |f, u| { scheme: u.scheme, authority: u.authority, path: u.path, query: u.query, fragment: f }`
+
+BASE64_CAMP :: `-- Base64.camp — Base64/Base32/Hex encoding and decoding
+-- Per D39: parameterized by Base64Format plus shorthand convenience functions.
+-- Pure Camp — lookup table + bit shifting, no C runtime needed.
+
+@Base64Format : pub [Standard | UrlSafe | Base32 | Hex]
+
+@Base64Err : pub [
+    InvalidChar(U64, Str)                       -- position + bad character
+  | InvalidLength
+  | InvalidPadding
+]
+
+-- Core encode/decode (parameterized) — pure Camp
+
+pub encode : Base64Format, Bytes -> Str
+pub encode = |_fmt, _bytes| crash "intrinsic: Base64.encode"  -- TODO: pure Camp implementation
+
+pub decode : Base64Format, Str -> Result(Bytes, Base64Err)
+pub decode = |_fmt, _s| crash "intrinsic: Base64.decode"  -- TODO: pure Camp implementation
+
+-- String convenience (UTF-8 encode/decode internally) — pure Camp
+
+pub encode_str : Base64Format, Str -> Str
+pub encode_str = |fmt, s| encode(fmt, Str.to_bytes(s))
+
+pub decode_str : Base64Format, Str -> Result(Str, Base64Err)
+pub decode_str = |fmt, s| match decode(fmt, s) {
+  Ok(bytes) -> Ok(Bytes.to_str(bytes))
+  Err(e)    -> Err(e)
+}
+
+-- Format-specific shorthands — pure Camp
+
+pub encode64 : Bytes -> Str                     -- Standard Base64
+pub encode64 = |b| encode(Standard, b)
+
+pub decode64 : Str -> Result(Bytes, Base64Err)
+pub decode64 = |s| decode(Standard, s)
+
+pub encode64url : Bytes -> Str                  -- URL-safe Base64
+pub encode64url = |b| encode(UrlSafe, b)
+
+pub decode64url : Str -> Result(Bytes, Base64Err)
+pub decode64url = |s| decode(UrlSafe, s)
+
+pub encode16 : Bytes -> Str                     -- Hex, lowercase
+pub encode16 = |b| encode(Hex, b)
+
+pub decode16 : Str -> Result(Bytes, Base64Err)
+pub decode16 = |s| decode(Hex, s)`
+
+JSON_CAMP :: `-- Json.camp — JSON parsing, encoding, and streaming
+-- Per D34: Obj uses Map(Str, JsonValue) for O(log n) lookup.
+-- Per D35: JsonNumber preserves integer/float distinction.
+
+@JsonNumber : pub [
+    PosInt(U64)                                -- non-negative integer
+  | NegInt(I64)                                -- negative integer
+  | Float(F64)                                 -- finite float (never NaN/Inf)
+]
+
+@JsonValue : pub [
+    Null
+  | Bool(Bool)
+  | Num(JsonNumber)                            -- D35: preserves int/float distinction
+  | Str(Str)
+  | Arr(List(JsonValue))
+  | Obj(Map(Str, JsonValue))                   -- D34: Map for O(log n) lookup
+]
+
+@JsonErr : pub [
+    UnexpectedChar(U64, Str)                  -- position + description
+  | InvalidNumber(U64, Str)
+  | UnexpectedEnd
+  | TrailingContent(U64)
+]
+
+-- Core DOM API — intrinsic
+
+pub decode : Str -> Result(JsonValue, JsonErr)
+pub decode = |_s| crash "intrinsic: Json.decode"
+
+pub encode : JsonValue -> Str
+pub encode = |_v| crash "intrinsic: Json.encode"
+
+pub encode_pretty : JsonValue -> Str            -- 2-space indent
+pub encode_pretty = |_v| crash "intrinsic: Json.encode_pretty"
+
+-- JsonNumber accessors — pure Camp
+
+pub is_int : JsonNumber -> Bool
+pub is_int = |n| match n {
+  PosInt(_) -> True
+  NegInt(_) -> True
+  Float(_)  -> False
+}
+
+pub is_float : JsonNumber -> Bool
+pub is_float = |n| match n {
+  Float(_)  -> True
+  PosInt(_) -> False
+  NegInt(_) -> False
+}
+
+pub as_i64 : JsonNumber -> Result(I64, [Absent])
+pub as_i64 = |n| match n {
+  NegInt(i) -> Ok(i)
+  PosInt(_) -> Err(Absent)   -- TODO: check if <= I64_MAX
+  Float(_)  -> Err(Absent)
+}
+
+pub as_u64 : JsonNumber -> Result(U64, [Absent])
+pub as_u64 = |n| match n {
+  PosInt(u) -> Ok(u)
+  NegInt(_) -> Err(Absent)
+  Float(_)  -> Err(Absent)
+}
+
+pub as_f64 : JsonNumber -> Result(F64, [Absent])
+pub as_f64 = |n| match n {
+  Float(f)  -> Ok(f)
+  PosInt(_) -> Err(Absent)   -- TODO: always Ok (every JsonNumber can be F64)
+  NegInt(_) -> Err(Absent)   -- TODO: always Ok
+}
+
+-- JsonValue convenience accessors — pure Camp
+
+pub get : JsonValue, Str -> Result(JsonValue, JsonErr)
+pub get = |_v, _key| crash "intrinsic: Json.get"  -- TODO: pure Camp implementation
+
+pub get_at : JsonValue, U64 -> Result(JsonValue, JsonErr)
+pub get_at = |_v, _idx| crash "intrinsic: Json.get_at"  -- TODO: pure Camp implementation
+
+pub keys : JsonValue -> Result(List(Str), [Absent])
+pub keys = |_v| crash "intrinsic: Json.keys"  -- TODO: pure Camp implementation
+
+pub values : JsonValue -> Result(List(JsonValue), [Absent])
+pub values = |_v| crash "intrinsic: Json.values"  -- TODO: pure Camp implementation
+
+pub length : JsonValue -> Result(U64, [Absent])
+pub length = |_v| crash "intrinsic: Json.length"  -- TODO: pure Camp implementation
+
+-- Streaming parser — intrinsic
+
+@JsonEvent : pub [
+    StartObj
+  | EndObj
+  | StartArr
+  | EndArr
+  | Key(Str)
+  | Null
+  | Bool(Bool)
+  | Num(JsonNumber)
+  | Str(Str)
+]
+
+@JsonParser : pub { source : Str, pos : U64, depth : U64 }
+
+pub parse_init : Str -> JsonParser
+pub parse_init = |_s| crash "intrinsic: Json.parse_init"
+
+pub parse_next : JsonParser -> Result((JsonParser, JsonEvent), JsonErr)
+pub parse_next = |_p| crash "intrinsic: Json.parse_next"
+
+pub parse_all : Str -> Result(List(JsonEvent), JsonErr)
+pub parse_all = |_s| crash "intrinsic: Json.parse_all"`
+
+REGEX_CAMP :: `-- Regex.camp — RE2-style regular expressions
+-- Per D37: guaranteed O(n), no backtracking, no backreferences, no lookahead/lookbehind.
+
+@Regex : pub { pattern : Str }                  -- opaque compiled regex
+
+@RegexErr : pub [
+    CompileError(Str)
+  | InvalidEscape(Str)
+  | InvalidRepeat(Str)
+]
+
+@MatchGroup : pub { value : Str, start : U64, end : U64 }
+@Match : pub { full : Str, start : U64, end : U64, groups : List(MatchGroup) }
+
+-- Compilation — intrinsic
+
+pub compile : Str -> Result(Regex, RegexErr)
+pub compile = |_pat| crash "intrinsic: Regex.compile"
+
+pub is_match : Regex, Str -> Bool
+pub is_match = |_r, _s| crash "intrinsic: Regex.is_match"
+
+-- Search — intrinsic
+
+pub find : Regex, Str -> Result(Match, [Absent])   -- first match only
+pub find = |_r, _s| crash "intrinsic: Regex.find"
+
+pub find_all : Regex, Str -> List(Match)        -- all non-overlapping matches
+pub find_all = |_r, _s| crash "intrinsic: Regex.find_all"
+
+-- Transformation — intrinsic
+
+pub replace : Regex, Str, Str -> Str            -- first match, literal replacement
+pub replace = |_r, _s, _rep| crash "intrinsic: Regex.replace"
+
+pub replace_all : Regex, Str, Str -> Str        -- all matches, literal replacement
+pub replace_all = |_r, _s, _rep| crash "intrinsic: Regex.replace_all"
+
+pub split : Regex, Str -> List(Str)             -- split on matches
+pub split = |_r, _s| crash "intrinsic: Regex.split"
+
+pub splitn : Regex, Str, U64 -> List(Str)       -- at most n-1 splits
+pub splitn = |_r, _s, _n| crash "intrinsic: Regex.splitn"
+
+-- Utility — pure Camp
+
+pub escape : Str -> Str                          -- escape regex metacharacters
+pub escape = |_s| crash "intrinsic: Regex.escape"  -- TODO: pure Camp implementation`
+
 STDLIB_MODULES: []Stdlib_Module = []Stdlib_Module{
 	{"Result", RESULT_CAMP, "stdlib/Result.camp"},
 	{"Bool", BOOL_CAMP, "stdlib/Bool.camp"},
@@ -1849,6 +2184,11 @@ STDLIB_MODULES: []Stdlib_Module = []Stdlib_Module{
 	{"Path", PATH_CAMP, "stdlib/Path.camp"},
 	{"Duration", DURATION_CAMP, "stdlib/Duration.camp"},
 	{"Fmt", FMT_CAMP, "stdlib/Fmt.camp"},
+	{"Uuid", UUID_CAMP, "stdlib/Uuid.camp"},
+	{"Json", JSON_CAMP, "stdlib/Json.camp"},
+	{"Regex", REGEX_CAMP, "stdlib/Regex.camp"},
+	{"Uri", URI_CAMP, "stdlib/Uri.camp"},
+	{"Base64", BASE64_CAMP, "stdlib/Base64.camp"},
 }
 
 stdlib_lookup :: proc(name: string) -> (Stdlib_Module, bool) {
