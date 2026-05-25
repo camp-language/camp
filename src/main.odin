@@ -21,6 +21,15 @@ main :: proc() {
 		os.exit(1)
 	}
 
+	if args[1] == "--explain" {
+		if len(args) > 2 {
+			diagnostics.run_explain(args[2])
+		} else {
+			diagnostics.list_codes()
+		}
+		return
+	}
+
 	cmd, ok := parse_command(args[1])
 	if !ok {
 		collector: diagnostics.Diagnostic_Collector
