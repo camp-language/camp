@@ -1,12 +1,12 @@
 stdout = """
 canonicalized /tmp/camp-e2e/unused-analysis/var-loop-exempt/src/Main.camp: 1 declaration(s), 0 import(s)
--- UNDEFINED NAME --- /tmp/camp-e2e/unused-analysis/var-loop-exempt/src/Main.camp
+-- C0200: UNDEFINED NAME --- /tmp/camp-e2e/unused-analysis/var-loop-exempt/src/Main.camp
 
 I cannot find `items`.
    3 |   for item in items.iter() {
                      ^^^^^
 
--- SHADOWING --- /tmp/camp-e2e/unused-analysis/var-loop-exempt/src/Main.camp
+-- C0201: SHADOWING --- /tmp/camp-e2e/unused-analysis/var-loop-exempt/src/Main.camp
 
 `count` shadows a binding from an enclosing scope. All shadowing is forbidden.
    4 |     $count = $count + 1

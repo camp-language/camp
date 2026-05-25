@@ -1,46 +1,10 @@
 stdout = """
--- SYNTAX ERROR --- /tmp/camp-e2e/errors/syntax-double-bang-main/src/Main.camp
+-- C0007: DOUBLE BANG SUFFIX --- /tmp/camp-e2e/errors/syntax-double-bang-main/src/Main.camp
 
-I expected `=` here, but I got `!` instead.
+Only one `!` suffix is allowed on identifiers. Use `not` for logical negation.
    1 | main!! = || -> I64 {
             ^
-
--- SYNTAX ERROR --- /tmp/camp-e2e/errors/syntax-double-bang-main/src/Main.camp
-
-I was not expecting `=` here.
-   1 | main!! = || -> I64 {
-              ^
-
--- SYNTAX ERROR --- /tmp/camp-e2e/errors/syntax-double-bang-main/src/Main.camp
-
-I expected `=` here, but I got `|` instead.
-   1 | main!! = || -> I64 {
-                 ^
-
--- SYNTAX ERROR --- /tmp/camp-e2e/errors/syntax-double-bang-main/src/Main.camp
-
-I was not expecting `->` here.
-   1 | main!! = || -> I64 {
-                   ^^
-
--- SYNTAX ERROR --- /tmp/camp-e2e/errors/syntax-double-bang-main/src/Main.camp
-
-I expected `=` here, but I got `{` instead.
-   1 | main!! = || -> I64 {
-                          ^
-
--- SYNTAX ERROR --- /tmp/camp-e2e/errors/syntax-double-bang-main/src/Main.camp
-
-I expected `=` here, but I got `}` instead.
-   4 | }
-       ^
-
--- SYNTAX ERROR --- /tmp/camp-e2e/errors/syntax-double-bang-main/src/Main.camp
-
-I was not expecting `` here.
-   4 | }
-        ^
-compilation failed with 7 error(s)
+compilation failed with 1 error(s)
 """
 stderr = ""
 exit = 1

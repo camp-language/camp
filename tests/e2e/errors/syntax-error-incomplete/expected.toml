@@ -1,5 +1,5 @@
 stdout = """
--- SYNTAX ERROR --- /tmp/camp-e2e/errors/syntax-error-incomplete/src/Main.camp
+-- C0101: SYNTAX ERROR --- /tmp/camp-e2e/errors/syntax-error-incomplete/src/Main.camp
 
 I was not expecting `` here.
    2 | 

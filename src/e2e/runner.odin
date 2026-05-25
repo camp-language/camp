@@ -22,7 +22,7 @@ destroy_tests :: proc(tests: [dynamic]E2E_Test, allocator: mem.Allocator) {
 		delete(test.test_dir, allocator)
 		delete(test.expected_path, allocator)
 	}
-	delete(tests, allocator)
+	delete(tests)
 }
 
 Test_Result :: enum {
@@ -242,8 +242,7 @@ run_test :: proc(test: E2E_Test, update: bool) -> Test_Report {
 	has_wasm := false
 	wasm_available := true
 
-	_, has_wasm_exit := toml_get(&expected_dict, "wasm_exit")
-	if has_wasm_exit && exit_code == 0 {
+	if exit_code == 0 {
 		has_wasm = true
 		wasm_path: string
 		tw_err: os.Error
@@ -259,7 +258,7 @@ run_test :: proc(test: E2E_Test, update: bool) -> Test_Report {
 		}
 	}
 
-	if !wasm_available && has_wasm_exit {
+	if has_wasm && !wasm_available {
 		report.result = .Skip
 		return report
 	}
@@ -303,35 +302,37 @@ run_test :: proc(test: E2E_Test, update: bool) -> Test_Report {
 	}
 
 	if has_wasm && wasm_available {
-		expected_wasm_exit_val, _ := toml_get(&expected_dict, "wasm_exit")
-		#partial switch e in expected_wasm_exit_val {
-		case int:
-			if wasm_exit != e {
-				passed = false
-				fmt.sbprintf(&diff_builder, "  wasm_exit: expected {}, got {}\n", e, wasm_exit)
+		expected_we_int := 0
+		if v, ok := toml_get(&expected_dict, "wasm_exit"); ok {
+			#partial switch e in v {
+			case int: expected_we_int = e
 			}
 		}
-
-		expected_wasm_stdout_val, has_ws := toml_get(&expected_dict, "wasm_stdout")
-		if has_ws {
-			#partial switch s in expected_wasm_stdout_val {
-			case string:
-				if wasm_stdout != s {
-					passed = false
-					write_string_diff(&diff_builder, "wasm_stdout", s, wasm_stdout)
-				}
-			}
+		if wasm_exit != expected_we_int {
+			passed = false
+			fmt.sbprintf(&diff_builder, "  wasm_exit: expected {}, got {}\n", expected_we_int, wasm_exit)
 		}
 
-		expected_wasm_stderr_val, has_we := toml_get(&expected_dict, "wasm_stderr")
-		if has_we {
-			#partial switch s in expected_wasm_stderr_val {
-			case string:
-				if wasm_stderr != s {
-					passed = false
-					write_string_diff(&diff_builder, "wasm_stderr", s, wasm_stderr)
-				}
+		expected_wasm_stdout := ""
+		if v, ok := toml_get(&expected_dict, "wasm_stdout"); ok {
+			#partial switch s in v {
+			case string: expected_wasm_stdout = s
 			}
+		}
+		if wasm_stdout != expected_wasm_stdout {
+			passed = false
+			write_string_diff(&diff_builder, "wasm_stdout", expected_wasm_stdout, wasm_stdout)
+		}
+
+		expected_wasm_stderr := ""
+		if v, ok := toml_get(&expected_dict, "wasm_stderr"); ok {
+			#partial switch s in v {
+			case string: expected_wasm_stderr = s
+			}
+		}
+		if wasm_stderr != expected_wasm_stderr {
+			passed = false
+			write_string_diff(&diff_builder, "wasm_stderr", expected_wasm_stderr, wasm_stderr)
 		}
 	}
 
@@ -470,6 +471,9 @@ run_wasmtime :: proc(wasm_path: string, unique_prefix: string) -> (stdout: strin
 	wasmtime_bin := resolve_wasmtime()
 	stdout, stderr, exit_code = run_command_prefixed({wasmtime_bin, "run", wasm_path}, unique_prefix)
 	if exit_code == -1 && stderr == "process timed out after 10s" {
+		return "", "", 0, false
+	}
+	if strings.contains(stderr, "process start error") {
 		return "", "", 0, false
 	}
 	available = true

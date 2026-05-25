@@ -1,6 +1,6 @@
 stdout = """
 canonicalized /tmp/camp-e2e/unused-analysis/record-unused-field/src/Main.camp: 1 declaration(s), 0 import(s)
--- UNDEFINED NAME --- /tmp/camp-e2e/unused-analysis/record-unused-field/src/Main.camp
+-- C0200: UNDEFINED NAME --- /tmp/camp-e2e/unused-analysis/record-unused-field/src/Main.camp
 
 I cannot find `expensive`.
    2 |   r = { x: 1, y: expensive() }

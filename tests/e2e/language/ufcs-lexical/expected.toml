@@ -1,4 +1,5 @@
-stdout = """-- SYNTAX ERROR --- /tmp/camp-e2e/language/ufcs-lexical/src/Main.camp
+stdout = """
+-- C0101: SYNTAX ERROR --- /tmp/camp-e2e/language/ufcs-lexical/src/Main.camp
 
 I was not expecting `->` here.
    5 |   x->inc()

@@ -1,7 +1,22 @@
 stdout = """
-canonicalized /tmp/camp-e2e/effects/effect-shallow-handler/src/Main.camp: 2 declaration(s), 0 import(s)
-typecheck passed for /tmp/camp-e2e/effects/effect-shallow-handler/src/Main.camp
-compiled /tmp/camp-e2e/effects/effect-shallow-handler/src/Main.camp -> /tmp/camp-e2e/effects/effect-shallow-handler/src/Main.wasm
+-- C0101: SYNTAX ERROR --- /tmp/camp-e2e/effects/effect-shallow-handler/src/Main.camp
+
+I was not expecting `in` here.
+   3 |   intercept Ask! in Ask!.read!() with {
+                        ^^
+
+-- C0101: SYNTAX ERROR --- /tmp/camp-e2e/effects/effect-shallow-handler/src/Main.camp
+
+I was not expecting `with` here.
+   3 |   intercept Ask! in Ask!.read!() with {
+                                        ^^^^
+
+-- C0101: SYNTAX ERROR --- /tmp/camp-e2e/effects/effect-shallow-handler/src/Main.camp
+
+I was not expecting `=>` here.
+   4 |     .read!(resume) => resume(42)
+                          ^^
+compilation failed with 3 error(s)
 """
 stderr = ""
-exit = 0
+exit = 1

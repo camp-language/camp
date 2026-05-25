@@ -1,17 +1,17 @@
 stdout = """
--- SYNTAX ERROR --- /tmp/camp-e2e/errors/syntax-top-level-application/src/Main.camp
+-- C0100: SYNTAX ERROR --- /tmp/camp-e2e/errors/syntax-top-level-application/src/Main.camp
 
 I expected `=` here, but I got `(` instead.
    2 | x(1)
         ^
 
--- SYNTAX ERROR --- /tmp/camp-e2e/errors/syntax-top-level-application/src/Main.camp
+-- C0100: SYNTAX ERROR --- /tmp/camp-e2e/errors/syntax-top-level-application/src/Main.camp
 
 I expected `=` here, but I got `` instead.
    3 | 
        ^
 
--- SYNTAX ERROR --- /tmp/camp-e2e/errors/syntax-top-level-application/src/Main.camp
+-- C0101: SYNTAX ERROR --- /tmp/camp-e2e/errors/syntax-top-level-application/src/Main.camp
 
 I was not expecting `` here.
    3 | 

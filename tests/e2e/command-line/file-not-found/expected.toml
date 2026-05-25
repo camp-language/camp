@@ -1,6 +1,6 @@
 args = "build-missing"
 stdout = """
--- FILE NOT FOUND ------------------------- /nonexistent.camp
+-- C1201: FILE NOT FOUND ------------------ /nonexistent.camp
 
 I could not read `/nonexistent.camp` (Not_Exist).
 compilation failed with 1 error(s)

@@ -1,6 +1,6 @@
 stdout = """
 canonicalized /tmp/camp-e2e/unused-analysis/unused-import/src/Main.camp: 2 declaration(s), 1 import(s)
--- UNDEFINED NAME --- /tmp/camp-e2e/unused-analysis/unused-import/src/Main.camp
+-- C0200: UNDEFINED NAME --- /tmp/camp-e2e/unused-analysis/unused-import/src/Main.camp
 
 I cannot find `foo`.
    4 |   foo()

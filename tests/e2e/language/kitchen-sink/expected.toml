@@ -1,7 +1,3 @@
-stdout = """
-canonicalized /tmp/camp-e2e/language/kitchen-sink/src/Main.camp: 3 declaration(s), 0 import(s)
-typecheck passed for /tmp/camp-e2e/language/kitchen-sink/src/Main.camp
-compiled /tmp/camp-e2e/language/kitchen-sink/src/Main.camp -> /tmp/camp-e2e/language/kitchen-sink/src/Main.wasm
-"""
-stderr = ""
-exit = 0
+stdout = ""
+stderr = "process timed out after 10s"
+exit = -1

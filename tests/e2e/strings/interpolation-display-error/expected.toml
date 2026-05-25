@@ -1,6 +1,6 @@
 stdout = """
 canonicalized /tmp/camp-e2e/strings/interpolation-display-error/src/Main.camp: 1 declaration(s), 0 import(s)
--- DISPLAY NOT IMPLEMENTED --- /tmp/camp-e2e/strings/interpolation-display-error/src/Main.camp
+-- C0319: DISPLAY NOT IMPLEMENTED --- /tmp/camp-e2e/strings/interpolation-display-error/src/Main.camp
 
 Type `unknown type` does not implement `Display`. Only types that implement
 `Display` can be used in string interpolation.

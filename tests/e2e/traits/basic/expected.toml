@@ -1,10 +1,40 @@
 stdout = """
--- LAMBDA MULTI PARAM --- /tmp/camp-e2e/traits/basic/src/Main.camp
+-- C0100: SYNTAX ERROR --- /tmp/camp-e2e/traits/basic/src/Main.camp
 
-Lambdas must take a single parameter. Use a record to pass multiple values.
+I expected `:` here, but I got `is` instead.
+   2 | @UserId is Eq : U64
+               ^^
+
+-- C0100: SYNTAX ERROR --- /tmp/camp-e2e/traits/basic/src/Main.camp
+
+I expected `=` here, but I got `U64` instead.
+   2 | @UserId is Eq : U64
+                       ^^^
+
+-- C0100: SYNTAX ERROR --- /tmp/camp-e2e/traits/basic/src/Main.camp
+
+I expected `=` here, but I got `|` instead.
    3 | _UserId_eq = |_x, _y| True
-                           ^
-compilation failed with 1 error(s)
+                    ^
+
+-- C0100: SYNTAX ERROR --- /tmp/camp-e2e/traits/basic/src/Main.camp
+
+I expected `=` here, but I got `_y` instead.
+   3 | _UserId_eq = |_x, _y| True
+                         ^^
+
+-- C0100: SYNTAX ERROR --- /tmp/camp-e2e/traits/basic/src/Main.camp
+
+I expected `|` here, but I got `` instead.
+   4 | 
+       ^
+
+-- C0101: SYNTAX ERROR --- /tmp/camp-e2e/traits/basic/src/Main.camp
+
+I was not expecting `` here.
+   4 | 
+       ^
+compilation failed with 6 error(s)
 """
 stderr = ""
 exit = 1
