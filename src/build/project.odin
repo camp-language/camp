@@ -201,6 +201,7 @@ run_build_project :: proc(thread_count: int = 1) -> Build_Result {
 	combined_ir = ir.closure_convert(&combined_ir, &ctx.interner)
 	combined_ir = ir.cps_transform(&combined_ir, &ctx.interner)
 	ir.rc_insert(&combined_ir, &ctx.interner)
+	ir.reuse_analyze(&combined_ir)
 
 	wasm_mod := codegen.codegen(combined_ir, &ctx.interner, ctx.thread_count)
 	wasm_bytes := codegen.wasm_serialize(wasm_mod)

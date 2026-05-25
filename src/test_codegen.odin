@@ -33,6 +33,7 @@ compile_source :: proc(source: string) -> ([]u8, ^build.Compilation_Context) {
 	ir_mod = ir.closure_convert(&ir_mod, &ctx.interner)
 	ir_mod = ir.cps_transform(&ir_mod, &ctx.interner)
 	ir.rc_insert(&ir_mod, &ctx.interner)
+	ir.reuse_analyze(&ir_mod)
 
 	wasm_mod := codegen.codegen(ir_mod, &ctx.interner, ctx.thread_count)
 	wasm_bytes := codegen.wasm_serialize(wasm_mod)
@@ -156,4 +157,110 @@ test_codegen_emit_instructions :: proc(t: ^testing.T) {
 	codegen.emit_instruction(codegen.Wasm_End{}, &buf)
 	testing.expect(t, buf[len(buf) - 1] == 0x0B)
 	delete(buf)
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// Perceus RC codegen tests
+// ═══════════════════════════════════════════════════════════════════════════════
+
+@(test)
+test_codegen_drop_produces_valid_wasm :: proc(t: ^testing.T) {
+	// Full pipeline including RC drop emission should produce valid WASM
+	wasm_bytes, ctx := compile_source("main! = || -> I64 { 42 }")
+	defer delete(wasm_bytes)
+	defer teardown_codegen(ctx)
+
+	// Valid WASM magic number
+	testing.expect(t, len(wasm_bytes) >= 8)
+	testing.expect(t, wasm_bytes[0] == 0x00)
+	testing.expect(t, wasm_bytes[1] == 0x61)
+	testing.expect(t, wasm_bytes[2] == 0x73)
+	testing.expect(t, wasm_bytes[3] == 0x6D)
+}
+
+@(test)
+test_codegen_runtime_drop_body_not_empty :: proc(t: ^testing.T) {
+	// camp_drop runtime function should produce non-trivial WASM code
+	// (zero-check + recursive drop + dealloc)
+	code := codegen.emit_camp_drop_body(0, 1, 2)
+	testing.expect(t, len(code.body) > 10) // Should be substantial
+	testing.expect(t, len(code.locals) >= 1) // Should have local declarations
+	delete(code.body)
+	for _, l in code.locals {
+		_ = l
+	}
+	delete(code.locals)
+}
+
+@(test)
+test_codegen_runtime_drop_has_locals :: proc(t: ^testing.T) {
+	// camp_drop needs locals for new_refcount, scan_size, i, field_value
+	code := codegen.emit_camp_drop_body(0, 1, 2)
+	total_locals := 0
+	for local_decl in code.locals {
+		total_locals += int(local_decl.count)
+	}
+	// Should have at least 4 locals (new_refcount, scan_size, i, field_value)
+	testing.expect(t, total_locals >= 4)
+	delete(code.body)
+	delete(code.locals)
+}
+
+@(test)
+test_codegen_runtime_report_overflow_not_empty :: proc(t: ^testing.T) {
+	// camp_report_drop_overflow should produce non-trivial WASM code
+	code := codegen.emit_camp_report_drop_overflow_body(0)
+	testing.expect(t, len(code.body) > 5)
+	delete(code.body)
+	delete(code.locals)
+}
+
+@(test)
+test_codegen_runtime_dealloc_is_noop :: proc(t: ^testing.T) {
+	// camp_dealloc is currently a no-op — just Wasm_End
+	code := codegen.emit_camp_dealloc_body()
+	testing.expect(t, len(code.body) == 1) // Just the End byte
+	delete(code.body)
+	delete(code.locals)
+}
+
+@(test)
+test_codegen_runtime_alloc_body :: proc(t: ^testing.T) {
+	// camp_alloc should produce bump allocator code
+	code := codegen.emit_camp_alloc_body(0)
+	testing.expect(t, len(code.body) > 5)
+	testing.expect(t, len(code.locals) >= 1) // Needs a temp local
+	delete(code.body)
+	delete(code.locals)
+}
+
+@(test)
+test_codegen_runtime_dup_body :: proc(t: ^testing.T) {
+	// camp_dup should increment refcount and return pointer
+	code := codegen.emit_camp_dup_body()
+	testing.expect(t, len(code.body) > 5)
+	delete(code.body)
+	delete(code.locals)
+}
+
+@(test)
+test_codegen_pipeline_with_string :: proc(t: ^testing.T) {
+	// Strings are heap-allocated — full pipeline should handle drops correctly
+	wasm_bytes, ctx := compile_source("main! = || -> I64 { x = \"hello\"; 42 }")
+	defer delete(wasm_bytes)
+	defer teardown_codegen(ctx)
+
+	testing.expect(t, len(wasm_bytes) >= 8)
+	testing.expect(t, wasm_bytes[0] == 0x00)
+	testing.expect(t, wasm_bytes[1] == 0x61)
+}
+
+@(test)
+test_codegen_pipeline_with_if :: proc(t: ^testing.T) {
+	// If expressions with heap bindings should compile correctly
+	wasm_bytes, ctx := compile_source("main! = || -> I64 { if True { 1 } else { 2 } }")
+	defer delete(wasm_bytes)
+	defer teardown_codegen(ctx)
+
+	testing.expect(t, len(wasm_bytes) >= 8)
 }

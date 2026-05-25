@@ -1798,3 +1798,956 @@ test_rc_insert_branch_heap_drop :: proc(t: ^testing.T) {
 	drop_count := count_ir_drop(fn_decl.body)
 	testing.expect(t, drop_count == 2)
 }
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// Phase 7 – is_heap flag propagation tests
+// ═══════════════════════════════════════════════════════════════════════════════
+
+@(test)
+test_is_heap_string_literal :: proc(t: ^testing.T) {
+	// String literals lower to I32 pointers with is_heap=true
+	mod, ctx, store := lower_source("x = \"hello\"")
+	defer teardown_lower(ctx, &store)
+
+	testing.expect(t, len(mod.decls) == 1)
+	#partial switch decl in mod.decls[0] {
+	case ^ir.IR_Decl_Const:
+		#partial switch expr in decl.value {
+		case ^ir.IR_Literal_String:
+			testing.expect(t, expr.type.wasm_type == .I32)
+			testing.expect(t, expr.type.is_heap == true)
+		case:
+			testing.expect(t, false, "expected IR_Literal_String")
+		}
+	case:
+		testing.expect(t, false, "expected IR_Decl_Const")
+	}
+}
+
+@(test)
+test_is_heap_int_literal_false :: proc(t: ^testing.T) {
+	// Integer literals are I64 with is_heap=false
+	mod, ctx, store := lower_source("x = 42")
+	defer teardown_lower(ctx, &store)
+
+	testing.expect(t, len(mod.decls) == 1)
+	#partial switch decl in mod.decls[0] {
+	case ^ir.IR_Decl_Const:
+		#partial switch expr in decl.value {
+		case ^ir.IR_Literal_Int:
+			testing.expect(t, expr.type.is_heap == false)
+		case:
+			testing.expect(t, false, "expected IR_Literal_Int")
+		}
+	case:
+		testing.expect(t, false, "expected IR_Decl_Const")
+	}
+}
+
+@(test)
+test_is_heap_bool_literal_false :: proc(t: ^testing.T) {
+	// Bool literals are I32 but NOT heap-allocated
+	mod, ctx, store := lower_source("x = True")
+	defer teardown_lower(ctx, &store)
+
+	testing.expect(t, len(mod.decls) == 1)
+	#partial switch decl in mod.decls[0] {
+	case ^ir.IR_Decl_Const:
+		#partial switch expr in decl.value {
+		case ^ir.IR_Literal_Bool:
+			testing.expect(t, expr.type.wasm_type == .I32)
+			testing.expect(t, expr.type.is_heap == false)
+		case:
+			testing.expect(t, false, "expected IR_Literal_Bool")
+		}
+	case:
+		testing.expect(t, false, "expected IR_Decl_Const")
+	}
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// Phase 8 – IR_Drop emission tests (extended)
+// ═══════════════════════════════════════════════════════════════════════════════
+
+@(test)
+test_rc_drop_non_heap_no_drop :: proc(t: ^testing.T) {
+	// Non-heap let binding (I64) should NOT emit a drop even if unused
+	ctx: ^build.Compilation_Context = new(build.Compilation_Context)
+	alloc := build.context_init(ctx)
+	context.allocator = alloc
+	defer {
+		build.context_destroy(ctx)
+		free(ctx)
+	}
+
+	int_type := base.IR_Type{wasm_type = .I64, type_id = base.Type_Var_ID(0)}
+
+	x_name := base.intern(&ctx.interner, "x")
+
+	lit := new(ir.IR_Literal_Int)
+	lit^ = ir.IR_Literal_Int{value = 42, type = int_type, span = base.Source_Span{}}
+
+	ret_lit := new(ir.IR_Literal_Int)
+	ret_lit^ = ir.IR_Literal_Int{value = 1, type = int_type, span = base.Source_Span{}}
+
+	let_expr := new(ir.IR_Let)
+	let_expr^ = ir.IR_Let{
+		binding = x_name,
+		type = int_type,
+		value = ir.IR_Expr(lit),
+		body = ir.IR_Expr(ret_lit),
+		span = base.Source_Span{},
+	}
+
+	fn_decl := new(ir.IR_Decl_Fn)
+	fn_decl^ = ir.IR_Decl_Fn{
+		name = base.Canonical_Name{module = base.NO_NAME, name = x_name},
+		is_effectful = false,
+		params = make([dynamic]ir.IR_Param, 0),
+		return_type = int_type,
+		effect_row = base.IR_Type{},
+		effects = make([dynamic]base.Canonical_Name, 0),
+		body = ir.IR_Expr(let_expr),
+		span = base.Source_Span{},
+	}
+
+	mod := ir.IR_Module{
+		decls = make([dynamic]ir.IR_Decl, 1),
+		effect_defs = make([dynamic]ir.IR_Effect_Def, 0),
+		string_table = make([dynamic]ir.String_Table_Entry, 0),
+	}
+	mod.decls[0] = ir.IR_Decl(fn_decl)
+
+	ir.rc_insert(&mod, &ctx.interner)
+
+	// x is I64 (not heap) — no drop should be emitted
+	testing.expect(t, count_ir_drop(fn_decl.body) == 0)
+}
+
+@(test)
+test_rc_drop_unused_heap_param :: proc(t: ^testing.T) {
+	// Function with an unused heap-typed parameter should emit a drop for it
+	ctx: ^build.Compilation_Context = new(build.Compilation_Context)
+	alloc := build.context_init(ctx)
+	context.allocator = alloc
+	defer {
+		build.context_destroy(ctx)
+		free(ctx)
+	}
+
+	heap_type := base.IR_Type{wasm_type = .I32, type_id = base.Type_Var_ID(0), is_heap = true}
+	int_type := base.IR_Type{wasm_type = .I64, type_id = base.Type_Var_ID(0)}
+
+	p_name := base.intern(&ctx.interner, "p")
+	fn_name := base.intern(&ctx.interner, "f")
+
+	ret_lit := new(ir.IR_Literal_Int)
+	ret_lit^ = ir.IR_Literal_Int{value = 0, type = int_type, span = base.Source_Span{}}
+
+	fn_decl := new(ir.IR_Decl_Fn)
+	fn_decl^ = ir.IR_Decl_Fn{
+		name = base.Canonical_Name{module = base.NO_NAME, name = fn_name},
+		is_effectful = false,
+		params = make([dynamic]ir.IR_Param, 1),
+		return_type = int_type,
+		effect_row = base.IR_Type{},
+		effects = make([dynamic]base.Canonical_Name, 0),
+		body = ir.IR_Expr(ret_lit),
+		span = base.Source_Span{},
+	}
+	fn_decl.params[0] = ir.IR_Param{name = p_name, type = heap_type}
+
+	mod := ir.IR_Module{
+		decls = make([dynamic]ir.IR_Decl, 1),
+		effect_defs = make([dynamic]ir.IR_Effect_Def, 0),
+		string_table = make([dynamic]ir.String_Table_Entry, 0),
+	}
+	mod.decls[0] = ir.IR_Decl(fn_decl)
+
+	ir.rc_insert(&mod, &ctx.interner)
+
+	// p is heap-typed and never used — should emit 1 drop
+	testing.expect(t, count_ir_drop(fn_decl.body) == 1)
+}
+
+@(test)
+test_rc_drop_used_heap_param_no_drop :: proc(t: ^testing.T) {
+	// Function with a used heap-typed parameter should NOT emit a drop for it
+	ctx: ^build.Compilation_Context = new(build.Compilation_Context)
+	alloc := build.context_init(ctx)
+	context.allocator = alloc
+	defer {
+		build.context_destroy(ctx)
+		free(ctx)
+	}
+
+	heap_type := base.IR_Type{wasm_type = .I32, type_id = base.Type_Var_ID(0), is_heap = true}
+	int_type := base.IR_Type{wasm_type = .I64, type_id = base.Type_Var_ID(0)}
+
+	p_name := base.intern(&ctx.interner, "p")
+	fn_name := base.intern(&ctx.interner, "f")
+
+	// Use p in a call (single use consumes ownership)
+	p_var := new(ir.IR_Var)
+	p_var^ = ir.IR_Var{name = p_name, type = heap_type, span = base.Source_Span{}}
+
+	// Just return p as I32 (it's consumed)
+	ret_expr := ir.IR_Expr(p_var)
+
+	fn_decl := new(ir.IR_Decl_Fn)
+	fn_decl^ = ir.IR_Decl_Fn{
+		name = base.Canonical_Name{module = base.NO_NAME, name = fn_name},
+		is_effectful = false,
+		params = make([dynamic]ir.IR_Param, 1),
+		return_type = heap_type,
+		effect_row = base.IR_Type{},
+		effects = make([dynamic]base.Canonical_Name, 0),
+		body = ret_expr,
+		span = base.Source_Span{},
+	}
+	fn_decl.params[0] = ir.IR_Param{name = p_name, type = heap_type}
+
+	mod := ir.IR_Module{
+		decls = make([dynamic]ir.IR_Decl, 1),
+		effect_defs = make([dynamic]ir.IR_Effect_Def, 0),
+		string_table = make([dynamic]ir.String_Table_Entry, 0),
+	}
+	mod.decls[0] = ir.IR_Decl(fn_decl)
+
+	ir.rc_insert(&mod, &ctx.interner)
+
+	// p is used once (consumed) — no drop needed
+	testing.expect(t, count_ir_drop(fn_decl.body) == 0)
+}
+
+@(test)
+test_rc_drop_non_heap_param_no_drop :: proc(t: ^testing.T) {
+	// Function with an unused non-heap parameter should NOT emit a drop
+	ctx: ^build.Compilation_Context = new(build.Compilation_Context)
+	alloc := build.context_init(ctx)
+	context.allocator = alloc
+	defer {
+		build.context_destroy(ctx)
+		free(ctx)
+	}
+
+	int_type := base.IR_Type{wasm_type = .I64, type_id = base.Type_Var_ID(0)}
+
+	p_name := base.intern(&ctx.interner, "p")
+	fn_name := base.intern(&ctx.interner, "f")
+
+	ret_lit := new(ir.IR_Literal_Int)
+	ret_lit^ = ir.IR_Literal_Int{value = 0, type = int_type, span = base.Source_Span{}}
+
+	fn_decl := new(ir.IR_Decl_Fn)
+	fn_decl^ = ir.IR_Decl_Fn{
+		name = base.Canonical_Name{module = base.NO_NAME, name = fn_name},
+		is_effectful = false,
+		params = make([dynamic]ir.IR_Param, 1),
+		return_type = int_type,
+		effect_row = base.IR_Type{},
+		effects = make([dynamic]base.Canonical_Name, 0),
+		body = ir.IR_Expr(ret_lit),
+		span = base.Source_Span{},
+	}
+	fn_decl.params[0] = ir.IR_Param{name = p_name, type = int_type}
+
+	mod := ir.IR_Module{
+		decls = make([dynamic]ir.IR_Decl, 1),
+		effect_defs = make([dynamic]ir.IR_Effect_Def, 0),
+		string_table = make([dynamic]ir.String_Table_Entry, 0),
+	}
+	mod.decls[0] = ir.IR_Decl(fn_decl)
+
+	ir.rc_insert(&mod, &ctx.interner)
+
+	// p is I64 (not heap) — no drop should be emitted even though unused
+	testing.expect(t, count_ir_drop(fn_decl.body) == 0)
+}
+
+@(test)
+test_rc_drop_heap_used_in_one_branch :: proc(t: ^testing.T) {
+	// Heap binding used in only one branch of an if — the other branch should drop it
+	ctx: ^build.Compilation_Context = new(build.Compilation_Context)
+	alloc := build.context_init(ctx)
+	context.allocator = alloc
+	defer {
+		build.context_destroy(ctx)
+		free(ctx)
+	}
+
+	heap_type := base.IR_Type{wasm_type = .I32, type_id = base.Type_Var_ID(0), is_heap = true}
+	int_type := base.IR_Type{wasm_type = .I64, type_id = base.Type_Var_ID(0)}
+	bool_type := base.IR_Type{wasm_type = .I32, type_id = base.Type_Var_ID(0)}
+
+	x_name := base.intern(&ctx.interner, "x")
+
+	record := new(ir.IR_Construct_Record)
+	record^ = ir.IR_Construct_Record{
+		fields = make([dynamic]ir.IR_Record_Field, 0),
+		rest = nil,
+		reuse_addr = ir.NO_REUSE_ADDR,
+		type = heap_type,
+		span = base.Source_Span{},
+	}
+
+	cond := new(ir.IR_Literal_Bool)
+	cond^ = ir.IR_Literal_Bool{value = true, type = bool_type, span = base.Source_Span{}}
+
+	// then: use x (consume it)
+	then_var := new(ir.IR_Var)
+	then_var^ = ir.IR_Var{name = x_name, type = heap_type, span = base.Source_Span{}}
+
+	// else: don't use x
+	else_lit := new(ir.IR_Literal_Int)
+	else_lit^ = ir.IR_Literal_Int{value = 0, type = int_type, span = base.Source_Span{}}
+
+	if_expr := new(ir.IR_If)
+	if_expr^ = ir.IR_If{
+		condition = ir.IR_Expr(cond),
+		then_branch = ir.IR_Expr(then_var),
+		else_branch = ir.IR_Expr(else_lit),
+		type = heap_type,
+		span = base.Source_Span{},
+	}
+
+	let_expr := new(ir.IR_Let)
+	let_expr^ = ir.IR_Let{
+		binding = x_name,
+		type = heap_type,
+		value = ir.IR_Expr(record),
+		body = ir.IR_Expr(if_expr),
+		span = base.Source_Span{},
+	}
+
+	fn_decl := new(ir.IR_Decl_Fn)
+	fn_decl^ = ir.IR_Decl_Fn{
+		name = base.Canonical_Name{module = base.NO_NAME, name = x_name},
+		is_effectful = false,
+		params = make([dynamic]ir.IR_Param, 0),
+		return_type = heap_type,
+		effect_row = base.IR_Type{},
+		effects = make([dynamic]base.Canonical_Name, 0),
+		body = ir.IR_Expr(let_expr),
+		span = base.Source_Span{},
+	}
+
+	mod := ir.IR_Module{
+		decls = make([dynamic]ir.IR_Decl, 1),
+		effect_defs = make([dynamic]ir.IR_Effect_Def, 0),
+		string_table = make([dynamic]ir.String_Table_Entry, 0),
+	}
+	mod.decls[0] = ir.IR_Decl(fn_decl)
+
+	ir.rc_insert(&mod, &ctx.interner)
+
+	// else branch should emit 1 drop for x (unused there)
+	// then branch uses x (consumed), no drop
+	drop_count := count_ir_drop(fn_decl.body)
+	testing.expect(t, drop_count >= 1)
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// Phase 9 – reuse_addr field tests
+// ═══════════════════════════════════════════════════════════════════════════════
+
+@(test)
+test_reuse_addr_default_is_no_reuse :: proc(t: ^testing.T) {
+	// Freshly constructed IR_Construct_Tag and IR_Construct_Record should have
+	// reuse_addr = NO_REUSE_ADDR by default
+	ctx: ^build.Compilation_Context = new(build.Compilation_Context)
+	alloc := build.context_init(ctx)
+	context.allocator = alloc
+	defer {
+		build.context_destroy(ctx)
+		free(ctx)
+	}
+
+	heap_type := base.IR_Type{wasm_type = .I32, type_id = base.Type_Var_ID(0), is_heap = true}
+
+	tag_name := base.intern(&ctx.interner, "Some")
+
+	tag := new(ir.IR_Construct_Tag)
+	tag^ = ir.IR_Construct_Tag{
+		tag_name = tag_name,
+		tag_index = 0,
+		payload = make([dynamic]ir.IR_Expr, 0),
+		reuse_addr = ir.NO_REUSE_ADDR,
+		type = heap_type,
+		span = base.Source_Span{},
+	}
+	testing.expect(t, tag.reuse_addr == ir.NO_REUSE_ADDR)
+
+	rec := new(ir.IR_Construct_Record)
+	rec^ = ir.IR_Construct_Record{
+		fields = make([dynamic]ir.IR_Record_Field, 0),
+		rest = nil,
+		reuse_addr = ir.NO_REUSE_ADDR,
+		type = heap_type,
+		span = base.Source_Span{},
+	}
+	testing.expect(t, rec.reuse_addr == ir.NO_REUSE_ADDR)
+}
+
+@(test)
+test_reuse_addr_preserved_through_rc :: proc(t: ^testing.T) {
+	// After rc_insert, construct nodes should still have reuse_addr = NO_REUSE_ADDR
+	// (reuse analysis hasn't run yet)
+	ctx: ^build.Compilation_Context = new(build.Compilation_Context)
+	alloc := build.context_init(ctx)
+	context.allocator = alloc
+	defer {
+		build.context_destroy(ctx)
+		free(ctx)
+	}
+
+	heap_type := base.IR_Type{wasm_type = .I32, type_id = base.Type_Var_ID(0), is_heap = true}
+	int_type := base.IR_Type{wasm_type = .I64, type_id = base.Type_Var_ID(0)}
+
+	x_name := base.intern(&ctx.interner, "x")
+
+	record := new(ir.IR_Construct_Record)
+	record^ = ir.IR_Construct_Record{
+		fields = make([dynamic]ir.IR_Record_Field, 0),
+		rest = nil,
+		reuse_addr = ir.NO_REUSE_ADDR,
+		type = heap_type,
+		span = base.Source_Span{},
+	}
+
+	lit := new(ir.IR_Literal_Int)
+	lit^ = ir.IR_Literal_Int{value = 42, type = int_type, span = base.Source_Span{}}
+
+	let_expr := new(ir.IR_Let)
+	let_expr^ = ir.IR_Let{
+		binding = x_name,
+		type = heap_type,
+		value = ir.IR_Expr(record),
+		body = ir.IR_Expr(lit),
+		span = base.Source_Span{},
+	}
+
+	fn_decl := new(ir.IR_Decl_Fn)
+	fn_decl^ = ir.IR_Decl_Fn{
+		name = base.Canonical_Name{module = base.NO_NAME, name = x_name},
+		is_effectful = false,
+		params = make([dynamic]ir.IR_Param, 0),
+		return_type = int_type,
+		effect_row = base.IR_Type{},
+		effects = make([dynamic]base.Canonical_Name, 0),
+		body = ir.IR_Expr(let_expr),
+		span = base.Source_Span{},
+	}
+
+	mod := ir.IR_Module{
+		decls = make([dynamic]ir.IR_Decl, 1),
+		effect_defs = make([dynamic]ir.IR_Effect_Def, 0),
+		string_table = make([dynamic]ir.String_Table_Entry, 0),
+	}
+	mod.decls[0] = ir.IR_Decl(fn_decl)
+
+	ir.rc_insert(&mod, &ctx.interner)
+
+	// After RC, the construct node should still have NO_REUSE_ADDR
+	found_reuse := find_construct_reuse_addr(fn_decl.body)
+	testing.expect(t, found_reuse == ir.NO_REUSE_ADDR)
+}
+
+// Helper: find reuse_addr on the first construct node in an expression
+find_construct_reuse_addr :: proc(expr: ir.IR_Expr) -> base.Intern_ID {
+	if expr == nil do return ir.NO_REUSE_ADDR
+
+	#partial switch e in expr {
+	case ^ir.IR_Construct_Tag:
+		return e.reuse_addr
+	case ^ir.IR_Construct_Record:
+		return e.reuse_addr
+	case ^ir.IR_Let:
+		result := find_construct_reuse_addr(e.value)
+		if result != ir.NO_REUSE_ADDR do return result
+		return find_construct_reuse_addr(e.body)
+	case ^ir.IR_Block:
+		for stmt in e.statements {
+			result := find_construct_reuse_addr(stmt)
+			if result != ir.NO_REUSE_ADDR do return result
+		}
+	case ^ir.IR_If:
+		result := find_construct_reuse_addr(e.then_branch)
+		if result != ir.NO_REUSE_ADDR do return result
+		return find_construct_reuse_addr(e.else_branch)
+	case:
+	}
+
+	return ir.NO_REUSE_ADDR
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// Phase 10 – Reuse analysis pass tests
+// ═══════════════════════════════════════════════════════════════════════════════
+
+@(test)
+test_reuse_analyze_let_drop_then_construct :: proc(t: ^testing.T) {
+	// Pattern: let x = construct in { drop y; rest }
+	// After reuse_analyze, the construct should have reuse_addr=y and the drop removed
+	ctx: ^build.Compilation_Context = new(build.Compilation_Context)
+	alloc := build.context_init(ctx)
+	context.allocator = alloc
+	defer {
+		build.context_destroy(ctx)
+		free(ctx)
+	}
+
+	heap_type := base.IR_Type{wasm_type = .I32, type_id = base.Type_Var_ID(0), is_heap = true}
+	int_type := base.IR_Type{wasm_type = .I64, type_id = base.Type_Var_ID(0)}
+
+	x_name := base.intern(&ctx.interner, "x")
+	y_name := base.intern(&ctx.interner, "y")
+
+	// value: IR_Construct_Tag
+	tag := new(ir.IR_Construct_Tag)
+	tag^ = ir.IR_Construct_Tag{
+		tag_name = x_name,
+		tag_index = 0,
+		payload = make([dynamic]ir.IR_Expr, 0),
+		reuse_addr = ir.NO_REUSE_ADDR,
+		type = heap_type,
+		span = base.Source_Span{},
+	}
+
+	// body: IR_Block { IR_Drop{y}, IR_Literal_Int{42} }
+	drop_y := new(ir.IR_Drop)
+	drop_y^ = ir.IR_Drop{value = y_name, span = base.Source_Span{}}
+
+	lit := new(ir.IR_Literal_Int)
+	lit^ = ir.IR_Literal_Int{value = 42, type = int_type, span = base.Source_Span{}}
+
+	body_stmts := make([dynamic]ir.IR_Expr, 0, 2)
+	append(&body_stmts, ir.IR_Expr(drop_y))
+	append(&body_stmts, ir.IR_Expr(lit))
+
+	body_block := new(ir.IR_Block)
+	body_block^ = ir.IR_Block{statements = body_stmts, type = int_type, span = base.Source_Span{}}
+
+	let_expr := new(ir.IR_Let)
+	let_expr^ = ir.IR_Let{
+		binding = x_name,
+		type = heap_type,
+		value = ir.IR_Expr(tag),
+		body = ir.IR_Expr(body_block),
+		span = base.Source_Span{},
+	}
+
+	fn_decl := new(ir.IR_Decl_Fn)
+	fn_decl^ = ir.IR_Decl_Fn{
+		name = base.Canonical_Name{module = base.NO_NAME, name = x_name},
+		is_effectful = false,
+		params = make([dynamic]ir.IR_Param, 0),
+		return_type = int_type,
+		effect_row = base.IR_Type{},
+		effects = make([dynamic]base.Canonical_Name, 0),
+		body = ir.IR_Expr(let_expr),
+		span = base.Source_Span{},
+	}
+
+	mod := ir.IR_Module{
+		decls = make([dynamic]ir.IR_Decl, 1),
+		effect_defs = make([dynamic]ir.IR_Effect_Def, 0),
+		string_table = make([dynamic]ir.String_Table_Entry, 0),
+	}
+	mod.decls[0] = ir.IR_Decl(fn_decl)
+
+	ir.reuse_analyze(&mod)
+
+	// After reuse analysis: construct should have reuse_addr=y, drop should be removed
+	reuse_addr := find_construct_reuse_addr(fn_decl.body)
+	testing.expect(t, reuse_addr == y_name)
+
+	// Drop should have been removed
+	testing.expect(t, count_ir_drop(fn_decl.body) == 0)
+}
+
+@(test)
+test_reuse_analyze_no_drop_no_reuse :: proc(t: ^testing.T) {
+	// Pattern: let x = construct in 42 (no drop in body)
+	// After reuse_analyze, construct should still have NO_REUSE_ADDR
+	ctx: ^build.Compilation_Context = new(build.Compilation_Context)
+	alloc := build.context_init(ctx)
+	context.allocator = alloc
+	defer {
+		build.context_destroy(ctx)
+		free(ctx)
+	}
+
+	heap_type := base.IR_Type{wasm_type = .I32, type_id = base.Type_Var_ID(0), is_heap = true}
+	int_type := base.IR_Type{wasm_type = .I64, type_id = base.Type_Var_ID(0)}
+
+	x_name := base.intern(&ctx.interner, "x")
+
+	tag := new(ir.IR_Construct_Tag)
+	tag^ = ir.IR_Construct_Tag{
+		tag_name = x_name,
+		tag_index = 0,
+		payload = make([dynamic]ir.IR_Expr, 0),
+		reuse_addr = ir.NO_REUSE_ADDR,
+		type = heap_type,
+		span = base.Source_Span{},
+	}
+
+	lit := new(ir.IR_Literal_Int)
+	lit^ = ir.IR_Literal_Int{value = 42, type = int_type, span = base.Source_Span{}}
+
+	let_expr := new(ir.IR_Let)
+	let_expr^ = ir.IR_Let{
+		binding = x_name,
+		type = heap_type,
+		value = ir.IR_Expr(tag),
+		body = ir.IR_Expr(lit),
+		span = base.Source_Span{},
+	}
+
+	fn_decl := new(ir.IR_Decl_Fn)
+	fn_decl^ = ir.IR_Decl_Fn{
+		name = base.Canonical_Name{module = base.NO_NAME, name = x_name},
+		is_effectful = false,
+		params = make([dynamic]ir.IR_Param, 0),
+		return_type = int_type,
+		effect_row = base.IR_Type{},
+		effects = make([dynamic]base.Canonical_Name, 0),
+		body = ir.IR_Expr(let_expr),
+		span = base.Source_Span{},
+	}
+
+	mod := ir.IR_Module{
+		decls = make([dynamic]ir.IR_Decl, 1),
+		effect_defs = make([dynamic]ir.IR_Effect_Def, 0),
+		string_table = make([dynamic]ir.String_Table_Entry, 0),
+	}
+	mod.decls[0] = ir.IR_Decl(fn_decl)
+
+	ir.reuse_analyze(&mod)
+
+	// No drop in body — reuse_addr should remain NO_REUSE_ADDR
+	reuse_addr := find_construct_reuse_addr(fn_decl.body)
+	testing.expect(t, reuse_addr == ir.NO_REUSE_ADDR)
+}
+
+@(test)
+test_reuse_analyze_record_drop_then_construct :: proc(t: ^testing.T) {
+	// Same pattern but with IR_Construct_Record instead of IR_Construct_Tag
+	ctx: ^build.Compilation_Context = new(build.Compilation_Context)
+	alloc := build.context_init(ctx)
+	context.allocator = alloc
+	defer {
+		build.context_destroy(ctx)
+		free(ctx)
+	}
+
+	heap_type := base.IR_Type{wasm_type = .I32, type_id = base.Type_Var_ID(0), is_heap = true}
+	int_type := base.IR_Type{wasm_type = .I64, type_id = base.Type_Var_ID(0)}
+
+	x_name := base.intern(&ctx.interner, "x")
+	y_name := base.intern(&ctx.interner, "y")
+
+	rec := new(ir.IR_Construct_Record)
+	rec^ = ir.IR_Construct_Record{
+		fields = make([dynamic]ir.IR_Record_Field, 0),
+		rest = nil,
+		reuse_addr = ir.NO_REUSE_ADDR,
+		type = heap_type,
+		span = base.Source_Span{},
+	}
+
+	drop_y := new(ir.IR_Drop)
+	drop_y^ = ir.IR_Drop{value = y_name, span = base.Source_Span{}}
+
+	lit := new(ir.IR_Literal_Int)
+	lit^ = ir.IR_Literal_Int{value = 42, type = int_type, span = base.Source_Span{}}
+
+	body_stmts := make([dynamic]ir.IR_Expr, 0, 2)
+	append(&body_stmts, ir.IR_Expr(drop_y))
+	append(&body_stmts, ir.IR_Expr(lit))
+
+	body_block := new(ir.IR_Block)
+	body_block^ = ir.IR_Block{statements = body_stmts, type = int_type, span = base.Source_Span{}}
+
+	let_expr := new(ir.IR_Let)
+	let_expr^ = ir.IR_Let{
+		binding = x_name,
+		type = heap_type,
+		value = ir.IR_Expr(rec),
+		body = ir.IR_Expr(body_block),
+		span = base.Source_Span{},
+	}
+
+	fn_decl := new(ir.IR_Decl_Fn)
+	fn_decl^ = ir.IR_Decl_Fn{
+		name = base.Canonical_Name{module = base.NO_NAME, name = x_name},
+		is_effectful = false,
+		params = make([dynamic]ir.IR_Param, 0),
+		return_type = int_type,
+		effect_row = base.IR_Type{},
+		effects = make([dynamic]base.Canonical_Name, 0),
+		body = ir.IR_Expr(let_expr),
+		span = base.Source_Span{},
+	}
+
+	mod := ir.IR_Module{
+		decls = make([dynamic]ir.IR_Decl, 1),
+		effect_defs = make([dynamic]ir.IR_Effect_Def, 0),
+		string_table = make([dynamic]ir.String_Table_Entry, 0),
+	}
+	mod.decls[0] = ir.IR_Decl(fn_decl)
+
+	ir.reuse_analyze(&mod)
+
+	// Record construct should have reuse_addr=y
+	reuse_addr := find_construct_reuse_addr(fn_decl.body)
+	testing.expect(t, reuse_addr == y_name)
+	testing.expect(t, count_ir_drop(fn_decl.body) == 0)
+}
+
+@(test)
+test_reuse_analyze_block_sibling_pattern :: proc(t: ^testing.T) {
+	// Pattern in a block: { drop y; let x = construct in ... }
+	// optimize_block_drops should merge these
+	ctx: ^build.Compilation_Context = new(build.Compilation_Context)
+	alloc := build.context_init(ctx)
+	context.allocator = alloc
+	defer {
+		build.context_destroy(ctx)
+		free(ctx)
+	}
+
+	heap_type := base.IR_Type{wasm_type = .I32, type_id = base.Type_Var_ID(0), is_heap = true}
+	int_type := base.IR_Type{wasm_type = .I64, type_id = base.Type_Var_ID(0)}
+
+	x_name := base.intern(&ctx.interner, "x")
+	y_name := base.intern(&ctx.interner, "y")
+
+	drop_y := new(ir.IR_Drop)
+	drop_y^ = ir.IR_Drop{value = y_name, span = base.Source_Span{}}
+
+	tag := new(ir.IR_Construct_Tag)
+	tag^ = ir.IR_Construct_Tag{
+		tag_name = x_name,
+		tag_index = 0,
+		payload = make([dynamic]ir.IR_Expr, 0),
+		reuse_addr = ir.NO_REUSE_ADDR,
+		type = heap_type,
+		span = base.Source_Span{},
+	}
+
+	lit := new(ir.IR_Literal_Int)
+	lit^ = ir.IR_Literal_Int{value = 42, type = int_type, span = base.Source_Span{}}
+
+	let_expr := new(ir.IR_Let)
+	let_expr^ = ir.IR_Let{
+		binding = x_name,
+		type = heap_type,
+		value = ir.IR_Expr(tag),
+		body = ir.IR_Expr(lit),
+		span = base.Source_Span{},
+	}
+
+	// Block: { drop y; let x = construct in 42 }
+	block_stmts := make([dynamic]ir.IR_Expr, 0, 2)
+	append(&block_stmts, ir.IR_Expr(drop_y))
+	append(&block_stmts, ir.IR_Expr(let_expr))
+
+	block := new(ir.IR_Block)
+	block^ = ir.IR_Block{statements = block_stmts, type = int_type, span = base.Source_Span{}}
+
+	fn_decl := new(ir.IR_Decl_Fn)
+	fn_decl^ = ir.IR_Decl_Fn{
+		name = base.Canonical_Name{module = base.NO_NAME, name = x_name},
+		is_effectful = false,
+		params = make([dynamic]ir.IR_Param, 0),
+		return_type = int_type,
+		effect_row = base.IR_Type{},
+		effects = make([dynamic]base.Canonical_Name, 0),
+		body = ir.IR_Expr(block),
+		span = base.Source_Span{},
+	}
+
+	mod := ir.IR_Module{
+		decls = make([dynamic]ir.IR_Decl, 1),
+		effect_defs = make([dynamic]ir.IR_Effect_Def, 0),
+		string_table = make([dynamic]ir.String_Table_Entry, 0),
+	}
+	mod.decls[0] = ir.IR_Decl(fn_decl)
+
+	ir.reuse_analyze(&mod)
+
+	// After optimization: drop should be removed, construct should have reuse_addr=y
+	reuse_addr := find_construct_reuse_addr(fn_decl.body)
+	testing.expect(t, reuse_addr == y_name)
+	testing.expect(t, count_ir_drop(fn_decl.body) == 0)
+}
+
+@(test)
+test_reuse_analyze_non_construct_no_reuse :: proc(t: ^testing.T) {
+	// Pattern: let x = non-construct in { drop y; rest }
+	// Non-construct values can't set reuse_addr — should remain unchanged
+	ctx: ^build.Compilation_Context = new(build.Compilation_Context)
+	alloc := build.context_init(ctx)
+	context.allocator = alloc
+	defer {
+		build.context_destroy(ctx)
+		free(ctx)
+	}
+
+	heap_type := base.IR_Type{wasm_type = .I32, type_id = base.Type_Var_ID(0), is_heap = true}
+	int_type := base.IR_Type{wasm_type = .I64, type_id = base.Type_Var_ID(0)}
+
+	x_name := base.intern(&ctx.interner, "x")
+	y_name := base.intern(&ctx.interner, "y")
+
+	// value: IR_Literal_Int (NOT a construct)
+	lit_val := new(ir.IR_Literal_Int)
+	lit_val^ = ir.IR_Literal_Int{value = 99, type = int_type, span = base.Source_Span{}}
+
+	drop_y := new(ir.IR_Drop)
+	drop_y^ = ir.IR_Drop{value = y_name, span = base.Source_Span{}}
+
+	lit := new(ir.IR_Literal_Int)
+	lit^ = ir.IR_Literal_Int{value = 42, type = int_type, span = base.Source_Span{}}
+
+	body_stmts := make([dynamic]ir.IR_Expr, 0, 2)
+	append(&body_stmts, ir.IR_Expr(drop_y))
+	append(&body_stmts, ir.IR_Expr(lit))
+
+	body_block := new(ir.IR_Block)
+	body_block^ = ir.IR_Block{statements = body_stmts, type = int_type, span = base.Source_Span{}}
+
+	let_expr := new(ir.IR_Let)
+	let_expr^ = ir.IR_Let{
+		binding = x_name,
+		type = int_type,
+		value = ir.IR_Expr(lit_val),
+		body = ir.IR_Expr(body_block),
+		span = base.Source_Span{},
+	}
+
+	fn_decl := new(ir.IR_Decl_Fn)
+	fn_decl^ = ir.IR_Decl_Fn{
+		name = base.Canonical_Name{module = base.NO_NAME, name = x_name},
+		is_effectful = false,
+		params = make([dynamic]ir.IR_Param, 0),
+		return_type = int_type,
+		effect_row = base.IR_Type{},
+		effects = make([dynamic]base.Canonical_Name, 0),
+		body = ir.IR_Expr(let_expr),
+		span = base.Source_Span{},
+	}
+
+	mod := ir.IR_Module{
+		decls = make([dynamic]ir.IR_Decl, 1),
+		effect_defs = make([dynamic]ir.IR_Effect_Def, 0),
+		string_table = make([dynamic]ir.String_Table_Entry, 0),
+	}
+	mod.decls[0] = ir.IR_Decl(fn_decl)
+
+	ir.reuse_analyze(&mod)
+
+	// Non-construct value — no reuse_addr set, drop should remain
+	testing.expect(t, count_ir_drop(fn_decl.body) == 1)
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// Phase 11 – Full pipeline: RC + reuse analysis integration
+// ═══════════════════════════════════════════════════════════════════════════════
+
+@(test)
+test_rc_then_reuse_analyze_heap_drop_removed :: proc(t: ^testing.T) {
+	// After rc_insert emits drops, reuse_analyze should find and optimize
+	// the drop-then-construct pattern when they appear as siblings in a block.
+	// We construct the IR that RC would produce: a block with { drop y; let x = construct in ... }
+	ctx: ^build.Compilation_Context = new(build.Compilation_Context)
+	alloc := build.context_init(ctx)
+	context.allocator = alloc
+	defer {
+		build.context_destroy(ctx)
+		free(ctx)
+	}
+
+	heap_type := base.IR_Type{wasm_type = .I32, type_id = base.Type_Var_ID(0), is_heap = true}
+	int_type := base.IR_Type{wasm_type = .I64, type_id = base.Type_Var_ID(0)}
+
+	y_name := base.intern(&ctx.interner, "y")
+	x_name := base.intern(&ctx.interner, "x")
+
+	// Simulate what RC produces for: let y = record in (let x = tag in 42)
+	// After RC: block { drop y; let x = tag in { drop x; 42 } }
+	drop_y := new(ir.IR_Drop)
+	drop_y^ = ir.IR_Drop{value = y_name, span = base.Source_Span{}}
+
+	x_tag := new(ir.IR_Construct_Tag)
+	x_tag^ = ir.IR_Construct_Tag{
+		tag_name = x_name,
+		tag_index = 0,
+		payload = make([dynamic]ir.IR_Expr, 0),
+		reuse_addr = ir.NO_REUSE_ADDR,
+		type = heap_type,
+		span = base.Source_Span{},
+	}
+
+	drop_x := new(ir.IR_Drop)
+	drop_x^ = ir.IR_Drop{value = x_name, span = base.Source_Span{}}
+
+	ret_lit := new(ir.IR_Literal_Int)
+	ret_lit^ = ir.IR_Literal_Int{value = 42, type = int_type, span = base.Source_Span{}}
+
+	// Inner body: block { drop x; 42 }
+	inner_stmts := make([dynamic]ir.IR_Expr, 0, 2)
+	append(&inner_stmts, ir.IR_Expr(drop_x))
+	append(&inner_stmts, ir.IR_Expr(ret_lit))
+	inner_block := new(ir.IR_Block)
+	inner_block^ = ir.IR_Block{statements = inner_stmts, type = int_type, span = base.Source_Span{}}
+
+	// let x = tag in { drop x; 42 }
+	let_x := new(ir.IR_Let)
+	let_x^ = ir.IR_Let{
+		binding = x_name,
+		type = heap_type,
+		value = ir.IR_Expr(x_tag),
+		body = ir.IR_Expr(inner_block),
+		span = base.Source_Span{},
+	}
+
+	// Outer block: { drop y; let x = tag in { drop x; 42 } }
+	outer_stmts := make([dynamic]ir.IR_Expr, 0, 2)
+	append(&outer_stmts, ir.IR_Expr(drop_y))
+	append(&outer_stmts, ir.IR_Expr(let_x))
+	outer_block := new(ir.IR_Block)
+	outer_block^ = ir.IR_Block{statements = outer_stmts, type = int_type, span = base.Source_Span{}}
+
+	fn_decl := new(ir.IR_Decl_Fn)
+	fn_decl^ = ir.IR_Decl_Fn{
+		name = base.Canonical_Name{module = base.NO_NAME, name = x_name},
+		is_effectful = false,
+		params = make([dynamic]ir.IR_Param, 0),
+		return_type = int_type,
+		effect_row = base.IR_Type{},
+		effects = make([dynamic]base.Canonical_Name, 0),
+		body = ir.IR_Expr(outer_block),
+		span = base.Source_Span{},
+	}
+
+	mod := ir.IR_Module{
+		decls = make([dynamic]ir.IR_Decl, 1),
+		effect_defs = make([dynamic]ir.IR_Effect_Def, 0),
+		string_table = make([dynamic]ir.String_Table_Entry, 0),
+	}
+	mod.decls[0] = ir.IR_Decl(fn_decl)
+
+	drops_before := count_ir_drop(fn_decl.body)
+
+	// Run reuse analysis
+	ir.reuse_analyze(&mod)
+
+	drops_after := count_ir_drop(fn_decl.body)
+	// The block sibling pattern (drop y; let x = construct) should be optimized:
+	// drop y is removed, construct gets reuse_addr=y
+	// The inner drop x remains (no construct after it)
+	testing.expect(t, drops_after < drops_before)
+}
