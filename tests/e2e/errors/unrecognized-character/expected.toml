@@ -1,5 +1,5 @@
 stdout = """
--- UNEXPECTED CHARACTER --- /tmp/camp-e2e/errors/unrecognized-character/src/Main.camp
+-- C0001: UNEXPECTED CHARACTER --- /tmp/camp-e2e/errors/unrecognized-character/src/Main.camp
 
 I don't recognize the character `?`.
    1 | x = if True { 1 } else { ? }

@@ -1,6 +1,6 @@
 stdout = """
 canonicalized /tmp/camp-e2e/errors/type-mismatch-binop/src/Main.camp: 2 declaration(s), 0 import(s)
--- TYPE MISMATCH --- /tmp/camp-e2e/errors/type-mismatch-binop/src/Main.camp
+-- C0301: TYPE MISMATCH --- /tmp/camp-e2e/errors/type-mismatch-binop/src/Main.camp
 
 `I64` does not match `Bool`.
    1 | x = 42

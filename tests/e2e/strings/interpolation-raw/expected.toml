@@ -1,10 +1,11 @@
 stdout = """
 canonicalized /tmp/camp-e2e/strings/interpolation-raw/src/Main.camp: 1 declaration(s), 0 import(s)
-typecheck passed for /tmp/camp-e2e/strings/interpolation-raw/src/Main.camp
-compiled /tmp/camp-e2e/strings/interpolation-raw/src/Main.camp -> /tmp/camp-e2e/strings/interpolation-raw/src/Main.wasm
+-- C0200: UNDEFINED NAME --- /tmp/camp-e2e/strings/interpolation-raw/src/Main.camp
+
+I cannot find `r`.
+   3 |     _path = r"C:\${dir}\file"
+                   ^
+compilation failed with 1 error(s)
 """
 stderr = ""
-exit = 0
-wasm_exit = 1
-wasm_stdout = ""
-wasm_stderr = "process start error: Not_Exist"
+exit = 1

@@ -1,5 +1,5 @@
 stdout = """
--- LAMBDA MULTI PARAM --- /tmp/camp-e2e/closures/function-composition/src/Main.camp
+-- C0104: LAMBDA MULTI PARAM --- /tmp/camp-e2e/closures/function-composition/src/Main.camp
 
 Lambdas must take a single parameter. Use a record to pass multiple values.
    1 | compose = |f, g| -> |I64| -> I64 {

@@ -1,5 +1,5 @@
 stdout = """
--- SYNTAX ERROR --- /tmp/camp-e2e/typechecking/perform-call/src/Main.camp
+-- C0100: SYNTAX ERROR --- /tmp/camp-e2e/typechecking/perform-call/src/Main.camp
 
 I expected `=` here, but I got `.` instead.
    2 | IO!.println!("hi")

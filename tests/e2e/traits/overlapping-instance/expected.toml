@@ -1,16 +1,70 @@
 stdout = """
--- LAMBDA MULTI PARAM --- /tmp/camp-e2e/traits/overlapping-instance/src/Main.camp
+-- C0100: SYNTAX ERROR --- /tmp/camp-e2e/traits/overlapping-instance/src/Main.camp
 
-Lambdas must take a single parameter. Use a record to pass multiple values.
+I expected `:` here, but I got `is` instead.
+   2 | @UserId is Eq : U64
+               ^^
+
+-- C0100: SYNTAX ERROR --- /tmp/camp-e2e/traits/overlapping-instance/src/Main.camp
+
+I expected `=` here, but I got `U64` instead.
+   2 | @UserId is Eq : U64
+                       ^^^
+
+-- C0100: SYNTAX ERROR --- /tmp/camp-e2e/traits/overlapping-instance/src/Main.camp
+
+I expected `=` here, but I got `|` instead.
    3 | UserId_eq = |x, y| True
-                        ^
+                   ^
 
--- LAMBDA MULTI PARAM --- /tmp/camp-e2e/traits/overlapping-instance/src/Main.camp
+-- C0100: SYNTAX ERROR --- /tmp/camp-e2e/traits/overlapping-instance/src/Main.camp
+
+I expected `=` here, but I got `y` instead.
+   3 | UserId_eq = |x, y| True
+                       ^
+
+-- C0100: SYNTAX ERROR --- /tmp/camp-e2e/traits/overlapping-instance/src/Main.camp
+
+I expected `identifier` here, but I got `@` instead.
+   4 | @UserId is Eq : U64
+       ^
+
+-- C0100: SYNTAX ERROR --- /tmp/camp-e2e/traits/overlapping-instance/src/Main.camp
+
+I expected `identifier` here, but I got `is` instead.
+   4 | @UserId is Eq : U64
+               ^^
+
+-- C0100: SYNTAX ERROR --- /tmp/camp-e2e/traits/overlapping-instance/src/Main.camp
+
+I expected `identifier` here, but I got `=` instead.
+   5 | UserId_eq2 = |x, y| True
+                  ^
+
+-- C0104: LAMBDA MULTI PARAM --- /tmp/camp-e2e/traits/overlapping-instance/src/Main.camp
 
 Lambdas must take a single parameter. Use a record to pass multiple values.
    5 | UserId_eq2 = |x, y| True
-                         ^
-compilation failed with 2 error(s)
+                    ^
+
+-- C0100: SYNTAX ERROR --- /tmp/camp-e2e/traits/overlapping-instance/src/Main.camp
+
+I expected `=` here, but I got `y` instead.
+   5 | UserId_eq2 = |x, y| True
+                        ^
+
+-- C0100: SYNTAX ERROR --- /tmp/camp-e2e/traits/overlapping-instance/src/Main.camp
+
+I expected `|` here, but I got `` instead.
+   6 | 
+       ^
+
+-- C0101: SYNTAX ERROR --- /tmp/camp-e2e/traits/overlapping-instance/src/Main.camp
+
+I was not expecting `` here.
+   6 | 
+       ^
+compilation failed with 11 error(s)
 """
 stderr = ""
 exit = 1

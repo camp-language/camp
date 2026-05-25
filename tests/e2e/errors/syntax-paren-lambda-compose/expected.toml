@@ -1,5 +1,5 @@
 stdout = """
--- LAMBDA MULTI PARAM --- /tmp/camp-e2e/errors/syntax-paren-lambda-compose/src/Main.camp
+-- C0104: LAMBDA MULTI PARAM --- /tmp/camp-e2e/errors/syntax-paren-lambda-compose/src/Main.camp
 
 Lambdas must take a single parameter. Use a record to pass multiple values.
    1 | compose = |f, g, x| { f(g(x)) }

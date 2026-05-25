@@ -1,6 +1,6 @@
 args = "unknown"
 stdout = """
--- UNKNOWN COMMAND ----------------------------------------- 
+-- C1202: UNKNOWN COMMAND ---------------------------------- 
 
 I don't know the command `foo`.
   Try `build`, `check`, `test`, or `fmt`.

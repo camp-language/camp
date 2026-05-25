@@ -1,7 +1,13 @@
 stdout = """
 canonicalized /tmp/camp-e2e/effects/effect-throw-handler/src/Main.camp: 2 declaration(s), 0 import(s)
-typecheck passed for /tmp/camp-e2e/effects/effect-throw-handler/src/Main.camp
-compiled /tmp/camp-e2e/effects/effect-throw-handler/src/Main.camp -> /tmp/camp-e2e/effects/effect-throw-handler/src/Main.wasm
+-- C9000: INTERNAL ERROR --- /tmp/camp-e2e/effects/effect-throw-handler/src/Main.camp
+
+Something went wrong inside the compiler: operation `throw!` not found in
+effects `Throw!`
+   4 |     .throw!(resume, _code) => 1
+            ^^^^^^
+  This is a bug in Camp. Please report it at https://github.com/smores56/camp/issues
+compilation failed with 1 error(s)
 """
 stderr = ""
-exit = 0
+exit = 1

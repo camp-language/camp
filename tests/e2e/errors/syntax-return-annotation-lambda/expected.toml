@@ -1,23 +1,23 @@
 stdout = """
--- LAMBDA MULTI PARAM --- /tmp/camp-e2e/errors/syntax-return-annotation-lambda/src/Main.camp
+-- C0104: LAMBDA MULTI PARAM --- /tmp/camp-e2e/errors/syntax-return-annotation-lambda/src/Main.camp
 
 Lambdas must take a single parameter. Use a record to pass multiple values.
    1 | f = |x, y| -> I64 { x + y }
                 ^
 
--- SYNTAX ERROR --- /tmp/camp-e2e/errors/syntax-return-annotation-lambda/src/Main.camp
+-- C0100: SYNTAX ERROR --- /tmp/camp-e2e/errors/syntax-return-annotation-lambda/src/Main.camp
 
 I expected `=` here, but I got `(` instead.
    2 | f(1)
         ^
 
--- SYNTAX ERROR --- /tmp/camp-e2e/errors/syntax-return-annotation-lambda/src/Main.camp
+-- C0100: SYNTAX ERROR --- /tmp/camp-e2e/errors/syntax-return-annotation-lambda/src/Main.camp
 
 I expected `=` here, but I got `` instead.
    3 | 
        ^
 
--- SYNTAX ERROR --- /tmp/camp-e2e/errors/syntax-return-annotation-lambda/src/Main.camp
+-- C0101: SYNTAX ERROR --- /tmp/camp-e2e/errors/syntax-return-annotation-lambda/src/Main.camp
 
 I was not expecting `` here.
    3 | 

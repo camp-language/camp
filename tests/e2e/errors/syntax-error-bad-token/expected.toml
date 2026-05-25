@@ -1,5 +1,5 @@
 stdout = """
--- SYNTAX ERROR --- /tmp/camp-e2e/errors/syntax-error-bad-token/src/Main.camp
+-- C0100: SYNTAX ERROR --- /tmp/camp-e2e/errors/syntax-error-bad-token/src/Main.camp
 
 I expected `uppercase identifier` here, but I got `` instead.
    2 | 

@@ -1,5 +1,5 @@
 stdout = """
--- LAMBDA MULTI PARAM --- /tmp/camp-e2e/closures/partial-application/src/Main.camp
+-- C0104: LAMBDA MULTI PARAM --- /tmp/camp-e2e/closures/partial-application/src/Main.camp
 
 Lambdas must take a single parameter. Use a record to pass multiple values.
    1 | add = |a, b| -> I64 { a + b }

@@ -1,7 +1,21 @@
 stdout = """
 canonicalized /tmp/camp-e2e/scheduler/spawn-join/src/Main.camp: 1 declaration(s), 0 import(s)
-typecheck passed for /tmp/camp-e2e/scheduler/spawn-join/src/Main.camp
-compiled /tmp/camp-e2e/scheduler/spawn-join/src/Main.camp -> /tmp/camp-e2e/scheduler/spawn-join/src/Main.wasm
+-- C9000: INTERNAL ERROR --- /tmp/camp-e2e/scheduler/spawn-join/src/Main.camp
+
+Something went wrong inside the compiler: operation `spawn!` not found in
+effects `Spawn!`
+   6 |     .spawn!(resume, _f) => resume(0),
+            ^^^^^^
+  This is a bug in Camp. Please report it at https://github.com/smores56/camp/issues
+
+-- C9000: INTERNAL ERROR --- /tmp/camp-e2e/scheduler/spawn-join/src/Main.camp
+
+Something went wrong inside the compiler: operation `join!` not found in effects
+`Spawn!`
+   7 |     .join!(resume, _h_ref) => resume(0)
+            ^^^^^
+  This is a bug in Camp. Please report it at https://github.com/smores56/camp/issues
+compilation failed with 2 error(s)
 """
 stderr = ""
-exit = 0
+exit = 1

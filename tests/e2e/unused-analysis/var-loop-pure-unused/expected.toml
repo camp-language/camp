@@ -1,18 +1,18 @@
 stdout = """
 canonicalized /tmp/camp-e2e/unused-analysis/var-loop-pure-unused/src/Main.camp: 1 declaration(s), 0 import(s)
--- UNDEFINED NAME --- /tmp/camp-e2e/unused-analysis/var-loop-pure-unused/src/Main.camp
+-- C0200: UNDEFINED NAME --- /tmp/camp-e2e/unused-analysis/var-loop-pure-unused/src/Main.camp
 
 I cannot find `items`.
    3 |   for item in items.iter() {
                      ^^^^^
 
--- UNDEFINED NAME --- /tmp/camp-e2e/unused-analysis/var-loop-pure-unused/src/Main.camp
+-- C0200: UNDEFINED NAME --- /tmp/camp-e2e/unused-analysis/var-loop-pure-unused/src/Main.camp
 
 I cannot find `matches`.
    4 |     if matches(item) {
               ^^^^^^^
 
--- SHADOWING --- /tmp/camp-e2e/unused-analysis/var-loop-pure-unused/src/Main.camp
+-- C0201: SHADOWING --- /tmp/camp-e2e/unused-analysis/var-loop-pure-unused/src/Main.camp
 
 `count` shadows a binding from an enclosing scope. All shadowing is forbidden.
    5 |       $count = $count + 1

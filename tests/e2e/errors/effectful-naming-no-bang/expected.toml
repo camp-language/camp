@@ -1,6 +1,6 @@
 stdout = """
 canonicalized /tmp/camp-e2e/errors/effectful-naming-no-bang/src/Main.camp: 2 declaration(s), 0 import(s)
--- EFFECTFUL FUNCTION NAMING --- /tmp/camp-e2e/errors/effectful-naming-no-bang/src/Main.camp
+-- C0400: EFFECTFUL FUNCTION NAMING --- /tmp/camp-e2e/errors/effectful-naming-no-bang/src/Main.camp
 
 This function performs effect [IO], so its name needs to end with `!`.
    2 | _main = || -> -[IO]-> I64 { 0 }
