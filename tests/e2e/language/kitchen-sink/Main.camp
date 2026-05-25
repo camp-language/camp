@@ -623,6 +623,104 @@ logic_demo = || -> I64 {
 // derives generates compiler-internal implementations
 
 // ============================================================
+// SECTION: P2 Standard Library — Uuid
+// Demonstrates: UUID v4/v7 generation, parsing, formatting
+// ============================================================
+
+// import Uuid { [Uuid, UuidErr, UuidVariant, UuidFormat], v4!, v7!, parse, to_str, format }
+//
+// v4! : -[Random!]-> Uuid                          -- random UUID
+// v7! : I64 -> -[Random!]-> Uuid                    -- time-ordered UUID (ms timestamp)
+// parse : Str -> Result(Uuid, UuidErr)              -- parse from string
+// to_str : Uuid -> Str                              -- "550e8400-e29b-41d4-a716-446655440000"
+// format(Standard, u)                               -- hyphenated (default)
+// format(Compact, u)                                -- no hyphens
+// format(Urn, u)                                    -- "urn:uuid:..."
+// format(Braced, u)                                 -- "{...}"
+// version : Uuid -> U8                              -- 4 or 7
+// variant : Uuid -> UuidVariant                     -- V4, V7, or Unknown(n)
+// timestamp : Uuid -> Result(I64, [Absent])         -- V7 only
+
+// ============================================================
+// SECTION: P2 Standard Library — Json
+// Demonstrates: JSON parsing, encoding, streaming, number types
+// ============================================================
+
+// import Json { [JsonValue, JsonNumber, JsonErr, JsonEvent, JsonParser], decode, encode }
+//
+// decode : Str -> Result(JsonValue, JsonErr)        -- parse JSON string
+// encode : JsonValue -> Str                         -- serialize to JSON
+// encode_pretty : JsonValue -> Str                   -- 2-space indent
+//
+// JsonNumber: [PosInt(U64) | NegInt(I64) | Float(F64)]  -- preserves int/float distinction
+// JsonValue: [Null | Bool(Bool) | Num(JsonNumber) | Str(Str) | Arr(List(JsonValue)) | Obj(Map(Str, JsonValue))]
+//
+// is_int : JsonNumber -> Bool                       -- PosInt or NegInt?
+// as_i64 : JsonNumber -> Result(I64, [Absent])      -- Err if too large or Float
+// as_u64 : JsonNumber -> Result(U64, [Absent])      -- Err if NegInt or Float
+// as_f64 : JsonNumber -> Result(F64, [Absent])      -- always Ok (lossy for large ints)
+//
+// get : JsonValue, Str -> Result(JsonValue, JsonErr)  -- field access on Obj
+// get_at : JsonValue, U64 -> Result(JsonValue, JsonErr)  -- index access on Arr
+//
+// Streaming: parse_init / parse_next / parse_all
+
+// ============================================================
+// SECTION: P2 Standard Library — Regex
+// Demonstrates: RE2-style regex, compile, find, replace, split
+// ============================================================
+
+// import Regex { [Regex, RegexErr, Match, MatchGroup], compile, find, replace, split, escape }
+//
+// compile : Str -> Result(Regex, RegexErr)         -- RE2-style, no backtracking
+// is_match : Regex, Str -> Bool                     -- boolean test
+// find : Regex, Str -> Result(Match, [Absent])     -- first match
+// find_all : Regex, Str -> List(Match)              -- all non-overlapping
+// replace : Regex, Str, Str -> Str                  -- first match, literal replacement
+// replace_all : Regex, Str, Str -> Str              -- all matches
+// split : Regex, Str -> List(Str)                   -- split on matches
+// splitn : Regex, Str, U64 -> List(Str)             -- at most n-1 splits
+// escape : Str -> Str                               -- escape metacharacters
+//
+// No backreferences, no lookahead/lookbehind (RE2 constraints)
+
+// ============================================================
+// SECTION: P2 Standard Library — Uri
+// Demonstrates: URI/URL parsing, percent encoding, query helpers
+// ============================================================
+
+// import Uri { [Uri, UriAuthority, UriErr], parse, to_str, encode_component, decode_component, parse_query, format_query }
+//
+// parse : Str -> Result(Uri, UriErr)                -- RFC 3986 parsing
+// to_str : Uri -> Str                               -- reconstruct URI string
+// encode_component : Str -> Str                     -- percent-encode unreserved chars
+// decode_component : Str -> Result(Str, UriErr)     -- percent-decode
+// parse_query : Str -> List((Str, Str))              -- "a=1&b=2" -> [("a","1"), ("b","2")]
+// format_query : List((Str, Str)) -> Str            -- reverse
+//
+// with_scheme, with_authority, with_path, with_query, with_fragment
+// -- functional construction helpers (immutable records)
+
+// ============================================================
+// SECTION: P2 Standard Library — Base64
+// Demonstrates: Base64/Base32/Hex encoding and decoding
+// ============================================================
+
+// import Base64 { [Base64Format, Base64Err], encode, decode, encode64, decode64, encode16, decode16 }
+//
+// encode : Base64Format, Bytes -> Str               -- parameterized by format
+// decode : Base64Format, Str -> Result(Bytes, Base64Err)
+// encode_str : Base64Format, Str -> Str             -- UTF-8 convenience
+// decode_str : Base64Format, Str -> Result(Str, Base64Err)
+//
+// Shorthands:
+// encode64 / decode64                              -- Standard Base64 (A-Za-z0-9+/)
+// encode64url / decode64url                         -- URL-safe Base64 (A-Za-z0-9-_)
+// encode16 / decode16                               -- Hex (0-9a-f)
+//
+// Base64Format: [Standard | UrlSafe | Base32 | Hex]
+
+// ============================================================
 // SECTION: main! Entry Point
 // Demonstrates: pub, effect row as handler declaration,
 //   Termination trait for return type
