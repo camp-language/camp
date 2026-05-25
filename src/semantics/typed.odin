@@ -105,6 +105,7 @@ TRecord_Field :: struct {
 
 TExpr_List :: struct {
 	elements: [dynamic]TExpr,
+	rest:     TExpr,
 	type_:    base.IR_Type,
 	eff_:     base.IR_Type,
 	span:     base.Source_Span,
@@ -218,6 +219,7 @@ TPattern_Field :: struct {
 
 TPattern_List :: struct {
 	elements: [dynamic]TPattern,
+	rest:     TPattern,
 	span:     base.Source_Span,
 }
 

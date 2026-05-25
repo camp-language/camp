@@ -140,6 +140,27 @@ typecheck_pattern :: proc(pattern: CPattern, scrutinee_var: base.Type_Var_ID, en
 		tp := new(TPattern_Destructure)
 		tp^ = TPattern_Destructure{type_name = p.type_name, inner = pat_result.tpat, span = p.span}
 		return Pat_Result{var_id = inst_binding, effects = eff, tpat = TPattern(tp)}
+
+	case ^CPattern_List:
+		elements_t := make([dynamic]TPattern, len(p.elements))
+		for el, i in p.elements {
+			el_var := fresh_value_var(store, p.span)
+			el_pat := typecheck_pattern(el, el_var, env, store)
+			unify(store, eff, el_pat.effects)
+			elements_t[i] = el_pat.tpat
+		}
+
+		rest_t: TPattern
+		if p.rest != nil {
+			tail_var := fresh_value_var(store, p.span)
+			rest_result := typecheck_pattern(p.rest, tail_var, env, store)
+			unify(store, eff, rest_result.effects)
+			rest_t = rest_result.tpat
+		}
+
+		tp := new(TPattern_List)
+		tp^ = TPattern_List{elements = elements_t, rest = rest_t, span = p.span}
+		return Pat_Result{var_id = scrutinee_var, effects = eff, tpat = TPattern(tp)}
 	}
 
 	tp := new(TPattern_Wildcard)

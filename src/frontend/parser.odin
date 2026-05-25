@@ -1176,8 +1176,18 @@ parser_parse_list :: proc(p: ^Parser) -> Expr {
 	parser_advance(p)
 
 	elements := make([dynamic]Expr, 0, 8)
+	rest_expr: Expr = nil
 
 	for p.current.kind != .RBrack && p.current.kind != .Eof {
+		if p.current.kind == .Dot_Dot {
+			parser_advance(p)
+			rest_expr = parser_parse_expr(p)
+			if p.current.kind == .Comma {
+				parser_advance(p)
+				parser_skip_backslashes(p)
+			}
+			break
+		}
 		elem := parser_parse_expr(p)
 		append(&elements, elem)
 		if p.current.kind == .Comma {
@@ -1188,7 +1198,7 @@ parser_parse_list :: proc(p: ^Parser) -> Expr {
 	parser_expect(p, .RBrack)
 
 	e := new(Expr_List)
-	e^ = Expr_List{elements = elements, span = start}
+	e^ = Expr_List{elements = elements, rest = rest_expr, span = start}
 	return e
 }
 
@@ -1590,8 +1600,17 @@ parser_parse_list_pattern :: proc(p: ^Parser) -> Pattern {
 	parser_advance(p)
 
 	elements := make([dynamic]Pattern, 0, 8)
+	rest_pat: Pattern = nil
 
 	for p.current.kind != .RBrack && p.current.kind != .Eof {
+		if p.current.kind == .Dot_Dot {
+			parser_advance(p)
+			rest_pat = parser_parse_pattern(p)
+			if p.current.kind == .Comma {
+				parser_advance(p)
+			}
+			break
+		}
 		elem := parser_parse_pattern(p)
 		append(&elements, elem)
 		if p.current.kind == .Comma {
@@ -1601,7 +1620,7 @@ parser_parse_list_pattern :: proc(p: ^Parser) -> Pattern {
 	parser_expect(p, .RBrack)
 
 	pat := new(Pattern_List)
-	pat^ = Pattern_List{elements = elements, span = start}
+	pat^ = Pattern_List{elements = elements, rest = rest_pat, span = start}
 	return pat
 }
 

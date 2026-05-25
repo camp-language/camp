@@ -445,10 +445,19 @@ typecheck_list :: proc(e: ^CExpr_List, env: ^Type_Env, store: ^Type_Store) -> Sy
 		elements_t[i] = el_result.texpr
 	}
 
+	rest_t: TExpr
+	if e.rest != nil {
+		rest_result := typecheck_synth(e.rest, env, store)
+		unify(store, eff, rest_result.effects)
+		unify(store, element_var, rest_result.var_id)
+		rest_t = rest_result.texpr
+	}
+
 	var_id := fresh_value_var(store, e.span)
 	t := new(TExpr_List)
 	t^ = TExpr_List{
 		elements = elements_t,
+		rest = rest_t,
 		type_ = lower_type(store, var_id),
 		eff_ = lower_effect_type(store, eff),
 		span = e.span,

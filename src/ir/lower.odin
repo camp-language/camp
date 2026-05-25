@@ -800,29 +800,40 @@ lower_tpattern :: proc(pattern: semantics.TPattern, env: ^Lower_Env, scrutinee_t
 		return IR_Pattern(result)
 
 	case ^semantics.TPattern_List:
-		nil_tag := new(IR_Pat_Tag)
-		nil_tag.name = base.intern(env.interner, "Nil")
-		nil_tag.payload = make([dynamic]base.Intern_ID, 0)
-		nil_tag.payload_wasm_types = nil
+		// Determine the tail variable: rest pattern or fresh name
+		tail_var: base.Intern_ID
+		has_rest := p.rest != nil
+		if has_rest {
+			rest_pat := lower_tpattern(p.rest, env)
+			if rv, ok := rest_pat.(^IR_Pat_Var); ok {
+				tail_var = rv.name
+			} else {
+				// Wildcard or non-variable rest: use anonymous variable
+				tail_var = fresh_ir_name(env)
+			}
+		} else {
+			tail_var = fresh_ir_name(env)
+		}
 
-		list_var := fresh_ir_name(env)
-		cons_tag := new(IR_Pat_Tag)
-		cons_tag.name = base.intern(env.interner, "Cons")
-		cons_tag.payload = make([dynamic]base.Intern_ID, 0)
-		append(&cons_tag.payload, list_var)
-		cons_tag.payload_wasm_types = []base.IR_Wasm_Type{.I32}
+		// Handle [..rest] (pure rest, no elements)
+		if len(p.elements) == 0 && has_rest {
+			rest_pat := lower_tpattern(p.rest, env)
+			return rest_pat
+		}
 
-		pat := IR_Pattern(cons_tag)
+		// Build elements from right to left, wrapping Cons around the tail
+		list_var := tail_var
+		pat: IR_Pattern
 		for i := len(p.elements) - 1; i >= 0; i -= 1 {
 			elem_pat := lower_tpattern(p.elements[i], env)
 			if elem_pat != nil {
 				if elem_var, ok := elem_pat.(^IR_Pat_Var); ok {
-				prev_cons := new(IR_Pat_Tag)
-				prev_cons.name = base.intern(env.interner, "Cons")
-				prev_cons.payload = make([dynamic]base.Intern_ID, 0)
-				append(&prev_cons.payload, elem_var.name)
-				append(&prev_cons.payload, list_var)
-				prev_cons.payload_wasm_types = []base.IR_Wasm_Type{.I32, .I32}
+					prev_cons := new(IR_Pat_Tag)
+					prev_cons.name = base.intern(env.interner, "Cons")
+					prev_cons.payload = make([dynamic]base.Intern_ID, 0)
+					append(&prev_cons.payload, elem_var.name)
+					append(&prev_cons.payload, list_var)
+					prev_cons.payload_wasm_types = []base.IR_Wasm_Type{.I32, .I32}
 					list_var = elem_var.name
 					pat = IR_Pattern(prev_cons)
 				}
@@ -1125,17 +1136,22 @@ lower_tlist :: proc(e: ^semantics.TExpr_List, env: ^Lower_Env) -> IR_Expr {
 	nil_index := resolve_tag_index(env.store, e.type_.type_id, nil_name)
 	cons_index := resolve_tag_index(env.store, e.type_.type_id, cons_name)
 
-	nil_tag := new(IR_Construct_Tag)
-	nil_tag^ = IR_Construct_Tag{
-		tag_name = nil_name,
-		tag_index = nil_index,
-		payload = make([dynamic]IR_Expr, 0),
-		reuse_addr = NO_REUSE_ADDR,
-		type = e.type_,
-		span = e.span,
+	result: IR_Expr
+	if e.rest != nil {
+		result = lower_texpr(e.rest, env)
+	} else {
+		nil_tag := new(IR_Construct_Tag)
+		nil_tag^ = IR_Construct_Tag{
+			tag_name = nil_name,
+			tag_index = nil_index,
+			payload = make([dynamic]IR_Expr, 0),
+			reuse_addr = NO_REUSE_ADDR,
+			type = e.type_,
+			span = e.span,
+		}
+		result = IR_Expr(nil_tag)
 	}
 
-	result: IR_Expr = IR_Expr(nil_tag)
 	for i := len(e.elements) - 1; i >= 0; i -= 1 {
 		elem := lower_texpr(e.elements[i], env)
 		cons_payload := make([dynamic]IR_Expr, 0, 2)

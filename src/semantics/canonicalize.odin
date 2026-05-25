@@ -457,8 +457,12 @@ canonicalize_expr :: proc(expr: frontend.Expr, scope: ^Canonicalize_Scope, inter
 		for el in e.elements {
 			append(&elements, canonicalize_expr(el, scope, interner, collector))
 		}
+		crest: CExpr
+		if e.rest != nil {
+			crest = canonicalize_expr(e.rest, scope, interner, collector)
+		}
 		c := new(CExpr_List)
-		c^ = CExpr_List{elements = elements, span = e.span}
+		c^ = CExpr_List{elements = elements, rest = crest, span = e.span}
 		return c
 
 	case ^frontend.Expr_Identifier:
@@ -854,8 +858,12 @@ canonicalize_pattern :: proc(pat: frontend.Pattern, scope: ^Canonicalize_Scope, 
 		for el in p.elements {
 			append(&elements, canonicalize_pattern(el, scope, interner, collector))
 		}
+		crest: CPattern
+		if p.rest != nil {
+			crest = canonicalize_pattern(p.rest, scope, interner, collector)
+		}
 		c := new(CPattern_List)
-		c^ = CPattern_List{elements = elements, span = p.span}
+		c^ = CPattern_List{elements = elements, rest = crest, span = p.span}
 		return c
 
 	case ^frontend.Pattern_Int:

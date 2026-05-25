@@ -189,6 +189,7 @@ CRecord_Field :: struct {
 
 CExpr_List :: struct {
 	elements: [dynamic]CExpr,
+	rest:     CExpr,
 	span:     base.Source_Span,
 }
 
@@ -386,6 +387,7 @@ CPattern_Field :: struct {
 
 CPattern_List :: struct {
 	elements: [dynamic]CPattern,
+	rest:     CPattern,
 	span:     base.Source_Span,
 }
 

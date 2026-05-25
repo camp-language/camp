@@ -206,6 +206,7 @@ Record_Field :: struct {
 
 Expr_List :: struct {
 	elements: [dynamic]Expr,
+	rest:     Expr,
 	span:     base.Source_Span,
 }
 
@@ -321,6 +322,7 @@ Pattern_Field :: struct {
 
 Pattern_List :: struct {
 	elements: [dynamic]Pattern,
+	rest:     Pattern,
 	span:     base.Source_Span,
 }
 
