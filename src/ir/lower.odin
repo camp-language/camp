@@ -102,14 +102,24 @@ collect_effects_from_row :: proc(store: ^semantics.Type_Store, effect_var: base.
 		return
 	}
 
-	if len(inf.effects) > 0 {
-		return
+	for entry in inf.effects {
+		canonical := base.Canonical_Name{module = base.NO_NAME, name = entry.name}
+		already := false
+		for existing in result {
+			if existing.module == canonical.module && existing.name == canonical.name {
+				already = true
+				break
+			}
+		}
+		if !already {
+			append(result, canonical)
+		}
 	}
 
 	rest_resolved := semantics.resolve_var(store, inf.rest_id)
 	rest_v := &store.vars[int(rest_resolved)]
 	rit, rok := rest_v.link.(semantics.Inferred_Type)
-	rest_inf, rest_is_inf := rit.(semantics.Inferred_Effect_Row)
+	_, rest_is_inf := rit.(semantics.Inferred_Effect_Row)
 	if rest_is_inf && rok {
 		collect_effects_from_row(store, inf.rest_id, effect_defs, result)
 	}

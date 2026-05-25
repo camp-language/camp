@@ -38,7 +38,8 @@ emit_start_function :: proc(
 		code_buf: [dynamic]u8
 		code_buf = make([dynamic]u8, 0, CODE_BUF_MAJOR)
 
-		if main_decl.is_effectful {
+		// `!` suffix sets is_effectful even with no inferred effects; cont_func_idx tracks the stronger condition.
+		if main_decl.is_effectful && cont_func_idx >= 0 {
 			// Effectful main: _start allocates evidence records, calls main!, exits
 
 			// Emit top-level continuation function body for CPS-transformed main!
