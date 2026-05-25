@@ -196,120 +196,93 @@ Default I64/F64 for unannotated literals, context unification resolves when type
 - `foo!` for Throw! version, `try_foo` for Result version
 - `File.exists!` — effectful but can't fail, no `try_` variant needed
 
+### D15: Log! is message-only
+
+`Log.debug!/info!/warn!/error! : Str -> -[Log!]-> ()`. Structured logging is a package concern.
+
+### D16: Order is structural
+
+`[Less | Equal | Greater]`, not nominal. No prelude slot. Convenience functions as free functions in Ord module if needed.
+
+### D17: Prelude finalized
+
+8 auto-imported modules: `List`, `Map`, `Set`, `Iter`, `Bytes`, `Result`, `Str`, `Bool`. All 10 numeric types: `I8`, `I16`, `I32`, `I64`, `U8`, `U16`, `U32`, `U64`, `F32`, `F64`. Constructors: `Ok`, `Err`, `True`, `False`. 10 traits: `Eq`, `Ord`, `Hash`, `Debug`, `Display`, `Default`, `IntoIter`, `FromIter`, `From`, `TryFrom`. Effects: `Throw!`, `Console!`. Language operators.
+
+### D18: Str API
+
+`Str.length` counts graphemes, `Str.slice` is grapheme-safe, `to_lower`/`to_upper` are Unicode, `split_first`/`split_last` return `Result((Str, Str), [NotFound])`.
+
+### D19: Bytes API
+
+Lean module (construction, queries, access, slicing, concat). Conversions via traits: `From(Str, Bytes)` infallible, `TryFrom(Bytes, Str, [InvalidUtf8])` fallible, `List(U8) ↔ Bytes` via IntoIter/FromIter pipeline. Encoding modules (Base64, Hex, etc.) stay separate.
+
+### D20: Map API details
+
+`Map.update` callback uses `Result(v, [KeyNotFound]) -> Result(v, [KeyNotFound])` (same tag as Map.get). `Map.union` is left-biased for v1. `Map.min`/`Map.max` included (O(log n) on ordered tree), return `Result((k, v), [EmptyMap])`.
+
+### D21: Set API details
+
+`Set.min`/`Set.max` included, return `Result(a, [EmptySet])`. `Set.map` requires `Ord` on output type. Set is implemented as `Map(a, ())` internally.
+
+### D22: Iter carries effect row
+
+`Iter(a, e)` with effect row parameter. No standalone `collect` — use `FromIter.from_iter` via UFCS. No `Iter.sorted` — compose through List.
+
+### D23: Effect module API details
+
+`FileErr` keeps `IoErr` as catch-all for v1 (can add specific tags later). Only `foo!` variants for effect modules — use `Result.catch` for Result. `Env.try_get : Str -> -[Env!]-> Result(Str, [VarNotFound])` returns Result, not Throw!.
+
+### D24: Duration and DateTime
+
+Duration is Rust-style two-field struct `{ secs: I64, nanos: I64 }` (signed, ~584B yr range). DateTime is a **separate package** (not stdlib), designed following jiff crate philosophy (civil types, Zoned as primary, IANA tzdb, Span for calendar arithmetic, DST-safe).
+
+### D25: Path is opaque type
+
+`Path` is opaque, normalized on construction. `Path.new : Str -> Path`.
+
+### D26: Encode/Decode codec (tentative)
+
+Encode is format-agnostic (produces intermediate `Encoding` tree). Decode is format-specific (separate traits per format). `derives Encode, Decode` generates impls. Rich `DecodeError` with path tracking. **Tentative** — revisit when trait system matures (no method generics means Roc-style fully format-agnostic isn't possible).
+
+### D27: Num module with submodules
+
+`Num` is the namespace, each numeric type is a submodule: `Num.I64.abs`, `Num.I32.max`, `Num.F64.sqrt`, etc. No standalone `Int` module.
+
+### D28: Fmt module
+
+`Fmt` houses `Display`/`Debug` traits. Format specifiers (padding, alignment) go in interpolation syntax as a language feature (e.g., `"{x:>10}"`).
+
+### D29: Hasher is opaque
+
+`Hasher` is opaque (SipHash-1-3 internally). `Hash(a)` stays single-parameter. Custom hashing is a package concern.
+
+### D30: Flat module organization
+
+Flat modules except `Num` and `Crypto`. `Json.encode`/`Json.decode` are functions in the `Json` module. Encoding modules stay separate. **Future decision point:** consider Zig-style nested type/module naming where `Foo.Bar` can be either a submodule or a type within the namespace.
+
 ---
 
-## 2. Open Questions
+## 2. Open Questions (All Resolved)
 
-### Q1: Log! structured data design (PINNED)
+### Q1: Log! structured data — **RESOLVED → D15**
 
-Camp doesn't have variadic functions. The spec says `Log.info!("Request processed", { duration_ms: 42, path: "/api/users", status: 200 })` but how does this work without dynamic record inspection?
+Message-only: `Log.debug!/info!/warn!/error! : Str -> -[Log!]-> ()`. Structured logging is a package concern.
 
-**Options:**
-- **A) Just the message, no structured data** — `Log.info! : Str -> -[Log!]-> ()`. Simplest. Structured logging can be a package.
-- **B) Explicit list of kv pairs** — `Log.info! : Str, List((Str, Str)) -> -[Log!]-> ()`. Verbose at call sites.
-- **C) Record-based with Inspect/Debug trait** — `Log.info! : Str, r -> -[Log!]-> ()` where r is any record rendered via Debug. Depends on Camp's record/inspection story.
+### Q2: Prelude design — **RESOLVED → D17**
 
-**My recommendation:** A for v1. Structured logging is important but the design depends on Camp's record/inspection capabilities, which aren't settled. Start simple, add structure later.
+8 auto-imported modules (List, Map, Set, Iter, Bytes, Result, Str, Bool), all 10 numeric types, Ok/Err/True/False constructors, 10 traits, Throw! + Console! effects, language operators.
 
-**Cross-language research:**
-- Koka: Logging is a user-defined effect with a handler. No built-in structured logging.
-- Roc: No logging module. Uses `Stderr.line!` directly.
-- Rust: `log` crate facade + `tracing` for structured data. Structured via key-value pairs.
-- Haskell: `co-log` uses contravariant functors for composable structured logging. `polysemy-log` uses effects.
-- **Key pattern:** Define a `Log!` effect with severity levels, render at the boundary. Effect handlers allow per-call-stack log level configuration.
+### Q3: Str API — **RESOLVED → D18**
 
-### Q2: Prelude design
+`Str.length` counts graphemes, `Str.slice` is grapheme-safe, `to_lower`/`to_upper` are Unicode, `split_first`/`split_last` return `Result((Str, Str), [NotFound])`.
 
-What's auto-imported? This is a major design decision.
+### Q4: Bytes API — **RESOLVED → D19**
 
-**Cross-language spectrum:**
-- **Minimal (Rust, Gleam):** Types + constructors only. All functions require explicit import.
-- **Medium (OCaml, Roc, Elm):** Types + constructors + core operators. Module functions are qualified.
-- **Large (Haskell, F#):** Types + constructors + operators + many functions.
+Lean module. Conversions via traits (From/TryFrom/IntoIter/FromIter). Encoding modules stay separate.
 
-**My recommendation for Camp:** Medium — closer to Elm/Roc.
+### Q5: Map API — **RESOLVED → D20**
 
-**Proposed prelude:**
-```
--- Types always in scope
-Bool (True, False)
-Result (Ok, Err)     -- via import Result { [Ok, Err] }
-Order (Less, Equal, Greater)
-I64, F64             -- default numeric types
-Str                  -- string type
-
--- Traits always in scope (so methods are available)
-Eq, Ord, Hash, Debug, Display, Default
-IntoIter, FromIter
-From, TryFrom
-
--- Operators (built into language, not from module)
-+, -, *, /, ==, !=, <, >, <=, >=
-and, or, not
-|>                   -- pipe
-->, -[e]->           -- function arrows
-
--- Nothing else auto-imported
--- All module functions require explicit import or qualified access
--- List.map, Str.length, Dict.get, etc. all require import
-```
-
-**Key decisions:**
-- Should `List`, `Str`, `Dict` constructors be in scope? (Elm exposes `List` type but not functions)
-- Should `Iter` be in scope?
-- Should `Order` be in scope?
-- Should numeric type names (I8, U8, etc.) all be in scope, or just I64/F64?
-
-### Q3: Str API design
-
-**Cross-language patterns:**
-
-| Category | Functions | Notes |
-|---|---|---|
-| **Queries** | `length`, `is_empty`, `byte_size` | Unicode length vs byte length |
-| **Comparison** | `starts_with`, `ends_with`, `contains` | |
-| **Slicing** | `take`, `drop`, `slice` | Grapheme-based or byte-based? |
-| **Splitting** | `split`, `split_first`, `split_last` | split_first/last return Result |
-| **Trimming** | `trim`, `trim_start`, `trim_end` | |
-| **Case** | `to_lower`, `to_upper` | Unicode or ASCII only? |
-| **Concat** | `concat`, `join_with`, `repeat` | |
-| **Replace** | `replace`, `replace_first`, `replace_last` | |
-| **Prefix/Suffix** | `with_prefix`, `drop_prefix`, `drop_suffix` | |
-| **Conversion** | `to_bytes`, `from_bytes` | from_bytes returns Result |
-| **Parsing** | `to_i64`, `to_f64`, etc. | All return Result |
-| **Iteration** | `to_iter` (chars), `to_graphemes` | Via IntoIter |
-
-**Key design questions:**
-- Should `Str.length` count bytes, codepoints, or graphemes? (Roc deliberately obscures this; Gleam counts graphemes; Rust counts bytes)
-- Should `Str.slice` be grapheme-safe or byte-based? (Gleam: grapheme; Rust: byte; Haskell: char)
-- Should `Str.to_lower`/`to_upper` be Unicode or ASCII-only? (Roc: ASCII-only, Unicode in package; Gleam: Unicode; Rust: Unicode)
-- Should `Str.split_first` return `Result({ before: Str, after: Str }, [NotFound])` or `Result((Str, Str), [NotFound])`?
-
-**My recommendation:**
-- `Str.length` — grapheme count (most intuitive for users). `Str.byte_size` for byte count.
-- `Str.slice` — grapheme-safe (can't split a grapheme cluster)
-- `Str.to_lower`/`to_upper` — Unicode in stdlib (Camp targets WASI, not embedded; Unicode is expected)
-- `Str.split_first` — return `Result({ before: Str, after: Str }, [NotFound])` (named fields are clearer than tuples)
-
-### Q4: Bytes API design
-
-**Cross-language patterns:**
-
-| Category | Functions | Notes |
-|---|---|---|
-| **Construction** | `new`, `singleton`, `from_list`, `from_str` | |
-| **Queries** | `length`, `is_empty` | |
-| **Access** | `get`, `first`, `last` | get returns Result for OOB |
-| **Slicing** | `slice`, `take`, `drop` | |
-| **Concat** | `append`, `concat` | |
-| **Conversion** | `to_str`, `to_list`, `to_iter` | to_str returns Result |
-| **Encoding** | `to_base64`, `from_base64`, `to_hex`, `from_hex` | Or separate modules? |
-
-**Key question:** Should Base64/Hex encoding live on `Bytes` or in separate modules?
-
-The current spec has separate `Base64`, `Base64URL`, `Base32`, `Hex` modules. This is cleaner — encoding is a separate concern from byte manipulation.
-
-### Q5: Map API design
+`Map.update` uses `Result(v, [KeyNotFound])` callback. `Map.union` is left-biased. `Map.min`/`Map.max` included.
 
 ```
 -- Construction
@@ -343,12 +316,11 @@ Map.intersection : Map(k, v), Map(k, v) -> Map(k, v)
 Map.difference : Map(k, v), Map(k, v) -> Map(k, v)
 ```
 
-**Open questions:**
-- Should `Map.update` use `Result(v, [KeyNotFound]) -> Result(v, [UpdateRemoved])` (Roc style) or `Maybe(v) -> Maybe(v)` (Haskell alter style)? Since we dropped Option, Result is the way.
-- Should `Map.union` take a conflict-resolution function? (Gleam has `combine` for this)
-- Should `Map.min`/`Map.max` exist? (Haskell has `minView`/`maxView` returning `Maybe`; ordered maps can do this efficiently)
+**RESOLVED:** Map.update uses `Result(v, [KeyNotFound]) -> Result(v, [KeyNotFound])` (same tag as Map.get). Map.union is left-biased for v1. Map.min/max included.
 
-### Q6: Set API design
+### Q6: Set API — **RESOLVED → D21**
+
+Set.min/max included, Set.map requires Ord on output. Set is `Map(a, ())` internally.
 
 ```
 -- Construction
@@ -382,7 +354,9 @@ Set.fold : Set(a), b, (b, a) -> b -> b
 Set.to_iter : Set(a) -> Iter(a)                -- via IntoIter
 ```
 
-### Q7: Iter API design
+### Q7: Iter API — **RESOLVED → D22**
+
+`Iter(a, e)` with effect row. No standalone collect (use FromIter). No Iter.sorted.
 
 ```
 @Iter : (a, e) @{
@@ -431,7 +405,9 @@ sorted_via_list : Iter(a, e) -> Iter(a, e)   -- requires Ord
 
 **Effect tracking:** `Iter` is parameterized over both `a` (element type) and `e` (effect row). Effect rows merge via row unification when closures have different effects than the iterator's `next`.
 
-### Q8: Effect module APIs
+### Q8: Effect module APIs — **RESOLVED → D23**
+
+Only `foo!` variants (use `Result.catch` for Result). `FileErr` keeps `IoErr` catch-all. `Env.try_get` returns Result. API details preserved below for reference.
 
 #### Console!
 ```
@@ -442,7 +418,6 @@ Console.readline! : -[Console!]-> Str
 
 #### File!
 ```
--- Throw! versions (propagate errors)
 File.read_all!  : Path -> -[File!, Throw!([FileErr])]-> Str
 File.write_all! : Path, Str -> -[File!, Throw!([FileErr])]-> ()
 File.append_all! : Path, Str -> -[File!, Throw!([FileErr])]-> ()
@@ -452,29 +427,12 @@ File.list_dir!  : Path -> -[File!, Throw!([FileErr])]-> List(Path)
 File.create_dir! : Path -> -[File!, Throw!([FileErr])]-> ()
 File.remove!    : Path -> -[File!, Throw!([FileErr])]-> ()
 File.copy!      : Path, Path -> -[File!, Throw!([FileErr])]-> ()
-
--- Result versions (return errors as values)
-File.try_read_all  : Path -> -[File!]-> Result(Str, [FileErr])
-File.try_write_all : Path, Str -> -[File!]-> Result((), [FileErr])
--- ... etc for each
-
--- Non-failing queries
 File.exists!    : Path -> -[File!]-> Bool
 File.is_dir!    : Path -> -[File!]-> Bool
 File.is_file!   : Path -> -[File!]-> Bool
-```
 
-**Open question:** What tags does `FileErr` contain? Cross-language research shows:
-- Roc: `[FileReadErr Path IOErr, FileReadUtf8Err Path]` — very specific
-- Gleam: 50+ POSIX errno variants
-- Rust: `io::ErrorKind` enum with ~20 variants
-- Haskell: `IOException` with `ioe_type`
-
-**My recommendation:** Start with a small set of specific tags:
-```
 @FileErr : [NotFound | PermissionDenied | AlreadyExists | InvalidUtf8 | IoErr]
 ```
-Grow as needed. API permanence means we can add but not remove.
 
 #### Env!
 ```
@@ -484,19 +442,17 @@ Env.vars!      : -[Env!]-> List((Str, Str))
 Env.args!      : -[Env!]-> List(Str)
 ```
 
-**Note:** `Env.set!` is questionable on WASI (environment is typically read-only). May omit.
-
 #### Time!
 ```
-Time.now!        : -[Time!]-> DateTime
+Time.now!        : -[Time!]-> Duration    -- Duration only; DateTime is a package
 Time.monotonic!  : -[Time!]-> Duration
 ```
 
 #### Random!
 ```
-Random.int!   : I64, I64 -> -[Random!]-> I64    -- range [min, max)
-Random.float! : F64, F64 -> -[Random!]-> F64    -- range [min, max)
-Random.bytes! : I64 -> -[Random!]-> Bytes         -- length
+Random.int!   : I64, I64 -> -[Random!]-> I64
+Random.float! : F64, F64 -> -[Random!]-> F64
+Random.bytes! : I64 -> -[Random!]-> Bytes
 Random.bool!  : -[Random!]-> Bool
 ```
 
@@ -507,26 +463,20 @@ Crypto.Random.bytes! : I64 -> -[Crypto.Random!]-> Bytes
 Crypto.Random.uuid!  : -[Crypto.Random!]-> Uuid
 ```
 
-#### Log! (design TBD)
+#### Log!
 ```
--- Option A: message only
 Log.debug! : Str -> -[Log!]-> ()
 Log.info!  : Str -> -[Log!]-> ()
 Log.warn!  : Str -> -[Log!]-> ()
 Log.error! : Str -> -[Log!]-> ()
-
--- Option B: message + kv list
-Log.info! : Str, List((Str, Str)) -> -[Log!]-> ()
-
--- Option C: message + record (needs Debug/Inspect trait)
-Log.info! : Str, r -> -[Log!]-> ()
 ```
 
-### Q9: Duration and DateTime design
+### Q9: Duration and DateTime — **RESOLVED → D24**
 
-**Duration:**
+Duration is Rust-style two-field struct `{ secs: I64, nanos: I64 }` (signed). DateTime is a **separate package** (not stdlib), designed following jiff crate philosophy. Duration API preserved below for reference.
+
 ```
-@Duration : -- opaque type, internally I64 nanoseconds (signed, ~290 year range)
+@Duration : -- opaque, internally { secs: I64, nanos: I64 }
 
 -- Constructors
 Duration.from_seconds : F64 -> Duration
@@ -554,46 +504,9 @@ Duration.is_zero : Duration -> Bool
 Duration.zero, Duration.second, Duration.millisecond, Duration.microsecond, Duration.nanosecond
 ```
 
-**Design choice:** Go's `type Duration int64` (nanoseconds) is the simplest and most practical. Signed to allow "time since" calculations. I64 gives ~290 year range at nanosecond resolution.
+### Q10: Path module — **RESOLVED → D25**
 
-**DateTime:**
-```
--- Naive types (no timezone)
-@Date : { year: I64, month: I64, day: I64 }
-@Time : { hour: I64, minute: I64, second: I64, nanosecond: I64 }
-@DateTime : { date: Date, time: Time }
-
--- Timezone-aware
-@Offset : I64  -- seconds from UTC
-@ZonedDateTime : { datetime: DateTime, offset: Offset, name: Str }
-
--- Construction
-DateTime.from_iso8601 : Str -> Result(DateTime, [ParseError])
-Date.from_ymd : I64, I64, I64 -> Result(Date, [InvalidDate])
-Time.from_hms : I64, I64, I64 -> Result(Time, [InvalidTime])
-
--- Formatting
-DateTime.to_iso8601 : DateTime -> Str
-DateTime.format : DateTime, Str -> Str   -- strftime-style format codes
-
--- Arithmetic
-DateTime.add  : DateTime, Duration -> DateTime
-DateTime.sub  : DateTime, DateTime -> Duration
-DateTime.diff : DateTime, DateTime -> Duration
-
--- Accessors
-DateTime.date    : DateTime -> Date
-DateTime.time    : DateTime -> Time
-DateTime.year, .month, .day, .hour, .minute, .second, .nanosecond, .weekday
-
--- Timezone conversion
-ZonedDateTime.to_utc : ZonedDateTime -> DateTime
-ZonedDateTime.with_offset : ZonedDateTime, Offset -> ZonedDateTime
-```
-
-**Design choice:** Start with naive DateTime + ZonedDateTime (runtime timezone field, not parametric). This matches Haskell/Go/Python/Koka. Rust's parametric `DateTime<Tz>` is elegant but complex for Camp's trait system.
-
-### Q10: Path module design
+Opaque `Path` type, normalized on construction. API preserved below for reference.
 
 ```
 @Path : -- opaque type, normalized
@@ -623,11 +536,11 @@ Path.to_str   : Path -> Str
 Path.to_iter  : Path -> Iter(Str)   -- iterate over components
 ```
 
-**Design choice:** Opaque `Path` type (like Koka, Rust). Not just a string. Auto-normalized on construction. No I/O operations on Path itself — those live in `File!`.
+**RESOLVED:** Opaque Path type. Auto-normalized on construction. No I/O on Path — that's in File!.
 
-### Q11: Encode/Decode codec framework
+### Q11: Encode/Decode codec — **RESOLVED → D26**
 
-Following Roc's design (format-agnostic traits):
+Encode is format-agnostic (produces intermediate `Encoding` tree). Decode is format-specific. `derives Encode, Decode` generates impls. Rich `DecodeError` with path tracking. **Tentative** — revisit when trait system matures.
 
 ```
 -- Format-agnostic encoding trait
@@ -677,77 +590,23 @@ Decode.list     : Decoder(a, f) -> Decoder(List(a), f)
 Decode.custom   : (Decoder(f)) -> Result(a, [DecodeError]) -> Decoder(a, f)
 ```
 
-**Key difference from Roc:** Camp requires explicit `derives Encode, Decode`. Roc auto-derives. Camp's trait system (structural verification with nominal opt-in via `is`) makes auto-derivation harder.
+**RESOLVED:** Encode format-agnostic (intermediate tree), Decode format-specific. Tentative — no method generics means Roc-style fully format-agnostic isn't possible.
 
-### Q12: Bool and Int module APIs
+### Q12: Num module — **RESOLVED → D27**
 
-```
--- Bool
-Bool.not  : Bool -> Bool
-Bool.xor  : Bool, Bool -> Bool
-Bool.and  : Bool, Bool -> Bool
-Bool.or   : Bool, Bool -> Bool
+`Num` namespace with per-type submodules: `Num.I64.abs`, `Num.F64.sqrt`, etc.
 
--- Int (operations for all integer types, parameterized)
-Int.abs   : I64 -> I64
-Int.clamp : I64, I64, I64 -> I64
-Int.max   : I64, I64 -> I64
-Int.min   : I64, I64 -> I64
-Int.range : I64, I64 -> Iter(I64)    -- [start, end)
-Int.to_str : I64 -> Str
-Int.from_str : Str -> Result(I64, [InvalidFormat])
-```
+### Q13: Fmt module — **RESOLVED → D28**
 
-**Open question:** Should `Int` be a single module for I64, or should each numeric type have its own module? Roc has `Num` with subtypes. Rust has per-type modules. OCaml has separate `Int`, `Int32`, `Int64`.
+`Fmt` houses `Display`/`Debug` traits. Format specifiers (padding, alignment) go in interpolation syntax as a language feature.
 
-**My recommendation:** Single `Int` module for I64 (the default). Other types use qualified access: `I32.abs`, `U8.max`, etc. Or: a generic `Num` module with type-specific submodules. This needs more thought.
+### Q14: Hasher type — **RESOLVED → D29**
 
-### Q13: Fmt module
+Opaque `Hasher` (SipHash-1-3). `Hash(a)` stays single-parameter.
 
-The current spec lists `Fmt` but doesn't define it. Cross-language research:
+### Q15: Module organization — **RESOLVED → D30**
 
-- **Rust:** `std::fmt` module with `Display`, `Debug`, `Formatter` types. `format!` macro.
-- **Haskell:** `Text.Printf` (C-style), `Text.Show` (typeclass-derived)
-- **Gleam:** No Fmt module; uses `string.inspect` and string concatenation
-- **Roc:** `Inspect` ability for debug formatting
-
-**My recommendation:** `Fmt` should provide:
-```
-Fmt.debug  : a -> Str    -- via Debug trait, machine-oriented
-Fmt.display : a -> Str   -- via Display trait, human-oriented
-Fmt.format  : Str, a -> Str   -- printf-style? Or just use string interpolation?
-```
-
-Camp already has string interpolation (`"Hello, {name}!"`). So `Fmt.format` may not be needed. The module might just be `Debug` and `Display` traits with their methods.
-
-### Q14: Hasher type
-
-The `Hash` trait takes a `Hasher` parameter. What is `Hasher`?
-
-```
-@Hasher : @{ state: I64 }   -- or opaque
-
-Hasher.new    : Hasher
-Hasher.update : Hasher, I64 -> Hasher
-Hasher.update_str : Hasher, Str -> Hasher
-Hasher.update_bytes : Hasher, Bytes -> Hasher
-Hasher.finish : Hasher -> I64
-```
-
-This allows hash composition — you can hash struct fields into a running hasher and produce one final hash. The `Hash` trait implementation calls `hasher->update_str(field1)->update_i64(field2)->finish()`.
-
-### Q15: Module organization — flat or nested?
-
-Current spec has flat module names: `Result`, `List`, `Str`, etc. But some modules logically nest:
-- `Crypto.Random!` (already nested)
-- `Json.Encode`, `Json.Decode`, `Json.Value`?
-- `Base64`, `Base64URL`, `Base32`, `Hex` — or `Encoding.Base64`, `Encoding.Hex`?
-
-**My recommendation:** Keep flat for core types (Result, List, Str, Map, Set, Iter, Bytes). Nest for domain groups:
-- `Crypto.Random!` (already decided)
-- `Json` as flat module with `Json.encode`, `Json.decode`, `Json.Value`, `Json.parse`
-- `Base64`, `Base64URL`, `Base32`, `Hex` as separate flat modules (they're small and distinct)
-- `DateTime`, `Date`, `Time`, `Duration` as separate flat modules (they're distinct types)
+Flat modules except `Num` and `Crypto`. Future decision point: consider Zig-style nested type/module naming.
 
 ---
 
@@ -759,7 +618,7 @@ Current spec has flat module names: `Result`, `List`, `Str`, etc. But some modul
 |---|---|---|
 | `Result` | Type + functions | Error/absence handling (replaces Option) |
 | `Bool` | Type + functions | Boolean operations |
-| `Int` | Functions | Integer operations (I64 default) |
+| `Num` | Namespace + submodules | Numeric operations (Num.I64, Num.F64, etc.) |
 | `Str` | Type + functions | UTF-8 string operations |
 | `List` | Type + functions | Immutable linked list |
 | `Iter` | Type + functions | Lazy iterator |
@@ -780,6 +639,7 @@ Current spec has flat module names: `Result`, `List`, `Str`, etc. But some modul
 | `Decode` | Trait | Format-agnostic decoding |
 | `Fmt` | Functions | Formatting utilities |
 | `Path` | Type + functions | Filesystem path |
+| `Duration` | Type + functions | Time duration (Rust-style signed struct) |
 | `Console!` | Effect | Standard I/O |
 | `Throw!` | Effect | Error propagation |
 | `File!` | Effect | Filesystem access |
@@ -795,10 +655,6 @@ Current spec has flat module names: `Result`, `List`, `Str`, etc. But some modul
 | `Json` | Type + functions | JSON parsing/stringify/Value |
 | `Regex` | Type + functions | Regular expressions |
 | `Uri` | Type + functions | URI/URL parsing |
-| `Duration` | Type + functions | Time duration |
-| `DateTime` | Type + functions | Date and time |
-| `Date` | Type + functions | Date without time |
-| `Time` | Type + functions | Time without date |
 | `Crypto.Random!` | Effect | Cryptographic random |
 | `Uuid` | Type + functions | UUID v4/v7 |
 | `Base64` | Functions | Base64 encode/decode |
@@ -833,6 +689,7 @@ Current spec has flat module names: `Result`, `List`, `Str`, etc. But some modul
 | `Database.MySql` | MySQL driver |
 | `Database.Redis` | Redis driver |
 | `Crypto.Hash` | sha256, sha512, blake2b, etc. |
+| `DateTime` | Civil types, Zoned, Span, IANA tzdb (jiff-style design) |
 
 ### Deferred (future design tasks)
 
@@ -913,18 +770,26 @@ The current spec (openspec/specs/stdlib/spec.md) lists these modules:
 **Changes needed:**
 1. **Remove `Option`** from module listing (D1)
 2. **Add** `Display`, `Default`, `IntoIter`, `FromIter`, `From`, `TryFrom` (D9)
-3. **Add** `Order` type (part of Ord trait module)
-4. **Add** `Hasher` type (part of Hash trait module)
-5. **Add** `EncoderFormatting`, `DecoderFormatting` traits
-6. **Add** numeric type modules: `I8`, `I16`, `I32`, `I64`, `U8`, `U16`, `U32`, `U64`, `F32`, `F64`
-7. **Add** `Duration`, `DateTime`, `Date`, `Time` types
-8. **Add** `Uuid` module
-9. **Add** `Base64`, `Base64URL`, `Base32`, `Hex` modules
-10. **Add** `Gzip` module
-11. **Add** `Regex`, `Uri`, `Json` modules (already in spec requirements but not in module listing)
-12. **Update** `Log!` requirement to remove structured kv syntax (pending design)
-13. **Update** `Map` to specify ordered (tree-based) for referential transparency
-14. **Update** `Iter.next` return type from `[Some(a) | None]` to `[Yield(a) | Done]`
+3. **Add** `Order` type (part of Ord trait module, structural tag union D16)
+4. **Add** `Hasher` type (opaque, part of Hash trait module, D29)
+5. **Add** `EncoderFormatting`, `DecoderFormatting` traits (D26, tentative)
+6. **Replace** `Int` with `Num` namespace containing per-type submodules (D27)
+7. **Add** `Duration` to Priority 1 (D24, Rust-style signed struct)
+8. **Move** `DateTime`, `Date`, `Time` to official packages (D24, jiff-style design)
+9. **Add** `Uuid` module
+10. **Add** `Base64`, `Base64URL`, `Base32`, `Hex` modules
+11. **Add** `Gzip` module
+12. **Add** `Regex`, `Uri`, `Json` modules (already in spec requirements but not in module listing)
+13. **Update** `Log!` to message-only (D15)
+14. **Update** `Map` to specify ordered (tree-based) for referential transparency (D7)
+15. **Update** `Iter.next` return type from `[Some(a) | None]` to `[Yield(a) | Done]` (D2)
+16. **Update** `Result` API to include `unwrap!`, `catch`, `unwrap_or_default`, `or`, `filter`, `flatten`, `to_list`, `from_list` (D6)
+17. **Update** prelude to include `Ok`, `Err` constructors (D17)
+18. **Remove** `Clone`/`Copy` if they were ever in the spec (D9)
+19. **Update** `File!` to only `foo!` variants, no `try_foo` (D23)
+20. **Update** `Encode`/`Decode` to format-agnostic Encode + format-specific Decode (D26, tentative)
+21. **Update** `Fmt` to house Display/Debug traits, format specifiers in interpolation (D28)
+22. **Update** module organization to flat except `Num` and `Crypto` (D30)
 15. **Update** `Result` API to include `unwrap!`, `catch`, `unwrap_or_default`, `or`, `filter`, `flatten`, `to_list`, `from_list`
 16. **Update** prelude to include `Ok`, `Err` constructors
 17. **Remove** `Clone`/`Copy` if they were ever in the spec (they're not currently listed)
