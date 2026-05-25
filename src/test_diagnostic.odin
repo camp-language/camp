@@ -146,3 +146,37 @@ test_diag_file_not_found :: proc(t: ^testing.T) {
 	testing.expect(t, d.span == base.Source_Span_ZERO)
 }
 
+
+@(test)
+test_diag_every_constructor_has_code :: proc(t: ^testing.T) {
+	// Sample one constructor per phase to catch regressions where a new
+	// diagnostic forgets to pass a Cxxxx code through diag_init.
+	span := base.Source_Span{file_id = 0, start = 0, end = 1}
+
+	cases := []diagnostics.Diagnostic{
+		diagnostics.diag_unexpected_char('@', span),
+		diagnostics.diag_expected_token(.RBrace, base.Token{kind = .Eof, text = "", span = span}, span),
+		diagnostics.diag_undefined_name("foo", nil, span),
+		diagnostics.diag_unknown_command("bogus"),
+		diagnostics.diag_invalid_extension("test.txt", ".txt"),
+		diagnostics.diag_file_not_found("/no.camp", "missing"),
+	}
+	for d in cases {
+		testing.expect(t, len(d.code) > 0, "diagnostic missing code")
+		testing.expect(t, d.code[0] == 'C', "diagnostic code must start with C")
+	}
+}
+
+@(test)
+test_explain_known_code :: proc(t: ^testing.T) {
+	title, body, found := diagnostics.explain_lookup("C0001")
+	testing.expect(t, found)
+	testing.expect(t, title == "UNEXPECTED CHARACTER")
+	testing.expect(t, len(body) > 0)
+}
+
+@(test)
+test_explain_unknown_code :: proc(t: ^testing.T) {
+	_, _, found := diagnostics.explain_lookup("C9999")
+	testing.expect(t, !found)
+}

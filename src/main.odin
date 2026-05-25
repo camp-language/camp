@@ -26,7 +26,7 @@ main :: proc() {
 	if len(args) < 2 {
 		fmt.printfln("Camp compiler v{}", VERSION)
 		fmt.println("Usage: camp <command> [options] <file>")
-		fmt.println("Commands: build, test, fmt, check, lsp")
+		fmt.println("Commands: build, test, fmt, check, explain, lsp")
 		fmt.println("Global flags: --json (machine-readable diagnostics on stdout)")
 		os.exit(1)
 	}
@@ -57,6 +57,8 @@ main :: proc() {
 	case .Lsp:
 		lsp.lsp_main()
 		return
+	case .Explain:
+		os.exit(diagnostics.run_explain(remaining_args))
 	}
 
 	if failed, is_failed := result.(build.Build_Error); is_failed {
