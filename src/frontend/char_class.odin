@@ -134,6 +134,14 @@ when simd.HAS_HARDWARE_SIMD {
 		return newlines | slashes | dollars
 	}
 
+	// Find number-continue bytes: 0-9, _, .
+	is_number_continue_simd :: proc(chunk: simd.u8x16) -> simd.u8x16 {
+		digits   := simd.lanes_ge(chunk, simd.u8x16('0')) & simd.lanes_le(chunk, simd.u8x16('9'))
+		unders   := simd.lanes_eq(chunk, simd.u8x16('_'))
+		dots     := simd.lanes_eq(chunk, simd.u8x16('.'))
+		return digits | unders | dots
+	}
+
 	// Extract bitmask from u8x16 comparison result as u16 for ctz/popcount
 	extract_mask :: proc(v: simd.u8x16) -> u16 {
 		return transmute(u16)simd.extract_msbs(v)

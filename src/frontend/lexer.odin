@@ -293,21 +293,26 @@ lexer_next :: proc(l: ^Lexer) -> base.Token {
 
 lexer_lex_number :: proc(l: ^Lexer, start: int) -> base.Token {
 	is_float := false
-	for l.pos < len(l.source) {
-		ch := l.source[l.pos]
-		if ch >= '0' && ch <= '9' {
-			l.pos += 1
-		} else if ch == '.' && !is_float {
-			if l.pos + 1 < len(l.source) && l.source[l.pos + 1] >= '0' && l.source[l.pos + 1] <= '9' {
-				is_float = true
+
+	when simd.HAS_HARDWARE_SIMD {
+		scan_number_simd(l, &is_float)
+	} else {
+		for l.pos < len(l.source) {
+			ch := l.source[l.pos]
+			if ch >= '0' && ch <= '9' {
+				l.pos += 1
+			} else if ch == '.' && !is_float {
+				if l.pos + 1 < len(l.source) && l.source[l.pos + 1] >= '0' && l.source[l.pos + 1] <= '9' {
+					is_float = true
+					l.pos += 1
+				} else {
+					break
+				}
+			} else if ch == '_' {
 				l.pos += 1
 			} else {
 				break
 			}
-		} else if ch == '_' {
-			l.pos += 1
-		} else {
-			break
 		}
 	}
 
@@ -322,6 +327,90 @@ lexer_lex_number :: proc(l: ^Lexer, start: int) -> base.Token {
 	}
 
 	return tok
+}
+
+when simd.HAS_HARDWARE_SIMD {
+
+scan_number_simd :: proc(l: ^Lexer, is_float: ^bool) {
+	source_len := len(l.source)
+	for {
+		for l.pos + 16 <= source_len {
+			chunk := load_chunk(l.source, l.pos)
+			num_bits := extract_mask(is_number_continue_simd(chunk))
+
+			if num_bits == 0 {
+				return
+			}
+
+			not_num_bits := ~num_bits
+			if not_num_bits == 0 {
+				// All 16 bytes are number-continue chars — check for dots
+				dot_bits := extract_mask(simd.lanes_eq(chunk, simd.u8x16('.')))
+				if dot_bits != 0 {
+					dot_pos := int(intrinsics.count_trailing_zeros(dot_bits))
+					abs_dot := l.pos + dot_pos
+					if abs_dot + 1 < source_len && l.source[abs_dot + 1] >= '0' && l.source[abs_dot + 1] <= '9' {
+						is_float^ = true
+						l.pos = abs_dot + 1
+						continue
+					} else {
+						l.pos += dot_pos
+						return
+					}
+				}
+				l.pos += 16
+				continue
+			}
+
+			first_non_num := int(intrinsics.count_trailing_zeros(not_num_bits))
+			if first_non_num == 0 {
+				return
+			}
+
+			// Check for '.' in the matched region
+			prefix_mask := u16(1) << u16(first_non_num) - 1
+			dot_bits := extract_mask(simd.lanes_eq(chunk, simd.u8x16('.')))
+			dot_in_prefix := dot_bits & prefix_mask
+
+			if dot_in_prefix != 0 {
+				dot_pos := int(intrinsics.count_trailing_zeros(dot_in_prefix))
+				abs_dot := l.pos + dot_pos
+				if abs_dot + 1 < source_len && l.source[abs_dot + 1] >= '0' && l.source[abs_dot + 1] <= '9' {
+					is_float^ = true
+					l.pos = abs_dot + 1
+					continue
+				} else {
+					l.pos += dot_pos
+					return
+				}
+			}
+
+			l.pos += first_non_num
+			return
+		}
+
+		// Scalar fallback for remaining bytes
+		for l.pos < source_len {
+			ch := l.source[l.pos]
+			if ch >= '0' && ch <= '9' {
+				l.pos += 1
+			} else if ch == '.' && !is_float^ {
+				if l.pos + 1 < source_len && l.source[l.pos + 1] >= '0' && l.source[l.pos + 1] <= '9' {
+					is_float^ = true
+					l.pos += 1
+				} else {
+					break
+				}
+			} else if ch == '_' {
+				l.pos += 1
+			} else {
+				break
+			}
+		}
+		return
+	}
+}
+
 }
 
 lexer_lex_string :: proc(l: ^Lexer, start: int) -> base.Token {
