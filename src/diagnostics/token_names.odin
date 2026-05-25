@@ -10,6 +10,7 @@ token_kind_display :: proc(kind: base.Token_Kind) -> string {
 	case .String_Literal:              return "string"
 	case .Interpolated_String_Literal: return "interpolated string"
 	case .Char_Literal:                return "char"
+	case .Perline_String_Literal:      return "per-line string"
 
 	case .Identifier:    return "identifier"
 	case .Upper_Id:      return "uppercase identifier"

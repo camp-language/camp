@@ -6,6 +6,7 @@ Token_Kind :: enum {
 	String_Literal,
 	Interpolated_String_Literal,
 	Char_Literal,
+	Perline_String_Literal,
 
 	Identifier,
 	Upper_Id,

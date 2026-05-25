@@ -38,6 +38,7 @@ Lexer :: struct {
 	collector: ^diagnostics.Diagnostic_Collector,
 	intern:    ^base.Intern_Table,
 	file_id:   int,
+	at_line_start: bool,  // true when pos is at the start of a new line
 }
 
 lexer_init :: proc(l: ^Lexer, file: base.Source_File, collector: ^diagnostics.Diagnostic_Collector, table: ^base.Intern_Table) {
@@ -46,6 +47,7 @@ lexer_init :: proc(l: ^Lexer, file: base.Source_File, collector: ^diagnostics.Di
 	l.collector = collector
 	l.intern = table
 	l.file_id = file.id
+	l.at_line_start = true
 }
 
 lexer_peek :: proc(l: ^Lexer) -> u8 {
@@ -63,8 +65,11 @@ lexer_advance :: proc(l: ^Lexer) -> u8 {
 lexer_skip_whitespace :: proc(l: ^Lexer) {
 	for l.pos < len(l.source) {
 		ch := l.source[l.pos]
-		if ch == ' ' || ch == '\t' || ch == '\r' || ch == '\n' {
+		if ch == ' ' || ch == '\t' || ch == '\r' {
 			l.pos += 1
+		} else if ch == '\n' {
+			l.pos += 1
+			l.at_line_start = true
 		} else if ch == '/' && l.pos + 2 < len(l.source) && l.source[l.pos + 1] == '/' && l.source[l.pos + 2] == '/' {
 			// /// doc comment — stop so lexer_next can produce a Doc_Comment token
 			break
@@ -74,7 +79,11 @@ lexer_skip_whitespace :: proc(l: ^Lexer) {
 			for l.pos < len(l.source) && l.source[l.pos] != '\n' {
 				l.pos += 1
 			}
+		} else if ch == '\\' && l.at_line_start {
+			// \ at line start = per-line string — stop so lexer_next can handle it
+			break
 		} else {
+			l.at_line_start = false
 			break
 		}
 	}
@@ -110,6 +119,22 @@ lexer_next :: proc(l: ^Lexer) -> base.Token {
 			l.pos += 1
 		}
 		return lexer_make_token(l, .Doc_Comment, start, l.source[content_start:l.pos])
+	}
+
+	// \ per-line string prefix (only at line start, and only if followed by content)
+	if ch == '\\' && l.at_line_start {
+		// Lookahead: if \ is followed by a newline or EOF, it's a line-continuation backslash
+		// If followed by content (space + text, or text directly), it's a per-line string
+		lookahead := l.pos + 1
+		// Skip optional space after \
+		if lookahead < len(l.source) && l.source[lookahead] == ' ' {
+			lookahead += 1
+		}
+		if lookahead < len(l.source) && l.source[lookahead] != '\n' && l.source[lookahead] != '\r' {
+			// Content after \ — this is a per-line string
+			return lexer_lex_perline_string(l, start)
+		}
+		// Otherwise fall through to normal \ token handling
 	}
 
 	if ch >= '0' && ch <= '9' {
@@ -332,6 +357,62 @@ lexer_lex_char :: proc(l: ^Lexer, start: int) -> base.Token {
 
 	text := l.source[start:l.pos]
 	return lexer_make_token(l, .Char_Literal, start, text)
+}
+
+lexer_lex_perline_string :: proc(l: ^Lexer, start: int) -> base.Token {
+	has_interpolation := false
+
+	// Collect all \-prefixed lines into a single string token
+	// The token text includes the \ prefixes for the parser to process
+	for l.at_line_start && l.pos < len(l.source) && l.source[l.pos] == '\\' {
+		l.pos += 1 // skip the \ prefix
+
+		// Skip optional space after \
+		if l.pos < len(l.source) && l.source[l.pos] == ' ' {
+			l.pos += 1
+		}
+
+		// Read content until end of line
+		for l.pos < len(l.source) && l.source[l.pos] != '\n' {
+			if l.source[l.pos] == '$' && l.pos + 1 < len(l.source) && l.source[l.pos + 1] == '{' {
+				has_interpolation = true
+			}
+			l.pos += 1
+		}
+
+		// Consume the newline (it becomes part of the string content)
+		if l.pos < len(l.source) && l.source[l.pos] == '\n' {
+			l.pos += 1
+			l.at_line_start = true
+		}
+
+		// Skip whitespace at start of next line to check for another \
+		for l.pos < len(l.source) {
+			ch := l.source[l.pos]
+			if ch == ' ' || ch == '\t' || ch == '\r' {
+				l.pos += 1
+			} else if ch == '/' && l.pos + 1 < len(l.source) && l.source[l.pos + 1] == '/' {
+				// Skip comment lines between \ lines
+				l.pos += 2
+				for l.pos < len(l.source) && l.source[l.pos] != '\n' {
+					l.pos += 1
+				}
+				if l.pos < len(l.source) && l.source[l.pos] == '\n' {
+					l.pos += 1
+					l.at_line_start = true
+				}
+			} else {
+				break
+			}
+		}
+	}
+
+	text := l.source[start:l.pos]
+	kind := base.Token_Kind.Perline_String_Literal
+	if has_interpolation {
+		kind = .Interpolated_String_Literal
+	}
+	return base.Token{kind = kind, text = text, span = lexer_make_span(l, start)}
 }
 
 lexer_lex_identifier :: proc(l: ^Lexer, start: int) -> base.Token {

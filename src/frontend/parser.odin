@@ -146,7 +146,7 @@ parser_parse_decl :: proc(p: ^Parser) -> Decl {
 		}
 		return parser_parse_const_decl(p, is_pub)
 	case .Int_Literal, .Float_Literal, .String_Literal, .Interpolated_String_Literal,
-	     .Char_Literal,
+	     .Char_Literal, .Perline_String_Literal,
 	     .Identifier, .Kw_If, .Kw_Else,
 	     .Kw_Match, .Kw_Is, .Kw_Derives, .Kw_Handle, .Kw_In, .Kw_With,
 	     .Kw_As, .Kw_For, .Kw_And, .Kw_Or, .Kw_Not, .Kw_Pub, .Kw_Self,
@@ -391,6 +391,10 @@ parser_parse_prefix :: proc(p: ^Parser) -> Expr {
 	case .Interpolated_String_Literal:
 		parser_advance(p)
 		return parser_parse_interpolated_string(p, tok)
+
+	case .Perline_String_Literal:
+		parser_advance(p)
+		return parser_parse_perline_string(p, tok)
 
 	case .Char_Literal:
 		parser_advance(p)
@@ -1626,7 +1630,7 @@ parser_parse_type :: proc(p: ^Parser) -> ^Type {
 		t = parser_parse_function_type(p)
 
 	case .Int_Literal, .Float_Literal, .String_Literal, .Interpolated_String_Literal,
-	     .Char_Literal,
+	     .Char_Literal, .Perline_String_Literal,
 	     .Doc_Comment,
 	     .Kw_If, .Kw_Else, .Kw_Match,
 	     .Kw_Is, .Kw_Derives, .Kw_Handle, .Kw_In, .Kw_With, .Kw_Import,
@@ -2211,6 +2215,74 @@ parser_parse_interpolated_string :: proc(p: ^Parser, tok: base.Token) -> Expr {
 		seg := new(String_Segment)
 		seg^ = String_Segment{
 			text = inner_text[seg_start:],
+			span = tok.span,
+		}
+		append(&parts, String_Part(seg))
+	}
+
+	e := new(Expr_Interpolated_String)
+	e^ = Expr_Interpolated_String{
+		parts = parts,
+		span = tok.span,
+	}
+	return e
+}
+
+parser_parse_perline_string :: proc(p: ^Parser, tok: base.Token) -> Expr {
+	// Per-line string: \ line1\n\ line2\n
+	// Strip \ prefixes and optional space after \, join with newlines
+	raw_text := tok.text
+
+	parts := make([dynamic]String_Part, 0, 8)
+	i := 0
+	seg_start := 0
+
+	for i < len(raw_text) {
+		if raw_text[i] == '\\' {
+			// Skip the \ prefix and optional space after it
+			i += 1
+			if i < len(raw_text) && raw_text[i] == ' ' {
+				i += 1
+			}
+			seg_start = i
+		} else if raw_text[i] == '$' && i + 1 < len(raw_text) && raw_text[i + 1] == '{' {
+			// Flush text segment before interpolation
+			if i > seg_start {
+				seg := new(String_Segment)
+				seg^ = String_Segment{
+					text = raw_text[seg_start:i],
+					span = tok.span,
+				}
+				append(&parts, String_Part(seg))
+			}
+
+			i += 2
+			brace_depth := 1
+			expr_start := i
+
+			for brace_depth > 0 && i < len(raw_text) {
+				if raw_text[i] == '{' {
+					brace_depth += 1
+				} else if raw_text[i] == '}' {
+					brace_depth -= 1
+				}
+				i += 1
+			}
+
+			expr_text := raw_text[expr_start:i-1]
+			expr := parse_interpolation_expr(expr_text, tok.span, p)
+			append(&parts, String_Part(expr))
+
+			seg_start = i
+		} else {
+			i += 1
+		}
+	}
+
+	if seg_start < len(raw_text) && seg_start < i {
+		seg := new(String_Segment)
+		seg^ = String_Segment{
+			text = raw_text[seg_start:],
 			span = tok.span,
 		}
 		append(&parts, String_Part(seg))
