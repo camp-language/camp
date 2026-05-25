@@ -243,28 +243,7 @@ lexer_next :: proc(l: ^Lexer) -> base.Token {
 		return lexer_make_token(l, .Colon, start, l.source[start:l.pos])
 	}
 
-	single_char_tokens :map[u8]base.Token_Kind = {
-		'|'  = .Pipe,
-		','  = .Comma,
-		'#'  = .Hash,
-		'@'  = .At,
-		'+'  = .Plus,
-		'*'  = .Star,
-		'/'  = .Slash,
-		'%'  = .Percent,
-		'&'  = .Amp,
-		'^'  = .Caret,
-		'~'  = .Tilde,
-		'\\' = .Backslash,
-		'('  = .LParen,
-		')'  = .RParen,
-		'['  = .LBrack,
-		']'  = .RBrack,
-		'{'  = .LBrace,
-		'}'  = .RBrace,
-	}
-
-	if kind, ok := single_char_tokens[ch]; ok {
+	if kind := SINGLE_CHAR_TOKEN[ch]; kind != base.Token_Kind(0) {
 		l.pos += 1
 		return lexer_make_token(l, kind, start, l.source[start:l.pos])
 	}
