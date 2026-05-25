@@ -5,6 +5,7 @@ Token_Kind :: enum {
 	Float_Literal,
 	String_Literal,
 	Interpolated_String_Literal,
+	Char_Literal,
 
 	Identifier,
 	Upper_Id,
@@ -29,6 +30,9 @@ Token_Kind :: enum {
 	Kw_Self,
 	Kw_Par,
 	Kw_Where,
+	Kw_Return,
+	Kw_Crash,
+	Kw_Todo,
 
 	Pipe,
 	Arrow,

@@ -27,6 +27,9 @@ KEYWORDS :map[string]base.Token_Kind = {
 	"Self"      = .Kw_Self,
 	"par"       = .Kw_Par,
 	"where"     = .Kw_Where,
+	"return"    = .Kw_Return,
+	"crash"    = .Kw_Crash,
+	"todo"     = .Kw_Todo,
 }
 
 Lexer :: struct {
@@ -115,6 +118,10 @@ lexer_next :: proc(l: ^Lexer) -> base.Token {
 
 	if ch == '"' {
 		return lexer_lex_string(l, start)
+	}
+
+	if ch == '\'' {
+		return lexer_lex_char(l, start)
 	}
 
 	if ch == '$' {
@@ -301,6 +308,30 @@ lexer_lex_string :: proc(l: ^Lexer, start: int) -> base.Token {
 		kind = .Interpolated_String_Literal
 	}
 	return base.Token{kind = kind, text = text, span = lexer_make_span(l, start)}
+}
+
+lexer_lex_char :: proc(l: ^Lexer, start: int) -> base.Token {
+	l.pos += 1 // skip opening '
+
+	if l.pos < len(l.source) && l.source[l.pos] == '\\' {
+		// Escaped char
+		l.pos += 1
+		if l.pos < len(l.source) {
+			l.pos += 1
+		}
+	} else if l.pos < len(l.source) {
+		// Regular char
+		l.pos += 1
+	}
+
+	if l.pos < len(l.source) && l.source[l.pos] == '\'' {
+		l.pos += 1
+	} else {
+		diagnostics.collector_add_diag(l.collector, diagnostics.diag_unterminated_string(lexer_make_span(l, start)))
+	}
+
+	text := l.source[start:l.pos]
+	return lexer_make_token(l, .Char_Literal, start, text)
 }
 
 lexer_lex_identifier :: proc(l: ^Lexer, start: int) -> base.Token {

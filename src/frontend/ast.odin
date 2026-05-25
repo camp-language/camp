@@ -11,6 +11,7 @@ Decl :: union {
 	^Decl_Import,
 	^Decl_Test,
 	^Decl_Expect,
+	^Decl_Is_Impl,
 }
 
 Decl_Const :: struct {
@@ -106,10 +107,24 @@ Decl_Expect :: struct {
 	span:      base.Source_Span,
 }
 
+Decl_Is_Impl :: struct {
+	type_name:    base.Intern_ID,
+	trait_name:   base.Intern_ID,
+	methods:      [dynamic]Is_Method,
+	span:         base.Source_Span,
+}
+
+Is_Method :: struct {
+	name:   base.Intern_ID,
+	body:   Expr,
+	span:   base.Source_Span,
+}
+
 Expr :: union {
 	^Expr_Int,
 	^Expr_Float,
 	^Expr_String,
+	^Expr_Char,
 	^Expr_Bool,
 	^Expr_Tag,
 	^Expr_Nominal_Construct,
@@ -130,6 +145,7 @@ Expr :: union {
 	^Expr_Assign,
 	^Expr_Return,
 	^Expr_Crash,
+	^Expr_Todo,
 	^Expr_Interpolated_String,
 	^Expr_Handle,
 	^Expr_Par,
@@ -149,6 +165,11 @@ Expr_Float :: struct {
 
 Expr_String :: struct {
 	value: string,
+	span:  base.Source_Span,
+}
+
+Expr_Char :: struct {
+	value: u8,
 	span:  base.Source_Span,
 }
 
@@ -204,11 +225,18 @@ Expr_Call :: struct {
 	span:   base.Source_Span,
 }
 
+Dispatch_Kind :: enum {
+	Nominal,    // obj.method(args) — type promised it
+	Lexical,    // obj->func(args) — scope provides function
+	Structural, // obj.(field)(args) — value stores function
+}
+
 Expr_Method_Call :: struct {
 	receiver:      Expr,
 	method:        base.Intern_ID,
 	args:          [dynamic]Expr,
 	is_effectful:  bool,
+	dispatch:      Dispatch_Kind,
 	span:          base.Source_Span,
 }
 
@@ -265,6 +293,7 @@ Pattern :: union {
 	^Pattern_List,
 	^Pattern_Int,
 	^Pattern_String,
+	^Pattern_Char,
 	^Pattern_Bool,
 	^Pattern_Identifier,
 	^Pattern_Wildcard,
@@ -302,6 +331,11 @@ Pattern_Int :: struct {
 
 Pattern_String :: struct {
 	value: string,
+	span:  base.Source_Span,
+}
+
+Pattern_Char :: struct {
+	value: u8,
 	span:  base.Source_Span,
 }
 
@@ -372,6 +406,11 @@ Expr_Crash :: struct {
 	span:    base.Source_Span,
 }
 
+Expr_Todo :: struct {
+	message: Expr,  // nil for bare `todo`, non-nil for `todo "msg"`
+	span:    base.Source_Span,
+}
+
 Expr_Interpolated_String :: struct {
 	parts: [dynamic]String_Part,
 	span:  base.Source_Span,
@@ -388,10 +427,10 @@ String_Segment :: struct {
 }
 
 Expr_Handle :: struct {
-	effect: base.Intern_ID,
-	body:   Expr,
-	arms:   [dynamic]Handler_Arm,
-	span:   base.Source_Span,
+	effects: [dynamic]base.Intern_ID,
+	body:    Expr,
+	arms:    [dynamic]Handler_Arm,
+	span:    base.Source_Span,
 }
 
 Expr_Dot_Lambda :: struct {

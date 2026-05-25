@@ -77,6 +77,7 @@ expr_span :: proc(expr: Expr, which: Span_End) -> int {
 	case ^Expr_Int:               return e.span.start if which == .Start else e.span.end
 	case ^Expr_Float:             return e.span.start if which == .Start else e.span.end
 	case ^Expr_String:            return e.span.start if which == .Start else e.span.end
+	case ^Expr_Char:              return e.span.start if which == .Start else e.span.end
 	case ^Expr_Bool:              return e.span.start if which == .Start else e.span.end
 	case ^Expr_Identifier:        return e.span.start if which == .Start else e.span.end
 	case ^Expr_Dollar_Identifier: return e.span.start if which == .Start else e.span.end
@@ -97,6 +98,7 @@ expr_span :: proc(expr: Expr, which: Span_End) -> int {
 	case ^Expr_Assign:            return e.span.start if which == .Start else e.span.end
 	case ^Expr_Return:            return e.span.start if which == .Start else e.span.end
 	case ^Expr_Crash:             return e.span.start if which == .Start else e.span.end
+	case ^Expr_Todo:              return e.span.start if which == .Start else e.span.end
 	case ^Expr_Interpolated_String: return e.span.start if which == .Start else e.span.end
 	case ^Expr_Handle:            return e.span.start if which == .Start else e.span.end
 	case ^Expr_Par:               return e.span.start if which == .Start else e.span.end
@@ -139,12 +141,17 @@ parser_parse_decl :: proc(p: ^Parser) -> Decl {
 		if is_trait_decl(p) {
 			return parser_parse_trait_decl(p, is_pub)
 		}
+		if is_is_impl_decl(p) {
+			return parser_parse_is_impl_decl(p)
+		}
 		return parser_parse_const_decl(p, is_pub)
 	case .Int_Literal, .Float_Literal, .String_Literal, .Interpolated_String_Literal,
+	     .Char_Literal,
 	     .Identifier, .Kw_If, .Kw_Else,
 	     .Kw_Match, .Kw_Is, .Kw_Derives, .Kw_Handle, .Kw_In, .Kw_With,
 	     .Kw_As, .Kw_For, .Kw_And, .Kw_Or, .Kw_Not, .Kw_Pub, .Kw_Self,
-	     .Kw_Par, .Kw_Where, .Pipe, .Arrow, .Fat_Arrow, .Eq, .Colon_Eq, .Colon, .Comma,
+	     .Kw_Par, .Kw_Where, .Kw_Return, .Kw_Crash, .Kw_Todo,
+	     .Pipe, .Arrow, .Fat_Arrow, .Eq, .Colon_Eq, .Colon, .Comma,
 	     .Dot, .Dot_Dot, .Dollar, .Hash, .Lt, .Gt, .Lt_Eq, .Gt_Eq, .Eq_Eq,
 	     .Bang_Eq, .Plus, .Minus, .Star, .Slash, .Percent, .Amp, .Caret, .Tilde,
 	     .Backslash, .LParen, .RParen, .LBrack, .RBrack, .LBrace, .RBrace, .Newline, .Eof:
@@ -385,6 +392,27 @@ parser_parse_prefix :: proc(p: ^Parser) -> Expr {
 		parser_advance(p)
 		return parser_parse_interpolated_string(p, tok)
 
+	case .Char_Literal:
+		parser_advance(p)
+		// Extract char value from 'x' token text
+		char_val: u8 = 0
+		inner := tok.text[1:len(tok.text)-1]
+		if len(inner) == 1 {
+			char_val = inner[0]
+		} else if len(inner) == 2 && inner[0] == '\\' {
+			switch inner[1] {
+			case 'n':  char_val = '\n'
+			case 't':  char_val = '\t'
+			case 'r':  char_val = '\r'
+			case '\\': char_val = '\\'
+			case '\'': char_val = '\''
+			case '0':  char_val = 0
+			}
+		}
+		e := new(Expr_Char)
+		e^ = Expr_Char{value = char_val, span = tok.span}
+		return e
+
 	case .Upper_Id:
 		return parser_parse_tag_or_call(p)
 
@@ -451,9 +479,34 @@ parser_parse_prefix :: proc(p: ^Parser) -> Expr {
 	case .At:
 		return parser_parse_nominal_construct(p)
 
+	case .Kw_Return:
+		parser_advance(p)
+		value := parser_parse_expr(p)
+		e := new(Expr_Return)
+		e^ = Expr_Return{value = value, span = tok.span}
+		return e
+
+	case .Kw_Crash:
+		parser_advance(p)
+		message := parser_parse_expr(p)
+		e := new(Expr_Crash)
+		e^ = Expr_Crash{message = message, span = tok.span}
+		return e
+
+	case .Kw_Todo:
+		parser_advance(p)
+		message: Expr = nil
+		if p.current.kind == .String_Literal || p.current.kind == .Interpolated_String_Literal {
+			message = parser_parse_prefix(p)
+		}
+		e := new(Expr_Todo)
+		e^ = Expr_Todo{message = message, span = tok.span}
+		return e
+
 	case .Kw_Else, .Kw_Is, .Kw_Derives, .Kw_In, .Kw_With, .Kw_Import,
 	     .Kw_As, .Kw_And, .Kw_Or, .Kw_Expect, .Kw_Test, .Kw_Pub, .Kw_Self,
-	     .Kw_Where, .Arrow, .Fat_Arrow, .Eq, .Colon_Eq, .Colon, .Comma, .Dot_Dot,
+	     .Kw_Where,
+	     .Arrow, .Fat_Arrow, .Eq, .Colon_Eq, .Colon, .Comma, .Dot_Dot,
 	     .Hash, .Lt, .Gt, .Lt_Eq, .Gt_Eq, .Eq_Eq, .Bang_Eq, .Plus, .Star, .Slash,
 	     .Percent, .Amp, .Caret, .Tilde, .Backslash, .RParen, .RBrack, .RBrace,
 	     .Newline, .Eof:
@@ -588,42 +641,119 @@ parser_parse_identifier_expr :: proc(p: ^Parser) -> Expr {
 
 parser_parse_method_chain :: proc(p: ^Parser, initial: Expr) -> Expr {
 	result := initial
-	for p.current.kind == .Dot {
-		parser_advance(p)
-		method_tok: base.Token
-		if p.current.kind == .Upper_Id {
-			method_tok = parser_advance(p)
-		} else {
-			method_tok = parser_expect(p, .Identifier)
-		}
-
-		is_effectful := strings.has_suffix(method_tok.text, "!")
-
-		method_id := base.intern(p.intern, method_tok.text)
-
-		mc := new(Expr_Method_Call)
-		mc^ = Expr_Method_Call{
-			receiver = result,
-			method = method_id,
-			args = make([dynamic]Expr, 0, 4),
-			is_effectful = is_effectful,
-			span = method_tok.span,
-		}
-
-		if p.current.kind == .LParen {
+	for {
+		if p.current.kind == .Dot {
 			parser_advance(p)
-			for p.current.kind != .RParen && p.current.kind != .Eof {
-				arg := parser_parse_expr(p)
-				append(&mc.args, arg)
-				if p.current.kind == .Comma {
-					parser_advance(p)
-					parser_skip_backslashes(p)
-				}
-			}
-			parser_expect(p, .RParen)
-		}
 
-		result = mc
+			// .(field)(args) — structural dispatch
+			if p.current.kind == .LParen {
+				parser_advance(p)
+				field_tok := parser_expect(p, .Identifier)
+				field_id := base.intern(p.intern, field_tok.text)
+				parser_expect(p, .RParen)
+
+				mc := new(Expr_Method_Call)
+				mc^ = Expr_Method_Call{
+					receiver = result,
+					method = field_id,
+					args = make([dynamic]Expr, 0, 4),
+					dispatch = .Structural,
+					span = field_tok.span,
+				}
+
+				if p.current.kind == .LParen {
+					parser_advance(p)
+					for p.current.kind != .RParen && p.current.kind != .Eof {
+						arg := parser_parse_expr(p)
+						append(&mc.args, arg)
+						if p.current.kind == .Comma {
+							parser_advance(p)
+							parser_skip_backslashes(p)
+						}
+					}
+					parser_expect(p, .RParen)
+				}
+
+				result = mc
+				continue
+			}
+
+			method_tok: base.Token
+			if p.current.kind == .Upper_Id {
+				method_tok = parser_advance(p)
+			} else {
+				method_tok = parser_expect(p, .Identifier)
+			}
+
+			is_effectful := strings.has_suffix(method_tok.text, "!")
+
+			method_id := base.intern(p.intern, method_tok.text)
+
+			mc := new(Expr_Method_Call)
+			mc^ = Expr_Method_Call{
+				receiver = result,
+				method = method_id,
+				args = make([dynamic]Expr, 0, 4),
+				is_effectful = is_effectful,
+				dispatch = .Nominal,
+				span = method_tok.span,
+			}
+
+			if p.current.kind == .LParen {
+				parser_advance(p)
+				for p.current.kind != .RParen && p.current.kind != .Eof {
+					arg := parser_parse_expr(p)
+					append(&mc.args, arg)
+					if p.current.kind == .Comma {
+						parser_advance(p)
+						parser_skip_backslashes(p)
+					}
+				}
+				parser_expect(p, .RParen)
+			}
+
+			result = mc
+		} else if p.current.kind == .Arrow {
+			// -> UFCS (lexical dispatch)
+			parser_advance(p)
+
+			func_tok: base.Token
+			if p.current.kind == .Upper_Id {
+				func_tok = parser_advance(p)
+			} else {
+				func_tok = parser_expect(p, .Identifier)
+			}
+
+			is_effectful := strings.has_suffix(func_tok.text, "!")
+			func_id := base.intern(p.intern, func_tok.text)
+
+			mc := new(Expr_Method_Call)
+			mc^ = Expr_Method_Call{
+				receiver = result,
+				method = func_id,
+				args = make([dynamic]Expr, 0, 4),
+				is_effectful = is_effectful,
+				dispatch = .Lexical,
+				span = func_tok.span,
+			}
+
+			if p.current.kind == .LParen {
+				parser_advance(p)
+				for p.current.kind != .RParen && p.current.kind != .Eof {
+					arg := parser_parse_expr(p)
+					append(&mc.args, arg)
+					if p.current.kind == .Comma {
+						parser_advance(p)
+						parser_skip_backslashes(p)
+					}
+				}
+				parser_expect(p, .RParen)
+			}
+
+			result = mc
+		} else {
+			break
+		}
 	}
 	return result
 }
@@ -636,6 +766,90 @@ parser_parse_dot_lambda :: proc(p: ^Parser) -> Expr {
 	placeholder := new(Expr_Identifier)
 	placeholder^ = Expr_Identifier{name = placeholder_id, span = start}
 
+	// .(field)(args) — structural dispatch dot lambda
+	if p.current.kind == .LParen {
+		parser_advance(p)
+		field_tok := parser_expect(p, .Identifier)
+		field_id := base.intern(p.intern, field_tok.text)
+		parser_expect(p, .RParen)
+
+		mc := new(Expr_Method_Call)
+		mc^ = Expr_Method_Call{
+			receiver = placeholder,
+			method = field_id,
+			args = make([dynamic]Expr, 0, 4),
+			dispatch = .Structural,
+			span = field_tok.span,
+		}
+
+		if p.current.kind == .LParen {
+			parser_advance(p)
+			for p.current.kind != .RParen && p.current.kind != .Eof {
+				arg := parser_parse_expr(p)
+				append(&mc.args, arg)
+				if p.current.kind == .Comma {
+					parser_advance(p)
+				}
+			}
+			parser_expect(p, .RParen)
+		}
+
+		result: Expr = mc
+		if p.current.kind == .Dot || p.current.kind == .Arrow {
+			result = parser_parse_method_chain(p, result)
+		}
+
+		dl := new(Expr_Dot_Lambda)
+		dl^ = Expr_Dot_Lambda{body = result, span = start}
+		return dl
+	}
+
+	// .->func(args) — lexical UFCS dot lambda
+	if p.current.kind == .Arrow {
+		parser_advance(p)
+		func_tok: base.Token
+		if p.current.kind == .Upper_Id {
+			func_tok = parser_advance(p)
+		} else {
+			func_tok = parser_expect(p, .Identifier)
+		}
+
+		is_effectful := strings.has_suffix(func_tok.text, "!")
+		func_id := base.intern(p.intern, func_tok.text)
+
+		mc := new(Expr_Method_Call)
+		mc^ = Expr_Method_Call{
+			receiver = placeholder,
+			method = func_id,
+			args = make([dynamic]Expr, 0, 4),
+			is_effectful = is_effectful,
+			dispatch = .Lexical,
+			span = func_tok.span,
+		}
+
+		if p.current.kind == .LParen {
+			parser_advance(p)
+			for p.current.kind != .RParen && p.current.kind != .Eof {
+				arg := parser_parse_expr(p)
+				append(&mc.args, arg)
+				if p.current.kind == .Comma {
+					parser_advance(p)
+				}
+			}
+			parser_expect(p, .RParen)
+		}
+
+		result: Expr = mc
+		if p.current.kind == .Dot || p.current.kind == .Arrow {
+			result = parser_parse_method_chain(p, result)
+		}
+
+		dl := new(Expr_Dot_Lambda)
+		dl^ = Expr_Dot_Lambda{body = result, span = start}
+		return dl
+	}
+
+	// .method(args) — nominal dispatch dot lambda (existing)
 	name_tok := parser_expect(p, .Identifier)
 	name_id := base.intern(p.intern, name_tok.text)
 
@@ -647,6 +861,7 @@ parser_parse_dot_lambda :: proc(p: ^Parser) -> Expr {
 			receiver = placeholder,
 			method = name_id,
 			args = make([dynamic]Expr, 0, 4),
+			dispatch = .Nominal,
 			span = name_tok.span,
 		}
 		parser_advance(p)
@@ -666,7 +881,7 @@ parser_parse_dot_lambda :: proc(p: ^Parser) -> Expr {
 	}
 
 	result := initial
-	if p.current.kind == .Dot {
+	if p.current.kind == .Dot || p.current.kind == .Arrow {
 		result = parser_parse_method_chain(p, result)
 	}
 
@@ -1060,10 +1275,19 @@ parser_parse_handle :: proc(p: ^Parser) -> Expr {
 	start := p.current.span
 	parser_advance(p)
 
+	effects := make([dynamic]base.Intern_ID, 0, 4)
+
 	effect_tok := parser_expect(p, .Upper_Id)
 	effect_name := effect_tok.text
-	// The ! is already absorbed into the token text by the lexer
-	effect_id := base.intern(p.intern, effect_name)
+	append(&effects, base.intern(p.intern, effect_name))
+
+	// Multiple effects: handle E!, F! in body with { ... }
+	for p.current.kind == .Comma {
+		parser_advance(p)
+		effect_tok = parser_expect(p, .Upper_Id)
+		effect_name = effect_tok.text
+		append(&effects, base.intern(p.intern, effect_name))
+	}
 
 	parser_expect(p, .Kw_In)
 	body := parser_parse_expr(p)
@@ -1103,7 +1327,7 @@ parser_parse_handle :: proc(p: ^Parser) -> Expr {
 	parser_expect(p, .RBrace)
 
 	e := new(Expr_Handle)
-	e^ = Expr_Handle{effect = effect_id, body = body, arms = arms, span = start}
+	e^ = Expr_Handle{effects = effects, body = body, arms = arms, span = start}
 	return e
 }
 
@@ -1198,6 +1422,26 @@ parser_parse_pattern :: proc(p: ^Parser) -> Pattern {
 		pat^ = Pattern_String{value = tok.text, span = tok.span}
 		return pat
 
+	case .Char_Literal:
+		tok := parser_advance(p)
+		char_val: u8 = 0
+		inner := tok.text[1:len(tok.text)-1]
+		if len(inner) == 1 {
+			char_val = inner[0]
+		} else if len(inner) == 2 && inner[0] == '\\' {
+			switch inner[1] {
+			case 'n':  char_val = '\n'
+			case 't':  char_val = '\t'
+			case 'r':  char_val = '\r'
+			case '\\': char_val = '\\'
+			case '\'': char_val = '\''
+			case '0':  char_val = 0
+			}
+		}
+		pat := new(Pattern_Char)
+		pat^ = Pattern_Char{value = char_val, span = tok.span}
+		return pat
+
 	case .LBrace:
 		return parser_parse_record_pattern(p)
 
@@ -1211,7 +1455,9 @@ parser_parse_pattern :: proc(p: ^Parser) -> Pattern {
 	     .Dollar, .Pipe, .Kw_If, .Kw_Else, .Kw_Match, .Kw_Is,
 	     .Kw_Derives, .Kw_Handle, .Kw_In, .Kw_With, .Kw_Import,
 	     .Kw_As, .Kw_For, .Kw_And, .Kw_Or, .Kw_Expect,
-	     .Kw_Test, .Kw_Not, .Kw_Pub, .Kw_Self, .Kw_Par, .Kw_Where, .Arrow, .Fat_Arrow,
+	     .Kw_Test, .Kw_Not, .Kw_Pub, .Kw_Self, .Kw_Par, .Kw_Where,
+	     .Kw_Return, .Kw_Crash, .Kw_Todo,
+	     .Arrow, .Fat_Arrow,
 	     .Eq, .Colon_Eq, .Colon, .Comma, .Dot, .Dot_Dot, .Hash, .Lt, .Gt,
 	     .Lt_Eq, .Gt_Eq, .Eq_Eq, .Bang_Eq, .Plus, .Minus, .Star, .Slash, .Percent,
 	     .Amp, .Caret, .Tilde, .Backslash, .LParen, .RParen, .RBrack, .RBrace,
@@ -1380,11 +1626,14 @@ parser_parse_type :: proc(p: ^Parser) -> ^Type {
 		t = parser_parse_function_type(p)
 
 	case .Int_Literal, .Float_Literal, .String_Literal, .Interpolated_String_Literal,
+	     .Char_Literal,
 	     .Doc_Comment,
 	     .Kw_If, .Kw_Else, .Kw_Match,
 	     .Kw_Is, .Kw_Derives, .Kw_Handle, .Kw_In, .Kw_With, .Kw_Import,
 	     .Kw_As, .Kw_For, .Kw_And, .Kw_Or, .Kw_Expect,
-	     .Kw_Test, .Kw_Not, .Kw_Pub, .Kw_Par, .Kw_Where, .Arrow, .Fat_Arrow, .Eq,
+	     .Kw_Test, .Kw_Not, .Kw_Pub, .Kw_Par, .Kw_Where,
+	     .Kw_Return, .Kw_Crash, .Kw_Todo,
+	     .Arrow, .Fat_Arrow, .Eq,
 	     .Colon_Eq, .Colon, .Comma, .Dot, .Dot_Dot, .Dollar, .Hash, .At, .Lt,
 	     .Gt, .Lt_Eq, .Gt_Eq, .Eq_Eq, .Bang_Eq, .Plus, .Minus, .Star, .Slash,
 	     .Percent, .Amp, .Caret, .Tilde, .Backslash, .RParen, .RBrack, .RBrace,
@@ -1684,6 +1933,65 @@ is_trait_decl :: proc(p: ^Parser) -> bool {
 	p.lexer.pos = saved_pos
 	p.current = saved_tok
 	return false
+}
+
+is_is_impl_decl :: proc(p: ^Parser) -> bool {
+	// TypeName is TraitName { ... }
+	// Must distinguish from: TypeName is ParentTrait : { methods } (trait decl)
+	// and: TypeName = expr (const decl)
+	saved_pos := p.lexer.pos
+	saved_tok := p.current
+
+	parser_advance(p) // skip Upper_Id
+	if p.current.kind == .Kw_Is {
+		parser_advance(p)
+		// If next is Upper_Id followed by LBrace (not Colon), it's an is-impl
+		if p.current.kind == .Upper_Id {
+			parser_advance(p)
+			result := p.current.kind == .LBrace
+			p.lexer.pos = saved_pos
+			p.current = saved_tok
+			return result
+		}
+	}
+
+	p.lexer.pos = saved_pos
+	p.current = saved_tok
+	return false
+}
+
+parser_parse_is_impl_decl :: proc(p: ^Parser) -> Decl {
+	start := p.current.span
+
+	type_tok := parser_expect(p, .Upper_Id)
+	type_id := base.intern(p.intern, type_tok.text)
+
+	parser_expect(p, .Kw_Is)
+
+	trait_tok := parser_expect(p, .Upper_Id)
+	trait_id := base.intern(p.intern, trait_tok.text)
+
+	parser_expect(p, .LBrace)
+
+	methods := make([dynamic]Is_Method, 0, 8)
+	for p.current.kind != .RBrace && p.current.kind != .Eof {
+		m_name_tok := parser_advance(p)
+		m_name_id := base.intern(p.intern, m_name_tok.text)
+
+		parser_expect(p, .Eq)
+		body := parser_parse_expr(p)
+
+		append(&methods, Is_Method{name = m_name_id, body = body, span = m_name_tok.span})
+
+		if p.current.kind == .Comma {
+			parser_advance(p)
+		}
+	}
+	parser_expect(p, .RBrace)
+
+	decl := new(Decl_Is_Impl)
+	decl^ = Decl_Is_Impl{type_name = type_id, trait_name = trait_id, methods = methods, span = start}
+	return decl
 }
 
 parser_parse_newtype_decl :: proc(p: ^Parser, is_pub: bool) -> Decl {

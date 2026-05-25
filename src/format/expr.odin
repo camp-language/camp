@@ -686,7 +686,8 @@ format_expr_handle :: proc(e: ^frontend.Expr_Handle, info: ^Format_Source_Info, 
 	defer delete(parts)
 
 	append(&parts, doc_text("handle "))
-	append(&parts, doc_text(base.intern_get(interner, e.effect)))
+	effect_id := len(e.effects) > 0 ? e.effects[0] : 0
+	append(&parts, doc_text(base.intern_get(interner, effect_id)))
 	append(&parts, doc_text(" in "))
 	append(&parts, format_expr(e.body, info, interner))
 	append(&parts, doc_text(" with {"))

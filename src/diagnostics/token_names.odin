@@ -9,6 +9,7 @@ token_kind_display :: proc(kind: base.Token_Kind) -> string {
 	case .Float_Literal: return "float"
 	case .String_Literal:              return "string"
 	case .Interpolated_String_Literal: return "interpolated string"
+	case .Char_Literal:                return "char"
 
 	case .Identifier:    return "identifier"
 	case .Upper_Id:      return "uppercase identifier"
@@ -35,6 +36,9 @@ token_kind_display :: proc(kind: base.Token_Kind) -> string {
 	case .Kw_Self:      return "Self"
 	case .Kw_Par:       return "par"
 	case .Kw_Where:     return "where"
+	case .Kw_Return:    return "return"
+	case .Kw_Crash:    return "crash"
+	case .Kw_Todo:     return "todo"
 	case .Pipe:         return "|"
 	case .Arrow:        return "->"
 	case .Fat_Arrow:    return "=>"

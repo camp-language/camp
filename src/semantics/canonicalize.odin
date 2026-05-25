@@ -309,7 +309,7 @@ replace_dot_receiver :: proc(expr: frontend.Expr, replacement: base.Intern_ID) -
 			append(&args, replace_dot_receiver(a, replacement))
 		}
 		c := new(frontend.Expr_Method_Call)
-		c^ = frontend.Expr_Method_Call{receiver = creceiver, method = e.method, args = args, span = e.span}
+		c^ = frontend.Expr_Method_Call{receiver = creceiver, method = e.method, args = args, dispatch = e.dispatch, span = e.span}
 		return c
 	case ^frontend.Expr_Field_Access:
 		crecord := replace_dot_receiver(e.record, replacement)
@@ -325,7 +325,7 @@ replace_dot_receiver :: proc(expr: frontend.Expr, replacement: base.Intern_ID) -
 		c := new(frontend.Expr_Call)
 		c^ = frontend.Expr_Call{callee = ccallee, args = args, span = e.span}
 		return c
-	case ^frontend.Expr_Int, ^frontend.Expr_Float, ^frontend.Expr_String, ^frontend.Expr_Bool, ^frontend.Expr_Tag, ^frontend.Expr_Nominal_Construct, ^frontend.Expr_Record, ^frontend.Expr_List, ^frontend.Expr_Dollar_Identifier, ^frontend.Expr_Lambda, ^frontend.Expr_Block, ^frontend.Expr_If, ^frontend.Expr_Match, ^frontend.Expr_BinOp, ^frontend.Expr_PrefixOp, ^frontend.Expr_Record_Update, ^frontend.Expr_Assign, ^frontend.Expr_Return, ^frontend.Expr_Crash, ^frontend.Expr_Interpolated_String, ^frontend.Expr_Handle, ^frontend.Expr_Par, ^frontend.Expr_Dot_Lambda, ^frontend.Expr_For:
+	case ^frontend.Expr_Int, ^frontend.Expr_Float, ^frontend.Expr_String, ^frontend.Expr_Char, ^frontend.Expr_Bool, ^frontend.Expr_Tag, ^frontend.Expr_Nominal_Construct, ^frontend.Expr_Record, ^frontend.Expr_List, ^frontend.Expr_Dollar_Identifier, ^frontend.Expr_Lambda, ^frontend.Expr_Block, ^frontend.Expr_If, ^frontend.Expr_Match, ^frontend.Expr_BinOp, ^frontend.Expr_PrefixOp, ^frontend.Expr_Record_Update, ^frontend.Expr_Assign, ^frontend.Expr_Return, ^frontend.Expr_Crash, ^frontend.Expr_Todo, ^frontend.Expr_Interpolated_String, ^frontend.Expr_Handle, ^frontend.Expr_Par, ^frontend.Expr_Dot_Lambda, ^frontend.Expr_For:
 		return expr
 	}
 	return expr
@@ -351,6 +351,11 @@ canonicalize_expr :: proc(expr: frontend.Expr, scope: ^Canonicalize_Scope, inter
 	case ^frontend.Expr_Bool:
 		c := new(CExpr_Bool)
 		c^ = CExpr_Bool{value = e.value, span = e.span}
+		return c
+
+	case ^frontend.Expr_Char:
+		c := new(CExpr_Int)
+		c^ = CExpr_Int{value = i64(e.value), span = e.span}
 		return c
 
 	case ^frontend.Expr_Tag:
@@ -613,6 +618,18 @@ canonicalize_expr :: proc(expr: frontend.Expr, scope: ^Canonicalize_Scope, inter
 		}
 		return c
 
+	case ^frontend.Expr_Todo:
+		cmessage: CExpr = nil
+		if e.message != nil {
+			cmessage = canonicalize_expr(e.message, scope, interner, collector)
+		}
+		c := new(CExpr_Crash)
+		c^ = CExpr_Crash{
+			message = cmessage,
+			span = e.span,
+		}
+		return c
+
 	case ^frontend.Expr_Interpolated_String:
 		cparts := make([dynamic]CExpr_String_Part, 0, len(e.parts))
 		for part in e.parts {
@@ -631,8 +648,9 @@ canonicalize_expr :: proc(expr: frontend.Expr, scope: ^Canonicalize_Scope, inter
 		return c
 
 	case ^frontend.Expr_Handle:
-		effect_name := base.Canonical_Name{module = base.NO_NAME, name = e.effect, is_local = true}
-		if existing, ok := scope.local_names[e.effect]; ok {
+		effect_id := len(e.effects) > 0 ? e.effects[0] : 0
+		effect_name := base.Canonical_Name{module = base.NO_NAME, name = effect_id, is_local = true}
+		if existing, ok := scope.local_names[effect_id]; ok {
 			effect_name = existing
 		}
 		cbody := canonicalize_expr(e.body, scope, interner, collector)
@@ -781,6 +799,11 @@ canonicalize_pattern :: proc(pat: frontend.Pattern, scope: ^Canonicalize_Scope, 
 	case ^frontend.Pattern_Int:
 		c := new(CPattern_Int)
 		c^ = CPattern_Int{value = p.value, span = p.span}
+		return c
+
+	case ^frontend.Pattern_Char:
+		c := new(CPattern_Int)
+		c^ = CPattern_Int{value = i64(p.value), span = p.span}
 		return c
 
 	case ^frontend.Pattern_String:
