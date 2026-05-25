@@ -13,7 +13,7 @@ Cache_Entry :: struct {
 }
 
 MODULE_MANIFEST_MAGIC :u32 : 0x434D4D46
-MODULE_MANIFEST_VERSION :u32 : 2
+MODULE_MANIFEST_VERSION :u32 : 3
 
 Module_Manifest :: struct {
 	content_hash:  string,
@@ -23,10 +23,9 @@ Module_Manifest :: struct {
 }
 
 Manifest_Import :: struct {
-	module:    string,
-	exposing:  [dynamic]string,
-	alias:     string,
-	is_unsafe: bool,
+	module:   string,
+	exposing: [dynamic]string,
+	alias:    string,
 }
 
 Manifest_Export :: struct {
@@ -140,7 +139,6 @@ serialize_manifest :: proc(manifest: Module_Manifest, allocator: mem.Allocator) 
 			write_string(&buf, exp)
 		}
 		write_string(&buf, imp.alias)
-		append(&buf, bool_to_u8(imp.is_unsafe))
 	}
 
 	write_u32_le(&buf, u32(len(manifest.exports)))
@@ -207,11 +205,6 @@ deserialize_manifest :: proc(data: []byte, allocator: mem.Allocator) -> (Module_
 		if !alias_ok { manifest_destroy(&manifest); return Module_Manifest{}, false }
 		imp.alias = alias_str
 
-		if pos < len(data) {
-			imp.is_unsafe = data[pos] != 0
-			pos += 1
-		}
-
 		append(&manifest.imports, imp)
 	}
 
@@ -267,7 +260,6 @@ build_manifest :: proc(mi: ^Module_Info, interner: ^base.Intern_Table) -> Module
 		if imp.alias != base.NO_NAME {
 			mi_imp.alias = base.intern_get(interner, imp.alias)
 		}
-		mi_imp.is_unsafe = imp.is_unsafe
 		append(&manifest.imports, mi_imp)
 	}
 

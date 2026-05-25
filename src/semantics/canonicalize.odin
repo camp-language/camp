@@ -176,29 +176,6 @@ canonicalize_decl :: proc(decl: frontend.Decl, scope: ^Canonicalize_Scope, impor
 		for tp in d.type_params {
 			append(&type_params, tp)
 		}
-		trait_conforms_set := make(map[base.Intern_ID]bool, len(d.trait_conforms) + len(d.derive_targets) + 1)
-		defer delete(trait_conforms_set)
-		trait_conforms := make([dynamic]base.Intern_ID, 0, len(d.trait_conforms) + len(d.derive_targets) + 1)
-		for tc in d.trait_conforms {
-			if !trait_conforms_set[tc] {
-				trait_conforms_set[tc] = true
-				append(&trait_conforms, tc)
-			}
-		}
-		for dt in d.derive_targets {
-			if !trait_conforms_set[dt] {
-				trait_conforms_set[dt] = true
-				append(&trait_conforms, dt)
-			}
-			derive_name_str := base.intern_get(interner, dt)
-			if derive_name_str == "Ord" {
-				eq_id := base.intern(interner, "Eq")
-				if !trait_conforms_set[eq_id] {
-					trait_conforms_set[eq_id] = true
-					append(&trait_conforms, eq_id)
-				}
-			}
-		}
 		cinner_type := canonicalize_type(d.inner_type^, scope, interner, collector)
 		derive_targets := make([dynamic]base.Intern_ID, 0, len(d.derive_targets))
 		for dt in d.derive_targets {
@@ -210,7 +187,6 @@ canonicalize_decl :: proc(decl: frontend.Decl, scope: ^Canonicalize_Scope, impor
 			is_pub = d.is_pub,
 			pub_variants = d.pub_variants,
 			type_params = type_params,
-			trait_conforms = trait_conforms,
 			inner_type = cinner_type,
 			derive_targets = derive_targets,
 			span = d.span,
@@ -221,21 +197,11 @@ canonicalize_decl :: proc(decl: frontend.Decl, scope: ^Canonicalize_Scope, impor
 		di := base.Deferred_Import{
 			module = base.intern(interner, d.module),
 			exposing = make([dynamic]base.Intern_ID, len(d.exposing)),
-			nominal_exposing = make([dynamic]base.Import_Nominal_Expose, len(d.nominal_exposing)),
 			alias = d.alias,
-			is_unsafe = d.is_unsafe,
 			span = d.span,
 		}
 		for i, name in d.exposing {
 			di.exposing[i] = base.Intern_ID(name)
-		}
-		for i in 0..<len(d.nominal_exposing) {
-			ne := d.nominal_exposing[i]
-			variants := make([dynamic]base.Intern_ID, len(ne.variants))
-			for j in 0..<len(ne.variants) {
-				variants[j] = ne.variants[j]
-			}
-			di.nominal_exposing[i] = base.Import_Nominal_Expose{type_name = ne.type_name, variants = variants}
 		}
 		append(imports, di)
 		cdecl := new(CDecl_Import)
@@ -654,7 +620,7 @@ canonicalize_expr :: proc(expr: frontend.Expr, scope: ^Canonicalize_Scope, inter
 			}
 		}
 		c := new(CExpr_Interpolated_String)
-		c^ = CExpr_Interpolated_String{parts = cparts, is_raw = e.is_raw, is_multiline = e.is_multiline, span = e.span}
+		c^ = CExpr_Interpolated_String{parts = cparts, span = e.span}
 		return c
 
 	case ^frontend.Expr_Handle:
@@ -673,7 +639,7 @@ canonicalize_expr :: proc(expr: frontend.Expr, scope: ^Canonicalize_Scope, inter
 			})
 		}
 		c := new(CExpr_Handle)
-		c^ = CExpr_Handle{effect = effect_name, is_shallow = e.is_shallow, body = cbody, arms = arms, span = e.span}
+		c^ = CExpr_Handle{effect = effect_name, body = cbody, arms = arms, span = e.span}
 		return c
 
 	case ^frontend.Expr_Par:

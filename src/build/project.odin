@@ -65,7 +65,6 @@ run_build_project :: proc(thread_count: int = 1) -> Build_Result {
 				if len(m_imp.alias) > 0 {
 					di.alias = base.intern(&ctx.interner, m_imp.alias)
 				}
-				di.is_unsafe = m_imp.is_unsafe
 				append(&mi.imports, di)
 			}
 			mi.exports = make([dynamic]Export_Info, 0, len(manifest.exports))

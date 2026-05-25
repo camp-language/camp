@@ -8,7 +8,6 @@ import "core:fmt"
 Effect_Evidence :: struct {
 	effect:      base.Canonical_Name,
 	ev_var:      base.Intern_ID,
-	is_shallow:  bool,
 	arm_indices: map[base.Intern_ID]int,
 	inactive:    bool,
 	handle_type: base.IR_Type,
@@ -168,7 +167,6 @@ el_wrap_throw_handler :: proc(body: IR_Expr, fn_decl: ^IR_Decl_Fn, throw_name: b
 	handle := new(IR_Handle)
 	handle^ = IR_Handle{
 		effect = throw_effect_name,
-		is_shallow = false,
 		body = body,
 		arms = arms,
 		type = fn_decl.return_type,
@@ -219,7 +217,7 @@ el_find_evidence :: proc(effect: base.Canonical_Name, env: ^Effect_Lower_Env) ->
 	return base.NO_NAME
 }
 
-el_replace_resume :: proc(expr: IR_Expr, resume_id: base.Intern_ID, resume_param: base.Intern_ID, ev_param: base.Intern_ID, is_shallow: bool, env: ^Effect_Lower_Env) -> IR_Expr {
+el_replace_resume :: proc(expr: IR_Expr, resume_id: base.Intern_ID, resume_param: base.Intern_ID, ev_param: base.Intern_ID, env: ^Effect_Lower_Env) -> IR_Expr {
 	if expr == nil do return expr
 
 	#partial switch e in expr {
@@ -227,7 +225,7 @@ el_replace_resume :: proc(expr: IR_Expr, resume_id: base.Intern_ID, resume_param
 		if e.callee.module == base.NO_NAME && e.callee.name == resume_id {
 			resume_val: IR_Expr
 			if len(e.args) > 0 {
-				resume_val = el_replace_resume(e.args[0], resume_id, resume_param, ev_param, is_shallow, env)
+				resume_val = el_replace_resume(e.args[0], resume_id, resume_param, ev_param, env)
 			} else {
 				lit := new(IR_Literal_Int)
 				lit^ = IR_Literal_Int{value = 0, type = base.IR_Type{wasm_type = .Void, type_id = base.Type_Var_ID(0)}, span = e.span}
@@ -235,7 +233,7 @@ el_replace_resume :: proc(expr: IR_Expr, resume_id: base.Intern_ID, resume_param
 			}
 
 			ev_expr: IR_Expr = nil
-			if !is_shallow && ev_param != base.NO_NAME {
+			if ev_param != base.NO_NAME {
 				ev_var := new(IR_Var)
 				ev_var^ = IR_Var{name = ev_param, type = base.IR_Type{wasm_type = .I32, type_id = base.Type_Var_ID(0)}, span = e.span}
 				ev_expr = IR_Expr(ev_var)
@@ -253,7 +251,7 @@ el_replace_resume :: proc(expr: IR_Expr, resume_id: base.Intern_ID, resume_param
 		}
 		new_args := make([dynamic]IR_Expr, 0, len(e.args))
 		for arg in e.args {
-			append(&new_args, el_replace_resume(arg, resume_id, resume_param, ev_param, is_shallow, env))
+			append(&new_args, el_replace_resume(arg, resume_id, resume_param, ev_param, env))
 		}
 		new_call := new(IR_Call)
 		new_call^ = IR_Call{callee = e.callee, args = new_args, type = e.type, span = e.span}
@@ -264,8 +262,8 @@ el_replace_resume :: proc(expr: IR_Expr, resume_id: base.Intern_ID, resume_param
 		new_let^ = IR_Let{
 			binding = e.binding,
 			type = e.type,
-			value = el_replace_resume(e.value, resume_id, resume_param, ev_param, is_shallow, env),
-			body = el_replace_resume(e.body, resume_id, resume_param, ev_param, is_shallow, env),
+			value = el_replace_resume(e.value, resume_id, resume_param, ev_param, env),
+			body = el_replace_resume(e.body, resume_id, resume_param, ev_param, env),
 			span = e.span,
 		}
 		return IR_Expr(new_let)
@@ -273,11 +271,11 @@ el_replace_resume :: proc(expr: IR_Expr, resume_id: base.Intern_ID, resume_param
 	case ^IR_Closure_Call:
 		new_args := make([dynamic]IR_Expr, 0, len(e.args))
 		for arg in e.args {
-			append(&new_args, el_replace_resume(arg, resume_id, resume_param, ev_param, is_shallow, env))
+			append(&new_args, el_replace_resume(arg, resume_id, resume_param, ev_param, env))
 		}
 		new_cc := new(IR_Closure_Call)
 		new_cc^ = IR_Closure_Call{
-			callee = el_replace_resume(e.callee, resume_id, resume_param, ev_param, is_shallow, env),
+			callee = el_replace_resume(e.callee, resume_id, resume_param, ev_param, env),
 			args = new_args,
 			type = e.type,
 			span = e.span,
@@ -287,9 +285,9 @@ el_replace_resume :: proc(expr: IR_Expr, resume_id: base.Intern_ID, resume_param
 	case ^IR_If:
 		new_if := new(IR_If)
 		new_if^ = IR_If{
-			condition = el_replace_resume(e.condition, resume_id, resume_param, ev_param, is_shallow, env),
-			then_branch = el_replace_resume(e.then_branch, resume_id, resume_param, ev_param, is_shallow, env),
-			else_branch = el_replace_resume(e.else_branch, resume_id, resume_param, ev_param, is_shallow, env),
+			condition = el_replace_resume(e.condition, resume_id, resume_param, ev_param, env),
+			then_branch = el_replace_resume(e.then_branch, resume_id, resume_param, ev_param, env),
+			else_branch = el_replace_resume(e.else_branch, resume_id, resume_param, ev_param, env),
 			type = e.type,
 			span = e.span,
 		}
@@ -298,11 +296,11 @@ el_replace_resume :: proc(expr: IR_Expr, resume_id: base.Intern_ID, resume_param
 	case ^IR_Match:
 		new_arms := make([dynamic]IR_Match_Arm, 0, len(e.arms))
 		for arm in e.arms {
-			append(&new_arms, IR_Match_Arm{pattern = arm.pattern, body = el_replace_resume(arm.body, resume_id, resume_param, ev_param, is_shallow, env)})
+			append(&new_arms, IR_Match_Arm{pattern = arm.pattern, body = el_replace_resume(arm.body, resume_id, resume_param, ev_param, env)})
 		}
 		new_match := new(IR_Match)
 		new_match^ = IR_Match{
-			scrutinee = el_replace_resume(e.scrutinee, resume_id, resume_param, ev_param, is_shallow, env),
+			scrutinee = el_replace_resume(e.scrutinee, resume_id, resume_param, ev_param, env),
 			arms = new_arms,
 			type = e.type,
 			span = e.span,
@@ -312,7 +310,7 @@ el_replace_resume :: proc(expr: IR_Expr, resume_id: base.Intern_ID, resume_param
 	case ^IR_Block:
 		new_stmts := make([dynamic]IR_Expr, 0, len(e.statements))
 		for stmt in e.statements {
-			append(&new_stmts, el_replace_resume(stmt, resume_id, resume_param, ev_param, is_shallow, env))
+			append(&new_stmts, el_replace_resume(stmt, resume_id, resume_param, ev_param, env))
 		}
 		new_block := new(IR_Block)
 		new_block^ = IR_Block{statements = new_stmts, type = e.type, span = e.span}
@@ -322,8 +320,8 @@ el_replace_resume :: proc(expr: IR_Expr, resume_id: base.Intern_ID, resume_param
 		new_binop := new(IR_BinOp)
 		new_binop^ = IR_BinOp{
 			op = e.op,
-			left = el_replace_resume(e.left, resume_id, resume_param, ev_param, is_shallow, env),
-			right = el_replace_resume(e.right, resume_id, resume_param, ev_param, is_shallow, env),
+			left = el_replace_resume(e.left, resume_id, resume_param, ev_param, env),
+			right = el_replace_resume(e.right, resume_id, resume_param, ev_param, env),
 			type = e.type,
 			span = e.span,
 		}
@@ -331,13 +329,13 @@ el_replace_resume :: proc(expr: IR_Expr, resume_id: base.Intern_ID, resume_param
 
 	case ^IR_Return:
 		new_ret := new(IR_Return)
-		new_ret^ = IR_Return{value = el_replace_resume(e.value, resume_id, resume_param, ev_param, is_shallow, env), span = e.span}
+		new_ret^ = IR_Return{value = el_replace_resume(e.value, resume_id, resume_param, ev_param, env), span = e.span}
 		return IR_Expr(new_ret)
 
 	case ^IR_Construct_Tag:
 		new_payload := make([dynamic]IR_Expr, 0, len(e.payload))
 		for p in e.payload {
-			append(&new_payload, el_replace_resume(p, resume_id, resume_param, ev_param, is_shallow, env))
+			append(&new_payload, el_replace_resume(p, resume_id, resume_param, ev_param, env))
 		}
 		new_tag := new(IR_Construct_Tag)
 		new_tag^ = IR_Construct_Tag{tag_name = e.tag_name, tag_index = e.tag_index, payload = new_payload, type = e.type, span = e.span}
@@ -346,12 +344,12 @@ el_replace_resume :: proc(expr: IR_Expr, resume_id: base.Intern_ID, resume_param
 	case ^IR_Construct_Record:
 		new_fields := make([dynamic]IR_Record_Field, 0, len(e.fields))
 		for f in e.fields {
-			append(&new_fields, IR_Record_Field{name = f.name, value = el_replace_resume(f.value, resume_id, resume_param, ev_param, is_shallow, env)})
+			append(&new_fields, IR_Record_Field{name = f.name, value = el_replace_resume(f.value, resume_id, resume_param, ev_param, env)})
 		}
 		new_rec := new(IR_Construct_Record)
 		new_rec^ = IR_Construct_Record{
 			fields = new_fields,
-			rest = el_replace_resume(e.rest, resume_id, resume_param, ev_param, is_shallow, env),
+			rest = el_replace_resume(e.rest, resume_id, resume_param, ev_param, env),
 			type = e.type,
 			span = e.span,
 		}
@@ -360,7 +358,7 @@ el_replace_resume :: proc(expr: IR_Expr, resume_id: base.Intern_ID, resume_param
 	case ^IR_Field_Access:
 		new_fa := new(IR_Field_Access)
 		new_fa^ = IR_Field_Access{
-			record = el_replace_resume(e.record, resume_id, resume_param, ev_param, is_shallow, env),
+			record = el_replace_resume(e.record, resume_id, resume_param, ev_param, env),
 			field = e.field,
 			field_index = e.field_index,
 			type = e.type,
@@ -374,14 +372,13 @@ el_replace_resume :: proc(expr: IR_Expr, resume_id: base.Intern_ID, resume_param
 			append(&new_arms, IR_Handler_Arm{
 				op = arm.op,
 				params = arm.params,
-				body = el_replace_resume(arm.body, resume_id, resume_param, ev_param, is_shallow, env),
+				body = el_replace_resume(arm.body, resume_id, resume_param, ev_param, env),
 			})
 		}
 		new_handle := new(IR_Handle)
 		new_handle^ = IR_Handle{
 			effect = e.effect,
-			is_shallow = e.is_shallow,
-			body = el_replace_resume(e.body, resume_id, resume_param, ev_param, is_shallow, env),
+			body = el_replace_resume(e.body, resume_id, resume_param, ev_param, env),
 			arms = new_arms,
 			type = e.type,
 			span = e.span,
@@ -391,7 +388,7 @@ el_replace_resume :: proc(expr: IR_Expr, resume_id: base.Intern_ID, resume_param
 	case ^IR_Perform:
 		new_args := make([dynamic]IR_Expr, 0, len(e.args))
 		for arg in e.args {
-			append(&new_args, el_replace_resume(arg, resume_id, resume_param, ev_param, is_shallow, env))
+			append(&new_args, el_replace_resume(arg, resume_id, resume_param, ev_param, env))
 		}
 		new_perf := new(IR_Perform)
 		new_perf^ = IR_Perform{effect = e.effect, op = e.op, args = new_args, type = e.type, span = e.span}
@@ -400,11 +397,11 @@ el_replace_resume :: proc(expr: IR_Expr, resume_id: base.Intern_ID, resume_param
 	case ^IR_Method_Call:
 		new_args := make([dynamic]IR_Expr, 0, len(e.args))
 		for arg in e.args {
-			append(&new_args, el_replace_resume(arg, resume_id, resume_param, ev_param, is_shallow, env))
+			append(&new_args, el_replace_resume(arg, resume_id, resume_param, ev_param, env))
 		}
 		new_mc := new(IR_Method_Call)
 		new_mc^ = IR_Method_Call{
-			receiver = el_replace_resume(e.receiver, resume_id, resume_param, ev_param, is_shallow, env),
+			receiver = el_replace_resume(e.receiver, resume_id, resume_param, ev_param, env),
 			method = e.method,
 			args = new_args,
 			type = e.type,
@@ -417,8 +414,8 @@ el_replace_resume :: proc(expr: IR_Expr, resume_id: base.Intern_ID, resume_param
 		new_closure^ = IR_Closure{
 			fn_name = e.fn_name,
 			params = e.params,
-			env = el_replace_resume(e.env, resume_id, resume_param, ev_param, is_shallow, env),
-			body = el_replace_resume(e.body, resume_id, resume_param, ev_param, is_shallow, env),
+			env = el_replace_resume(e.env, resume_id, resume_param, ev_param, env),
+			body = el_replace_resume(e.body, resume_id, resume_param, ev_param, env),
 			type = e.type,
 			return_type = e.return_type,
 			span = e.span,
@@ -428,7 +425,7 @@ el_replace_resume :: proc(expr: IR_Expr, resume_id: base.Intern_ID, resume_param
 	case ^IR_Tail_Call:
 		new_args := make([dynamic]IR_Expr, 0, len(e.args))
 		for arg in e.args {
-			append(&new_args, el_replace_resume(arg, resume_id, resume_param, ev_param, is_shallow, env))
+			append(&new_args, el_replace_resume(arg, resume_id, resume_param, ev_param, env))
 		}
 		new_tc := new(IR_Tail_Call)
 		new_tc^ = IR_Tail_Call{callee = e.callee, args = new_args, span = e.span}
@@ -462,12 +459,12 @@ el_replace_resume :: proc(expr: IR_Expr, resume_id: base.Intern_ID, resume_param
 		return expr
 	case ^IR_Crash:
 		new_crash := new(IR_Crash)
-		new_crash^ = IR_Crash{message = el_replace_resume(e.message, resume_id, resume_param, ev_param, is_shallow, env), span = e.span}
+		new_crash^ = IR_Crash{message = el_replace_resume(e.message, resume_id, resume_param, ev_param, env), span = e.span}
 		return IR_Expr(new_crash)
 	case ^IR_I32_Load:
 		new_load := new(IR_I32_Load)
 		new_load^ = IR_I32_Load{
-			base = el_replace_resume(e.base, resume_id, resume_param, ev_param, is_shallow, env),
+			base = el_replace_resume(e.base, resume_id, resume_param, ev_param, env),
 			offset = e.offset,
 			span = e.span,
 		}
@@ -475,9 +472,9 @@ el_replace_resume :: proc(expr: IR_Expr, resume_id: base.Intern_ID, resume_param
 	case ^IR_I32_Store:
 		new_store := new(IR_I32_Store)
 		new_store^ = IR_I32_Store{
-			base = el_replace_resume(e.base, resume_id, resume_param, ev_param, is_shallow, env),
+			base = el_replace_resume(e.base, resume_id, resume_param, ev_param, env),
 			offset = e.offset,
-			value = el_replace_resume(e.value, resume_id, resume_param, ev_param, is_shallow, env),
+			value = el_replace_resume(e.value, resume_id, resume_param, ev_param, env),
 			span = e.span,
 		}
 		return IR_Expr(new_store)
@@ -485,7 +482,7 @@ el_replace_resume :: proc(expr: IR_Expr, resume_id: base.Intern_ID, resume_param
 		new_assign := new(IR_Assign)
 		new_assign^ = IR_Assign{
 			binding = e.binding,
-			value   = el_replace_resume(e.value, resume_id, resume_param, ev_param, is_shallow, env),
+			value   = el_replace_resume(e.value, resume_id, resume_param, ev_param, env),
 			type    = e.type,
 			span    = e.span,
 		}
@@ -494,8 +491,8 @@ el_replace_resume :: proc(expr: IR_Expr, resume_id: base.Intern_ID, resume_param
 		new_loop := new(IR_Loop)
 		new_loop^ = IR_Loop{
 			var      = e.var,
-			iterable = el_replace_resume(e.iterable, resume_id, resume_param, ev_param, is_shallow, env),
-			body     = el_replace_resume(e.body, resume_id, resume_param, ev_param, is_shallow, env),
+			iterable = el_replace_resume(e.iterable, resume_id, resume_param, ev_param, env),
+			body     = el_replace_resume(e.body, resume_id, resume_param, ev_param, env),
 			type     = e.type,
 			span     = e.span,
 		}
@@ -591,14 +588,6 @@ el_lower_let_perform :: proc(let_expr: ^IR_Let, perform: ^IR_Perform, env: ^Effe
 		return IR_Expr(lit)
 	}
 
-	is_shallow := false
-	for i := len(env.evidence_stack) - 1; i >= 0; i -= 1 {
-		if env.evidence_stack[i].effect == perform.effect && !env.evidence_stack[i].inactive {
-			is_shallow = env.evidence_stack[i].is_shallow
-			break
-		}
-	}
-
 	arm_index := el_find_arm_index(perform.effect, perform.op, env)
 
 	cont_fn_name := base.Canonical_Name{
@@ -609,30 +598,10 @@ el_lower_let_perform :: proc(let_expr: ^IR_Let, perform: ^IR_Perform, env: ^Effe
 	cont_params := make([dynamic]IR_Param, 0, 2)
 	ev_param_for_cont: base.Intern_ID = base.NO_NAME
 	append(&cont_params, IR_Param{name = let_expr.binding, type = let_expr.type})
-	if !is_shallow {
-		ev_param_for_cont = base.fresh_id(&env.fresh_state, "_ev")
-		append(&cont_params, IR_Param{name = ev_param_for_cont, type = base.IR_Type{wasm_type = .I32, type_id = base.Type_Var_ID(0)}})
-	}
+	ev_param_for_cont = base.fresh_id(&env.fresh_state, "_ev")
+	append(&cont_params, IR_Param{name = ev_param_for_cont, type = base.IR_Type{wasm_type = .I32, type_id = base.Type_Var_ID(0)}})
 
-	cont_fn_body: IR_Expr
-	if is_shallow {
-		ev_idx := -1
-		for i := len(env.evidence_stack) - 1; i >= 0; i -= 1 {
-			if env.evidence_stack[i].effect == perform.effect && !env.evidence_stack[i].inactive {
-				ev_idx = i
-				break
-			}
-		}
-		if ev_idx >= 0 {
-			env.evidence_stack[ev_idx].inactive = true
-			cont_fn_body = el_lower_expr(let_expr.body, env)
-			env.evidence_stack[ev_idx].inactive = false
-		} else {
-			cont_fn_body = el_lower_expr(let_expr.body, env)
-		}
-	} else {
-		cont_fn_body = el_lower_expr(let_expr.body, env)
-	}
+	cont_fn_body := el_lower_expr(let_expr.body, env)
 
 	cont_closure := new(IR_Closure)
 	cont_closure^ = IR_Closure{
@@ -697,7 +666,6 @@ el_lower_expr :: proc(expr: IR_Expr, env: ^Effect_Lower_Env) -> IR_Expr {
 			new_handle := new(IR_Handle)
 			new_handle^ = IR_Handle{
 				effect = e.effect,
-				is_shallow = e.is_shallow,
 				body = el_lower_expr(e.body, env),
 				arms = e.arms, // arms kept for scope_id tracking but not transformed
 				type = e.type,
@@ -754,12 +722,12 @@ el_lower_expr :: proc(expr: IR_Expr, env: ^Effect_Lower_Env) -> IR_Expr {
 			append(&params, IR_Param{name = ev_param, type = base.IR_Type{wasm_type = .I32, type_id = base.Type_Var_ID(0)}})
 
 			lowered_body := el_lower_expr(arm.body, env)
-			transformed_body := el_replace_resume(lowered_body, arm.params[0], resume_param, ev_param, e.is_shallow, env)
+			transformed_body := el_replace_resume(lowered_body, arm.params[0], resume_param, ev_param, env)
 
 			// Wrap non-resume body in implicit resume call to the continuation
 			if _, is_resume := transformed_body.(^IR_Resume); !is_resume {
 				ev_expr: IR_Expr = nil
-				if !e.is_shallow && ev_param != base.NO_NAME {
+				if ev_param != base.NO_NAME {
 					ev_var2 := new(IR_Var)
 					ev_var2^ = IR_Var{name = ev_param, type = base.IR_Type{wasm_type = .I32, type_id = base.Type_Var_ID(0)}, span = e.span}
 					ev_expr = IR_Expr(ev_var2)
@@ -794,7 +762,6 @@ el_lower_expr :: proc(expr: IR_Expr, env: ^Effect_Lower_Env) -> IR_Expr {
 		append(&env.evidence_stack, Effect_Evidence{
 			effect = e.effect,
 			ev_var = ev_var,
-			is_shallow = e.is_shallow,
 			arm_indices = arm_indices,
 			handle_type = e.type,
 		})
@@ -907,14 +874,6 @@ el_lower_expr :: proc(expr: IR_Expr, env: ^Effect_Lower_Env) -> IR_Expr {
 			lit^ = IR_Literal_Int{value = 0, type = e.type, span = e.span}
 			return IR_Expr(lit)
 		}
-		is_shallow := false
-		for i := len(env.evidence_stack) - 1; i >= 0; i -= 1 {
-			if env.evidence_stack[i].effect == e.effect && !env.evidence_stack[i].inactive {
-				is_shallow = env.evidence_stack[i].is_shallow
-				break
-			}
-		}
-
 		arm_index := el_find_arm_index(e.effect, e.op, env)
 
 		cont_fn_name := base.Canonical_Name{
@@ -932,10 +891,8 @@ el_lower_expr :: proc(expr: IR_Expr, env: ^Effect_Lower_Env) -> IR_Expr {
 
 		cont_params := make([dynamic]IR_Param, 0, 2)
 		append(&cont_params, IR_Param{name = cont_result, type = perf_type})
-		if !is_shallow {
-			ev_param_for_cont := base.fresh_id(&env.fresh_state, "_ev")
-			append(&cont_params, IR_Param{name = ev_param_for_cont, type = base.IR_Type{wasm_type = .I32, type_id = base.Type_Var_ID(0)}})
-		}
+		ev_param_for_cont := base.fresh_id(&env.fresh_state, "_ev")
+		append(&cont_params, IR_Param{name = ev_param_for_cont, type = base.IR_Type{wasm_type = .I32, type_id = base.Type_Var_ID(0)}})
 
 		result_var := new(IR_Var)
 		result_var^ = IR_Var{name = cont_result, type = perf_type, span = e.span}

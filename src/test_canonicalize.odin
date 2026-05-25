@@ -86,12 +86,11 @@ test_canonicalize_record_sorted :: proc(t: ^testing.T) {
 
 @(test)
 test_canonicalize_import :: proc(t: ^testing.T) {
-	file, ctx := canon_file("import List exposing [map]")
+	file, ctx := canon_file("import List")
 	defer build.context_destroy(ctx)
 	defer free(ctx)
 
 	testing.expect(t, len(file.imports) == 1)
-	testing.expect(t, len(file.imports[0].exposing) == 1)
 }
 
 @(test)
@@ -178,7 +177,6 @@ test_canonicalize_handle :: proc(t: ^testing.T) {
 		testing.expect(t, decl.is_effectful == true)
 		#partial switch expr in decl.body {
 		case ^semantics.CExpr_Handle:
-			testing.expect(t, expr.is_shallow == false)
 			testing.expect(t, len(expr.arms) == 1)
 		case:
 			testing.expect(t, false)
@@ -198,7 +196,6 @@ test_canonicalize_derive_eq :: proc(t: ^testing.T) {
 	#partial switch decl in file.decls[0] {
 	case ^semantics.CDecl_Newtype:
 		testing.expect(t, len(decl.derive_targets) == 1)
-		testing.expect(t, len(decl.trait_conforms) == 1)
 	case:
 		testing.expect(t, false)
 	}
@@ -227,7 +224,6 @@ test_canonicalize_derive_ord :: proc(t: ^testing.T) {
 	#partial switch decl in file.decls[0] {
 	case ^semantics.CDecl_Newtype:
 		testing.expect(t, len(decl.derive_targets) == 1)
-		testing.expect(t, len(decl.trait_conforms) == 2)
 	case:
 		testing.expect(t, false)
 	}

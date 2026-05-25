@@ -73,24 +73,16 @@ Decl_Newtype :: struct {
 	is_pub:         bool,
 	pub_variants:   bool,
 	type_params:    [dynamic]base.Intern_ID,
-	trait_conforms: [dynamic]base.Intern_ID,
 	inner_type:     ^Type,
 	derive_targets: [dynamic]base.Intern_ID,
 	span:           base.Source_Span,
 }
 
 Decl_Import :: struct {
-	module:            string,
-	exposing:          [dynamic]base.Intern_ID,
-	nominal_exposing:  [dynamic]Import_Nominal_Expose,
-	alias:             base.Intern_ID,
-	is_unsafe:         bool,
-	span:              base.Source_Span,
-}
-
-Import_Nominal_Expose :: struct {
-	type_name: base.Intern_ID,
-	variants:  [dynamic]base.Intern_ID,
+	module:   string,
+	exposing: [dynamic]base.Intern_ID,
+	alias:    base.Intern_ID,
+	span:     base.Source_Span,
 }
 
 Decl_Test :: struct {
@@ -371,10 +363,8 @@ Expr_Crash :: struct {
 }
 
 Expr_Interpolated_String :: struct {
-	parts:        [dynamic]String_Part,
-	is_raw:       bool,
-	is_multiline: bool,
-	span:         base.Source_Span,
+	parts: [dynamic]String_Part,
+	span:  base.Source_Span,
 }
 
 String_Part :: union {
@@ -388,11 +378,10 @@ String_Segment :: struct {
 }
 
 Expr_Handle :: struct {
-	effect:     base.Intern_ID,
-	is_shallow: bool,
-	body:       Expr,
-	arms:       [dynamic]Handler_Arm,
-	span:       base.Source_Span,
+	effect: base.Intern_ID,
+	body:   Expr,
+	arms:   [dynamic]Handler_Arm,
+	span:   base.Source_Span,
 }
 
 Expr_Dot_Lambda :: struct {

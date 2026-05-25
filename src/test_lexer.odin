@@ -137,7 +137,7 @@ test_lexer_comment :: proc(t: ^testing.T) {
 	build.context_init(&ctx)
 	defer build.context_destroy(&ctx)
 
-	tokens := lex_all("42 -- this is a comment\n43", &ctx)
+	tokens := lex_all("42 // this is a comment\n43", &ctx)
 	defer delete(tokens)
 
 	testing.expect(t, len(tokens) == 3)
@@ -169,27 +169,6 @@ test_lexer_handle :: proc(t: ^testing.T) {
 
 	testing.expect(t, len(tokens) == 9)
 	testing.expect(t, tokens[0].kind == .Kw_Handle)
-	testing.expect(t, tokens[1].kind == .Upper_Id)
-	testing.expect(t, tokens[2].kind == .Kw_In)
-	testing.expect(t, tokens[3].kind == .LBrace)
-	testing.expect(t, tokens[4].kind == .RBrace)
-	testing.expect(t, tokens[5].kind == .Kw_With)
-	testing.expect(t, tokens[6].kind == .LBrace)
-	testing.expect(t, tokens[7].kind == .RBrace)
-	testing.expect(t, tokens[8].kind == .Eof)
-}
-
-@(test)
-test_lexer_intercept :: proc(t: ^testing.T) {
-	ctx: build.Compilation_Context
-	build.context_init(&ctx)
-	defer build.context_destroy(&ctx)
-
-	tokens := lex_all("intercept Async in { } with { }", &ctx)
-	defer delete(tokens)
-
-	testing.expect(t, len(tokens) == 9)
-	testing.expect(t, tokens[0].kind == .Kw_Intercept)
 	testing.expect(t, tokens[1].kind == .Upper_Id)
 	testing.expect(t, tokens[2].kind == .Kw_In)
 	testing.expect(t, tokens[3].kind == .LBrace)
@@ -322,67 +301,4 @@ test_dollar_without_brace :: proc(t: ^testing.T) {
 	testing.expect(t, tokens[0].kind == .String_Literal)
 }
 
-@(test)
-test_raw_string :: proc(t: ^testing.T) {
-	ctx: build.Compilation_Context
-	build.context_init(&ctx)
-	defer build.context_destroy(&ctx)
 
-	tokens := lex_all("r\"C:\\Users\"", &ctx)
-	defer delete(tokens)
-
-	testing.expect(t, len(tokens) == 2)
-	testing.expect(t, tokens[0].kind == .Raw_String_Literal)
-}
-
-@(test)
-test_raw_string_with_interpolation :: proc(t: ^testing.T) {
-	ctx: build.Compilation_Context
-	build.context_init(&ctx)
-	defer build.context_destroy(&ctx)
-
-	tokens := lex_all("r\"C:\\${dir}\"", &ctx)
-	defer delete(tokens)
-
-	testing.expect(t, len(tokens) == 2)
-	testing.expect(t, tokens[0].kind == .Raw_String_Literal)
-}
-
-@(test)
-test_raw_string_escaped_dollar :: proc(t: ^testing.T) {
-	ctx: build.Compilation_Context
-	build.context_init(&ctx)
-	defer build.context_destroy(&ctx)
-
-	tokens := lex_all("r\"Var: \\${HOME}\"", &ctx)
-	defer delete(tokens)
-
-	testing.expect(t, len(tokens) == 2)
-	testing.expect(t, tokens[0].kind == .Raw_String_Literal)
-}
-
-@(test)
-test_multiline_string :: proc(t: ^testing.T) {
-	ctx: build.Compilation_Context
-	build.context_init(&ctx)
-	defer build.context_destroy(&ctx)
-
-	tokens := lex_all("\"\"\"Line 1\\nLine 2\"\"\"", &ctx)
-	defer delete(tokens)
-
-	testing.expect(t, len(tokens) == 2)
-	testing.expect(t, tokens[0].kind == .Multiline_String_Literal)
-}
-
-@(test)
-test_multiline_string_with_interpolation :: proc(t: ^testing.T) {
-	ctx: build.Compilation_Context
-	build.context_init(&ctx)
-	defer build.context_destroy(&ctx)
-
-	tokens := lex_all("\"\"\"Hello ${name}!\"\"\"", &ctx)
-	defer delete(tokens)
-
-	testing.expect(t, len(tokens) == 2)
-	testing.expect(t, tokens[0].kind == .Multiline_String_Literal)
-}

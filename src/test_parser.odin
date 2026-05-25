@@ -177,24 +177,6 @@ test_parser_handle :: proc(t: ^testing.T) {
 	testing.expect(t, !diagnostics.diag_collector_has_errors(&ctx.collector))
 	#partial switch e in expr {
 	case ^frontend.Expr_Handle:
-		testing.expect(t, e.is_shallow == false)
-		testing.expect(t, len(e.arms) == 1)
-	case:
-		testing.expect(t, false)
-	}
-}
-
-@(test)
-test_parser_intercept :: proc(t: ^testing.T) {
-	ctx: build.Compilation_Context
-	build.context_init(&ctx)
-	defer build.context_destroy(&ctx)
-
-	expr := parse_expr("intercept IO in { 42 } with { .println!(resume) => resume({}) }", &ctx)
-	testing.expect(t, !diagnostics.diag_collector_has_errors(&ctx.collector))
-	#partial switch e in expr {
-	case ^frontend.Expr_Handle:
-		testing.expect(t, e.is_shallow == true)
 		testing.expect(t, len(e.arms) == 1)
 	case:
 		testing.expect(t, false)
@@ -291,7 +273,6 @@ test_parser_newtype_simple :: proc(t: ^testing.T) {
 	case ^frontend.Decl_Newtype:
 		testing.expect(t, !d.is_pub)
 		testing.expect(t, len(d.type_params) == 0)
-		testing.expect(t, len(d.trait_conforms) == 0)
 		testing.expect(t, d.inner_type != nil)
 	case:
 		testing.expect(t, false)
@@ -310,22 +291,6 @@ test_parser_newtype_parameterized :: proc(t: ^testing.T) {
 	case ^frontend.Decl_Newtype:
 		testing.expect(t, len(d.type_params) == 2)
 		testing.expect(t, d.inner_type != nil)
-	case:
-		testing.expect(t, false)
-	}
-}
-
-@(test)
-test_parser_newtype_with_trait :: proc(t: ^testing.T) {
-	ctx: build.Compilation_Context
-	build.context_init(&ctx)
-	defer build.context_destroy(&ctx)
-
-	decl := parse_decl("@UserId is Hash : U64", &ctx)
-	testing.expect(t, !diagnostics.diag_collector_has_errors(&ctx.collector))
-	#partial switch d in decl {
-	case ^frontend.Decl_Newtype:
-		testing.expect(t, len(d.trait_conforms) == 1)
 	case:
 		testing.expect(t, false)
 	}
@@ -390,8 +355,6 @@ test_parse_simple_interpolation :: proc(t: ^testing.T) {
 	#partial switch e in expr {
 	case ^frontend.Expr_Interpolated_String:
 		testing.expect(t, len(e.parts) == 3)
-		testing.expect(t, !e.is_raw)
-		testing.expect(t, !e.is_multiline)
 		#partial switch p0 in e.parts[0] {
 		case ^frontend.String_Segment:
 			testing.expect(t, p0.text == "Hello ")
@@ -431,71 +394,11 @@ test_parse_expression_interpolation :: proc(t: ^testing.T) {
 	#partial switch e in expr {
 	case ^frontend.Expr_Interpolated_String:
 		testing.expect(t, len(e.parts) == 1)
-		testing.expect(t, !e.is_raw)
-		testing.expect(t, !e.is_multiline)
 		#partial switch p0 in e.parts[0] {
 		case frontend.Expr:
 			#partial switch inner in p0 {
 			case ^frontend.Expr_BinOp:
 				testing.expect(t, inner.op == .Plus)
-			case:
-				testing.expect(t, false)
-			}
-		case:
-			testing.expect(t, false)
-		}
-	case:
-		testing.expect(t, false)
-	}
-}
-
-@(test)
-test_parse_raw_string_interpolation :: proc(t: ^testing.T) {
-	ctx: build.Compilation_Context
-	build.context_init(&ctx)
-	defer build.context_destroy(&ctx)
-
-	expr := parse_expr("r\"Hello ${name}!\"", &ctx)
-	testing.expect(t, !diagnostics.diag_collector_has_errors(&ctx.collector))
-	#partial switch e in expr {
-	case ^frontend.Expr_Interpolated_String:
-		testing.expect(t, e.is_raw)
-		testing.expect(t, !e.is_multiline)
-		testing.expect(t, len(e.parts) == 3)
-		#partial switch p1 in e.parts[1] {
-		case frontend.Expr:
-			#partial switch inner in p1 {
-			case ^frontend.Expr_Identifier:
-				// name — success
-			case:
-				testing.expect(t, false)
-			}
-		case:
-			testing.expect(t, false)
-		}
-	case:
-		testing.expect(t, false)
-	}
-}
-
-@(test)
-test_parse_multiline_string_interpolation :: proc(t: ^testing.T) {
-	ctx: build.Compilation_Context
-	build.context_init(&ctx)
-	defer build.context_destroy(&ctx)
-
-	expr := parse_expr("\"\"\"Hello ${name}!\"\"\"", &ctx)
-	testing.expect(t, !diagnostics.diag_collector_has_errors(&ctx.collector))
-	#partial switch e in expr {
-	case ^frontend.Expr_Interpolated_String:
-		testing.expect(t, !e.is_raw)
-		testing.expect(t, e.is_multiline)
-		testing.expect(t, len(e.parts) == 3)
-		#partial switch p1 in e.parts[1] {
-		case frontend.Expr:
-			#partial switch inner in p1 {
-			case ^frontend.Expr_Identifier:
-				// name — success
 			case:
 				testing.expect(t, false)
 			}

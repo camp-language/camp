@@ -370,7 +370,6 @@ test_manifest_round_trip :: proc(t: ^testing.T) {
 	append(&imp.exposing, "just")
 	append(&imp.exposing, "nothing")
 	imp.alias = ""
-	imp.is_unsafe = false
 	append(&manifest.imports, imp)
 
 	exp: build.Manifest_Export

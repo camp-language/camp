@@ -775,21 +775,6 @@ test_newtype_opaque_inner_cross_module :: proc(t: ^testing.T) {
 }
 
 @(test)
-test_trait_method_signature_match :: proc(t: ^testing.T) {
-	store, ctx, _ := setup_for_typecheck(
-		"Eq : { eq: (Self) -> Bool }\n@UserId is Eq : U64\nUserId_eq = |x| True", { with_prelude = true })
-	defer free(ctx)
-	defer free(store)
-	defer build.context_destroy(ctx)
-	defer semantics.type_store_destroy(store)
-
-	testing.expect(t, !diagnostics.diag_collector_has_errors(&ctx.collector))
-	eq_name := base.intern(&ctx.interner, "Eq")
-	_, found := store.trait_registry[eq_name]
-	testing.expect(t, found)
-}
-
-@(test)
 test_trait_method_signature_mismatch :: proc(t: ^testing.T) {
 	store, ctx, _ := setup_for_typecheck(
 		"Eq : { eq: (Self) -> Bool }\n@UserId is Eq : U64\nUserId_eq = |x| 42", { with_prelude = true })
@@ -860,54 +845,6 @@ test_trait_missing_method :: proc(t: ^testing.T) {
 	testing.expect(t, diagnostics.diag_collector_has_errors(&ctx.collector))
 }
 
-@(test)
-test_derive_eq_generates_impl :: proc(t: ^testing.T) {
-	store, ctx, _ := setup_for_typecheck(
-		"Eq : { eq: (Self) -> Bool }\n@UserId is Eq : U64\nUserId_eq = |x| True", { with_prelude = true })
-	defer free(ctx)
-	defer free(store)
-	defer build.context_destroy(ctx)
-	defer semantics.type_store_destroy(store)
-
-	testing.expect(t, !diagnostics.diag_collector_has_errors(&ctx.collector))
-	eq_name := base.intern(&ctx.interner, "Eq")
-	uid_name := base.intern(&ctx.interner, "UserId")
-	_, found := semantics.find_trait_impl(store, eq_name, uid_name)
-	testing.expect(t, found)
-}
-
-@(test)
-test_derive_clone_generates_impl :: proc(t: ^testing.T) {
-	store, ctx, _ := setup_for_typecheck(
-		"Clone : { clone: (Self) -> Self }\n@UserId is Clone : U64\nUserId_clone = |x| x", { with_prelude = true })
-	defer free(ctx)
-	defer free(store)
-	defer build.context_destroy(ctx)
-	defer semantics.type_store_destroy(store)
-
-	testing.expect(t, !diagnostics.diag_collector_has_errors(&ctx.collector))
-	clone_name := base.intern(&ctx.interner, "Clone")
-	uid_name := base.intern(&ctx.interner, "UserId")
-	_, found := semantics.find_trait_impl(store, clone_name, uid_name)
-	testing.expect(t, found)
-}
-
-@(test)
-test_derive_hash_generates_impl :: proc(t: ^testing.T) {
-	store, ctx, _ := setup_for_typecheck(
-		"Hash : { hash: (Self) -> U64 }\n@UserId is Hash : U64\nUserId_hash = |x| x.inner()", { with_prelude = true })
-	defer free(ctx)
-	defer free(store)
-	defer build.context_destroy(ctx)
-	defer semantics.type_store_destroy(store)
-
-	testing.expect(t, !diagnostics.diag_collector_has_errors(&ctx.collector))
-	hash_name := base.intern(&ctx.interner, "Hash")
-	uid_name := base.intern(&ctx.interner, "UserId")
-	_, found := semantics.find_trait_impl(store, hash_name, uid_name)
-	testing.expect(t, found)
-}
-
 mono_source :: proc(source: string) -> (semantics.TFile, ^build.Compilation_Context, semantics.Type_Store) {
 	ctx: ^build.Compilation_Context = new(build.Compilation_Context)
 	alloc := build.context_init(ctx)
@@ -960,21 +897,6 @@ test_mono_mangle_generic :: proc(t: ^testing.T) {
 	id_name := base.intern(&ctx.interner, "id")
 	id_decl := find_tdecl_by_name(mono_tfile, id_name)
 	testing.expect(t, id_decl != nil)
-}
-
-@(test)
-test_mono_method_dispatch :: proc(t: ^testing.T) {
-	mono_tfile, ctx, store := mono_source(
-		"Eq : { eq: (Self, Self) -> Bool }\n@UserId is Eq : U64\nUserId_eq = |x, y| True\ntest_eq! = UserId.eq(UserId(1), UserId(2))")
-	defer teardown_mono(ctx, &store)
-
-	eq_name := base.intern(&ctx.interner, "Eq")
-	_, found := store.trait_registry[eq_name]
-	testing.expect(t, found)
-
-	uid_name := base.intern(&ctx.interner, "UserId")
-	_, impl_found := semantics.find_trait_impl(&store, eq_name, uid_name)
-	testing.expect(t, impl_found)
 }
 
 @(test)

@@ -301,12 +301,10 @@ TExpr_Crash :: struct {
 }
 
 TExpr_Interpolated_String :: struct {
-	parts:        [dynamic]TExpr_String_Part,
-	is_raw:       bool,
-	is_multiline: bool,
-	type_:        base.IR_Type,
-	eff_:         base.IR_Type,
-	span:         base.Source_Span,
+	parts: [dynamic]TExpr_String_Part,
+	type_: base.IR_Type,
+	eff_:  base.IR_Type,
+	span:  base.Source_Span,
 }
 
 TExpr_String_Part :: union {
@@ -328,13 +326,12 @@ TExpr_String_Expr :: struct {
 }
 
 TExpr_Handle :: struct {
-	effect:     base.Canonical_Name,
-	is_shallow: bool,
-	body:       TExpr,
-	arms:       [dynamic]THandler_Arm,
-	type_:      base.IR_Type,
-	eff_:       base.IR_Type,
-	span:       base.Source_Span,
+	effect: base.Canonical_Name,
+	body:   TExpr,
+	arms:   [dynamic]THandler_Arm,
+	type_:  base.IR_Type,
+	eff_:   base.IR_Type,
+	span:   base.Source_Span,
 }
 
 TExpr_Perform :: struct {
@@ -439,7 +436,6 @@ TDecl_Newtype :: struct {
 	name:           base.Canonical_Name,
 	is_pub:         bool,
 	type_params:    [dynamic]base.Intern_ID,
-	trait_conforms: [dynamic]base.Intern_ID,
 	inner_type:     ^CType,
 	type_:          base.IR_Type,
 	derive_targets: [dynamic]base.Intern_ID,

@@ -1167,23 +1167,6 @@ has_resume_with_ev :: proc(expr: ir.IR_Expr) -> bool {
 	return false
 }
 
-has_resume_without_ev :: proc(expr: ir.IR_Expr) -> bool {
-	if expr == nil do return false
-	#partial switch e in expr {
-	case ^ir.IR_Resume:
-		return e.ev == nil
-	case ^ir.IR_Let:
-		return has_resume_without_ev(e.value) || has_resume_without_ev(e.body)
-	case ^ir.IR_If:
-		return has_resume_without_ev(e.condition) || has_resume_without_ev(e.then_branch) || has_resume_without_ev(e.else_branch)
-	case ^ir.IR_Closure:
-		if has_resume_without_ev(e.env) do return true
-		return has_resume_without_ev(e.body)
-	case:
-	}
-	return false
-}
-
 continuation_has_ev_param :: proc(mod: ir.IR_Module, interner: ^base.Intern_Table) -> bool {
 	for decl in mod.decls {
 		#partial switch d in decl {
@@ -1195,29 +1178,6 @@ continuation_has_ev_param :: proc(mod: ir.IR_Module, interner: ^base.Intern_Tabl
 					if strings.has_prefix(p_str, "_ev") {
 						return true
 					}
-				}
-			}
-		case:
-		}
-	}
-	return false
-}
-
-continuation_lacks_ev_param :: proc(mod: ir.IR_Module, interner: ^base.Intern_Table) -> bool {
-	for decl in mod.decls {
-		#partial switch d in decl {
-		case ^ir.IR_Decl_Fn:
-			name_str := base.intern_get(interner, d.name.name)
-			if strings.has_prefix(name_str, "_kc") {
-				has_ev := false
-				for p in d.params {
-					p_str := base.intern_get(interner, p.name)
-					if strings.has_prefix(p_str, "_ev") {
-						has_ev = true
-					}
-				}
-				if !has_ev {
-					return true
 				}
 			}
 		case:
@@ -1271,34 +1231,6 @@ test_effect_lower_deep_continuation_has_ev_param :: proc(t: ^testing.T) {
 	defer teardown_lower(ctx, &store)
 
 	testing.expect(t, continuation_has_ev_param(result, &ctx.interner))
-}
-
-@(test)
-test_effect_lower_resume_shallow_no_ev :: proc(t: ^testing.T) {
-	result, ctx, store := effect_lower_source(
-		"IO! : { println!: || -> Str }\nmain! = intercept IO in { IO.println(\"hi\") } with { .println!(resume) => resume({}) }")
-	defer teardown_lower(ctx, &store)
-
-	found := false
-	for decl in result.decls {
-		#partial switch d in decl {
-		case ^ir.IR_Decl_Fn:
-			if has_resume_without_ev(d.body) {
-				found = true
-			}
-		case:
-		}
-	}
-	testing.expect(t, found)
-}
-
-@(test)
-test_effect_lower_shallow_continuation_no_ev_param :: proc(t: ^testing.T) {
-	result, ctx, store := effect_lower_source(
-		"IO! : { println!: || -> Str }\nmain! = intercept IO in { IO.println(\"hi\") } with { .println!(resume) => resume({}) }")
-	defer teardown_lower(ctx, &store)
-
-	testing.expect(t, continuation_lacks_ev_param(result, &ctx.interner))
 }
 
 // ── Helper: count ir.IR_Dup nodes ──────────────────────────────────────────────

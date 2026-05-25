@@ -5,8 +5,6 @@ Token_Kind :: enum {
 	Float_Literal,
 	String_Literal,
 	Interpolated_String_Literal,
-	Raw_String_Literal,
-	Multiline_String_Literal,
 
 	Identifier,
 	Upper_Id,
@@ -17,13 +15,10 @@ Token_Kind :: enum {
 	Kw_Is,
 	Kw_Derives,
 	Kw_Handle,
-	Kw_Intercept,
 	Kw_In,
 	Kw_With,
 	Kw_Import,
-	Kw_Exposing,
 	Kw_As,
-	Kw_Unsafe,
 	Kw_For,
 	Kw_And,
 	Kw_Or,
@@ -44,7 +39,6 @@ Token_Kind :: enum {
 	Comma,
 	Dot,
 	Dot_Dot,
-	Bang,
 	Dollar,
 	Hash,
 	At,
@@ -71,6 +65,7 @@ Token_Kind :: enum {
 	LBrace,
 	RBrace,
 
+	Doc_Comment,
 	Newline,
 	Eof,
 }

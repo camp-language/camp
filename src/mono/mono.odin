@@ -176,8 +176,6 @@ specialize_newtype :: proc(item: Mono_Item, env: ^Mono_Env) -> ^semantics.TDecl_
 	decl.name = specialized_name
 	decl.is_pub = original.is_pub
 	decl.type_params = make([dynamic]base.Intern_ID, 0)
-	decl.trait_conforms = make([dynamic]base.Intern_ID, len(original.trait_conforms))
-	copy(decl.trait_conforms[:], original.trait_conforms[:])
 	decl.inner_type = original.inner_type
 	decl.type_ = substitute_ir_type(original.type_, item.type_args, env)
 	decl.derive_targets = make([dynamic]base.Intern_ID, len(original.derive_targets))
@@ -496,8 +494,6 @@ substitute_types_in_expr :: proc(expr: semantics.TExpr, type_args: map[base.Inte
 		}
 		result := new(semantics.TExpr_Interpolated_String)
 		result.parts = tparts
-		result.is_raw = e.is_raw
-		result.is_multiline = e.is_multiline
 		result.type_ = substitute_ir_type(e.type_, type_args, env)
 		result.eff_ = substitute_ir_type(e.eff_, type_args, env)
 		result.span = e.span
@@ -515,7 +511,6 @@ substitute_types_in_expr :: proc(expr: semantics.TExpr, type_args: map[base.Inte
 		}
 		result := new(semantics.TExpr_Handle)
 		result.effect = e.effect
-		result.is_shallow = e.is_shallow
 		result.body = substitute_types_in_expr(e.body, type_args, env)
 		result.arms = arms_t
 		result.type_ = substitute_ir_type(e.type_, type_args, env)

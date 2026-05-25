@@ -301,7 +301,6 @@ cps_transform_expr :: proc(expr: IR_Expr, k_name: base.Intern_ID, env: ^CPS_Env)
 		new_handle := new(IR_Handle)
 		new_handle^ = IR_Handle{
 			effect = e.effect,
-			is_shallow = e.is_shallow,
 			body = cps_transform_expr(e.body, k_name, env),
 			arms = new_arms,
 			type = e.type,

@@ -69,7 +69,6 @@ CDecl_Newtype :: struct {
 	is_pub:         bool,
 	pub_variants:   bool,
 	type_params:    [dynamic]base.Intern_ID,
-	trait_conforms: [dynamic]base.Intern_ID,
 	inner_type:     ^CType,
 	derive_targets: [dynamic]base.Intern_ID,
 	span:           base.Source_Span,
@@ -268,10 +267,8 @@ CExpr_Crash :: struct {
 }
 
 CExpr_Interpolated_String :: struct {
-	parts:        [dynamic]CExpr_String_Part,
-	is_raw:       bool,
-	is_multiline: bool,
-	span:         base.Source_Span,
+	parts: [dynamic]CExpr_String_Part,
+	span:  base.Source_Span,
 }
 
 CExpr_String_Part :: union {
@@ -285,11 +282,10 @@ CExpr_String_Literal :: struct {
 }
 
 CExpr_Handle :: struct {
-	effect:     base.Canonical_Name,
-	is_shallow: bool,
-	body:       CExpr,
-	arms:       [dynamic]CHandler_Arm,
-	span:       base.Source_Span,
+	effect: base.Canonical_Name,
+	body:   CExpr,
+	arms:   [dynamic]CHandler_Arm,
+	span:   base.Source_Span,
 }
 
 CExpr_Perform :: struct {

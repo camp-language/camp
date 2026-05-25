@@ -13,13 +13,10 @@ KEYWORDS :map[string]base.Token_Kind = {
 	"is"        = .Kw_Is,
 	"derives"   = .Kw_Derives,
 	"handle"    = .Kw_Handle,
-	"intercept" = .Kw_Intercept,
 	"in"        = .Kw_In,
 	"with"      = .Kw_With,
 	"import"    = .Kw_Import,
-	"exposing"  = .Kw_Exposing,
 	"as"        = .Kw_As,
-	"unsafe"    = .Kw_Unsafe,
 	"for"       = .Kw_For,
 	"and"       = .Kw_And,
 	"or"        = .Kw_Or,
@@ -65,12 +62,11 @@ lexer_skip_whitespace :: proc(l: ^Lexer) {
 		ch := l.source[l.pos]
 		if ch == ' ' || ch == '\t' || ch == '\r' || ch == '\n' {
 			l.pos += 1
-		} else if ch == '-' && l.pos + 1 < len(l.source) && l.source[l.pos + 1] == '-' {
-			l.pos += 2
-			for l.pos < len(l.source) && l.source[l.pos] != '\n' {
-				l.pos += 1
-			}
+		} else if ch == '/' && l.pos + 2 < len(l.source) && l.source[l.pos + 1] == '/' && l.source[l.pos + 2] == '/' {
+			// /// doc comment — stop so lexer_next can produce a Doc_Comment token
+			break
 		} else if ch == '/' && l.pos + 1 < len(l.source) && l.source[l.pos + 1] == '/' {
+			// // regular comment — skip
 			l.pos += 2
 			for l.pos < len(l.source) && l.source[l.pos] != '\n' {
 				l.pos += 1
@@ -99,14 +95,25 @@ lexer_next :: proc(l: ^Lexer) -> base.Token {
 	start := l.pos
 	ch := l.source[l.pos]
 
+	// /// doc comment
+	if ch == '/' && l.pos + 2 < len(l.source) && l.source[l.pos + 1] == '/' && l.source[l.pos + 2] == '/' {
+		l.pos += 3
+		// Skip optional space after ///
+		if l.pos < len(l.source) && l.source[l.pos] == ' ' {
+			l.pos += 1
+		}
+		content_start := l.pos
+		for l.pos < len(l.source) && l.source[l.pos] != '\n' {
+			l.pos += 1
+		}
+		return lexer_make_token(l, .Doc_Comment, start, l.source[content_start:l.pos])
+	}
+
 	if ch >= '0' && ch <= '9' {
 		return lexer_lex_number(l, start)
 	}
 
 	if ch == '"' {
-		if l.pos + 2 < len(l.source) && l.source[l.pos + 1] == '"' && l.source[l.pos + 2] == '"' {
-			return lexer_lex_multiline_string(l, start)
-		}
 		return lexer_lex_string(l, start)
 	}
 
@@ -129,10 +136,6 @@ lexer_next :: proc(l: ^Lexer) -> base.Token {
 		inner_text := l.source[start+1:l.pos-1]
 		// Return as a regular Identifier token
 		return base.Token{kind = .Identifier, text = inner_text, span = lexer_make_span(l, start)}
-	}
-
-	if ch == 'r' && l.pos + 1 < len(l.source) && l.source[l.pos + 1] == '"' {
-		return lexer_lex_raw_string(l, start)
 	}
 
 	if is_identifier_start(ch) {
@@ -185,7 +188,9 @@ lexer_next :: proc(l: ^Lexer) -> base.Token {
 			l.pos += 1
 			return lexer_make_token(l, .Bang_Eq, start, l.source[start:l.pos])
 		}
-		return lexer_make_token(l, .Bang, start, l.source[start:l.pos])
+		// ! without = is an error — not a valid token
+		diagnostics.collector_add_diag(l.collector, diagnostics.diag_unexpected_char('!', lexer_make_span(l, start)))
+		return lexer_next(l)
 	}
 
 	if ch == '.' {
@@ -296,61 +301,6 @@ lexer_lex_string :: proc(l: ^Lexer, start: int) -> base.Token {
 		kind = .Interpolated_String_Literal
 	}
 	return base.Token{kind = kind, text = text, span = lexer_make_span(l, start)}
-}
-
-lexer_lex_raw_string :: proc(l: ^Lexer, start: int) -> base.Token {
-	l.pos += 1 // skip 'r'
-	l.pos += 1 // skip opening '"'
-
-	has_interpolation := false
-
-	for l.pos < len(l.source) && l.source[l.pos] != '"' {
-		if l.source[l.pos] == '\\' && l.pos + 1 < len(l.source) && l.source[l.pos + 1] == '$' {
-			l.pos += 2 // skip \$ — the $ is escaped from interpolation
-		} else {
-			if l.source[l.pos] == '$' && l.pos + 1 < len(l.source) && l.source[l.pos + 1] == '{' {
-				has_interpolation = true
-			}
-			l.pos += 1
-		}
-	}
-
-	if l.pos < len(l.source) {
-		l.pos += 1
-	} else {
-		diagnostics.collector_add_diag(l.collector, diagnostics.diag_unterminated_string(lexer_make_span(l, start)))
-	}
-
-	text := l.source[start:l.pos]
-	return base.Token{kind = .Raw_String_Literal, text = text, span = lexer_make_span(l, start)}
-}
-
-lexer_lex_multiline_string :: proc(l: ^Lexer, start: int) -> base.Token {
-	l.pos += 3 // skip opening """
-
-	has_interpolation := false
-	found_close := false
-
-	for l.pos < len(l.source) {
-		if l.pos + 2 < len(l.source) && l.source[l.pos] == '"' && l.source[l.pos + 1] == '"' && l.source[l.pos + 2] == '"' {
-			l.pos += 3 // skip closing """
-			found_close = true
-			break
-		}
-		if l.source[l.pos] == '\\' {
-			l.pos += 1
-		} else if l.source[l.pos] == '$' && l.pos + 1 < len(l.source) && l.source[l.pos + 1] == '{' {
-			has_interpolation = true
-		}
-		l.pos += 1
-	}
-
-	if !found_close {
-		diagnostics.collector_add_diag(l.collector, diagnostics.diag_unterminated_string(lexer_make_span(l, start)))
-	}
-
-	text := l.source[start:l.pos]
-	return base.Token{kind = .Multiline_String_Literal, text = text, span = lexer_make_span(l, start)}
 }
 
 lexer_lex_identifier :: proc(l: ^Lexer, start: int) -> base.Token {

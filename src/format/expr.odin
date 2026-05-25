@@ -664,13 +664,6 @@ format_expr_interpolated_string :: proc(e: ^frontend.Expr_Interpolated_String, i
 
 	open_delim := "\""
 	close_delim := "\""
-	if e.is_raw {
-		open_delim = "r\""
-		close_delim = "\""
-	} else if e.is_multiline {
-		open_delim = "\"\"\""
-		close_delim = "\"\"\""
-	}
 	append(&parts, doc_text(open_delim))
 
 	for part in e.parts {
@@ -692,11 +685,7 @@ format_expr_handle :: proc(e: ^frontend.Expr_Handle, info: ^Format_Source_Info, 
 	parts: [dynamic]Doc
 	defer delete(parts)
 
-	if e.is_shallow {
-		append(&parts, doc_text("intercept "))
-	} else {
-		append(&parts, doc_text("handle "))
-	}
+	append(&parts, doc_text("handle "))
 	append(&parts, doc_text(base.intern_get(interner, e.effect)))
 	append(&parts, doc_text(" in "))
 	append(&parts, format_expr(e.body, info, interner))

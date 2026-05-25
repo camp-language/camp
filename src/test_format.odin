@@ -1119,7 +1119,7 @@ test_format_decl_import_exposing :: proc(t: ^testing.T) {
 	result := format.doc_resolve(format.format_decl(frontend.Decl(di), &info, &ctx.interner), 0)
 	defer delete(result)
 
-	testing.expectf(t, result == "import List exposing [map, filter]", "expected {}, got {}", "import List exposing [map, filter]", result)
+	testing.expectf(t, result == "import List { map, filter }", "expected {}, got {}", "import List { map, filter }", result)
 }
 
 @(test)

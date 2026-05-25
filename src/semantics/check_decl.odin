@@ -211,7 +211,6 @@ typecheck_decl :: proc(decl: CDecl, env: ^Type_Env, store: ^Type_Store) -> TDecl
 			name = d.name,
 			is_pub = d.is_pub,
 			type_params = d.type_params,
-			trait_conforms = d.trait_conforms,
 			inner_type = d.inner_type,
 			type_ = lower_type(store, nt_var),
 			derive_targets = d.derive_targets,

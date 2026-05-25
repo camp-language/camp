@@ -332,7 +332,6 @@ rc_insert_expr_inner :: proc(expr: IR_Expr, remaining: ^map[base.Intern_ID]int, 
 		new_handle := new(IR_Handle)
 		new_handle^ = IR_Handle{
 			effect = e.effect,
-			is_shallow = e.is_shallow,
 			body = rc_insert_expr_inner(e.body, remaining, interner),
 			arms = new_arms,
 			type = e.type,

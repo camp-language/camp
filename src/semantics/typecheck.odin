@@ -161,13 +161,6 @@ typecheck_file :: proc(file: CFile, store: ^Type_Store, current_module: base.Int
 	for decl in file.decls {
 		#partial switch d in decl {
 		case ^CDecl_Newtype:
-			for tc in d.trait_conforms {
-				type_mod := d.name.module
-				if type_mod == base.NO_NAME {
-					type_mod = env.current_module
-				}
-				verify_trait_conformance(d.name.name, type_mod, tc, d.span, store, &env)
-			}
 		case ^CDecl_Const, ^CDecl_Effect, ^CDecl_Trait, ^CDecl_Alias, ^CDecl_Import, ^CDecl_Test, ^CDecl_Expect:
 		}
 	}
@@ -442,8 +435,6 @@ typecheck_synth :: proc(expr: CExpr, env: ^Type_Env, store: ^Type_Store) -> Synt
 		type_ir, eff_ir := type_eff_pair(store, str_var, eff)
 		t^ = TExpr_Interpolated_String{
 			parts = parts_t,
-			is_raw = e.is_raw,
-			is_multiline = e.is_multiline,
 			type_ = type_ir,
 			eff_ = eff_ir,
 			span = e.span,
@@ -542,7 +533,6 @@ typecheck_synth :: proc(expr: CExpr, env: ^Type_Env, store: ^Type_Store) -> Synt
 		type_ir, eff_ir := type_eff_pair(store, body_result.var_id, result_effects)
 		t^ = TExpr_Handle{
 			effect = e.effect,
-			is_shallow = e.is_shallow,
 			body = body_result.texpr,
 			arms = arms_t,
 			type_ = type_ir,

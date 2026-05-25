@@ -897,7 +897,7 @@ lower_tprefixop :: proc(e: ^semantics.TExpr_PrefixOp, env: ^Lower_Env) -> IR_Exp
 		binop := new(IR_BinOp)
 		binop^ = IR_BinOp{op = .Sub, left = zero_lit, right = operand_ir, type = e.type_, span = e.span}
 		return IR_Expr(binop)
-	case .Int_Literal, .Float_Literal, .String_Literal, .Interpolated_String_Literal, .Raw_String_Literal, .Multiline_String_Literal, .Identifier, .Upper_Id, .Kw_If, .Kw_Else, .Kw_Match, .Kw_Is, .Kw_Derives, .Kw_Handle, .Kw_Intercept, .Kw_In, .Kw_With, .Kw_Import, .Kw_Exposing, .Kw_As, .Kw_Unsafe, .Kw_For, .Kw_And, .Kw_Or, .Kw_Expect, .Kw_Test, .Kw_Pub, .Kw_Self, .Kw_Par, .Kw_Where, .Pipe, .Arrow, .Fat_Arrow, .Eq, .Colon_Eq, .Colon, .Comma, .Dot, .Dot_Dot, .Bang, .Dollar, .Hash, .At, .Lt, .Gt, .Lt_Eq, .Gt_Eq, .Eq_Eq, .Bang_Eq, .Plus, .Star, .Slash, .Percent, .Amp, .Caret, .Tilde, .Backslash, .LParen, .RParen, .LBrack, .RBrack, .LBrace, .RBrace, .Newline, .Eof:
+	case .Int_Literal, .Float_Literal, .String_Literal, .Interpolated_String_Literal, .Identifier, .Upper_Id, .Kw_If, .Kw_Else, .Kw_Match, .Kw_Is, .Kw_Derives, .Kw_Handle, .Kw_In, .Kw_With, .Kw_Import, .Kw_As, .Kw_For, .Kw_And, .Kw_Or, .Kw_Expect, .Kw_Test, .Kw_Pub, .Kw_Self, .Kw_Par, .Kw_Where, .Pipe, .Arrow, .Fat_Arrow, .Eq, .Colon_Eq, .Colon, .Comma, .Dot, .Dot_Dot, .Dollar, .Hash, .At, .Lt, .Gt, .Lt_Eq, .Gt_Eq, .Eq_Eq, .Bang_Eq, .Plus, .Star, .Slash, .Percent, .Amp, .Caret, .Tilde, .Backslash, .LParen, .RParen, .LBrack, .RBrack, .LBrace, .RBrace, .Newline, .Eof:
 		return operand_ir
 	}
 	return operand_ir
@@ -1049,9 +1049,8 @@ lower_thandle :: proc(e: ^semantics.TExpr_Handle, env: ^Lower_Env) -> IR_Expr {
 		}
 	}
 	result := new(IR_Handle)
-	result^ = IR_Handle{
+		result^ = IR_Handle{
 		effect = e.effect,
-		is_shallow = e.is_shallow,
 		body = body_ir,
 		arms = arms,
 		type = e.type_,

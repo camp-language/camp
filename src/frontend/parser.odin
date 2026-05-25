@@ -127,7 +127,7 @@ parser_parse_decl :: proc(p: ^Parser) -> Decl {
 	}
 
 	#partial switch p.current.kind {
-	case .Kw_Import, .Kw_Unsafe:
+	case .Kw_Import:
 		return parser_parse_import_decl(p, is_pub)
 	case .Kw_Test:
 		return parser_parse_test_decl(p)
@@ -141,11 +141,11 @@ parser_parse_decl :: proc(p: ^Parser) -> Decl {
 		}
 		return parser_parse_const_decl(p, is_pub)
 	case .Int_Literal, .Float_Literal, .String_Literal, .Interpolated_String_Literal,
-	     .Raw_String_Literal, .Multiline_String_Literal, .Identifier, .Kw_If, .Kw_Else,
-	     .Kw_Match, .Kw_Is, .Kw_Derives, .Kw_Handle, .Kw_Intercept, .Kw_In, .Kw_With,
-	     .Kw_Exposing, .Kw_As, .Kw_For, .Kw_And, .Kw_Or, .Kw_Not, .Kw_Pub, .Kw_Self,
+	     .Identifier, .Kw_If, .Kw_Else,
+	     .Kw_Match, .Kw_Is, .Kw_Derives, .Kw_Handle, .Kw_In, .Kw_With,
+	     .Kw_As, .Kw_For, .Kw_And, .Kw_Or, .Kw_Not, .Kw_Pub, .Kw_Self,
 	     .Kw_Par, .Kw_Where, .Pipe, .Arrow, .Fat_Arrow, .Eq, .Colon_Eq, .Colon, .Comma,
-	     .Dot, .Dot_Dot, .Bang, .Dollar, .Hash, .Lt, .Gt, .Lt_Eq, .Gt_Eq, .Eq_Eq,
+	     .Dot, .Dot_Dot, .Dollar, .Hash, .Lt, .Gt, .Lt_Eq, .Gt_Eq, .Eq_Eq,
 	     .Bang_Eq, .Plus, .Minus, .Star, .Slash, .Percent, .Amp, .Caret, .Tilde,
 	     .Backslash, .LParen, .RParen, .LBrack, .RBrack, .LBrace, .RBrace, .Newline, .Eof:
 		return parser_parse_const_decl(p, is_pub)
@@ -385,14 +385,6 @@ parser_parse_prefix :: proc(p: ^Parser) -> Expr {
 		parser_advance(p)
 		return parser_parse_interpolated_string(p, tok)
 
-	case .Raw_String_Literal:
-		parser_advance(p)
-		return parser_parse_interpolated_string(p, tok)
-
-	case .Multiline_String_Literal:
-		parser_advance(p)
-		return parser_parse_interpolated_string(p, tok)
-
 	case .Upper_Id:
 		return parser_parse_tag_or_call(p)
 
@@ -421,7 +413,7 @@ parser_parse_prefix :: proc(p: ^Parser) -> Expr {
 	case .Kw_Match:
 		return parser_parse_match(p)
 
-	case .Kw_Handle, .Kw_Intercept:
+	case .Kw_Handle:
 		return parser_parse_handle(p)
 
 	case .Kw_Par:
@@ -459,9 +451,9 @@ parser_parse_prefix :: proc(p: ^Parser) -> Expr {
 	case .At:
 		return parser_parse_nominal_construct(p)
 
-	case .Kw_Else, .Kw_Is, .Kw_Derives, .Kw_In, .Kw_With, .Kw_Import, .Kw_Exposing,
-	     .Kw_As, .Kw_Unsafe, .Kw_And, .Kw_Or, .Kw_Expect, .Kw_Test, .Kw_Pub, .Kw_Self,
-	     .Kw_Where, .Arrow, .Fat_Arrow, .Eq, .Colon_Eq, .Colon, .Comma, .Dot_Dot, .Bang,
+	case .Kw_Else, .Kw_Is, .Kw_Derives, .Kw_In, .Kw_With, .Kw_Import,
+	     .Kw_As, .Kw_And, .Kw_Or, .Kw_Expect, .Kw_Test, .Kw_Pub, .Kw_Self,
+	     .Kw_Where, .Arrow, .Fat_Arrow, .Eq, .Colon_Eq, .Colon, .Comma, .Dot_Dot,
 	     .Hash, .Lt, .Gt, .Lt_Eq, .Gt_Eq, .Eq_Eq, .Bang_Eq, .Plus, .Star, .Slash,
 	     .Percent, .Amp, .Caret, .Tilde, .Backslash, .RParen, .RBrack, .RBrace,
 	     .Newline, .Eof:
@@ -1063,7 +1055,6 @@ parser_parse_match :: proc(p: ^Parser) -> Expr {
 
 parser_parse_handle :: proc(p: ^Parser) -> Expr {
 	start := p.current.span
-	is_shallow := p.current.kind == .Kw_Intercept
 	parser_advance(p)
 
 	effect_tok := parser_expect(p, .Upper_Id)
@@ -1109,7 +1100,7 @@ parser_parse_handle :: proc(p: ^Parser) -> Expr {
 	parser_expect(p, .RBrace)
 
 	e := new(Expr_Handle)
-	e^ = Expr_Handle{effect = effect_id, is_shallow = is_shallow, body = body, arms = arms, span = start}
+	e^ = Expr_Handle{effect = effect_id, body = body, arms = arms, span = start}
 	return e
 }
 
@@ -1213,12 +1204,12 @@ parser_parse_pattern :: proc(p: ^Parser) -> Pattern {
 	case .At:
 		return parser_parse_nominal_destructure(p)
 
-	case .Float_Literal, .Interpolated_String_Literal, .Raw_String_Literal,
-	     .Multiline_String_Literal, .Dollar, .Pipe, .Kw_If, .Kw_Else, .Kw_Match, .Kw_Is,
-	     .Kw_Derives, .Kw_Handle, .Kw_Intercept, .Kw_In, .Kw_With, .Kw_Import,
-	     .Kw_Exposing, .Kw_As, .Kw_Unsafe, .Kw_For, .Kw_And, .Kw_Or, .Kw_Expect,
+	case .Float_Literal, .Interpolated_String_Literal,
+	     .Dollar, .Pipe, .Kw_If, .Kw_Else, .Kw_Match, .Kw_Is,
+	     .Kw_Derives, .Kw_Handle, .Kw_In, .Kw_With, .Kw_Import,
+	     .Kw_As, .Kw_For, .Kw_And, .Kw_Or, .Kw_Expect,
 	     .Kw_Test, .Kw_Not, .Kw_Pub, .Kw_Self, .Kw_Par, .Kw_Where, .Arrow, .Fat_Arrow,
-	     .Eq, .Colon_Eq, .Colon, .Comma, .Dot, .Dot_Dot, .Bang, .Hash, .Lt, .Gt,
+	     .Eq, .Colon_Eq, .Colon, .Comma, .Dot, .Dot_Dot, .Hash, .Lt, .Gt,
 	     .Lt_Eq, .Gt_Eq, .Eq_Eq, .Bang_Eq, .Plus, .Minus, .Star, .Slash, .Percent,
 	     .Amp, .Caret, .Tilde, .Backslash, .LParen, .RParen, .RBrack, .RBrace,
 	     .Newline, .Eof:
@@ -1386,11 +1377,12 @@ parser_parse_type :: proc(p: ^Parser) -> ^Type {
 		t = parser_parse_function_type(p)
 
 	case .Int_Literal, .Float_Literal, .String_Literal, .Interpolated_String_Literal,
-	     .Raw_String_Literal, .Multiline_String_Literal, .Kw_If, .Kw_Else, .Kw_Match,
-	     .Kw_Is, .Kw_Derives, .Kw_Handle, .Kw_Intercept, .Kw_In, .Kw_With, .Kw_Import,
-	     .Kw_Exposing, .Kw_As, .Kw_Unsafe, .Kw_For, .Kw_And, .Kw_Or, .Kw_Expect,
+	     .Doc_Comment,
+	     .Kw_If, .Kw_Else, .Kw_Match,
+	     .Kw_Is, .Kw_Derives, .Kw_Handle, .Kw_In, .Kw_With, .Kw_Import,
+	     .Kw_As, .Kw_For, .Kw_And, .Kw_Or, .Kw_Expect,
 	     .Kw_Test, .Kw_Not, .Kw_Pub, .Kw_Par, .Kw_Where, .Arrow, .Fat_Arrow, .Eq,
-	     .Colon_Eq, .Colon, .Comma, .Dot, .Dot_Dot, .Bang, .Dollar, .Hash, .At, .Lt,
+	     .Colon_Eq, .Colon, .Comma, .Dot, .Dot_Dot, .Dollar, .Hash, .At, .Lt,
 	     .Gt, .Lt_Eq, .Gt_Eq, .Eq_Eq, .Bang_Eq, .Plus, .Minus, .Star, .Slash,
 	     .Percent, .Amp, .Caret, .Tilde, .Backslash, .RParen, .RBrack, .RBrace,
 	     .Newline, .Eof:
@@ -1708,18 +1700,6 @@ parser_parse_newtype_decl :: proc(p: ^Parser, is_pub: bool) -> Decl {
 		parser_expect(p, .RParen)
 	}
 
-	trait_conforms := make([dynamic]base.Intern_ID, 0, 4)
-	if p.current.kind == .Kw_Is {
-		parser_advance(p)
-		trait_tok := parser_expect(p, .Upper_Id)
-		append(&trait_conforms, base.intern(p.intern, trait_tok.text))
-		for p.current.kind == .Comma {
-			parser_advance(p)
-			trait_tok = parser_expect(p, .Upper_Id)
-			append(&trait_conforms, base.intern(p.intern, trait_tok.text))
-		}
-	}
-
 	derive_targets := make([dynamic]base.Intern_ID, 0, 4)
 	if p.current.kind == .Kw_Derives {
 		parser_advance(p)
@@ -1748,7 +1728,6 @@ parser_parse_newtype_decl :: proc(p: ^Parser, is_pub: bool) -> Decl {
 		is_pub = is_pub,
 		pub_variants = pub_variants,
 		type_params = type_params,
-		trait_conforms = trait_conforms,
 		inner_type = inner_type,
 		derive_targets = derive_targets,
 		span = start,
@@ -1759,50 +1738,13 @@ parser_parse_newtype_decl :: proc(p: ^Parser, is_pub: bool) -> Decl {
 parser_parse_import_decl :: proc(p: ^Parser, is_pub: bool) -> Decl {
 	start := p.current.span
 
-	is_unsafe := false
-	if p.current.kind == .Kw_Unsafe {
-		parser_advance(p)
-		is_unsafe = true
-	}
-
 	parser_advance(p)
 
 	module_tok := parser_expect(p, .Upper_Id)
 	module_name := module_tok.text
 
 	exposing := make([dynamic]base.Intern_ID, 0, 8)
-	nominal_exposing := make([dynamic]Import_Nominal_Expose, 0, 4)
-
 	alias: base.Intern_ID = 0
-
-	if p.current.kind == .Kw_Exposing {
-		parser_advance(p)
-		parser_expect(p, .LBrack)
-		for p.current.kind != .RBrack && p.current.kind != .Eof {
-			if p.current.kind == .At {
-				// @[TypeName, Variant1, Variant2] — nominal type variant exposure
-				parser_advance(p)
-				type_tok := parser_expect(p, .Upper_Id)
-				type_id := base.intern(p.intern, type_tok.text)
-				variants := make([dynamic]base.Intern_ID, 0, 4)
-				for p.current.kind == .Comma {
-					parser_advance(p)
-					if p.current.kind == .Upper_Id {
-						v_tok := parser_advance(p)
-						append(&variants, base.intern(p.intern, v_tok.text))
-					}
-				}
-				append(&nominal_exposing, Import_Nominal_Expose{type_name = type_id, variants = variants})
-			} else {
-				name_tok := parser_advance(p)
-				append(&exposing, base.intern(p.intern, name_tok.text))
-			}
-			if p.current.kind == .Comma {
-				parser_advance(p)
-			}
-		}
-		parser_expect(p, .RBrack)
-	}
 
 	if p.current.kind == .Kw_As {
 		parser_advance(p)
@@ -1811,7 +1753,7 @@ parser_parse_import_decl :: proc(p: ^Parser, is_pub: bool) -> Decl {
 	}
 
 	decl := new(Decl_Import)
-	decl^ = Decl_Import{module = module_name, exposing = exposing, nominal_exposing = nominal_exposing, alias = alias, is_unsafe = is_unsafe, span = start}
+	decl^ = Decl_Import{module = module_name, exposing = exposing, alias = alias, span = start}
 	return decl
 }
 
@@ -1842,17 +1784,7 @@ parser_parse_expect_decl :: proc(p: ^Parser) -> Decl {
 
 parser_parse_interpolated_string :: proc(p: ^Parser, tok: base.Token) -> Expr {
 	raw_text := tok.text
-	is_raw := tok.kind == .Raw_String_Literal
-	is_multiline := tok.kind == .Multiline_String_Literal
-
-	inner_text: string
-	if is_raw {
-		inner_text = raw_text[2:len(raw_text)-1]
-	} else if is_multiline {
-		inner_text = raw_text[3:len(raw_text)-3]
-	} else {
-		inner_text = raw_text[1:len(raw_text)-1]
-	}
+	inner_text := raw_text[1:len(raw_text)-1]
 
 	parts := make([dynamic]String_Part, 0, 8)
 	i := 0
@@ -1889,8 +1821,6 @@ parser_parse_interpolated_string :: proc(p: ^Parser, tok: base.Token) -> Expr {
 				e := new(Expr_Interpolated_String)
 				e^ = Expr_Interpolated_String{
 					parts = parts,
-					is_raw = is_raw,
-					is_multiline = is_multiline,
 					span = tok.span,
 				}
 				return e
@@ -1930,8 +1860,6 @@ parser_parse_interpolated_string :: proc(p: ^Parser, tok: base.Token) -> Expr {
 	e := new(Expr_Interpolated_String)
 	e^ = Expr_Interpolated_String{
 		parts = parts,
-		is_raw = is_raw,
-		is_multiline = is_multiline,
 		span = tok.span,
 	}
 	return e

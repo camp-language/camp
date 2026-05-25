@@ -9,8 +9,7 @@ token_kind_display :: proc(kind: base.Token_Kind) -> string {
 	case .Float_Literal: return "float"
 	case .String_Literal:              return "string"
 	case .Interpolated_String_Literal: return "interpolated string"
-	case .Raw_String_Literal:          return "raw string"
-	case .Multiline_String_Literal:    return "multiline string"
+
 	case .Identifier:    return "identifier"
 	case .Upper_Id:      return "uppercase identifier"
 	case .Kw_If:        return "if"
@@ -19,13 +18,13 @@ token_kind_display :: proc(kind: base.Token_Kind) -> string {
 	case .Kw_Is:        return "is"
 	case .Kw_Derives:   return "derives"
 	case .Kw_Handle:    return "handle"
-	case .Kw_Intercept: return "intercept"
+
 	case .Kw_In:        return "in"
 	case .Kw_With:      return "with"
 	case .Kw_Import:    return "import"
-	case .Kw_Exposing:  return "exposing"
+
 	case .Kw_As:        return "as"
-	case .Kw_Unsafe:    return "unsafe"
+
 	case .Kw_For:       return "for"
 	case .Kw_And:       return "and"
 	case .Kw_Or:        return "or"
@@ -45,7 +44,7 @@ token_kind_display :: proc(kind: base.Token_Kind) -> string {
 	case .Comma:        return ","
 	case .Dot:          return "."
 	case .Dot_Dot:      return ".."
-	case .Bang:         return "!"
+
 	case .Dollar:       return "$"
 	case .Hash:         return "#"
 	case .At:           return "@"
@@ -71,6 +70,7 @@ token_kind_display :: proc(kind: base.Token_Kind) -> string {
 	case .LBrace:       return "{"
 	case .RBrace:       return "}"
 	case .Newline:      return "newline"
+	case .Doc_Comment:  return "///"
 	case:               return "unknown token"
 	}
 }
