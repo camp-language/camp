@@ -78,6 +78,10 @@ color_scheme_for :: proc(category: Diagnostic_Category, use_color: bool) -> Colo
 }
 
 render_all :: proc(collector: ^Diagnostic_Collector, file_path: string, source: string) {
+	if is_json_mode() {
+		render_all_json(collector, file_path, source)
+		return
+	}
 	use_color := is_color_tty()
 	for d, i in collector.diagnostics {
 		if i > 0 do fmt.println()
