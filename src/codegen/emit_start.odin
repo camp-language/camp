@@ -214,23 +214,12 @@ emit_start_function :: proc(
 			append(&start_locals, Wasm_Local_Decl{count = 1, type = .I32})
 			append(&env.mod.codes, Wasm_Code{locals = start_locals[:], body = copy_dynamic_bytes(code_buf)})
 		} else {
-			// Non-effectful main: inline the body
-			main_body := extract_effectful_body(main_decl.body)
-
-			env.local_map = make(map[base.Intern_ID]u32, 32)
-			env.local_types = make(map[base.Intern_ID]base.IR_Type, 32)
-			env.locals = make([dynamic]Wasm_Local_Decl, 0, 8)
-
-			collected_locals: map[base.Intern_ID]base.IR_Type
-			collected_locals = make(map[base.Intern_ID]base.IR_Type, 32)
-			collect_locals(main_body, &collected_locals)
-			for name, typ in collected_locals {
-				env.local_map[name] = env.next_local
-				env.local_types[name] = typ
-				env.next_local += 1
-			}
-
-			emit_expr(main_body, &code_buf, env, runtime_func_indices[:])
+			// Non-effectful main: call main_fn and exit with its result.
+			// main_fn's body is already emitted by the decl loop in codegen.odin
+			// with its own local map. Inlining it here with a fresh local map
+			// silently drops every let-binding (names aren't in the new map),
+			// so call the existing function instead.
+			emit_instruction(Wasm_Call{index = u32(main_fn_idx)}, &code_buf)
 
 			main_ret_type := get_main_return_type(ir_mod, env.interner)
 			if main_ret_type == .I64 {
@@ -242,19 +231,9 @@ emit_start_function :: proc(
 			emit_instruction(Wasm_Call{index = 0}, &code_buf)
 			emit_instruction(Wasm_End{}, &code_buf)
 
-			start_locals := make([dynamic]Wasm_Local_Decl, 0, 8)
-			append(&start_locals, Wasm_Local_Decl{count = 4, type = .I32})
-			for _, typ in collected_locals {
-				append(&start_locals, Wasm_Local_Decl{count = 1, type = ir_wasm_type_to_value_type(typ.wasm_type)})
-			}
-			for l in env.locals {
-				append(&start_locals, l)
-			}
-			append(&env.mod.codes, Wasm_Code{locals = start_locals[:], body = copy_dynamic_bytes(code_buf)})
-			delete(collected_locals)
-			delete(env.local_map)
-			delete(env.local_types)
-			delete(env.locals)
+			start_locals := make([]Wasm_Local_Decl, 1)
+			start_locals[0] = Wasm_Local_Decl{count = 4, type = .I32}
+			append(&env.mod.codes, Wasm_Code{locals = start_locals, body = copy_dynamic_bytes(code_buf)})
 		}
 
 		delete(code_buf)

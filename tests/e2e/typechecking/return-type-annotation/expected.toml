@@ -5,3 +5,6 @@ compiled /tmp/camp-e2e/typechecking/return-type-annotation/src/Main.camp -> /tmp
 """
 stderr = ""
 exit = 0
+wasm_exit = 0
+wasm_stdout = ""
+wasm_stderr = ""

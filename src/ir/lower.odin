@@ -399,10 +399,16 @@ lower_tlambda_as_decl :: proc(e: ^semantics.TExpr_Lambda, name: base.Canonical_N
 	// to the typechecker's results, so e.effects.type_id is Unlinked.
 	effects := extract_effects_from_fn_binding(env.store, name, env.module.effect_defs[:])
 
+	// `!` suffix sets is_effectful syntactically, but every downstream pass
+	// (effect_lower, closure_convert, cps, codegen) treats this flag as
+	// "performs at least one effect" — evidence params, CPS continuation,
+	// default handlers. Normalize here so the whole pipeline sees a
+	// consistent view; otherwise `main! = || { 42 }` is half-effectful and
+	// produces invalid WASM.
 	fn_decl := new(IR_Decl_Fn)
 	fn_decl^ = IR_Decl_Fn{
 		name = name,
-		is_effectful = is_effectful,
+		is_effectful = is_effectful && len(effects) > 0,
 		params = params,
 		return_type = e.return_type,
 		effect_row = e.effects,
@@ -663,11 +669,16 @@ lower_tblock :: proc(e: ^semantics.TExpr_Block, env: ^Lower_Env) -> IR_Expr {
 	if len(e.statements) == 0 {
 		return make_ir_lit_int(0, e.type_, e.span)
 	}
-	last: IR_Expr
-	for stmt in e.statements {
-		last = lower_texpr(stmt, env)
+	if len(e.statements) == 1 {
+		return lower_texpr(e.statements[0], env)
 	}
-	return last
+	stmts := make([dynamic]IR_Expr, 0, len(e.statements))
+	for stmt in e.statements {
+		append(&stmts, lower_texpr(stmt, env))
+	}
+	block := new(IR_Block)
+	block^ = IR_Block{statements = stmts, type = e.type_, span = e.span}
+	return IR_Expr(block)
 }
 
 lower_tif :: proc(e: ^semantics.TExpr_If, env: ^Lower_Env) -> IR_Expr {
