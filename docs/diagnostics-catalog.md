@@ -369,7 +369,15 @@ Each diagnostic should have a unique `C####` code for searchability and `camp --
 
 **Rationale:** When constructing a record with a field of the wrong type, the error should name the field rather than just showing a generic type mismatch.
 
-### 4.13 CANNOT UNIFY EFFECT ROWS (C0312) — Error 🆕 New
+### 4.13 DISPLAY NOT IMPLEMENTED (C0319) — Error ✅ Implemented
+
+> Type `{type}` does not implement `Display`. Only types that implement `Display` can be used in string interpolation.
+
+**Hint:** Implement `Display` for `{type}`, or convert the value to `Str` before interpolation.
+
+**Rationale:** String interpolation requires `Display` implementation. This was previously unnumbered; assigned C0319 to avoid conflict with C0312.
+
+### 4.14 CANNOT UNIFY EFFECT ROWS (C0312) — Error 🆕 New
 
 > Effect row `{actual}` does not match expected row `{expected}`. The extra effect `{effect}` is not handled.
 
@@ -379,25 +387,25 @@ Each diagnostic should have a unique `C####` code for searchability and `camp --
 
 **Rationale:** Effect row unification failure is Camp-specific and deserves a dedicated error. Following Elm's pattern of tracing where the extraneous row label was introduced, this should show where the unexpected effect originates.
 
-### 4.14 ROW LABEL MISMATCH (C0313) — Error 🆕 New
+### 4.15 ROW LABEL MISMATCH (C0313) — Error 🆕 New
 
 > Record row `{actual}` does not match expected row `{expected}`. Missing label `{label}`, extra label `{label}`.
 
 **Rationale:** When record types fail to unify due to row differences, a specific error naming the mismatched labels is more helpful than a generic type mismatch.
 
-### 4.15 TYPE PARAMETER KIND MISMATCH (C0314) — Error 🆕 New
+### 4.16 TYPE PARAMETER KIND MISMATCH (C0314) — Error 🆕 New
 
 > Type parameter `{param}` expects a {expected_kind} type, but `{actual}` is a {actual_kind} type.
 
 **Rationale:** Applying a type parameter of the wrong kind (e.g., passing a value type where a row type is expected). Rust (E0210) has this.
 
-### 4.16 RECURSIVE TYPE ALIAS (C0315) — Error 🆕 New
+### 4.17 RECURSIVE TYPE ALIAS (C0315) — Error 🆕 New
 
 > Type alias `{name}` is directly recursive, which would expand infinitely. Use a tag union or newtype to introduce indirection.
 
 **Rationale:** `type T = T` or `type T = List(T)` through an alias creates infinite expansion. TypeScript (E2456), Rust, and Haskell all report this.
 
-### 4.17 INVALID MAIN SIGNATURE (C0316) — Error 🆕 New
+### 4.18 INVALID MAIN SIGNATURE (C0316) — Error 🆕 New
 
 > `main!` has type `{actual}`, but it must have type `() -[effects]-> I64`.
 
@@ -405,13 +413,13 @@ Each diagnostic should have a unique `C####` code for searchability and `camp --
 
 **Rationale:** The entry point has a fixed signature. A specific error is better than a generic type mismatch.
 
-### 4.18 DUPLICATE TYPE PARAMETER (C0317) — Error 🆕 New
+### 4.19 DUPLICATE TYPE PARAMETER (C0317) — Error 🆕 New
 
 > Type parameter `{name}` appears more than once in this type's parameter list.
 
 **Rationale:** `type Foo(a, a)` is meaningless. Rust (E0403) reports this.
 
-### 4.19 CONSTRUCTOR NOT EXHAUSTIVE (C0318) — Error 🆕 New
+### 4.20 CONSTRUCTOR NOT EXHAUSTIVE (C0318) — Error 🆕 New
 
 > Tag union `{name}` has no variants. A tag union must have at least one variant.
 
