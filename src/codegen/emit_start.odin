@@ -38,12 +38,9 @@ emit_start_function :: proc(
 		code_buf: [dynamic]u8
 		code_buf = make([dynamic]u8, 0, CODE_BUF_MAJOR)
 
-		// Gate the effectful path on cont_func_idx being reserved.
-		// codegen.odin only adds cont_func when len(effects) > 0, but the
-		// frontend sets is_effectful on any `!`-suffixed name — including
-		// `main! = || { 42 }`. Without this gate we'd emit a cont_body with
-		// no matching function entry, producing malformed WASM
-		// ("function and code section have inconsistent lengths").
+		// is_effectful is set by the `!` suffix even when no effects are
+		// inferred; cont_func_idx is only reserved when effects > 0. Gate
+		// here too or the function/code sections drift out of sync.
 		if main_decl.is_effectful && cont_func_idx >= 0 {
 			// Effectful main: _start allocates evidence records, calls main!, exits
 

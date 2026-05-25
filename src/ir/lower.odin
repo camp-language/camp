@@ -102,10 +102,6 @@ collect_effects_from_row :: proc(store: ^semantics.Type_Store, effect_var: base.
 		return
 	}
 
-	// Append each effect in this segment to `result`, deduping. The row is
-	// a linked list of segments (`effects` + `rest_id`); each segment may
-	// add zero or more effects, and the same effect can appear in
-	// different segments after unification.
 	for entry in inf.effects {
 		canonical := base.Canonical_Name{module = base.NO_NAME, name = entry.name}
 		already := false
@@ -120,7 +116,6 @@ collect_effects_from_row :: proc(store: ^semantics.Type_Store, effect_var: base.
 		}
 	}
 
-	// Recurse into the row's polymorphic tail, if it's another row.
 	rest_resolved := semantics.resolve_var(store, inf.rest_id)
 	rest_v := &store.vars[int(rest_resolved)]
 	rit, rok := rest_v.link.(semantics.Inferred_Type)
