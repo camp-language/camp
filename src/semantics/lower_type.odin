@@ -7,6 +7,7 @@ lower_type :: proc(store: ^Type_Store, type_var: base.Type_Var_ID) -> base.IR_Ty
 	v := &store.vars[int(resolved)]
 
 	wasm_type: base.IR_Wasm_Type = .I64
+	is_heap: bool = false
 
 	inf, is_inf := v.link.(Inferred_Type)
 	if is_inf {
@@ -19,28 +20,30 @@ lower_type :: proc(store: ^Type_Store, type_var: base.Type_Var_ID) -> base.IR_Ty
 			case "F64": wasm_type = .F64
 			case "F32": wasm_type = .F32
 			case "Bool": wasm_type = .I32
-			case "Str": wasm_type = .I32
+			case "Str": wasm_type = .I32; is_heap = true
 			case "Unit": wasm_type = .Void
 			case "I8", "I16", "U8", "U16", "U32", "U64": wasm_type = .I64
 			}
 		case Inferred_Function:
 			wasm_type = .Funcref
 		case Inferred_Record_Row:
-			wasm_type = .I32
+			wasm_type = .I32; is_heap = true
 		case Inferred_Tag_Union_Row:
-			wasm_type = .I32
+			wasm_type = .I32; is_heap = true
 		case Inferred_Effect_Row:
 			wasm_type = .Void
 		case Inferred_Constructor:
-			wasm_type = .I32
+			wasm_type = .I32; is_heap = true
 		case Inferred_Newtype:
-			wasm_type = lower_type(store, f.inner_id).wasm_type
+			inner := lower_type(store, f.inner_id)
+			wasm_type = inner.wasm_type
+			is_heap = inner.is_heap
 		case Inferred_Handle:
-			wasm_type = .I32
+			wasm_type = .I32; is_heap = true
 		}
 	}
 
-	return base.IR_Type{wasm_type = wasm_type, type_id = resolved}
+	return base.IR_Type{wasm_type = wasm_type, type_id = resolved, is_heap = is_heap}
 }
 
 lower_effect_type :: proc(store: ^Type_Store, eff_var: base.Type_Var_ID) -> base.IR_Type {

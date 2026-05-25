@@ -15,4 +15,5 @@ IR_Wasm_Type :: enum {
 IR_Type :: struct {
 	wasm_type: IR_Wasm_Type,
 	type_id:   Type_Var_ID,
+	is_heap:   bool,
 }

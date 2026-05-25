@@ -116,8 +116,6 @@ walk_expr_children :: proc(expr: IR_Expr, visitor: proc(expr: IR_Expr, ctx: rawp
 	     ^IR_Var,
 	     ^IR_Dup,
 	     ^IR_Drop,
-	     ^IR_Drop_Reuse,
-	     ^IR_Alloc_At,
 	     ^IR_Atomic_Fence:
 		// no children
 	}

@@ -127,16 +127,136 @@ emit_camp_dup_body :: proc() -> Wasm_Code {
 	return Wasm_Code{locals = locals, body = body}
 }
 
-emit_camp_drop_body :: proc(alloc_func_idx: int) -> Wasm_Code {
+emit_camp_drop_body :: proc(drop_func_idx: int, dealloc_func_idx: int, report_drop_overflow_func_idx: int) -> Wasm_Code {
+	// camp_drop(ptr: i32, depth: i32)
+	// Locals: 2 = new_refcount, 3 = scan_size, 4 = i, 5 = field_value
 	buf: [dynamic]u8
-	buf = make([dynamic]u8, 0, CODE_BUF_DEFAULT)
+	buf = make([dynamic]u8, 0, CODE_BUF_XL)
 
+	// Load refcount, decrement, store back
 	emit_instruction(Wasm_Local_Get{index = 0}, &buf)
 	emit_instruction(Wasm_I32_Load{align = 2, offset = 0}, &buf)
 	emit_instruction(Wasm_I32_Const{value = 1}, &buf)
 	emit_instruction(Wasm_I32_Sub{}, &buf)
+	emit_instruction(Wasm_Local_Tee{index = 2}, &buf)
 	emit_instruction(Wasm_Local_Get{index = 0}, &buf)
 	emit_instruction(Wasm_I32_Store{align = 2, offset = 0}, &buf)
+
+	// Check if new refcount == 0
+	emit_instruction(Wasm_Local_Get{index = 2}, &buf)
+	emit_instruction(Wasm_I32_Const{value = 0}, &buf)
+	emit_instruction(Wasm_I32_Eq{}, &buf)
+	emit_instruction(Wasm_If{block_type = .Void}, &buf)
+
+		// Check depth overflow
+		emit_instruction(Wasm_Local_Get{index = 1}, &buf)
+		emit_instruction(Wasm_I32_Const{value = 256}, &buf)
+		emit_instruction(Wasm_I32_Ge_S{}, &buf)
+		emit_instruction(Wasm_If{block_type = .Void}, &buf)
+			emit_instruction(Wasm_Local_Get{index = 0}, &buf)
+			emit_instruction(Wasm_Call{index = u32(report_drop_overflow_func_idx)}, &buf)
+			emit_instruction(Wasm_Return{}, &buf)
+		emit_instruction(Wasm_End{}, &buf)
+
+		// Load scan_size at ptr + 5
+		emit_instruction(Wasm_Local_Get{index = 0}, &buf)
+		emit_instruction(Wasm_I32_Load8U{align = 0, offset = 5}, &buf)
+		emit_instruction(Wasm_Local_Set{index = 3}, &buf)
+
+		// i = 0
+		emit_instruction(Wasm_I32_Const{value = 0}, &buf)
+		emit_instruction(Wasm_Local_Set{index = 4}, &buf)
+
+		// Loop over fields
+		emit_instruction(Wasm_Block{block_type = .Void}, &buf)
+		emit_instruction(Wasm_Loop{block_type = .Void}, &buf)
+
+			emit_instruction(Wasm_Local_Get{index = 4}, &buf)
+			emit_instruction(Wasm_Local_Get{index = 3}, &buf)
+			emit_instruction(Wasm_I32_Ge_S{}, &buf)
+			emit_instruction(Wasm_Br_If{label = 1}, &buf)
+
+			// Load field value at ptr + 8 + i*8
+			emit_instruction(Wasm_Local_Get{index = 0}, &buf)
+			emit_instruction(Wasm_Local_Get{index = 4}, &buf)
+			emit_instruction(Wasm_I32_Const{value = 8}, &buf)
+			emit_instruction(Wasm_I32_Mul{}, &buf)
+			emit_instruction(Wasm_I32_Add{}, &buf)
+			emit_instruction(Wasm_I32_Const{value = i32(CAMP_TAG_FIELDS_OFFSET)}, &buf)
+			emit_instruction(Wasm_I32_Add{}, &buf)
+			emit_instruction(Wasm_I32_Load{align = 2, offset = 0}, &buf)
+			emit_instruction(Wasm_Local_Tee{index = 5}, &buf)
+
+			// If non-zero, recursive drop
+			emit_instruction(Wasm_If{block_type = .Void}, &buf)
+				emit_instruction(Wasm_Local_Get{index = 5}, &buf)
+				emit_instruction(Wasm_Local_Get{index = 1}, &buf)
+				emit_instruction(Wasm_I32_Const{value = 1}, &buf)
+				emit_instruction(Wasm_I32_Add{}, &buf)
+				emit_instruction(Wasm_Call{index = u32(drop_func_idx)}, &buf)
+			emit_instruction(Wasm_End{}, &buf)
+
+			// i++
+			emit_instruction(Wasm_Local_Get{index = 4}, &buf)
+			emit_instruction(Wasm_I32_Const{value = 1}, &buf)
+			emit_instruction(Wasm_I32_Add{}, &buf)
+			emit_instruction(Wasm_Local_Set{index = 4}, &buf)
+			emit_instruction(Wasm_Br{label = 0}, &buf)
+
+		emit_instruction(Wasm_End{}, &buf)
+		emit_instruction(Wasm_End{}, &buf)
+
+		// Dealloc: camp_dealloc(ptr, size) where size = 8 + scan_size * 8
+		emit_instruction(Wasm_Local_Get{index = 0}, &buf)
+		emit_instruction(Wasm_I32_Const{value = i32(CAMP_TAG_HEADER_SIZE)}, &buf)
+		emit_instruction(Wasm_Local_Get{index = 3}, &buf)
+		emit_instruction(Wasm_I32_Const{value = 8}, &buf)
+		emit_instruction(Wasm_I32_Mul{}, &buf)
+		emit_instruction(Wasm_I32_Add{}, &buf)
+		emit_instruction(Wasm_Call{index = u32(dealloc_func_idx)}, &buf)
+
+	emit_instruction(Wasm_End{}, &buf)
+
+	emit_instruction(Wasm_End{}, &buf)
+
+	locals := make([]Wasm_Local_Decl, 1)
+	locals[0] = Wasm_Local_Decl{count = 4, type = .I32}
+
+	body := make([]u8, len(buf))
+	for b, i in buf {
+		body[i] = b
+	}
+	delete(buf)
+
+	return Wasm_Code{locals = locals, body = body}
+}
+
+emit_camp_report_drop_overflow_body :: proc(msg_offset: u32) -> Wasm_Code {
+	// camp_report_drop_overflow(ptr: i32)
+	// Writes error message to stderr (fd=2) and exits with code 1
+	buf: [dynamic]u8
+	buf = make([dynamic]u8, 0, CODE_BUF_MODERATE)
+
+	// Build iovs in memory: [str_ptr, str_len] at address 4096
+	emit_instruction(Wasm_I32_Const{value = 4096}, &buf)
+	emit_instruction(Wasm_I32_Const{value = i32(msg_offset)}, &buf)
+	emit_instruction(Wasm_I32_Store{align = 2, offset = 0}, &buf)
+	emit_instruction(Wasm_I32_Const{value = 4100}, &buf)
+	emit_instruction(Wasm_I32_Const{value = i32(len("camp_drop: recursion overflow\n"))}, &buf)
+	emit_instruction(Wasm_I32_Store{align = 2, offset = 0}, &buf)
+
+	// fd_write(fd=2, iovs=4096, iovs_len=1, nwritten=0)
+	emit_instruction(Wasm_I32_Const{value = 2}, &buf)
+	emit_instruction(Wasm_I32_Const{value = 4096}, &buf)
+	emit_instruction(Wasm_I32_Const{value = 1}, &buf)
+	emit_instruction(Wasm_I32_Const{value = 0}, &buf)
+	emit_instruction(Wasm_Call{index = 1}, &buf)
+	emit_instruction(Wasm_Drop{}, &buf)
+
+	// proc_exit(1)
+	emit_instruction(Wasm_I32_Const{value = 1}, &buf)
+	emit_instruction(Wasm_Call{index = 0}, &buf)
+	emit_instruction(Wasm_Unreachable{}, &buf)
 	emit_instruction(Wasm_End{}, &buf)
 
 	locals := make([]Wasm_Local_Decl, 0)

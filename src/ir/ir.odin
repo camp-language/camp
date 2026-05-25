@@ -2,6 +2,8 @@ package ir
 
 import ba "camp:base"
 
+NO_REUSE_ADDR :: ba.Intern_ID(-1)
+
 IR_Module :: struct {
 	decls:        [dynamic]IR_Decl,
 	effect_defs:  [dynamic]IR_Effect_Def,
@@ -147,8 +149,6 @@ IR_Expr :: union {
 	^IR_BinOp,
 	^IR_Dup,
 	^IR_Drop,
-	^IR_Drop_Reuse,
-	^IR_Alloc_At,
 	^IR_Crash,
 	^IR_I32_Load,
 	^IR_I32_Store,
@@ -245,11 +245,12 @@ IR_Pat_Int :: struct { value: i64 }
 IR_Pat_String :: struct { string_id: ba.Intern_ID }
 
 IR_Construct_Tag :: struct {
-	tag_name:  ba.Intern_ID,
-	tag_index: int,
-	payload:   [dynamic]IR_Expr,
-	type:      ba.IR_Type,
-	span:      ba.Source_Span,
+	tag_name:   ba.Intern_ID,
+	tag_index:  int,
+	payload:    [dynamic]IR_Expr,
+	reuse_addr: ba.Intern_ID,
+	type:       ba.IR_Type,
+	span:       ba.Source_Span,
 }
 
 IR_Expr_Nominal_Construct :: struct {
@@ -260,10 +261,11 @@ IR_Expr_Nominal_Construct :: struct {
 }
 
 IR_Construct_Record :: struct {
-	fields: [dynamic]IR_Record_Field,
-	rest:   IR_Expr,
-	type:   ba.IR_Type,
-	span:   ba.Source_Span,
+	fields:     [dynamic]IR_Record_Field,
+	rest:       IR_Expr,
+	reuse_addr: ba.Intern_ID,
+	type:       ba.IR_Type,
+	span:       ba.Source_Span,
 }
 
 IR_Record_Field :: struct { name: ba.Intern_ID, value: IR_Expr }
@@ -350,8 +352,6 @@ IR_BinOp :: struct { op: IR_BinOp_Kind, left: IR_Expr, right: IR_Expr, type: ba.
 
 IR_Dup :: struct { value: ba.Intern_ID, span: ba.Source_Span }
 IR_Drop :: struct { value: ba.Intern_ID, span: ba.Source_Span }
-IR_Drop_Reuse :: struct { value: ba.Intern_ID, reuse_as: ba.Intern_ID, span: ba.Source_Span }
-IR_Alloc_At :: struct { value: ba.Intern_ID, at: ba.Intern_ID, span: ba.Source_Span }
 IR_Crash :: struct {
 	message: IR_Expr,
 	span:    ba.Source_Span,

@@ -110,7 +110,7 @@ collect_locals :: proc(expr: ir.IR_Expr, locals: ^map[base.Intern_ID]base.IR_Typ
 		}
 		collect_locals(e.iterable, locals)
 		collect_locals(e.body, locals)
-	case ^ir.IR_Literal_Int, ^ir.IR_Literal_Float, ^ir.IR_Literal_String, ^ir.IR_Literal_Bool, ^ir.IR_Var, ^ir.IR_Dup, ^ir.IR_Drop, ^ir.IR_Drop_Reuse, ^ir.IR_Alloc_At, ^ir.IR_Expr_Nominal_Construct:
+	case ^ir.IR_Literal_Int, ^ir.IR_Literal_Float, ^ir.IR_Literal_String, ^ir.IR_Literal_Bool, ^ir.IR_Var, ^ir.IR_Dup, ^ir.IR_Drop, ^ir.IR_Expr_Nominal_Construct:
 	}
 }
 
@@ -180,6 +180,7 @@ Runtime_Func :: enum {
 	I32_To_Str,
 	F64_To_Str,
 	Bool_To_Str,
+	Report_Drop_Overflow,
 }
 
 RUNTIME_FUNC_COUNT :: int(len(Runtime_Func))
@@ -190,10 +191,10 @@ extract_effectful_body :: proc(expr: ir.IR_Expr) -> ir.IR_Expr {
 		#partial switch b in e.body {
 		case ^ir.IR_Tail_Call, ^ir.IR_Closure_Call:
 			return e.value
-		case ^ir.IR_Literal_Int, ^ir.IR_Literal_Float, ^ir.IR_Literal_String, ^ir.IR_Literal_Bool, ^ir.IR_Var, ^ir.IR_Let, ^ir.IR_Call, ^ir.IR_If, ^ir.IR_Match, ^ir.IR_Construct_Tag, ^ir.IR_Expr_Nominal_Construct, ^ir.IR_Construct_Record, ^ir.IR_Field_Access, ^ir.IR_Method_Call, ^ir.IR_Handle, ^ir.IR_Perform, ^ir.IR_Resume, ^ir.IR_Closure, ^ir.IR_Return, ^ir.IR_Block, ^ir.IR_BinOp, ^ir.IR_Dup, ^ir.IR_Drop, ^ir.IR_Drop_Reuse, ^ir.IR_Alloc_At, ^ir.IR_Crash, ^ir.IR_I32_Load, ^ir.IR_I32_Store, ^ir.IR_Atomic_Load, ^ir.IR_Atomic_Store, ^ir.IR_Atomic_RMW, ^ir.IR_Atomic_Fence, ^ir.IR_Wait, ^ir.IR_Notify, ^ir.IR_Assign, ^ir.IR_Loop:
+		case ^ir.IR_Literal_Int, ^ir.IR_Literal_Float, ^ir.IR_Literal_String, ^ir.IR_Literal_Bool, ^ir.IR_Var, ^ir.IR_Let, ^ir.IR_Call, ^ir.IR_If, ^ir.IR_Match, ^ir.IR_Construct_Tag, ^ir.IR_Expr_Nominal_Construct, ^ir.IR_Construct_Record, ^ir.IR_Field_Access, ^ir.IR_Method_Call, ^ir.IR_Handle, ^ir.IR_Perform, ^ir.IR_Resume, ^ir.IR_Closure, ^ir.IR_Return, ^ir.IR_Block, ^ir.IR_BinOp, ^ir.IR_Dup, ^ir.IR_Drop, ^ir.IR_Crash, ^ir.IR_I32_Load, ^ir.IR_I32_Store, ^ir.IR_Atomic_Load, ^ir.IR_Atomic_Store, ^ir.IR_Atomic_RMW, ^ir.IR_Atomic_Fence, ^ir.IR_Wait, ^ir.IR_Notify, ^ir.IR_Assign, ^ir.IR_Loop:
 			return expr
 		}
-	case ^ir.IR_Literal_Int, ^ir.IR_Literal_Float, ^ir.IR_Literal_String, ^ir.IR_Literal_Bool, ^ir.IR_Var, ^ir.IR_Call, ^ir.IR_Tail_Call, ^ir.IR_Closure_Call, ^ir.IR_If, ^ir.IR_Match, ^ir.IR_Construct_Tag, ^ir.IR_Expr_Nominal_Construct, ^ir.IR_Construct_Record, ^ir.IR_Field_Access, ^ir.IR_Method_Call, ^ir.IR_Handle, ^ir.IR_Perform, ^ir.IR_Resume, ^ir.IR_Closure, ^ir.IR_Return, ^ir.IR_Block, ^ir.IR_BinOp, ^ir.IR_Dup, ^ir.IR_Drop, ^ir.IR_Drop_Reuse, ^ir.IR_Alloc_At, ^ir.IR_Crash, ^ir.IR_I32_Load, ^ir.IR_I32_Store, ^ir.IR_Atomic_Load, ^ir.IR_Atomic_Store, ^ir.IR_Atomic_RMW, ^ir.IR_Atomic_Fence, ^ir.IR_Wait, ^ir.IR_Notify, ^ir.IR_Assign, ^ir.IR_Loop:
+	case ^ir.IR_Literal_Int, ^ir.IR_Literal_Float, ^ir.IR_Literal_String, ^ir.IR_Literal_Bool, ^ir.IR_Var, ^ir.IR_Call, ^ir.IR_Tail_Call, ^ir.IR_Closure_Call, ^ir.IR_If, ^ir.IR_Match, ^ir.IR_Construct_Tag, ^ir.IR_Expr_Nominal_Construct, ^ir.IR_Construct_Record, ^ir.IR_Field_Access, ^ir.IR_Method_Call, ^ir.IR_Handle, ^ir.IR_Perform, ^ir.IR_Resume, ^ir.IR_Closure, ^ir.IR_Return, ^ir.IR_Block, ^ir.IR_BinOp, ^ir.IR_Dup, ^ir.IR_Drop, ^ir.IR_Crash, ^ir.IR_I32_Load, ^ir.IR_I32_Store, ^ir.IR_Atomic_Load, ^ir.IR_Atomic_Store, ^ir.IR_Atomic_RMW, ^ir.IR_Atomic_Fence, ^ir.IR_Wait, ^ir.IR_Notify, ^ir.IR_Assign, ^ir.IR_Loop:
 		return expr
 	}
 	return expr
@@ -490,8 +491,12 @@ emit_expr :: proc(expr: ir.IR_Expr, buf: ^[dynamic]u8, env: ^Codegen_Env, runtim
 		}
 	case ^ir.IR_Drop:
 		if idx, ok := env.local_map[e.value]; ok {
-			emit_instruction(Wasm_Local_Get{index = idx}, buf)
-			emit_instruction(Wasm_Call{index = u32(runtime_indices[Runtime_Func.Drop])}, buf)
+			type_info, type_ok := env.local_types[e.value]
+			if type_ok && type_info.is_heap {
+				emit_instruction(Wasm_Local_Get{index = idx}, buf)
+				emit_instruction(Wasm_I32_Const{value = 0}, buf)
+				emit_instruction(Wasm_Call{index = u32(runtime_indices[Runtime_Func.Drop])}, buf)
+			}
 		}
 	case ^ir.IR_Block:
 		for stmt, idx in e.statements {
@@ -722,12 +727,57 @@ emit_expr :: proc(expr: ir.IR_Expr, buf: ^[dynamic]u8, env: ^Codegen_Env, runtim
 	case ^ir.IR_Construct_Tag:
 		num_fields := len(e.payload)
 		total_size := CAMP_TAG_HEADER_SIZE + num_fields * 8
-
-		emit_instruction(Wasm_I32_Const{value = i32(total_size)}, buf)
-		emit_instruction(Wasm_Call{index = u32(runtime_indices[Runtime_Func.Alloc])}, buf)
-
 		tmp_local_idx := env.tmp_local_base
-		emit_instruction(Wasm_Local_Set{index = tmp_local_idx}, buf)
+
+		if e.reuse_addr != ir.NO_REUSE_ADDR {
+			// Perceus inline reuse: decrement reuse_addr refcount, reuse if zero + big enough
+			reuse_local, reuse_ok := env.local_map[e.reuse_addr]
+			if reuse_ok {
+				rc_local := env.tmp_local_base + env.tmp_count
+				env.tmp_count += 1
+
+				// Load refcount, decrement, store back
+				emit_instruction(Wasm_Local_Get{index = reuse_local}, buf)
+				emit_instruction(Wasm_I32_Load{align = 2, offset = CAMP_TAG_REFCOUNT_OFFSET}, buf)
+				emit_instruction(Wasm_I32_Const{value = 1}, buf)
+				emit_instruction(Wasm_I32_Sub{}, buf)
+				emit_instruction(Wasm_Local_Tee{index = rc_local}, buf)
+				emit_instruction(Wasm_Local_Get{index = reuse_local}, buf)
+				emit_instruction(Wasm_I32_Store{align = 2, offset = CAMP_TAG_REFCOUNT_OFFSET}, buf)
+
+				// if refcount == 0
+				emit_instruction(Wasm_Local_Get{index = rc_local}, buf)
+				emit_instruction(Wasm_I32_Const{value = 0}, buf)
+				emit_instruction(Wasm_I32_Eq{}, buf)
+				emit_instruction(Wasm_If{block_type = .I32}, buf)
+					// Check scan_size >= num_fields for safe reuse
+					emit_instruction(Wasm_Local_Get{index = reuse_local}, buf)
+					emit_instruction(Wasm_I32_Load8U{align = 0, offset = CAMP_TAG_SCAN_SIZE_OFFSET}, buf)
+					emit_instruction(Wasm_I32_Const{value = i32(num_fields)}, buf)
+					emit_instruction(Wasm_I32_Ge_S{}, buf)
+					emit_instruction(Wasm_If{block_type = .I32}, buf)
+						emit_instruction(Wasm_Local_Get{index = reuse_local}, buf)
+					emit_instruction(Wasm_Else{}, buf)
+						emit_instruction(Wasm_I32_Const{value = i32(total_size)}, buf)
+						emit_instruction(Wasm_Call{index = u32(runtime_indices[Runtime_Func.Alloc])}, buf)
+					emit_instruction(Wasm_End{}, buf)
+				emit_instruction(Wasm_Else{}, buf)
+					emit_instruction(Wasm_I32_Const{value = i32(total_size)}, buf)
+					emit_instruction(Wasm_Call{index = u32(runtime_indices[Runtime_Func.Alloc])}, buf)
+				emit_instruction(Wasm_End{}, buf)
+
+				emit_instruction(Wasm_Local_Set{index = tmp_local_idx}, buf)
+			} else {
+				// Fallback: reuse_addr not in local_map, fresh alloc
+				emit_instruction(Wasm_I32_Const{value = i32(total_size)}, buf)
+				emit_instruction(Wasm_Call{index = u32(runtime_indices[Runtime_Func.Alloc])}, buf)
+				emit_instruction(Wasm_Local_Set{index = tmp_local_idx}, buf)
+			}
+		} else {
+			emit_instruction(Wasm_I32_Const{value = i32(total_size)}, buf)
+			emit_instruction(Wasm_Call{index = u32(runtime_indices[Runtime_Func.Alloc])}, buf)
+			emit_instruction(Wasm_Local_Set{index = tmp_local_idx}, buf)
+		}
 
 		emit_instruction(Wasm_Local_Get{index = tmp_local_idx}, buf)
 		emit_instruction(Wasm_I32_Const{value = 1}, buf)
@@ -754,12 +804,57 @@ emit_expr :: proc(expr: ir.IR_Expr, buf: ^[dynamic]u8, env: ^Codegen_Env, runtim
 	case ^ir.IR_Construct_Record:
 		num_fields := len(e.fields)
 		total_size := CAMP_TAG_HEADER_SIZE + num_fields * 8
-
-		emit_instruction(Wasm_I32_Const{value = i32(total_size)}, buf)
-		emit_instruction(Wasm_Call{index = u32(runtime_indices[Runtime_Func.Alloc])}, buf)
-
 		tmp_local_idx := env.tmp_local_base
-		emit_instruction(Wasm_Local_Set{index = tmp_local_idx}, buf)
+
+		if e.reuse_addr != ir.NO_REUSE_ADDR {
+			// Perceus inline reuse: decrement reuse_addr refcount, reuse if zero + big enough
+			reuse_local, reuse_ok := env.local_map[e.reuse_addr]
+			if reuse_ok {
+				rc_local := env.tmp_local_base + env.tmp_count
+				env.tmp_count += 1
+
+				// Load refcount, decrement, store back
+				emit_instruction(Wasm_Local_Get{index = reuse_local}, buf)
+				emit_instruction(Wasm_I32_Load{align = 2, offset = CAMP_TAG_REFCOUNT_OFFSET}, buf)
+				emit_instruction(Wasm_I32_Const{value = 1}, buf)
+				emit_instruction(Wasm_I32_Sub{}, buf)
+				emit_instruction(Wasm_Local_Tee{index = rc_local}, buf)
+				emit_instruction(Wasm_Local_Get{index = reuse_local}, buf)
+				emit_instruction(Wasm_I32_Store{align = 2, offset = CAMP_TAG_REFCOUNT_OFFSET}, buf)
+
+				// if refcount == 0
+				emit_instruction(Wasm_Local_Get{index = rc_local}, buf)
+				emit_instruction(Wasm_I32_Const{value = 0}, buf)
+				emit_instruction(Wasm_I32_Eq{}, buf)
+				emit_instruction(Wasm_If{block_type = .I32}, buf)
+					// Check scan_size >= num_fields for safe reuse
+					emit_instruction(Wasm_Local_Get{index = reuse_local}, buf)
+					emit_instruction(Wasm_I32_Load8U{align = 0, offset = CAMP_TAG_SCAN_SIZE_OFFSET}, buf)
+					emit_instruction(Wasm_I32_Const{value = i32(num_fields)}, buf)
+					emit_instruction(Wasm_I32_Ge_S{}, buf)
+					emit_instruction(Wasm_If{block_type = .I32}, buf)
+						emit_instruction(Wasm_Local_Get{index = reuse_local}, buf)
+					emit_instruction(Wasm_Else{}, buf)
+						emit_instruction(Wasm_I32_Const{value = i32(total_size)}, buf)
+						emit_instruction(Wasm_Call{index = u32(runtime_indices[Runtime_Func.Alloc])}, buf)
+					emit_instruction(Wasm_End{}, buf)
+				emit_instruction(Wasm_Else{}, buf)
+					emit_instruction(Wasm_I32_Const{value = i32(total_size)}, buf)
+					emit_instruction(Wasm_Call{index = u32(runtime_indices[Runtime_Func.Alloc])}, buf)
+				emit_instruction(Wasm_End{}, buf)
+
+				emit_instruction(Wasm_Local_Set{index = tmp_local_idx}, buf)
+			} else {
+				// Fallback: reuse_addr not in local_map, fresh alloc
+				emit_instruction(Wasm_I32_Const{value = i32(total_size)}, buf)
+				emit_instruction(Wasm_Call{index = u32(runtime_indices[Runtime_Func.Alloc])}, buf)
+				emit_instruction(Wasm_Local_Set{index = tmp_local_idx}, buf)
+			}
+		} else {
+			emit_instruction(Wasm_I32_Const{value = i32(total_size)}, buf)
+			emit_instruction(Wasm_Call{index = u32(runtime_indices[Runtime_Func.Alloc])}, buf)
+			emit_instruction(Wasm_Local_Set{index = tmp_local_idx}, buf)
+		}
 
 		emit_instruction(Wasm_Local_Get{index = tmp_local_idx}, buf)
 		emit_instruction(Wasm_I32_Const{value = 1}, buf)
@@ -1238,14 +1333,6 @@ emit_expr :: proc(expr: ir.IR_Expr, buf: ^[dynamic]u8, env: ^Codegen_Env, runtim
 
 		emit_instruction(Wasm_Call_Indirect{type_idx = u32(closure_type_idx), table_idx = u32(env.table_idx)}, buf)
 
-	case ^ir.IR_Drop_Reuse:
-		if idx, ok := env.local_map[e.value]; ok {
-			emit_instruction(Wasm_Local_Get{index = idx}, buf)
-			emit_instruction(Wasm_Call{index = u32(runtime_indices[Runtime_Func.Drop])}, buf)
-		}
-	case ^ir.IR_Alloc_At:
-		emit_instruction(Wasm_I32_Const{value = 16}, buf)
-		emit_instruction(Wasm_Call{index = u32(runtime_indices[Runtime_Func.Alloc])}, buf)
 	case ^ir.IR_Crash:
 		emit_expr(e.message, buf, env, runtime_indices)
 		emit_instruction(Wasm_Drop{}, buf)
@@ -1390,7 +1477,7 @@ ir_operand_wasm_type :: proc(expr: ir.IR_Expr) -> base.IR_Wasm_Type {
 	case ^ir.IR_Atomic_RMW: return .I32
 	case ^ir.IR_Wait: return .I32
 	case ^ir.IR_Notify: return .I32
-	case ^ir.IR_Let, ^ir.IR_Tail_Call, ^ir.IR_Match, ^ir.IR_Expr_Nominal_Construct, ^ir.IR_Method_Call, ^ir.IR_Handle, ^ir.IR_Perform, ^ir.IR_Return, ^ir.IR_Block, ^ir.IR_Dup, ^ir.IR_Drop, ^ir.IR_Drop_Reuse, ^ir.IR_Alloc_At, ^ir.IR_Crash, ^ir.IR_I32_Load, ^ir.IR_I32_Store, ^ir.IR_Atomic_Store, ^ir.IR_Atomic_Fence:
+	case ^ir.IR_Let, ^ir.IR_Tail_Call, ^ir.IR_Match, ^ir.IR_Expr_Nominal_Construct, ^ir.IR_Method_Call, ^ir.IR_Handle, ^ir.IR_Perform, ^ir.IR_Return, ^ir.IR_Block, ^ir.IR_Dup, ^ir.IR_Drop, ^ir.IR_Crash, ^ir.IR_I32_Load, ^ir.IR_I32_Store, ^ir.IR_Atomic_Store, ^ir.IR_Atomic_Fence:
 		return .I32
 	}
 	return .I32

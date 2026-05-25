@@ -37,8 +37,6 @@ ir_expr_wasm_type :: proc(expr: IR_Expr) -> base.IR_Wasm_Type {
 	     ^IR_Block,
 	     ^IR_Dup,
 	     ^IR_Drop,
-	     ^IR_Drop_Reuse,
-	     ^IR_Alloc_At,
 	     ^IR_Crash,
 	     ^IR_I32_Load,
 	     ^IR_I32_Store,

@@ -105,6 +105,7 @@ run_build_single :: proc(file_path: string, thread_count: int = 1) -> Build_Resu
 	ir_mod = ir.closure_convert(&ir_mod, &ctx.interner)
 	ir_mod = ir.cps_transform(&ir_mod, &ctx.interner)
 	ir.rc_insert(&ir_mod, &ctx.interner)
+	ir.reuse_analyze(&ir_mod)
 
 	wasm_mod := codegen.codegen(ir_mod, &ctx.interner, ctx.thread_count)
 	wasm_bytes := codegen.wasm_serialize(wasm_mod)
@@ -470,6 +471,7 @@ compile_test_canon :: proc(orig_canon: semantics.CFile, test_body: semantics.CEx
 	ir_mod = ir.closure_convert(&ir_mod, interner)
 	ir_mod = ir.cps_transform(&ir_mod, interner)
 	ir.rc_insert(&ir_mod, interner)
+	ir.reuse_analyze(&ir_mod)
 
 	// Codegen + serialize
 	wasm_mod := codegen.codegen(ir_mod, interner, 1)

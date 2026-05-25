@@ -234,6 +234,11 @@ codegen :: proc(ir_mod: ir.IR_Module, interner: ^base.Intern_Table, thread_count
 		env.data_offset += u32(len(bytes))
 	}
 
+	// Error message for camp_report_drop_overflow — stored after string data
+	drop_overflow_msg := "camp_drop: recursion overflow\n"
+	drop_overflow_msg_offset := env.data_offset
+	env.data_offset += u32(len(drop_overflow_msg))
+
 	heap_ptr_global_idx := len(mod.globals)
 	heap_ptr_init: [dynamic]u8
 	heap_ptr_init = make([dynamic]u8, 0, CODE_BUF_SMALL)
@@ -247,7 +252,7 @@ codegen :: proc(ir_mod: ir.IR_Module, interner: ^base.Intern_Table, thread_count
 
 	alloc_type_idx := get_or_create_type(&env, []Wasm_Value_Type{.I32}, []Wasm_Value_Type{.I32})
 	dup_type_idx := get_or_create_type(&env, []Wasm_Value_Type{.I32}, []Wasm_Value_Type{.I32})
-	drop_type_idx := get_or_create_type(&env, []Wasm_Value_Type{.I32}, []Wasm_Value_Type{})
+	drop_type_idx := get_or_create_type(&env, []Wasm_Value_Type{.I32, .I32}, []Wasm_Value_Type{})
 	print_str_type_idx := get_or_create_type(&env, []Wasm_Value_Type{.I32, .I32}, []Wasm_Value_Type{})
 	exit_type_idx := get_or_create_type(&env, []Wasm_Value_Type{.I32}, []Wasm_Value_Type{})
 	dealloc_type_idx := get_or_create_type(&env, []Wasm_Value_Type{.I32, .I32}, []Wasm_Value_Type{})
@@ -264,6 +269,7 @@ codegen :: proc(ir_mod: ir.IR_Module, interner: ^base.Intern_Table, thread_count
 	i32_to_str_type_idx := alloc_type_idx
 	f64_to_str_type_idx := get_or_create_type(&env, []Wasm_Value_Type{.F64}, []Wasm_Value_Type{.I32})
 	bool_to_str_type_idx := alloc_type_idx
+	report_drop_overflow_type_idx := get_or_create_type(&env, []Wasm_Value_Type{.I32}, []Wasm_Value_Type{})
 
 	runtime_func_indices: [RUNTIME_FUNC_COUNT]int
 	alloc_func_idx := add_function(&env, alloc_type_idx)
@@ -303,6 +309,9 @@ codegen :: proc(ir_mod: ir.IR_Module, interner: ^base.Intern_Table, thread_count
 	runtime_func_indices[Runtime_Func.F64_To_Str] = f64_to_str_func_idx
 	bool_to_str_func_idx := add_function(&env, bool_to_str_type_idx)
 	runtime_func_indices[Runtime_Func.Bool_To_Str] = bool_to_str_func_idx
+
+	report_drop_overflow_func_idx := add_function(&env, report_drop_overflow_type_idx)
+	runtime_func_indices[Runtime_Func.Report_Drop_Overflow] = report_drop_overflow_func_idx
 
 	async_init_type_idx := get_or_create_type(&env, []Wasm_Value_Type{}, []Wasm_Value_Type{})
 	async_enqueue_type_idx := get_or_create_type(&env, []Wasm_Value_Type{.I32, .I32}, []Wasm_Value_Type{.I32})
@@ -390,7 +399,7 @@ codegen :: proc(ir_mod: ir.IR_Module, interner: ^base.Intern_Table, thread_count
 	camp_dup_code := emit_camp_dup_body()
 	append(&mod.codes, camp_dup_code)
 
-	camp_drop_code := emit_camp_drop_body(alloc_func_idx)
+	camp_drop_code := emit_camp_drop_body(drop_func_idx, dealloc_func_idx, report_drop_overflow_func_idx)
 	append(&mod.codes, camp_drop_code)
 
 	camp_print_str_code := emit_camp_print_str_body()
@@ -434,6 +443,9 @@ codegen :: proc(ir_mod: ir.IR_Module, interner: ^base.Intern_Table, thread_count
 	append(&mod.codes, camp_f64_to_str_code)
 	camp_bool_to_str_code := emit_camp_bool_to_str_body()
 	append(&mod.codes, camp_bool_to_str_code)
+
+	camp_report_drop_overflow_code := emit_camp_report_drop_overflow_body(drop_overflow_msg_offset)
+	append(&mod.codes, camp_report_drop_overflow_code)
 
 	camp_async_init_code := emit_camp_async_init_body()
 	append(&mod.codes, camp_async_init_code)
@@ -683,6 +695,19 @@ codegen :: proc(ir_mod: ir.IR_Module, interner: ^base.Intern_Table, thread_count
 		})
 		delete(offset_buf)
 	}
+
+	// Data segment for camp_report_drop_overflow error message
+	drop_overflow_msg_offset_data := drop_overflow_msg_offset
+	drop_overflow_msg_bytes := transmute([]u8)drop_overflow_msg
+	offset_buf_msg: [dynamic]u8
+	offset_buf_msg = make([dynamic]u8, 0, CODE_BUF_SMALL)
+	emit_instruction(Wasm_I32_Const{value = i32(drop_overflow_msg_offset_data)}, &offset_buf_msg)
+	append(&mod.datas, Wasm_Data{
+		mem_idx = 0,
+		offset = copy_dynamic_bytes(offset_buf_msg),
+		bytes = drop_overflow_msg_bytes,
+	})
+	delete(offset_buf_msg)
 
 	delete(env.type_map)
 	delete(env.func_map)
