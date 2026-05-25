@@ -9,6 +9,10 @@ tree-sitter/build/
 .openspec/
 
 
+# Devenv
+.devenv/
+devenv.local.nix
+
 # Beads / Dolt files (added by bd init)
 .dolt/
 *.db
