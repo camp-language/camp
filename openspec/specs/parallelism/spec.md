@@ -30,7 +30,7 @@ The `Parallel!` effect SHALL provide `map!`, `for_each!`, `filter!`, `reduce!`, 
 
 #### Scenario: Parallel any returns first success
 
-- Given `Parallel!.any!([|| Throw!.throw!(A), || 42, || Throw!.throw!(B)])`
+- Given `Parallel!.any!([|| Throw!.raise!(A), || 42, || Throw!.raise!(B)])`
 - When the handler executes tasks
 - Then the result SHALL be `42` of type `a` and remaining tasks SHALL be cancelled
 
@@ -42,7 +42,7 @@ The `Parallel!` effect SHALL provide `map!`, `for_each!`, `filter!`, `reduce!`, 
 
 #### Scenario: Parallel any all tasks throw
 
-- Given `Parallel!.any!([|| Throw!.throw!(A), || Throw!.throw!(B)])`
+- Given `Parallel!.any!([|| Throw!.raise!(A), || Throw!.raise!(B)])`
 - When all thunks throw
 - Then the first thrown error SHALL be propagated via `Throw!`
 
@@ -79,7 +79,7 @@ The `Parallel!` effect SHALL propagate inner function effects through its operat
 
 #### Scenario: Effectful parallel map
 
-- Given `Parallel!.map!(items, |x| Throw!.throw!(x))` where the function throws
+- Given `Parallel!.map!(items, |x| Throw!.raise!(x))` where the function throws
 - Then the effect row SHALL be `-[Parallel! | Throw!(e)]->`
 
 #### Scenario: Async-effectful parallel map
@@ -105,19 +105,19 @@ The `Parallel!` effect SHALL propagate inner function effects through its operat
 
 ### Requirement: par Block Syntax
 
-The `par { e1, e2, e3 }` block SHALL be syntactic sugar that returns a tuple of each expression's result type. Note: `par` blocks and `Parallel!.all!` are separate mechanisms — `par` blocks are syntactic (return heterogeneous tuples with fixed compile-time arity), while `Parallel!.all!` is a library function (returns homogeneous `List(a)` with dynamic count). Use `par { }` for 2-10 heterogeneous tasks; `Parallel!.all!` for dynamic lists of the same type. The `par for x in xs { body }` block SHALL desugar to `Parallel!.for_each!(xs, |x| body)`.
+The `par { name: expr, ... }` block SHALL contain named entries only and return a record `{ name: T1, ... }`. Note: `par` blocks and `Parallel!.all!` are separate mechanisms — `par` blocks are syntactic (return heterogeneous records with fixed compile-time arity), while `Parallel!.all!` is a library function (returns homogeneous `List(a)` with dynamic count). Use `par { }` for 2+ heterogeneous tasks (when >3 entries the named record syntax is required since tuples are capped at 3); `Parallel!.all!` for dynamic lists of the same type. The `par for x in xs { body }` block SHALL desugar to `Parallel!.for_each!(xs, |x| body)` and SHALL return `{}` (unit).
 
-#### Scenario: par block returns typed tuple
+#### Scenario: par block returns named record
 
-- Given `par { compute_alpha!(), compute_beta!() }` where alpha returns `Int` and beta returns `Str`
+- Given `par { alpha: compute_alpha!(), beta: compute_beta!() }` where alpha returns `Int` and beta returns `Str`
 - When the block executes
-- Then the result type SHALL be `(Int, Str)` — a tuple preserving each expression's type
+- Then the result type SHALL be `{ alpha: Int, beta: Str }` — a record preserving each expression's type
 
-#### Scenario: par for desugars to for_each
+#### Scenario: par for desugars to for_each and returns unit
 
 - Given `par for r in records { process_record!(r) }`
 - When canonicalization runs
-- Then it SHALL be equivalent to `Parallel!.for_each!(records, |r| process_record!(r))`
+- Then it SHALL be equivalent to `Parallel!.for_each!(records, |r| process_record!(r))` and the result type SHALL be `{}` (unit)
 
 ### Requirement: for_each! Side Effect Order Not Guaranteed
 
@@ -125,7 +125,7 @@ The `par { e1, e2, e3 }` block SHALL be syntactic sugar that returns a tuple of 
 
 #### Scenario: Unordered side effects with thread-pool handler
 
-- Given `items.par_for_each!(|x| Console!.println!(x))` with a thread-pool handler
+- Given `items.par_for_each!(|x| Console.println!(x))` with a thread-pool handler
 - When the handler runs items in parallel
 - Then the order of printed lines SHALL NOT be guaranteed to match input order
 
@@ -151,7 +151,7 @@ The `Spawn!` effect SHALL provide `spawn!`, `join!`, and `cancel!` operations fo
 
 #### Scenario: Spawn join re-throws errors
 
-- Given `h = Spawn!.spawn!(|| throw!(ParseError))`
+- Given `h = Spawn!.spawn!(|| raise!(ParseError))`
 - When `Spawn!.join!(h)` is called
 - Then `Throw!(ParseError)` SHALL be propagated in the caller's context
 
@@ -305,3 +305,7 @@ The typechecker SHALL enforce that functions passed to `Parallel!` operations ca
 - Given `$counter = 0` in an enclosing scope and `items.par_map!(|x| { $counter = $counter + 1; x })`
 - When the typechecker processes the closure
 - Then it SHALL produce an error because `$counter` is captured across a parallel boundary
+
+### Reference
+
+For the complete syntax reference, see `docs/syntax-recipe.md`.
