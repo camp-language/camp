@@ -14,7 +14,27 @@ The diagnostic system SHALL use sum-type error variants — one struct per error
 
 - Given a specific error condition occurs in the compiler pipeline
 - When the pipeline calls a `diag_*` constructor
-- Then the constructor SHALL produce a `Diagnostic` with the correct `category`, `message`, `labels`, and `hints` for that error kind
+- Then the constructor SHALL produce a `Diagnostic` with the correct `code`, `category`, `message`, `labels`, and `hints` for that error kind
+
+### Requirement: Error Codes
+
+Every diagnostic SHALL carry a unique `C####` error code for searchability and `camp --explain` support.
+
+#### Scenario: Error code in diagnostic
+
+- Given a diagnostic is created
+- When the diagnostic is rendered
+- Then the code SHALL appear in the header (e.g., `-- C0300: TYPE MISMATCH -- file.camp`)
+
+#### Scenario: Error code ranges
+
+- Given the diagnostic code system
+- Then codes SHALL be organized by category: C0001–C0099 (Lexer), C0100–C0199 (Parser), C0200–C0299 (Name Resolution), C0300–C0399 (Type System), C0400–C0499 (Effect System), C0500–C0599 (Pattern Matching), C0600–C0699 (Traits/Generics), C0700–C0799 (Newtype/Nominal), C0800–C0899 (Module/Import), C0900–C0999 (Unused Warnings), C1000–C1099 (Unused Errors), C1100–C1199 (Perceus/RC), C1200–C1299 (CLI/Build), C9000–C9099 (Internal)
+
+#### Scenario: LSP code mapping
+
+- Given a diagnostic is mapped to LSP format
+- Then the `code` field SHALL be included in the LSP diagnostic
 
 ### Requirement: Diagnostic Categories
 
@@ -77,7 +97,7 @@ The CLI renderer SHALL produce Elm-style output with headers, source snippets, u
 
 - Given a diagnostic with a single span
 - When rendered for CLI output
-- Then the output SHALL contain a header line (`-- {TITLE} -- {file_path}`), the source snippet with line numbers, a `^` underline spanning the primary span, the message, and any hints
+- Then the output SHALL contain a header line (`-- {CODE}: {TITLE} -- {file_path}`), the source snippet with line numbers, a `^` underline spanning the primary span, the message, and any hints
 
 #### Scenario: Multi-span error rendering
 
@@ -113,9 +133,9 @@ The LSP renderer SHALL map `Diagnostic` to LSP `PublishDiagnostics` format.
 
 #### Scenario: Mapping diagnostic to LSP
 
-- Given a `Diagnostic` with category, span, message, labels, and hints
+- Given a `Diagnostic` with code, category, span, message, labels, and hints
 - When mapped to LSP format
-- Then `span` SHALL become `range` (byte offsets to Position), `category` SHALL become `severity` (Error=1, Warning=2, Internal=1), `message` and hint text joined with `\n\n` SHALL become `message`, and each `Span_Label` SHALL become a `relatedInformation` entry
+- Then `span` SHALL become `range` (byte offsets to Position), `category` SHALL become `severity` (Error=1, Warning=2, Internal=1), `code` SHALL become `code`, `message` and hint text joined with `\n\n` SHALL become `message`, and each `Span_Label` SHALL become a `relatedInformation` entry
 
 ### Requirement: Diagnostic Collector
 
@@ -145,22 +165,22 @@ Diagnostic output in non-TTY mode SHALL be deterministic for snapshot testing.
 
 ### Requirement: Error Catalog Completeness
 
-The diagnostic system SHALL define constructors for all error variants: lexer errors, parser errors, typecheck errors, unification errors, and CLI errors.
+The diagnostic system SHALL define constructors for all error variants. The complete catalog of all diagnostics, their codes, messages, hints, and rationale is documented in `docs/diagnostics-catalog.md`.
 
 #### Scenario: Lexer errors
 
 - Given unexpected characters or unterminated strings
-- Then `diag_unexpected_char` and `diag_unterminated_string` SHALL produce appropriate diagnostics
+- Then `diag_unexpected_char` (C0001) and `diag_unterminated_string` (C0002) SHALL produce appropriate diagnostics
 
 #### Scenario: Parser errors
 
 - Given expected tokens, unexpected tokens, or expected types
-- Then `diag_expected_token`, `diag_unexpected_token`, and `diag_expected_type` SHALL produce diagnostics with human-readable token names
+- Then `diag_expected_token` (C0100), `diag_unexpected_token` (C0101), and `diag_expected_type` (C0102) SHALL produce diagnostics with human-readable token names
 
 #### Scenario: Typecheck errors
 
 - Given effectful naming, undefined names, or unhandled effects
-- Then `diag_effectful_naming`, `diag_undefined_name`, and `diag_unhandled_effect` SHALL produce diagnostics with appropriate messages and hints
+- Then `diag_effectful_naming` (C0400), `diag_undefined_name` (C0200), and `diag_unhandled_effect` (C0401) SHALL produce diagnostics with appropriate messages and hints
 
 #### Scenario: Unification errors
 
@@ -170,11 +190,11 @@ The diagnostic system SHALL define constructors for all error variants: lexer er
 #### Scenario: CLI errors
 
 - Given invalid file extensions, missing files, or unknown commands
-- Then `diag_invalid_extension`, `diag_file_not_found`, and `diag_unknown_command` SHALL produce diagnostics without source snippets
+- Then `diag_invalid_extension` (C1200), `diag_file_not_found` (C1201), and `diag_unknown_command` (C1202) SHALL produce diagnostics without source snippets
 
 #### Scenario: Unused analysis errors
 
 - Given unused bindings, unused record fields, unused imports, pointless evaluations, contradictory prefixes, no-op assignments, or unused assignments
-- Then `diag_unused_binding`, `diag_unused_record_field`, `diag_unused_import`, `diag_pointless_evaluation`, `diag_contradictory_prefix`, `diag_noop_assignment`, and `diag_unused_assignment` SHALL produce diagnostics with appropriate messages and hints
+- Then `diag_unused_binding` (C0900), `diag_unused_record_field` (C0901), `diag_unused_import` (C0902), `diag_pointless_evaluation` (C0903), `diag_contradictory_prefix` (C1000), `diag_noop_assignment` (C1001), and `diag_unused_assignment` (C0904) SHALL produce diagnostics with appropriate messages and hints
 
-For the complete syntax reference, see `docs/syntax-recipe.md`.
+For the complete syntax reference, see `docs/syntax-recipe.md`. For the full diagnostic catalog with all codes, messages, and rationale, see `docs/diagnostics-catalog.md`.

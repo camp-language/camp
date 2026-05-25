@@ -11,7 +11,7 @@ test_collector_add_warning :: proc(t: ^testing.T) {
 	diagnostics.diag_collector_init(&collector)
 	defer diagnostics.diag_collector_destroy(&collector)
 
-	diagnostics.collector_add_diag(&collector, diagnostics.diag_init(.Warning, "TEST", base.Source_Span_ZERO, "unused variable"))
+	diagnostics.collector_add_diag(&collector, diagnostics.diag_init(.Warning, "C0000", "TEST", base.Source_Span_ZERO, "unused variable"))
 	testing.expect(t, collector.warning_count == 1)
 	testing.expect(t, collector.error_count == 0)
 	testing.expect(t, !diagnostics.diag_collector_has_errors(&collector))
@@ -23,7 +23,7 @@ test_collector_add_error :: proc(t: ^testing.T) {
 	diagnostics.diag_collector_init(&collector)
 	defer diagnostics.diag_collector_destroy(&collector)
 
-	diagnostics.collector_add_diag(&collector, diagnostics.diag_init(.Error, "TEST", base.Source_Span_ZERO, "type mismatch"))
+	diagnostics.collector_add_diag(&collector, diagnostics.diag_init(.Error, "C0000", "TEST", base.Source_Span_ZERO, "type mismatch"))
 	testing.expect(t, collector.warning_count == 0)
 	testing.expect(t, collector.error_count == 1)
 	testing.expect(t, diagnostics.diag_collector_has_errors(&collector))
@@ -35,7 +35,7 @@ test_collector_add_internal :: proc(t: ^testing.T) {
 	diagnostics.diag_collector_init(&collector)
 	defer diagnostics.diag_collector_destroy(&collector)
 
-	diagnostics.collector_add_diag(&collector, diagnostics.diag_init(.Internal, "TEST", base.Source_Span_ZERO, "impossible type after typecheck"))
+	diagnostics.collector_add_diag(&collector, diagnostics.diag_init(.Internal, "C9000", "TEST", base.Source_Span_ZERO, "impossible type after typecheck"))
 	testing.expect(t, collector.internal_count == 1)
 	testing.expect(t, diagnostics.diag_collector_has_errors(&collector))
 }

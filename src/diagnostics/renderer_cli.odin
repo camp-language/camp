@@ -94,7 +94,7 @@ render_all :: proc(collector: ^Diagnostic_Collector, file_path: string, source: 
 render_diagnostic :: proc(d: Diagnostic, file_path: string, source: string, use_color: bool) {
 	colors := color_scheme_for(d.category, use_color)
 
-	render_header(d.title, file_path, colors)
+	render_header(d.code, d.title, file_path, colors)
 	fmt.println()
 
 	message := word_wrap(d.message, 80)
@@ -117,7 +117,7 @@ render_diagnostic :: proc(d: Diagnostic, file_path: string, source: string, use_
 	}
 }
 
-render_header :: proc(title: string, file_path: string, colors: Color_Scheme) {
+render_header :: proc(code: string, title: string, file_path: string, colors: Color_Scheme) {
 	builder: strings.Builder
 	strings.builder_init_len_cap(&builder, 0, 256)
 	defer strings.builder_destroy(&builder)
@@ -125,10 +125,14 @@ render_header :: proc(title: string, file_path: string, colors: Color_Scheme) {
 	strings.write_string(&builder, colors.header_dash)
 	strings.write_string(&builder, "-- ")
 	strings.write_string(&builder, colors.header_title)
+	if len(code) > 0 {
+		strings.write_string(&builder, code)
+		strings.write_string(&builder, ": ")
+	}
 	strings.write_string(&builder, title)
 	strings.write_string(&builder, colors.header_dash)
 
-	content_len := 3 + len(title) + 1 + len(file_path)
+	content_len := 3 + len(code) + 2 + len(title) + 1 + len(file_path)
 	dash_count := 60 - content_len
 	if dash_count < 3 do dash_count = 3
 
