@@ -1,10 +1,12 @@
 stdout = """
 canonicalized /tmp/camp-e2e/errors/unhandled-effect/src/Main.camp: 2 declaration(s), 0 import(s)
-typecheck passed for /tmp/camp-e2e/errors/unhandled-effect/src/Main.camp
-compiled /tmp/camp-e2e/errors/unhandled-effect/src/Main.camp -> /tmp/camp-e2e/errors/unhandled-effect/src/Main.wasm
+-- C0401: UNHANDLED EFFECT --- /tmp/camp-e2e/errors/unhandled-effect/src/Main.camp
+
+This expression performs effect `IO!`, but there is no `handle` block around it.
+   2 | main! = || -> I64 { IO!.println!("hi") 0 }
+                               ^^^^^^^^
+  Try wrapping it with a `handle` block.
+compilation failed with 1 error(s)
 """
 stderr = ""
-exit = 0
-wasm_exit = 68
-wasm_stdout = ""
-wasm_stderr = ""
+exit = 1

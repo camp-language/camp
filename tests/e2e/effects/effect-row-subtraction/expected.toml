@@ -1,29 +1,7 @@
 stdout = """
 canonicalized /tmp/camp-e2e/effects/effect-row-subtraction/src/Main.camp: 4 declaration(s), 0 import(s)
--- C9000: INTERNAL ERROR --- /tmp/camp-e2e/effects/effect-row-subtraction/src/Main.camp
-
-Something went wrong inside the compiler: operation `read!` not found in effects
-`Ask!`
-   2 | _x = handle Ask! in Ask!.read!() with { .read!(resume) => resume(42) }
-                                                ^^^^^
-  This is a bug in Camp. Please report it at https://github.com/smores56/camp/issues
-
--- C9000: INTERNAL ERROR --- /tmp/camp-e2e/effects/effect-row-subtraction/src/Main.camp
-
-Something went wrong inside the compiler: operation `get!` not found in effects
-`State!`
-   8 |       with { .get!(resume) => resume(0) }
-                     ^^^^
-  This is a bug in Camp. Please report it at https://github.com/smores56/camp/issues
-
--- C9000: INTERNAL ERROR --- /tmp/camp-e2e/effects/effect-row-subtraction/src/Main.camp
-
-Something went wrong inside the compiler: operation `read!` not found in effects
-`Ask!`
-   9 |     with { .read!(resume) => resume(42) }
-                   ^^^^^
-  This is a bug in Camp. Please report it at https://github.com/smores56/camp/issues
-compilation failed with 3 error(s)
+typecheck passed for /tmp/camp-e2e/effects/effect-row-subtraction/src/Main.camp
+compiled /tmp/camp-e2e/effects/effect-row-subtraction/src/Main.camp -> /tmp/camp-e2e/effects/effect-row-subtraction/src/Main.wasm
 """
 stderr = ""
-exit = 1
+exit = 0
