@@ -632,10 +632,12 @@ rc_insert_expr_inner :: proc(
 			arm_drops := emit_drops_for_branch(remaining, &arm_rem, heap_types)
 			new_body = wrap_with_drops(new_body, arm_drops)
 
-			append(
-				&new_arms,
-				IR_Match_Arm{pattern = arm.pattern, guard = arm.guard, body = new_body},
-			)
+			guard_new: IR_Expr = nil
+			if arm.guard != nil {
+				guard_rem := copy_remaining(remaining)
+				guard_new = rc_insert_expr_inner(arm.guard, &guard_rem, heap_types, interner)
+			}
+			append(&new_arms, IR_Match_Arm{pattern = arm.pattern, guard = guard_new, body = new_body})
 
 			// Merge: take minimum across arms (conservative)
 			if first {

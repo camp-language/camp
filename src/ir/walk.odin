@@ -30,6 +30,7 @@ walk_expr_children :: proc(expr: IR_Expr, visitor: proc(expr: IR_Expr, ctx: rawp
 	case ^IR_Match:
 		visitor(e.scrutinee, ctx)
 		for arm in e.arms {
+			if arm.guard != nil { visitor(arm.guard, ctx) }
 			visitor(arm.body, ctx)
 		}
 	case ^IR_Construct_Tag:

@@ -1028,18 +1028,35 @@ resolve_tag_payload_wasm_types :: proc(
 lower_tmatch :: proc(e: ^semantics.TExpr_Match, env: ^Lower_Env) -> IR_Expr {
 	scrut_ir := lower_texpr(e.scrutinee, env)
 	scrutinee_type_id := texpr_type_id(e.scrutinee)
-	arms := make([dynamic]IR_Match_Arm, len(e.arms))
+
+	// Desugar or-patterns: A | B | C => body becomes three separate arms.
+	// This avoids adding IR_Pat_Or and updating every IR pass + codegen.
+	arms := make([dynamic]IR_Match_Arm, 0, len(e.arms))
 	for i in 0 ..< len(e.arms) {
 		guard_ir: IR_Expr
 		if e.arms[i].guard != nil {
 			guard_ir = lower_texpr(e.arms[i].guard, env)
 		}
-		arms[i] = IR_Match_Arm {
-			pattern = lower_tpattern(e.arms[i].pattern, env, scrutinee_type_id),
-			guard   = guard_ir,
-			body    = lower_texpr(e.arms[i].body, env),
+		body_ir := lower_texpr(e.arms[i].body, env)
+
+		or_pat, is_or := e.arms[i].pattern.(^semantics.TPattern_Or)
+		if is_or {
+			for alt in or_pat.alternatives {
+				append(&arms, IR_Match_Arm {
+					pattern = lower_tpattern(alt, env, scrutinee_type_id),
+					guard   = guard_ir,
+					body    = body_ir,
+				})
+			}
+		} else {
+			append(&arms, IR_Match_Arm {
+				pattern = lower_tpattern(e.arms[i].pattern, env, scrutinee_type_id),
+				guard   = guard_ir,
+				body    = body_ir,
+			})
 		}
 	}
+
 	result := new(IR_Match)
 	result^ = IR_Match {
 		scrutinee = scrut_ir,
@@ -1205,8 +1222,8 @@ lower_tpattern :: proc(
 		return IR_Pattern(result)
 
 	case ^semantics.TPattern_Or:
-		// For now, just lower the first alternative
-		// Full or-pattern support requires IR patching
+		// Or-patterns are desugared in lower_tmatch before this function is called.
+		// This case should be unreachable; if hit, it's a bug in the desugaring.
 		if len(p.alternatives) > 0 {
 			return lower_tpattern(p.alternatives[0], env)
 		}
