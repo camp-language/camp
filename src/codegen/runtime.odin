@@ -656,93 +656,83 @@ emit_camp_str_len_body :: proc() -> Wasm_Code {
 emit_camp_str_eq_body :: proc() -> Wasm_Code {
 	// Compare two strings by length then byte-by-byte.
 	// Params: (str_a: i32, str_b: i32) -> i32 (1=equal, 0=not equal)
-	// Locals: 2=len_a, 3=loop_i
-	//
-	// Structure:
-	//   block (result i32):
-	//     if lengths differ: push 0, br 1 (exit block)
-	//     i = 0
-	//     loop:
-	//       if i >= len_a: push 1, br 2 (exit block)
-	//       if a[i] != b[i]: push 0, br 2 (exit block)
-	//       i++; br 0 (continue)
-	//     end loop
-	//     unreachable (loop never falls through; dummy i32 for type-checker)
-	//   end block
+	// Locals: 2=len_a, 3=len_b, 4=i
 	buf: [dynamic]u8
 	buf = make([dynamic]u8, 0, CODE_BUF_MODERATE)
 
-	emit_instruction(Wasm_Block{block_type = .I32}, &buf)
-
-	// Compare lengths
+	// Load lengths and compare
 	emit_instruction(Wasm_Local_Get{index = 0}, &buf)
 	emit_instruction(Wasm_I32_Load{align = 2, offset = 0}, &buf)
 	emit_instruction(Wasm_Local_Tee{index = 2}, &buf)
 	emit_instruction(Wasm_Local_Get{index = 1}, &buf)
 	emit_instruction(Wasm_I32_Load{align = 2, offset = 0}, &buf)
+	emit_instruction(Wasm_Local_Tee{index = 3}, &buf)
 	emit_instruction(Wasm_I32_Ne{}, &buf)
 	emit_instruction(Wasm_If{block_type = .Void}, &buf)
 	emit_instruction(Wasm_I32_Const{value = 0}, &buf)
-	emit_instruction(Wasm_Br{label = 1}, &buf)
+	emit_instruction(Wasm_Return{}, &buf)
 	emit_instruction(Wasm_End{}, &buf)
 
 	// i = 0
 	emit_instruction(Wasm_I32_Const{value = 0}, &buf)
-	emit_instruction(Wasm_Local_Set{index = 3}, &buf)
+	emit_instruction(Wasm_Local_Set{index = 4}, &buf)
 
+	// Inner block for "equal" exit
+	emit_instruction(Wasm_Block{block_type = .Void}, &buf)
 	emit_instruction(Wasm_Loop{block_type = .Void}, &buf)
 
-	// if i >= len_a: exit block with 1
-	emit_instruction(Wasm_Local_Get{index = 3}, &buf)
+	// if i >= len_a, break (equal)
+	emit_instruction(Wasm_Local_Get{index = 4}, &buf)
 	emit_instruction(Wasm_Local_Get{index = 2}, &buf)
-	emit_instruction(Wasm_I32_Ge_U{}, &buf)
-	emit_instruction(Wasm_If{block_type = .Void}, &buf)
-	emit_instruction(Wasm_I32_Const{value = 1}, &buf)
-	emit_instruction(Wasm_Br{label = 2}, &buf)
-	emit_instruction(Wasm_End{}, &buf)
+	emit_instruction(Wasm_I32_Ge_S{}, &buf)
+	emit_instruction(Wasm_Br_If{label = 1}, &buf)
 
-	// load a[i] and b[i]
+	// Load byte_a
 	emit_instruction(Wasm_Local_Get{index = 0}, &buf)
-	emit_instruction(Wasm_Local_Get{index = 3}, &buf)
+	emit_instruction(Wasm_Local_Get{index = 4}, &buf)
 	emit_instruction(Wasm_I32_Add{}, &buf)
 	emit_instruction(Wasm_I32_Load8U{align = 0, offset = 4}, &buf)
+
+	// Load byte_b
 	emit_instruction(Wasm_Local_Get{index = 1}, &buf)
-	emit_instruction(Wasm_Local_Get{index = 3}, &buf)
+	emit_instruction(Wasm_Local_Get{index = 4}, &buf)
 	emit_instruction(Wasm_I32_Add{}, &buf)
 	emit_instruction(Wasm_I32_Load8U{align = 0, offset = 4}, &buf)
+
+	// If byte_a != byte_b, return 0 (not equal)
 	emit_instruction(Wasm_I32_Ne{}, &buf)
 	emit_instruction(Wasm_If{block_type = .Void}, &buf)
 	emit_instruction(Wasm_I32_Const{value = 0}, &buf)
-	emit_instruction(Wasm_Br{label = 2}, &buf)
+	emit_instruction(Wasm_Return{}, &buf)
 	emit_instruction(Wasm_End{}, &buf)
 
 	// i++
-	emit_instruction(Wasm_Local_Get{index = 3}, &buf)
+	emit_instruction(Wasm_Local_Get{index = 4}, &buf)
 	emit_instruction(Wasm_I32_Const{value = 1}, &buf)
 	emit_instruction(Wasm_I32_Add{}, &buf)
-	emit_instruction(Wasm_Local_Set{index = 3}, &buf)
+	emit_instruction(Wasm_Local_Set{index = 4}, &buf)
 
-	// continue loop
 	emit_instruction(Wasm_Br{label = 0}, &buf)
-	emit_instruction(Wasm_End{}, &buf) // end loop
+	emit_instruction(Wasm_End{}, &buf)
+	emit_instruction(Wasm_End{}, &buf)
 
-	// Unreachable: loop never falls through (every iteration either
-	// continues with br 0 or exits the block with br 2). Validator still
-	// needs an i32 here for the block's result type.
-	emit_instruction(Wasm_Unreachable{}, &buf)
+	// All bytes matched
+	emit_instruction(Wasm_I32_Const{value = 1}, &buf)
+	emit_instruction(Wasm_End{}, &buf)
 
-	emit_instruction(Wasm_End{}, &buf) // end block
-	emit_instruction(Wasm_End{}, &buf) // end function
-
-	locals := make([]Wasm_Local_Decl, 2)
+	locals := make([]Wasm_Local_Decl, 3)
 	locals[0] = Wasm_Local_Decl {
 		count = 1,
 		type  = .I32,
-	} // len_a
+	} // len_a (local 2)
 	locals[1] = Wasm_Local_Decl {
 		count = 1,
 		type  = .I32,
-	} // loop_i
+	} // len_b (local 3)
+	locals[2] = Wasm_Local_Decl {
+		count = 1,
+		type  = .I32,
+	} // i (local 4)
 
 	body := make([]u8, len(buf))
 	for b, i in buf {
@@ -931,7 +921,7 @@ emit_camp_parallel_reduce_body :: proc(runtime_indices: [RUNTIME_FUNC_COUNT]int)
 	emit_instruction(Wasm_Loop{block_type = .Void}, &buf)
 	emit_instruction(Wasm_Local_Get{index = 7}, &buf)
 	emit_instruction(Wasm_Local_Get{index = 3}, &buf)
-	emit_instruction(Wasm_I32_Lt_S{}, &buf)
+	emit_instruction(Wasm_I32_Ge_S{}, &buf)
 	emit_instruction(Wasm_Br_If{label = 1}, &buf)
 	emit_instruction(Wasm_Local_Get{index = 2}, &buf)
 	emit_instruction(Wasm_Local_Get{index = 7}, &buf)
@@ -945,7 +935,6 @@ emit_camp_parallel_reduce_body :: proc(runtime_indices: [RUNTIME_FUNC_COUNT]int)
 	emit_instruction(Wasm_Local_Get{index = 8}, &buf)
 	emit_instruction(Wasm_Local_Get{index = 0}, &buf)
 	emit_instruction(Wasm_Call_Indirect{type_idx = 0, table_idx = 0}, &buf)
-	emit_instruction(Wasm_Local_Set{index = 6}, &buf)
 	emit_instruction(Wasm_Local_Get{index = 7}, &buf)
 	emit_instruction(Wasm_I32_Const{value = 1}, &buf)
 	emit_instruction(Wasm_I32_Add{}, &buf)
@@ -1004,7 +993,7 @@ emit_camp_parallel_any_body :: proc(runtime_indices: [RUNTIME_FUNC_COUNT]int) ->
 	emit_instruction(Wasm_I32_Const{value = 0}, &buf)
 	emit_instruction(Wasm_Local_Get{index = 4}, &buf)
 	emit_instruction(Wasm_Local_Get{index = 3}, &buf)
-	emit_instruction(Wasm_I32_Lt_S{}, &buf)
+	emit_instruction(Wasm_I32_Ge_S{}, &buf)
 	emit_instruction(Wasm_Br_If{label = 1}, &buf)
 	emit_instruction(Wasm_Drop{}, &buf)
 	emit_instruction(Wasm_Local_Get{index = 2}, &buf)
@@ -1018,11 +1007,6 @@ emit_camp_parallel_any_body :: proc(runtime_indices: [RUNTIME_FUNC_COUNT]int) ->
 	emit_instruction(Wasm_Local_Get{index = 5}, &buf)
 	emit_instruction(Wasm_Local_Get{index = 0}, &buf)
 	emit_instruction(Wasm_Call_Indirect{type_idx = 0, table_idx = 0}, &buf)
-	emit_instruction(Wasm_Local_Set{index = 6}, &buf)
-	emit_instruction(Wasm_Local_Get{index = 6}, &buf)
-	emit_instruction(Wasm_Local_Get{index = 6}, &buf)
-	emit_instruction(Wasm_Br_If{label = 1}, &buf)
-	emit_instruction(Wasm_Drop{}, &buf)
 	emit_instruction(Wasm_Local_Get{index = 4}, &buf)
 	emit_instruction(Wasm_I32_Const{value = 1}, &buf)
 	emit_instruction(Wasm_I32_Add{}, &buf)
@@ -1080,7 +1064,7 @@ emit_camp_parallel_all_body :: proc(runtime_indices: [RUNTIME_FUNC_COUNT]int) ->
 	emit_instruction(Wasm_Loop{block_type = .Void}, &buf)
 	emit_instruction(Wasm_Local_Get{index = 6}, &buf)
 	emit_instruction(Wasm_Local_Get{index = 3}, &buf)
-	emit_instruction(Wasm_I32_Lt_S{}, &buf)
+	emit_instruction(Wasm_I32_Ge_S{}, &buf)
 	emit_instruction(Wasm_Br_If{label = 1}, &buf)
 	emit_instruction(Wasm_Local_Get{index = 2}, &buf)
 	emit_instruction(Wasm_Local_Get{index = 6}, &buf)
@@ -1093,7 +1077,6 @@ emit_camp_parallel_all_body :: proc(runtime_indices: [RUNTIME_FUNC_COUNT]int) ->
 	emit_instruction(Wasm_Local_Get{index = 7}, &buf)
 	emit_instruction(Wasm_Local_Get{index = 0}, &buf)
 	emit_instruction(Wasm_Call_Indirect{type_idx = 0, table_idx = 0}, &buf)
-	emit_instruction(Wasm_Local_Set{index = 8}, &buf)
 	emit_instruction(Wasm_Local_Get{index = 5}, &buf)
 	emit_instruction(Wasm_I32_Const{value = i32(CAMP_TAG_FIELDS_OFFSET)}, &buf)
 	emit_instruction(Wasm_Local_Get{index = 6}, &buf)
@@ -1193,7 +1176,7 @@ emit_camp_parallel_filter_body :: proc(runtime_indices: [RUNTIME_FUNC_COUNT]int)
 
 	emit_instruction(Wasm_Local_Get{index = 6}, &buf)
 	emit_instruction(Wasm_Local_Get{index = 3}, &buf)
-	emit_instruction(Wasm_I32_Lt_S{}, &buf)
+	emit_instruction(Wasm_I32_Ge_S{}, &buf)
 	emit_instruction(Wasm_Br_If{label = 1}, &buf)
 
 	// Load item_val
@@ -1210,7 +1193,6 @@ emit_camp_parallel_filter_body :: proc(runtime_indices: [RUNTIME_FUNC_COUNT]int)
 	emit_instruction(Wasm_Local_Get{index = 7}, &buf)
 	emit_instruction(Wasm_Local_Get{index = 0}, &buf)
 	emit_instruction(Wasm_Call_Indirect{type_idx = 0, table_idx = 0}, &buf)
-	emit_instruction(Wasm_Local_Set{index = 8}, &buf)
 
 	// If result_val != 0 (truthy), store item in result and increment match_count
 	emit_instruction(Wasm_Local_Get{index = 8}, &buf)
@@ -1319,7 +1301,7 @@ emit_camp_parallel_for_each_body :: proc(runtime_indices: [RUNTIME_FUNC_COUNT]in
 
 	emit_instruction(Wasm_Local_Get{index = 5}, &buf)
 	emit_instruction(Wasm_Local_Get{index = 3}, &buf)
-	emit_instruction(Wasm_I32_Lt_S{}, &buf)
+	emit_instruction(Wasm_I32_Ge_S{}, &buf)
 	emit_instruction(Wasm_Br_If{label = 1}, &buf)
 
 	// Load item_val
@@ -1336,7 +1318,6 @@ emit_camp_parallel_for_each_body :: proc(runtime_indices: [RUNTIME_FUNC_COUNT]in
 	emit_instruction(Wasm_Local_Get{index = 6}, &buf)
 	emit_instruction(Wasm_Local_Get{index = 0}, &buf)
 	emit_instruction(Wasm_Call_Indirect{type_idx = 0, table_idx = 0}, &buf)
-	emit_instruction(Wasm_Drop{}, &buf)
 
 	// i++
 	emit_instruction(Wasm_Local_Get{index = 5}, &buf)
@@ -1914,7 +1895,7 @@ emit_camp_sched_worker_loop_body :: proc() -> Wasm_Code {
 	emit_instruction(Wasm_I32_Const{value = i32(global_queue_base)}, &buf)
 	emit_instruction(Wasm_I32_Const{value = 1}, &buf)
 	emit_instruction(Wasm_Atomic_Mem{op = .RMW_Add, width = .I32, align = 2, offset = 0}, &buf)
-	emit_instruction(Wasm_Local_Tee{index = 2}, &buf)
+	emit_instruction(Wasm_Local_Set{index = 2}, &buf)
 	emit_instruction(Wasm_I32_Const{value = i32(global_queue_base + 12)}, &buf)
 	emit_instruction(Wasm_Local_Get{index = 2}, &buf)
 	emit_instruction(Wasm_I32_Const{value = i32(SCHED_LOCAL_QUEUE_ENTRY_SIZE)}, &buf)
@@ -1941,7 +1922,6 @@ emit_camp_sched_worker_loop_body :: proc() -> Wasm_Code {
 	emit_instruction(Wasm_Local_Get{index = 5}, &buf)
 	emit_instruction(Wasm_Local_Get{index = 4}, &buf)
 	emit_instruction(Wasm_Call_Indirect{type_idx = 0, table_idx = 0}, &buf)
-	emit_instruction(Wasm_Local_Set{index = 7}, &buf)
 	emit_instruction(Wasm_Local_Get{index = 1}, &buf)
 	emit_instruction(Wasm_I32_Const{value = 1}, &buf)
 	emit_instruction(Wasm_I32_Add{}, &buf)
@@ -2015,7 +1995,7 @@ emit_camp_parallel_map_body :: proc(runtime_indices: [RUNTIME_FUNC_COUNT]int) ->
 	emit_instruction(Wasm_Loop{block_type = .Void}, &buf)
 	emit_instruction(Wasm_Local_Get{index = 6}, &buf)
 	emit_instruction(Wasm_Local_Get{index = 3}, &buf)
-	emit_instruction(Wasm_I32_Lt_S{}, &buf)
+	emit_instruction(Wasm_I32_Ge_S{}, &buf)
 	emit_instruction(Wasm_Br_If{label = 1}, &buf)
 	emit_instruction(Wasm_Local_Get{index = 2}, &buf)
 	emit_instruction(Wasm_Local_Get{index = 6}, &buf)
@@ -2028,7 +2008,6 @@ emit_camp_parallel_map_body :: proc(runtime_indices: [RUNTIME_FUNC_COUNT]int) ->
 	emit_instruction(Wasm_Local_Get{index = 7}, &buf)
 	emit_instruction(Wasm_Local_Get{index = 0}, &buf)
 	emit_instruction(Wasm_Call_Indirect{type_idx = 0, table_idx = 0}, &buf)
-	emit_instruction(Wasm_Local_Set{index = 8}, &buf)
 	emit_instruction(Wasm_Local_Get{index = 5}, &buf)
 	emit_instruction(Wasm_I32_Const{value = i32(CAMP_TAG_FIELDS_OFFSET)}, &buf)
 	emit_instruction(Wasm_Local_Get{index = 6}, &buf)
@@ -2036,7 +2015,7 @@ emit_camp_parallel_map_body :: proc(runtime_indices: [RUNTIME_FUNC_COUNT]int) ->
 	emit_instruction(Wasm_I32_Mul{}, &buf)
 	emit_instruction(Wasm_I32_Add{}, &buf)
 	emit_instruction(Wasm_I32_Add{}, &buf)
-	emit_instruction(Wasm_Local_Get{index = 8}, &buf)
+	emit_instruction(Wasm_I32_Const{value = 0}, &buf)
 	emit_instruction(Wasm_I32_Store{align = 2, offset = 0}, &buf)
 	emit_instruction(Wasm_Local_Get{index = 6}, &buf)
 	emit_instruction(Wasm_I32_Const{value = 1}, &buf)
