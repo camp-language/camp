@@ -61,7 +61,7 @@ Type_Tag_Entry :: struct {
 
 Effect_Row_Entry :: struct {
 	name:      base.Intern_ID,
-	type_args: []base.Type_Var_ID,  // empty for unparameterized effects
+	type_args: []base.Type_Var_ID, // empty for unparameterized effects
 }
 
 Inferred_Primitive :: struct {
@@ -74,22 +74,22 @@ Inferred_Constructor :: struct {
 }
 
 Inferred_Function :: struct {
-	param_ids:  []base.Type_Var_ID,
-	return_id:  base.Type_Var_ID,
-	effect_id:  base.Type_Var_ID,
+	param_ids: []base.Type_Var_ID,
+	return_id: base.Type_Var_ID,
+	effect_id: base.Type_Var_ID,
 }
 
 Inferred_Newtype :: struct {
 	primitive_name: base.Intern_ID,
 	arity:          int,
-	param_ids:  []base.Type_Var_ID,
-	inner_id:   base.Type_Var_ID,
+	param_ids:      []base.Type_Var_ID,
+	inner_id:       base.Type_Var_ID,
 }
 
 Inferred_Record_Row :: struct {
 	record_fields: []Type_Field_Entry,
 	record_rest:   base.Type_Var_ID,
-	closed:        bool,  // true = no additional fields allowed (type annotation context)
+	closed:        bool, // true = no additional fields allowed (type annotation context)
 }
 
 Inferred_Tag_Union_Row :: struct {
@@ -119,12 +119,12 @@ Inferred_Type :: union {
 }
 
 Newtype_Decl_Info :: struct {
-	name:          base.Intern_ID,
-	module:        base.Intern_ID,
-	pub_variants:  bool,
-	type_params:   []base.Intern_ID,
-	inner_type:    base.Type_Var_ID,
-	owned_tags:    []base.Intern_ID,
+	name:         base.Intern_ID,
+	module:       base.Intern_ID,
+	pub_variants: bool,
+	type_params:  []base.Intern_ID,
+	inner_type:   base.Type_Var_ID,
+	owned_tags:   []base.Intern_ID,
 }
 
 Effect_Op_Sig :: struct {
@@ -135,25 +135,30 @@ Effect_Op_Sig :: struct {
 }
 
 Type_Store :: struct {
-	vars:               [dynamic]Type_Var,
-	next_id:            base.Type_Var_ID,
-	current_level:      int,
-	interner:           ^base.Intern_Table,
-	collector:          ^diagnostics.Diagnostic_Collector,
-	allocator:          mem.Allocator,
-	declared_effects:   [dynamic]base.Intern_ID,
-	bindings:           map[base.Intern_ID]base.Type_Var_ID,
-	newtype_decls:      map[base.Intern_ID]Newtype_Decl_Info,
-	trait_registry:     map[base.Intern_ID]Trait_Info,
-	trait_impls:        [dynamic]Trait_Impl,
-	type_constraints:    map[base.Type_Var_ID][]base.Intern_ID,
-	rec_vars:           map[base.Type_Var_ID]bool,
-	effect_ops:         map[base.Intern_ID][]Effect_Op_Sig,
-	literal_int_values:  map[base.Type_Var_ID]i128,
+	vars:                 [dynamic]Type_Var,
+	next_id:              base.Type_Var_ID,
+	current_level:        int,
+	interner:             ^base.Intern_Table,
+	collector:            ^diagnostics.Diagnostic_Collector,
+	allocator:            mem.Allocator,
+	declared_effects:     [dynamic]base.Intern_ID,
+	bindings:             map[base.Intern_ID]base.Type_Var_ID,
+	newtype_decls:        map[base.Intern_ID]Newtype_Decl_Info,
+	trait_registry:       map[base.Intern_ID]Trait_Info,
+	trait_impls:          [dynamic]Trait_Impl,
+	type_constraints:     map[base.Type_Var_ID][]base.Intern_ID,
+	rec_vars:             map[base.Type_Var_ID]bool,
+	effect_ops:           map[base.Intern_ID][]Effect_Op_Sig,
+	literal_int_values:   map[base.Type_Var_ID]i128,
 	literal_float_values: map[base.Type_Var_ID]f64,
 }
 
-type_store_init :: proc(store: ^Type_Store, interner: ^base.Intern_Table, collector: ^diagnostics.Diagnostic_Collector, allocator: mem.Allocator = context.allocator) {
+type_store_init :: proc(
+	store: ^Type_Store,
+	interner: ^base.Intern_Table,
+	collector: ^diagnostics.Diagnostic_Collector,
+	allocator: mem.Allocator = context.allocator,
+) {
 	store.allocator = allocator
 	store.vars = make([dynamic]Type_Var, 0, 256, allocator)
 	store.next_id = 0
@@ -229,16 +234,21 @@ type_store_destroy :: proc(store: ^Type_Store) {
 	delete(store.literal_float_values)
 }
 
-fresh_var :: proc(store: ^Type_Store, kind: Type_Var_Kind, name: base.Intern_ID, span: base.Source_Span) -> base.Type_Var_ID {
+fresh_var :: proc(
+	store: ^Type_Store,
+	kind: Type_Var_Kind,
+	name: base.Intern_ID,
+	span: base.Source_Span,
+) -> base.Type_Var_ID {
 	id := store.next_id
 	store.next_id += 1
-	v := Type_Var{
-		id = id,
+	v := Type_Var {
+		id    = id,
 		level = store.current_level,
-		kind = kind,
-		link = Type_Unlinked{},
-		name = name,
-		span = span,
+		kind  = kind,
+		link  = Type_Unlinked{},
+		name  = name,
+		span  = span,
 	}
 	append(&store.vars, v)
 	return id
@@ -363,9 +373,15 @@ resolve_var :: proc(store: ^Type_Store, id: base.Type_Var_ID) -> base.Type_Var_I
 	return id
 }
 
-make_primitive_type :: proc(store: ^Type_Store, name: base.Intern_ID, span: base.Source_Span) -> base.Type_Var_ID {
+make_primitive_type :: proc(
+	store: ^Type_Store,
+	name: base.Intern_ID,
+	span: base.Source_Span,
+) -> base.Type_Var_ID {
 	var_id := fresh_value_var(store, span)
-	store.vars[int(var_id)].link = Inferred_Primitive{primitive_name = name}
+	store.vars[int(var_id)].link = Inferred_Primitive {
+		primitive_name = name,
+	}
 	return var_id
 }
 
@@ -402,9 +418,18 @@ is_numeric_primitive :: proc(store: ^Type_Store, var_id: base.Type_Var_ID) -> bo
 			f64_name := base.intern(store.interner, "F64")
 			f32_name := base.intern(store.interner, "F32")
 			name := p.primitive_name
-			return name == i64_name || name == i32_name || name == i16_name || name == i8_name ||
-				name == u64_name || name == u32_name || name == u16_name || name == u8_name ||
-				name == f64_name || name == f32_name
+			return(
+				name == i64_name ||
+				name == i32_name ||
+				name == i16_name ||
+				name == i8_name ||
+				name == u64_name ||
+				name == u32_name ||
+				name == u16_name ||
+				name == u8_name ||
+				name == f64_name ||
+				name == f32_name \
+			)
 		}
 	}
 	return false
@@ -419,8 +444,16 @@ is_int_primitive_name :: proc(store: ^Type_Store, name: base.Intern_ID) -> bool 
 	u32_name := base.intern(store.interner, "U32")
 	u16_name := base.intern(store.interner, "U16")
 	u8_name := base.intern(store.interner, "U8")
-	return name == i64_name || name == i32_name || name == i16_name || name == i8_name ||
-		name == u64_name || name == u32_name || name == u16_name || name == u8_name
+	return(
+		name == i64_name ||
+		name == i32_name ||
+		name == i16_name ||
+		name == i8_name ||
+		name == u64_name ||
+		name == u32_name ||
+		name == u16_name ||
+		name == u8_name \
+	)
 }
 
 is_float_primitive_name :: proc(store: ^Type_Store, name: base.Intern_ID) -> bool {
@@ -431,23 +464,35 @@ is_float_primitive_name :: proc(store: ^Type_Store, name: base.Intern_ID) -> boo
 
 int_fits_type :: proc(value: i128, type_name: string) -> bool {
 	switch type_name {
-	case "I8":  return value >= -128 && value <= 127
-	case "I16": return value >= -32768 && value <= 32767
-	case "I32": return value >= -2147483648 && value <= 2147483647
-	case "I64": return value >= -9223372036854775808 && value <= 9223372036854775807
-	case "U8":  return value >= 0 && value <= 255
-	case "U16": return value >= 0 && value <= 65535
-	case "U32": return value >= 0 && value <= 4294967295
-	case "U64": return value >= 0 && value <= 18446744073709551615
-	case:       return false
+	case "I8":
+		return value >= -128 && value <= 127
+	case "I16":
+		return value >= -32768 && value <= 32767
+	case "I32":
+		return value >= -2147483648 && value <= 2147483647
+	case "I64":
+		return value >= -9223372036854775808 && value <= 9223372036854775807
+	case "U8":
+		return value >= 0 && value <= 255
+	case "U16":
+		return value >= 0 && value <= 65535
+	case "U32":
+		return value >= 0 && value <= 4294967295
+	case "U64":
+		return value >= 0 && value <= 18446744073709551615
+	case:
+		return false
 	}
 }
 
 float_fits_type :: proc(value: f64, type_name: string) -> bool {
 	switch type_name {
-	case "F32": return f64(f32(value)) == value
-	case "F64": return true
-	case:       return false
+	case "F32":
+		return f64(f32(value)) == value
+	case "F64":
+		return true
+	case:
+		return false
 	}
 }
 
@@ -456,7 +501,14 @@ is_trait_declared :: proc(store: ^Type_Store, name: base.Intern_ID) -> bool {
 	return ok
 }
 
-find_trait_impl :: proc(store: ^Type_Store, trait_name: base.Intern_ID, type_name: base.Intern_ID) -> (Trait_Impl, bool) {
+find_trait_impl :: proc(
+	store: ^Type_Store,
+	trait_name: base.Intern_ID,
+	type_name: base.Intern_ID,
+) -> (
+	Trait_Impl,
+	bool,
+) {
 	for impl in store.trait_impls {
 		if impl.trait_name == trait_name && impl.type_name == type_name {
 			return impl, true
@@ -471,7 +523,14 @@ implements_display :: proc(store: ^Type_Store, type_name: base.Intern_ID) -> boo
 	return found
 }
 
-find_trait_impl_by_method :: proc(store: ^Type_Store, type_name: base.Intern_ID, method_name: base.Intern_ID) -> (Trait_Impl, bool) {
+find_trait_impl_by_method :: proc(
+	store: ^Type_Store,
+	type_name: base.Intern_ID,
+	method_name: base.Intern_ID,
+) -> (
+	Trait_Impl,
+	bool,
+) {
 	for impl in store.trait_impls {
 		if impl.type_name == type_name {
 			if _, has := impl.methods[method_name]; has {
@@ -482,7 +541,10 @@ find_trait_impl_by_method :: proc(store: ^Type_Store, type_name: base.Intern_ID,
 	return Trait_Impl{}, false
 }
 
-collect_all_traits :: proc(trait_name: base.Intern_ID, registry: map[base.Intern_ID]Trait_Info) -> []base.Intern_ID {
+collect_all_traits :: proc(
+	trait_name: base.Intern_ID,
+	registry: map[base.Intern_ID]Trait_Info,
+) -> []base.Intern_ID {
 	visited := make(map[base.Intern_ID]bool)
 	result := make([dynamic]base.Intern_ID, 0, 8)
 	worklist := make([dynamic]base.Intern_ID, 0, 8)
@@ -502,3 +564,4 @@ collect_all_traits :: proc(trait_name: base.Intern_ID, registry: map[base.Intern
 	delete(worklist)
 	return result[:]
 }
+

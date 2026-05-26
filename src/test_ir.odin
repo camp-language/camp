@@ -1,21 +1,31 @@
 package camp
 
 import "camp:base"
-import "camp:ir"
-import "camp:semantics"
-import "camp:frontend"
 import "camp:build"
 import "camp:diagnostics"
-import "core:testing"
+import "camp:frontend"
+import "camp:ir"
+import "camp:semantics"
 import "core:mem"
 import "core:strings"
+import "core:testing"
 
-lower_source :: proc(source: string) -> (ir.IR_Module, ^build.Compilation_Context, semantics.Type_Store) {
+lower_source :: proc(
+	source: string,
+) -> (
+	ir.IR_Module,
+	^build.Compilation_Context,
+	semantics.Type_Store,
+) {
 	ctx: ^build.Compilation_Context = new(build.Compilation_Context)
 	alloc := build.context_init(ctx)
 	context.allocator = alloc
 
-	file := base.Source_File{path = "<ir-test>", contents = source, id = 0}
+	file := base.Source_File {
+		path     = "<ir-test>",
+		contents = source,
+		id       = 0,
+	}
 	lexer: frontend.Lexer
 	frontend.lexer_init(&lexer, file, &ctx.collector, &ctx.interner)
 
@@ -233,7 +243,8 @@ test_lower_lambda_as_fn :: proc(t: ^testing.T) {
 @(test)
 test_lower_handle :: proc(t: ^testing.T) {
 	mod, ctx, store := lower_source(
-		"IO! : { println!: || -> Str }\nmain! = handle IO in { 42 } with { .println!(resume) => resume({}) }")
+		"IO! : { println!: || -> Str }\nmain! = handle IO in { 42 } with { .println!(resume) => resume({}) }",
+	)
 	defer teardown_lower(ctx, &store)
 
 	found_handle := false
@@ -284,7 +295,11 @@ contains_ir_let :: proc(expr: ir.IR_Expr) -> bool {
 	case ^ir.IR_Let:
 		return true
 	case ^ir.IR_If:
-		return contains_ir_let(e.condition) || contains_ir_let(e.then_branch) || contains_ir_let(e.else_branch)
+		return(
+			contains_ir_let(e.condition) ||
+			contains_ir_let(e.then_branch) ||
+			contains_ir_let(e.else_branch) \
+		)
 	case ^ir.IR_Block:
 		for stmt in e.statements {
 			if contains_ir_let(stmt) do return true
@@ -336,7 +351,11 @@ contains_ir_call :: proc(expr: ir.IR_Expr) -> bool {
 	case ^ir.IR_Let:
 		return contains_ir_call(e.value) || contains_ir_call(e.body)
 	case ^ir.IR_If:
-		return contains_ir_call(e.condition) || contains_ir_call(e.then_branch) || contains_ir_call(e.else_branch)
+		return(
+			contains_ir_call(e.condition) ||
+			contains_ir_call(e.then_branch) ||
+			contains_ir_call(e.else_branch) \
+		)
 	case ^ir.IR_Block:
 		for stmt in e.statements {
 			if contains_ir_call(stmt) do return true
@@ -382,7 +401,11 @@ contains_ir_tail_call :: proc(expr: ir.IR_Expr) -> bool {
 	case ^ir.IR_Let:
 		return contains_ir_tail_call(e.value) || contains_ir_tail_call(e.body)
 	case ^ir.IR_If:
-		return contains_ir_tail_call(e.condition) || contains_ir_tail_call(e.then_branch) || contains_ir_tail_call(e.else_branch)
+		return(
+			contains_ir_tail_call(e.condition) ||
+			contains_ir_tail_call(e.then_branch) ||
+			contains_ir_tail_call(e.else_branch) \
+		)
 	case ^ir.IR_Block:
 		for stmt in e.statements {
 			if contains_ir_tail_call(stmt) do return true
@@ -432,7 +455,11 @@ contains_ir_construct_record :: proc(expr: ir.IR_Expr) -> bool {
 	case ^ir.IR_Let:
 		return contains_ir_construct_record(e.value) || contains_ir_construct_record(e.body)
 	case ^ir.IR_If:
-		return contains_ir_construct_record(e.condition) || contains_ir_construct_record(e.then_branch) || contains_ir_construct_record(e.else_branch)
+		return(
+			contains_ir_construct_record(e.condition) ||
+			contains_ir_construct_record(e.then_branch) ||
+			contains_ir_construct_record(e.else_branch) \
+		)
 	case ^ir.IR_Block:
 		for stmt in e.statements {
 			if contains_ir_construct_record(stmt) do return true
@@ -473,7 +500,8 @@ contains_ir_construct_record :: proc(expr: ir.IR_Expr) -> bool {
 @(test)
 test_effect_lower_handle :: proc(t: ^testing.T) {
 	mod, ctx, store := lower_source(
-		"IO! : { println!: || -> Str }\nmain! = handle IO in { 42 } with { .println!(resume) => resume({}) }")
+		"IO! : { println!: || -> Str }\nmain! = handle IO in { 42 } with { .println!(resume) => resume({}) }",
+	)
 	defer teardown_lower(ctx, &store)
 
 	result := ir.effect_lower(&mod, &ctx.interner, &ctx.collector, &store)
@@ -494,7 +522,8 @@ test_effect_lower_handle :: proc(t: ^testing.T) {
 @(test)
 test_effect_lower_perform :: proc(t: ^testing.T) {
 	mod, ctx, store := lower_source(
-		"IO! : { println!: || -> Str }\nmain! = handle IO in { IO.println(\"hi\") } with { .println!(resume) => resume({}) }")
+		"IO! : { println!: || -> Str }\nmain! = handle IO in { IO.println(\"hi\") } with { .println!(resume) => resume({}) }",
+	)
 	defer teardown_lower(ctx, &store)
 
 	result := ir.effect_lower(&mod, &ctx.interner, &ctx.collector, &store)
@@ -515,7 +544,8 @@ test_effect_lower_perform :: proc(t: ^testing.T) {
 @(test)
 test_effect_lower_handler_fns :: proc(t: ^testing.T) {
 	mod, ctx, store := lower_source(
-		"IO! : { println!: || -> Str }\nmain! = handle IO in { 42 } with { .println!(resume) => resume({}) }")
+		"IO! : { println!: || -> Str }\nmain! = handle IO in { 42 } with { .println!(resume) => resume({}) }",
+	)
 	defer teardown_lower(ctx, &store)
 
 	result := ir.effect_lower(&mod, &ctx.interner, &ctx.collector, &store)
@@ -541,7 +571,11 @@ contains_ir_i32_load :: proc(expr: ir.IR_Expr) -> bool {
 	case ^ir.IR_Let:
 		return contains_ir_i32_load(e.value) || contains_ir_i32_load(e.body)
 	case ^ir.IR_If:
-		return contains_ir_i32_load(e.condition) || contains_ir_i32_load(e.then_branch) || contains_ir_i32_load(e.else_branch)
+		return(
+			contains_ir_i32_load(e.condition) ||
+			contains_ir_i32_load(e.then_branch) ||
+			contains_ir_i32_load(e.else_branch) \
+		)
 	case ^ir.IR_Block:
 		for stmt in e.statements {
 			if contains_ir_i32_load(stmt) do return true
@@ -598,7 +632,11 @@ contains_ir_i32_store :: proc(expr: ir.IR_Expr) -> bool {
 	case ^ir.IR_Let:
 		return contains_ir_i32_store(e.value) || contains_ir_i32_store(e.body)
 	case ^ir.IR_If:
-		return contains_ir_i32_store(e.condition) || contains_ir_i32_store(e.then_branch) || contains_ir_i32_store(e.else_branch)
+		return(
+			contains_ir_i32_store(e.condition) ||
+			contains_ir_i32_store(e.then_branch) ||
+			contains_ir_i32_store(e.else_branch) \
+		)
 	case ^ir.IR_Block:
 		for stmt in e.statements {
 			if contains_ir_i32_store(stmt) do return true
@@ -655,7 +693,11 @@ contains_ir_closure_call :: proc(expr: ir.IR_Expr) -> bool {
 	case ^ir.IR_Let:
 		return contains_ir_closure_call(e.value) || contains_ir_closure_call(e.body)
 	case ^ir.IR_If:
-		return contains_ir_closure_call(e.condition) || contains_ir_closure_call(e.then_branch) || contains_ir_closure_call(e.else_branch)
+		return(
+			contains_ir_closure_call(e.condition) ||
+			contains_ir_closure_call(e.then_branch) ||
+			contains_ir_closure_call(e.else_branch) \
+		)
 	case ^ir.IR_Block:
 		for stmt in e.statements {
 			if contains_ir_closure_call(stmt) do return true
@@ -708,7 +750,11 @@ has_camp_alloc_call :: proc(expr: ir.IR_Expr, alloc_id: base.Intern_ID) -> bool 
 	case ^ir.IR_Let:
 		return has_camp_alloc_call(e.value, alloc_id) || has_camp_alloc_call(e.body, alloc_id)
 	case ^ir.IR_If:
-		return has_camp_alloc_call(e.condition, alloc_id) || has_camp_alloc_call(e.then_branch, alloc_id) || has_camp_alloc_call(e.else_branch, alloc_id)
+		return(
+			has_camp_alloc_call(e.condition, alloc_id) ||
+			has_camp_alloc_call(e.then_branch, alloc_id) ||
+			has_camp_alloc_call(e.else_branch, alloc_id) \
+		)
 	case ^ir.IR_Block:
 		for stmt in e.statements {
 			if has_camp_alloc_call(stmt, alloc_id) do return true
@@ -751,15 +797,25 @@ has_camp_dealloc_call :: proc(expr: ir.IR_Expr, dealloc_id: base.Intern_ID) -> b
 			if has_camp_dealloc_call(arg, dealloc_id) do return true
 		}
 	case ^ir.IR_Let:
-		return has_camp_dealloc_call(e.value, dealloc_id) || has_camp_dealloc_call(e.body, dealloc_id)
+		return(
+			has_camp_dealloc_call(e.value, dealloc_id) ||
+			has_camp_dealloc_call(e.body, dealloc_id) \
+		)
 	case ^ir.IR_If:
-		return has_camp_dealloc_call(e.condition, dealloc_id) || has_camp_dealloc_call(e.then_branch, dealloc_id) || has_camp_dealloc_call(e.else_branch, dealloc_id)
+		return(
+			has_camp_dealloc_call(e.condition, dealloc_id) ||
+			has_camp_dealloc_call(e.then_branch, dealloc_id) ||
+			has_camp_dealloc_call(e.else_branch, dealloc_id) \
+		)
 	case ^ir.IR_Block:
 		for stmt in e.statements {
 			if has_camp_dealloc_call(stmt, dealloc_id) do return true
 		}
 	case ^ir.IR_BinOp:
-		return has_camp_dealloc_call(e.left, dealloc_id) || has_camp_dealloc_call(e.right, dealloc_id)
+		return(
+			has_camp_dealloc_call(e.left, dealloc_id) ||
+			has_camp_dealloc_call(e.right, dealloc_id) \
+		)
 	case ^ir.IR_Return:
 		return has_camp_dealloc_call(e.value, dealloc_id)
 	case ^ir.IR_Closure_Call:
@@ -788,7 +844,13 @@ has_camp_dealloc_call :: proc(expr: ir.IR_Expr, dealloc_id: base.Intern_ID) -> b
 	return false
 }
 
-effect_lower_source :: proc(source: string) -> (ir.IR_Module, ^build.Compilation_Context, semantics.Type_Store) {
+effect_lower_source :: proc(
+	source: string,
+) -> (
+	ir.IR_Module,
+	^build.Compilation_Context,
+	semantics.Type_Store,
+) {
 	mod, ctx, store := lower_source(source)
 	result := ir.effect_lower(&mod, &ctx.interner, &ctx.collector, &store)
 	return result, ctx, store
@@ -797,7 +859,8 @@ effect_lower_source :: proc(source: string) -> (ir.IR_Module, ^build.Compilation
 @(test)
 test_effect_lower_produces_handler_decls :: proc(t: ^testing.T) {
 	result, ctx, store := effect_lower_source(
-		"IO! : { println!: || -> Str }\nmain! = handle IO in { 42 } with { .println!(resume) => resume({}) }")
+		"IO! : { println!: || -> Str }\nmain! = handle IO in { 42 } with { .println!(resume) => resume({}) }",
+	)
 	defer teardown_lower(ctx, &store)
 
 	handler_count := 0
@@ -806,7 +869,8 @@ test_effect_lower_produces_handler_decls :: proc(t: ^testing.T) {
 		#partial switch d in decl {
 		case ^ir.IR_Decl_Fn:
 			name_str := base.intern_get(&ctx.interner, d.name.name)
-			if strings.has_prefix(name_str, "handler_") || strings.has_prefix(name_str, "handler") {
+			if strings.has_prefix(name_str, "handler_") ||
+			   strings.has_prefix(name_str, "handler") {
 				handler_count += 1
 			}
 			if strings.has_prefix(name_str, "_kc") {
@@ -821,7 +885,8 @@ test_effect_lower_produces_handler_decls :: proc(t: ^testing.T) {
 @(test)
 test_effect_lower_perform_dispatches_via_i32_load :: proc(t: ^testing.T) {
 	result, ctx, store := effect_lower_source(
-		"IO! : { println!: || -> Str }\nmain! = handle IO in { IO.println(\"hi\") } with { .println!(resume) => resume({}) }")
+		"IO! : { println!: || -> Str }\nmain! = handle IO in { IO.println(\"hi\") } with { .println!(resume) => resume({}) }",
+	)
 	defer teardown_lower(ctx, &store)
 
 	found_i32_load := false
@@ -830,8 +895,8 @@ test_effect_lower_perform_dispatches_via_i32_load :: proc(t: ^testing.T) {
 		#partial switch d in decl {
 		case ^ir.IR_Decl_Fn:
 			if d.is_effectful {
-				if contains_ir_i32_load(d.body) { found_i32_load = true }
-				if contains_ir_closure_call(d.body) { found_closure_call = true }
+				if contains_ir_i32_load(d.body) {found_i32_load = true}
+				if contains_ir_closure_call(d.body) {found_closure_call = true}
 			}
 		case:
 		}
@@ -843,7 +908,8 @@ test_effect_lower_perform_dispatches_via_i32_load :: proc(t: ^testing.T) {
 @(test)
 test_effect_lower_handle_evidence_record :: proc(t: ^testing.T) {
 	result, ctx, store := effect_lower_source(
-		"IO! : { println!: || -> Str }\nmain! = handle IO in { 42 } with { .println!(resume) => resume({}) }")
+		"IO! : { println!: || -> Str }\nmain! = handle IO in { 42 } with { .println!(resume) => resume({}) }",
+	)
 	defer teardown_lower(ctx, &store)
 
 	alloc_id := base.intern(&ctx.interner, "camp_alloc")
@@ -856,9 +922,9 @@ test_effect_lower_handle_evidence_record :: proc(t: ^testing.T) {
 		#partial switch d in decl {
 		case ^ir.IR_Decl_Fn:
 			if d.is_effectful {
-				if has_camp_alloc_call(d.body, alloc_id) { found_alloc = true }
-				if has_camp_dealloc_call(d.body, dealloc_id) { found_dealloc = true }
-				if contains_ir_i32_store(d.body) { found_store = true }
+				if has_camp_alloc_call(d.body, alloc_id) {found_alloc = true}
+				if has_camp_dealloc_call(d.body, dealloc_id) {found_dealloc = true}
+				if contains_ir_i32_store(d.body) {found_store = true}
 			}
 		case:
 		}
@@ -870,7 +936,8 @@ test_effect_lower_handle_evidence_record :: proc(t: ^testing.T) {
 @(test)
 test_effect_lower_handler_fn_has_env_and_ev_params :: proc(t: ^testing.T) {
 	result, ctx, store := effect_lower_source(
-		"IO! : { println!: || -> Str }\nmain! = handle IO in { IO.println(\"hi\") } with { .println!(resume) => resume({}) }")
+		"IO! : { println!: || -> Str }\nmain! = handle IO in { IO.println(\"hi\") } with { .println!(resume) => resume({}) }",
+	)
 	defer teardown_lower(ctx, &store)
 
 	found := false
@@ -878,13 +945,14 @@ test_effect_lower_handler_fn_has_env_and_ev_params :: proc(t: ^testing.T) {
 		#partial switch d in decl {
 		case ^ir.IR_Decl_Fn:
 			name_str := base.intern_get(&ctx.interner, d.name.name)
-			if strings.has_prefix(name_str, "handler_") || strings.has_prefix(name_str, "handler") {
+			if strings.has_prefix(name_str, "handler_") ||
+			   strings.has_prefix(name_str, "handler") {
 				has_env := false
 				has_ev := false
 				for p in d.params {
 					p_str := base.intern_get(&ctx.interner, p.name)
-					if strings.has_prefix(p_str, "_env_") { has_env = true }
-					if strings.has_prefix(p_str, "_ev_") { has_ev = true }
+					if strings.has_prefix(p_str, "_env_") {has_env = true}
+					if strings.has_prefix(p_str, "_ev_") {has_ev = true}
 				}
 				if has_env && has_ev {
 					found = true
@@ -899,7 +967,8 @@ test_effect_lower_handler_fn_has_env_and_ev_params :: proc(t: ^testing.T) {
 @(test)
 test_effect_lower_handler_fn_count_matches_ops :: proc(t: ^testing.T) {
 	result, ctx, store := effect_lower_source(
-		"IO! : { println!: || -> Str, readln!: || -> Str }\nmain! = handle IO in { 42 } with { .println!(resume) => resume({}), .readln!(resume) => resume({}) }")
+		"IO! : { println!: || -> Str, readln!: || -> Str }\nmain! = handle IO in { 42 } with { .println!(resume) => resume({}), .readln!(resume) => resume({}) }",
+	)
 	defer teardown_lower(ctx, &store)
 
 	handler_count := 0
@@ -907,7 +976,8 @@ test_effect_lower_handler_fn_count_matches_ops :: proc(t: ^testing.T) {
 		#partial switch d in decl {
 		case ^ir.IR_Decl_Fn:
 			name_str := base.intern_get(&ctx.interner, d.name.name)
-			if strings.has_prefix(name_str, "handler_") || strings.has_prefix(name_str, "handler") {
+			if strings.has_prefix(name_str, "handler_") ||
+			   strings.has_prefix(name_str, "handler") {
 				handler_count += 1
 			}
 		case:
@@ -968,7 +1038,10 @@ test_cps_transform_return_becomes_tail_call :: proc(t: ^testing.T) {
 
 	fn_decl := find_decl_fn(result, true)
 	testing.expect(t, fn_decl != nil)
-	testing.expect(t, contains_ir_tail_call(fn_decl.body) || contains_ir_closure_call(fn_decl.body))
+	testing.expect(
+		t,
+		contains_ir_tail_call(fn_decl.body) || contains_ir_closure_call(fn_decl.body),
+	)
 }
 
 @(test)
@@ -1052,7 +1125,11 @@ contains_ir_field_access :: proc(expr: ir.IR_Expr) -> bool {
 	case ^ir.IR_BinOp:
 		return contains_ir_field_access(e.left) || contains_ir_field_access(e.right)
 	case ^ir.IR_If:
-		return contains_ir_field_access(e.condition) || contains_ir_field_access(e.then_branch) || contains_ir_field_access(e.else_branch)
+		return(
+			contains_ir_field_access(e.condition) ||
+			contains_ir_field_access(e.then_branch) ||
+			contains_ir_field_access(e.else_branch) \
+		)
 	case ^ir.IR_Block:
 		for stmt in e.statements {
 			if contains_ir_field_access(stmt) do return true
@@ -1104,8 +1181,8 @@ test_closure_closed_fn_has_params :: proc(t: ^testing.T) {
 			has_y := false
 			for p in d.params {
 				name_str := base.intern_get(&ctx.interner, p.name)
-				if strings.contains(name_str, "_cenv") { has_cenv = true }
-				if strings.contains(name_str, "y") { has_y = true }
+				if strings.contains(name_str, "_cenv") {has_cenv = true}
+				if strings.contains(name_str, "y") {has_y = true}
 			}
 			if has_cenv && has_y {
 				found = true
@@ -1124,7 +1201,11 @@ contains_ir_resume :: proc(expr: ir.IR_Expr) -> bool {
 	case ^ir.IR_Let:
 		return contains_ir_resume(e.value) || contains_ir_resume(e.body)
 	case ^ir.IR_If:
-		return contains_ir_resume(e.condition) || contains_ir_resume(e.then_branch) || contains_ir_resume(e.else_branch)
+		return(
+			contains_ir_resume(e.condition) ||
+			contains_ir_resume(e.then_branch) ||
+			contains_ir_resume(e.else_branch) \
+		)
 	case ^ir.IR_Block:
 		for stmt in e.statements {
 			if contains_ir_resume(stmt) do return true
@@ -1158,7 +1239,11 @@ has_resume_with_ev :: proc(expr: ir.IR_Expr) -> bool {
 	case ^ir.IR_Let:
 		return has_resume_with_ev(e.value) || has_resume_with_ev(e.body)
 	case ^ir.IR_If:
-		return has_resume_with_ev(e.condition) || has_resume_with_ev(e.then_branch) || has_resume_with_ev(e.else_branch)
+		return(
+			has_resume_with_ev(e.condition) ||
+			has_resume_with_ev(e.then_branch) ||
+			has_resume_with_ev(e.else_branch) \
+		)
 	case ^ir.IR_Closure:
 		if has_resume_with_ev(e.env) do return true
 		return has_resume_with_ev(e.body)
@@ -1189,7 +1274,8 @@ continuation_has_ev_param :: proc(mod: ir.IR_Module, interner: ^base.Intern_Tabl
 @(test)
 test_effect_lower_produces_ir_resume :: proc(t: ^testing.T) {
 	result, ctx, store := effect_lower_source(
-		"IO! : { println!: || -> Str }\nmain! = handle IO in { IO.println(\"hi\") } with { .println!(resume) => resume({}) }")
+		"IO! : { println!: || -> Str }\nmain! = handle IO in { IO.println(\"hi\") } with { .println!(resume) => resume({}) }",
+	)
 	defer teardown_lower(ctx, &store)
 
 	found_resume := false
@@ -1208,7 +1294,8 @@ test_effect_lower_produces_ir_resume :: proc(t: ^testing.T) {
 @(test)
 test_effect_lower_resume_deep_has_ev :: proc(t: ^testing.T) {
 	result, ctx, store := effect_lower_source(
-		"IO! : { println!: || -> Str }\nmain! = handle IO in { IO.println(\"hi\") } with { .println!(resume) => resume({}) }")
+		"IO! : { println!: || -> Str }\nmain! = handle IO in { IO.println(\"hi\") } with { .println!(resume) => resume({}) }",
+	)
 	defer teardown_lower(ctx, &store)
 
 	found := false
@@ -1227,7 +1314,8 @@ test_effect_lower_resume_deep_has_ev :: proc(t: ^testing.T) {
 @(test)
 test_effect_lower_deep_continuation_has_ev_param :: proc(t: ^testing.T) {
 	result, ctx, store := effect_lower_source(
-		"IO! : { println!: || -> Str }\nmain! = handle IO in { IO.println(\"hi\") } with { .println!(resume) => resume({}) }")
+		"IO! : { println!: || -> Str }\nmain! = handle IO in { IO.println(\"hi\") } with { .println!(resume) => resume({}) }",
+	)
 	defer teardown_lower(ctx, &store)
 
 	testing.expect(t, continuation_has_ev_param(result, &ctx.interner))
@@ -1333,14 +1421,26 @@ count_ir_drop :: proc(expr: ir.IR_Expr) -> int {
 
 // ── Pipeline helper wrappers ────────────────────────────────────────────────
 
-closure_convert_source :: proc(source: string) -> (ir.IR_Module, ^build.Compilation_Context, semantics.Type_Store) {
+closure_convert_source :: proc(
+	source: string,
+) -> (
+	ir.IR_Module,
+	^build.Compilation_Context,
+	semantics.Type_Store,
+) {
 	mod, ctx, store := lower_source(source)
 	mod = ir.effect_lower(&mod, &ctx.interner, &ctx.collector, &store)
 	result := ir.closure_convert(&mod, &ctx.interner)
 	return result, ctx, store
 }
 
-cps_source :: proc(source: string) -> (ir.IR_Module, ^build.Compilation_Context, semantics.Type_Store) {
+cps_source :: proc(
+	source: string,
+) -> (
+	ir.IR_Module,
+	^build.Compilation_Context,
+	semantics.Type_Store,
+) {
 	mod, ctx, store := lower_source(source)
 	mod = ir.effect_lower(&mod, &ctx.interner, &ctx.collector, &store)
 	mod = ir.closure_convert(&mod, &ctx.interner)
@@ -1348,7 +1448,11 @@ cps_source :: proc(source: string) -> (ir.IR_Module, ^build.Compilation_Context,
 	return result, ctx, store
 }
 
-find_decl_fn_by_name :: proc(mod: ir.IR_Module, name_str: string, interner: ^base.Intern_Table) -> ^ir.IR_Decl_Fn {
+find_decl_fn_by_name :: proc(
+	mod: ir.IR_Module,
+	name_str: string,
+	interner: ^base.Intern_Table,
+) -> ^ir.IR_Decl_Fn {
 	for decl in mod.decls {
 		#partial switch d in decl {
 		case ^ir.IR_Decl_Fn:
@@ -1368,7 +1472,8 @@ find_decl_fn_by_name :: proc(mod: ir.IR_Module, name_str: string, interner: ^bas
 @(test)
 test_effect_lower_nested_handlers :: proc(t: ^testing.T) {
 	result, ctx, store := effect_lower_source(
-		"IO! : { println!: || -> Str }\nState! : { get!: || -> I64 }\nmain! = handle State in { handle IO in { 42 } with { .println!(resume) => resume({}) } } with { .get!(resume) => resume(0) }")
+		"IO! : { println!: || -> Str }\nState! : { get!: || -> I64 }\nmain! = handle State in { handle IO in { 42 } with { .println!(resume) => resume({}) } } with { .get!(resume) => resume(0) }",
+	)
 	defer teardown_lower(ctx, &store)
 
 	handler_count := 0
@@ -1388,7 +1493,8 @@ test_effect_lower_nested_handlers :: proc(t: ^testing.T) {
 @(test)
 test_effect_lower_multi_arm_perform :: proc(t: ^testing.T) {
 	result, ctx, store := effect_lower_source(
-		"IO! : { println!: || -> Str, readln!: || -> Str }\nmain! = handle IO in { IO.println(\"hi\"); IO.readln() } with { .println!(resume) => resume({}), .readln!(resume) => resume({}) }")
+		"IO! : { println!: || -> Str, readln!: || -> Str }\nmain! = handle IO in { IO.println(\"hi\"); IO.readln() } with { .println!(resume) => resume({}), .readln!(resume) => resume({}) }",
+	)
 	defer teardown_lower(ctx, &store)
 
 	load_count := 0
@@ -1406,8 +1512,7 @@ test_effect_lower_multi_arm_perform :: proc(t: ^testing.T) {
 
 @(test)
 test_effect_lower_scheduler_passthrough :: proc(t: ^testing.T) {
-	result, ctx, store := effect_lower_source(
-		"main! = { 42 }")
+	result, ctx, store := effect_lower_source("main! = { 42 }")
 	defer teardown_lower(ctx, &store)
 
 	handler_count := 0
@@ -1427,7 +1532,8 @@ test_effect_lower_scheduler_passthrough :: proc(t: ^testing.T) {
 @(test)
 test_effect_lower_handle_removes_ir_handle :: proc(t: ^testing.T) {
 	result, ctx, store := effect_lower_source(
-		"IO! : { println!: || -> Str }\nmain! = handle IO in { 42 } with { .println!(resume) => resume({}) }")
+		"IO! : { println!: || -> Str }\nmain! = handle IO in { 42 } with { .println!(resume) => resume({}) }",
+	)
 	defer teardown_lower(ctx, &store)
 
 	found_handle := false
@@ -1464,7 +1570,7 @@ test_closure_convert_no_free_vars :: proc(t: ^testing.T) {
 		case ^ir.IR_Decl_Fn:
 			for p in d.params {
 				p_str := base.intern_get(&ctx.interner, p.name)
-				if strings.contains(p_str, "_cenv") { found_cenv = true }
+				if strings.contains(p_str, "_cenv") {found_cenv = true}
 			}
 		case:
 		}
@@ -1551,7 +1657,7 @@ test_cps_transform_adds_k_param :: proc(t: ^testing.T) {
 	has_k := false
 	for p in fn_decl.params {
 		p_str := base.intern_get(&ctx.interner, p.name)
-		if strings.contains(p_str, "_k") { has_k = true }
+		if strings.contains(p_str, "_k") {has_k = true}
 	}
 	testing.expect(t, has_k)
 }
@@ -1584,7 +1690,10 @@ test_cps_transform_return_is_closure_call :: proc(t: ^testing.T) {
 
 	fn_decl := find_decl_fn(result, true)
 	testing.expect(t, fn_decl != nil)
-	testing.expect(t, contains_ir_closure_call(fn_decl.body) || contains_ir_tail_call(fn_decl.body))
+	testing.expect(
+		t,
+		contains_ir_closure_call(fn_decl.body) || contains_ir_tail_call(fn_decl.body),
+	)
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════
@@ -1642,39 +1751,50 @@ test_rc_insert_heap_drop :: proc(t: ^testing.T) {
 		free(ctx)
 	}
 
-	heap_type := base.IR_Type{wasm_type = .I32, type_id = base.Type_Var_ID(0), is_heap = true}
-	int_type := base.IR_Type{wasm_type = .I64, type_id = base.Type_Var_ID(0)}
+	heap_type := base.IR_Type {
+		wasm_type = .I32,
+		type_id   = base.Type_Var_ID(0),
+		is_heap   = true,
+	}
+	int_type := base.IR_Type {
+		wasm_type = .I64,
+		type_id   = base.Type_Var_ID(0),
+	}
 
 	x_name := base.intern(&ctx.interner, "x")
 
 	// value: IR_Construct_Record with empty fields
 	record := new(ir.IR_Construct_Record)
-	record^ = ir.IR_Construct_Record{
-		fields = make([dynamic]ir.IR_Record_Field, 0),
-		rest = nil,
+	record^ = ir.IR_Construct_Record {
+		fields     = make([dynamic]ir.IR_Record_Field, 0),
+		rest       = nil,
 		reuse_addr = ir.NO_REUSE_ADDR,
-		type = heap_type,
-		span = base.Source_Span{},
+		type       = heap_type,
+		span       = base.Source_Span{},
 	}
 
 	// body: IR_Literal_Int(42)
 	lit := new(ir.IR_Literal_Int)
-	lit^ = ir.IR_Literal_Int{value = 42, type = int_type, span = base.Source_Span{}}
+	lit^ = ir.IR_Literal_Int {
+		value = 42,
+		type  = int_type,
+		span  = base.Source_Span{},
+	}
 
 	// let x = record in 42
 	let_expr := new(ir.IR_Let)
-	let_expr^ = ir.IR_Let{
+	let_expr^ = ir.IR_Let {
 		binding = x_name,
-		type = heap_type,
-		value = ir.IR_Expr(record),
-		body = ir.IR_Expr(lit),
-		span = base.Source_Span{},
+		type    = heap_type,
+		value   = ir.IR_Expr(record),
+		body    = ir.IR_Expr(lit),
+		span    = base.Source_Span{},
 	}
 
 	// Wrap in a function
 	fn_body := ir.IR_Expr(let_expr)
 	fn_decl := new(ir.IR_Decl_Fn)
-	fn_decl^ = ir.IR_Decl_Fn{
+	fn_decl^ = ir.IR_Decl_Fn {
 		name = base.Canonical_Name{module = base.NO_NAME, name = x_name},
 		is_effectful = false,
 		params = make([dynamic]ir.IR_Param, 0),
@@ -1685,9 +1805,9 @@ test_rc_insert_heap_drop :: proc(t: ^testing.T) {
 		span = base.Source_Span{},
 	}
 
-	mod := ir.IR_Module{
-		decls = make([dynamic]ir.IR_Decl, 1),
-		effect_defs = make([dynamic]ir.IR_Effect_Def, 0),
+	mod := ir.IR_Module {
+		decls        = make([dynamic]ir.IR_Decl, 1),
+		effect_defs  = make([dynamic]ir.IR_Effect_Def, 0),
 		string_table = make([dynamic]ir.String_Table_Entry, 0),
 	}
 	mod.decls[0] = ir.IR_Decl(fn_decl)
@@ -1724,57 +1844,79 @@ test_rc_insert_branch_heap_drop :: proc(t: ^testing.T) {
 		free(ctx)
 	}
 
-	heap_type := base.IR_Type{wasm_type = .I32, type_id = base.Type_Var_ID(0), is_heap = true}
-	int_type := base.IR_Type{wasm_type = .I64, type_id = base.Type_Var_ID(0)}
-	bool_type := base.IR_Type{wasm_type = .I32, type_id = base.Type_Var_ID(0)}
+	heap_type := base.IR_Type {
+		wasm_type = .I32,
+		type_id   = base.Type_Var_ID(0),
+		is_heap   = true,
+	}
+	int_type := base.IR_Type {
+		wasm_type = .I64,
+		type_id   = base.Type_Var_ID(0),
+	}
+	bool_type := base.IR_Type {
+		wasm_type = .I32,
+		type_id   = base.Type_Var_ID(0),
+	}
 
 	x_name := base.intern(&ctx.interner, "x")
 
 	// value: IR_Construct_Record
 	record := new(ir.IR_Construct_Record)
-	record^ = ir.IR_Construct_Record{
-		fields = make([dynamic]ir.IR_Record_Field, 0),
-		rest = nil,
+	record^ = ir.IR_Construct_Record {
+		fields     = make([dynamic]ir.IR_Record_Field, 0),
+		rest       = nil,
 		reuse_addr = ir.NO_REUSE_ADDR,
-		type = heap_type,
-		span = base.Source_Span{},
+		type       = heap_type,
+		span       = base.Source_Span{},
 	}
 
 	// condition: True
 	cond := new(ir.IR_Literal_Bool)
-	cond^ = ir.IR_Literal_Bool{value = true, type = bool_type, span = base.Source_Span{}}
+	cond^ = ir.IR_Literal_Bool {
+		value = true,
+		type  = bool_type,
+		span  = base.Source_Span{},
+	}
 
 	// then: 1
 	then_lit := new(ir.IR_Literal_Int)
-	then_lit^ = ir.IR_Literal_Int{value = 1, type = int_type, span = base.Source_Span{}}
+	then_lit^ = ir.IR_Literal_Int {
+		value = 1,
+		type  = int_type,
+		span  = base.Source_Span{},
+	}
 
 	// else: 2
 	else_lit := new(ir.IR_Literal_Int)
-	else_lit^ = ir.IR_Literal_Int{value = 2, type = int_type, span = base.Source_Span{}}
+	else_lit^ = ir.IR_Literal_Int {
+		value = 2,
+		type  = int_type,
+		span  = base.Source_Span{},
+	}
 
 	// if True then 1 else 2
 	if_expr := new(ir.IR_If)
-	if_expr^ = ir.IR_If{
-		condition = ir.IR_Expr(cond),
+	if_expr^ = ir.IR_If {
+		condition   = ir.IR_Expr(cond),
 		then_branch = ir.IR_Expr(then_lit),
 		else_branch = ir.IR_Expr(else_lit),
-		type = int_type,
-		span = base.Source_Span{},
+		type        = int_type,
+		span        = base.Source_Span{},
 	}
 
 	// let x = record in if ...
 	let_expr := new(ir.IR_Let)
-	let_expr^ = ir.IR_Let{
+	let_expr^ = ir.IR_Let {
 		binding = x_name,
-		type = heap_type,
-		value = ir.IR_Expr(record),
-		body = ir.IR_Expr(if_expr),
-		span = base.Source_Span{},
+		type    = heap_type,
+		value   = ir.IR_Expr(record),
+		body    = ir.IR_Expr(if_expr),
+		span    = base.Source_Span{},
 	}
 
 	fn_body := ir.IR_Expr(let_expr)
 	fn_decl := new(ir.IR_Decl_Fn)
-	fn_decl^ = ir.IR_Decl_Fn{
+	fn_decl^ = ir.IR_Decl_Fn {
 		name = base.Canonical_Name{module = base.NO_NAME, name = x_name},
 		is_effectful = false,
 		params = make([dynamic]ir.IR_Param, 0),
@@ -1785,9 +1927,9 @@ test_rc_insert_branch_heap_drop :: proc(t: ^testing.T) {
 		span = base.Source_Span{},
 	}
 
-	mod := ir.IR_Module{
-		decls = make([dynamic]ir.IR_Decl, 1),
-		effect_defs = make([dynamic]ir.IR_Effect_Def, 0),
+	mod := ir.IR_Module {
+		decls        = make([dynamic]ir.IR_Decl, 1),
+		effect_defs  = make([dynamic]ir.IR_Effect_Def, 0),
 		string_table = make([dynamic]ir.String_Table_Entry, 0),
 	}
 	mod.decls[0] = ir.IR_Decl(fn_decl)
@@ -1880,27 +2022,38 @@ test_rc_drop_non_heap_no_drop :: proc(t: ^testing.T) {
 		free(ctx)
 	}
 
-	int_type := base.IR_Type{wasm_type = .I64, type_id = base.Type_Var_ID(0)}
+	int_type := base.IR_Type {
+		wasm_type = .I64,
+		type_id   = base.Type_Var_ID(0),
+	}
 
 	x_name := base.intern(&ctx.interner, "x")
 
 	lit := new(ir.IR_Literal_Int)
-	lit^ = ir.IR_Literal_Int{value = 42, type = int_type, span = base.Source_Span{}}
+	lit^ = ir.IR_Literal_Int {
+		value = 42,
+		type  = int_type,
+		span  = base.Source_Span{},
+	}
 
 	ret_lit := new(ir.IR_Literal_Int)
-	ret_lit^ = ir.IR_Literal_Int{value = 1, type = int_type, span = base.Source_Span{}}
+	ret_lit^ = ir.IR_Literal_Int {
+		value = 1,
+		type  = int_type,
+		span  = base.Source_Span{},
+	}
 
 	let_expr := new(ir.IR_Let)
-	let_expr^ = ir.IR_Let{
+	let_expr^ = ir.IR_Let {
 		binding = x_name,
-		type = int_type,
-		value = ir.IR_Expr(lit),
-		body = ir.IR_Expr(ret_lit),
-		span = base.Source_Span{},
+		type    = int_type,
+		value   = ir.IR_Expr(lit),
+		body    = ir.IR_Expr(ret_lit),
+		span    = base.Source_Span{},
 	}
 
 	fn_decl := new(ir.IR_Decl_Fn)
-	fn_decl^ = ir.IR_Decl_Fn{
+	fn_decl^ = ir.IR_Decl_Fn {
 		name = base.Canonical_Name{module = base.NO_NAME, name = x_name},
 		is_effectful = false,
 		params = make([dynamic]ir.IR_Param, 0),
@@ -1911,9 +2064,9 @@ test_rc_drop_non_heap_no_drop :: proc(t: ^testing.T) {
 		span = base.Source_Span{},
 	}
 
-	mod := ir.IR_Module{
-		decls = make([dynamic]ir.IR_Decl, 1),
-		effect_defs = make([dynamic]ir.IR_Effect_Def, 0),
+	mod := ir.IR_Module {
+		decls        = make([dynamic]ir.IR_Decl, 1),
+		effect_defs  = make([dynamic]ir.IR_Effect_Def, 0),
 		string_table = make([dynamic]ir.String_Table_Entry, 0),
 	}
 	mod.decls[0] = ir.IR_Decl(fn_decl)
@@ -1935,17 +2088,28 @@ test_rc_drop_unused_heap_param :: proc(t: ^testing.T) {
 		free(ctx)
 	}
 
-	heap_type := base.IR_Type{wasm_type = .I32, type_id = base.Type_Var_ID(0), is_heap = true}
-	int_type := base.IR_Type{wasm_type = .I64, type_id = base.Type_Var_ID(0)}
+	heap_type := base.IR_Type {
+		wasm_type = .I32,
+		type_id   = base.Type_Var_ID(0),
+		is_heap   = true,
+	}
+	int_type := base.IR_Type {
+		wasm_type = .I64,
+		type_id   = base.Type_Var_ID(0),
+	}
 
 	p_name := base.intern(&ctx.interner, "p")
 	fn_name := base.intern(&ctx.interner, "f")
 
 	ret_lit := new(ir.IR_Literal_Int)
-	ret_lit^ = ir.IR_Literal_Int{value = 0, type = int_type, span = base.Source_Span{}}
+	ret_lit^ = ir.IR_Literal_Int {
+		value = 0,
+		type  = int_type,
+		span  = base.Source_Span{},
+	}
 
 	fn_decl := new(ir.IR_Decl_Fn)
-	fn_decl^ = ir.IR_Decl_Fn{
+	fn_decl^ = ir.IR_Decl_Fn {
 		name = base.Canonical_Name{module = base.NO_NAME, name = fn_name},
 		is_effectful = false,
 		params = make([dynamic]ir.IR_Param, 1),
@@ -1955,11 +2119,14 @@ test_rc_drop_unused_heap_param :: proc(t: ^testing.T) {
 		body = ir.IR_Expr(ret_lit),
 		span = base.Source_Span{},
 	}
-	fn_decl.params[0] = ir.IR_Param{name = p_name, type = heap_type}
+	fn_decl.params[0] = ir.IR_Param {
+		name = p_name,
+		type = heap_type,
+	}
 
-	mod := ir.IR_Module{
-		decls = make([dynamic]ir.IR_Decl, 1),
-		effect_defs = make([dynamic]ir.IR_Effect_Def, 0),
+	mod := ir.IR_Module {
+		decls        = make([dynamic]ir.IR_Decl, 1),
+		effect_defs  = make([dynamic]ir.IR_Effect_Def, 0),
 		string_table = make([dynamic]ir.String_Table_Entry, 0),
 	}
 	mod.decls[0] = ir.IR_Decl(fn_decl)
@@ -1981,21 +2148,32 @@ test_rc_drop_used_heap_param_no_drop :: proc(t: ^testing.T) {
 		free(ctx)
 	}
 
-	heap_type := base.IR_Type{wasm_type = .I32, type_id = base.Type_Var_ID(0), is_heap = true}
-	int_type := base.IR_Type{wasm_type = .I64, type_id = base.Type_Var_ID(0)}
+	heap_type := base.IR_Type {
+		wasm_type = .I32,
+		type_id   = base.Type_Var_ID(0),
+		is_heap   = true,
+	}
+	int_type := base.IR_Type {
+		wasm_type = .I64,
+		type_id   = base.Type_Var_ID(0),
+	}
 
 	p_name := base.intern(&ctx.interner, "p")
 	fn_name := base.intern(&ctx.interner, "f")
 
 	// Use p in a call (single use consumes ownership)
 	p_var := new(ir.IR_Var)
-	p_var^ = ir.IR_Var{name = p_name, type = heap_type, span = base.Source_Span{}}
+	p_var^ = ir.IR_Var {
+		name = p_name,
+		type = heap_type,
+		span = base.Source_Span{},
+	}
 
 	// Just return p as I32 (it's consumed)
 	ret_expr := ir.IR_Expr(p_var)
 
 	fn_decl := new(ir.IR_Decl_Fn)
-	fn_decl^ = ir.IR_Decl_Fn{
+	fn_decl^ = ir.IR_Decl_Fn {
 		name = base.Canonical_Name{module = base.NO_NAME, name = fn_name},
 		is_effectful = false,
 		params = make([dynamic]ir.IR_Param, 1),
@@ -2005,11 +2183,14 @@ test_rc_drop_used_heap_param_no_drop :: proc(t: ^testing.T) {
 		body = ret_expr,
 		span = base.Source_Span{},
 	}
-	fn_decl.params[0] = ir.IR_Param{name = p_name, type = heap_type}
+	fn_decl.params[0] = ir.IR_Param {
+		name = p_name,
+		type = heap_type,
+	}
 
-	mod := ir.IR_Module{
-		decls = make([dynamic]ir.IR_Decl, 1),
-		effect_defs = make([dynamic]ir.IR_Effect_Def, 0),
+	mod := ir.IR_Module {
+		decls        = make([dynamic]ir.IR_Decl, 1),
+		effect_defs  = make([dynamic]ir.IR_Effect_Def, 0),
 		string_table = make([dynamic]ir.String_Table_Entry, 0),
 	}
 	mod.decls[0] = ir.IR_Decl(fn_decl)
@@ -2031,16 +2212,23 @@ test_rc_drop_non_heap_param_no_drop :: proc(t: ^testing.T) {
 		free(ctx)
 	}
 
-	int_type := base.IR_Type{wasm_type = .I64, type_id = base.Type_Var_ID(0)}
+	int_type := base.IR_Type {
+		wasm_type = .I64,
+		type_id   = base.Type_Var_ID(0),
+	}
 
 	p_name := base.intern(&ctx.interner, "p")
 	fn_name := base.intern(&ctx.interner, "f")
 
 	ret_lit := new(ir.IR_Literal_Int)
-	ret_lit^ = ir.IR_Literal_Int{value = 0, type = int_type, span = base.Source_Span{}}
+	ret_lit^ = ir.IR_Literal_Int {
+		value = 0,
+		type  = int_type,
+		span  = base.Source_Span{},
+	}
 
 	fn_decl := new(ir.IR_Decl_Fn)
-	fn_decl^ = ir.IR_Decl_Fn{
+	fn_decl^ = ir.IR_Decl_Fn {
 		name = base.Canonical_Name{module = base.NO_NAME, name = fn_name},
 		is_effectful = false,
 		params = make([dynamic]ir.IR_Param, 1),
@@ -2050,11 +2238,14 @@ test_rc_drop_non_heap_param_no_drop :: proc(t: ^testing.T) {
 		body = ir.IR_Expr(ret_lit),
 		span = base.Source_Span{},
 	}
-	fn_decl.params[0] = ir.IR_Param{name = p_name, type = int_type}
+	fn_decl.params[0] = ir.IR_Param {
+		name = p_name,
+		type = int_type,
+	}
 
-	mod := ir.IR_Module{
-		decls = make([dynamic]ir.IR_Decl, 1),
-		effect_defs = make([dynamic]ir.IR_Effect_Def, 0),
+	mod := ir.IR_Module {
+		decls        = make([dynamic]ir.IR_Decl, 1),
+		effect_defs  = make([dynamic]ir.IR_Effect_Def, 0),
 		string_table = make([dynamic]ir.String_Table_Entry, 0),
 	}
 	mod.decls[0] = ir.IR_Decl(fn_decl)
@@ -2076,52 +2267,74 @@ test_rc_drop_heap_used_in_one_branch :: proc(t: ^testing.T) {
 		free(ctx)
 	}
 
-	heap_type := base.IR_Type{wasm_type = .I32, type_id = base.Type_Var_ID(0), is_heap = true}
-	int_type := base.IR_Type{wasm_type = .I64, type_id = base.Type_Var_ID(0)}
-	bool_type := base.IR_Type{wasm_type = .I32, type_id = base.Type_Var_ID(0)}
+	heap_type := base.IR_Type {
+		wasm_type = .I32,
+		type_id   = base.Type_Var_ID(0),
+		is_heap   = true,
+	}
+	int_type := base.IR_Type {
+		wasm_type = .I64,
+		type_id   = base.Type_Var_ID(0),
+	}
+	bool_type := base.IR_Type {
+		wasm_type = .I32,
+		type_id   = base.Type_Var_ID(0),
+	}
 
 	x_name := base.intern(&ctx.interner, "x")
 
 	record := new(ir.IR_Construct_Record)
-	record^ = ir.IR_Construct_Record{
-		fields = make([dynamic]ir.IR_Record_Field, 0),
-		rest = nil,
+	record^ = ir.IR_Construct_Record {
+		fields     = make([dynamic]ir.IR_Record_Field, 0),
+		rest       = nil,
 		reuse_addr = ir.NO_REUSE_ADDR,
-		type = heap_type,
-		span = base.Source_Span{},
+		type       = heap_type,
+		span       = base.Source_Span{},
 	}
 
 	cond := new(ir.IR_Literal_Bool)
-	cond^ = ir.IR_Literal_Bool{value = true, type = bool_type, span = base.Source_Span{}}
+	cond^ = ir.IR_Literal_Bool {
+		value = true,
+		type  = bool_type,
+		span  = base.Source_Span{},
+	}
 
 	// then: use x (consume it)
 	then_var := new(ir.IR_Var)
-	then_var^ = ir.IR_Var{name = x_name, type = heap_type, span = base.Source_Span{}}
+	then_var^ = ir.IR_Var {
+		name = x_name,
+		type = heap_type,
+		span = base.Source_Span{},
+	}
 
 	// else: don't use x
 	else_lit := new(ir.IR_Literal_Int)
-	else_lit^ = ir.IR_Literal_Int{value = 0, type = int_type, span = base.Source_Span{}}
+	else_lit^ = ir.IR_Literal_Int {
+		value = 0,
+		type  = int_type,
+		span  = base.Source_Span{},
+	}
 
 	if_expr := new(ir.IR_If)
-	if_expr^ = ir.IR_If{
-		condition = ir.IR_Expr(cond),
+	if_expr^ = ir.IR_If {
+		condition   = ir.IR_Expr(cond),
 		then_branch = ir.IR_Expr(then_var),
 		else_branch = ir.IR_Expr(else_lit),
-		type = heap_type,
-		span = base.Source_Span{},
+		type        = heap_type,
+		span        = base.Source_Span{},
 	}
 
 	let_expr := new(ir.IR_Let)
-	let_expr^ = ir.IR_Let{
+	let_expr^ = ir.IR_Let {
 		binding = x_name,
-		type = heap_type,
-		value = ir.IR_Expr(record),
-		body = ir.IR_Expr(if_expr),
-		span = base.Source_Span{},
+		type    = heap_type,
+		value   = ir.IR_Expr(record),
+		body    = ir.IR_Expr(if_expr),
+		span    = base.Source_Span{},
 	}
 
 	fn_decl := new(ir.IR_Decl_Fn)
-	fn_decl^ = ir.IR_Decl_Fn{
+	fn_decl^ = ir.IR_Decl_Fn {
 		name = base.Canonical_Name{module = base.NO_NAME, name = x_name},
 		is_effectful = false,
 		params = make([dynamic]ir.IR_Param, 0),
@@ -2132,9 +2345,9 @@ test_rc_drop_heap_used_in_one_branch :: proc(t: ^testing.T) {
 		span = base.Source_Span{},
 	}
 
-	mod := ir.IR_Module{
-		decls = make([dynamic]ir.IR_Decl, 1),
-		effect_defs = make([dynamic]ir.IR_Effect_Def, 0),
+	mod := ir.IR_Module {
+		decls        = make([dynamic]ir.IR_Decl, 1),
+		effect_defs  = make([dynamic]ir.IR_Effect_Def, 0),
 		string_table = make([dynamic]ir.String_Table_Entry, 0),
 	}
 	mod.decls[0] = ir.IR_Decl(fn_decl)
@@ -2163,28 +2376,32 @@ test_reuse_addr_default_is_no_reuse :: proc(t: ^testing.T) {
 		free(ctx)
 	}
 
-	heap_type := base.IR_Type{wasm_type = .I32, type_id = base.Type_Var_ID(0), is_heap = true}
+	heap_type := base.IR_Type {
+		wasm_type = .I32,
+		type_id   = base.Type_Var_ID(0),
+		is_heap   = true,
+	}
 
 	tag_name := base.intern(&ctx.interner, "Some")
 
 	tag := new(ir.IR_Construct_Tag)
-	tag^ = ir.IR_Construct_Tag{
-		tag_name = tag_name,
-		tag_index = 0,
-		payload = make([dynamic]ir.IR_Expr, 0),
+	tag^ = ir.IR_Construct_Tag {
+		tag_name   = tag_name,
+		tag_index  = 0,
+		payload    = make([dynamic]ir.IR_Expr, 0),
 		reuse_addr = ir.NO_REUSE_ADDR,
-		type = heap_type,
-		span = base.Source_Span{},
+		type       = heap_type,
+		span       = base.Source_Span{},
 	}
 	testing.expect(t, tag.reuse_addr == ir.NO_REUSE_ADDR)
 
 	rec := new(ir.IR_Construct_Record)
-	rec^ = ir.IR_Construct_Record{
-		fields = make([dynamic]ir.IR_Record_Field, 0),
-		rest = nil,
+	rec^ = ir.IR_Construct_Record {
+		fields     = make([dynamic]ir.IR_Record_Field, 0),
+		rest       = nil,
 		reuse_addr = ir.NO_REUSE_ADDR,
-		type = heap_type,
-		span = base.Source_Span{},
+		type       = heap_type,
+		span       = base.Source_Span{},
 	}
 	testing.expect(t, rec.reuse_addr == ir.NO_REUSE_ADDR)
 }
@@ -2201,34 +2418,45 @@ test_reuse_addr_preserved_through_rc :: proc(t: ^testing.T) {
 		free(ctx)
 	}
 
-	heap_type := base.IR_Type{wasm_type = .I32, type_id = base.Type_Var_ID(0), is_heap = true}
-	int_type := base.IR_Type{wasm_type = .I64, type_id = base.Type_Var_ID(0)}
+	heap_type := base.IR_Type {
+		wasm_type = .I32,
+		type_id   = base.Type_Var_ID(0),
+		is_heap   = true,
+	}
+	int_type := base.IR_Type {
+		wasm_type = .I64,
+		type_id   = base.Type_Var_ID(0),
+	}
 
 	x_name := base.intern(&ctx.interner, "x")
 
 	record := new(ir.IR_Construct_Record)
-	record^ = ir.IR_Construct_Record{
-		fields = make([dynamic]ir.IR_Record_Field, 0),
-		rest = nil,
+	record^ = ir.IR_Construct_Record {
+		fields     = make([dynamic]ir.IR_Record_Field, 0),
+		rest       = nil,
 		reuse_addr = ir.NO_REUSE_ADDR,
-		type = heap_type,
-		span = base.Source_Span{},
+		type       = heap_type,
+		span       = base.Source_Span{},
 	}
 
 	lit := new(ir.IR_Literal_Int)
-	lit^ = ir.IR_Literal_Int{value = 42, type = int_type, span = base.Source_Span{}}
+	lit^ = ir.IR_Literal_Int {
+		value = 42,
+		type  = int_type,
+		span  = base.Source_Span{},
+	}
 
 	let_expr := new(ir.IR_Let)
-	let_expr^ = ir.IR_Let{
+	let_expr^ = ir.IR_Let {
 		binding = x_name,
-		type = heap_type,
-		value = ir.IR_Expr(record),
-		body = ir.IR_Expr(lit),
-		span = base.Source_Span{},
+		type    = heap_type,
+		value   = ir.IR_Expr(record),
+		body    = ir.IR_Expr(lit),
+		span    = base.Source_Span{},
 	}
 
 	fn_decl := new(ir.IR_Decl_Fn)
-	fn_decl^ = ir.IR_Decl_Fn{
+	fn_decl^ = ir.IR_Decl_Fn {
 		name = base.Canonical_Name{module = base.NO_NAME, name = x_name},
 		is_effectful = false,
 		params = make([dynamic]ir.IR_Param, 0),
@@ -2239,9 +2467,9 @@ test_reuse_addr_preserved_through_rc :: proc(t: ^testing.T) {
 		span = base.Source_Span{},
 	}
 
-	mod := ir.IR_Module{
-		decls = make([dynamic]ir.IR_Decl, 1),
-		effect_defs = make([dynamic]ir.IR_Effect_Def, 0),
+	mod := ir.IR_Module {
+		decls        = make([dynamic]ir.IR_Decl, 1),
+		effect_defs  = make([dynamic]ir.IR_Effect_Def, 0),
 		string_table = make([dynamic]ir.String_Table_Entry, 0),
 	}
 	mod.decls[0] = ir.IR_Decl(fn_decl)
@@ -2297,48 +2525,66 @@ test_reuse_analyze_let_drop_then_construct :: proc(t: ^testing.T) {
 		free(ctx)
 	}
 
-	heap_type := base.IR_Type{wasm_type = .I32, type_id = base.Type_Var_ID(0), is_heap = true}
-	int_type := base.IR_Type{wasm_type = .I64, type_id = base.Type_Var_ID(0)}
+	heap_type := base.IR_Type {
+		wasm_type = .I32,
+		type_id   = base.Type_Var_ID(0),
+		is_heap   = true,
+	}
+	int_type := base.IR_Type {
+		wasm_type = .I64,
+		type_id   = base.Type_Var_ID(0),
+	}
 
 	x_name := base.intern(&ctx.interner, "x")
 	y_name := base.intern(&ctx.interner, "y")
 
 	// value: IR_Construct_Tag
 	tag := new(ir.IR_Construct_Tag)
-	tag^ = ir.IR_Construct_Tag{
-		tag_name = x_name,
-		tag_index = 0,
-		payload = make([dynamic]ir.IR_Expr, 0),
+	tag^ = ir.IR_Construct_Tag {
+		tag_name   = x_name,
+		tag_index  = 0,
+		payload    = make([dynamic]ir.IR_Expr, 0),
 		reuse_addr = ir.NO_REUSE_ADDR,
-		type = heap_type,
-		span = base.Source_Span{},
+		type       = heap_type,
+		span       = base.Source_Span{},
 	}
 
 	// body: IR_Block { IR_Drop{y}, IR_Literal_Int{42} }
 	drop_y := new(ir.IR_Drop)
-	drop_y^ = ir.IR_Drop{value = y_name, span = base.Source_Span{}}
+	drop_y^ = ir.IR_Drop {
+		value = y_name,
+		span  = base.Source_Span{},
+	}
 
 	lit := new(ir.IR_Literal_Int)
-	lit^ = ir.IR_Literal_Int{value = 42, type = int_type, span = base.Source_Span{}}
+	lit^ = ir.IR_Literal_Int {
+		value = 42,
+		type  = int_type,
+		span  = base.Source_Span{},
+	}
 
 	body_stmts := make([dynamic]ir.IR_Expr, 0, 2)
 	append(&body_stmts, ir.IR_Expr(drop_y))
 	append(&body_stmts, ir.IR_Expr(lit))
 
 	body_block := new(ir.IR_Block)
-	body_block^ = ir.IR_Block{statements = body_stmts, type = int_type, span = base.Source_Span{}}
+	body_block^ = ir.IR_Block {
+		statements = body_stmts,
+		type       = int_type,
+		span       = base.Source_Span{},
+	}
 
 	let_expr := new(ir.IR_Let)
-	let_expr^ = ir.IR_Let{
+	let_expr^ = ir.IR_Let {
 		binding = x_name,
-		type = heap_type,
-		value = ir.IR_Expr(tag),
-		body = ir.IR_Expr(body_block),
-		span = base.Source_Span{},
+		type    = heap_type,
+		value   = ir.IR_Expr(tag),
+		body    = ir.IR_Expr(body_block),
+		span    = base.Source_Span{},
 	}
 
 	fn_decl := new(ir.IR_Decl_Fn)
-	fn_decl^ = ir.IR_Decl_Fn{
+	fn_decl^ = ir.IR_Decl_Fn {
 		name = base.Canonical_Name{module = base.NO_NAME, name = x_name},
 		is_effectful = false,
 		params = make([dynamic]ir.IR_Param, 0),
@@ -2349,9 +2595,9 @@ test_reuse_analyze_let_drop_then_construct :: proc(t: ^testing.T) {
 		span = base.Source_Span{},
 	}
 
-	mod := ir.IR_Module{
-		decls = make([dynamic]ir.IR_Decl, 1),
-		effect_defs = make([dynamic]ir.IR_Effect_Def, 0),
+	mod := ir.IR_Module {
+		decls        = make([dynamic]ir.IR_Decl, 1),
+		effect_defs  = make([dynamic]ir.IR_Effect_Def, 0),
 		string_table = make([dynamic]ir.String_Table_Entry, 0),
 	}
 	mod.decls[0] = ir.IR_Decl(fn_decl)
@@ -2378,35 +2624,46 @@ test_reuse_analyze_no_drop_no_reuse :: proc(t: ^testing.T) {
 		free(ctx)
 	}
 
-	heap_type := base.IR_Type{wasm_type = .I32, type_id = base.Type_Var_ID(0), is_heap = true}
-	int_type := base.IR_Type{wasm_type = .I64, type_id = base.Type_Var_ID(0)}
+	heap_type := base.IR_Type {
+		wasm_type = .I32,
+		type_id   = base.Type_Var_ID(0),
+		is_heap   = true,
+	}
+	int_type := base.IR_Type {
+		wasm_type = .I64,
+		type_id   = base.Type_Var_ID(0),
+	}
 
 	x_name := base.intern(&ctx.interner, "x")
 
 	tag := new(ir.IR_Construct_Tag)
-	tag^ = ir.IR_Construct_Tag{
-		tag_name = x_name,
-		tag_index = 0,
-		payload = make([dynamic]ir.IR_Expr, 0),
+	tag^ = ir.IR_Construct_Tag {
+		tag_name   = x_name,
+		tag_index  = 0,
+		payload    = make([dynamic]ir.IR_Expr, 0),
 		reuse_addr = ir.NO_REUSE_ADDR,
-		type = heap_type,
-		span = base.Source_Span{},
+		type       = heap_type,
+		span       = base.Source_Span{},
 	}
 
 	lit := new(ir.IR_Literal_Int)
-	lit^ = ir.IR_Literal_Int{value = 42, type = int_type, span = base.Source_Span{}}
+	lit^ = ir.IR_Literal_Int {
+		value = 42,
+		type  = int_type,
+		span  = base.Source_Span{},
+	}
 
 	let_expr := new(ir.IR_Let)
-	let_expr^ = ir.IR_Let{
+	let_expr^ = ir.IR_Let {
 		binding = x_name,
-		type = heap_type,
-		value = ir.IR_Expr(tag),
-		body = ir.IR_Expr(lit),
-		span = base.Source_Span{},
+		type    = heap_type,
+		value   = ir.IR_Expr(tag),
+		body    = ir.IR_Expr(lit),
+		span    = base.Source_Span{},
 	}
 
 	fn_decl := new(ir.IR_Decl_Fn)
-	fn_decl^ = ir.IR_Decl_Fn{
+	fn_decl^ = ir.IR_Decl_Fn {
 		name = base.Canonical_Name{module = base.NO_NAME, name = x_name},
 		is_effectful = false,
 		params = make([dynamic]ir.IR_Param, 0),
@@ -2417,9 +2674,9 @@ test_reuse_analyze_no_drop_no_reuse :: proc(t: ^testing.T) {
 		span = base.Source_Span{},
 	}
 
-	mod := ir.IR_Module{
-		decls = make([dynamic]ir.IR_Decl, 1),
-		effect_defs = make([dynamic]ir.IR_Effect_Def, 0),
+	mod := ir.IR_Module {
+		decls        = make([dynamic]ir.IR_Decl, 1),
+		effect_defs  = make([dynamic]ir.IR_Effect_Def, 0),
 		string_table = make([dynamic]ir.String_Table_Entry, 0),
 	}
 	mod.decls[0] = ir.IR_Decl(fn_decl)
@@ -2442,45 +2699,63 @@ test_reuse_analyze_record_drop_then_construct :: proc(t: ^testing.T) {
 		free(ctx)
 	}
 
-	heap_type := base.IR_Type{wasm_type = .I32, type_id = base.Type_Var_ID(0), is_heap = true}
-	int_type := base.IR_Type{wasm_type = .I64, type_id = base.Type_Var_ID(0)}
+	heap_type := base.IR_Type {
+		wasm_type = .I32,
+		type_id   = base.Type_Var_ID(0),
+		is_heap   = true,
+	}
+	int_type := base.IR_Type {
+		wasm_type = .I64,
+		type_id   = base.Type_Var_ID(0),
+	}
 
 	x_name := base.intern(&ctx.interner, "x")
 	y_name := base.intern(&ctx.interner, "y")
 
 	rec := new(ir.IR_Construct_Record)
-	rec^ = ir.IR_Construct_Record{
-		fields = make([dynamic]ir.IR_Record_Field, 0),
-		rest = nil,
+	rec^ = ir.IR_Construct_Record {
+		fields     = make([dynamic]ir.IR_Record_Field, 0),
+		rest       = nil,
 		reuse_addr = ir.NO_REUSE_ADDR,
-		type = heap_type,
-		span = base.Source_Span{},
+		type       = heap_type,
+		span       = base.Source_Span{},
 	}
 
 	drop_y := new(ir.IR_Drop)
-	drop_y^ = ir.IR_Drop{value = y_name, span = base.Source_Span{}}
+	drop_y^ = ir.IR_Drop {
+		value = y_name,
+		span  = base.Source_Span{},
+	}
 
 	lit := new(ir.IR_Literal_Int)
-	lit^ = ir.IR_Literal_Int{value = 42, type = int_type, span = base.Source_Span{}}
+	lit^ = ir.IR_Literal_Int {
+		value = 42,
+		type  = int_type,
+		span  = base.Source_Span{},
+	}
 
 	body_stmts := make([dynamic]ir.IR_Expr, 0, 2)
 	append(&body_stmts, ir.IR_Expr(drop_y))
 	append(&body_stmts, ir.IR_Expr(lit))
 
 	body_block := new(ir.IR_Block)
-	body_block^ = ir.IR_Block{statements = body_stmts, type = int_type, span = base.Source_Span{}}
+	body_block^ = ir.IR_Block {
+		statements = body_stmts,
+		type       = int_type,
+		span       = base.Source_Span{},
+	}
 
 	let_expr := new(ir.IR_Let)
-	let_expr^ = ir.IR_Let{
+	let_expr^ = ir.IR_Let {
 		binding = x_name,
-		type = heap_type,
-		value = ir.IR_Expr(rec),
-		body = ir.IR_Expr(body_block),
-		span = base.Source_Span{},
+		type    = heap_type,
+		value   = ir.IR_Expr(rec),
+		body    = ir.IR_Expr(body_block),
+		span    = base.Source_Span{},
 	}
 
 	fn_decl := new(ir.IR_Decl_Fn)
-	fn_decl^ = ir.IR_Decl_Fn{
+	fn_decl^ = ir.IR_Decl_Fn {
 		name = base.Canonical_Name{module = base.NO_NAME, name = x_name},
 		is_effectful = false,
 		params = make([dynamic]ir.IR_Param, 0),
@@ -2491,9 +2766,9 @@ test_reuse_analyze_record_drop_then_construct :: proc(t: ^testing.T) {
 		span = base.Source_Span{},
 	}
 
-	mod := ir.IR_Module{
-		decls = make([dynamic]ir.IR_Decl, 1),
-		effect_defs = make([dynamic]ir.IR_Effect_Def, 0),
+	mod := ir.IR_Module {
+		decls        = make([dynamic]ir.IR_Decl, 1),
+		effect_defs  = make([dynamic]ir.IR_Effect_Def, 0),
 		string_table = make([dynamic]ir.String_Table_Entry, 0),
 	}
 	mod.decls[0] = ir.IR_Decl(fn_decl)
@@ -2518,35 +2793,49 @@ test_reuse_analyze_block_sibling_pattern :: proc(t: ^testing.T) {
 		free(ctx)
 	}
 
-	heap_type := base.IR_Type{wasm_type = .I32, type_id = base.Type_Var_ID(0), is_heap = true}
-	int_type := base.IR_Type{wasm_type = .I64, type_id = base.Type_Var_ID(0)}
+	heap_type := base.IR_Type {
+		wasm_type = .I32,
+		type_id   = base.Type_Var_ID(0),
+		is_heap   = true,
+	}
+	int_type := base.IR_Type {
+		wasm_type = .I64,
+		type_id   = base.Type_Var_ID(0),
+	}
 
 	x_name := base.intern(&ctx.interner, "x")
 	y_name := base.intern(&ctx.interner, "y")
 
 	drop_y := new(ir.IR_Drop)
-	drop_y^ = ir.IR_Drop{value = y_name, span = base.Source_Span{}}
+	drop_y^ = ir.IR_Drop {
+		value = y_name,
+		span  = base.Source_Span{},
+	}
 
 	tag := new(ir.IR_Construct_Tag)
-	tag^ = ir.IR_Construct_Tag{
-		tag_name = x_name,
-		tag_index = 0,
-		payload = make([dynamic]ir.IR_Expr, 0),
+	tag^ = ir.IR_Construct_Tag {
+		tag_name   = x_name,
+		tag_index  = 0,
+		payload    = make([dynamic]ir.IR_Expr, 0),
 		reuse_addr = ir.NO_REUSE_ADDR,
-		type = heap_type,
-		span = base.Source_Span{},
+		type       = heap_type,
+		span       = base.Source_Span{},
 	}
 
 	lit := new(ir.IR_Literal_Int)
-	lit^ = ir.IR_Literal_Int{value = 42, type = int_type, span = base.Source_Span{}}
+	lit^ = ir.IR_Literal_Int {
+		value = 42,
+		type  = int_type,
+		span  = base.Source_Span{},
+	}
 
 	let_expr := new(ir.IR_Let)
-	let_expr^ = ir.IR_Let{
+	let_expr^ = ir.IR_Let {
 		binding = x_name,
-		type = heap_type,
-		value = ir.IR_Expr(tag),
-		body = ir.IR_Expr(lit),
-		span = base.Source_Span{},
+		type    = heap_type,
+		value   = ir.IR_Expr(tag),
+		body    = ir.IR_Expr(lit),
+		span    = base.Source_Span{},
 	}
 
 	// Block: { drop y; let x = construct in 42 }
@@ -2555,10 +2844,14 @@ test_reuse_analyze_block_sibling_pattern :: proc(t: ^testing.T) {
 	append(&block_stmts, ir.IR_Expr(let_expr))
 
 	block := new(ir.IR_Block)
-	block^ = ir.IR_Block{statements = block_stmts, type = int_type, span = base.Source_Span{}}
+	block^ = ir.IR_Block {
+		statements = block_stmts,
+		type       = int_type,
+		span       = base.Source_Span{},
+	}
 
 	fn_decl := new(ir.IR_Decl_Fn)
-	fn_decl^ = ir.IR_Decl_Fn{
+	fn_decl^ = ir.IR_Decl_Fn {
 		name = base.Canonical_Name{module = base.NO_NAME, name = x_name},
 		is_effectful = false,
 		params = make([dynamic]ir.IR_Param, 0),
@@ -2569,9 +2862,9 @@ test_reuse_analyze_block_sibling_pattern :: proc(t: ^testing.T) {
 		span = base.Source_Span{},
 	}
 
-	mod := ir.IR_Module{
-		decls = make([dynamic]ir.IR_Decl, 1),
-		effect_defs = make([dynamic]ir.IR_Effect_Def, 0),
+	mod := ir.IR_Module {
+		decls        = make([dynamic]ir.IR_Decl, 1),
+		effect_defs  = make([dynamic]ir.IR_Effect_Def, 0),
 		string_table = make([dynamic]ir.String_Table_Entry, 0),
 	}
 	mod.decls[0] = ir.IR_Decl(fn_decl)
@@ -2596,40 +2889,62 @@ test_reuse_analyze_non_construct_no_reuse :: proc(t: ^testing.T) {
 		free(ctx)
 	}
 
-	heap_type := base.IR_Type{wasm_type = .I32, type_id = base.Type_Var_ID(0), is_heap = true}
-	int_type := base.IR_Type{wasm_type = .I64, type_id = base.Type_Var_ID(0)}
+	heap_type := base.IR_Type {
+		wasm_type = .I32,
+		type_id   = base.Type_Var_ID(0),
+		is_heap   = true,
+	}
+	int_type := base.IR_Type {
+		wasm_type = .I64,
+		type_id   = base.Type_Var_ID(0),
+	}
 
 	x_name := base.intern(&ctx.interner, "x")
 	y_name := base.intern(&ctx.interner, "y")
 
 	// value: IR_Literal_Int (NOT a construct)
 	lit_val := new(ir.IR_Literal_Int)
-	lit_val^ = ir.IR_Literal_Int{value = 99, type = int_type, span = base.Source_Span{}}
+	lit_val^ = ir.IR_Literal_Int {
+		value = 99,
+		type  = int_type,
+		span  = base.Source_Span{},
+	}
 
 	drop_y := new(ir.IR_Drop)
-	drop_y^ = ir.IR_Drop{value = y_name, span = base.Source_Span{}}
+	drop_y^ = ir.IR_Drop {
+		value = y_name,
+		span  = base.Source_Span{},
+	}
 
 	lit := new(ir.IR_Literal_Int)
-	lit^ = ir.IR_Literal_Int{value = 42, type = int_type, span = base.Source_Span{}}
+	lit^ = ir.IR_Literal_Int {
+		value = 42,
+		type  = int_type,
+		span  = base.Source_Span{},
+	}
 
 	body_stmts := make([dynamic]ir.IR_Expr, 0, 2)
 	append(&body_stmts, ir.IR_Expr(drop_y))
 	append(&body_stmts, ir.IR_Expr(lit))
 
 	body_block := new(ir.IR_Block)
-	body_block^ = ir.IR_Block{statements = body_stmts, type = int_type, span = base.Source_Span{}}
+	body_block^ = ir.IR_Block {
+		statements = body_stmts,
+		type       = int_type,
+		span       = base.Source_Span{},
+	}
 
 	let_expr := new(ir.IR_Let)
-	let_expr^ = ir.IR_Let{
+	let_expr^ = ir.IR_Let {
 		binding = x_name,
-		type = int_type,
-		value = ir.IR_Expr(lit_val),
-		body = ir.IR_Expr(body_block),
-		span = base.Source_Span{},
+		type    = int_type,
+		value   = ir.IR_Expr(lit_val),
+		body    = ir.IR_Expr(body_block),
+		span    = base.Source_Span{},
 	}
 
 	fn_decl := new(ir.IR_Decl_Fn)
-	fn_decl^ = ir.IR_Decl_Fn{
+	fn_decl^ = ir.IR_Decl_Fn {
 		name = base.Canonical_Name{module = base.NO_NAME, name = x_name},
 		is_effectful = false,
 		params = make([dynamic]ir.IR_Param, 0),
@@ -2640,9 +2955,9 @@ test_reuse_analyze_non_construct_no_reuse :: proc(t: ^testing.T) {
 		span = base.Source_Span{},
 	}
 
-	mod := ir.IR_Module{
-		decls = make([dynamic]ir.IR_Decl, 1),
-		effect_defs = make([dynamic]ir.IR_Effect_Def, 0),
+	mod := ir.IR_Module {
+		decls        = make([dynamic]ir.IR_Decl, 1),
+		effect_defs  = make([dynamic]ir.IR_Effect_Def, 0),
 		string_table = make([dynamic]ir.String_Table_Entry, 0),
 	}
 	mod.decls[0] = ir.IR_Decl(fn_decl)
@@ -2670,8 +2985,15 @@ test_rc_then_reuse_analyze_heap_drop_removed :: proc(t: ^testing.T) {
 		free(ctx)
 	}
 
-	heap_type := base.IR_Type{wasm_type = .I32, type_id = base.Type_Var_ID(0), is_heap = true}
-	int_type := base.IR_Type{wasm_type = .I64, type_id = base.Type_Var_ID(0)}
+	heap_type := base.IR_Type {
+		wasm_type = .I32,
+		type_id   = base.Type_Var_ID(0),
+		is_heap   = true,
+	}
+	int_type := base.IR_Type {
+		wasm_type = .I64,
+		type_id   = base.Type_Var_ID(0),
+	}
 
 	y_name := base.intern(&ctx.interner, "y")
 	x_name := base.intern(&ctx.interner, "x")
@@ -2679,39 +3001,53 @@ test_rc_then_reuse_analyze_heap_drop_removed :: proc(t: ^testing.T) {
 	// Simulate what RC produces for: let y = record in (let x = tag in 42)
 	// After RC: block { drop y; let x = tag in { drop x; 42 } }
 	drop_y := new(ir.IR_Drop)
-	drop_y^ = ir.IR_Drop{value = y_name, span = base.Source_Span{}}
+	drop_y^ = ir.IR_Drop {
+		value = y_name,
+		span  = base.Source_Span{},
+	}
 
 	x_tag := new(ir.IR_Construct_Tag)
-	x_tag^ = ir.IR_Construct_Tag{
-		tag_name = x_name,
-		tag_index = 0,
-		payload = make([dynamic]ir.IR_Expr, 0),
+	x_tag^ = ir.IR_Construct_Tag {
+		tag_name   = x_name,
+		tag_index  = 0,
+		payload    = make([dynamic]ir.IR_Expr, 0),
 		reuse_addr = ir.NO_REUSE_ADDR,
-		type = heap_type,
-		span = base.Source_Span{},
+		type       = heap_type,
+		span       = base.Source_Span{},
 	}
 
 	drop_x := new(ir.IR_Drop)
-	drop_x^ = ir.IR_Drop{value = x_name, span = base.Source_Span{}}
+	drop_x^ = ir.IR_Drop {
+		value = x_name,
+		span  = base.Source_Span{},
+	}
 
 	ret_lit := new(ir.IR_Literal_Int)
-	ret_lit^ = ir.IR_Literal_Int{value = 42, type = int_type, span = base.Source_Span{}}
+	ret_lit^ = ir.IR_Literal_Int {
+		value = 42,
+		type  = int_type,
+		span  = base.Source_Span{},
+	}
 
 	// Inner body: block { drop x; 42 }
 	inner_stmts := make([dynamic]ir.IR_Expr, 0, 2)
 	append(&inner_stmts, ir.IR_Expr(drop_x))
 	append(&inner_stmts, ir.IR_Expr(ret_lit))
 	inner_block := new(ir.IR_Block)
-	inner_block^ = ir.IR_Block{statements = inner_stmts, type = int_type, span = base.Source_Span{}}
+	inner_block^ = ir.IR_Block {
+		statements = inner_stmts,
+		type       = int_type,
+		span       = base.Source_Span{},
+	}
 
 	// let x = tag in { drop x; 42 }
 	let_x := new(ir.IR_Let)
-	let_x^ = ir.IR_Let{
+	let_x^ = ir.IR_Let {
 		binding = x_name,
-		type = heap_type,
-		value = ir.IR_Expr(x_tag),
-		body = ir.IR_Expr(inner_block),
-		span = base.Source_Span{},
+		type    = heap_type,
+		value   = ir.IR_Expr(x_tag),
+		body    = ir.IR_Expr(inner_block),
+		span    = base.Source_Span{},
 	}
 
 	// Outer block: { drop y; let x = tag in { drop x; 42 } }
@@ -2719,10 +3055,14 @@ test_rc_then_reuse_analyze_heap_drop_removed :: proc(t: ^testing.T) {
 	append(&outer_stmts, ir.IR_Expr(drop_y))
 	append(&outer_stmts, ir.IR_Expr(let_x))
 	outer_block := new(ir.IR_Block)
-	outer_block^ = ir.IR_Block{statements = outer_stmts, type = int_type, span = base.Source_Span{}}
+	outer_block^ = ir.IR_Block {
+		statements = outer_stmts,
+		type       = int_type,
+		span       = base.Source_Span{},
+	}
 
 	fn_decl := new(ir.IR_Decl_Fn)
-	fn_decl^ = ir.IR_Decl_Fn{
+	fn_decl^ = ir.IR_Decl_Fn {
 		name = base.Canonical_Name{module = base.NO_NAME, name = x_name},
 		is_effectful = false,
 		params = make([dynamic]ir.IR_Param, 0),
@@ -2733,9 +3073,9 @@ test_rc_then_reuse_analyze_heap_drop_removed :: proc(t: ^testing.T) {
 		span = base.Source_Span{},
 	}
 
-	mod := ir.IR_Module{
-		decls = make([dynamic]ir.IR_Decl, 1),
-		effect_defs = make([dynamic]ir.IR_Effect_Def, 0),
+	mod := ir.IR_Module {
+		decls        = make([dynamic]ir.IR_Decl, 1),
+		effect_defs  = make([dynamic]ir.IR_Effect_Def, 0),
 		string_table = make([dynamic]ir.String_Table_Entry, 0),
 	}
 	mod.decls[0] = ir.IR_Decl(fn_decl)
@@ -2751,3 +3091,4 @@ test_rc_then_reuse_analyze_heap_drop_removed :: proc(t: ^testing.T) {
 	// The inner drop x remains (no construct after it)
 	testing.expect(t, drops_after < drops_before)
 }
+

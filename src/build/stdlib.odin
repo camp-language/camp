@@ -2154,7 +2154,7 @@ pub splitn = |_r, _s, _n| crash "intrinsic: Regex.splitn"
 pub escape : Str -> Str                          -- escape regex metacharacters
 pub escape = |_s| crash "intrinsic: Regex.escape"  -- TODO: pure Camp implementation`
 
-STDLIB_MODULES: []Stdlib_Module = []Stdlib_Module{
+STDLIB_MODULES: []Stdlib_Module = []Stdlib_Module {
 	{"Result", RESULT_CAMP, "stdlib/Result.camp"},
 	{"Bool", BOOL_CAMP, "stdlib/Bool.camp"},
 	{"Str", STR_CAMP, "stdlib/Str.camp"},
@@ -2214,3 +2214,4 @@ stdlib_is_module :: proc(name: string) -> bool {
 	_, ok := stdlib_lookup(name)
 	return ok
 }
+

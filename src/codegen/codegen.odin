@@ -13,17 +13,17 @@ CAMP_TAG_FIELDS_OFFSET :: 8
 
 CAMP_EXIT_MASK :: 127
 
-CODE_BUF_SMALL    :: 8
-CODE_BUF_TINY     :: 16
-CODE_BUF_MINOR    :: 32
-CODE_BUF_DEFAULT  :: 64
-CODE_BUF_MEDIUM   :: 96
+CODE_BUF_SMALL :: 8
+CODE_BUF_TINY :: 16
+CODE_BUF_MINOR :: 32
+CODE_BUF_DEFAULT :: 64
+CODE_BUF_MEDIUM :: 96
 CODE_BUF_MODERATE :: 128
-CODE_BUF_LARGE    :: 192
-CODE_BUF_MAJOR    :: 256
-CODE_BUF_XL       :: 512
-CODE_BUF_XXL      :: 1024
-CODE_BUF_SECTION  :: 4096
+CODE_BUF_LARGE :: 192
+CODE_BUF_MAJOR :: 256
+CODE_BUF_XL :: 512
+CODE_BUF_XXL :: 1024
+CODE_BUF_SECTION :: 4096
 
 Match_Kind :: enum {
 	Tag_Union,
@@ -35,10 +35,14 @@ Match_Kind :: enum {
 determine_match_kind :: proc(arms: []ir.IR_Match_Arm) -> Match_Kind {
 	for arm in arms {
 		#partial switch p in arm.pattern {
-		case ^ir.IR_Pat_Tag: return .Tag_Union
-		case ^ir.IR_Pat_Bool: return .Bool
-		case ^ir.IR_Pat_Int: return .Int
-		case ^ir.IR_Pat_String: return .String
+		case ^ir.IR_Pat_Tag:
+			return .Tag_Union
+		case ^ir.IR_Pat_Bool:
+			return .Bool
+		case ^ir.IR_Pat_Int:
+			return .Int
+		case ^ir.IR_Pat_String:
+			return .String
 		case ^ir.IR_Pat_Record, ^ir.IR_Pat_Var, ^ir.IR_Pat_Wildcard:
 		}
 	}
@@ -46,31 +50,31 @@ determine_match_kind :: proc(arms: []ir.IR_Match_Arm) -> Match_Kind {
 }
 
 Codegen_Env :: struct {
-	mod:            ^Wasm_Module,
-	interner:       ^base.Intern_Table,
-	type_map:       map[int]int,
-	func_map:       map[u64]int,
-	next_type_idx:  int,
-	next_func_idx:  int,
-	import_count:   int,
-	data_offset:    u32,
-	locals:         [dynamic]Wasm_Local_Decl,
-	local_map:      map[base.Intern_ID]u32,
-	local_types:    map[base.Intern_ID]base.IR_Type,
-	next_local:     u32,
-	tmp_local_base: u32,
-	tmp_count:      u32,
-	table_idx:      int,
-	func_type_indices: [dynamic]u32,
-	next_scope_id:  int,
-	async_id:       base.Intern_ID,
-	spawn_id:       base.Intern_ID,
-	parallel_id:    base.Intern_ID,
-	file_id:        base.Intern_ID,
-	console_id:     base.Intern_ID,
-	time_id:        base.Intern_ID,
-	decl_to_wasm_fn_idx: map[int]int,
-	string_offsets: map[base.Intern_ID]u32,
+	mod:                     ^Wasm_Module,
+	interner:                ^base.Intern_Table,
+	type_map:                map[int]int,
+	func_map:                map[u64]int,
+	next_type_idx:           int,
+	next_func_idx:           int,
+	import_count:            int,
+	data_offset:             u32,
+	locals:                  [dynamic]Wasm_Local_Decl,
+	local_map:               map[base.Intern_ID]u32,
+	local_types:             map[base.Intern_ID]base.IR_Type,
+	next_local:              u32,
+	tmp_local_base:          u32,
+	tmp_count:               u32,
+	table_idx:               int,
+	func_type_indices:       [dynamic]u32,
+	next_scope_id:           int,
+	async_id:                base.Intern_ID,
+	spawn_id:                base.Intern_ID,
+	parallel_id:             base.Intern_ID,
+	file_id:                 base.Intern_ID,
+	console_id:              base.Intern_ID,
+	time_id:                 base.Intern_ID,
+	decl_to_wasm_fn_idx:     map[int]int,
+	string_offsets:          map[base.Intern_ID]u32,
 	throw_err_msg_offset:    u32,
 	throw_err_suffix_offset: u32,
 }
@@ -88,7 +92,11 @@ hash_func_type :: proc(params: []Wasm_Value_Type, results: []Wasm_Value_Type) ->
 	return h
 }
 
-get_or_create_type :: proc(env: ^Codegen_Env, params: []Wasm_Value_Type, results: []Wasm_Value_Type) -> int {
+get_or_create_type :: proc(
+	env: ^Codegen_Env,
+	params: []Wasm_Value_Type,
+	results: []Wasm_Value_Type,
+) -> int {
 	h := hash_func_type(params, results)
 	if idx, ok := env.type_map[h]; ok {
 		return idx
@@ -110,16 +118,20 @@ get_or_create_type :: proc(env: ^Codegen_Env, params: []Wasm_Value_Type, results
 	return idx
 }
 
-add_import :: proc(env: ^Codegen_Env, module: string, field: string, kind: Wasm_External_Kind, type_idx: int) -> int {
+add_import :: proc(
+	env: ^Codegen_Env,
+	module: string,
+	field: string,
+	kind: Wasm_External_Kind,
+	type_idx: int,
+) -> int {
 	idx := env.next_func_idx
 	env.next_func_idx += 1
 	env.import_count += 1
-	append(&env.mod.imports, Wasm_Import{
-		module = module,
-		field = field,
-		kind = kind,
-		index = type_idx,
-	})
+	append(
+		&env.mod.imports,
+		Wasm_Import{module = module, field = field, kind = kind, index = type_idx},
+	)
 	return idx
 }
 
@@ -134,22 +146,42 @@ emit_wasi_imports :: proc(env: ^Codegen_Env) {
 	proc_exit_type := get_or_create_type(env, []Wasm_Value_Type{.I32}, []Wasm_Value_Type{})
 	add_import(env, WASI_MODULE, "proc_exit", .Func, proc_exit_type)
 
-	fd_write_type := get_or_create_type(env, []Wasm_Value_Type{.I32, .I32, .I32, .I32}, []Wasm_Value_Type{.I32})
+	fd_write_type := get_or_create_type(
+		env,
+		[]Wasm_Value_Type{.I32, .I32, .I32, .I32},
+		[]Wasm_Value_Type{.I32},
+	)
 	add_import(env, WASI_MODULE, "fd_write", .Func, fd_write_type)
 
-	args_get_type := get_or_create_type(env, []Wasm_Value_Type{.I32, .I32}, []Wasm_Value_Type{.I32})
+	args_get_type := get_or_create_type(
+		env,
+		[]Wasm_Value_Type{.I32, .I32},
+		[]Wasm_Value_Type{.I32},
+	)
 	add_import(env, WASI_MODULE, "args_get", .Func, args_get_type)
 
-	args_sizes_get_type := get_or_create_type(env, []Wasm_Value_Type{.I32, .I32}, []Wasm_Value_Type{.I32})
+	args_sizes_get_type := get_or_create_type(
+		env,
+		[]Wasm_Value_Type{.I32, .I32},
+		[]Wasm_Value_Type{.I32},
+	)
 	add_import(env, WASI_MODULE, "args_sizes_get", .Func, args_sizes_get_type)
 
 	// WASI I/O imports for scheduler (Preview 1 style)
 	// poll_oneoff(in, out, nsubs, nevents) -> errno
-	poll_oneoff_type := get_or_create_type(env, []Wasm_Value_Type{.I32, .I32, .I32, .I32}, []Wasm_Value_Type{.I32})
+	poll_oneoff_type := get_or_create_type(
+		env,
+		[]Wasm_Value_Type{.I32, .I32, .I32, .I32},
+		[]Wasm_Value_Type{.I32},
+	)
 	add_import(env, WASI_MODULE, "poll_oneoff", .Func, poll_oneoff_type)
 
 	// fd_read(fd, iovs, iovs_len, nread) -> errno
-	fd_read_type := get_or_create_type(env, []Wasm_Value_Type{.I32, .I32, .I32, .I32}, []Wasm_Value_Type{.I32})
+	fd_read_type := get_or_create_type(
+		env,
+		[]Wasm_Value_Type{.I32, .I32, .I32, .I32},
+		[]Wasm_Value_Type{.I32},
+	)
 	add_import(env, WASI_MODULE, "fd_read", .Func, fd_read_type)
 
 	// fd_close(fd) -> errno
@@ -157,7 +189,11 @@ emit_wasi_imports :: proc(env: ^Codegen_Env) {
 	add_import(env, WASI_MODULE, "fd_close", .Func, fd_close_type)
 
 	// clock_time_get(clock_id, precision, time_ptr) -> errno
-	clock_time_get_type := get_or_create_type(env, []Wasm_Value_Type{.I32, .I64, .I32}, []Wasm_Value_Type{.I32})
+	clock_time_get_type := get_or_create_type(
+		env,
+		[]Wasm_Value_Type{.I32, .I64, .I32},
+		[]Wasm_Value_Type{.I32},
+	)
 	add_import(env, WASI_MODULE, "clock_time_get", .Func, clock_time_get_type)
 
 	// sched_yield() -> errno
@@ -166,11 +202,11 @@ emit_wasi_imports :: proc(env: ^Codegen_Env) {
 }
 
 // WASI import function indices (offset from import_count base)
-WASI_IMPORT_POLL_ONEOFF   :: 4
-WASI_IMPORT_FD_READ      :: 5
-WASI_IMPORT_FD_CLOSE     :: 6
+WASI_IMPORT_POLL_ONEOFF :: 4
+WASI_IMPORT_FD_READ :: 5
+WASI_IMPORT_FD_CLOSE :: 6
 WASI_IMPORT_CLOCK_TIME_GET :: 7
-WASI_IMPORT_SCHED_YIELD  :: 8
+WASI_IMPORT_SCHED_YIELD :: 8
 
 emit_runtime_types :: proc(env: ^Codegen_Env) {
 	get_or_create_type(env, []Wasm_Value_Type{.I32}, []Wasm_Value_Type{.I32})
@@ -180,7 +216,11 @@ emit_runtime_types :: proc(env: ^Codegen_Env) {
 	get_or_create_type(env, []Wasm_Value_Type{.I32, .I32}, []Wasm_Value_Type{.I32})
 }
 
-codegen :: proc(ir_mod: ir.IR_Module, interner: ^base.Intern_Table, thread_count: int) -> Wasm_Module {
+codegen :: proc(
+	ir_mod: ir.IR_Module,
+	interner: ^base.Intern_Table,
+	thread_count: int,
+) -> Wasm_Module {
 	mod: Wasm_Module
 	mod.types = make([dynamic]Wasm_Func_Type, 0, 64)
 	mod.imports = make([dynamic]Wasm_Import, 0, 16)
@@ -224,12 +264,7 @@ codegen :: proc(ir_mod: ir.IR_Module, interner: ^base.Intern_Table, thread_count
 	append(&mod.memories, Wasm_Memory{min = 20, max = 256, has_max = true, shared = false})
 
 	env.table_idx = len(mod.tables)
-	append(&mod.tables, Wasm_Table{
-		elem_type = .Funcref,
-		min = 1,
-		max = 1,
-		has_max = true,
-	})
+	append(&mod.tables, Wasm_Table{elem_type = .Funcref, min = 1, max = 1, has_max = true})
 
 	for entry in ir_mod.string_table {
 		bytes := transmute([]u8)entry.value
@@ -256,35 +291,66 @@ codegen :: proc(ir_mod: ir.IR_Module, interner: ^base.Intern_Table, thread_count
 	heap_ptr_init: [dynamic]u8
 	heap_ptr_init = make([dynamic]u8, 0, CODE_BUF_SMALL)
 	emit_instruction(Wasm_I32_Const{value = i32(env.data_offset)}, &heap_ptr_init)
-	append(&mod.globals, Wasm_Global{
-		type = .I32,
-		mutable = true,
-		init = copy_dynamic_bytes(heap_ptr_init),
-	})
+	append(
+		&mod.globals,
+		Wasm_Global{type = .I32, mutable = true, init = copy_dynamic_bytes(heap_ptr_init)},
+	)
 	delete(heap_ptr_init)
 
 	alloc_type_idx := get_or_create_type(&env, []Wasm_Value_Type{.I32}, []Wasm_Value_Type{.I32})
 	dup_type_idx := get_or_create_type(&env, []Wasm_Value_Type{.I32}, []Wasm_Value_Type{.I32})
 	drop_type_idx := get_or_create_type(&env, []Wasm_Value_Type{.I32, .I32}, []Wasm_Value_Type{})
-	print_str_type_idx := get_or_create_type(&env, []Wasm_Value_Type{.I32, .I32}, []Wasm_Value_Type{})
+	print_str_type_idx := get_or_create_type(
+		&env,
+		[]Wasm_Value_Type{.I32, .I32},
+		[]Wasm_Value_Type{},
+	)
 	exit_type_idx := get_or_create_type(&env, []Wasm_Value_Type{.I32}, []Wasm_Value_Type{})
-	dealloc_type_idx := get_or_create_type(&env, []Wasm_Value_Type{.I32, .I32}, []Wasm_Value_Type{})
+	dealloc_type_idx := get_or_create_type(
+		&env,
+		[]Wasm_Value_Type{.I32, .I32},
+		[]Wasm_Value_Type{},
+	)
 
 	print_err_type_idx := print_str_type_idx
 	list_alloc_type_idx := get_or_create_type(&env, []Wasm_Value_Type{}, []Wasm_Value_Type{.I32})
-	list_push_type_idx := get_or_create_type(&env, []Wasm_Value_Type{.I32, .I32}, []Wasm_Value_Type{.I32})
+	list_push_type_idx := get_or_create_type(
+		&env,
+		[]Wasm_Value_Type{.I32, .I32},
+		[]Wasm_Value_Type{.I32},
+	)
 	list_len_type_idx := alloc_type_idx
 	list_get_type_idx := list_push_type_idx
-	list_grow_type_idx := get_or_create_type(&env, []Wasm_Value_Type{.I32}, []Wasm_Value_Type{.I32})
+	list_grow_type_idx := get_or_create_type(
+		&env,
+		[]Wasm_Value_Type{.I32},
+		[]Wasm_Value_Type{.I32},
+	)
 	str_len_type_idx := alloc_type_idx
 	str_eq_type_idx := list_push_type_idx
 	str_concat_type_idx := list_push_type_idx
-	str_slice_type_idx := get_or_create_type(&env, []Wasm_Value_Type{.I32, .I32, .I32}, []Wasm_Value_Type{.I32})
-	i64_to_str_type_idx := get_or_create_type(&env, []Wasm_Value_Type{.I64}, []Wasm_Value_Type{.I32})
+	str_slice_type_idx := get_or_create_type(
+		&env,
+		[]Wasm_Value_Type{.I32, .I32, .I32},
+		[]Wasm_Value_Type{.I32},
+	)
+	i64_to_str_type_idx := get_or_create_type(
+		&env,
+		[]Wasm_Value_Type{.I64},
+		[]Wasm_Value_Type{.I32},
+	)
 	i32_to_str_type_idx := alloc_type_idx
-	f64_to_str_type_idx := get_or_create_type(&env, []Wasm_Value_Type{.F64}, []Wasm_Value_Type{.I32})
+	f64_to_str_type_idx := get_or_create_type(
+		&env,
+		[]Wasm_Value_Type{.F64},
+		[]Wasm_Value_Type{.I32},
+	)
 	bool_to_str_type_idx := alloc_type_idx
-	report_drop_overflow_type_idx := get_or_create_type(&env, []Wasm_Value_Type{.I32}, []Wasm_Value_Type{})
+	report_drop_overflow_type_idx := get_or_create_type(
+		&env,
+		[]Wasm_Value_Type{.I32},
+		[]Wasm_Value_Type{},
+	)
 
 	runtime_func_indices: [RUNTIME_FUNC_COUNT]int
 	alloc_func_idx := add_function(&env, alloc_type_idx)
@@ -333,8 +399,16 @@ codegen :: proc(ir_mod: ir.IR_Module, interner: ^base.Intern_Table, thread_count
 	runtime_func_indices[Runtime_Func.Report_Drop_Overflow] = report_drop_overflow_func_idx
 
 	async_init_type_idx := get_or_create_type(&env, []Wasm_Value_Type{}, []Wasm_Value_Type{})
-	async_enqueue_type_idx := get_or_create_type(&env, []Wasm_Value_Type{.I32, .I32}, []Wasm_Value_Type{.I32})
-	async_dequeue_type_idx := get_or_create_type(&env, []Wasm_Value_Type{}, []Wasm_Value_Type{.I32})
+	async_enqueue_type_idx := get_or_create_type(
+		&env,
+		[]Wasm_Value_Type{.I32, .I32},
+		[]Wasm_Value_Type{.I32},
+	)
+	async_dequeue_type_idx := get_or_create_type(
+		&env,
+		[]Wasm_Value_Type{},
+		[]Wasm_Value_Type{.I32},
+	)
 	async_run_type_idx := get_or_create_type(&env, []Wasm_Value_Type{}, []Wasm_Value_Type{.I32})
 
 	async_init_func_idx := add_function(&env, async_init_type_idx)
@@ -348,17 +422,45 @@ codegen :: proc(ir_mod: ir.IR_Module, interner: ^base.Intern_Table, thread_count
 
 	// Scheduler runtime function types
 	sched_init_type_idx := get_or_create_type(&env, []Wasm_Value_Type{.I32}, []Wasm_Value_Type{})
-	sched_spawn_type_idx := get_or_create_type(&env, []Wasm_Value_Type{.I32, .I32, .I32}, []Wasm_Value_Type{.I32})
-	sched_join_type_idx := get_or_create_type(&env, []Wasm_Value_Type{.I32}, []Wasm_Value_Type{.I32})
+	sched_spawn_type_idx := get_or_create_type(
+		&env,
+		[]Wasm_Value_Type{.I32, .I32, .I32},
+		[]Wasm_Value_Type{.I32},
+	)
+	sched_join_type_idx := get_or_create_type(
+		&env,
+		[]Wasm_Value_Type{.I32},
+		[]Wasm_Value_Type{.I32},
+	)
 	sched_cancel_type_idx := get_or_create_type(&env, []Wasm_Value_Type{.I32}, []Wasm_Value_Type{})
-	sched_complete_type_idx := get_or_create_type(&env, []Wasm_Value_Type{.I32, .I32, .I32}, []Wasm_Value_Type{})
+	sched_complete_type_idx := get_or_create_type(
+		&env,
+		[]Wasm_Value_Type{.I32, .I32, .I32},
+		[]Wasm_Value_Type{},
+	)
 	sched_yield_type_idx := get_or_create_type(&env, []Wasm_Value_Type{}, []Wasm_Value_Type{})
-	sched_block_io_type_idx := get_or_create_type(&env, []Wasm_Value_Type{.I32, .I32}, []Wasm_Value_Type{})
-	sched_timer_insert_type_idx := get_or_create_type(&env, []Wasm_Value_Type{.I32, .I32}, []Wasm_Value_Type{})
-	sched_timer_cancel_type_idx := get_or_create_type(&env, []Wasm_Value_Type{.I32}, []Wasm_Value_Type{})
+	sched_block_io_type_idx := get_or_create_type(
+		&env,
+		[]Wasm_Value_Type{.I32, .I32},
+		[]Wasm_Value_Type{},
+	)
+	sched_timer_insert_type_idx := get_or_create_type(
+		&env,
+		[]Wasm_Value_Type{.I32, .I32},
+		[]Wasm_Value_Type{},
+	)
+	sched_timer_cancel_type_idx := get_or_create_type(
+		&env,
+		[]Wasm_Value_Type{.I32},
+		[]Wasm_Value_Type{},
+	)
 	sched_notify_type_idx := get_or_create_type(&env, []Wasm_Value_Type{}, []Wasm_Value_Type{})
 	sched_park_type_idx := get_or_create_type(&env, []Wasm_Value_Type{}, []Wasm_Value_Type{})
-	sched_worker_loop_type_idx := get_or_create_type(&env, []Wasm_Value_Type{.I32}, []Wasm_Value_Type{})
+	sched_worker_loop_type_idx := get_or_create_type(
+		&env,
+		[]Wasm_Value_Type{.I32},
+		[]Wasm_Value_Type{},
+	)
 
 	sched_init_func_idx := add_function(&env, sched_init_type_idx)
 	runtime_func_indices[Runtime_Func.Sched_Init] = sched_init_func_idx
@@ -387,17 +489,41 @@ codegen :: proc(ir_mod: ir.IR_Module, interner: ^base.Intern_Table, thread_count
 
 	// Parallel! runtime function types
 	// camp_parallel_map(fn_idx: i32, fn_env: i32, items_ptr: i32, items_len: i32, chunk_size: i32) -> i32
-	parallel_map_type_idx := get_or_create_type(&env, []Wasm_Value_Type{.I32, .I32, .I32, .I32, .I32}, []Wasm_Value_Type{.I32})
+	parallel_map_type_idx := get_or_create_type(
+		&env,
+		[]Wasm_Value_Type{.I32, .I32, .I32, .I32, .I32},
+		[]Wasm_Value_Type{.I32},
+	)
 	// camp_parallel_reduce(fn_idx: i32, fn_env: i32, items_ptr: i32, items_len: i32, init: i32, chunk_size: i32) -> i32
-	parallel_reduce_type_idx := get_or_create_type(&env, []Wasm_Value_Type{.I32, .I32, .I32, .I32, .I32, .I32}, []Wasm_Value_Type{.I32})
+	parallel_reduce_type_idx := get_or_create_type(
+		&env,
+		[]Wasm_Value_Type{.I32, .I32, .I32, .I32, .I32, .I32},
+		[]Wasm_Value_Type{.I32},
+	)
 	// camp_parallel_any(fn_idx: i32, fn_env: i32, items_ptr: i32, items_len: i32) -> i32
-	parallel_any_type_idx := get_or_create_type(&env, []Wasm_Value_Type{.I32, .I32, .I32, .I32}, []Wasm_Value_Type{.I32})
+	parallel_any_type_idx := get_or_create_type(
+		&env,
+		[]Wasm_Value_Type{.I32, .I32, .I32, .I32},
+		[]Wasm_Value_Type{.I32},
+	)
 	// camp_parallel_all(fn_idx: i32, fn_env: i32, items_ptr: i32, items_len: i32, chunk_size: i32) -> i32
-	parallel_all_type_idx := get_or_create_type(&env, []Wasm_Value_Type{.I32, .I32, .I32, .I32, .I32}, []Wasm_Value_Type{.I32})
+	parallel_all_type_idx := get_or_create_type(
+		&env,
+		[]Wasm_Value_Type{.I32, .I32, .I32, .I32, .I32},
+		[]Wasm_Value_Type{.I32},
+	)
 	// camp_parallel_filter(fn_idx: i32, fn_env: i32, items_ptr: i32, items_len: i32, chunk_size: i32) -> i32
-	parallel_filter_type_idx := get_or_create_type(&env, []Wasm_Value_Type{.I32, .I32, .I32, .I32, .I32}, []Wasm_Value_Type{.I32})
+	parallel_filter_type_idx := get_or_create_type(
+		&env,
+		[]Wasm_Value_Type{.I32, .I32, .I32, .I32, .I32},
+		[]Wasm_Value_Type{.I32},
+	)
 	// camp_parallel_for_each(fn_idx: i32, fn_env: i32, items_ptr: i32, items_len: i32, chunk_size: i32) -> void
-	parallel_for_each_type_idx := get_or_create_type(&env, []Wasm_Value_Type{.I32, .I32, .I32, .I32, .I32}, []Wasm_Value_Type{})
+	parallel_for_each_type_idx := get_or_create_type(
+		&env,
+		[]Wasm_Value_Type{.I32, .I32, .I32, .I32, .I32},
+		[]Wasm_Value_Type{},
+	)
 
 	parallel_map_func_idx := add_function(&env, parallel_map_type_idx)
 	runtime_func_indices[Runtime_Func.Parallel_Map] = parallel_map_func_idx
@@ -418,7 +544,11 @@ codegen :: proc(ir_mod: ir.IR_Module, interner: ^base.Intern_Table, thread_count
 	camp_dup_code := emit_camp_dup_body()
 	append(&mod.codes, camp_dup_code)
 
-	camp_drop_code := emit_camp_drop_body(drop_func_idx, dealloc_func_idx, report_drop_overflow_func_idx)
+	camp_drop_code := emit_camp_drop_body(
+		drop_func_idx,
+		dealloc_func_idx,
+		report_drop_overflow_func_idx,
+	)
 	append(&mod.codes, camp_drop_code)
 
 	camp_print_str_code := emit_camp_print_str_body()
@@ -523,7 +653,7 @@ codegen :: proc(ir_mod: ir.IR_Module, interner: ^base.Intern_Table, thread_count
 			if is_main_fn && d.is_effectful && len(d.effects) > 0 {
 				// Prepend evidence params (i32 pointers) for effectful main
 				params = make([]Wasm_Value_Type, len(d.params) + len(d.effects))
-				for i in 0..<len(d.effects) {
+				for i in 0 ..< len(d.effects) {
 					params[i] = .I32
 				}
 				for p, i in d.params {
@@ -540,10 +670,10 @@ codegen :: proc(ir_mod: ir.IR_Module, interner: ^base.Intern_Table, thread_count
 				results = make([]Wasm_Value_Type, 1)
 				results[0] = ir_wasm_type_to_value_type(d.return_type.wasm_type)
 			}
-			
-		type_idx := get_or_create_type(&env, params, results)
-		func_idx := add_function(&env, type_idx)
-		if d.name.module != base.NO_NAME {
+
+			type_idx := get_or_create_type(&env, params, results)
+			func_idx := add_function(&env, type_idx)
+			if d.name.module != base.NO_NAME {
 				mangled := base.mangle_name(d.name.module, d.name.name, interner)
 				env.func_map[base.hash_string(mangled)] = func_idx
 			}
@@ -564,8 +694,15 @@ codegen :: proc(ir_mod: ir.IR_Module, interner: ^base.Intern_Table, thread_count
 	}
 
 	cont_func_idx := -1
-	if main_fn_idx >= 0 && main_decl != nil && main_decl.is_effectful && len(main_decl.effects) > 0 {
-		cont_type_idx := get_or_create_type(&env, []Wasm_Value_Type{.I32, .I64}, []Wasm_Value_Type{})
+	if main_fn_idx >= 0 &&
+	   main_decl != nil &&
+	   main_decl.is_effectful &&
+	   len(main_decl.effects) > 0 {
+		cont_type_idx := get_or_create_type(
+			&env,
+			[]Wasm_Value_Type{.I32, .I64},
+			[]Wasm_Value_Type{},
+		)
 		cont_func_idx = add_function(&env, cont_type_idx)
 
 		for len(env.func_type_indices) <= cont_func_idx {
@@ -585,7 +722,9 @@ codegen :: proc(ir_mod: ir.IR_Module, interner: ^base.Intern_Table, thread_count
 	for decl in ir_mod.decls {
 		#partial switch d in decl {
 		case ^ir.IR_Decl_Fn:
-			is_main := base.intern_get(interner, d.name.name) == "main" || base.intern_get(interner, d.name.name) == "main!"
+			is_main :=
+				base.intern_get(interner, d.name.name) == "main" ||
+				base.intern_get(interner, d.name.name) == "main!"
 
 			ev_count := 0
 			if is_main && d.is_effectful {
@@ -646,7 +785,10 @@ codegen :: proc(ir_mod: ir.IR_Module, interner: ^base.Intern_Table, thread_count
 				locals_copy[i] = l
 			}
 
-			append(&mod.codes, Wasm_Code{locals = locals_copy, body = copy_dynamic_bytes(body_buf)})
+			append(
+				&mod.codes,
+				Wasm_Code{locals = locals_copy, body = copy_dynamic_bytes(body_buf)},
+			)
 			delete(body_buf)
 			delete(env.locals)
 			delete(env.local_map)
@@ -661,7 +803,11 @@ codegen :: proc(ir_mod: ir.IR_Module, interner: ^base.Intern_Table, thread_count
 
 	worker_func_idx := -1
 	if start_func_idx >= 0 {
-		worker_type_idx := get_or_create_type(&env, []Wasm_Value_Type{.I32}, []Wasm_Value_Type{.I32})
+		worker_type_idx := get_or_create_type(
+			&env,
+			[]Wasm_Value_Type{.I32},
+			[]Wasm_Value_Type{.I32},
+		)
 		worker_func_idx = add_function(&env, worker_type_idx)
 	}
 
@@ -677,15 +823,18 @@ codegen :: proc(ir_mod: ir.IR_Module, interner: ^base.Intern_Table, thread_count
 
 		elem_func_indices: [dynamic]int
 		elem_func_indices = make([dynamic]int, 0, total_funcs)
-		for i in 0..<total_funcs {
+		for i in 0 ..< total_funcs {
 			append(&elem_func_indices, i)
 		}
 
-		append(&mod.elements, Wasm_Element{
-			table_idx = env.table_idx,
-			offset = copy_dynamic_bytes(elem_offset_buf),
-			func_idxs = elem_func_indices[:],
-		})
+		append(
+			&mod.elements,
+			Wasm_Element {
+				table_idx = env.table_idx,
+				offset = copy_dynamic_bytes(elem_offset_buf),
+				func_idxs = elem_func_indices[:],
+			},
+		)
 		delete(elem_offset_buf)
 		delete(elem_func_indices)
 	}
@@ -693,7 +842,18 @@ codegen :: proc(ir_mod: ir.IR_Module, interner: ^base.Intern_Table, thread_count
 	deferred_handler_codes: [dynamic]Wasm_Code
 	deferred_handler_codes = make([dynamic]Wasm_Code, 0, 8)
 
-	emit_start_function(&env, main_decl, main_fn_idx, cont_func_idx, start_func_idx, worker_func_idx, runtime_func_indices[:], ir_mod, thread_count, &deferred_handler_codes)
+	emit_start_function(
+		&env,
+		main_decl,
+		main_fn_idx,
+		cont_func_idx,
+		start_func_idx,
+		worker_func_idx,
+		runtime_func_indices[:],
+		ir_mod,
+		thread_count,
+		&deferred_handler_codes,
+	)
 
 	// Append deferred handler code bodies after _start and worker,
 	// preserving the invariant that codes[k] maps to function index import_count + k
@@ -713,11 +873,10 @@ codegen :: proc(ir_mod: ir.IR_Module, interner: ^base.Intern_Table, thread_count
 		offset_buf = make([dynamic]u8, 0, CODE_BUF_SMALL)
 		emit_instruction(Wasm_I32_Const{value = i32(offset)}, &offset_buf)
 
-		append(&mod.datas, Wasm_Data{
-			mem_idx = 0,
-			offset = copy_dynamic_bytes(offset_buf),
-			bytes = bytes,
-		})
+		append(
+			&mod.datas,
+			Wasm_Data{mem_idx = 0, offset = copy_dynamic_bytes(offset_buf), bytes = bytes},
+		)
 		delete(offset_buf)
 	}
 
@@ -727,11 +886,14 @@ codegen :: proc(ir_mod: ir.IR_Module, interner: ^base.Intern_Table, thread_count
 	offset_buf_msg: [dynamic]u8
 	offset_buf_msg = make([dynamic]u8, 0, CODE_BUF_SMALL)
 	emit_instruction(Wasm_I32_Const{value = i32(drop_overflow_msg_offset_data)}, &offset_buf_msg)
-	append(&mod.datas, Wasm_Data{
-		mem_idx = 0,
-		offset = copy_dynamic_bytes(offset_buf_msg),
-		bytes = drop_overflow_msg_bytes,
-	})
+	append(
+		&mod.datas,
+		Wasm_Data {
+			mem_idx = 0,
+			offset = copy_dynamic_bytes(offset_buf_msg),
+			bytes = drop_overflow_msg_bytes,
+		},
+	)
 	delete(offset_buf_msg)
 
 	// Data segment for throw handler error message prefix
@@ -739,23 +901,32 @@ codegen :: proc(ir_mod: ir.IR_Module, interner: ^base.Intern_Table, thread_count
 	offset_buf_throw: [dynamic]u8
 	offset_buf_throw = make([dynamic]u8, 0, CODE_BUF_SMALL)
 	emit_instruction(Wasm_I32_Const{value = i32(throw_err_msg_offset)}, &offset_buf_throw)
-	append(&mod.datas, Wasm_Data{
-		mem_idx = 0,
-		offset = copy_dynamic_bytes(offset_buf_throw),
-		bytes = throw_err_msg_bytes,
-	})
+	append(
+		&mod.datas,
+		Wasm_Data {
+			mem_idx = 0,
+			offset = copy_dynamic_bytes(offset_buf_throw),
+			bytes = throw_err_msg_bytes,
+		},
+	)
 	delete(offset_buf_throw)
 
 	// Data segment for throw handler error message suffix
 	throw_err_suffix_bytes := transmute([]u8)throw_err_suffix
 	offset_buf_throw_suffix: [dynamic]u8
 	offset_buf_throw_suffix = make([dynamic]u8, 0, CODE_BUF_SMALL)
-	emit_instruction(Wasm_I32_Const{value = i32(throw_err_suffix_offset)}, &offset_buf_throw_suffix)
-	append(&mod.datas, Wasm_Data{
-		mem_idx = 0,
-		offset = copy_dynamic_bytes(offset_buf_throw_suffix),
-		bytes = throw_err_suffix_bytes,
-	})
+	emit_instruction(
+		Wasm_I32_Const{value = i32(throw_err_suffix_offset)},
+		&offset_buf_throw_suffix,
+	)
+	append(
+		&mod.datas,
+		Wasm_Data {
+			mem_idx = 0,
+			offset = copy_dynamic_bytes(offset_buf_throw_suffix),
+			bytes = throw_err_suffix_bytes,
+		},
+	)
 	delete(offset_buf_throw_suffix)
 
 	delete(env.type_map)
@@ -765,5 +936,4 @@ codegen :: proc(ir_mod: ir.IR_Module, interner: ^base.Intern_Table, thread_count
 	delete(env.string_offsets)
 	return mod
 }
-
 

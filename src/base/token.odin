@@ -7,10 +7,8 @@ Token_Kind :: enum {
 	Interpolated_String_Literal,
 	Char_Literal,
 	Perline_String_Literal,
-
 	Identifier,
 	Upper_Id,
-
 	Kw_If,
 	Kw_Else,
 	Kw_Match,
@@ -34,7 +32,6 @@ Token_Kind :: enum {
 	Kw_Return,
 	Kw_Crash,
 	Kw_Todo,
-
 	Pipe,
 	Arrow,
 	Fat_Arrow,
@@ -62,14 +59,12 @@ Token_Kind :: enum {
 	Caret,
 	Tilde,
 	Backslash,
-
 	LParen,
 	RParen,
 	LBrack,
 	RBrack,
 	LBrace,
 	RBrace,
-
 	Doc_Comment,
 	Newline,
 	Eof,
@@ -82,3 +77,4 @@ Token :: struct {
 	int_value: i64,
 	f64_value: f64,
 }
+

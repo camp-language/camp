@@ -39,8 +39,8 @@ SCHED_TIMER_POOL_CAP :: 4096
 SCHED_TIMER_POOL_SIZE :: 4 + SCHED_TIMER_POOL_CAP * SCHED_TIMER_ENTRY_SIZE // next_free + entries
 
 // Timer wheel level granularities (ms)
-SCHED_TIMER_LEVEL0_GRANULARITY :: 1    // Level 0: 1ms × 64 slots = 64ms span
-SCHED_TIMER_LEVEL1_GRANULARITY :: 64   // Level 1: 64ms × 64 slots = 4s span
+SCHED_TIMER_LEVEL0_GRANULARITY :: 1 // Level 0: 1ms × 64 slots = 64ms span
+SCHED_TIMER_LEVEL1_GRANULARITY :: 64 // Level 1: 64ms × 64 slots = 4s span
 SCHED_TIMER_LEVEL2_GRANULARITY :: 4096 // Level 2: 4s × 64 slots = ~4min span
 SCHED_TIMER_LEVEL3_GRANULARITY :: 262144 // Level 3: ~4min × 64 slots = ~4hr span
 
@@ -92,7 +92,10 @@ emit_camp_alloc_body :: proc(heap_ptr_global_idx: int) -> Wasm_Code {
 	emit_instruction(Wasm_End{}, &buf)
 
 	locals := make([]Wasm_Local_Decl, 1)
-	locals[0] = Wasm_Local_Decl{count = 1, type = .I32}
+	locals[0] = Wasm_Local_Decl {
+		count = 1,
+		type  = .I32,
+	}
 
 	body := make([]u8, len(buf))
 	for b, i in buf {
@@ -127,7 +130,11 @@ emit_camp_dup_body :: proc() -> Wasm_Code {
 	return Wasm_Code{locals = locals, body = body}
 }
 
-emit_camp_drop_body :: proc(drop_func_idx: int, dealloc_func_idx: int, report_drop_overflow_func_idx: int) -> Wasm_Code {
+emit_camp_drop_body :: proc(
+	drop_func_idx: int,
+	dealloc_func_idx: int,
+	report_drop_overflow_func_idx: int,
+) -> Wasm_Code {
 	// camp_drop(ptr: i32, depth: i32)
 	// Locals: 2 = new_refcount, 3 = scan_size, 4 = i, 5 = field_value
 	buf: [dynamic]u8
@@ -148,79 +155,82 @@ emit_camp_drop_body :: proc(drop_func_idx: int, dealloc_func_idx: int, report_dr
 	emit_instruction(Wasm_I32_Eq{}, &buf)
 	emit_instruction(Wasm_If{block_type = .Void}, &buf)
 
-		// Check depth overflow
-		emit_instruction(Wasm_Local_Get{index = 1}, &buf)
-		emit_instruction(Wasm_I32_Const{value = 256}, &buf)
-		emit_instruction(Wasm_I32_Ge_S{}, &buf)
-		emit_instruction(Wasm_If{block_type = .Void}, &buf)
-			emit_instruction(Wasm_Local_Get{index = 0}, &buf)
-			emit_instruction(Wasm_Call{index = u32(report_drop_overflow_func_idx)}, &buf)
-			emit_instruction(Wasm_Return{}, &buf)
-		emit_instruction(Wasm_End{}, &buf)
+	// Check depth overflow
+	emit_instruction(Wasm_Local_Get{index = 1}, &buf)
+	emit_instruction(Wasm_I32_Const{value = 256}, &buf)
+	emit_instruction(Wasm_I32_Ge_S{}, &buf)
+	emit_instruction(Wasm_If{block_type = .Void}, &buf)
+	emit_instruction(Wasm_Local_Get{index = 0}, &buf)
+	emit_instruction(Wasm_Call{index = u32(report_drop_overflow_func_idx)}, &buf)
+	emit_instruction(Wasm_Return{}, &buf)
+	emit_instruction(Wasm_End{}, &buf)
 
-		// Load scan_size at ptr + 5
-		emit_instruction(Wasm_Local_Get{index = 0}, &buf)
-		emit_instruction(Wasm_I32_Load8U{align = 0, offset = 5}, &buf)
-		emit_instruction(Wasm_Local_Set{index = 3}, &buf)
+	// Load scan_size at ptr + 5
+	emit_instruction(Wasm_Local_Get{index = 0}, &buf)
+	emit_instruction(Wasm_I32_Load8U{align = 0, offset = 5}, &buf)
+	emit_instruction(Wasm_Local_Set{index = 3}, &buf)
 
-		// i = 0
-		emit_instruction(Wasm_I32_Const{value = 0}, &buf)
-		emit_instruction(Wasm_Local_Set{index = 4}, &buf)
+	// i = 0
+	emit_instruction(Wasm_I32_Const{value = 0}, &buf)
+	emit_instruction(Wasm_Local_Set{index = 4}, &buf)
 
-		// Loop over fields
-		emit_instruction(Wasm_Block{block_type = .Void}, &buf)
-		emit_instruction(Wasm_Loop{block_type = .Void}, &buf)
+	// Loop over fields
+	emit_instruction(Wasm_Block{block_type = .Void}, &buf)
+	emit_instruction(Wasm_Loop{block_type = .Void}, &buf)
 
-			emit_instruction(Wasm_Local_Get{index = 4}, &buf)
-			emit_instruction(Wasm_Local_Get{index = 3}, &buf)
-			emit_instruction(Wasm_I32_Ge_S{}, &buf)
-			emit_instruction(Wasm_Br_If{label = 1}, &buf)
+	emit_instruction(Wasm_Local_Get{index = 4}, &buf)
+	emit_instruction(Wasm_Local_Get{index = 3}, &buf)
+	emit_instruction(Wasm_I32_Ge_S{}, &buf)
+	emit_instruction(Wasm_Br_If{label = 1}, &buf)
 
-			// Load field value at ptr + 8 + i*8
-			emit_instruction(Wasm_Local_Get{index = 0}, &buf)
-			emit_instruction(Wasm_Local_Get{index = 4}, &buf)
-			emit_instruction(Wasm_I32_Const{value = 8}, &buf)
-			emit_instruction(Wasm_I32_Mul{}, &buf)
-			emit_instruction(Wasm_I32_Add{}, &buf)
-			emit_instruction(Wasm_I32_Const{value = i32(CAMP_TAG_FIELDS_OFFSET)}, &buf)
-			emit_instruction(Wasm_I32_Add{}, &buf)
-			emit_instruction(Wasm_I32_Load{align = 2, offset = 0}, &buf)
-			emit_instruction(Wasm_Local_Tee{index = 5}, &buf)
+	// Load field value at ptr + 8 + i*8
+	emit_instruction(Wasm_Local_Get{index = 0}, &buf)
+	emit_instruction(Wasm_Local_Get{index = 4}, &buf)
+	emit_instruction(Wasm_I32_Const{value = 8}, &buf)
+	emit_instruction(Wasm_I32_Mul{}, &buf)
+	emit_instruction(Wasm_I32_Add{}, &buf)
+	emit_instruction(Wasm_I32_Const{value = i32(CAMP_TAG_FIELDS_OFFSET)}, &buf)
+	emit_instruction(Wasm_I32_Add{}, &buf)
+	emit_instruction(Wasm_I32_Load{align = 2, offset = 0}, &buf)
+	emit_instruction(Wasm_Local_Tee{index = 5}, &buf)
 
-			// If non-zero, recursive drop
-			emit_instruction(Wasm_If{block_type = .Void}, &buf)
-				emit_instruction(Wasm_Local_Get{index = 5}, &buf)
-				emit_instruction(Wasm_Local_Get{index = 1}, &buf)
-				emit_instruction(Wasm_I32_Const{value = 1}, &buf)
-				emit_instruction(Wasm_I32_Add{}, &buf)
-				emit_instruction(Wasm_Call{index = u32(drop_func_idx)}, &buf)
-			emit_instruction(Wasm_End{}, &buf)
+	// If non-zero, recursive drop
+	emit_instruction(Wasm_If{block_type = .Void}, &buf)
+	emit_instruction(Wasm_Local_Get{index = 5}, &buf)
+	emit_instruction(Wasm_Local_Get{index = 1}, &buf)
+	emit_instruction(Wasm_I32_Const{value = 1}, &buf)
+	emit_instruction(Wasm_I32_Add{}, &buf)
+	emit_instruction(Wasm_Call{index = u32(drop_func_idx)}, &buf)
+	emit_instruction(Wasm_End{}, &buf)
 
-			// i++
-			emit_instruction(Wasm_Local_Get{index = 4}, &buf)
-			emit_instruction(Wasm_I32_Const{value = 1}, &buf)
-			emit_instruction(Wasm_I32_Add{}, &buf)
-			emit_instruction(Wasm_Local_Set{index = 4}, &buf)
-			emit_instruction(Wasm_Br{label = 0}, &buf)
+	// i++
+	emit_instruction(Wasm_Local_Get{index = 4}, &buf)
+	emit_instruction(Wasm_I32_Const{value = 1}, &buf)
+	emit_instruction(Wasm_I32_Add{}, &buf)
+	emit_instruction(Wasm_Local_Set{index = 4}, &buf)
+	emit_instruction(Wasm_Br{label = 0}, &buf)
 
-		emit_instruction(Wasm_End{}, &buf)
-		emit_instruction(Wasm_End{}, &buf)
+	emit_instruction(Wasm_End{}, &buf)
+	emit_instruction(Wasm_End{}, &buf)
 
-		// Dealloc: camp_dealloc(ptr, size) where size = 8 + scan_size * 8
-		emit_instruction(Wasm_Local_Get{index = 0}, &buf)
-		emit_instruction(Wasm_I32_Const{value = i32(CAMP_TAG_HEADER_SIZE)}, &buf)
-		emit_instruction(Wasm_Local_Get{index = 3}, &buf)
-		emit_instruction(Wasm_I32_Const{value = 8}, &buf)
-		emit_instruction(Wasm_I32_Mul{}, &buf)
-		emit_instruction(Wasm_I32_Add{}, &buf)
-		emit_instruction(Wasm_Call{index = u32(dealloc_func_idx)}, &buf)
+	// Dealloc: camp_dealloc(ptr, size) where size = 8 + scan_size * 8
+	emit_instruction(Wasm_Local_Get{index = 0}, &buf)
+	emit_instruction(Wasm_I32_Const{value = i32(CAMP_TAG_HEADER_SIZE)}, &buf)
+	emit_instruction(Wasm_Local_Get{index = 3}, &buf)
+	emit_instruction(Wasm_I32_Const{value = 8}, &buf)
+	emit_instruction(Wasm_I32_Mul{}, &buf)
+	emit_instruction(Wasm_I32_Add{}, &buf)
+	emit_instruction(Wasm_Call{index = u32(dealloc_func_idx)}, &buf)
 
 	emit_instruction(Wasm_End{}, &buf)
 
 	emit_instruction(Wasm_End{}, &buf)
 
 	locals := make([]Wasm_Local_Decl, 1)
-	locals[0] = Wasm_Local_Decl{count = 4, type = .I32}
+	locals[0] = Wasm_Local_Decl {
+		count = 4,
+		type  = .I32,
+	}
 
 	body := make([]u8, len(buf))
 	for b, i in buf {
@@ -301,7 +311,7 @@ emit_camp_print_str_body :: proc() -> Wasm_Code {
 	return Wasm_Code{locals = locals, body = body}
 }
 
-	emit_camp_exit_body :: proc() -> Wasm_Code {
+emit_camp_exit_body :: proc() -> Wasm_Code {
 	buf: [dynamic]u8
 	buf = make([dynamic]u8, 0, CODE_BUF_TINY)
 
@@ -337,7 +347,7 @@ emit_camp_dealloc_body :: proc() -> Wasm_Code {
 	return Wasm_Code{locals = locals, body = body}
 }
 
-	emit_camp_print_err_body :: proc() -> Wasm_Code {
+emit_camp_print_err_body :: proc() -> Wasm_Code {
 	buf: [dynamic]u8
 	buf = make([dynamic]u8, 0, CODE_BUF_MODERATE)
 
@@ -394,8 +404,14 @@ emit_camp_list_alloc_body :: proc(alloc_func_idx: int) -> Wasm_Code {
 	emit_instruction(Wasm_End{}, &buf)
 
 	locals := make([]Wasm_Local_Decl, 2)
-	locals[0] = Wasm_Local_Decl{count = 1, type = .I32}
-	locals[1] = Wasm_Local_Decl{count = 1, type = .I32}
+	locals[0] = Wasm_Local_Decl {
+		count = 1,
+		type  = .I32,
+	}
+	locals[1] = Wasm_Local_Decl {
+		count = 1,
+		type  = .I32,
+	}
 
 	body := make([]u8, len(buf))
 	for b, i in buf {
@@ -592,10 +608,22 @@ emit_camp_list_grow_body :: proc(alloc_func_idx: int, dealloc_func_idx: int) -> 
 	emit_instruction(Wasm_End{}, &buf)
 
 	locals := make([]Wasm_Local_Decl, 4)
-	locals[0] = Wasm_Local_Decl{count = 1, type = .I32} // old_cap
-	locals[1] = Wasm_Local_Decl{count = 1, type = .I32} // new_cap
-	locals[2] = Wasm_Local_Decl{count = 1, type = .I32} // new_data_ptr
-	locals[3] = Wasm_Local_Decl{count = 1, type = .I32} // old_data_ptr
+	locals[0] = Wasm_Local_Decl {
+		count = 1,
+		type  = .I32,
+	} // old_cap
+	locals[1] = Wasm_Local_Decl {
+		count = 1,
+		type  = .I32,
+	} // new_cap
+	locals[2] = Wasm_Local_Decl {
+		count = 1,
+		type  = .I32,
+	} // new_data_ptr
+	locals[3] = Wasm_Local_Decl {
+		count = 1,
+		type  = .I32,
+	} // old_data_ptr
 
 	body := make([]u8, len(buf))
 	for b, i in buf {
@@ -704,11 +732,26 @@ emit_camp_str_eq_body :: proc() -> Wasm_Code {
 	emit_instruction(Wasm_End{}, &buf)
 
 	locals := make([]Wasm_Local_Decl, 5)
-	locals[0] = Wasm_Local_Decl{count = 1, type = .I32} // len_a
-	locals[1] = Wasm_Local_Decl{count = 1, type = .I32} // len_b
-	locals[2] = Wasm_Local_Decl{count = 1, type = .I32} // loop_i
-	locals[3] = Wasm_Local_Decl{count = 1, type = .I32} // byte_a
-	locals[4] = Wasm_Local_Decl{count = 1, type = .I32} // byte_b
+	locals[0] = Wasm_Local_Decl {
+		count = 1,
+		type  = .I32,
+	} // len_a
+	locals[1] = Wasm_Local_Decl {
+		count = 1,
+		type  = .I32,
+	} // len_b
+	locals[2] = Wasm_Local_Decl {
+		count = 1,
+		type  = .I32,
+	} // loop_i
+	locals[3] = Wasm_Local_Decl {
+		count = 1,
+		type  = .I32,
+	} // byte_a
+	locals[4] = Wasm_Local_Decl {
+		count = 1,
+		type  = .I32,
+	} // byte_b
 
 	body := make([]u8, len(buf))
 	for b, i in buf {
@@ -790,8 +833,14 @@ emit_camp_str_concat_body :: proc(alloc_func_idx: int) -> Wasm_Code {
 	emit_instruction(Wasm_End{}, &buf)
 
 	locals := make([]Wasm_Local_Decl, 2)
-	locals[0] = Wasm_Local_Decl{count = 1, type = .I32}
-	locals[1] = Wasm_Local_Decl{count = 1, type = .I32}
+	locals[0] = Wasm_Local_Decl {
+		count = 1,
+		type  = .I32,
+	}
+	locals[1] = Wasm_Local_Decl {
+		count = 1,
+		type  = .I32,
+	}
 
 	body := make([]u8, len(buf))
 	for b, i in buf {
@@ -847,8 +896,14 @@ emit_camp_str_slice_body :: proc(alloc_func_idx: int) -> Wasm_Code {
 	emit_instruction(Wasm_End{}, &buf)
 
 	locals := make([]Wasm_Local_Decl, 2)
-	locals[0] = Wasm_Local_Decl{count = 1, type = .I32} // slice_len
-	locals[1] = Wasm_Local_Decl{count = 1, type = .I32} // result_ptr
+	locals[0] = Wasm_Local_Decl {
+		count = 1,
+		type  = .I32,
+	} // slice_len
+	locals[1] = Wasm_Local_Decl {
+		count = 1,
+		type  = .I32,
+	} // result_ptr
 
 	body := make([]u8, len(buf))
 	for b, i in buf {
@@ -910,9 +965,18 @@ emit_camp_parallel_reduce_body :: proc(runtime_indices: [RUNTIME_FUNC_COUNT]int)
 	emit_instruction(Wasm_Local_Get{index = 6}, &buf)
 	emit_instruction(Wasm_End{}, &buf)
 	locals := make([]Wasm_Local_Decl, 3)
-	locals[0] = Wasm_Local_Decl{count = 1, type = .I32}
-	locals[1] = Wasm_Local_Decl{count = 1, type = .I32}
-	locals[2] = Wasm_Local_Decl{count = 1, type = .I32}
+	locals[0] = Wasm_Local_Decl {
+		count = 1,
+		type  = .I32,
+	}
+	locals[1] = Wasm_Local_Decl {
+		count = 1,
+		type  = .I32,
+	}
+	locals[2] = Wasm_Local_Decl {
+		count = 1,
+		type  = .I32,
+	}
 	body := make([]u8, len(buf))
 	for b, i in buf {
 		body[i] = b
@@ -978,9 +1042,18 @@ emit_camp_parallel_any_body :: proc(runtime_indices: [RUNTIME_FUNC_COUNT]int) ->
 	emit_instruction(Wasm_End{}, &buf)
 	emit_instruction(Wasm_End{}, &buf)
 	locals := make([]Wasm_Local_Decl, 3)
-	locals[0] = Wasm_Local_Decl{count = 1, type = .I32}
-	locals[1] = Wasm_Local_Decl{count = 1, type = .I32}
-	locals[2] = Wasm_Local_Decl{count = 1, type = .I32}
+	locals[0] = Wasm_Local_Decl {
+		count = 1,
+		type  = .I32,
+	}
+	locals[1] = Wasm_Local_Decl {
+		count = 1,
+		type  = .I32,
+	}
+	locals[2] = Wasm_Local_Decl {
+		count = 1,
+		type  = .I32,
+	}
 	body := make([]u8, len(buf))
 	for b, i in buf {
 		body[i] = b
@@ -1049,10 +1122,22 @@ emit_camp_parallel_all_body :: proc(runtime_indices: [RUNTIME_FUNC_COUNT]int) ->
 	emit_instruction(Wasm_Local_Get{index = 5}, &buf)
 	emit_instruction(Wasm_End{}, &buf)
 	locals := make([]Wasm_Local_Decl, 4)
-	locals[0] = Wasm_Local_Decl{count = 1, type = .I32}
-	locals[1] = Wasm_Local_Decl{count = 1, type = .I32}
-	locals[2] = Wasm_Local_Decl{count = 1, type = .I32}
-	locals[3] = Wasm_Local_Decl{count = 1, type = .I32}
+	locals[0] = Wasm_Local_Decl {
+		count = 1,
+		type  = .I32,
+	}
+	locals[1] = Wasm_Local_Decl {
+		count = 1,
+		type  = .I32,
+	}
+	locals[2] = Wasm_Local_Decl {
+		count = 1,
+		type  = .I32,
+	}
+	locals[3] = Wasm_Local_Decl {
+		count = 1,
+		type  = .I32,
+	}
 	body := make([]u8, len(buf))
 	for b, i in buf {
 		body[i] = b
@@ -1178,11 +1263,26 @@ emit_camp_parallel_filter_body :: proc(runtime_indices: [RUNTIME_FUNC_COUNT]int)
 	emit_instruction(Wasm_End{}, &buf)
 
 	locals := make([]Wasm_Local_Decl, 5)
-	locals[0] = Wasm_Local_Decl{count = 1, type = .I32}
-	locals[1] = Wasm_Local_Decl{count = 1, type = .I32}
-	locals[2] = Wasm_Local_Decl{count = 1, type = .I32}
-	locals[3] = Wasm_Local_Decl{count = 1, type = .I32}
-	locals[4] = Wasm_Local_Decl{count = 1, type = .I32}
+	locals[0] = Wasm_Local_Decl {
+		count = 1,
+		type  = .I32,
+	}
+	locals[1] = Wasm_Local_Decl {
+		count = 1,
+		type  = .I32,
+	}
+	locals[2] = Wasm_Local_Decl {
+		count = 1,
+		type  = .I32,
+	}
+	locals[3] = Wasm_Local_Decl {
+		count = 1,
+		type  = .I32,
+	}
+	locals[4] = Wasm_Local_Decl {
+		count = 1,
+		type  = .I32,
+	}
 
 	body := make([]u8, len(buf))
 	for b, i in buf {
@@ -1260,8 +1360,14 @@ emit_camp_parallel_for_each_body :: proc(runtime_indices: [RUNTIME_FUNC_COUNT]in
 	emit_instruction(Wasm_End{}, &buf)
 
 	locals := make([]Wasm_Local_Decl, 2)
-	locals[0] = Wasm_Local_Decl{count = 1, type = .I32} // i
-	locals[1] = Wasm_Local_Decl{count = 1, type = .I32} // item_val
+	locals[0] = Wasm_Local_Decl {
+		count = 1,
+		type  = .I32,
+	} // i
+	locals[1] = Wasm_Local_Decl {
+		count = 1,
+		type  = .I32,
+	} // item_val
 
 	body := make([]u8, len(buf))
 	for b, i in buf {
@@ -1278,13 +1384,23 @@ emit_camp_sched_init_body :: proc() -> Wasm_Code {
 	emit_instruction(Wasm_I32_Const{value = i32(SCHED_BASE)}, &buf)
 	emit_instruction(Wasm_Local_Get{index = 0}, &buf)
 	emit_instruction(Wasm_I32_Store{align = 2, offset = 0}, &buf)
-	emit_instruction(Wasm_I32_Const{value = i32(SCHED_BASE + SCHED_WORKER_COUNT_SIZE + SCHED_SPINNING_SIZE + SCHED_NOTIFICATION_SIZE)}, &buf)
+	emit_instruction(
+		Wasm_I32_Const {
+			value = i32(
+				SCHED_BASE +
+				SCHED_WORKER_COUNT_SIZE +
+				SCHED_SPINNING_SIZE +
+				SCHED_NOTIFICATION_SIZE,
+			),
+		},
+		&buf,
+	)
 	emit_instruction(Wasm_I32_Const{value = 1}, &buf)
 	emit_instruction(Wasm_I32_Store{align = 2, offset = 0}, &buf)
 	emit_instruction(Wasm_End{}, &buf)
 	locals := make([]Wasm_Local_Decl, 0)
 	body := make([]u8, len(buf))
-	for b, i in buf { body[i] = b }
+	for b, i in buf {body[i] = b}
 	delete(buf)
 	return Wasm_Code{locals = locals, body = body}
 }
@@ -1292,7 +1408,8 @@ emit_camp_sched_init_body :: proc() -> Wasm_Code {
 emit_camp_sched_spawn_body :: proc() -> Wasm_Code {
 	buf: [dynamic]u8
 	buf = make([dynamic]u8, 0, CODE_BUF_MAJOR)
-	handle_table_base := SCHED_BASE + SCHED_WORKER_COUNT_SIZE + SCHED_SPINNING_SIZE + SCHED_NOTIFICATION_SIZE
+	handle_table_base :=
+		SCHED_BASE + SCHED_WORKER_COUNT_SIZE + SCHED_SPINNING_SIZE + SCHED_NOTIFICATION_SIZE
 	emit_instruction(Wasm_I32_Const{value = i32(handle_table_base)}, &buf)
 	emit_instruction(Wasm_I32_Const{value = 1}, &buf)
 	emit_instruction(Wasm_Atomic_Mem{op = .RMW_Add, width = .I32, align = 2, offset = 0}, &buf)
@@ -1350,11 +1467,20 @@ emit_camp_sched_spawn_body :: proc() -> Wasm_Code {
 	emit_instruction(Wasm_Local_Get{index = 3}, &buf)
 	emit_instruction(Wasm_End{}, &buf)
 	locals := make([]Wasm_Local_Decl, 3)
-	locals[0] = Wasm_Local_Decl{count = 1, type = .I32}
-	locals[1] = Wasm_Local_Decl{count = 1, type = .I32}
-	locals[2] = Wasm_Local_Decl{count = 1, type = .I32}
+	locals[0] = Wasm_Local_Decl {
+		count = 1,
+		type  = .I32,
+	}
+	locals[1] = Wasm_Local_Decl {
+		count = 1,
+		type  = .I32,
+	}
+	locals[2] = Wasm_Local_Decl {
+		count = 1,
+		type  = .I32,
+	}
 	body := make([]u8, len(buf))
-	for b, i in buf { body[i] = b }
+	for b, i in buf {body[i] = b}
 	delete(buf)
 	return Wasm_Code{locals = locals, body = body}
 }
@@ -1362,7 +1488,8 @@ emit_camp_sched_spawn_body :: proc() -> Wasm_Code {
 emit_camp_sched_complete_body :: proc() -> Wasm_Code {
 	buf: [dynamic]u8
 	buf = make([dynamic]u8, 0, CODE_BUF_MAJOR)
-	handle_table_base := SCHED_BASE + SCHED_WORKER_COUNT_SIZE + SCHED_SPINNING_SIZE + SCHED_NOTIFICATION_SIZE
+	handle_table_base :=
+		SCHED_BASE + SCHED_WORKER_COUNT_SIZE + SCHED_SPINNING_SIZE + SCHED_NOTIFICATION_SIZE
 	emit_instruction(Wasm_I32_Const{value = i32(handle_table_base + 4)}, &buf)
 	emit_instruction(Wasm_Local_Get{index = 0}, &buf)
 	emit_instruction(Wasm_I32_Const{value = i32(SCHED_HANDLE_ENTRY_SIZE)}, &buf)
@@ -1389,9 +1516,12 @@ emit_camp_sched_complete_body :: proc() -> Wasm_Code {
 	emit_instruction(Wasm_Drop{}, &buf)
 	emit_instruction(Wasm_End{}, &buf)
 	locals := make([]Wasm_Local_Decl, 1)
-	locals[0] = Wasm_Local_Decl{count = 1, type = .I32}
+	locals[0] = Wasm_Local_Decl {
+		count = 1,
+		type  = .I32,
+	}
 	body := make([]u8, len(buf))
-	for b, i in buf { body[i] = b }
+	for b, i in buf {body[i] = b}
 	delete(buf)
 	return Wasm_Code{locals = locals, body = body}
 }
@@ -1399,7 +1529,8 @@ emit_camp_sched_complete_body :: proc() -> Wasm_Code {
 emit_camp_sched_join_body :: proc() -> Wasm_Code {
 	buf: [dynamic]u8
 	buf = make([dynamic]u8, 0, CODE_BUF_MAJOR)
-	handle_table_base := SCHED_BASE + SCHED_WORKER_COUNT_SIZE + SCHED_SPINNING_SIZE + SCHED_NOTIFICATION_SIZE
+	handle_table_base :=
+		SCHED_BASE + SCHED_WORKER_COUNT_SIZE + SCHED_SPINNING_SIZE + SCHED_NOTIFICATION_SIZE
 	emit_instruction(Wasm_I32_Const{value = i32(handle_table_base + 4)}, &buf)
 	emit_instruction(Wasm_Local_Get{index = 0}, &buf)
 	emit_instruction(Wasm_I32_Const{value = i32(SCHED_HANDLE_ENTRY_SIZE)}, &buf)
@@ -1446,9 +1577,12 @@ emit_camp_sched_join_body :: proc() -> Wasm_Code {
 	emit_instruction(Wasm_End{}, &buf)
 	emit_instruction(Wasm_End{}, &buf)
 	locals := make([]Wasm_Local_Decl, 1)
-	locals[0] = Wasm_Local_Decl{count = 1, type = .I32}
+	locals[0] = Wasm_Local_Decl {
+		count = 1,
+		type  = .I32,
+	}
 	body := make([]u8, len(buf))
-	for b, i in buf { body[i] = b }
+	for b, i in buf {body[i] = b}
 	delete(buf)
 	return Wasm_Code{locals = locals, body = body}
 }
@@ -1456,7 +1590,8 @@ emit_camp_sched_join_body :: proc() -> Wasm_Code {
 emit_camp_sched_cancel_body :: proc() -> Wasm_Code {
 	buf: [dynamic]u8
 	buf = make([dynamic]u8, 0, CODE_BUF_MODERATE)
-	handle_table_base := SCHED_BASE + SCHED_WORKER_COUNT_SIZE + SCHED_SPINNING_SIZE + SCHED_NOTIFICATION_SIZE
+	handle_table_base :=
+		SCHED_BASE + SCHED_WORKER_COUNT_SIZE + SCHED_SPINNING_SIZE + SCHED_NOTIFICATION_SIZE
 	emit_instruction(Wasm_I32_Const{value = i32(handle_table_base + 4)}, &buf)
 	emit_instruction(Wasm_Local_Get{index = 0}, &buf)
 	emit_instruction(Wasm_I32_Const{value = i32(SCHED_HANDLE_ENTRY_SIZE)}, &buf)
@@ -1477,9 +1612,12 @@ emit_camp_sched_cancel_body :: proc() -> Wasm_Code {
 	emit_instruction(Wasm_Drop{}, &buf)
 	emit_instruction(Wasm_End{}, &buf)
 	locals := make([]Wasm_Local_Decl, 1)
-	locals[0] = Wasm_Local_Decl{count = 1, type = .I32}
+	locals[0] = Wasm_Local_Decl {
+		count = 1,
+		type  = .I32,
+	}
 	body := make([]u8, len(buf))
-	for b, i in buf { body[i] = b }
+	for b, i in buf {body[i] = b}
 	delete(buf)
 	return Wasm_Code{locals = locals, body = body}
 }
@@ -1490,7 +1628,7 @@ emit_camp_sched_yield_body :: proc() -> Wasm_Code {
 	emit_instruction(Wasm_End{}, &buf)
 	locals := make([]Wasm_Local_Decl, 0)
 	body := make([]u8, len(buf))
-	for b, i in buf { body[i] = b }
+	for b, i in buf {body[i] = b}
 	delete(buf)
 	return Wasm_Code{locals = locals, body = body}
 }
@@ -1498,7 +1636,13 @@ emit_camp_sched_yield_body :: proc() -> Wasm_Code {
 emit_camp_sched_block_io_body :: proc() -> Wasm_Code {
 	buf: [dynamic]u8
 	buf = make([dynamic]u8, 0, CODE_BUF_MODERATE)
-	wait_map_base := SCHED_BASE + SCHED_WORKER_COUNT_SIZE + SCHED_SPINNING_SIZE + SCHED_NOTIFICATION_SIZE + SCHED_HANDLE_TABLE_SIZE + SCHED_GLOBAL_QUEUE_SIZE
+	wait_map_base :=
+		SCHED_BASE +
+		SCHED_WORKER_COUNT_SIZE +
+		SCHED_SPINNING_SIZE +
+		SCHED_NOTIFICATION_SIZE +
+		SCHED_HANDLE_TABLE_SIZE +
+		SCHED_GLOBAL_QUEUE_SIZE
 	emit_instruction(Wasm_I32_Const{value = i32(wait_map_base)}, &buf)
 	emit_instruction(Wasm_I32_Const{value = 1}, &buf)
 	emit_instruction(Wasm_Atomic_Mem{op = .RMW_Add, width = .I32, align = 2, offset = 0}, &buf)
@@ -1517,10 +1661,16 @@ emit_camp_sched_block_io_body :: proc() -> Wasm_Code {
 	emit_instruction(Wasm_I32_Store{align = 2, offset = 4}, &buf)
 	emit_instruction(Wasm_End{}, &buf)
 	locals := make([]Wasm_Local_Decl, 2)
-	locals[0] = Wasm_Local_Decl{count = 1, type = .I32}
-	locals[1] = Wasm_Local_Decl{count = 1, type = .I32}
+	locals[0] = Wasm_Local_Decl {
+		count = 1,
+		type  = .I32,
+	}
+	locals[1] = Wasm_Local_Decl {
+		count = 1,
+		type  = .I32,
+	}
 	body := make([]u8, len(buf))
-	for b, i in buf { body[i] = b }
+	for b, i in buf {body[i] = b}
 	delete(buf)
 	return Wasm_Code{locals = locals, body = body}
 }
@@ -1528,7 +1678,15 @@ emit_camp_sched_block_io_body :: proc() -> Wasm_Code {
 emit_camp_sched_timer_insert_body :: proc() -> Wasm_Code {
 	buf: [dynamic]u8
 	buf = make([dynamic]u8, 0, CODE_BUF_MAJOR)
-	timer_wheel_base := SCHED_BASE + SCHED_WORKER_COUNT_SIZE + SCHED_SPINNING_SIZE + SCHED_NOTIFICATION_SIZE + SCHED_HANDLE_TABLE_SIZE + SCHED_GLOBAL_QUEUE_SIZE + SCHED_WAIT_MAP_SIZE + SCHED_JOIN_MAP_SIZE
+	timer_wheel_base :=
+		SCHED_BASE +
+		SCHED_WORKER_COUNT_SIZE +
+		SCHED_SPINNING_SIZE +
+		SCHED_NOTIFICATION_SIZE +
+		SCHED_HANDLE_TABLE_SIZE +
+		SCHED_GLOBAL_QUEUE_SIZE +
+		SCHED_WAIT_MAP_SIZE +
+		SCHED_JOIN_MAP_SIZE
 	emit_instruction(Wasm_I32_Const{value = i32(timer_wheel_base)}, &buf)
 	emit_instruction(Wasm_I64_Load{align = 3, offset = 0}, &buf)
 	emit_instruction(Wasm_Local_Get{index = 0}, &buf)
@@ -1619,15 +1777,36 @@ emit_camp_sched_timer_insert_body :: proc() -> Wasm_Code {
 	emit_instruction(Wasm_I32_Store{align = 2, offset = 0}, &buf)
 	emit_instruction(Wasm_End{}, &buf)
 	locals := make([]Wasm_Local_Decl, 7)
-	locals[0] = Wasm_Local_Decl{count = 1, type = .I32}
-	locals[1] = Wasm_Local_Decl{count = 1, type = .I64}
-	locals[2] = Wasm_Local_Decl{count = 1, type = .I64}
-	locals[3] = Wasm_Local_Decl{count = 1, type = .I32}
-	locals[4] = Wasm_Local_Decl{count = 1, type = .I32}
-	locals[5] = Wasm_Local_Decl{count = 1, type = .I32}
-	locals[6] = Wasm_Local_Decl{count = 1, type = .I32}
+	locals[0] = Wasm_Local_Decl {
+		count = 1,
+		type  = .I32,
+	}
+	locals[1] = Wasm_Local_Decl {
+		count = 1,
+		type  = .I64,
+	}
+	locals[2] = Wasm_Local_Decl {
+		count = 1,
+		type  = .I64,
+	}
+	locals[3] = Wasm_Local_Decl {
+		count = 1,
+		type  = .I32,
+	}
+	locals[4] = Wasm_Local_Decl {
+		count = 1,
+		type  = .I32,
+	}
+	locals[5] = Wasm_Local_Decl {
+		count = 1,
+		type  = .I32,
+	}
+	locals[6] = Wasm_Local_Decl {
+		count = 1,
+		type  = .I32,
+	}
 	body := make([]u8, len(buf))
-	for b, i in buf { body[i] = b }
+	for b, i in buf {body[i] = b}
 	delete(buf)
 	return Wasm_Code{locals = locals, body = body}
 }
@@ -1635,7 +1814,15 @@ emit_camp_sched_timer_insert_body :: proc() -> Wasm_Code {
 emit_camp_sched_timer_cancel_body :: proc() -> Wasm_Code {
 	buf: [dynamic]u8
 	buf = make([dynamic]u8, 0, CODE_BUF_DEFAULT)
-	timer_wheel_base := SCHED_BASE + SCHED_WORKER_COUNT_SIZE + SCHED_SPINNING_SIZE + SCHED_NOTIFICATION_SIZE + SCHED_HANDLE_TABLE_SIZE + SCHED_GLOBAL_QUEUE_SIZE + SCHED_WAIT_MAP_SIZE + SCHED_JOIN_MAP_SIZE
+	timer_wheel_base :=
+		SCHED_BASE +
+		SCHED_WORKER_COUNT_SIZE +
+		SCHED_SPINNING_SIZE +
+		SCHED_NOTIFICATION_SIZE +
+		SCHED_HANDLE_TABLE_SIZE +
+		SCHED_GLOBAL_QUEUE_SIZE +
+		SCHED_WAIT_MAP_SIZE +
+		SCHED_JOIN_MAP_SIZE
 	timer_pool_base := timer_wheel_base + SCHED_TIMER_WHEEL_SIZE
 	emit_instruction(Wasm_I32_Const{value = i32(timer_pool_base + 4)}, &buf)
 	emit_instruction(Wasm_Local_Get{index = 0}, &buf)
@@ -1647,7 +1834,7 @@ emit_camp_sched_timer_cancel_body :: proc() -> Wasm_Code {
 	emit_instruction(Wasm_End{}, &buf)
 	locals := make([]Wasm_Local_Decl, 0)
 	body := make([]u8, len(buf))
-	for b, i in buf { body[i] = b }
+	for b, i in buf {body[i] = b}
 	delete(buf)
 	return Wasm_Code{locals = locals, body = body}
 }
@@ -1667,7 +1854,7 @@ emit_camp_sched_notify_body :: proc() -> Wasm_Code {
 	emit_instruction(Wasm_End{}, &buf)
 	locals := make([]Wasm_Local_Decl, 0)
 	body := make([]u8, len(buf))
-	for b, i in buf { body[i] = b }
+	for b, i in buf {body[i] = b}
 	delete(buf)
 	return Wasm_Code{locals = locals, body = body}
 }
@@ -1685,7 +1872,7 @@ emit_camp_sched_park_body :: proc() -> Wasm_Code {
 	emit_instruction(Wasm_End{}, &buf)
 	locals := make([]Wasm_Local_Decl, 0)
 	body := make([]u8, len(buf))
-	for b, i in buf { body[i] = b }
+	for b, i in buf {body[i] = b}
 	delete(buf)
 	return Wasm_Code{locals = locals, body = body}
 }
@@ -1693,9 +1880,18 @@ emit_camp_sched_park_body :: proc() -> Wasm_Code {
 emit_camp_sched_worker_loop_body :: proc() -> Wasm_Code {
 	buf: [dynamic]u8
 	buf = make([dynamic]u8, 0, CODE_BUF_XL)
-	handle_table_base := SCHED_BASE + SCHED_WORKER_COUNT_SIZE + SCHED_SPINNING_SIZE + SCHED_NOTIFICATION_SIZE
+	handle_table_base :=
+		SCHED_BASE + SCHED_WORKER_COUNT_SIZE + SCHED_SPINNING_SIZE + SCHED_NOTIFICATION_SIZE
 	global_queue_base := handle_table_base + SCHED_HANDLE_TABLE_SIZE
-	timer_wheel_base := SCHED_BASE + SCHED_WORKER_COUNT_SIZE + SCHED_SPINNING_SIZE + SCHED_NOTIFICATION_SIZE + SCHED_HANDLE_TABLE_SIZE + SCHED_GLOBAL_QUEUE_SIZE + SCHED_WAIT_MAP_SIZE + SCHED_JOIN_MAP_SIZE
+	timer_wheel_base :=
+		SCHED_BASE +
+		SCHED_WORKER_COUNT_SIZE +
+		SCHED_SPINNING_SIZE +
+		SCHED_NOTIFICATION_SIZE +
+		SCHED_HANDLE_TABLE_SIZE +
+		SCHED_GLOBAL_QUEUE_SIZE +
+		SCHED_WAIT_MAP_SIZE +
+		SCHED_JOIN_MAP_SIZE
 	emit_instruction(Wasm_I32_Const{value = 0}, &buf)
 	emit_instruction(Wasm_Local_Set{index = 1}, &buf)
 	emit_instruction(Wasm_Loop{block_type = .Void}, &buf)
@@ -1764,16 +1960,40 @@ emit_camp_sched_worker_loop_body :: proc() -> Wasm_Code {
 	emit_instruction(Wasm_End{}, &buf)
 	emit_instruction(Wasm_End{}, &buf)
 	locals := make([]Wasm_Local_Decl, 8)
-	locals[0] = Wasm_Local_Decl{count = 1, type = .I32}
-	locals[1] = Wasm_Local_Decl{count = 1, type = .I32}
-	locals[2] = Wasm_Local_Decl{count = 1, type = .I32}
-	locals[3] = Wasm_Local_Decl{count = 1, type = .I32}
-	locals[4] = Wasm_Local_Decl{count = 1, type = .I32}
-	locals[5] = Wasm_Local_Decl{count = 1, type = .I32}
-	locals[6] = Wasm_Local_Decl{count = 1, type = .I32}
-	locals[7] = Wasm_Local_Decl{count = 1, type = .I32}
+	locals[0] = Wasm_Local_Decl {
+		count = 1,
+		type  = .I32,
+	}
+	locals[1] = Wasm_Local_Decl {
+		count = 1,
+		type  = .I32,
+	}
+	locals[2] = Wasm_Local_Decl {
+		count = 1,
+		type  = .I32,
+	}
+	locals[3] = Wasm_Local_Decl {
+		count = 1,
+		type  = .I32,
+	}
+	locals[4] = Wasm_Local_Decl {
+		count = 1,
+		type  = .I32,
+	}
+	locals[5] = Wasm_Local_Decl {
+		count = 1,
+		type  = .I32,
+	}
+	locals[6] = Wasm_Local_Decl {
+		count = 1,
+		type  = .I32,
+	}
+	locals[7] = Wasm_Local_Decl {
+		count = 1,
+		type  = .I32,
+	}
 	body := make([]u8, len(buf))
-	for b, i in buf { body[i] = b }
+	for b, i in buf {body[i] = b}
 	delete(buf)
 	return Wasm_Code{locals = locals, body = body}
 }
@@ -1837,12 +2057,24 @@ emit_camp_parallel_map_body :: proc(runtime_indices: [RUNTIME_FUNC_COUNT]int) ->
 	emit_instruction(Wasm_Local_Get{index = 5}, &buf)
 	emit_instruction(Wasm_End{}, &buf)
 	locals := make([]Wasm_Local_Decl, 4)
-	locals[0] = Wasm_Local_Decl{count = 1, type = .I32}
-	locals[1] = Wasm_Local_Decl{count = 1, type = .I32}
-	locals[2] = Wasm_Local_Decl{count = 1, type = .I32}
-	locals[3] = Wasm_Local_Decl{count = 1, type = .I32}
+	locals[0] = Wasm_Local_Decl {
+		count = 1,
+		type  = .I32,
+	}
+	locals[1] = Wasm_Local_Decl {
+		count = 1,
+		type  = .I32,
+	}
+	locals[2] = Wasm_Local_Decl {
+		count = 1,
+		type  = .I32,
+	}
+	locals[3] = Wasm_Local_Decl {
+		count = 1,
+		type  = .I32,
+	}
 	body := make([]u8, len(buf))
-	for b, i in buf { body[i] = b }
+	for b, i in buf {body[i] = b}
 	delete(buf)
 	return Wasm_Code{locals = locals, body = body}
 }
@@ -1856,7 +2088,7 @@ emit_camp_i64_to_str_body :: proc() -> Wasm_Code {
 	emit_instruction(Wasm_End{}, &buf)
 	locals := make([]Wasm_Local_Decl, 0)
 	body := make([]u8, len(buf))
-	for b, i in buf { body[i] = b }
+	for b, i in buf {body[i] = b}
 	delete(buf)
 	return Wasm_Code{locals = locals, body = body}
 }
@@ -1870,7 +2102,7 @@ emit_camp_i32_to_str_body :: proc() -> Wasm_Code {
 	emit_instruction(Wasm_End{}, &buf)
 	locals := make([]Wasm_Local_Decl, 0)
 	body := make([]u8, len(buf))
-	for b, i in buf { body[i] = b }
+	for b, i in buf {body[i] = b}
 	delete(buf)
 	return Wasm_Code{locals = locals, body = body}
 }
@@ -1884,7 +2116,7 @@ emit_camp_f64_to_str_body :: proc() -> Wasm_Code {
 	emit_instruction(Wasm_End{}, &buf)
 	locals := make([]Wasm_Local_Decl, 0)
 	body := make([]u8, len(buf))
-	for b, i in buf { body[i] = b }
+	for b, i in buf {body[i] = b}
 	delete(buf)
 	return Wasm_Code{locals = locals, body = body}
 }
@@ -1898,7 +2130,8 @@ emit_camp_bool_to_str_body :: proc() -> Wasm_Code {
 	emit_instruction(Wasm_End{}, &buf)
 	locals := make([]Wasm_Local_Decl, 0)
 	body := make([]u8, len(buf))
-	for b, i in buf { body[i] = b }
+	for b, i in buf {body[i] = b}
 	delete(buf)
 	return Wasm_Code{locals = locals, body = body}
 }
+

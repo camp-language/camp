@@ -1,10 +1,14 @@
 package format
 
-import "core:strings"
 import "camp:base"
 import "camp:frontend"
+import "core:strings"
 
-format_decl :: proc(d: frontend.Decl, info: ^Format_Source_Info, interner: ^base.Intern_Table) -> Doc {
+format_decl :: proc(
+	d: frontend.Decl,
+	info: ^Format_Source_Info,
+	interner: ^base.Intern_Table,
+) -> Doc {
 	#partial switch v in d {
 	case ^frontend.Decl_Const:
 		return format_decl_const(v, info, interner)
@@ -28,7 +32,11 @@ format_decl :: proc(d: frontend.Decl, info: ^Format_Source_Info, interner: ^base
 	return doc_text("?")
 }
 
-format_decl_const :: proc(v: ^frontend.Decl_Const, info: ^Format_Source_Info, interner: ^base.Intern_Table) -> Doc {
+format_decl_const :: proc(
+	v: ^frontend.Decl_Const,
+	info: ^Format_Source_Info,
+	interner: ^base.Intern_Table,
+) -> Doc {
 	parts: [dynamic]Doc
 	defer delete(parts)
 	if v.is_pub {
@@ -59,7 +67,11 @@ format_decl_const :: proc(v: ^frontend.Decl_Const, info: ^Format_Source_Info, in
 	return doc_concat(parts[:])
 }
 
-format_decl_effect :: proc(v: ^frontend.Decl_Effect, info: ^Format_Source_Info, interner: ^base.Intern_Table) -> Doc {
+format_decl_effect :: proc(
+	v: ^frontend.Decl_Effect,
+	info: ^Format_Source_Info,
+	interner: ^base.Intern_Table,
+) -> Doc {
 	parts: [dynamic]Doc
 	defer delete(parts)
 	append(&parts, doc_text(base.intern_get(interner, v.name)))
@@ -87,7 +99,11 @@ format_decl_effect :: proc(v: ^frontend.Decl_Effect, info: ^Format_Source_Info, 
 	return doc_concat(parts[:])
 }
 
-format_effect_ops :: proc(ops: []frontend.Effect_Op, info: ^Format_Source_Info, interner: ^base.Intern_Table) -> Doc {
+format_effect_ops :: proc(
+	ops: []frontend.Effect_Op,
+	info: ^Format_Source_Info,
+	interner: ^base.Intern_Table,
+) -> Doc {
 	op_parts: [dynamic]Doc
 	defer delete(op_parts)
 	append(&op_parts, doc_line())
@@ -122,7 +138,11 @@ format_effect_ops :: proc(ops: []frontend.Effect_Op, info: ^Format_Source_Info, 
 	return doc_group(op_parts[:])
 }
 
-format_decl_trait :: proc(v: ^frontend.Decl_Trait, info: ^Format_Source_Info, interner: ^base.Intern_Table) -> Doc {
+format_decl_trait :: proc(
+	v: ^frontend.Decl_Trait,
+	info: ^Format_Source_Info,
+	interner: ^base.Intern_Table,
+) -> Doc {
 	parts: [dynamic]Doc
 	defer delete(parts)
 	append(&parts, doc_text(base.intern_get(interner, v.name)))
@@ -143,7 +163,11 @@ format_decl_trait :: proc(v: ^frontend.Decl_Trait, info: ^Format_Source_Info, in
 	return doc_concat(parts[:])
 }
 
-format_trait_methods :: proc(methods: []frontend.Trait_Method, info: ^Format_Source_Info, interner: ^base.Intern_Table) -> Doc {
+format_trait_methods :: proc(
+	methods: []frontend.Trait_Method,
+	info: ^Format_Source_Info,
+	interner: ^base.Intern_Table,
+) -> Doc {
 	m_parts: [dynamic]Doc
 	defer delete(m_parts)
 	append(&m_parts, doc_line())
@@ -172,7 +196,11 @@ format_trait_methods :: proc(methods: []frontend.Trait_Method, info: ^Format_Sou
 	return doc_group(m_parts[:])
 }
 
-format_decl_alias :: proc(v: ^frontend.Decl_Alias, info: ^Format_Source_Info, interner: ^base.Intern_Table) -> Doc {
+format_decl_alias :: proc(
+	v: ^frontend.Decl_Alias,
+	info: ^Format_Source_Info,
+	interner: ^base.Intern_Table,
+) -> Doc {
 	parts: [dynamic]Doc
 	defer delete(parts)
 	append(&parts, doc_text(base.intern_get(interner, v.name)))
@@ -181,7 +209,11 @@ format_decl_alias :: proc(v: ^frontend.Decl_Alias, info: ^Format_Source_Info, in
 	return doc_concat(parts[:])
 }
 
-format_decl_newtype :: proc(v: ^frontend.Decl_Newtype, info: ^Format_Source_Info, interner: ^base.Intern_Table) -> Doc {
+format_decl_newtype :: proc(
+	v: ^frontend.Decl_Newtype,
+	info: ^Format_Source_Info,
+	interner: ^base.Intern_Table,
+) -> Doc {
 	parts: [dynamic]Doc
 	defer delete(parts)
 	if v.is_pub {
@@ -236,7 +268,11 @@ format_import_item :: proc(item: frontend.Import_Item, interner: ^base.Intern_Ta
 	return doc_text("?")
 }
 
-format_decl_import :: proc(v: ^frontend.Decl_Import, info: ^Format_Source_Info, interner: ^base.Intern_Table) -> Doc {
+format_decl_import :: proc(
+	v: ^frontend.Decl_Import,
+	info: ^Format_Source_Info,
+	interner: ^base.Intern_Table,
+) -> Doc {
 	parts: [dynamic]Doc
 	defer delete(parts)
 	append(&parts, doc_text("import "))
@@ -269,7 +305,10 @@ format_decl_import :: proc(v: ^frontend.Decl_Import, info: ^Format_Source_Info, 
 	return doc_concat(parts[:])
 }
 
-format_import_names_multiline :: proc(names: []frontend.Import_Item, interner: ^base.Intern_Table) -> Doc {
+format_import_names_multiline :: proc(
+	names: []frontend.Import_Item,
+	interner: ^base.Intern_Table,
+) -> Doc {
 	inner: [dynamic]Doc
 	defer delete(inner)
 	append(&inner, doc_line())
@@ -284,7 +323,11 @@ format_import_names_multiline :: proc(names: []frontend.Import_Item, interner: ^
 	return doc_group(inner[:])
 }
 
-format_decl_test :: proc(v: ^frontend.Decl_Test, info: ^Format_Source_Info, interner: ^base.Intern_Table) -> Doc {
+format_decl_test :: proc(
+	v: ^frontend.Decl_Test,
+	info: ^Format_Source_Info,
+	interner: ^base.Intern_Table,
+) -> Doc {
 	parts: [dynamic]Doc
 	defer delete(parts)
 	append(&parts, doc_text("test "))
@@ -294,7 +337,11 @@ format_decl_test :: proc(v: ^frontend.Decl_Test, info: ^Format_Source_Info, inte
 	return doc_concat(parts[:])
 }
 
-format_decl_expect :: proc(v: ^frontend.Decl_Expect, info: ^Format_Source_Info, interner: ^base.Intern_Table) -> Doc {
+format_decl_expect :: proc(
+	v: ^frontend.Decl_Expect,
+	info: ^Format_Source_Info,
+	interner: ^base.Intern_Table,
+) -> Doc {
 	parts: [dynamic]Doc
 	defer delete(parts)
 	append(&parts, doc_text("expect "))
@@ -302,7 +349,11 @@ format_decl_expect :: proc(v: ^frontend.Decl_Expect, info: ^Format_Source_Info, 
 	return doc_concat(parts[:])
 }
 
-format_decl_is_impl :: proc(v: ^frontend.Decl_Is_Impl, info: ^Format_Source_Info, interner: ^base.Intern_Table) -> Doc {
+format_decl_is_impl :: proc(
+	v: ^frontend.Decl_Is_Impl,
+	info: ^Format_Source_Info,
+	interner: ^base.Intern_Table,
+) -> Doc {
 	parts: [dynamic]Doc
 	defer delete(parts)
 	append(&parts, doc_text(base.intern_get(interner, v.type_name)))
@@ -316,7 +367,11 @@ format_decl_is_impl :: proc(v: ^frontend.Decl_Is_Impl, info: ^Format_Source_Info
 	return doc_concat(parts[:])
 }
 
-format_is_methods :: proc(methods: []frontend.Is_Method, info: ^Format_Source_Info, interner: ^base.Intern_Table) -> Doc {
+format_is_methods :: proc(
+	methods: []frontend.Is_Method,
+	info: ^Format_Source_Info,
+	interner: ^base.Intern_Table,
+) -> Doc {
 	m_parts: [dynamic]Doc
 	defer delete(m_parts)
 	append(&m_parts, doc_line())
@@ -331,7 +386,11 @@ format_is_methods :: proc(methods: []frontend.Is_Method, info: ^Format_Source_In
 	return doc_group(m_parts[:])
 }
 
-format_file :: proc(f: frontend.File, info: ^Format_Source_Info, interner: ^base.Intern_Table) -> Doc {
+format_file :: proc(
+	f: frontend.File,
+	info: ^Format_Source_Info,
+	interner: ^base.Intern_Table,
+) -> Doc {
 	if len(f.decls) == 0 {
 		return doc_empty()
 	}
@@ -350,7 +409,11 @@ format_file :: proc(f: frontend.File, info: ^Format_Source_Info, interner: ^base
 	return doc_concat(parts[:])
 }
 
-has_blank_line_between_decls :: proc(prev: frontend.Decl, next: frontend.Decl, info: ^Format_Source_Info) -> bool {
+has_blank_line_between_decls :: proc(
+	prev: frontend.Decl,
+	next: frontend.Decl,
+	info: ^Format_Source_Info,
+) -> bool {
 	prev_start := decl_span_start(prev)
 	next_start := decl_span_start(next)
 	if info.blank_line_after[prev_start] {
@@ -390,3 +453,4 @@ decl_span_start :: proc(d: frontend.Decl) -> int {
 	}
 	return 0
 }
+

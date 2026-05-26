@@ -3,7 +3,11 @@ package format
 import "camp:base"
 import "camp:frontend"
 
-format_type :: proc(t: ^frontend.Type, info: ^Format_Source_Info, interner: ^base.Intern_Table) -> Doc {
+format_type :: proc(
+	t: ^frontend.Type,
+	info: ^Format_Source_Info,
+	interner: ^base.Intern_Table,
+) -> Doc {
 	if t == nil {
 		return doc_text("?")
 	}
@@ -29,7 +33,11 @@ format_type :: proc(t: ^frontend.Type, info: ^Format_Source_Info, interner: ^bas
 	return doc_text("?")
 }
 
-format_type_applied :: proc(t: ^frontend.Type_Applied, info: ^Format_Source_Info, interner: ^base.Intern_Table) -> Doc {
+format_type_applied :: proc(
+	t: ^frontend.Type_Applied,
+	info: ^Format_Source_Info,
+	interner: ^base.Intern_Table,
+) -> Doc {
 	name := base.intern_get(interner, t.name)
 	multiline := info.first_separator_break[t.span.start]
 
@@ -52,7 +60,11 @@ format_type_applied :: proc(t: ^frontend.Type_Applied, info: ^Format_Source_Info
 	return doc_concat(parts[:])
 }
 
-format_type_function :: proc(t: ^frontend.Type_Function, info: ^Format_Source_Info, interner: ^base.Intern_Table) -> Doc {
+format_type_function :: proc(
+	t: ^frontend.Type_Function,
+	info: ^Format_Source_Info,
+	interner: ^base.Intern_Table,
+) -> Doc {
 	parts: [dynamic]Doc
 	defer delete(parts)
 
@@ -76,7 +88,11 @@ format_type_function :: proc(t: ^frontend.Type_Function, info: ^Format_Source_In
 	return doc_concat(parts[:])
 }
 
-format_type_record :: proc(t: ^frontend.Type_Record, info: ^Format_Source_Info, interner: ^base.Intern_Table) -> Doc {
+format_type_record :: proc(
+	t: ^frontend.Type_Record,
+	info: ^Format_Source_Info,
+	interner: ^base.Intern_Table,
+) -> Doc {
 	multiline := info.first_separator_break[t.span.start]
 
 	if multiline {
@@ -85,7 +101,11 @@ format_type_record :: proc(t: ^frontend.Type_Record, info: ^Format_Source_Info, 
 	return format_record_flat(t, info, interner)
 }
 
-format_record_flat :: proc(t: ^frontend.Type_Record, info: ^Format_Source_Info, interner: ^base.Intern_Table) -> Doc {
+format_record_flat :: proc(
+	t: ^frontend.Type_Record,
+	info: ^Format_Source_Info,
+	interner: ^base.Intern_Table,
+) -> Doc {
 	parts: [dynamic]Doc
 	defer delete(parts)
 	append(&parts, doc_text("{ "))
@@ -111,7 +131,11 @@ format_record_flat :: proc(t: ^frontend.Type_Record, info: ^Format_Source_Info, 
 	return doc_concat(parts[:])
 }
 
-format_record_multiline :: proc(t: ^frontend.Type_Record, info: ^Format_Source_Info, interner: ^base.Intern_Table) -> Doc {
+format_record_multiline :: proc(
+	t: ^frontend.Type_Record,
+	info: ^Format_Source_Info,
+	interner: ^base.Intern_Table,
+) -> Doc {
 	fields_parts: [dynamic]Doc
 	defer delete(fields_parts)
 	append(&fields_parts, doc_line())
@@ -146,7 +170,11 @@ format_record_multiline :: proc(t: ^frontend.Type_Record, info: ^Format_Source_I
 	return doc_concat(parts[:])
 }
 
-format_type_tag_union :: proc(t: ^frontend.Type_Tag_Union, info: ^Format_Source_Info, interner: ^base.Intern_Table) -> Doc {
+format_type_tag_union :: proc(
+	t: ^frontend.Type_Tag_Union,
+	info: ^Format_Source_Info,
+	interner: ^base.Intern_Table,
+) -> Doc {
 	multiline := info.first_separator_break[t.span.start]
 
 	parts: [dynamic]Doc
@@ -167,7 +195,11 @@ format_type_tag_union :: proc(t: ^frontend.Type_Tag_Union, info: ^Format_Source_
 	return doc_concat(parts[:])
 }
 
-format_tags_flat :: proc(tags: []frontend.Type_Tag, info: ^Format_Source_Info, interner: ^base.Intern_Table) -> Doc {
+format_tags_flat :: proc(
+	tags: []frontend.Type_Tag,
+	info: ^Format_Source_Info,
+	interner: ^base.Intern_Table,
+) -> Doc {
 	parts: [dynamic]Doc
 	defer delete(parts)
 	for tag, i in tags {
@@ -179,7 +211,11 @@ format_tags_flat :: proc(tags: []frontend.Type_Tag, info: ^Format_Source_Info, i
 	return doc_concat(parts[:])
 }
 
-format_tags_multiline :: proc(tags: []frontend.Type_Tag, info: ^Format_Source_Info, interner: ^base.Intern_Table) -> Doc {
+format_tags_multiline :: proc(
+	tags: []frontend.Type_Tag,
+	info: ^Format_Source_Info,
+	interner: ^base.Intern_Table,
+) -> Doc {
 	inner_parts: [dynamic]Doc
 	defer delete(inner_parts)
 	append(&inner_parts, doc_line())
@@ -197,7 +233,11 @@ format_tags_multiline :: proc(tags: []frontend.Type_Tag, info: ^Format_Source_In
 	return doc_nest(4, doc_group(inner_parts[:]))
 }
 
-format_tag :: proc(tag: ^frontend.Type_Tag, info: ^Format_Source_Info, interner: ^base.Intern_Table) -> Doc {
+format_tag :: proc(
+	tag: ^frontend.Type_Tag,
+	info: ^Format_Source_Info,
+	interner: ^base.Intern_Table,
+) -> Doc {
 	name := base.intern_get(interner, tag.name)
 
 	if len(tag.payload) == 0 {
@@ -219,7 +259,11 @@ format_tag :: proc(tag: ^frontend.Type_Tag, info: ^Format_Source_Info, interner:
 	return doc_concat(parts[:])
 }
 
-format_type_effect_row :: proc(t: ^frontend.Type_Effect_Row, info: ^Format_Source_Info, interner: ^base.Intern_Table) -> Doc {
+format_type_effect_row :: proc(
+	t: ^frontend.Type_Effect_Row,
+	info: ^Format_Source_Info,
+	interner: ^base.Intern_Table,
+) -> Doc {
 	multiline := info.first_separator_break[t.span.start]
 
 	if multiline {
@@ -228,7 +272,11 @@ format_type_effect_row :: proc(t: ^frontend.Type_Effect_Row, info: ^Format_Sourc
 	return format_effect_row_flat(t, info, interner)
 }
 
-format_effect_row_flat :: proc(t: ^frontend.Type_Effect_Row, info: ^Format_Source_Info, interner: ^base.Intern_Table) -> Doc {
+format_effect_row_flat :: proc(
+	t: ^frontend.Type_Effect_Row,
+	info: ^Format_Source_Info,
+	interner: ^base.Intern_Table,
+) -> Doc {
 	parts: [dynamic]Doc
 	defer delete(parts)
 	for entry, i in t.effects {
@@ -239,7 +287,7 @@ format_effect_row_flat :: proc(t: ^frontend.Type_Effect_Row, info: ^Format_Sourc
 		if len(entry.type_args) > 0 {
 			append(&parts, doc_text(name))
 			append(&parts, doc_text("!("))
-			for j in 0..<len(entry.type_args) {
+			for j in 0 ..< len(entry.type_args) {
 				if j > 0 {
 					append(&parts, doc_text(", "))
 				}
@@ -262,7 +310,11 @@ format_effect_row_flat :: proc(t: ^frontend.Type_Effect_Row, info: ^Format_Sourc
 	return doc_concat(parts[:])
 }
 
-format_effect_row_multiline :: proc(t: ^frontend.Type_Effect_Row, info: ^Format_Source_Info, interner: ^base.Intern_Table) -> Doc {
+format_effect_row_multiline :: proc(
+	t: ^frontend.Type_Effect_Row,
+	info: ^Format_Source_Info,
+	interner: ^base.Intern_Table,
+) -> Doc {
 	inner: [dynamic]Doc
 	defer delete(inner)
 	append(&inner, doc_line())
@@ -276,7 +328,7 @@ format_effect_row_multiline :: proc(t: ^frontend.Type_Effect_Row, info: ^Format_
 		if len(entry.type_args) > 0 {
 			append(&inner, doc_text(name))
 			append(&inner, doc_text("!("))
-			for j in 0..<len(entry.type_args) {
+			for j in 0 ..< len(entry.type_args) {
 				if j > 0 {
 					append(&inner, doc_text(", "))
 				}
@@ -302,7 +354,11 @@ format_effect_row_multiline :: proc(t: ^frontend.Type_Effect_Row, info: ^Format_
 	return doc_nest(4, doc_group(inner[:]))
 }
 
-format_comma_types_flat :: proc(types: []frontend.Type, info: ^Format_Source_Info, interner: ^base.Intern_Table) -> Doc {
+format_comma_types_flat :: proc(
+	types: []frontend.Type,
+	info: ^Format_Source_Info,
+	interner: ^base.Intern_Table,
+) -> Doc {
 	parts: [dynamic]Doc
 	defer delete(parts)
 	for type, i in types {
@@ -314,7 +370,11 @@ format_comma_types_flat :: proc(types: []frontend.Type, info: ^Format_Source_Inf
 	return doc_concat(parts[:])
 }
 
-format_comma_types_multiline :: proc(types: []frontend.Type, info: ^Format_Source_Info, interner: ^base.Intern_Table) -> Doc {
+format_comma_types_multiline :: proc(
+	types: []frontend.Type,
+	info: ^Format_Source_Info,
+	interner: ^base.Intern_Table,
+) -> Doc {
 	inner: [dynamic]Doc
 	defer delete(inner)
 	append(&inner, doc_line())
@@ -331,3 +391,4 @@ format_comma_types_multiline :: proc(types: []frontend.Type, info: ^Format_Sourc
 
 	return doc_nest(4, doc_group(inner[:]))
 }
+

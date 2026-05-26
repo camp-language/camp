@@ -12,3 +12,4 @@ fresh_id :: proc(state: ^Fresh_State, prefix: string) -> Intern_ID {
 	state.counter += 1
 	return intern(state.interner, name)
 }
+

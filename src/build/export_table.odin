@@ -1,7 +1,7 @@
 package build
 
-import "camp:semantics"
 import "camp:base"
+import "camp:semantics"
 
 Export_Kind :: enum {
 	Const,
@@ -39,10 +39,10 @@ collect_exports :: proc(cfile: semantics.CFile, store: ^semantics.Type_Store) ->
 		#partial switch d in decl {
 		case ^semantics.CDecl_Const:
 			if d.is_pub {
-				ei := Export_Info{
-					name = d.name.name,
-					kind = .Const,
-					is_pub = true,
+				ei := Export_Info {
+					name     = d.name.name,
+					kind     = .Const,
+					is_pub   = true,
 					type_var = base.Type_Var_ID(-1),
 				}
 				if existing, ok := store.bindings[d.name.name]; ok {
@@ -52,39 +52,39 @@ collect_exports :: proc(cfile: semantics.CFile, store: ^semantics.Type_Store) ->
 			}
 		case ^semantics.CDecl_Effect:
 			if d.is_pub {
-				table.exports[d.name.name] = Export_Info{
-					name = d.name.name,
-					kind = .Effect,
-					is_pub = true,
+				table.exports[d.name.name] = Export_Info {
+					name     = d.name.name,
+					kind     = .Effect,
+					is_pub   = true,
 					type_var = base.Type_Var_ID(-1),
 				}
 			}
 		case ^semantics.CDecl_Trait:
 			if d.is_pub {
-				table.exports[d.name.name] = Export_Info{
-					name = d.name.name,
-					kind = .Trait,
-					is_pub = true,
+				table.exports[d.name.name] = Export_Info {
+					name     = d.name.name,
+					kind     = .Trait,
+					is_pub   = true,
 					type_var = base.Type_Var_ID(-1),
 				}
 			}
 		case ^semantics.CDecl_Alias:
 			if d.is_pub {
-				table.exports[d.name.name] = Export_Info{
-					name = d.name.name,
-					kind = .Alias,
-					is_pub = true,
+				table.exports[d.name.name] = Export_Info {
+					name     = d.name.name,
+					kind     = .Alias,
+					is_pub   = true,
 					type_var = base.Type_Var_ID(-1),
 				}
 			}
 		case ^semantics.CDecl_Newtype:
 			if d.is_pub {
-				table.exports[d.name.name] = Export_Info{
-					name = d.name.name,
-					kind = .Newtype,
-					is_pub = true,
+				table.exports[d.name.name] = Export_Info {
+					name         = d.name.name,
+					kind         = .Newtype,
+					is_pub       = true,
 					pub_variants = d.pub_variants,
-					type_var = base.Type_Var_ID(-1),
+					type_var     = base.Type_Var_ID(-1),
 				}
 			}
 		case ^semantics.CDecl_Import, ^semantics.CDecl_Test, ^semantics.CDecl_Expect:
@@ -108,3 +108,4 @@ export_is_pub :: proc(table: ^Export_Table, name: base.Intern_ID) -> bool {
 	}
 	return ei.is_pub
 }
+

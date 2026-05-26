@@ -11,7 +11,11 @@ lower_tfile :: proc(tfile: semantics.TFile, store: ^semantics.Type_Store) -> IR_
 	mod.effect_defs = make([dynamic]IR_Effect_Def, 0, 8)
 	mod.string_table = make([dynamic]String_Table_Entry, 0, 16)
 
-	env: Lower_Env = {module = &mod, store = store, interner = store.interner}
+	env: Lower_Env = {
+		module   = &mod,
+		store    = store,
+		interner = store.interner,
+	}
 	env.pending_decls = make([dynamic]IR_Decl, 0, 8)
 
 	for &decl in tfile.decls {
@@ -19,7 +23,14 @@ lower_tfile :: proc(tfile: semantics.TFile, store: ^semantics.Type_Store) -> IR_
 		case ^semantics.TDecl_Effect:
 			eff_def := lower_teffect_def(&d^, &env)
 			append(&mod.effect_defs, eff_def)
-		case ^semantics.TDecl_Const, ^semantics.TDecl_Trait, ^semantics.TDecl_Alias, ^semantics.TDecl_Newtype, ^semantics.TDecl_Import, ^semantics.TDecl_Test, ^semantics.TDecl_Expect, ^semantics.TDecl_Is_Impl:
+		case ^semantics.TDecl_Const,
+		     ^semantics.TDecl_Trait,
+		     ^semantics.TDecl_Alias,
+		     ^semantics.TDecl_Newtype,
+		     ^semantics.TDecl_Import,
+		     ^semantics.TDecl_Test,
+		     ^semantics.TDecl_Expect,
+		     ^semantics.TDecl_Is_Impl:
 		}
 	}
 
@@ -66,14 +77,22 @@ fresh_ir_name :: proc(env: ^Lower_Env) -> base.Intern_ID {
 	return base.intern(env.interner, name)
 }
 
-extract_effects :: proc(store: ^semantics.Type_Store, effect_row_var: base.Type_Var_ID, effect_defs: []IR_Effect_Def) -> [dynamic]base.Canonical_Name {
+extract_effects :: proc(
+	store: ^semantics.Type_Store,
+	effect_row_var: base.Type_Var_ID,
+	effect_defs: []IR_Effect_Def,
+) -> [dynamic]base.Canonical_Name {
 	effects: [dynamic]base.Canonical_Name
 	effects = make([dynamic]base.Canonical_Name, 0, 4)
 	collect_effects_from_row(store, effect_row_var, effect_defs, &effects)
 	return effects
 }
 
-extract_effects_from_fn_binding :: proc(store: ^semantics.Type_Store, fn_name: base.Canonical_Name, effect_defs: []IR_Effect_Def) -> [dynamic]base.Canonical_Name {
+extract_effects_from_fn_binding :: proc(
+	store: ^semantics.Type_Store,
+	fn_name: base.Canonical_Name,
+	effect_defs: []IR_Effect_Def,
+) -> [dynamic]base.Canonical_Name {
 	if fn_name.module != base.NO_NAME {
 		return make([dynamic]base.Canonical_Name, 0)
 	}
@@ -92,7 +111,12 @@ extract_effects_from_fn_binding :: proc(store: ^semantics.Type_Store, fn_name: b
 	return result
 }
 
-collect_effects_from_row :: proc(store: ^semantics.Type_Store, effect_var: base.Type_Var_ID, effect_defs: []IR_Effect_Def, result: ^[dynamic]base.Canonical_Name) {
+collect_effects_from_row :: proc(
+	store: ^semantics.Type_Store,
+	effect_var: base.Type_Var_ID,
+	effect_defs: []IR_Effect_Def,
+	result: ^[dynamic]base.Canonical_Name,
+) {
 	resolved := semantics.resolve_var(store, effect_var)
 	v := &store.vars[int(resolved)]
 
@@ -103,7 +127,10 @@ collect_effects_from_row :: proc(store: ^semantics.Type_Store, effect_var: base.
 	}
 
 	for entry in inf.effects {
-		canonical := base.Canonical_Name{module = base.NO_NAME, name = entry.name}
+		canonical := base.Canonical_Name {
+			module = base.NO_NAME,
+			name   = entry.name,
+		}
 		already := false
 		for existing in result {
 			if existing.module == canonical.module && existing.name == canonical.name {
@@ -127,13 +154,21 @@ collect_effects_from_row :: proc(store: ^semantics.Type_Store, effect_var: base.
 
 make_ir_lit_int :: proc(value: i64, type_: base.IR_Type, span: base.Source_Span) -> IR_Expr {
 	lit := new(IR_Literal_Int)
-	lit^ = IR_Literal_Int{value = value, type = type_, span = span}
+	lit^ = IR_Literal_Int {
+		value = value,
+		type  = type_,
+		span  = span,
+	}
 	return IR_Expr(lit)
 }
 
 make_ir_lit_bool :: proc(value: bool, type_: base.IR_Type, span: base.Source_Span) -> IR_Expr {
 	lit := new(IR_Literal_Bool)
-	lit^ = IR_Literal_Bool{value = value, type = type_, span = span}
+	lit^ = IR_Literal_Bool {
+		value = value,
+		type  = type_,
+		span  = span,
+	}
 	return IR_Expr(lit)
 }
 
@@ -141,28 +176,59 @@ make_ir_lit_bool :: proc(value: bool, type_: base.IR_Type, span: base.Source_Spa
 lower_texpr :: proc(expr: semantics.TExpr, env: ^Lower_Env) -> IR_Expr {
 	switch e in expr {
 	case ^semantics.TExpr_Int:
-		type_var := semantics.make_primitive_type(env.store, base.intern(env.interner, "I64"), e.span)
+		type_var := semantics.make_primitive_type(
+			env.store,
+			base.intern(env.interner, "I64"),
+			e.span,
+		)
 		return make_ir_lit_int(e.value, semantics.lower_type(env.store, type_var), e.span)
 
 	case ^semantics.TExpr_Float:
-		type_var := semantics.make_primitive_type(env.store, base.intern(env.interner, "F64"), e.span)
+		type_var := semantics.make_primitive_type(
+			env.store,
+			base.intern(env.interner, "F64"),
+			e.span,
+		)
 		lit := new(IR_Literal_Float)
-		lit^ = IR_Literal_Float{value = e.value, type = e.type_, span = e.span}
+		lit^ = IR_Literal_Float {
+			value = e.value,
+			type  = e.type_,
+			span  = e.span,
+		}
 		return IR_Expr(lit)
 
 	case ^semantics.TExpr_String:
-		type_var := semantics.make_primitive_type(env.store, base.intern(env.interner, "Str"), e.span)
+		type_var := semantics.make_primitive_type(
+			env.store,
+			base.intern(env.interner, "Str"),
+			e.span,
+		)
 		lit := new(IR_Literal_String)
-		lit^ = IR_Literal_String{value = e.value, type = e.type_, span = e.span}
-		append(&env.module.string_table, String_Table_Entry{id = fresh_ir_name(env), value = e.value})
+		lit^ = IR_Literal_String {
+			value = e.value,
+			type  = e.type_,
+			span  = e.span,
+		}
+		append(
+			&env.module.string_table,
+			String_Table_Entry{id = fresh_ir_name(env), value = e.value},
+		)
 		return IR_Expr(lit)
 
 	case ^semantics.TExpr_Bool:
-		type_var := semantics.make_primitive_type(env.store, base.intern(env.interner, "Bool"), e.span)
+		type_var := semantics.make_primitive_type(
+			env.store,
+			base.intern(env.interner, "Bool"),
+			e.span,
+		)
 		return make_ir_lit_bool(e.value, semantics.lower_type(env.store, type_var), e.span)
 
 	case ^semantics.TExpr_Char:
-		type_var := semantics.make_primitive_type(env.store, base.intern(env.interner, "I64"), e.span)
+		type_var := semantics.make_primitive_type(
+			env.store,
+			base.intern(env.interner, "I64"),
+			e.span,
+		)
 		return make_ir_lit_int(i64(e.value), semantics.lower_type(env.store, type_var), e.span)
 
 	case ^semantics.TExpr_Todo:
@@ -171,16 +237,27 @@ lower_texpr :: proc(expr: semantics.TExpr, env: ^Lower_Env) -> IR_Expr {
 			msg = lower_texpr(e.message, env)
 		} else {
 			lit := new(IR_Literal_String)
-			lit^ = IR_Literal_String{value = "todo: not implemented", type = base.IR_Type{wasm_type = .I32, type_id = base.Type_Var_ID(0)}, span = e.span}
+			lit^ = IR_Literal_String {
+				value = "todo: not implemented",
+				type = base.IR_Type{wasm_type = .I32, type_id = base.Type_Var_ID(0)},
+				span = e.span,
+			}
 			msg = IR_Expr(lit)
 		}
 		crash := new(IR_Crash)
-		crash^ = IR_Crash{message = msg, span = e.span}
+		crash^ = IR_Crash {
+			message = msg,
+			span    = e.span,
+		}
 		return IR_Expr(crash)
 
 	case ^semantics.TExpr_Name:
 		v := new(IR_Var)
-		v^ = IR_Var{name = e.name.name, type = e.type_, span = e.span}
+		v^ = IR_Var {
+			name = e.name.name,
+			type = e.type_,
+			span = e.span,
+		}
 		return IR_Expr(v)
 
 	case ^semantics.TExpr_Call:
@@ -216,7 +293,7 @@ lower_texpr :: proc(expr: semantics.TExpr, env: ^Lower_Env) -> IR_Expr {
 			append(&payload, lower_texpr(p, env))
 		}
 		ir := new(IR_Expr_Nominal_Construct)
-		ir^ = IR_Expr_Nominal_Construct{
+		ir^ = IR_Expr_Nominal_Construct {
 			type_name = e.type_name,
 			variant   = e.variant,
 			payload   = payload,
@@ -238,27 +315,57 @@ lower_texpr :: proc(expr: semantics.TExpr, env: ^Lower_Env) -> IR_Expr {
 		case ^semantics.TExpr_Name:
 			value := lower_texpr(e.value, env)
 			assign := new(IR_Assign)
-			assign^ = IR_Assign{
+			assign^ = IR_Assign {
 				binding = target.name.name,
 				value   = value,
 				type    = e.type_,
 				span    = e.span,
 			}
 			return IR_Expr(assign)
-		case ^semantics.TExpr_Int, ^semantics.TExpr_Float, ^semantics.TExpr_String, ^semantics.TExpr_Bool, ^semantics.TExpr_Tag, ^semantics.TExpr_Nominal_Construct, ^semantics.TExpr_Record, ^semantics.TExpr_List, ^semantics.TExpr_Call, ^semantics.TExpr_Method_Call, ^semantics.TExpr_Lambda, ^semantics.TExpr_Block, ^semantics.TExpr_If, ^semantics.TExpr_Match, ^semantics.TExpr_BinOp, ^semantics.TExpr_PrefixOp, ^semantics.TExpr_Field_Access, ^semantics.TExpr_Record_Update, ^semantics.TExpr_Return, ^semantics.TExpr_Crash, ^semantics.TExpr_Interpolated_String, ^semantics.TExpr_Handle, ^semantics.TExpr_Perform, ^semantics.TExpr_For, ^semantics.TExpr_Par:
+		case ^semantics.TExpr_Int,
+		     ^semantics.TExpr_Float,
+		     ^semantics.TExpr_String,
+		     ^semantics.TExpr_Bool,
+		     ^semantics.TExpr_Tag,
+		     ^semantics.TExpr_Nominal_Construct,
+		     ^semantics.TExpr_Record,
+		     ^semantics.TExpr_List,
+		     ^semantics.TExpr_Call,
+		     ^semantics.TExpr_Method_Call,
+		     ^semantics.TExpr_Lambda,
+		     ^semantics.TExpr_Block,
+		     ^semantics.TExpr_If,
+		     ^semantics.TExpr_Match,
+		     ^semantics.TExpr_BinOp,
+		     ^semantics.TExpr_PrefixOp,
+		     ^semantics.TExpr_Field_Access,
+		     ^semantics.TExpr_Record_Update,
+		     ^semantics.TExpr_Return,
+		     ^semantics.TExpr_Crash,
+		     ^semantics.TExpr_Interpolated_String,
+		     ^semantics.TExpr_Handle,
+		     ^semantics.TExpr_Perform,
+		     ^semantics.TExpr_For,
+		     ^semantics.TExpr_Par:
 			return lower_texpr(e.value, env)
 		}
 
 	case ^semantics.TExpr_Return:
 		inner := lower_texpr(e.value, env)
 		ret := new(IR_Return)
-		ret^ = IR_Return{value = inner, span = e.span}
+		ret^ = IR_Return {
+			value = inner,
+			span  = e.span,
+		}
 		return IR_Expr(ret)
 
 	case ^semantics.TExpr_Crash:
 		msg_expr := lower_texpr(e.message, env)
 		crash := new(IR_Crash)
-		crash^ = IR_Crash{message = msg_expr, span = e.span}
+		crash^ = IR_Crash {
+			message = msg_expr,
+			span    = e.span,
+		}
 		return IR_Expr(crash)
 
 	case ^semantics.TExpr_Interpolated_String:
@@ -276,12 +383,12 @@ lower_texpr :: proc(expr: semantics.TExpr, env: ^Lower_Env) -> IR_Expr {
 			append(&ir_args, lower_texpr(arg, env))
 		}
 		perf := new(IR_Perform)
-		perf^ = IR_Perform{
+		perf^ = IR_Perform {
 			effect = e.effect,
-			op = e.op,
-			args = ir_args,
-			type = e.type_,
-			span = e.span,
+			op     = e.op,
+			args   = ir_args,
+			type   = e.type_,
+			span   = e.span,
 		}
 		return IR_Expr(perf)
 
@@ -289,7 +396,7 @@ lower_texpr :: proc(expr: semantics.TExpr, env: ^Lower_Env) -> IR_Expr {
 		iterable := lower_texpr(e.iterable, env)
 		body := lower_texpr(e.body, env)
 		loop := new(IR_Loop)
-		loop^ = IR_Loop{
+		loop^ = IR_Loop {
 			var      = e.var,
 			iterable = iterable,
 			body     = body,
@@ -303,7 +410,7 @@ lower_texpr :: proc(expr: semantics.TExpr, env: ^Lower_Env) -> IR_Expr {
 			iterable := lower_texpr(e.for_iter, env)
 			body := lower_texpr(e.for_body, env)
 			loop := new(IR_Loop)
-			loop^ = IR_Loop{
+			loop^ = IR_Loop {
 				var      = e.for_var,
 				iterable = iterable,
 				body     = body,
@@ -316,14 +423,17 @@ lower_texpr :: proc(expr: semantics.TExpr, env: ^Lower_Env) -> IR_Expr {
 		// Named par { name: expr, ... } — lower to IR_Construct_Record
 		if len(e.names) > 0 {
 			fields := make([dynamic]IR_Record_Field, 0, len(e.names))
-			for idx in 0..<len(e.names) {
-				append(&fields, IR_Record_Field{
-					name  = e.names[idx],
-					value = lower_texpr(e.expressions[idx], env),
-				})
+			for idx in 0 ..< len(e.names) {
+				append(
+					&fields,
+					IR_Record_Field {
+						name = e.names[idx],
+						value = lower_texpr(e.expressions[idx], env),
+					},
+				)
 			}
 			record := new(IR_Construct_Record)
-			record^ = IR_Construct_Record{
+			record^ = IR_Construct_Record {
 				fields     = fields,
 				rest       = nil,
 				reuse_addr = NO_REUSE_ADDR,
@@ -339,22 +449,51 @@ lower_texpr :: proc(expr: semantics.TExpr, env: ^Lower_Env) -> IR_Expr {
 			append(&stmts, lower_texpr(expr, env))
 		}
 		block := new(IR_Block)
-		block^ = IR_Block{
+		block^ = IR_Block {
 			statements = stmts,
-			type        = e.type_,
-			span        = e.span,
+			type       = e.type_,
+			span       = e.span,
 		}
 		return IR_Expr(block)
 	}
 
-	return make_ir_lit_int(0, base.IR_Type{wasm_type = .I64, type_id = base.Type_Var_ID(-1)}, base.Source_Span_ZERO)
+	return make_ir_lit_int(
+		0,
+		base.IR_Type{wasm_type = .I64, type_id = base.Type_Var_ID(-1)},
+		base.Source_Span_ZERO,
+	)
 }
 
 lower_tdecl_const :: proc(d: ^semantics.TDecl_Const, env: ^Lower_Env) -> IR_Decl {
 	#partial switch body_expr in d.body {
 	case ^semantics.TExpr_Lambda:
 		return lower_tlambda_as_decl(body_expr, d.name, d.is_effectful, d.span, env)
-	case ^semantics.TExpr_Int, ^semantics.TExpr_Float, ^semantics.TExpr_String, ^semantics.TExpr_Bool, ^semantics.TExpr_Tag, ^semantics.TExpr_Nominal_Construct, ^semantics.TExpr_Record, ^semantics.TExpr_List, ^semantics.TExpr_Name, ^semantics.TExpr_Call, ^semantics.TExpr_Method_Call, ^semantics.TExpr_Block, ^semantics.TExpr_If, ^semantics.TExpr_Match, ^semantics.TExpr_BinOp, ^semantics.TExpr_PrefixOp, ^semantics.TExpr_Field_Access, ^semantics.TExpr_Record_Update, ^semantics.TExpr_Assign, ^semantics.TExpr_Return, ^semantics.TExpr_Crash, ^semantics.TExpr_Interpolated_String, ^semantics.TExpr_Handle, ^semantics.TExpr_Perform, ^semantics.TExpr_For, ^semantics.TExpr_Par:
+	case ^semantics.TExpr_Int,
+	     ^semantics.TExpr_Float,
+	     ^semantics.TExpr_String,
+	     ^semantics.TExpr_Bool,
+	     ^semantics.TExpr_Tag,
+	     ^semantics.TExpr_Nominal_Construct,
+	     ^semantics.TExpr_Record,
+	     ^semantics.TExpr_List,
+	     ^semantics.TExpr_Name,
+	     ^semantics.TExpr_Call,
+	     ^semantics.TExpr_Method_Call,
+	     ^semantics.TExpr_Block,
+	     ^semantics.TExpr_If,
+	     ^semantics.TExpr_Match,
+	     ^semantics.TExpr_BinOp,
+	     ^semantics.TExpr_PrefixOp,
+	     ^semantics.TExpr_Field_Access,
+	     ^semantics.TExpr_Record_Update,
+	     ^semantics.TExpr_Assign,
+	     ^semantics.TExpr_Return,
+	     ^semantics.TExpr_Crash,
+	     ^semantics.TExpr_Interpolated_String,
+	     ^semantics.TExpr_Handle,
+	     ^semantics.TExpr_Perform,
+	     ^semantics.TExpr_For,
+	     ^semantics.TExpr_Par:
 	}
 
 	ir_type := d.type_
@@ -362,30 +501,40 @@ lower_tdecl_const :: proc(d: ^semantics.TDecl_Const, env: ^Lower_Env) -> IR_Decl
 
 	if d.is_effectful {
 		fn_decl := new(IR_Decl_Fn)
-		fn_decl^ = IR_Decl_Fn{
-			name = d.name,
+		fn_decl^ = IR_Decl_Fn {
+			name         = d.name,
 			is_effectful = true,
-			params = make([dynamic]IR_Param, 0, 4),
-			return_type = ir_type,
-			effect_row = d.eff_,
-			effects = extract_effects_from_fn_binding(env.store, d.name, env.module.effect_defs[:]),
-			body = body,
-			span = d.span,
+			params       = make([dynamic]IR_Param, 0, 4),
+			return_type  = ir_type,
+			effect_row   = d.eff_,
+			effects      = extract_effects_from_fn_binding(
+				env.store,
+				d.name,
+				env.module.effect_defs[:],
+			),
+			body         = body,
+			span         = d.span,
 		}
 		return IR_Decl(fn_decl)
 	}
 
 	decl := new(IR_Decl_Const)
-	decl^ = IR_Decl_Const{
-		name = d.name,
-		type = ir_type,
+	decl^ = IR_Decl_Const {
+		name  = d.name,
+		type  = ir_type,
 		value = body,
-		span = d.span,
+		span  = d.span,
 	}
 	return IR_Decl(decl)
 }
 
-lower_tlambda_as_decl :: proc(e: ^semantics.TExpr_Lambda, name: base.Canonical_Name, is_effectful: bool, span: base.Source_Span, env: ^Lower_Env) -> IR_Decl {
+lower_tlambda_as_decl :: proc(
+	e: ^semantics.TExpr_Lambda,
+	name: base.Canonical_Name,
+	is_effectful: bool,
+	span: base.Source_Span,
+	env: ^Lower_Env,
+) -> IR_Decl {
 	params := make([dynamic]IR_Param, 0, len(e.params))
 	for p in e.params {
 		append(&params, IR_Param{name = p.name, type = p.type_})
@@ -400,15 +549,15 @@ lower_tlambda_as_decl :: proc(e: ^semantics.TExpr_Lambda, name: base.Canonical_N
 	effects := extract_effects_from_fn_binding(env.store, name, env.module.effect_defs[:])
 
 	fn_decl := new(IR_Decl_Fn)
-	fn_decl^ = IR_Decl_Fn{
-		name = name,
+	fn_decl^ = IR_Decl_Fn {
+		name         = name,
 		is_effectful = is_effectful,
-		params = params,
-		return_type = e.return_type,
-		effect_row = e.effects,
-		effects = effects,
-		body = body,
-		span = span,
+		params       = params,
+		return_type  = e.return_type,
+		effect_row   = e.effects,
+		effects      = effects,
+		body         = body,
+		span         = span,
 	}
 	return IR_Decl(fn_decl)
 }
@@ -421,10 +570,10 @@ lower_tdecl_effect :: proc(d: ^semantics.TDecl_Effect, env: ^Lower_Env) -> IR_De
 	}
 
 	decl := new(IR_Decl_Effect)
-	decl^ = IR_Decl_Effect{
-		name = d.name,
+	decl^ = IR_Decl_Effect {
+		name       = d.name,
 		operations = ops,
-		span = d.span,
+		span       = d.span,
 	}
 	return IR_Decl(decl)
 }
@@ -448,11 +597,7 @@ lower_teffect_op :: proc(op: semantics.TEffect_Op, env: ^Lower_Env) -> IR_Effect
 		append(&params, IR_Param{name = p.name, type = p.type_})
 	}
 
-	return IR_Effect_Op{
-		name = op.name,
-		params = params,
-		return_type = op.return_type,
-	}
+	return IR_Effect_Op{name = op.name, params = params, return_type = op.return_type}
 }
 
 inject_prelude_effect_defs :: proc(mod: ^IR_Module, store: ^semantics.Type_Store) {
@@ -468,26 +613,51 @@ lower_tcall :: proc(e: ^semantics.TExpr_Call, env: ^Lower_Env) -> IR_Expr {
 			append(&ir_args, lower_texpr(arg, env))
 		}
 		call := new(IR_Call)
-		call^ = IR_Call{
+		call^ = IR_Call {
 			callee = callee_name,
-			args = ir_args,
-			type = e.type_,
-			span = e.span,
+			args   = ir_args,
+			type   = e.type_,
+			span   = e.span,
 		}
 		return IR_Expr(call)
 
-	case ^semantics.TExpr_Int, ^semantics.TExpr_Float, ^semantics.TExpr_String, ^semantics.TExpr_Bool, ^semantics.TExpr_Tag, ^semantics.TExpr_Nominal_Construct, ^semantics.TExpr_Record, ^semantics.TExpr_List, ^semantics.TExpr_Call, ^semantics.TExpr_Method_Call, ^semantics.TExpr_Lambda, ^semantics.TExpr_Block, ^semantics.TExpr_If, ^semantics.TExpr_Match, ^semantics.TExpr_BinOp, ^semantics.TExpr_PrefixOp, ^semantics.TExpr_Field_Access, ^semantics.TExpr_Record_Update, ^semantics.TExpr_Assign, ^semantics.TExpr_Return, ^semantics.TExpr_Crash, ^semantics.TExpr_Interpolated_String, ^semantics.TExpr_Handle, ^semantics.TExpr_Perform, ^semantics.TExpr_For, ^semantics.TExpr_Par:
+	case ^semantics.TExpr_Int,
+	     ^semantics.TExpr_Float,
+	     ^semantics.TExpr_String,
+	     ^semantics.TExpr_Bool,
+	     ^semantics.TExpr_Tag,
+	     ^semantics.TExpr_Nominal_Construct,
+	     ^semantics.TExpr_Record,
+	     ^semantics.TExpr_List,
+	     ^semantics.TExpr_Call,
+	     ^semantics.TExpr_Method_Call,
+	     ^semantics.TExpr_Lambda,
+	     ^semantics.TExpr_Block,
+	     ^semantics.TExpr_If,
+	     ^semantics.TExpr_Match,
+	     ^semantics.TExpr_BinOp,
+	     ^semantics.TExpr_PrefixOp,
+	     ^semantics.TExpr_Field_Access,
+	     ^semantics.TExpr_Record_Update,
+	     ^semantics.TExpr_Assign,
+	     ^semantics.TExpr_Return,
+	     ^semantics.TExpr_Crash,
+	     ^semantics.TExpr_Interpolated_String,
+	     ^semantics.TExpr_Handle,
+	     ^semantics.TExpr_Perform,
+	     ^semantics.TExpr_For,
+	     ^semantics.TExpr_Par:
 		callee_expr := lower_texpr(e.callee, env)
 		ir_args := make([dynamic]IR_Expr, 0, len(e.args))
 		for arg in e.args {
 			append(&ir_args, lower_texpr(arg, env))
 		}
 		ccall := new(IR_Closure_Call)
-		ccall^ = IR_Closure_Call{
+		ccall^ = IR_Closure_Call {
 			callee = callee_expr,
-			args = ir_args,
-			type = e.type_,
-			span = e.span,
+			args   = ir_args,
+			type   = e.type_,
+			span   = e.span,
 		}
 		return IR_Expr(ccall)
 	}
@@ -507,10 +677,35 @@ lower_tmethod_call :: proc(e: ^semantics.TExpr_Method_Call, env: ^Lower_Env) -> 
 	case ^semantics.TExpr_Tag:
 		receiver_effect_name = r.name.name
 		receiver_effect_canonical = r.name
-	case ^semantics.TExpr_Int, ^semantics.TExpr_Float, ^semantics.TExpr_String, ^semantics.TExpr_Bool, ^semantics.TExpr_Nominal_Construct, ^semantics.TExpr_Record, ^semantics.TExpr_List, ^semantics.TExpr_Call, ^semantics.TExpr_Method_Call, ^semantics.TExpr_Lambda, ^semantics.TExpr_Block, ^semantics.TExpr_If, ^semantics.TExpr_Match, ^semantics.TExpr_BinOp, ^semantics.TExpr_PrefixOp, ^semantics.TExpr_Field_Access, ^semantics.TExpr_Record_Update, ^semantics.TExpr_Assign, ^semantics.TExpr_Return, ^semantics.TExpr_Crash, ^semantics.TExpr_Interpolated_String, ^semantics.TExpr_Handle, ^semantics.TExpr_Perform, ^semantics.TExpr_For, ^semantics.TExpr_Par:
+	case ^semantics.TExpr_Int,
+	     ^semantics.TExpr_Float,
+	     ^semantics.TExpr_String,
+	     ^semantics.TExpr_Bool,
+	     ^semantics.TExpr_Nominal_Construct,
+	     ^semantics.TExpr_Record,
+	     ^semantics.TExpr_List,
+	     ^semantics.TExpr_Call,
+	     ^semantics.TExpr_Method_Call,
+	     ^semantics.TExpr_Lambda,
+	     ^semantics.TExpr_Block,
+	     ^semantics.TExpr_If,
+	     ^semantics.TExpr_Match,
+	     ^semantics.TExpr_BinOp,
+	     ^semantics.TExpr_PrefixOp,
+	     ^semantics.TExpr_Field_Access,
+	     ^semantics.TExpr_Record_Update,
+	     ^semantics.TExpr_Assign,
+	     ^semantics.TExpr_Return,
+	     ^semantics.TExpr_Crash,
+	     ^semantics.TExpr_Interpolated_String,
+	     ^semantics.TExpr_Handle,
+	     ^semantics.TExpr_Perform,
+	     ^semantics.TExpr_For,
+	     ^semantics.TExpr_Par:
 	}
 
-	if receiver_effect_name != base.NO_NAME && semantics.is_declared_effect(env.store, receiver_effect_name) {
+	if receiver_effect_name != base.NO_NAME &&
+	   semantics.is_declared_effect(env.store, receiver_effect_name) {
 		ir_args := make([dynamic]IR_Expr, 0, len(e.args))
 		for arg in e.args {
 			append(&ir_args, lower_texpr(arg, env))
@@ -521,7 +716,10 @@ lower_tmethod_call :: proc(e: ^semantics.TExpr_Method_Call, env: ^Lower_Env) -> 
 			if eff_def.name == receiver_effect_canonical {
 				for op_def in eff_def.operations {
 					if op_def.name == e.method.name {
-						resolved_type := semantics.lower_type(env.store, op_def.return_type.type_id)
+						resolved_type := semantics.lower_type(
+							env.store,
+							op_def.return_type.type_id,
+						)
 						perf_type = resolved_type
 						break
 					}
@@ -530,12 +728,12 @@ lower_tmethod_call :: proc(e: ^semantics.TExpr_Method_Call, env: ^Lower_Env) -> 
 			}
 		}
 		perf := new(IR_Perform)
-		perf^ = IR_Perform{
+		perf^ = IR_Perform {
 			effect = receiver_effect_canonical,
-			op = e.method.name,
-			args = ir_args,
-			type = perf_type,
-			span = e.span,
+			op     = e.method.name,
+			args   = ir_args,
+			type   = perf_type,
+			span   = e.span,
 		}
 		return IR_Expr(perf)
 	}
@@ -555,7 +753,28 @@ lower_tmethod_call :: proc(e: ^semantics.TExpr_Method_Call, env: ^Lower_Env) -> 
 		receiver_type_var = r.type_.type_id
 	case ^semantics.TExpr_Call:
 		receiver_type_var = r.type_.type_id
-	case ^semantics.TExpr_Int, ^semantics.TExpr_Float, ^semantics.TExpr_Bool, ^semantics.TExpr_Tag, ^semantics.TExpr_Nominal_Construct, ^semantics.TExpr_Record, ^semantics.TExpr_List, ^semantics.TExpr_Lambda, ^semantics.TExpr_Block, ^semantics.TExpr_If, ^semantics.TExpr_Match, ^semantics.TExpr_BinOp, ^semantics.TExpr_PrefixOp, ^semantics.TExpr_Record_Update, ^semantics.TExpr_Assign, ^semantics.TExpr_Return, ^semantics.TExpr_Crash, ^semantics.TExpr_Interpolated_String, ^semantics.TExpr_Handle, ^semantics.TExpr_Perform, ^semantics.TExpr_For, ^semantics.TExpr_Par:
+	case ^semantics.TExpr_Int,
+	     ^semantics.TExpr_Float,
+	     ^semantics.TExpr_Bool,
+	     ^semantics.TExpr_Tag,
+	     ^semantics.TExpr_Nominal_Construct,
+	     ^semantics.TExpr_Record,
+	     ^semantics.TExpr_List,
+	     ^semantics.TExpr_Lambda,
+	     ^semantics.TExpr_Block,
+	     ^semantics.TExpr_If,
+	     ^semantics.TExpr_Match,
+	     ^semantics.TExpr_BinOp,
+	     ^semantics.TExpr_PrefixOp,
+	     ^semantics.TExpr_Record_Update,
+	     ^semantics.TExpr_Assign,
+	     ^semantics.TExpr_Return,
+	     ^semantics.TExpr_Crash,
+	     ^semantics.TExpr_Interpolated_String,
+	     ^semantics.TExpr_Handle,
+	     ^semantics.TExpr_Perform,
+	     ^semantics.TExpr_For,
+	     ^semantics.TExpr_Par:
 	}
 
 	if receiver_type_var != 0 {
@@ -572,7 +791,7 @@ lower_tmethod_call :: proc(e: ^semantics.TExpr_Method_Call, env: ^Lower_Env) -> 
 						args := make([dynamic]IR_Expr, 0, 1)
 						append(&args, receiver_ir)
 						call := new(IR_Call)
-						call^ = IR_Call{
+						call^ = IR_Call {
 							callee = base.Canonical_Name{module = str_name, name = len_name},
 							args = args,
 							type = e.type_,
@@ -593,29 +812,29 @@ lower_tmethod_call :: proc(e: ^semantics.TExpr_Method_Call, env: ^Lower_Env) -> 
 
 	if e.resolved_.name != 0 {
 		meth_call := new(IR_Call)
-		meth_call^ = IR_Call{
+		meth_call^ = IR_Call {
 			callee = e.resolved_,
-			args = ir_args,
-			type = e.type_,
-			span = e.span,
+			args   = ir_args,
+			type   = e.type_,
+			span   = e.span,
 		}
 		return IR_Expr(meth_call)
 	}
 
 	ccall := new(IR_Closure_Call)
-	ccall^ = IR_Closure_Call{
+	ccall^ = IR_Closure_Call {
 		callee = receiver_ir,
-		args = ir_args,
-		type = e.type_,
-		span = e.span,
+		args   = ir_args,
+		type   = e.type_,
+		span   = e.span,
 	}
 	return IR_Expr(ccall)
 }
 
 lower_tlambda :: proc(e: ^semantics.TExpr_Lambda, env: ^Lower_Env) -> IR_Expr {
-	name := base.Canonical_Name{
-		module = 0,
-		name = fresh_ir_name(env),
+	name := base.Canonical_Name {
+		module   = 0,
+		name     = fresh_ir_name(env),
 		is_local = true,
 	}
 
@@ -629,15 +848,15 @@ lower_tlambda :: proc(e: ^semantics.TExpr_Lambda, env: ^Lower_Env) -> IR_Expr {
 	effects := extract_effects_from_fn_binding(env.store, name, env.module.effect_defs[:])
 
 	fn_decl := new(IR_Decl_Fn)
-	fn_decl^ = IR_Decl_Fn{
-		name = name,
+	fn_decl^ = IR_Decl_Fn {
+		name         = name,
 		is_effectful = false,
-		params = params,
-		return_type = e.return_type,
-		effect_row = e.effects,
-		effects = effects,
-		body = body,
-		span = e.span,
+		params       = params,
+		return_type  = e.return_type,
+		effect_row   = e.effects,
+		effects      = effects,
+		body         = body,
+		span         = e.span,
 	}
 	append(&env.pending_decls, IR_Decl(fn_decl))
 
@@ -647,14 +866,14 @@ lower_tlambda :: proc(e: ^semantics.TExpr_Lambda, env: ^Lower_Env) -> IR_Expr {
 	}
 
 	closure := new(IR_Closure)
-	closure^ = IR_Closure{
-		fn_name = name,
-		params = closure_params,
-		env = IR_Expr(nil),
-		body = body,
-		type = e.type_,
+	closure^ = IR_Closure {
+		fn_name     = name,
+		params      = closure_params,
+		env         = IR_Expr(nil),
+		body        = body,
+		type        = e.type_,
 		return_type = e.return_type,
-		span = e.span,
+		span        = e.span,
 	}
 	return IR_Expr(closure)
 }
@@ -675,12 +894,12 @@ lower_tif :: proc(e: ^semantics.TExpr_If, env: ^Lower_Env) -> IR_Expr {
 	then_ir := lower_texpr(e.then_branch, env)
 	else_ir := lower_texpr(e.else_branch, env)
 	result := new(IR_If)
-	result^ = IR_If{
-		condition = cond_ir,
+	result^ = IR_If {
+		condition   = cond_ir,
 		then_branch = then_ir,
 		else_branch = else_ir,
-		type = e.type_,
-		span = e.span,
+		type        = e.type_,
+		span        = e.span,
 	}
 	return IR_Expr(result)
 }
@@ -688,40 +907,73 @@ lower_tif :: proc(e: ^semantics.TExpr_If, env: ^Lower_Env) -> IR_Expr {
 texpr_type_id :: proc(e: semantics.TExpr) -> base.Type_Var_ID {
 	if e == nil do return base.Type_Var_ID(0)
 	#partial switch expr in e {
-	case ^semantics.TExpr_Int: return expr.type_.type_id
-	case ^semantics.TExpr_Float: return expr.type_.type_id
-	case ^semantics.TExpr_String: return expr.type_.type_id
-	case ^semantics.TExpr_Bool: return expr.type_.type_id
-	case ^semantics.TExpr_Char: return expr.type_.type_id
-	case ^semantics.TExpr_Todo: return expr.type_.type_id
-	case ^semantics.TExpr_Tag: return expr.type_.type_id
-	case ^semantics.TExpr_Nominal_Construct: return expr.resolved_type
-	case ^semantics.TExpr_Record: return expr.type_.type_id
-	case ^semantics.TExpr_List: return expr.type_.type_id
-	case ^semantics.TExpr_Name: return expr.type_.type_id
-	case ^semantics.TExpr_Call: return expr.type_.type_id
-	case ^semantics.TExpr_Method_Call: return expr.type_.type_id
-	case ^semantics.TExpr_Lambda: return expr.type_.type_id
-	case ^semantics.TExpr_Block: return expr.type_.type_id
-	case ^semantics.TExpr_If: return expr.type_.type_id
-	case ^semantics.TExpr_Match: return expr.type_.type_id
-	case ^semantics.TExpr_BinOp: return expr.type_.type_id
-	case ^semantics.TExpr_PrefixOp: return expr.type_.type_id
-	case ^semantics.TExpr_Field_Access: return expr.type_.type_id
-	case ^semantics.TExpr_Record_Update: return expr.type_.type_id
-	case ^semantics.TExpr_Assign: return expr.type_.type_id
-	case ^semantics.TExpr_Return: return expr.type_.type_id
-	case ^semantics.TExpr_Crash: return expr.type_.type_id
-	case ^semantics.TExpr_Interpolated_String: return expr.type_.type_id
-	case ^semantics.TExpr_Handle: return expr.type_.type_id
-	case ^semantics.TExpr_Perform: return expr.type_.type_id
-	case ^semantics.TExpr_For: return expr.type_.type_id
-	case ^semantics.TExpr_Par: return expr.type_.type_id
+	case ^semantics.TExpr_Int:
+		return expr.type_.type_id
+	case ^semantics.TExpr_Float:
+		return expr.type_.type_id
+	case ^semantics.TExpr_String:
+		return expr.type_.type_id
+	case ^semantics.TExpr_Bool:
+		return expr.type_.type_id
+	case ^semantics.TExpr_Char:
+		return expr.type_.type_id
+	case ^semantics.TExpr_Todo:
+		return expr.type_.type_id
+	case ^semantics.TExpr_Tag:
+		return expr.type_.type_id
+	case ^semantics.TExpr_Nominal_Construct:
+		return expr.resolved_type
+	case ^semantics.TExpr_Record:
+		return expr.type_.type_id
+	case ^semantics.TExpr_List:
+		return expr.type_.type_id
+	case ^semantics.TExpr_Name:
+		return expr.type_.type_id
+	case ^semantics.TExpr_Call:
+		return expr.type_.type_id
+	case ^semantics.TExpr_Method_Call:
+		return expr.type_.type_id
+	case ^semantics.TExpr_Lambda:
+		return expr.type_.type_id
+	case ^semantics.TExpr_Block:
+		return expr.type_.type_id
+	case ^semantics.TExpr_If:
+		return expr.type_.type_id
+	case ^semantics.TExpr_Match:
+		return expr.type_.type_id
+	case ^semantics.TExpr_BinOp:
+		return expr.type_.type_id
+	case ^semantics.TExpr_PrefixOp:
+		return expr.type_.type_id
+	case ^semantics.TExpr_Field_Access:
+		return expr.type_.type_id
+	case ^semantics.TExpr_Record_Update:
+		return expr.type_.type_id
+	case ^semantics.TExpr_Assign:
+		return expr.type_.type_id
+	case ^semantics.TExpr_Return:
+		return expr.type_.type_id
+	case ^semantics.TExpr_Crash:
+		return expr.type_.type_id
+	case ^semantics.TExpr_Interpolated_String:
+		return expr.type_.type_id
+	case ^semantics.TExpr_Handle:
+		return expr.type_.type_id
+	case ^semantics.TExpr_Perform:
+		return expr.type_.type_id
+	case ^semantics.TExpr_For:
+		return expr.type_.type_id
+	case ^semantics.TExpr_Par:
+		return expr.type_.type_id
 	}
 	return base.Type_Var_ID(0)
 }
 
-resolve_tag_payload_wasm_types :: proc(store: ^semantics.Type_Store, scrutinee_type_id: base.Type_Var_ID, tag_name: base.Intern_ID) -> []base.IR_Wasm_Type {
+resolve_tag_payload_wasm_types :: proc(
+	store: ^semantics.Type_Store,
+	scrutinee_type_id: base.Type_Var_ID,
+	tag_name: base.Intern_ID,
+) -> []base.IR_Wasm_Type {
 	if scrutinee_type_id == base.Type_Var_ID(0) {
 		return nil
 	}
@@ -738,7 +990,7 @@ resolve_tag_payload_wasm_types :: proc(store: ^semantics.Type_Store, scrutinee_t
 		for entry in vi.tag_entries {
 			if entry.name == tag_name {
 				types := make([]base.IR_Wasm_Type, len(entry.payload))
-				for i in 0..<len(entry.payload) {
+				for i in 0 ..< len(entry.payload) {
 					types[i] = semantics.lower_type(store, entry.payload[i]).wasm_type
 				}
 				return types
@@ -752,23 +1004,27 @@ lower_tmatch :: proc(e: ^semantics.TExpr_Match, env: ^Lower_Env) -> IR_Expr {
 	scrut_ir := lower_texpr(e.scrutinee, env)
 	scrutinee_type_id := texpr_type_id(e.scrutinee)
 	arms := make([dynamic]IR_Match_Arm, len(e.arms))
-	for i in 0..<len(e.arms) {
-		arms[i] = IR_Match_Arm{
+	for i in 0 ..< len(e.arms) {
+		arms[i] = IR_Match_Arm {
 			pattern = lower_tpattern(e.arms[i].pattern, env, scrutinee_type_id),
-			body = lower_texpr(e.arms[i].body, env),
+			body    = lower_texpr(e.arms[i].body, env),
 		}
 	}
 	result := new(IR_Match)
-	result^ = IR_Match{
+	result^ = IR_Match {
 		scrutinee = scrut_ir,
-		arms = arms,
-		type = e.type_,
-		span = e.span,
+		arms      = arms,
+		type      = e.type_,
+		span      = e.span,
 	}
 	return IR_Expr(result)
 }
 
-lower_tpattern :: proc(pattern: semantics.TPattern, env: ^Lower_Env, scrutinee_type_id: base.Type_Var_ID = base.Type_Var_ID(0)) -> IR_Pattern {
+lower_tpattern :: proc(
+	pattern: semantics.TPattern,
+	env: ^Lower_Env,
+	scrutinee_type_id: base.Type_Var_ID = base.Type_Var_ID(0),
+) -> IR_Pattern {
 	switch p in pattern {
 	case ^semantics.TPattern_Tag:
 		payload_ids := make([dynamic]base.Intern_ID, 0, len(p.payload))
@@ -776,21 +1032,33 @@ lower_tpattern :: proc(pattern: semantics.TPattern, env: ^Lower_Env, scrutinee_t
 			#partial switch s in sub {
 			case ^semantics.TPattern_Identifier:
 				append(&payload_ids, s.name)
-			case ^semantics.TPattern_Tag, ^semantics.TPattern_Record, ^semantics.TPattern_List, ^semantics.TPattern_Int, ^semantics.TPattern_String, ^semantics.TPattern_Bool, ^semantics.TPattern_Wildcard, ^semantics.TPattern_Destructure, ^semantics.TPattern_Or:
+			case ^semantics.TPattern_Tag,
+			     ^semantics.TPattern_Record,
+			     ^semantics.TPattern_List,
+			     ^semantics.TPattern_Int,
+			     ^semantics.TPattern_String,
+			     ^semantics.TPattern_Bool,
+			     ^semantics.TPattern_Wildcard,
+			     ^semantics.TPattern_Destructure,
+			     ^semantics.TPattern_Or:
 				append(&payload_ids, base.Intern_ID(0))
 			}
 		}
 		result := new(IR_Pat_Tag)
 		result.name = p.name.name
 		result.payload = payload_ids
-		result.payload_wasm_types = resolve_tag_payload_wasm_types(env.store, scrutinee_type_id, p.name.name)
+		result.payload_wasm_types = resolve_tag_payload_wasm_types(
+			env.store,
+			scrutinee_type_id,
+			p.name.name,
+		)
 		return IR_Pattern(result)
 
 	case ^semantics.TPattern_Record:
 		fields_ir := make([dynamic]IR_Pat_Field, len(p.fields))
-		for i in 0..<len(p.fields) {
-			fields_ir[i] = IR_Pat_Field{
-				name = p.fields[i].name,
+		for i in 0 ..< len(p.fields) {
+			fields_ir[i] = IR_Pat_Field {
+				name    = p.fields[i].name,
 				binding = p.fields[i].binding,
 			}
 		}
@@ -890,20 +1158,34 @@ lower_tpattern :: proc(pattern: semantics.TPattern, env: ^Lower_Env, scrutinee_t
 
 lower_binop_kind :: proc(op: base.Token_Kind) -> IR_BinOp_Kind {
 	#partial switch op {
-	case .Plus:      return .Add
-	case .Minus:     return .Sub
-	case .Star:      return .Mul
-	case .Slash:     return .Div
-	case .Percent:   return .Mod
-	case .Caret:     return .Exp
-	case .Eq_Eq:     return .Eq
-	case .Bang_Eq:   return .Ne
-	case .Lt:        return .Lt
-	case .Gt:        return .Gt
-	case .Lt_Eq:     return .Le
-	case .Gt_Eq:     return .Ge
-	case .Kw_And:    return .And
-	case .Kw_Or:     return .Or
+	case .Plus:
+		return .Add
+	case .Minus:
+		return .Sub
+	case .Star:
+		return .Mul
+	case .Slash:
+		return .Div
+	case .Percent:
+		return .Mod
+	case .Caret:
+		return .Exp
+	case .Eq_Eq:
+		return .Eq
+	case .Bang_Eq:
+		return .Ne
+	case .Lt:
+		return .Lt
+	case .Gt:
+		return .Gt
+	case .Lt_Eq:
+		return .Le
+	case .Gt_Eq:
+		return .Ge
+	case .Kw_And:
+		return .And
+	case .Kw_Or:
+		return .Or
 	}
 	return .Add
 }
@@ -926,7 +1208,7 @@ lower_tbinop :: proc(e: ^semantics.TExpr_BinOp, env: ^Lower_Env) -> IR_Expr {
 					call := new(IR_Call)
 					str_name := base.intern(env.interner, "Str")
 					concat_name := base.intern(env.interner, "concat")
-					call^ = IR_Call{
+					call^ = IR_Call {
 						callee = base.Canonical_Name{module = str_name, name = concat_name},
 						args = args,
 						type = e.type_,
@@ -941,12 +1223,12 @@ lower_tbinop :: proc(e: ^semantics.TExpr_BinOp, env: ^Lower_Env) -> IR_Expr {
 	left_ir := lower_texpr(e.left, env)
 	right_ir := lower_texpr(e.right, env)
 	result := new(IR_BinOp)
-	result^ = IR_BinOp{
-		op = lower_binop_kind(e.op),
-		left = left_ir,
+	result^ = IR_BinOp {
+		op    = lower_binop_kind(e.op),
+		left  = left_ir,
 		right = right_ir,
-		type = e.type_,
-		span = e.span,
+		type  = e.type_,
+		span  = e.span,
 	}
 	return IR_Expr(result)
 }
@@ -958,20 +1240,94 @@ lower_tprefixop :: proc(e: ^semantics.TExpr_PrefixOp, env: ^Lower_Env) -> IR_Exp
 	case .Kw_Not:
 		false_lit := make_ir_lit_bool(false, e.type_, e.span)
 		binop := new(IR_BinOp)
-		binop^ = IR_BinOp{op = .Eq, left = operand_ir, right = false_lit, type = e.type_, span = e.span}
+		binop^ = IR_BinOp {
+			op    = .Eq,
+			left  = operand_ir,
+			right = false_lit,
+			type  = e.type_,
+			span  = e.span,
+		}
 		return IR_Expr(binop)
 	case .Minus:
 		zero_lit := make_ir_lit_int(0, e.type_, e.span)
 		binop := new(IR_BinOp)
-		binop^ = IR_BinOp{op = .Sub, left = zero_lit, right = operand_ir, type = e.type_, span = e.span}
+		binop^ = IR_BinOp {
+			op    = .Sub,
+			left  = zero_lit,
+			right = operand_ir,
+			type  = e.type_,
+			span  = e.span,
+		}
 		return IR_Expr(binop)
-	case .Int_Literal, .Float_Literal, .String_Literal, .Interpolated_String_Literal, .Identifier, .Upper_Id, .Kw_If, .Kw_Else, .Kw_Match, .Kw_Is, .Kw_Derives, .Kw_Handle, .Kw_In, .Kw_With, .Kw_Import, .Kw_As, .Kw_For, .Kw_And, .Kw_Or, .Kw_Expect, .Kw_Test, .Kw_Pub, .Kw_Self, .Kw_Par, .Kw_Where, .Pipe, .Arrow, .Fat_Arrow, .Eq, .Colon_Eq, .Colon, .Comma, .Dot, .Dot_Dot, .Dollar, .Hash, .At, .Lt, .Gt, .Lt_Eq, .Gt_Eq, .Eq_Eq, .Bang_Eq, .Plus, .Star, .Slash, .Percent, .Amp, .Caret, .Tilde, .Backslash, .LParen, .RParen, .LBrack, .RBrack, .LBrace, .RBrace, .Newline, .Eof:
+	case .Int_Literal,
+	     .Float_Literal,
+	     .String_Literal,
+	     .Interpolated_String_Literal,
+	     .Identifier,
+	     .Upper_Id,
+	     .Kw_If,
+	     .Kw_Else,
+	     .Kw_Match,
+	     .Kw_Is,
+	     .Kw_Derives,
+	     .Kw_Handle,
+	     .Kw_In,
+	     .Kw_With,
+	     .Kw_Import,
+	     .Kw_As,
+	     .Kw_For,
+	     .Kw_And,
+	     .Kw_Or,
+	     .Kw_Expect,
+	     .Kw_Test,
+	     .Kw_Pub,
+	     .Kw_Self,
+	     .Kw_Par,
+	     .Kw_Where,
+	     .Pipe,
+	     .Arrow,
+	     .Fat_Arrow,
+	     .Eq,
+	     .Colon_Eq,
+	     .Colon,
+	     .Comma,
+	     .Dot,
+	     .Dot_Dot,
+	     .Dollar,
+	     .Hash,
+	     .At,
+	     .Lt,
+	     .Gt,
+	     .Lt_Eq,
+	     .Gt_Eq,
+	     .Eq_Eq,
+	     .Bang_Eq,
+	     .Plus,
+	     .Star,
+	     .Slash,
+	     .Percent,
+	     .Amp,
+	     .Caret,
+	     .Tilde,
+	     .Backslash,
+	     .LParen,
+	     .RParen,
+	     .LBrack,
+	     .RBrack,
+	     .LBrace,
+	     .RBrace,
+	     .Newline,
+	     .Eof:
 		return operand_ir
 	}
 	return operand_ir
 }
 
-resolve_tag_index :: proc(store: ^semantics.Type_Store, type_var: base.Type_Var_ID, tag_name: base.Intern_ID) -> int {
+resolve_tag_index :: proc(
+	store: ^semantics.Type_Store,
+	type_var: base.Type_Var_ID,
+	tag_name: base.Intern_ID,
+) -> int {
 	resolved := semantics.resolve_var(store, type_var)
 	v := store.vars[int(resolved)]
 	inf, is_inf := v.link.(semantics.Inferred_Type)
@@ -998,13 +1354,13 @@ lower_ttag :: proc(e: ^semantics.TExpr_Tag, env: ^Lower_Env) -> IR_Expr {
 	}
 	tag_index := resolve_tag_index(env.store, e.type_.type_id, e.name.name)
 	result := new(IR_Construct_Tag)
-	result^ = IR_Construct_Tag{
-		tag_name = e.name.name,
-		tag_index = tag_index,
-		payload = payload,
+	result^ = IR_Construct_Tag {
+		tag_name   = e.name.name,
+		tag_index  = tag_index,
+		payload    = payload,
 		reuse_addr = NO_REUSE_ADDR,
-		type = e.type_,
-		span = e.span,
+		type       = e.type_,
+		span       = e.span,
 	}
 	return IR_Expr(result)
 }
@@ -1016,12 +1372,12 @@ lower_trecord :: proc(e: ^semantics.TExpr_Record, env: ^Lower_Env) -> IR_Expr {
 	}
 	rest := lower_texpr(e.rest, env)
 	result := new(IR_Construct_Record)
-	result^ = IR_Construct_Record{
-		fields = fields,
-		rest = rest,
+	result^ = IR_Construct_Record {
+		fields     = fields,
+		rest       = rest,
 		reuse_addr = NO_REUSE_ADDR,
-		type = e.type_,
-		span = e.span,
+		type       = e.type_,
+		span       = e.span,
 	}
 	return IR_Expr(result)
 }
@@ -1029,11 +1385,11 @@ lower_trecord :: proc(e: ^semantics.TExpr_Record, env: ^Lower_Env) -> IR_Expr {
 lower_tfield_access :: proc(e: ^semantics.TExpr_Field_Access, env: ^Lower_Env) -> IR_Expr {
 	record_ir := lower_texpr(e.record, env)
 	result := new(IR_Field_Access)
-	result^ = IR_Field_Access{
+	result^ = IR_Field_Access {
 		record = record_ir,
-		field = e.field,
-		type = e.type_,
-		span = e.span,
+		field  = e.field,
+		type   = e.type_,
+		span   = e.span,
 	}
 	return IR_Expr(result)
 }
@@ -1045,32 +1401,51 @@ lower_trecord_update :: proc(e: ^semantics.TExpr_Record_Update, env: ^Lower_Env)
 		append(&fields, IR_Record_Field{name = f.name, value = lower_texpr(f.value, env)})
 	}
 	result := new(IR_Construct_Record)
-	result^ = IR_Construct_Record{
-		fields = fields,
-		rest = rest_ir,
+	result^ = IR_Construct_Record {
+		fields     = fields,
+		rest       = rest_ir,
 		reuse_addr = NO_REUSE_ADDR,
-		type = e.type_,
-		span = e.span,
+		type       = e.type_,
+		span       = e.span,
 	}
 	return IR_Expr(result)
 }
 
-lower_tinterpolated_string :: proc(e: ^semantics.TExpr_Interpolated_String, env: ^Lower_Env) -> IR_Expr {
+lower_tinterpolated_string :: proc(
+	e: ^semantics.TExpr_Interpolated_String,
+	env: ^Lower_Env,
+) -> IR_Expr {
 	if len(e.parts) == 0 {
 		lit := new(IR_Literal_String)
-		lit^ = IR_Literal_String{value = "", type = e.type_, span = e.span}
+		lit^ = IR_Literal_String {
+			value = "",
+			type  = e.type_,
+			span  = e.span,
+		}
 		return IR_Expr(lit)
 	}
 
 	str_name_id := base.intern(env.interner, "Str")
 	concat_name := base.intern(env.interner, "concat")
 
-	lower_part :: proc(part: semantics.TExpr_String_Part, env: ^Lower_Env, str_type: base.IR_Type, span: base.Source_Span) -> IR_Expr {
+	lower_part :: proc(
+		part: semantics.TExpr_String_Part,
+		env: ^Lower_Env,
+		str_type: base.IR_Type,
+		span: base.Source_Span,
+	) -> IR_Expr {
 		switch p in part {
 		case ^semantics.TExpr_String_Literal:
 			lit := new(IR_Literal_String)
-			lit^ = IR_Literal_String{value = p.value, type = p.type_, span = p.span}
-			append(&env.module.string_table, String_Table_Entry{id = fresh_ir_name(env), value = p.value})
+			lit^ = IR_Literal_String {
+				value = p.value,
+				type  = p.type_,
+				span  = p.span,
+			}
+			append(
+				&env.module.string_table,
+				String_Table_Entry{id = fresh_ir_name(env), value = p.value},
+			)
 			return IR_Expr(lit)
 		case ^semantics.TExpr_String_Expr:
 			inner := lower_texpr(p.expr, env)
@@ -1078,17 +1453,21 @@ lower_tinterpolated_string :: proc(e: ^semantics.TExpr_Interpolated_String, env:
 				args := make([dynamic]IR_Expr, 0, 1)
 				append(&args, inner)
 				call := new(IR_Call)
-				call^ = IR_Call{
+				call^ = IR_Call {
 					callee = p.display_impl,
-					args = args,
-					type = str_type,
-					span = span,
+					args   = args,
+					type   = str_type,
+					span   = span,
 				}
 				return IR_Expr(call)
 			}
 			return inner
 		}
-		return make_ir_lit_int(0, base.IR_Type{wasm_type = .I64, type_id = base.Type_Var_ID(-1)}, base.Source_Span_ZERO)
+		return make_ir_lit_int(
+			0,
+			base.IR_Type{wasm_type = .I64, type_id = base.Type_Var_ID(-1)},
+			base.Source_Span_ZERO,
+		)
 	}
 
 	result := lower_part(e.parts[0], env, e.type_, e.span)
@@ -1098,7 +1477,7 @@ lower_tinterpolated_string :: proc(e: ^semantics.TExpr_Interpolated_String, env:
 		append(&args, result)
 		append(&args, right)
 		call := new(IR_Call)
-		call^ = IR_Call{
+		call^ = IR_Call {
 			callee = base.Canonical_Name{module = str_name_id, name = concat_name},
 			args = args,
 			type = e.type_,
@@ -1112,20 +1491,20 @@ lower_tinterpolated_string :: proc(e: ^semantics.TExpr_Interpolated_String, env:
 lower_thandle :: proc(e: ^semantics.TExpr_Handle, env: ^Lower_Env) -> IR_Expr {
 	body_ir := lower_texpr(e.body, env)
 	arms := make([dynamic]IR_Handler_Arm, len(e.arms))
-	for i in 0..<len(e.arms) {
-		arms[i] = IR_Handler_Arm{
-			op = e.arms[i].op,
+	for i in 0 ..< len(e.arms) {
+		arms[i] = IR_Handler_Arm {
+			op     = e.arms[i].op,
 			params = e.arms[i].params,
-			body = lower_texpr(e.arms[i].body, env),
+			body   = lower_texpr(e.arms[i].body, env),
 		}
 	}
 	result := new(IR_Handle)
-		result^ = IR_Handle{
+	result^ = IR_Handle {
 		effects = e.effects,
-		body = body_ir,
-		arms = arms,
-		type = e.type_,
-		span = e.span,
+		body    = body_ir,
+		arms    = arms,
+		type    = e.type_,
+		span    = e.span,
 	}
 	return IR_Expr(result)
 }
@@ -1141,13 +1520,13 @@ lower_tlist :: proc(e: ^semantics.TExpr_List, env: ^Lower_Env) -> IR_Expr {
 		result = lower_texpr(e.rest, env)
 	} else {
 		nil_tag := new(IR_Construct_Tag)
-		nil_tag^ = IR_Construct_Tag{
-			tag_name = nil_name,
-			tag_index = nil_index,
-			payload = make([dynamic]IR_Expr, 0),
+		nil_tag^ = IR_Construct_Tag {
+			tag_name   = nil_name,
+			tag_index  = nil_index,
+			payload    = make([dynamic]IR_Expr, 0),
 			reuse_addr = NO_REUSE_ADDR,
-			type = e.type_,
-			span = e.span,
+			type       = e.type_,
+			span       = e.span,
 		}
 		result = IR_Expr(nil_tag)
 	}
@@ -1158,17 +1537,16 @@ lower_tlist :: proc(e: ^semantics.TExpr_List, env: ^Lower_Env) -> IR_Expr {
 		append(&cons_payload, elem)
 		append(&cons_payload, result)
 		cons_tag := new(IR_Construct_Tag)
-		cons_tag^ = IR_Construct_Tag{
-			tag_name = cons_name,
-			tag_index = cons_index,
-			payload = cons_payload,
+		cons_tag^ = IR_Construct_Tag {
+			tag_name   = cons_name,
+			tag_index  = cons_index,
+			payload    = cons_payload,
 			reuse_addr = NO_REUSE_ADDR,
-			type = e.type_,
-			span = e.span,
+			type       = e.type_,
+			span       = e.span,
 		}
 		result = IR_Expr(cons_tag)
 	}
 	return result
 }
-
 

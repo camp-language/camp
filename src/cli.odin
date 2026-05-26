@@ -13,12 +13,18 @@ CLI_Command :: enum {
 
 parse_command :: proc(cmd: string) -> (CLI_Command, bool) {
 	switch cmd {
-	case "build": return .Build, true
-	case "test":  return .Test, true
-	case "fmt":   return .Fmt, true
-	case "check": return .Check, true
-	case "lsp":   return .Lsp, true
-	case:         return .Build, false
+	case "build":
+		return .Build, true
+	case "test":
+		return .Test, true
+	case "fmt":
+		return .Fmt, true
+	case "check":
+		return .Check, true
+	case "lsp":
+		return .Lsp, true
+	case:
+		return .Build, false
 	}
 }
 
@@ -37,3 +43,4 @@ run_test :: proc(args: []string) {
 		os.exit(failed.code)
 	}
 }
+

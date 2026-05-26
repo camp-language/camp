@@ -1,13 +1,13 @@
 package camp
 
-import "core:fmt"
-import "core:testing"
 import "camp:base"
-import "camp:frontend"
-import "camp:semantics"
-import "camp:mono"
 import "camp:build"
 import "camp:diagnostics"
+import "camp:frontend"
+import "camp:mono"
+import "camp:semantics"
+import "core:fmt"
+import "core:testing"
 
 setup_type_store :: proc() -> (semantics.Type_Store, ^diagnostics.Diagnostic_Collector) {
 	store: semantics.Type_Store
@@ -19,7 +19,10 @@ setup_type_store :: proc() -> (semantics.Type_Store, ^diagnostics.Diagnostic_Col
 	return store, collector
 }
 
-teardown_type_store :: proc(store: ^semantics.Type_Store, collector: ^diagnostics.Diagnostic_Collector) {
+teardown_type_store :: proc(
+	store: ^semantics.Type_Store,
+	collector: ^diagnostics.Diagnostic_Collector,
+) {
 	base.intern_destroy(store.interner)
 	free(store.interner)
 	semantics.type_store_destroy(store)
@@ -113,7 +116,10 @@ Test_Options :: struct {
 	with_prelude: bool,
 }
 
-setup_for_typecheck :: proc(source: string, opts: Test_Options = {}) -> (
+setup_for_typecheck :: proc(
+	source: string,
+	opts: Test_Options = {},
+) -> (
 	store: ^semantics.Type_Store,
 	ctx: ^build.Compilation_Context,
 	tfile: semantics.TFile,
@@ -122,7 +128,11 @@ setup_for_typecheck :: proc(source: string, opts: Test_Options = {}) -> (
 	alloc := build.context_init(ctx)
 	context.allocator = alloc
 
-	file := base.Source_File{path = "<tc-test>", contents = source, id = 0}
+	file := base.Source_File {
+		path     = "<tc-test>",
+		contents = source,
+		id       = 0,
+	}
 	lexer: frontend.Lexer
 	frontend.lexer_init(&lexer, file, &ctx.collector, &ctx.interner)
 
@@ -147,7 +157,11 @@ typecheck_into_store :: proc(
 	ctx: ^build.Compilation_Context,
 	module_id: base.Intern_ID = base.NO_NAME,
 ) -> semantics.TFile {
-	file := base.Source_File{path = "<tc-test>", contents = source, id = 0}
+	file := base.Source_File {
+		path     = "<tc-test>",
+		contents = source,
+		id       = 0,
+	}
 	lexer: frontend.Lexer
 	frontend.lexer_init(&lexer, file, &ctx.collector, &ctx.interner)
 
@@ -272,11 +286,11 @@ test_unify_function_same_arity :: proc(t: ^testing.T) {
 	params_a := semantics.store_alloc(&store, base.Type_Var_ID, 1)
 	params_a[0] = param_a
 	fn_a := semantics.fresh_value_var(&store, base.Source_Span_ZERO)
-	semantics.link_var(&store, fn_a, semantics.Inferred_Function{
-		param_ids = params_a,
-		return_id = ret_a,
-		effect_id = eff_a,
-	})
+	semantics.link_var(
+		&store,
+		fn_a,
+		semantics.Inferred_Function{param_ids = params_a, return_id = ret_a, effect_id = eff_a},
+	)
 
 	param_b := semantics.make_primitive_type(&store, i64_name, base.Source_Span_ZERO)
 	ret_b := semantics.make_primitive_type(&store, str_name, base.Source_Span_ZERO)
@@ -284,11 +298,11 @@ test_unify_function_same_arity :: proc(t: ^testing.T) {
 	params_b := semantics.store_alloc(&store, base.Type_Var_ID, 1)
 	params_b[0] = param_b
 	fn_b := semantics.fresh_value_var(&store, base.Source_Span_ZERO)
-	semantics.link_var(&store, fn_b, semantics.Inferred_Function{
-		param_ids = params_b,
-		return_id = ret_b,
-		effect_id = eff_b,
-	})
+	semantics.link_var(
+		&store,
+		fn_b,
+		semantics.Inferred_Function{param_ids = params_b, return_id = ret_b, effect_id = eff_b},
+	)
 
 	ok := semantics.unify(&store, fn_a, fn_b)
 	testing.expect(t, ok)
@@ -305,11 +319,11 @@ test_unify_function_arity_mismatch :: proc(t: ^testing.T) {
 	ret_a := semantics.fresh_value_var(&store, base.Source_Span_ZERO)
 	eff_a := semantics.fresh_effect_row(&store, base.Source_Span_ZERO)
 	fn_a := semantics.fresh_value_var(&store, base.Source_Span_ZERO)
-	semantics.link_var(&store, fn_a, semantics.Inferred_Function{
-		param_ids = params_a,
-		return_id = ret_a,
-		effect_id = eff_a,
-	})
+	semantics.link_var(
+		&store,
+		fn_a,
+		semantics.Inferred_Function{param_ids = params_a, return_id = ret_a, effect_id = eff_a},
+	)
 
 	params_b := semantics.store_alloc(&store, base.Type_Var_ID, 2)
 	params_b[0] = semantics.make_primitive_type(&store, i64_name, base.Source_Span_ZERO)
@@ -317,11 +331,11 @@ test_unify_function_arity_mismatch :: proc(t: ^testing.T) {
 	ret_b := semantics.fresh_value_var(&store, base.Source_Span_ZERO)
 	eff_b := semantics.fresh_effect_row(&store, base.Source_Span_ZERO)
 	fn_b := semantics.fresh_value_var(&store, base.Source_Span_ZERO)
-	semantics.link_var(&store, fn_b, semantics.Inferred_Function{
-		param_ids = params_b,
-		return_id = ret_b,
-		effect_id = eff_b,
-	})
+	semantics.link_var(
+		&store,
+		fn_b,
+		semantics.Inferred_Function{param_ids = params_b, return_id = ret_b, effect_id = eff_b},
+	)
 
 	ok := semantics.unify(&store, fn_a, fn_b)
 	testing.expect(t, !ok)
@@ -340,22 +354,22 @@ test_unify_function_param_mismatch :: proc(t: ^testing.T) {
 	ret_a := semantics.fresh_value_var(&store, base.Source_Span_ZERO)
 	eff_a := semantics.fresh_effect_row(&store, base.Source_Span_ZERO)
 	fn_a := semantics.fresh_value_var(&store, base.Source_Span_ZERO)
-	semantics.link_var(&store, fn_a, semantics.Inferred_Function{
-		param_ids = params_a,
-		return_id = ret_a,
-		effect_id = eff_a,
-	})
+	semantics.link_var(
+		&store,
+		fn_a,
+		semantics.Inferred_Function{param_ids = params_a, return_id = ret_a, effect_id = eff_a},
+	)
 
 	params_b := semantics.store_alloc(&store, base.Type_Var_ID, 1)
 	params_b[0] = semantics.make_primitive_type(&store, str_name, base.Source_Span_ZERO)
 	ret_b := semantics.fresh_value_var(&store, base.Source_Span_ZERO)
 	eff_b := semantics.fresh_effect_row(&store, base.Source_Span_ZERO)
 	fn_b := semantics.fresh_value_var(&store, base.Source_Span_ZERO)
-	semantics.link_var(&store, fn_b, semantics.Inferred_Function{
-		param_ids = params_b,
-		return_id = ret_b,
-		effect_id = eff_b,
-	})
+	semantics.link_var(
+		&store,
+		fn_b,
+		semantics.Inferred_Function{param_ids = params_b, return_id = ret_b, effect_id = eff_b},
+	)
 
 	ok := semantics.unify(&store, fn_a, fn_b)
 	testing.expect(t, !ok)
@@ -370,22 +384,30 @@ test_unify_effect_row_same_effects :: proc(t: ^testing.T) {
 	console_name := base.intern(store.interner, "Console")
 
 	eff_entries_a := semantics.store_alloc(&store, semantics.Effect_Row_Entry, 1)
-	eff_entries_a[0] = semantics.Effect_Row_Entry{name = console_name, type_args = {}}
+	eff_entries_a[0] = semantics.Effect_Row_Entry {
+		name      = console_name,
+		type_args = {},
+	}
 	rest_a := semantics.fresh_effect_row(&store, base.Source_Span_ZERO)
 	row_a := semantics.fresh_effect_row(&store, base.Source_Span_ZERO)
-	semantics.link_var(&store, row_a, semantics.Inferred_Effect_Row{
-		effects = eff_entries_a,
-		rest_id = rest_a,
-	})
+	semantics.link_var(
+		&store,
+		row_a,
+		semantics.Inferred_Effect_Row{effects = eff_entries_a, rest_id = rest_a},
+	)
 
 	eff_entries_b := semantics.store_alloc(&store, semantics.Effect_Row_Entry, 1)
-	eff_entries_b[0] = semantics.Effect_Row_Entry{name = console_name, type_args = {}}
+	eff_entries_b[0] = semantics.Effect_Row_Entry {
+		name      = console_name,
+		type_args = {},
+	}
 	rest_b := semantics.fresh_effect_row(&store, base.Source_Span_ZERO)
 	row_b := semantics.fresh_effect_row(&store, base.Source_Span_ZERO)
-	semantics.link_var(&store, row_b, semantics.Inferred_Effect_Row{
-		effects = eff_entries_b,
-		rest_id = rest_b,
-	})
+	semantics.link_var(
+		&store,
+		row_b,
+		semantics.Inferred_Effect_Row{effects = eff_entries_b, rest_id = rest_b},
+	)
 
 	ok := semantics.unify(&store, row_a, row_b)
 	testing.expect(t, ok)
@@ -400,22 +422,30 @@ test_unify_effect_row_different_effects :: proc(t: ^testing.T) {
 	file_name := base.intern(store.interner, "File")
 
 	eff_entries_a := semantics.store_alloc(&store, semantics.Effect_Row_Entry, 1)
-	eff_entries_a[0] = semantics.Effect_Row_Entry{name = console_name, type_args = {}}
+	eff_entries_a[0] = semantics.Effect_Row_Entry {
+		name      = console_name,
+		type_args = {},
+	}
 	rest_a := semantics.fresh_effect_row(&store, base.Source_Span_ZERO)
 	row_a := semantics.fresh_effect_row(&store, base.Source_Span_ZERO)
-	semantics.link_var(&store, row_a, semantics.Inferred_Effect_Row{
-		effects = eff_entries_a,
-		rest_id = rest_a,
-	})
+	semantics.link_var(
+		&store,
+		row_a,
+		semantics.Inferred_Effect_Row{effects = eff_entries_a, rest_id = rest_a},
+	)
 
 	eff_entries_b := semantics.store_alloc(&store, semantics.Effect_Row_Entry, 1)
-	eff_entries_b[0] = semantics.Effect_Row_Entry{name = file_name, type_args = {}}
+	eff_entries_b[0] = semantics.Effect_Row_Entry {
+		name      = file_name,
+		type_args = {},
+	}
 	rest_b := semantics.fresh_effect_row(&store, base.Source_Span_ZERO)
 	row_b := semantics.fresh_effect_row(&store, base.Source_Span_ZERO)
-	semantics.link_var(&store, row_b, semantics.Inferred_Effect_Row{
-		effects = eff_entries_b,
-		rest_id = rest_b,
-	})
+	semantics.link_var(
+		&store,
+		row_b,
+		semantics.Inferred_Effect_Row{effects = eff_entries_b, rest_id = rest_b},
+	)
 
 	ok := semantics.unify(&store, row_a, row_b)
 	testing.expect(t, ok)
@@ -432,24 +462,38 @@ test_unify_record_row_same_fields :: proc(t: ^testing.T) {
 	y_name := base.intern(store.interner, "y")
 
 	fields_a := semantics.store_alloc(&store, semantics.Type_Field_Entry, 2)
-	fields_a[0] = semantics.Type_Field_Entry{name = x_name, var = semantics.make_primitive_type(&store, i64_name, base.Source_Span_ZERO)}
-	fields_a[1] = semantics.Type_Field_Entry{name = y_name, var = semantics.make_primitive_type(&store, str_name, base.Source_Span_ZERO)}
+	fields_a[0] = semantics.Type_Field_Entry {
+		name = x_name,
+		var  = semantics.make_primitive_type(&store, i64_name, base.Source_Span_ZERO),
+	}
+	fields_a[1] = semantics.Type_Field_Entry {
+		name = y_name,
+		var  = semantics.make_primitive_type(&store, str_name, base.Source_Span_ZERO),
+	}
 	rest_a := semantics.fresh_record_row(&store, base.Source_Span_ZERO)
 	rec_a := semantics.fresh_value_var(&store, base.Source_Span_ZERO)
-	semantics.link_var(&store, rec_a, semantics.Inferred_Record_Row{
-		record_fields = fields_a,
-		record_rest = rest_a,
-	})
+	semantics.link_var(
+		&store,
+		rec_a,
+		semantics.Inferred_Record_Row{record_fields = fields_a, record_rest = rest_a},
+	)
 
 	fields_b := semantics.store_alloc(&store, semantics.Type_Field_Entry, 2)
-	fields_b[0] = semantics.Type_Field_Entry{name = x_name, var = semantics.make_primitive_type(&store, i64_name, base.Source_Span_ZERO)}
-	fields_b[1] = semantics.Type_Field_Entry{name = y_name, var = semantics.make_primitive_type(&store, str_name, base.Source_Span_ZERO)}
+	fields_b[0] = semantics.Type_Field_Entry {
+		name = x_name,
+		var  = semantics.make_primitive_type(&store, i64_name, base.Source_Span_ZERO),
+	}
+	fields_b[1] = semantics.Type_Field_Entry {
+		name = y_name,
+		var  = semantics.make_primitive_type(&store, str_name, base.Source_Span_ZERO),
+	}
 	rest_b := semantics.fresh_record_row(&store, base.Source_Span_ZERO)
 	rec_b := semantics.fresh_value_var(&store, base.Source_Span_ZERO)
-	semantics.link_var(&store, rec_b, semantics.Inferred_Record_Row{
-		record_fields = fields_b,
-		record_rest = rest_b,
-	})
+	semantics.link_var(
+		&store,
+		rec_b,
+		semantics.Inferred_Record_Row{record_fields = fields_b, record_rest = rest_b},
+	)
 
 	ok := semantics.unify(&store, rec_a, rec_b)
 	testing.expect(t, ok)
@@ -465,22 +509,30 @@ test_unify_record_row_field_mismatch :: proc(t: ^testing.T) {
 	x_name := base.intern(store.interner, "x")
 
 	fields_a := semantics.store_alloc(&store, semantics.Type_Field_Entry, 1)
-	fields_a[0] = semantics.Type_Field_Entry{name = x_name, var = semantics.make_primitive_type(&store, i64_name, base.Source_Span_ZERO)}
+	fields_a[0] = semantics.Type_Field_Entry {
+		name = x_name,
+		var  = semantics.make_primitive_type(&store, i64_name, base.Source_Span_ZERO),
+	}
 	rest_a := semantics.fresh_record_row(&store, base.Source_Span_ZERO)
 	rec_a := semantics.fresh_value_var(&store, base.Source_Span_ZERO)
-	semantics.link_var(&store, rec_a, semantics.Inferred_Record_Row{
-		record_fields = fields_a,
-		record_rest = rest_a,
-	})
+	semantics.link_var(
+		&store,
+		rec_a,
+		semantics.Inferred_Record_Row{record_fields = fields_a, record_rest = rest_a},
+	)
 
 	fields_b := semantics.store_alloc(&store, semantics.Type_Field_Entry, 1)
-	fields_b[0] = semantics.Type_Field_Entry{name = x_name, var = semantics.make_primitive_type(&store, str_name, base.Source_Span_ZERO)}
+	fields_b[0] = semantics.Type_Field_Entry {
+		name = x_name,
+		var  = semantics.make_primitive_type(&store, str_name, base.Source_Span_ZERO),
+	}
 	rest_b := semantics.fresh_record_row(&store, base.Source_Span_ZERO)
 	rec_b := semantics.fresh_value_var(&store, base.Source_Span_ZERO)
-	semantics.link_var(&store, rec_b, semantics.Inferred_Record_Row{
-		record_fields = fields_b,
-		record_rest = rest_b,
-	})
+	semantics.link_var(
+		&store,
+		rec_b,
+		semantics.Inferred_Record_Row{record_fields = fields_b, record_rest = rest_b},
+	)
 
 	ok := semantics.unify(&store, rec_a, rec_b)
 	testing.expect(t, !ok)
@@ -501,7 +553,8 @@ test_typecheck_function_application :: proc(t: ^testing.T) {
 @(test)
 test_effectful_naming_enforcement :: proc(t: ^testing.T) {
 	store, ctx, _ := setup_for_typecheck(
-		"IO! : { println!: || -> Str }\nresult = handle IO in { IO.println(\"hi\") } with { .println!(resume) => resume({}) }")
+		"IO! : { println!: || -> Str }\nresult = handle IO in { IO.println(\"hi\") } with { .println!(resume) => resume({}) }",
+	)
 	defer free(ctx)
 	defer free(store)
 	defer build.context_destroy(ctx)
@@ -513,7 +566,8 @@ test_effectful_naming_enforcement :: proc(t: ^testing.T) {
 @(test)
 test_unhandled_effect_error :: proc(t: ^testing.T) {
 	store, ctx, _ := setup_for_typecheck(
-		"IO! : { println!: || -> Str }\nval = IO.println(\"hello\")")
+		"IO! : { println!: || -> Str }\nval = IO.println(\"hello\")",
+	)
 	defer free(ctx)
 	defer free(store)
 	defer build.context_destroy(ctx)
@@ -525,7 +579,8 @@ test_unhandled_effect_error :: proc(t: ^testing.T) {
 @(test)
 test_handled_effect_ok :: proc(t: ^testing.T) {
 	store, ctx, _ := setup_for_typecheck(
-		"IO! : { println!: || -> Str }\nmain! = handle IO in { IO.println(\"hello\") } with { .println!(resume) => resume({}) }")
+		"IO! : { println!: || -> Str }\nmain! = handle IO in { IO.println(\"hello\") } with { .println!(resume) => resume({}) }",
+	)
 	defer free(ctx)
 	defer free(store)
 	defer build.context_destroy(ctx)
@@ -574,20 +629,28 @@ test_newtype_nominal_distinctness :: proc(t: ^testing.T) {
 	i64_name := base.intern(store.interner, "I64")
 
 	uid_var := semantics.fresh_value_var(&store, base.Source_Span_ZERO)
-	semantics.link_var(&store, uid_var, semantics.Inferred_Newtype{
-		primitive_name = uid_name,
-		arity = 0,
-		param_ids = nil,
-		inner_id = semantics.make_primitive_type(&store, i64_name, base.Source_Span_ZERO),
-	})
+	semantics.link_var(
+		&store,
+		uid_var,
+		semantics.Inferred_Newtype {
+			primitive_name = uid_name,
+			arity = 0,
+			param_ids = nil,
+			inner_id = semantics.make_primitive_type(&store, i64_name, base.Source_Span_ZERO),
+		},
+	)
 
 	oid_var := semantics.fresh_value_var(&store, base.Source_Span_ZERO)
-	semantics.link_var(&store, oid_var, semantics.Inferred_Newtype{
-		primitive_name = oid_name,
-		arity = 0,
-		param_ids = nil,
-		inner_id = semantics.make_primitive_type(&store, i64_name, base.Source_Span_ZERO),
-	})
+	semantics.link_var(
+		&store,
+		oid_var,
+		semantics.Inferred_Newtype {
+			primitive_name = oid_name,
+			arity = 0,
+			param_ids = nil,
+			inner_id = semantics.make_primitive_type(&store, i64_name, base.Source_Span_ZERO),
+		},
+	)
 
 	ok := semantics.unify(&store, uid_var, oid_var)
 	testing.expect(t, !ok)
@@ -605,12 +668,16 @@ test_newtype_no_semantics_unify_with_inner :: proc(t: ^testing.T) {
 	i64_var := semantics.make_primitive_type(&store, i64_name, base.Source_Span_ZERO)
 
 	uid_var := semantics.fresh_value_var(&store, base.Source_Span_ZERO)
-	semantics.link_var(&store, uid_var, semantics.Inferred_Newtype{
-		primitive_name = uid_name,
-		arity = 0,
-		param_ids = nil,
-		inner_id = i64_var,
-	})
+	semantics.link_var(
+		&store,
+		uid_var,
+		semantics.Inferred_Newtype {
+			primitive_name = uid_name,
+			arity = 0,
+			param_ids = nil,
+			inner_id = i64_var,
+		},
+	)
 
 	fresh_i64 := semantics.make_primitive_type(&store, i64_name, base.Source_Span_ZERO)
 	ok := semantics.unify(&store, uid_var, fresh_i64)
@@ -628,20 +695,28 @@ test_newtype_same_name_unifies :: proc(t: ^testing.T) {
 	inner := semantics.make_primitive_type(&store, i64_name, base.Source_Span_ZERO)
 
 	uid_a := semantics.fresh_value_var(&store, base.Source_Span_ZERO)
-	semantics.link_var(&store, uid_a, semantics.Inferred_Newtype{
-		primitive_name = uid_name,
-		arity = 0,
-		param_ids = nil,
-		inner_id = inner,
-	})
+	semantics.link_var(
+		&store,
+		uid_a,
+		semantics.Inferred_Newtype {
+			primitive_name = uid_name,
+			arity = 0,
+			param_ids = nil,
+			inner_id = inner,
+		},
+	)
 
 	uid_b := semantics.fresh_value_var(&store, base.Source_Span_ZERO)
-	semantics.link_var(&store, uid_b, semantics.Inferred_Newtype{
-		primitive_name = uid_name,
-		arity = 0,
-		param_ids = nil,
-		inner_id = inner,
-	})
+	semantics.link_var(
+		&store,
+		uid_b,
+		semantics.Inferred_Newtype {
+			primitive_name = uid_name,
+			arity = 0,
+			param_ids = nil,
+			inner_id = inner,
+		},
+	)
 
 	ok := semantics.unify(&store, uid_a, uid_b)
 	testing.expect(t, ok)
@@ -777,7 +852,9 @@ test_newtype_opaque_inner_cross_module :: proc(t: ^testing.T) {
 @(test)
 test_trait_method_signature_mismatch :: proc(t: ^testing.T) {
 	store, ctx, _ := setup_for_typecheck(
-		"Eq : { eq: (Self) -> Bool }\n@UserId is Eq : U64\nUserId_eq = |x| 42", { with_prelude = true })
+		"Eq : { eq: (Self) -> Bool }\n@UserId is Eq : U64\nUserId_eq = |x| 42",
+		{with_prelude = true},
+	)
 	defer free(ctx)
 	defer free(store)
 	defer build.context_destroy(ctx)
@@ -789,7 +866,9 @@ test_trait_method_signature_mismatch :: proc(t: ^testing.T) {
 @(test)
 test_trait_method_param_mismatch :: proc(t: ^testing.T) {
 	store, ctx, _ := setup_for_typecheck(
-		"Eq : { eq: (Self, Self) -> Bool }\n@UserId is Eq : U64\nUserId_eq = |x| True", { with_prelude = true })
+		"Eq : { eq: (Self, Self) -> Bool }\n@UserId is Eq : U64\nUserId_eq = |x| True",
+		{with_prelude = true},
+	)
 	defer free(ctx)
 	defer free(store)
 	defer build.context_destroy(ctx)
@@ -824,7 +903,9 @@ test_trait_orphan_rule :: proc(t: ^testing.T) {
 @(test)
 test_trait_overlapping_instance :: proc(t: ^testing.T) {
 	store, ctx, _ := setup_for_typecheck(
-		"Eq : { eq: (Self) -> Bool }\n@UserId is Eq : U64\nUserId_eq = |x| True\n@UserId is Eq : U64\nUserId_eq2 = |x| True", { with_prelude = true })
+		"Eq : { eq: (Self) -> Bool }\n@UserId is Eq : U64\nUserId_eq = |x| True\n@UserId is Eq : U64\nUserId_eq2 = |x| True",
+		{with_prelude = true},
+	)
 	defer free(ctx)
 	defer free(store)
 	defer build.context_destroy(ctx)
@@ -836,7 +917,9 @@ test_trait_overlapping_instance :: proc(t: ^testing.T) {
 @(test)
 test_trait_missing_method :: proc(t: ^testing.T) {
 	store, ctx, _ := setup_for_typecheck(
-		"Eq : { eq: (Self) -> Bool }\n@UserId is Eq : U64", { with_prelude = true })
+		"Eq : { eq: (Self) -> Bool }\n@UserId is Eq : U64",
+		{with_prelude = true},
+	)
 	defer free(ctx)
 	defer free(store)
 	defer build.context_destroy(ctx)
@@ -845,12 +928,22 @@ test_trait_missing_method :: proc(t: ^testing.T) {
 	testing.expect(t, diagnostics.diag_collector_has_errors(&ctx.collector))
 }
 
-mono_source :: proc(source: string) -> (semantics.TFile, ^build.Compilation_Context, semantics.Type_Store) {
+mono_source :: proc(
+	source: string,
+) -> (
+	semantics.TFile,
+	^build.Compilation_Context,
+	semantics.Type_Store,
+) {
 	ctx: ^build.Compilation_Context = new(build.Compilation_Context)
 	alloc := build.context_init(ctx)
 	context.allocator = alloc
 
-	file := base.Source_File{path = "<mono-test>", contents = source, id = 0}
+	file := base.Source_File {
+		path     = "<mono-test>",
+		contents = source,
+		id       = 0,
+	}
 	lexer: frontend.Lexer
 	frontend.lexer_init(&lexer, file, &ctx.collector, &ctx.interner)
 
@@ -969,7 +1062,11 @@ test_mono_specialized_decl_has_concrete_types :: proc(t: ^testing.T) {
 				if inf, ok := v.link.(semantics.Inferred_Type); ok {
 					if prim, ok := inf.(semantics.Inferred_Primitive); ok {
 						i64_name := base.intern(&ctx.interner, "I64")
-						testing.expect(t, prim.primitive_name == i64_name, "id$I64 param should be I64")
+						testing.expect(
+							t,
+							prim.primitive_name == i64_name,
+							"id$I64 param should be I64",
+						)
 					}
 				}
 			}
@@ -980,7 +1077,11 @@ test_mono_specialized_decl_has_concrete_types :: proc(t: ^testing.T) {
 			if inf, ok := ret_v.link.(semantics.Inferred_Type); ok {
 				if prim, ok := inf.(semantics.Inferred_Primitive); ok {
 					i64_name := base.intern(&ctx.interner, "I64")
-					testing.expect(t, prim.primitive_name == i64_name, "id$I64 return should be I64")
+					testing.expect(
+						t,
+						prim.primitive_name == i64_name,
+						"id$I64 return should be I64",
+					)
 				}
 			}
 		}
@@ -1007,7 +1108,11 @@ test_lambda_type_params_in_store_bindings :: proc(t: ^testing.T) {
 	// It should be LEVEL_GENERIC (generalized after typechecking)
 	if has_binding {
 		tv_id := store.bindings[a_name]
-		testing.expect(t, semantics.is_generic(store, tv_id), "type param 'a' should be LEVEL_GENERIC")
+		testing.expect(
+			t,
+			semantics.is_generic(store, tv_id),
+			"type param 'a' should be LEVEL_GENERIC",
+		)
 	}
 }
 
@@ -1021,7 +1126,11 @@ test_mono_non_generic_passes_through :: proc(t: ^testing.T) {
 	for decl in mono_tfile.decls {
 		if d, ok := decl.(^semantics.TDecl_Const); ok {
 			testing.expect(t, d.type_.wasm_type != {}, "all decls should have wasm_type")
-			testing.expect(t, d.type_.type_id != base.Type_Var_ID(-1), "all decls should have valid type_id")
+			testing.expect(
+				t,
+				d.type_.type_id != base.Type_Var_ID(-1),
+				"all decls should have valid type_id",
+			)
 		}
 	}
 }
@@ -1042,7 +1151,11 @@ test_display_trait_registered :: proc(t: ^testing.T) {
 		testing.expect(t, len(info.methods) == 1, "Display should have exactly 1 method")
 		if len(info.methods) == 1 {
 			to_str_name := base.intern(store.interner, "to_str")
-			testing.expect(t, info.methods[0].name == to_str_name, "Display method should be 'to_str'")
+			testing.expect(
+				t,
+				info.methods[0].name == to_str_name,
+				"Display method should be 'to_str'",
+			)
 		}
 	}
 }
@@ -1079,13 +1192,41 @@ test_implements_display_helper :: proc(t: ^testing.T) {
 	u64_name := base.intern(store.interner, "U64")
 	bytes_name := base.intern(store.interner, "Bytes")
 
-	testing.expect(t, semantics.implements_display(&store, str_name), "Str should implement Display")
-	testing.expect(t, semantics.implements_display(&store, i64_name), "I64 should implement Display")
-	testing.expect(t, semantics.implements_display(&store, i32_name), "I32 should implement Display")
-	testing.expect(t, semantics.implements_display(&store, f64_name), "F64 should implement Display")
-	testing.expect(t, semantics.implements_display(&store, bool_name), "Bool should implement Display")
-	testing.expect(t, !semantics.implements_display(&store, u64_name), "U64 should NOT implement Display")
-	testing.expect(t, !semantics.implements_display(&store, bytes_name), "Bytes should NOT implement Display")
+	testing.expect(
+		t,
+		semantics.implements_display(&store, str_name),
+		"Str should implement Display",
+	)
+	testing.expect(
+		t,
+		semantics.implements_display(&store, i64_name),
+		"I64 should implement Display",
+	)
+	testing.expect(
+		t,
+		semantics.implements_display(&store, i32_name),
+		"I32 should implement Display",
+	)
+	testing.expect(
+		t,
+		semantics.implements_display(&store, f64_name),
+		"F64 should implement Display",
+	)
+	testing.expect(
+		t,
+		semantics.implements_display(&store, bool_name),
+		"Bool should implement Display",
+	)
+	testing.expect(
+		t,
+		!semantics.implements_display(&store, u64_name),
+		"U64 should NOT implement Display",
+	)
+	testing.expect(
+		t,
+		!semantics.implements_display(&store, bytes_name),
+		"Bytes should NOT implement Display",
+	)
 }
 
 check_method_call_resolved :: proc(expr: semantics.TExpr, found: ^bool) {
@@ -1121,7 +1262,7 @@ check_method_call_resolved :: proc(expr: semantics.TExpr, found: ^bool) {
 
 @(test)
 test_newtype_wrapping_builtin_type :: proc(t: ^testing.T) {
-	store, ctx, _ := setup_for_typecheck("@Uuid : pub Bytes", { with_prelude = true })
+	store, ctx, _ := setup_for_typecheck("@Uuid : pub Bytes", {with_prelude = true})
 	defer free(ctx)
 	defer free(store)
 	defer build.context_destroy(ctx)
@@ -1136,7 +1277,7 @@ test_newtype_wrapping_builtin_type :: proc(t: ^testing.T) {
 @(test)
 test_result_with_inline_tag_union_error :: proc(t: ^testing.T) {
 	source := "@Result(a, e) : pub [Ok(a) | Err(e)]\nget_age : Result(I64, [Absent])\n"
-	store, ctx, _ := setup_for_typecheck(source, { with_prelude = true })
+	store, ctx, _ := setup_for_typecheck(source, {with_prelude = true})
 	defer free(ctx)
 	defer free(store)
 	defer build.context_destroy(ctx)
@@ -1148,7 +1289,7 @@ test_result_with_inline_tag_union_error :: proc(t: ^testing.T) {
 @(test)
 test_record_with_result_fields :: proc(t: ^testing.T) {
 	source := "@Result(a, e) : pub [Ok(a) | Err(e)]\n@Absent : pub [Absent]\n@Uri : pub { scheme : Str, query : Result(Str, Absent) }\n"
-	store, ctx, _ := setup_for_typecheck(source, { with_prelude = true })
+	store, ctx, _ := setup_for_typecheck(source, {with_prelude = true})
 	defer free(ctx)
 	defer free(store)
 	defer build.context_destroy(ctx)
@@ -1165,7 +1306,10 @@ test_record_with_result_fields :: proc(t: ^testing.T) {
 
 @(test)
 test_effect_declaration_with_effect_row :: proc(t: ^testing.T) {
-	store, ctx, _ := setup_for_typecheck("effect Random! : { bytes! : I64 -> -[Random!]-> Bytes }", { with_prelude = true })
+	store, ctx, _ := setup_for_typecheck(
+		"effect Random! : { bytes! : I64 -> -[Random!]-> Bytes }",
+		{with_prelude = true},
+	)
 	defer free(ctx)
 	defer free(store)
 	defer build.context_destroy(ctx)
@@ -1177,7 +1321,7 @@ test_effect_declaration_with_effect_row :: proc(t: ^testing.T) {
 @(test)
 test_crash_intrinsic_body :: proc(t: ^testing.T) {
 	source := "@JsonValue : pub [Null]\n@JsonErr : pub [UnexpectedEnd]\n@Result(a, e) : pub [Ok(a) | Err(e)]\npub decode : Str -> Result(JsonValue, JsonErr)\npub decode = |_s| crash \"intrinsic: Json.decode\"\n"
-	store, ctx, _ := setup_for_typecheck(source, { with_prelude = true })
+	store, ctx, _ := setup_for_typecheck(source, {with_prelude = true})
 	defer free(ctx)
 	defer free(store)
 	defer build.context_destroy(ctx)
@@ -1194,7 +1338,10 @@ test_crash_intrinsic_body :: proc(t: ^testing.T) {
 
 @(test)
 test_tag_union_with_multiple_payloads :: proc(t: ^testing.T) {
-	store, ctx, _ := setup_for_typecheck("@JsonNumber : pub [PosInt(U64) | NegInt(I64) | Float(F64)]", { with_prelude = true })
+	store, ctx, _ := setup_for_typecheck(
+		"@JsonNumber : pub [PosInt(U64) | NegInt(I64) | Float(F64)]",
+		{with_prelude = true},
+	)
 	defer free(ctx)
 	defer free(store)
 	defer build.context_destroy(ctx)
@@ -1206,3 +1353,4 @@ test_tag_union_with_multiple_payloads :: proc(t: ^testing.T) {
 	testing.expect(t, ok)
 	testing.expect(t, len(info.owned_tags) == 3)
 }
+

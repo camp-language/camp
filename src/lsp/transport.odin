@@ -29,10 +29,10 @@ read_message :: proc(t: ^Transport) -> ([]u8, bool) {
 		header_len += 1
 
 		if header_len >= 4 &&
-			header_buf[header_len-4] == '\r' &&
-			header_buf[header_len-3] == '\n' &&
-			header_buf[header_len-2] == '\r' &&
-			header_buf[header_len-1] == '\n' {
+		   header_buf[header_len - 4] == '\r' &&
+		   header_buf[header_len - 3] == '\n' &&
+		   header_buf[header_len - 2] == '\r' &&
+		   header_buf[header_len - 1] == '\n' {
 			break
 		}
 	}
@@ -42,11 +42,11 @@ read_message :: proc(t: ^Transport) -> ([]u8, bool) {
 	content_length := 0
 	prefix := "Content-Length: "
 	prefix_len := len(prefix)
-	for i in 0..<(header_len - prefix_len) {
-		if i != 0 && header[i-1] != '\n' {
+	for i in 0 ..< (header_len - prefix_len) {
+		if i != 0 && header[i - 1] != '\n' {
 			continue
 		}
-		if header[i:i+prefix_len] == prefix {
+		if header[i:i + prefix_len] == prefix {
 			digit_start := i + prefix_len
 			j := digit_start
 			for j < header_len {
@@ -96,3 +96,4 @@ write_message :: proc(t: ^Transport, message: string) -> bool {
 	_ = os.flush(os.stdout)
 	return true
 }
+

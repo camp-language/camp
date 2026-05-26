@@ -2,8 +2,8 @@ package camp
 
 import "camp:base"
 import "camp:build"
-import "camp:semantics"
 import "camp:diagnostics"
+import "camp:semantics"
 import "core:strings"
 import "core:testing"
 
@@ -89,10 +89,10 @@ test_export_table_manual :: proc(t: ^testing.T) {
 	defer build.export_table_destroy(&et)
 
 	x_name := base.intern(&ctx.interner, "x")
-	et.exports[x_name] = build.Export_Info{
-		name = x_name,
-		kind = .Const,
-		is_pub = true,
+	et.exports[x_name] = build.Export_Info {
+		name     = x_name,
+		kind     = .Const,
+		is_pub   = true,
 		type_var = base.Type_Var_ID(-1),
 	}
 
@@ -229,7 +229,11 @@ test_import_scope_local_names :: proc(t: ^testing.T) {
 	defer build.import_scope_destroy(&scope)
 
 	x_name := base.intern(&ctx.interner, "x")
-	scope.unqualified[x_name] = base.Canonical_Name{module = base.NO_NAME, name = x_name, is_local = true}
+	scope.unqualified[x_name] = base.Canonical_Name {
+		module   = base.NO_NAME,
+		name     = x_name,
+		is_local = true,
+	}
 
 	resolved, ok := build.resolve_name(x_name, &scope, &ctx.interner)
 	testing.expect(t, ok)
@@ -264,17 +268,17 @@ test_cache_key_for_typecheck :: proc(t: ^testing.T) {
 	a_name := base.intern(&ctx.interner, "A")
 	b_name := base.intern(&ctx.interner, "B")
 
-	project.modules[a_name] = build.Module_Info{
-		name = a_name,
+	project.modules[a_name] = build.Module_Info {
+		name         = a_name,
 		content_hash = "hash_a",
-		imports = make([dynamic]base.Deferred_Import, 0, 4),
-		exports = make([dynamic]build.Export_Info, 0, 4),
+		imports      = make([dynamic]base.Deferred_Import, 0, 4),
+		exports      = make([dynamic]build.Export_Info, 0, 4),
 	}
-	project.modules[b_name] = build.Module_Info{
-		name = b_name,
+	project.modules[b_name] = build.Module_Info {
+		name         = b_name,
 		content_hash = "hash_b",
-		imports = make([dynamic]base.Deferred_Import, 0, 4),
-		exports = make([dynamic]build.Export_Info, 0, 4),
+		imports      = make([dynamic]base.Deferred_Import, 0, 4),
+		exports      = make([dynamic]build.Export_Info, 0, 4),
 	}
 
 	mi := project.modules[a_name]
@@ -449,7 +453,7 @@ test_export_table_newtype_pub :: proc(t: ^testing.T) {
 	defer semantics.type_store_destroy(&store)
 
 	result_name := base.intern(&ctx.interner, "Result")
-	nt := semantics.CDecl_Newtype{
+	nt := semantics.CDecl_Newtype {
 		name = base.Canonical_Name{name = result_name, is_local = true},
 		is_pub = true,
 		pub_variants = true,
@@ -480,7 +484,7 @@ test_export_table_newtype_private :: proc(t: ^testing.T) {
 	defer semantics.type_store_destroy(&store)
 
 	result_name := base.intern(&ctx.interner, "Result")
-	nt := semantics.CDecl_Newtype{
+	nt := semantics.CDecl_Newtype {
 		name = base.Canonical_Name{name = result_name, is_local = true},
 		is_pub = false,
 		pub_variants = false,
@@ -508,7 +512,7 @@ test_export_table_newtype_pub_opaque :: proc(t: ^testing.T) {
 	defer semantics.type_store_destroy(&store)
 
 	userid_name := base.intern(&ctx.interner, "UserId")
-	nt := semantics.CDecl_Newtype{
+	nt := semantics.CDecl_Newtype {
 		name = base.Canonical_Name{name = userid_name, is_local = true},
 		is_pub = true,
 		pub_variants = false,
@@ -570,7 +574,11 @@ test_register_stdlib_modules_source_populated :: proc(t: ^testing.T) {
 	mi := project.modules[result_name]
 
 	testing.expect(t, len(mi.source) > 0, "Result module source should be non-empty")
-	testing.expect(t, strings.contains(mi.source, "@Result"), "Result module source should contain @Result", )
+	testing.expect(
+		t,
+		strings.contains(mi.source, "@Result"),
+		"Result module source should contain @Result",
+	)
 }
 
 @(test)
@@ -585,13 +593,13 @@ test_register_stdlib_modules_project_local_shadows_stdlib :: proc(t: ^testing.T)
 
 	result_name := base.intern(&ctx.interner, "Result")
 	custom_source := "custom local Result"
-	project.modules[result_name] = build.Module_Info{
-		name = result_name,
-		path = "src/Result.camp",
+	project.modules[result_name] = build.Module_Info {
+		name         = result_name,
+		path         = "src/Result.camp",
 		content_hash = "custom_hash",
-		source = custom_source,
-		imports = make([dynamic]base.Deferred_Import, 0, 4),
-		exports = make([dynamic]build.Export_Info, 0, 4),
+		source       = custom_source,
+		imports      = make([dynamic]base.Deferred_Import, 0, 4),
+		exports      = make([dynamic]build.Export_Info, 0, 4),
 	}
 	append(&project.module_names, result_name)
 
@@ -599,7 +607,11 @@ test_register_stdlib_modules_project_local_shadows_stdlib :: proc(t: ^testing.T)
 	defer build.project_discovery_destroy(&project)
 
 	mi := project.modules[result_name]
-	testing.expect(t, mi.source == custom_source, "Custom module source should not be overwritten by stdlib")
+	testing.expect(
+		t,
+		mi.source == custom_source,
+		"Custom module source should not be overwritten by stdlib",
+	)
 }
 
 @(test)
@@ -618,6 +630,10 @@ test_register_stdlib_modules_idempotent :: proc(t: ^testing.T) {
 	build.register_stdlib_modules(&project, &ctx.interner)
 	defer build.project_discovery_destroy(&project)
 
-	testing.expect(t, len(project.modules) == first_count,
-		"Calling register_stdlib_modules twice should produce the same module count")
+	testing.expect(
+		t,
+		len(project.modules) == first_count,
+		"Calling register_stdlib_modules twice should produce the same module count",
+	)
 }
+

@@ -1,11 +1,11 @@
 package camp
 
-import "core:testing"
 import "camp:base"
-import "camp:diagnostics"
-import "camp:semantics"
-import "camp:mono"
 import "camp:build"
+import "camp:diagnostics"
+import "camp:mono"
+import "camp:semantics"
+import "core:testing"
 
 @(test)
 test_mono_annotate_preserves_type_info :: proc(t: ^testing.T) {
@@ -164,3 +164,4 @@ test_mono_annotate_value_binding :: proc(t: ^testing.T) {
 
 	testing.expect(t, len(annot_tfile.decls) == 1)
 }
+

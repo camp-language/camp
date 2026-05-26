@@ -1,0 +1,43 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install just
+        run: |
+          curl --proto '=https' --tlsv1.2 -sSf https://just.systems/install.sh | bash -s -- --to /usr/local/bin
+
+      - name: Install tree-sitter CLI
+        run: npm install -g tree-sitter-cli
+
+      - name: Install Odin
+        run: |
+          ODIN_VERSION=$(curl -s https://api.github.com/repos/odin-lang/Odin/releases/latest | jq -r '.tag_name')
+          curl -L -o odin.tar.gz "https://github.com/odin-lang/Odin/releases/download/${ODIN_VERSION}/odin-linux-amd64-${ODIN_VERSION}.tar.gz"
+          sudo tar -xzf odin.tar.gz -C /usr/local
+          ODIN_DIR=$(ls -d /usr/local/odin-linux-*)
+          sudo ln -s "$ODIN_DIR" /usr/local/odin
+          sudo ln -s /usr/local/odin/odin /usr/local/bin/odin
+          echo "ODIN_ROOT=$ODIN_DIR" >> "$GITHUB_ENV"
+          rm odin.tar.gz
+
+      - name: Install odinfmt
+        run: |
+          OLS_VERSION=$(curl -s https://api.github.com/repos/DanielGavin/ols/releases/latest | jq -r '.tag_name')
+          curl -L -o ols.zip "https://github.com/DanielGavin/ols/releases/download/${OLS_VERSION}/ols-x86_64-unknown-linux-gnu.zip"
+          unzip -o ols.zip "odinfmt*" -d /usr/local/bin
+          mv /usr/local/bin/odinfmt-x86_64-unknown-linux-gnu /usr/local/bin/odinfmt
+          chmod +x /usr/local/bin/odinfmt
+          rm ols.zip
+
+      - name: Run checks
+        run: just check

@@ -6,8 +6,8 @@ import "core:fmt"
 import "core:strings"
 
 Module_Graph :: struct {
-	edges:      map[base.Intern_ID][dynamic]base.Intern_ID,
-	all_nodes:  [dynamic]base.Intern_ID,
+	edges:     map[base.Intern_ID][dynamic]base.Intern_ID,
+	all_nodes: [dynamic]base.Intern_ID,
 }
 
 module_graph_init :: proc(graph: ^Module_Graph) {
@@ -37,7 +37,11 @@ module_graph_add_node :: proc(graph: ^Module_Graph, node: base.Intern_ID) {
 	append(&graph.all_nodes, node)
 }
 
-build_module_graph :: proc(project: ^Project_Discovery, interner: ^base.Intern_Table, collector: ^diagnostics.Diagnostic_Collector) -> Module_Graph {
+build_module_graph :: proc(
+	project: ^Project_Discovery,
+	interner: ^base.Intern_Table,
+	collector: ^diagnostics.Diagnostic_Collector,
+) -> Module_Graph {
 	graph: Module_Graph
 	module_graph_init(&graph)
 
@@ -50,7 +54,10 @@ build_module_graph :: proc(project: ^Project_Discovery, interner: ^base.Intern_T
 			mod_name := imp.module
 			if _, ok := project.modules[mod_name]; !ok {
 				mod_str := base.intern_get(interner, mod_name)
-				diagnostics.collector_add_diag(collector, diagnostics.diag_module_not_found(mod_str, imp.span))
+				diagnostics.collector_add_diag(
+					collector,
+					diagnostics.diag_module_not_found(mod_str, imp.span),
+				)
 				continue
 			}
 			module_graph_add_edge(&graph, mi.name, mod_name)
@@ -60,7 +67,14 @@ build_module_graph :: proc(project: ^Project_Discovery, interner: ^base.Intern_T
 	return graph
 }
 
-topological_sort :: proc(graph: ^Module_Graph, interner: ^base.Intern_Table, collector: ^diagnostics.Diagnostic_Collector) -> ([]base.Intern_ID, bool) {
+topological_sort :: proc(
+	graph: ^Module_Graph,
+	interner: ^base.Intern_Table,
+	collector: ^diagnostics.Diagnostic_Collector,
+) -> (
+	[]base.Intern_ID,
+	bool,
+) {
 	in_degree: map[base.Intern_ID]int
 	in_degree = make(map[base.Intern_ID]int, len(graph.all_nodes))
 	defer delete(in_degree)
@@ -112,7 +126,10 @@ topological_sort :: proc(graph: ^Module_Graph, interner: ^base.Intern_Table, col
 	}
 
 	cycle := find_cycle(graph, interner)
-	diagnostics.collector_add_diag(collector, diagnostics.diag_cyclic_dependency(cycle, base.Source_Span_ZERO))
+	diagnostics.collector_add_diag(
+		collector,
+		diagnostics.diag_cyclic_dependency(cycle, base.Source_Span_ZERO),
+	)
 
 	delete(result)
 	return nil, false
@@ -192,3 +209,4 @@ find_cycle :: proc(graph: ^Module_Graph, interner: ^base.Intern_Table) -> string
 
 	return "cycle"
 }
+

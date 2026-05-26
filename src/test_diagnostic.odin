@@ -1,8 +1,8 @@
 package camp
 
-import "core:testing"
 import "camp:base"
 import "camp:diagnostics"
+import "core:testing"
 
 @(test)
 test_diag_unexpected_char :: proc(t: ^testing.T) {
@@ -15,7 +15,11 @@ test_diag_unexpected_char :: proc(t: ^testing.T) {
 
 @(test)
 test_diag_unterminated_string :: proc(t: ^testing.T) {
-	span := base.Source_Span{file_id = 0, start = 0, end = 5}
+	span := base.Source_Span {
+		file_id = 0,
+		start   = 0,
+		end     = 5,
+	}
 	d := diagnostics.diag_unterminated_string(span)
 	testing.expect(t, d.category == .Error)
 	testing.expect(t, d.title == "UNTERMINATED STRING")
@@ -23,7 +27,11 @@ test_diag_unterminated_string :: proc(t: ^testing.T) {
 
 @(test)
 test_diag_undefined_name_with_hint :: proc(t: ^testing.T) {
-	span := base.Source_Span{file_id = 0, start = 0, end = 3}
+	span := base.Source_Span {
+		file_id = 0,
+		start   = 0,
+		end     = 3,
+	}
 	d := diagnostics.diag_undefined_name("foo", []string{"bar"}, span)
 	testing.expect(t, d.title == "UNDEFINED NAME")
 	testing.expect(t, len(d.hints) == 1)
@@ -31,15 +39,27 @@ test_diag_undefined_name_with_hint :: proc(t: ^testing.T) {
 
 @(test)
 test_diag_undefined_name_no_hint :: proc(t: ^testing.T) {
-	span := base.Source_Span{file_id = 0, start = 0, end = 3}
+	span := base.Source_Span {
+		file_id = 0,
+		start   = 0,
+		end     = 3,
+	}
 	d := diagnostics.diag_undefined_name("foo", nil, span)
 	testing.expect(t, len(d.hints) == 0)
 }
 
 @(test)
 test_diag_type_mismatch_multi_span :: proc(t: ^testing.T) {
-	span_a := base.Source_Span{file_id = 0, start = 0, end = 3}
-	span_b := base.Source_Span{file_id = 0, start = 10, end = 13}
+	span_a := base.Source_Span {
+		file_id = 0,
+		start   = 0,
+		end     = 3,
+	}
+	span_b := base.Source_Span {
+		file_id = 0,
+		start   = 10,
+		end     = 13,
+	}
 	d := diagnostics.diag_type_mismatch("I64", "String", span_a, span_b)
 	testing.expect(t, d.title == "TYPE MISMATCH")
 	testing.expect(t, len(d.labels) == 1)
@@ -48,14 +68,22 @@ test_diag_type_mismatch_multi_span :: proc(t: ^testing.T) {
 
 @(test)
 test_diag_type_mismatch_no_secondary :: proc(t: ^testing.T) {
-	span_a := base.Source_Span{file_id = 0, start = 0, end = 3}
+	span_a := base.Source_Span {
+		file_id = 0,
+		start   = 0,
+		end     = 3,
+	}
 	d := diagnostics.diag_type_mismatch("I64", "String", span_a, base.Source_Span_ZERO)
 	testing.expect(t, len(d.labels) == 0)
 }
 
 @(test)
 test_diag_effectful_naming :: proc(t: ^testing.T) {
-	span := base.Source_Span{file_id = 0, start = 0, end = 5}
+	span := base.Source_Span {
+		file_id = 0,
+		start   = 0,
+		end     = 5,
+	}
 	d := diagnostics.diag_effectful_naming("main", "{IO}", span)
 	testing.expect(t, d.title == "EFFECTFUL FUNCTION NAMING")
 	testing.expect(t, len(d.hints) == 1)
@@ -63,14 +91,24 @@ test_diag_effectful_naming :: proc(t: ^testing.T) {
 
 @(test)
 test_diag_warning :: proc(t: ^testing.T) {
-	d := diagnostics.diag_init(.Warning, "C0900", "UNUSED VARIABLE", base.Source_Span_ZERO, "x is unused")
+	d := diagnostics.diag_init(
+		.Warning,
+		"C0900",
+		"UNUSED VARIABLE",
+		base.Source_Span_ZERO,
+		"x is unused",
+	)
 	testing.expect(t, d.category == .Warning)
 	testing.expect(t, d.title == "UNUSED VARIABLE")
 }
 
 @(test)
 test_diag_internal :: proc(t: ^testing.T) {
-	span := base.Source_Span{file_id = 0, start = 0, end = 1}
+	span := base.Source_Span {
+		file_id = 0,
+		start   = 0,
+		end     = 1,
+	}
 	d := diagnostics.diag_internal("impossible type", span)
 	testing.expect(t, d.category == .Internal)
 	testing.expect(t, len(d.hints) == 1)
@@ -79,7 +117,11 @@ test_diag_internal :: proc(t: ^testing.T) {
 @(test)
 test_diag_span_to_line_col :: proc(t: ^testing.T) {
 	source := "abc\ndef\nghi"
-	span := base.Source_Span{file_id = 0, start = 4, end = 7}
+	span := base.Source_Span {
+		file_id = 0,
+		start   = 4,
+		end     = 7,
+	}
 	line, col := diagnostics.diag_span_to_line_col(source, span)
 	testing.expect(t, line == 2)
 	testing.expect(t, col == 1)
@@ -105,9 +147,18 @@ test_diag_collector :: proc(t: ^testing.T) {
 	diagnostics.diag_collector_init(&collector)
 	defer diagnostics.diag_collector_destroy(&collector)
 
-	diagnostics.collector_add_diag(&collector, diagnostics.diag_init(.Warning, "C0000", "TEST", base.Source_Span_ZERO, "warn"))
-	diagnostics.collector_add_diag(&collector, diagnostics.diag_init(.Error, "C0000", "TEST", base.Source_Span_ZERO, "err"))
-	diagnostics.collector_add_diag(&collector, diagnostics.diag_internal("bug", base.Source_Span_ZERO))
+	diagnostics.collector_add_diag(
+		&collector,
+		diagnostics.diag_init(.Warning, "C0000", "TEST", base.Source_Span_ZERO, "warn"),
+	)
+	diagnostics.collector_add_diag(
+		&collector,
+		diagnostics.diag_init(.Error, "C0000", "TEST", base.Source_Span_ZERO, "err"),
+	)
+	diagnostics.collector_add_diag(
+		&collector,
+		diagnostics.diag_internal("bug", base.Source_Span_ZERO),
+	)
 
 	testing.expect(t, collector.warning_count == 1)
 	testing.expect(t, collector.error_count == 1)
@@ -118,8 +169,16 @@ test_diag_collector :: proc(t: ^testing.T) {
 
 @(test)
 test_diag_arity_mismatch :: proc(t: ^testing.T) {
-	span_a := base.Source_Span{file_id = 0, start = 0, end = 3}
-	span_b := base.Source_Span{file_id = 0, start = 10, end = 13}
+	span_a := base.Source_Span {
+		file_id = 0,
+		start   = 0,
+		end     = 3,
+	}
+	span_b := base.Source_Span {
+		file_id = 0,
+		start   = 10,
+		end     = 13,
+	}
 	d := diagnostics.diag_arity_mismatch(2, 1, span_a, span_b)
 	testing.expect(t, d.title == "ARITY MISMATCH")
 	testing.expect(t, len(d.labels) == 1)

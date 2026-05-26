@@ -1,19 +1,23 @@
 package camp
 
-import "core:testing"
 import "camp:base"
-import "camp:ir"
-import "camp:codegen"
-import "camp:semantics"
 import "camp:build"
+import "camp:codegen"
 import "camp:frontend"
+import "camp:ir"
+import "camp:semantics"
+import "core:testing"
 
 compile_source :: proc(source: string) -> ([]u8, ^build.Compilation_Context) {
 	ctx: ^build.Compilation_Context = new(build.Compilation_Context)
 	alloc := build.context_init(ctx)
 	context.allocator = alloc
 
-	file_rec := base.Source_File{path = "<test>", contents = source, id = 0}
+	file_rec := base.Source_File {
+		path     = "<test>",
+		contents = source,
+		id       = 0,
+	}
 	lexer: frontend.Lexer
 	frontend.lexer_init(&lexer, file_rec, &ctx.collector, &ctx.interner)
 
@@ -72,7 +76,7 @@ test_codegen_has_type_section :: proc(t: ^testing.T) {
 
 	testing.expect(t, len(wasm_bytes) > 9)
 	found_type := false
-	for i in 8..<len(wasm_bytes) - 1 {
+	for i in 8 ..< len(wasm_bytes) - 1 {
 		if wasm_bytes[i] == 0x01 {
 			found_type = true
 			break
@@ -88,7 +92,7 @@ test_codegen_has_export_section :: proc(t: ^testing.T) {
 	defer teardown_codegen(ctx)
 
 	found_export := false
-	for i in 8..<len(wasm_bytes) - 1 {
+	for i in 8 ..< len(wasm_bytes) - 1 {
 		if wasm_bytes[i] == 0x07 {
 			found_export = true
 			break
@@ -264,3 +268,4 @@ test_codegen_pipeline_with_if :: proc(t: ^testing.T) {
 
 	testing.expect(t, len(wasm_bytes) >= 8)
 }
+

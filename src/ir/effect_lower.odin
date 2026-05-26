@@ -1,8 +1,8 @@
 package ir
 
 import "camp:base"
-import "camp:semantics"
 import "camp:diagnostics"
+import "camp:semantics"
 import "core:fmt"
 
 Effect_Evidence :: struct {
@@ -14,23 +14,26 @@ Effect_Evidence :: struct {
 }
 
 Effect_Lower_Env :: struct {
-	module:         ^IR_Module,
-	interner:       ^base.Intern_Table,
-	collector:      ^diagnostics.Diagnostic_Collector,
-	fresh_state:    base.Fresh_State,
-	evidence_stack: [dynamic]Effect_Evidence,
-	async_id:       base.Intern_ID,
-	spawn_id:       base.Intern_ID,
-	parallel_id:    base.Intern_ID,
-	file_id:        base.Intern_ID,
-	console_id:     base.Intern_ID,
-	time_id:        base.Intern_ID,
-	fn_effects:     map[base.Canonical_Name][dynamic]base.Canonical_Name,
-	camp_alloc_id:  base.Intern_ID,
+	module:          ^IR_Module,
+	interner:        ^base.Intern_Table,
+	collector:       ^diagnostics.Diagnostic_Collector,
+	fresh_state:     base.Fresh_State,
+	evidence_stack:  [dynamic]Effect_Evidence,
+	async_id:        base.Intern_ID,
+	spawn_id:        base.Intern_ID,
+	parallel_id:     base.Intern_ID,
+	file_id:         base.Intern_ID,
+	console_id:      base.Intern_ID,
+	time_id:         base.Intern_ID,
+	fn_effects:      map[base.Canonical_Name][dynamic]base.Canonical_Name,
+	camp_alloc_id:   base.Intern_ID,
 	camp_dealloc_id: base.Intern_ID,
 }
 
-is_scheduler_effect_by_ids :: proc(effect_name: base.Intern_ID, async_id, spawn_id, parallel_id, file_id, console_id, time_id: base.Intern_ID) -> bool {
+is_scheduler_effect_by_ids :: proc(
+	effect_name: base.Intern_ID,
+	async_id, spawn_id, parallel_id, file_id, console_id, time_id: base.Intern_ID,
+) -> bool {
 	if effect_name == async_id do return true
 	if effect_name == spawn_id do return true
 	if effect_name == parallel_id do return true
@@ -41,10 +44,23 @@ is_scheduler_effect_by_ids :: proc(effect_name: base.Intern_ID, async_id, spawn_
 }
 
 is_scheduler_effect :: proc(effect: base.Canonical_Name, env: ^Effect_Lower_Env) -> bool {
-	return is_scheduler_effect_by_ids(effect.name, env.async_id, env.spawn_id, env.parallel_id, env.file_id, env.console_id, env.time_id)
+	return is_scheduler_effect_by_ids(
+		effect.name,
+		env.async_id,
+		env.spawn_id,
+		env.parallel_id,
+		env.file_id,
+		env.console_id,
+		env.time_id,
+	)
 }
 
-effect_lower :: proc(mod: ^IR_Module, interner: ^base.Intern_Table, collector: ^diagnostics.Diagnostic_Collector, type_store: ^semantics.Type_Store) -> IR_Module {
+effect_lower :: proc(
+	mod: ^IR_Module,
+	interner: ^base.Intern_Table,
+	collector: ^diagnostics.Diagnostic_Collector,
+	type_store: ^semantics.Type_Store,
+) -> IR_Module {
 	result: IR_Module
 	result.decls = make([dynamic]IR_Decl, 0, len(mod.decls) + 16)
 	result.effect_defs = make([dynamic]IR_Effect_Def, 0, len(mod.effect_defs))
@@ -59,7 +75,10 @@ effect_lower :: proc(mod: ^IR_Module, interner: ^base.Intern_Table, collector: ^
 	env: Effect_Lower_Env
 	env.module = &result
 	env.interner = interner
-	env.fresh_state = base.Fresh_State{counter = 0, interner = interner}
+	env.fresh_state = base.Fresh_State {
+		counter  = 0,
+		interner = interner,
+	}
 	env.evidence_stack = make([dynamic]Effect_Evidence, 0, 8)
 	env.collector = collector
 	env.async_id = base.intern(interner, "Async!")
@@ -94,7 +113,12 @@ effect_lower :: proc(mod: ^IR_Module, interner: ^base.Intern_Table, collector: ^
 	return result
 }
 
-el_lower_decl :: proc(decl: IR_Decl, env: ^Effect_Lower_Env, throw_name: base.Intern_ID, type_store: ^semantics.Type_Store) -> IR_Decl {
+el_lower_decl :: proc(
+	decl: IR_Decl,
+	env: ^Effect_Lower_Env,
+	throw_name: base.Intern_ID,
+	type_store: ^semantics.Type_Store,
+) -> IR_Decl {
 	#partial switch d in decl {
 	case ^IR_Decl_Fn:
 		new_fn := new(IR_Decl_Fn)
@@ -115,7 +139,11 @@ el_lower_decl :: proc(decl: IR_Decl, env: ^Effect_Lower_Env, throw_name: base.In
 	return decl
 }
 
-el_effect_row_has_throw :: proc(effect_row: base.IR_Type, throw_name: base.Intern_ID, store: ^semantics.Type_Store) -> bool {
+el_effect_row_has_throw :: proc(
+	effect_row: base.IR_Type,
+	throw_name: base.Intern_ID,
+	store: ^semantics.Type_Store,
+) -> bool {
 	effect_var_id := effect_row.type_id
 	resolved := semantics.resolve_var(store, effect_var_id)
 	v := &store.vars[int(resolved)]
@@ -132,14 +160,20 @@ el_effect_row_has_throw :: proc(effect_row: base.IR_Type, throw_name: base.Inter
 	return false
 }
 
-el_wrap_throw_handler :: proc(body: IR_Expr, fn_decl: ^IR_Decl_Fn, throw_name: base.Intern_ID, type_store: ^semantics.Type_Store, env: ^Effect_Lower_Env) -> IR_Expr {
+el_wrap_throw_handler :: proc(
+	body: IR_Expr,
+	fn_decl: ^IR_Decl_Fn,
+	throw_name: base.Intern_ID,
+	type_store: ^semantics.Type_Store,
+	env: ^Effect_Lower_Env,
+) -> IR_Expr {
 	if !el_effect_row_has_throw(fn_decl.effect_row, throw_name, type_store) {
 		return body
 	}
 
-	throw_effect_name := base.Canonical_Name{
-		module = base.NO_NAME,
-		name = throw_name,
+	throw_effect_name := base.Canonical_Name {
+		module   = base.NO_NAME,
+		name     = throw_name,
 		is_local = false,
 	}
 
@@ -148,15 +182,22 @@ el_wrap_throw_handler :: proc(body: IR_Expr, fn_decl: ^IR_Decl_Fn, throw_name: b
 	tag_param := base.fresh_id(&env.fresh_state, "_tag")
 
 	crash_msg := new(IR_Literal_String)
-	crash_msg^ = IR_Literal_String{value = "Unhandled tag\n", type = base.IR_Type{wasm_type = .I32, type_id = base.Type_Var_ID(0), is_heap = true}, span = fn_decl.span}
+	crash_msg^ = IR_Literal_String {
+		value = "Unhandled tag\n",
+		type = base.IR_Type{wasm_type = .I32, type_id = base.Type_Var_ID(0), is_heap = true},
+		span = fn_decl.span,
+	}
 
 	crash := new(IR_Crash)
-	crash^ = IR_Crash{message = IR_Expr(crash_msg), span = fn_decl.span}
+	crash^ = IR_Crash {
+		message = IR_Expr(crash_msg),
+		span    = fn_decl.span,
+	}
 
-	arm := IR_Handler_Arm{
-		op = throw_op_name,
+	arm := IR_Handler_Arm {
+		op     = throw_op_name,
 		params = make([dynamic]base.Intern_ID, 0, 2),
-		body = IR_Expr(crash),
+		body   = IR_Expr(crash),
 	}
 	append(&arm.params, resume_id)
 	append(&arm.params, tag_param)
@@ -167,12 +208,12 @@ el_wrap_throw_handler :: proc(body: IR_Expr, fn_decl: ^IR_Decl_Fn, throw_name: b
 	effects := make([dynamic]base.Canonical_Name, 0, 1)
 	append(&effects, throw_effect_name)
 	handle := new(IR_Handle)
-	handle^ = IR_Handle{
+	handle^ = IR_Handle {
 		effects = effects,
-		body = body,
-		arms = arms,
-		type = fn_decl.return_type,
-		span = fn_decl.span,
+		body    = body,
+		arms    = arms,
+		type    = fn_decl.return_type,
+		span    = fn_decl.span,
 	}
 	return IR_Expr(handle)
 }
@@ -186,7 +227,11 @@ el_find_effect_ops :: proc(effect: base.Canonical_Name, env: ^Effect_Lower_Env) 
 	return nil
 }
 
-el_find_arm_index :: proc(effect: base.Canonical_Name, op: base.Intern_ID, env: ^Effect_Lower_Env) -> int {
+el_find_arm_index :: proc(
+	effect: base.Canonical_Name,
+	op: base.Intern_ID,
+	env: ^Effect_Lower_Env,
+) -> int {
 	ops := el_find_effect_ops(effect, env)
 	if ops == nil {
 		return 0
@@ -219,7 +264,13 @@ el_find_evidence :: proc(effect: base.Canonical_Name, env: ^Effect_Lower_Env) ->
 	return base.NO_NAME
 }
 
-el_replace_resume :: proc(expr: IR_Expr, resume_id: base.Intern_ID, resume_param: base.Intern_ID, ev_param: base.Intern_ID, env: ^Effect_Lower_Env) -> IR_Expr {
+el_replace_resume :: proc(
+	expr: IR_Expr,
+	resume_id: base.Intern_ID,
+	resume_param: base.Intern_ID,
+	ev_param: base.Intern_ID,
+	env: ^Effect_Lower_Env,
+) -> IR_Expr {
 	if expr == nil do return expr
 
 	#partial switch e in expr {
@@ -230,24 +281,36 @@ el_replace_resume :: proc(expr: IR_Expr, resume_id: base.Intern_ID, resume_param
 				resume_val = el_replace_resume(e.args[0], resume_id, resume_param, ev_param, env)
 			} else {
 				lit := new(IR_Literal_Int)
-				lit^ = IR_Literal_Int{value = 0, type = base.IR_Type{wasm_type = .Void, type_id = base.Type_Var_ID(0)}, span = e.span}
+				lit^ = IR_Literal_Int {
+					value = 0,
+					type = base.IR_Type{wasm_type = .Void, type_id = base.Type_Var_ID(0)},
+					span = e.span,
+				}
 				resume_val = IR_Expr(lit)
 			}
 
 			ev_expr: IR_Expr = nil
 			if ev_param != base.NO_NAME {
 				ev_var := new(IR_Var)
-				ev_var^ = IR_Var{name = ev_param, type = base.IR_Type{wasm_type = .I32, type_id = base.Type_Var_ID(0), is_heap = true}, span = e.span}
+				ev_var^ = IR_Var {
+					name = ev_param,
+					type = base.IR_Type {
+						wasm_type = .I32,
+						type_id = base.Type_Var_ID(0),
+						is_heap = true,
+					},
+					span = e.span,
+				}
 				ev_expr = IR_Expr(ev_var)
 			}
 
 			resume := new(IR_Resume)
-			resume^ = IR_Resume{
+			resume^ = IR_Resume {
 				resume_id = resume_param,
-				value = resume_val,
-				ev = ev_expr,
-				type = e.type,
-				span = e.span,
+				value     = resume_val,
+				ev        = ev_expr,
+				type      = e.type,
+				span      = e.span,
 			}
 			return IR_Expr(resume)
 		}
@@ -256,17 +319,22 @@ el_replace_resume :: proc(expr: IR_Expr, resume_id: base.Intern_ID, resume_param
 			append(&new_args, el_replace_resume(arg, resume_id, resume_param, ev_param, env))
 		}
 		new_call := new(IR_Call)
-		new_call^ = IR_Call{callee = e.callee, args = new_args, type = e.type, span = e.span}
+		new_call^ = IR_Call {
+			callee = e.callee,
+			args   = new_args,
+			type   = e.type,
+			span   = e.span,
+		}
 		return IR_Expr(new_call)
 
 	case ^IR_Let:
 		new_let := new(IR_Let)
-		new_let^ = IR_Let{
+		new_let^ = IR_Let {
 			binding = e.binding,
-			type = e.type,
-			value = el_replace_resume(e.value, resume_id, resume_param, ev_param, env),
-			body = el_replace_resume(e.body, resume_id, resume_param, ev_param, env),
-			span = e.span,
+			type    = e.type,
+			value   = el_replace_resume(e.value, resume_id, resume_param, ev_param, env),
+			body    = el_replace_resume(e.body, resume_id, resume_param, ev_param, env),
+			span    = e.span,
 		}
 		return IR_Expr(new_let)
 
@@ -276,36 +344,42 @@ el_replace_resume :: proc(expr: IR_Expr, resume_id: base.Intern_ID, resume_param
 			append(&new_args, el_replace_resume(arg, resume_id, resume_param, ev_param, env))
 		}
 		new_cc := new(IR_Closure_Call)
-		new_cc^ = IR_Closure_Call{
+		new_cc^ = IR_Closure_Call {
 			callee = el_replace_resume(e.callee, resume_id, resume_param, ev_param, env),
-			args = new_args,
-			type = e.type,
-			span = e.span,
+			args   = new_args,
+			type   = e.type,
+			span   = e.span,
 		}
 		return IR_Expr(new_cc)
 
 	case ^IR_If:
 		new_if := new(IR_If)
-		new_if^ = IR_If{
-			condition = el_replace_resume(e.condition, resume_id, resume_param, ev_param, env),
+		new_if^ = IR_If {
+			condition   = el_replace_resume(e.condition, resume_id, resume_param, ev_param, env),
 			then_branch = el_replace_resume(e.then_branch, resume_id, resume_param, ev_param, env),
 			else_branch = el_replace_resume(e.else_branch, resume_id, resume_param, ev_param, env),
-			type = e.type,
-			span = e.span,
+			type        = e.type,
+			span        = e.span,
 		}
 		return IR_Expr(new_if)
 
 	case ^IR_Match:
 		new_arms := make([dynamic]IR_Match_Arm, 0, len(e.arms))
 		for arm in e.arms {
-			append(&new_arms, IR_Match_Arm{pattern = arm.pattern, body = el_replace_resume(arm.body, resume_id, resume_param, ev_param, env)})
+			append(
+				&new_arms,
+				IR_Match_Arm {
+					pattern = arm.pattern,
+					body = el_replace_resume(arm.body, resume_id, resume_param, ev_param, env),
+				},
+			)
 		}
 		new_match := new(IR_Match)
-		new_match^ = IR_Match{
+		new_match^ = IR_Match {
 			scrutinee = el_replace_resume(e.scrutinee, resume_id, resume_param, ev_param, env),
-			arms = new_arms,
-			type = e.type,
-			span = e.span,
+			arms      = new_arms,
+			type      = e.type,
+			span      = e.span,
 		}
 		return IR_Expr(new_match)
 
@@ -315,23 +389,30 @@ el_replace_resume :: proc(expr: IR_Expr, resume_id: base.Intern_ID, resume_param
 			append(&new_stmts, el_replace_resume(stmt, resume_id, resume_param, ev_param, env))
 		}
 		new_block := new(IR_Block)
-		new_block^ = IR_Block{statements = new_stmts, type = e.type, span = e.span}
+		new_block^ = IR_Block {
+			statements = new_stmts,
+			type       = e.type,
+			span       = e.span,
+		}
 		return IR_Expr(new_block)
 
 	case ^IR_BinOp:
 		new_binop := new(IR_BinOp)
-		new_binop^ = IR_BinOp{
-			op = e.op,
-			left = el_replace_resume(e.left, resume_id, resume_param, ev_param, env),
+		new_binop^ = IR_BinOp {
+			op    = e.op,
+			left  = el_replace_resume(e.left, resume_id, resume_param, ev_param, env),
 			right = el_replace_resume(e.right, resume_id, resume_param, ev_param, env),
-			type = e.type,
-			span = e.span,
+			type  = e.type,
+			span  = e.span,
 		}
 		return IR_Expr(new_binop)
 
 	case ^IR_Return:
 		new_ret := new(IR_Return)
-		new_ret^ = IR_Return{value = el_replace_resume(e.value, resume_id, resume_param, ev_param, env), span = e.span}
+		new_ret^ = IR_Return {
+			value = el_replace_resume(e.value, resume_id, resume_param, ev_param, env),
+			span  = e.span,
+		}
 		return IR_Expr(new_ret)
 
 	case ^IR_Construct_Tag:
@@ -340,55 +421,71 @@ el_replace_resume :: proc(expr: IR_Expr, resume_id: base.Intern_ID, resume_param
 			append(&new_payload, el_replace_resume(p, resume_id, resume_param, ev_param, env))
 		}
 		new_tag := new(IR_Construct_Tag)
-		new_tag^ = IR_Construct_Tag{tag_name = e.tag_name, tag_index = e.tag_index, payload = new_payload, reuse_addr = e.reuse_addr, type = e.type, span = e.span}
+		new_tag^ = IR_Construct_Tag {
+			tag_name   = e.tag_name,
+			tag_index  = e.tag_index,
+			payload    = new_payload,
+			reuse_addr = e.reuse_addr,
+			type       = e.type,
+			span       = e.span,
+		}
 		return IR_Expr(new_tag)
 
 	case ^IR_Construct_Record:
 		new_fields := make([dynamic]IR_Record_Field, 0, len(e.fields))
 		for f in e.fields {
-			append(&new_fields, IR_Record_Field{name = f.name, value = el_replace_resume(f.value, resume_id, resume_param, ev_param, env)})
+			append(
+				&new_fields,
+				IR_Record_Field {
+					name = f.name,
+					value = el_replace_resume(f.value, resume_id, resume_param, ev_param, env),
+				},
+			)
 		}
 		new_rec := new(IR_Construct_Record)
-		new_rec^ = IR_Construct_Record{
-			fields = new_fields,
-			rest = el_replace_resume(e.rest, resume_id, resume_param, ev_param, env),
+		new_rec^ = IR_Construct_Record {
+			fields     = new_fields,
+			rest       = el_replace_resume(e.rest, resume_id, resume_param, ev_param, env),
 			reuse_addr = e.reuse_addr,
-			type = e.type,
-			span = e.span,
+			type       = e.type,
+			span       = e.span,
 		}
 		return IR_Expr(new_rec)
 
 	case ^IR_Field_Access:
 		new_fa := new(IR_Field_Access)
-		new_fa^ = IR_Field_Access{
-			record = el_replace_resume(e.record, resume_id, resume_param, ev_param, env),
-			field = e.field,
+		new_fa^ = IR_Field_Access {
+			record      = el_replace_resume(e.record, resume_id, resume_param, ev_param, env),
+			field       = e.field,
 			field_index = e.field_index,
-			type = e.type,
-			span = e.span,
+			type        = e.type,
+			span        = e.span,
 		}
 		return IR_Expr(new_fa)
 
 	case ^IR_Handle:
 		new_arms := make([dynamic]IR_Handler_Arm, 0, len(e.arms))
 		for arm in e.arms {
-			append(&new_arms, IR_Handler_Arm{
-				op = arm.op,
-				params = arm.params,
-				body = el_replace_resume(arm.body, resume_id, resume_param, ev_param, env),
-			})
+			append(
+				&new_arms,
+				IR_Handler_Arm {
+					op = arm.op,
+					params = arm.params,
+					body = el_replace_resume(arm.body, resume_id, resume_param, ev_param, env),
+				},
+			)
 		}
 		effects := make([dynamic]base.Canonical_Name, 0, len(e.effects))
 		for eff in e.effects {
 			append(&effects, eff)
 		}
 		new_handle := new(IR_Handle)
-		new_handle^ = IR_Handle{
+		new_handle^ = IR_Handle {
 			effects = effects,
-			body = el_replace_resume(e.body, resume_id, resume_param, ev_param, env),
-			arms = new_arms,
-			type = e.type,
-			span = e.span,
+			body    = el_replace_resume(e.body, resume_id, resume_param, ev_param, env),
+			arms    = new_arms,
+			type    = e.type,
+			span    = e.span,
 		}
 		return IR_Expr(new_handle)
 
@@ -398,7 +495,13 @@ el_replace_resume :: proc(expr: IR_Expr, resume_id: base.Intern_ID, resume_param
 			append(&new_args, el_replace_resume(arg, resume_id, resume_param, ev_param, env))
 		}
 		new_perf := new(IR_Perform)
-		new_perf^ = IR_Perform{effect = e.effect, op = e.op, args = new_args, type = e.type, span = e.span}
+		new_perf^ = IR_Perform {
+			effect = e.effect,
+			op     = e.op,
+			args   = new_args,
+			type   = e.type,
+			span   = e.span,
+		}
 		return IR_Expr(new_perf)
 
 	case ^IR_Method_Call:
@@ -407,25 +510,25 @@ el_replace_resume :: proc(expr: IR_Expr, resume_id: base.Intern_ID, resume_param
 			append(&new_args, el_replace_resume(arg, resume_id, resume_param, ev_param, env))
 		}
 		new_mc := new(IR_Method_Call)
-		new_mc^ = IR_Method_Call{
+		new_mc^ = IR_Method_Call {
 			receiver = el_replace_resume(e.receiver, resume_id, resume_param, ev_param, env),
-			method = e.method,
-			args = new_args,
-			type = e.type,
-			span = e.span,
+			method   = e.method,
+			args     = new_args,
+			type     = e.type,
+			span     = e.span,
 		}
 		return IR_Expr(new_mc)
 
 	case ^IR_Closure:
 		new_closure := new(IR_Closure)
-		new_closure^ = IR_Closure{
-			fn_name = e.fn_name,
-			params = e.params,
-			env = el_replace_resume(e.env, resume_id, resume_param, ev_param, env),
-			body = el_replace_resume(e.body, resume_id, resume_param, ev_param, env),
-			type = e.type,
+		new_closure^ = IR_Closure {
+			fn_name     = e.fn_name,
+			params      = e.params,
+			env         = el_replace_resume(e.env, resume_id, resume_param, ev_param, env),
+			body        = el_replace_resume(e.body, resume_id, resume_param, ev_param, env),
+			type        = e.type,
 			return_type = e.return_type,
-			span = e.span,
+			span        = e.span,
 		}
 		return IR_Expr(new_closure)
 
@@ -435,7 +538,11 @@ el_replace_resume :: proc(expr: IR_Expr, resume_id: base.Intern_ID, resume_param
 			append(&new_args, el_replace_resume(arg, resume_id, resume_param, ev_param, env))
 		}
 		new_tc := new(IR_Tail_Call)
-		new_tc^ = IR_Tail_Call{callee = e.callee, args = new_args, span = e.span}
+		new_tc^ = IR_Tail_Call {
+			callee = e.callee,
+			args   = new_args,
+			span   = e.span,
+		}
 		return IR_Expr(new_tc)
 
 	case ^IR_Dup:
@@ -462,28 +569,31 @@ el_replace_resume :: proc(expr: IR_Expr, resume_id: base.Intern_ID, resume_param
 		return expr
 	case ^IR_Crash:
 		new_crash := new(IR_Crash)
-		new_crash^ = IR_Crash{message = el_replace_resume(e.message, resume_id, resume_param, ev_param, env), span = e.span}
+		new_crash^ = IR_Crash {
+			message = el_replace_resume(e.message, resume_id, resume_param, ev_param, env),
+			span    = e.span,
+		}
 		return IR_Expr(new_crash)
 	case ^IR_I32_Load:
 		new_load := new(IR_I32_Load)
-		new_load^ = IR_I32_Load{
-			base = el_replace_resume(e.base, resume_id, resume_param, ev_param, env),
+		new_load^ = IR_I32_Load {
+			base   = el_replace_resume(e.base, resume_id, resume_param, ev_param, env),
 			offset = e.offset,
-			span = e.span,
+			span   = e.span,
 		}
 		return IR_Expr(new_load)
 	case ^IR_I32_Store:
 		new_store := new(IR_I32_Store)
-		new_store^ = IR_I32_Store{
-			base = el_replace_resume(e.base, resume_id, resume_param, ev_param, env),
+		new_store^ = IR_I32_Store {
+			base   = el_replace_resume(e.base, resume_id, resume_param, ev_param, env),
 			offset = e.offset,
-			value = el_replace_resume(e.value, resume_id, resume_param, ev_param, env),
-			span = e.span,
+			value  = el_replace_resume(e.value, resume_id, resume_param, ev_param, env),
+			span   = e.span,
 		}
 		return IR_Expr(new_store)
 	case ^IR_Assign:
 		new_assign := new(IR_Assign)
-		new_assign^ = IR_Assign{
+		new_assign^ = IR_Assign {
 			binding = e.binding,
 			value   = el_replace_resume(e.value, resume_id, resume_param, ev_param, env),
 			type    = e.type,
@@ -492,7 +602,7 @@ el_replace_resume :: proc(expr: IR_Expr, resume_id: base.Intern_ID, resume_param
 		return IR_Expr(new_assign)
 	case ^IR_Loop:
 		new_loop := new(IR_Loop)
-		new_loop^ = IR_Loop{
+		new_loop^ = IR_Loop {
 			var      = e.var,
 			iterable = el_replace_resume(e.iterable, resume_id, resume_param, ev_param, env),
 			body     = el_replace_resume(e.body, resume_id, resume_param, ev_param, env),
@@ -505,13 +615,21 @@ el_replace_resume :: proc(expr: IR_Expr, resume_id: base.Intern_ID, resume_param
 	return expr
 }
 
-el_make_camp_alloc_call :: proc(size: int, span: base.Source_Span, env: ^Effect_Lower_Env) -> IR_Expr {
+el_make_camp_alloc_call :: proc(
+	size: int,
+	span: base.Source_Span,
+	env: ^Effect_Lower_Env,
+) -> IR_Expr {
 	size_lit := new(IR_Literal_Int)
-	size_lit^ = IR_Literal_Int{value = i64(size), type = base.IR_Type{wasm_type = .I32, type_id = base.Type_Var_ID(0)}, span = span}
+	size_lit^ = IR_Literal_Int {
+		value = i64(size),
+		type = base.IR_Type{wasm_type = .I32, type_id = base.Type_Var_ID(0)},
+		span = span,
+	}
 
-	callee := base.Canonical_Name{
-		module = base.NO_NAME,
-		name = env.camp_alloc_id,
+	callee := base.Canonical_Name {
+		module   = base.NO_NAME,
+		name     = env.camp_alloc_id,
 		is_local = false,
 	}
 
@@ -519,7 +637,7 @@ el_make_camp_alloc_call :: proc(size: int, span: base.Source_Span, env: ^Effect_
 	append(&args, IR_Expr(size_lit))
 
 	call := new(IR_Call)
-	call^ = IR_Call{
+	call^ = IR_Call {
 		callee = callee,
 		args = args,
 		type = base.IR_Type{wasm_type = .I32, type_id = base.Type_Var_ID(0), is_heap = true},
@@ -528,16 +646,29 @@ el_make_camp_alloc_call :: proc(size: int, span: base.Source_Span, env: ^Effect_
 	return IR_Expr(call)
 }
 
-el_make_camp_dealloc_call :: proc(ev_var: base.Intern_ID, size: int, span: base.Source_Span, env: ^Effect_Lower_Env) -> IR_Expr {
+el_make_camp_dealloc_call :: proc(
+	ev_var: base.Intern_ID,
+	size: int,
+	span: base.Source_Span,
+	env: ^Effect_Lower_Env,
+) -> IR_Expr {
 	ev_var_expr := new(IR_Var)
-	ev_var_expr^ = IR_Var{name = ev_var, type = base.IR_Type{wasm_type = .I32, type_id = base.Type_Var_ID(0), is_heap = true}, span = span}
+	ev_var_expr^ = IR_Var {
+		name = ev_var,
+		type = base.IR_Type{wasm_type = .I32, type_id = base.Type_Var_ID(0), is_heap = true},
+		span = span,
+	}
 
 	size_lit := new(IR_Literal_Int)
-	size_lit^ = IR_Literal_Int{value = i64(size), type = base.IR_Type{wasm_type = .I32, type_id = base.Type_Var_ID(0)}, span = span}
+	size_lit^ = IR_Literal_Int {
+		value = i64(size),
+		type = base.IR_Type{wasm_type = .I32, type_id = base.Type_Var_ID(0)},
+		span = span,
+	}
 
-	callee := base.Canonical_Name{
-		module = base.NO_NAME,
-		name = env.camp_dealloc_id,
+	callee := base.Canonical_Name {
+		module   = base.NO_NAME,
+		name     = env.camp_dealloc_id,
 		is_local = false,
 	}
 
@@ -546,7 +677,7 @@ el_make_camp_dealloc_call :: proc(ev_var: base.Intern_ID, size: int, span: base.
 	append(&args, IR_Expr(size_lit))
 
 	call := new(IR_Call)
-	call^ = IR_Call{
+	call^ = IR_Call {
 		callee = callee,
 		args = args,
 		type = base.IR_Type{wasm_type = .Void, type_id = base.Type_Var_ID(0)},
@@ -555,23 +686,37 @@ el_make_camp_dealloc_call :: proc(ev_var: base.Intern_ID, size: int, span: base.
 	return IR_Expr(call)
 }
 
-el_make_i32_store :: proc(base_var: base.Intern_ID, offset: int, value: IR_Expr, span: base.Source_Span) -> IR_Expr {
+el_make_i32_store :: proc(
+	base_var: base.Intern_ID,
+	offset: int,
+	value: IR_Expr,
+	span: base.Source_Span,
+) -> IR_Expr {
 	base_ir := new(IR_Var)
-	base_ir^ = IR_Var{name = base_var, type = base.IR_Type{wasm_type = .I32, type_id = base.Type_Var_ID(0), is_heap = true}, span = span}
+	base_ir^ = IR_Var {
+		name = base_var,
+		type = base.IR_Type{wasm_type = .I32, type_id = base.Type_Var_ID(0), is_heap = true},
+		span = span,
+	}
 
 	store := new(IR_I32_Store)
-	store^ = IR_I32_Store{
-		base = IR_Expr(base_ir),
+	store^ = IR_I32_Store {
+		base   = IR_Expr(base_ir),
 		offset = offset,
-		value = value,
-		span = span,
+		value  = value,
+		span   = span,
 	}
 	return IR_Expr(store)
 }
 
-el_make_let_void :: proc(binding: base.Intern_ID, value: IR_Expr, body: IR_Expr, span: base.Source_Span) -> IR_Expr {
+el_make_let_void :: proc(
+	binding: base.Intern_ID,
+	value: IR_Expr,
+	body: IR_Expr,
+	span: base.Source_Span,
+) -> IR_Expr {
 	let_expr := new(IR_Let)
-	let_expr^ = IR_Let{
+	let_expr^ = IR_Let {
 		binding = binding,
 		type = base.IR_Type{wasm_type = .Void, type_id = base.Type_Var_ID(0)},
 		value = value,
@@ -581,44 +726,61 @@ el_make_let_void :: proc(binding: base.Intern_ID, value: IR_Expr, body: IR_Expr,
 	return IR_Expr(let_expr)
 }
 
-el_lower_let_perform :: proc(let_expr: ^IR_Let, perform: ^IR_Perform, env: ^Effect_Lower_Env) -> IR_Expr {
+el_lower_let_perform :: proc(
+	let_expr: ^IR_Let,
+	perform: ^IR_Perform,
+	env: ^Effect_Lower_Env,
+) -> IR_Expr {
 	ev_var := el_find_evidence(perform.effect, env)
 
 	if ev_var == base.NO_NAME {
-		diagnostics.collector_add_diag(env.collector, diagnostics.diag_internal("perform without handler evidence", perform.span))
+		diagnostics.collector_add_diag(
+			env.collector,
+			diagnostics.diag_internal("perform without handler evidence", perform.span),
+		)
 		lit := new(IR_Literal_Int)
-		lit^ = IR_Literal_Int{value = 0, type = let_expr.type, span = let_expr.span}
+		lit^ = IR_Literal_Int {
+			value = 0,
+			type  = let_expr.type,
+			span  = let_expr.span,
+		}
 		return IR_Expr(lit)
 	}
 
 	arm_index := el_find_arm_index(perform.effect, perform.op, env)
 
-	cont_fn_name := base.Canonical_Name{
-		module = base.NO_NAME,
-		name = base.fresh_id(&env.fresh_state, "_kc"),
+	cont_fn_name := base.Canonical_Name {
+		module   = base.NO_NAME,
+		name     = base.fresh_id(&env.fresh_state, "_kc"),
 		is_local = true,
 	}
 	cont_params := make([dynamic]IR_Param, 0, 2)
 	ev_param_for_cont: base.Intern_ID = base.NO_NAME
 	append(&cont_params, IR_Param{name = let_expr.binding, type = let_expr.type})
 	ev_param_for_cont = base.fresh_id(&env.fresh_state, "_ev")
-	append(&cont_params, IR_Param{name = ev_param_for_cont, type = base.IR_Type{wasm_type = .I32, type_id = base.Type_Var_ID(0), is_heap = true}})
+	append(
+		&cont_params,
+		IR_Param {
+			name = ev_param_for_cont,
+			type = base.IR_Type{wasm_type = .I32, type_id = base.Type_Var_ID(0), is_heap = true},
+		},
+	)
 
 	cont_fn_body := el_lower_expr(let_expr.body, env)
 
 	cont_closure := new(IR_Closure)
-	cont_closure^ = IR_Closure{
-		fn_name = cont_fn_name,
-		params = cont_params,
-		env = IR_Expr(nil),
-		body = cont_fn_body,
-		type = let_expr.type,
+	cont_closure^ = IR_Closure {
+		fn_name     = cont_fn_name,
+		params      = cont_params,
+		env         = IR_Expr(nil),
+		body        = cont_fn_body,
+		type        = let_expr.type,
 		return_type = let_expr.type,
-		span = let_expr.span,
+		span        = let_expr.span,
 	}
 
 	cont_fn := new(IR_Decl_Fn)
-	cont_fn^ = IR_Decl_Fn{
+	cont_fn^ = IR_Decl_Fn {
 		name = cont_fn_name,
 		is_effectful = false,
 		params = cont_params,
@@ -631,13 +793,17 @@ el_lower_let_perform :: proc(let_expr: ^IR_Let, perform: ^IR_Perform, env: ^Effe
 	append(&env.module.decls, IR_Decl(cont_fn))
 
 	ev_var_expr := new(IR_Var)
-	ev_var_expr^ = IR_Var{name = ev_var, type = base.IR_Type{wasm_type = .I32, type_id = base.Type_Var_ID(0), is_heap = true}, span = perform.span}
+	ev_var_expr^ = IR_Var {
+		name = ev_var,
+		type = base.IR_Type{wasm_type = .I32, type_id = base.Type_Var_ID(0), is_heap = true},
+		span = perform.span,
+	}
 
 	closure_load := new(IR_I32_Load)
-	closure_load^ = IR_I32_Load{
-		base = IR_Expr(ev_var_expr),
+	closure_load^ = IR_I32_Load {
+		base   = IR_Expr(ev_var_expr),
 		offset = arm_index * 4,
-		span = perform.span,
+		span   = perform.span,
 	}
 
 	args := make([dynamic]IR_Expr, 0, len(perform.args) + 2)
@@ -647,15 +813,19 @@ el_lower_let_perform :: proc(let_expr: ^IR_Let, perform: ^IR_Perform, env: ^Effe
 	append(&args, IR_Expr(cont_closure))
 
 	ev_arg := new(IR_Var)
-	ev_arg^ = IR_Var{name = ev_var, type = base.IR_Type{wasm_type = .I32, type_id = base.Type_Var_ID(0), is_heap = true}, span = perform.span}
+	ev_arg^ = IR_Var {
+		name = ev_var,
+		type = base.IR_Type{wasm_type = .I32, type_id = base.Type_Var_ID(0), is_heap = true},
+		span = perform.span,
+	}
 	append(&args, IR_Expr(ev_arg))
 
 	cc := new(IR_Closure_Call)
-	cc^ = IR_Closure_Call{
+	cc^ = IR_Closure_Call {
 		callee = IR_Expr(closure_load),
-		args = args,
-		type = let_expr.type,
-		span = let_expr.span,
+		args   = args,
+		type   = let_expr.type,
+		span   = let_expr.span,
 	}
 	return IR_Expr(cc)
 }
@@ -675,12 +845,12 @@ el_lower_expr :: proc(expr: IR_Expr, env: ^Effect_Lower_Env) -> IR_Expr {
 		}
 		if all_scheduler {
 			new_handle := new(IR_Handle)
-			new_handle^ = IR_Handle{
+			new_handle^ = IR_Handle {
 				effects = e.effects,
-				body = el_lower_expr(e.body, env),
-				arms = e.arms, // arms kept for scope_id tracking but not transformed
-				type = e.type,
-				span = e.span,
+				body    = el_lower_expr(e.body, env),
+				arms    = e.arms, // arms kept for scope_id tracking but not transformed
+				type    = e.type,
+				span    = e.span,
 			}
 			return IR_Expr(new_handle)
 		}
@@ -700,14 +870,24 @@ el_lower_expr :: proc(expr: IR_Expr, env: ^Effect_Lower_Env) -> IR_Expr {
 
 		for arm, arm_idx in e.arms {
 			handler_name_id := base.fresh_id(&env.fresh_state, "handler")
-			handler_name := base.Canonical_Name{
-				module = base.NO_NAME,
-				name = handler_name_id,
+			handler_name := base.Canonical_Name {
+				module   = base.NO_NAME,
+				name     = handler_name_id,
 				is_local = true,
 			}
 
 			params := make([dynamic]IR_Param, 0, 4 + len(arm.params))
-			append(&params, IR_Param{name = env_param, type = base.IR_Type{wasm_type = .I32, type_id = base.Type_Var_ID(0), is_heap = true}})
+			append(
+				&params,
+				IR_Param {
+					name = env_param,
+					type = base.IR_Type {
+						wasm_type = .I32,
+						type_id = base.Type_Var_ID(0),
+						is_heap = true,
+					},
+				},
+			)
 
 			// Find the operation definition across all effects
 			found_op: IR_Effect_Op
@@ -731,43 +911,92 @@ el_lower_expr :: proc(expr: IR_Expr, env: ^Effect_Lower_Env) -> IR_Expr {
 				param_id := arm.params[i]
 				// Look up the param type from the effect definition
 				if op_found {
-					if i-1 < len(found_op.params) {
-						append(&params, found_op.params[i-1])
+					if i - 1 < len(found_op.params) {
+						append(&params, found_op.params[i - 1])
 					} else {
-						append(&params, IR_Param{name = param_id, type = base.IR_Type{wasm_type = .I32, type_id = base.Type_Var_ID(0)}})
+						append(
+							&params,
+							IR_Param {
+								name = param_id,
+								type = base.IR_Type {
+									wasm_type = .I32,
+									type_id = base.Type_Var_ID(0),
+								},
+							},
+						)
 					}
 				} else {
-					append(&params, IR_Param{name = param_id, type = base.IR_Type{wasm_type = .I32, type_id = base.Type_Var_ID(0)}})
+					append(
+						&params,
+						IR_Param {
+							name = param_id,
+							type = base.IR_Type{wasm_type = .I32, type_id = base.Type_Var_ID(0)},
+						},
+					)
 				}
 			}
 
-			append(&params, IR_Param{name = resume_param, type = base.IR_Type{wasm_type = .I32, type_id = base.Type_Var_ID(0), is_heap = true}})
-			append(&params, IR_Param{name = ev_param, type = base.IR_Type{wasm_type = .I32, type_id = base.Type_Var_ID(0), is_heap = true}})
+			append(
+				&params,
+				IR_Param {
+					name = resume_param,
+					type = base.IR_Type {
+						wasm_type = .I32,
+						type_id = base.Type_Var_ID(0),
+						is_heap = true,
+					},
+				},
+			)
+			append(
+				&params,
+				IR_Param {
+					name = ev_param,
+					type = base.IR_Type {
+						wasm_type = .I32,
+						type_id = base.Type_Var_ID(0),
+						is_heap = true,
+					},
+				},
+			)
 
 			lowered_body := el_lower_expr(arm.body, env)
-			transformed_body := el_replace_resume(lowered_body, arm.params[0], resume_param, ev_param, env)
+			transformed_body := el_replace_resume(
+				lowered_body,
+				arm.params[0],
+				resume_param,
+				ev_param,
+				env,
+			)
 
 			// Wrap non-resume body in implicit resume call to the continuation
 			if _, is_resume := transformed_body.(^IR_Resume); !is_resume {
 				ev_expr: IR_Expr = nil
 				if ev_param != base.NO_NAME {
 					ev_var2 := new(IR_Var)
-					ev_var2^ = IR_Var{name = ev_param, type = base.IR_Type{wasm_type = .I32, type_id = base.Type_Var_ID(0), is_heap = true}, span = e.span}
+					ev_var2^ = IR_Var {
+						name = ev_param,
+						type = base.IR_Type {
+							wasm_type = .I32,
+							type_id = base.Type_Var_ID(0),
+							is_heap = true,
+						},
+						span = e.span,
+					}
 					ev_expr = IR_Expr(ev_var2)
 				}
 				resume_expr := new(IR_Resume)
-				resume_expr^ = IR_Resume{
+				resume_expr^ = IR_Resume {
 					resume_id = resume_param,
-					value = transformed_body,
-					ev = ev_expr,
-					type = e.type,
-					span = e.span,
+					value     = transformed_body,
+					ev        = ev_expr,
+					type      = e.type,
+					span      = e.span,
 				}
 				transformed_body = IR_Expr(resume_expr)
 			}
 
 			handler_fn := new(IR_Decl_Fn)
-			handler_fn^ = IR_Decl_Fn{
+			handler_fn^ = IR_Decl_Fn {
 				name = handler_name,
 				is_effectful = false,
 				params = params,
@@ -783,12 +1012,15 @@ el_lower_expr :: proc(expr: IR_Expr, env: ^Effect_Lower_Env) -> IR_Expr {
 		}
 
 		for eff in e.effects {
-			append(&env.evidence_stack, Effect_Evidence{
-				effect = eff,
-				ev_var = ev_var,
-				arm_indices = arm_indices,
-				handle_type = e.type,
-			})
+			append(
+				&env.evidence_stack,
+				Effect_Evidence {
+					effect = eff,
+					ev_var = ev_var,
+					arm_indices = arm_indices,
+					handle_type = e.type,
+				},
+			)
 		}
 		transformed_body := el_lower_expr(e.body, env)
 		for _ in e.effects {
@@ -823,41 +1055,102 @@ el_lower_expr :: proc(expr: IR_Expr, env: ^Effect_Lower_Env) -> IR_Expr {
 			}
 
 			closure_params := make([dynamic]IR_Param, 0, 2 + len(arm.params))
-			append(&closure_params, IR_Param{name = env_param, type = base.IR_Type{wasm_type = .I32, type_id = base.Type_Var_ID(0), is_heap = true}})
+			append(
+				&closure_params,
+				IR_Param {
+					name = env_param,
+					type = base.IR_Type {
+						wasm_type = .I32,
+						type_id = base.Type_Var_ID(0),
+						is_heap = true,
+					},
+				},
+			)
 			// Add operation params from the handler arm (arm.params[1:] are op params)
 			for i := 1; i < len(arm.params); i += 1 {
 				param_id := arm.params[i]
 				if op_found2 {
-					if i-1 < len(found_op2.params) {
-						append(&closure_params, found_op2.params[i-1])
+					if i - 1 < len(found_op2.params) {
+						append(&closure_params, found_op2.params[i - 1])
 					} else {
-						append(&closure_params, IR_Param{name = param_id, type = base.IR_Type{wasm_type = .I32, type_id = base.Type_Var_ID(0)}})
+						append(
+							&closure_params,
+							IR_Param {
+								name = param_id,
+								type = base.IR_Type {
+									wasm_type = .I32,
+									type_id = base.Type_Var_ID(0),
+								},
+							},
+						)
 					}
 				} else {
-					append(&closure_params, IR_Param{name = param_id, type = base.IR_Type{wasm_type = .I32, type_id = base.Type_Var_ID(0)}})
+					append(
+						&closure_params,
+						IR_Param {
+							name = param_id,
+							type = base.IR_Type{wasm_type = .I32, type_id = base.Type_Var_ID(0)},
+						},
+					)
 				}
 			}
-			append(&closure_params, IR_Param{name = resume_param, type = base.IR_Type{wasm_type = .I32, type_id = base.Type_Var_ID(0), is_heap = true}})
-			append(&closure_params, IR_Param{name = ev_param, type = base.IR_Type{wasm_type = .I32, type_id = base.Type_Var_ID(0), is_heap = true}})
+			append(
+				&closure_params,
+				IR_Param {
+					name = resume_param,
+					type = base.IR_Type {
+						wasm_type = .I32,
+						type_id = base.Type_Var_ID(0),
+						is_heap = true,
+					},
+				},
+			)
+			append(
+				&closure_params,
+				IR_Param {
+					name = ev_param,
+					type = base.IR_Type {
+						wasm_type = .I32,
+						type_id = base.Type_Var_ID(0),
+						is_heap = true,
+					},
+				},
+			)
 
 			zero_lit := new(IR_Literal_Int)
-			zero_lit^ = IR_Literal_Int{value = 0, type = base.IR_Type{wasm_type = .I32, type_id = base.Type_Var_ID(0)}, span = e.span}
+			zero_lit^ = IR_Literal_Int {
+				value = 0,
+				type = base.IR_Type{wasm_type = .I32, type_id = base.Type_Var_ID(0)},
+				span = e.span,
+			}
 
 			handler_closure := new(IR_Closure)
-		handler_closure^ = IR_Closure{
-			fn_name = handler_name,
-			params = closure_params,
-			env = IR_Expr(zero_lit),
-			body = IR_Expr(nil),
-			type = base.IR_Type{wasm_type = .I32, type_id = base.Type_Var_ID(0), is_heap = true},
-			return_type = base.IR_Type{wasm_type = .I32, type_id = base.Type_Var_ID(0)},
-			span = e.span,
-		}
+			handler_closure^ = IR_Closure {
+				fn_name = handler_name,
+				params = closure_params,
+				env = IR_Expr(zero_lit),
+				body = IR_Expr(nil),
+				type = base.IR_Type {
+					wasm_type = .I32,
+					type_id = base.Type_Var_ID(0),
+					is_heap = true,
+				},
+				return_type = base.IR_Type{wasm_type = .I32, type_id = base.Type_Var_ID(0)},
+				span = e.span,
+			}
 
 			closure_binding := base.fresh_id(&env.fresh_state, "_hcl")
 
 			closure_var := new(IR_Var)
-			closure_var^ = IR_Var{name = closure_binding, type = base.IR_Type{wasm_type = .I32, type_id = base.Type_Var_ID(0), is_heap = true}, span = e.span}
+			closure_var^ = IR_Var {
+				name = closure_binding,
+				type = base.IR_Type {
+					wasm_type = .I32,
+					type_id = base.Type_Var_ID(0),
+					is_heap = true,
+				},
+				span = e.span,
+			}
 
 			store_expr := el_make_i32_store(ev_var, arm_idx * 4, IR_Expr(closure_var), e.span)
 			store_binding := base.fresh_id(&env.fresh_state, "_store")
@@ -865,9 +1158,13 @@ el_lower_expr :: proc(expr: IR_Expr, env: ^Effect_Lower_Env) -> IR_Expr {
 			result = el_make_let_void(store_binding, store_expr, result, e.span)
 
 			closure_let := new(IR_Let)
-			closure_let^ = IR_Let{
+			closure_let^ = IR_Let {
 				binding = closure_binding,
-				type = base.IR_Type{wasm_type = .I32, type_id = base.Type_Var_ID(0), is_heap = true},
+				type = base.IR_Type {
+					wasm_type = .I32,
+					type_id = base.Type_Var_ID(0),
+					is_heap = true,
+				},
 				value = IR_Expr(handler_closure),
 				body = result,
 				span = e.span,
@@ -877,7 +1174,7 @@ el_lower_expr :: proc(expr: IR_Expr, env: ^Effect_Lower_Env) -> IR_Expr {
 		delete(arm_handler_names)
 
 		let_expr := new(IR_Let)
-		let_expr^ = IR_Let{
+		let_expr^ = IR_Let {
 			binding = ev_var,
 			type = base.IR_Type{wasm_type = .I32, type_id = base.Type_Var_ID(0), is_heap = true},
 			value = alloc_call,
@@ -890,16 +1187,50 @@ el_lower_expr :: proc(expr: IR_Expr, env: ^Effect_Lower_Env) -> IR_Expr {
 		#partial switch v in e.value {
 		case ^IR_Perform:
 			return el_lower_let_perform(e, v, env)
-		case ^IR_Literal_Int, ^IR_Literal_Float, ^IR_Literal_String, ^IR_Literal_Bool, ^IR_Var, ^IR_Let, ^IR_Call, ^IR_Tail_Call, ^IR_If, ^IR_Match, ^IR_Construct_Tag, ^IR_Expr_Nominal_Construct, ^IR_Construct_Record, ^IR_Field_Access, ^IR_Method_Call, ^IR_Handle, ^IR_Resume, ^IR_Closure, ^IR_Closure_Call, ^IR_Return, ^IR_Block, ^IR_BinOp, ^IR_Dup, ^IR_Drop, ^IR_Crash, ^IR_I32_Load, ^IR_I32_Store, ^IR_Atomic_Load, ^IR_Atomic_Store, ^IR_Atomic_RMW, ^IR_Atomic_Fence, ^IR_Wait, ^IR_Notify, ^IR_Assign, ^IR_Loop:
+		case ^IR_Literal_Int,
+		     ^IR_Literal_Float,
+		     ^IR_Literal_String,
+		     ^IR_Literal_Bool,
+		     ^IR_Var,
+		     ^IR_Let,
+		     ^IR_Call,
+		     ^IR_Tail_Call,
+		     ^IR_If,
+		     ^IR_Match,
+		     ^IR_Construct_Tag,
+		     ^IR_Expr_Nominal_Construct,
+		     ^IR_Construct_Record,
+		     ^IR_Field_Access,
+		     ^IR_Method_Call,
+		     ^IR_Handle,
+		     ^IR_Resume,
+		     ^IR_Closure,
+		     ^IR_Closure_Call,
+		     ^IR_Return,
+		     ^IR_Block,
+		     ^IR_BinOp,
+		     ^IR_Dup,
+		     ^IR_Drop,
+		     ^IR_Crash,
+		     ^IR_I32_Load,
+		     ^IR_I32_Store,
+		     ^IR_Atomic_Load,
+		     ^IR_Atomic_Store,
+		     ^IR_Atomic_RMW,
+		     ^IR_Atomic_Fence,
+		     ^IR_Wait,
+		     ^IR_Notify,
+		     ^IR_Assign,
+		     ^IR_Loop:
 		}
 
 		new_let := new(IR_Let)
-		new_let^ = IR_Let{
+		new_let^ = IR_Let {
 			binding = e.binding,
-			type = e.type,
-			value = el_lower_expr(e.value, env),
-			body = el_lower_expr(e.body, env),
-			span = e.span,
+			type    = e.type,
+			value   = el_lower_expr(e.value, env),
+			body    = el_lower_expr(e.body, env),
+			span    = e.span,
 		}
 		return IR_Expr(new_let)
 
@@ -907,16 +1238,23 @@ el_lower_expr :: proc(expr: IR_Expr, env: ^Effect_Lower_Env) -> IR_Expr {
 		ev_var := el_find_evidence(e.effect, env)
 
 		if ev_var == base.NO_NAME {
-			diagnostics.collector_add_diag(env.collector, diagnostics.diag_internal("perform without handler evidence", e.span))
+			diagnostics.collector_add_diag(
+				env.collector,
+				diagnostics.diag_internal("perform without handler evidence", e.span),
+			)
 			lit := new(IR_Literal_Int)
-			lit^ = IR_Literal_Int{value = 0, type = e.type, span = e.span}
+			lit^ = IR_Literal_Int {
+				value = 0,
+				type  = e.type,
+				span  = e.span,
+			}
 			return IR_Expr(lit)
 		}
 		arm_index := el_find_arm_index(e.effect, e.op, env)
 
-		cont_fn_name := base.Canonical_Name{
-			module = base.NO_NAME,
-			name = base.fresh_id(&env.fresh_state, "_kc"),
+		cont_fn_name := base.Canonical_Name {
+			module   = base.NO_NAME,
+			name     = base.fresh_id(&env.fresh_state, "_kc"),
 			is_local = true,
 		}
 		cont_result := base.fresh_id(&env.fresh_state, "_kr")
@@ -930,13 +1268,27 @@ el_lower_expr :: proc(expr: IR_Expr, env: ^Effect_Lower_Env) -> IR_Expr {
 		cont_params := make([dynamic]IR_Param, 0, 2)
 		append(&cont_params, IR_Param{name = cont_result, type = perf_type})
 		ev_param_for_cont := base.fresh_id(&env.fresh_state, "_ev")
-		append(&cont_params, IR_Param{name = ev_param_for_cont, type = base.IR_Type{wasm_type = .I32, type_id = base.Type_Var_ID(0), is_heap = true}})
+		append(
+			&cont_params,
+			IR_Param {
+				name = ev_param_for_cont,
+				type = base.IR_Type {
+					wasm_type = .I32,
+					type_id = base.Type_Var_ID(0),
+					is_heap = true,
+				},
+			},
+		)
 
 		result_var := new(IR_Var)
-		result_var^ = IR_Var{name = cont_result, type = perf_type, span = e.span}
+		result_var^ = IR_Var {
+			name = cont_result,
+			type = perf_type,
+			span = e.span,
+		}
 
 		cont_fn := new(IR_Decl_Fn)
-		cont_fn^ = IR_Decl_Fn{
+		cont_fn^ = IR_Decl_Fn {
 			name = cont_fn_name,
 			is_effectful = false,
 			params = cont_params,
@@ -949,24 +1301,28 @@ el_lower_expr :: proc(expr: IR_Expr, env: ^Effect_Lower_Env) -> IR_Expr {
 		append(&env.module.decls, IR_Decl(cont_fn))
 
 		cont_closure := new(IR_Closure)
-	cont_closure^ = IR_Closure{
-		fn_name = cont_fn_name,
-		params = cont_params,
-		env = IR_Expr(nil),
-		body = IR_Expr(result_var),
-		type = perf_type,
-		return_type = perf_type,
-		span = e.span,
-	}
+		cont_closure^ = IR_Closure {
+			fn_name     = cont_fn_name,
+			params      = cont_params,
+			env         = IR_Expr(nil),
+			body        = IR_Expr(result_var),
+			type        = perf_type,
+			return_type = perf_type,
+			span        = e.span,
+		}
 
 		ev_var_expr := new(IR_Var)
-		ev_var_expr^ = IR_Var{name = ev_var, type = base.IR_Type{wasm_type = .I32, type_id = base.Type_Var_ID(0), is_heap = true}, span = e.span}
+		ev_var_expr^ = IR_Var {
+			name = ev_var,
+			type = base.IR_Type{wasm_type = .I32, type_id = base.Type_Var_ID(0), is_heap = true},
+			span = e.span,
+		}
 
 		closure_load := new(IR_I32_Load)
-		closure_load^ = IR_I32_Load{
-			base = IR_Expr(ev_var_expr),
+		closure_load^ = IR_I32_Load {
+			base   = IR_Expr(ev_var_expr),
 			offset = arm_index * 4,
-			span = e.span,
+			span   = e.span,
 		}
 
 		args := make([dynamic]IR_Expr, 0, len(e.args) + 2)
@@ -976,15 +1332,19 @@ el_lower_expr :: proc(expr: IR_Expr, env: ^Effect_Lower_Env) -> IR_Expr {
 		append(&args, IR_Expr(cont_closure))
 
 		ev_arg := new(IR_Var)
-		ev_arg^ = IR_Var{name = ev_var, type = base.IR_Type{wasm_type = .I32, type_id = base.Type_Var_ID(0), is_heap = true}, span = e.span}
+		ev_arg^ = IR_Var {
+			name = ev_var,
+			type = base.IR_Type{wasm_type = .I32, type_id = base.Type_Var_ID(0), is_heap = true},
+			span = e.span,
+		}
 		append(&args, IR_Expr(ev_arg))
 
 		cc := new(IR_Closure_Call)
-		cc^ = IR_Closure_Call{
+		cc^ = IR_Closure_Call {
 			callee = IR_Expr(closure_load),
-			args = args,
-			type = perf_type,
-			span = e.span,
+			args   = args,
+			type   = perf_type,
+			span   = e.span,
 		}
 		return IR_Expr(cc)
 
@@ -999,18 +1359,35 @@ el_lower_expr :: proc(expr: IR_Expr, env: ^Effect_Lower_Env) -> IR_Expr {
 				ev_arg_id := el_find_evidence(eff, env)
 				if ev_arg_id != base.NO_NAME {
 					ev_arg := new(IR_Var)
-					ev_arg^ = IR_Var{name = ev_arg_id, type = base.IR_Type{wasm_type = .I32, type_id = base.Type_Var_ID(0), is_heap = true}, span = e.span}
+					ev_arg^ = IR_Var {
+						name = ev_arg_id,
+						type = base.IR_Type {
+							wasm_type = .I32,
+							type_id = base.Type_Var_ID(0),
+							is_heap = true,
+						},
+						span = e.span,
+					}
 					append(&new_args, IR_Expr(ev_arg))
 				} else {
 					zero_lit := new(IR_Literal_Int)
-					zero_lit^ = IR_Literal_Int{value = 0, type = base.IR_Type{wasm_type = .I32, type_id = base.Type_Var_ID(0)}, span = e.span}
+					zero_lit^ = IR_Literal_Int {
+						value = 0,
+						type = base.IR_Type{wasm_type = .I32, type_id = base.Type_Var_ID(0)},
+						span = e.span,
+					}
 					append(&new_args, IR_Expr(zero_lit))
 				}
 			}
 		}
 
 		new_call := new(IR_Call)
-		new_call^ = IR_Call{callee = e.callee, args = new_args, type = e.type, span = e.span}
+		new_call^ = IR_Call {
+			callee = e.callee,
+			args   = new_args,
+			type   = e.type,
+			span   = e.span,
+		}
 		return IR_Expr(new_call)
 
 	case ^IR_Closure_Call:
@@ -1019,11 +1396,11 @@ el_lower_expr :: proc(expr: IR_Expr, env: ^Effect_Lower_Env) -> IR_Expr {
 			append(&new_args, el_lower_expr(arg, env))
 		}
 		new_cc := new(IR_Closure_Call)
-		new_cc^ = IR_Closure_Call{
+		new_cc^ = IR_Closure_Call {
 			callee = el_lower_expr(e.callee, env),
-			args = new_args,
-			type = e.type,
-			span = e.span,
+			args   = new_args,
+			type   = e.type,
+			span   = e.span,
 		}
 		return IR_Expr(new_cc)
 
@@ -1038,42 +1415,61 @@ el_lower_expr :: proc(expr: IR_Expr, env: ^Effect_Lower_Env) -> IR_Expr {
 				ev_arg_id := el_find_evidence(eff, env)
 				if ev_arg_id != base.NO_NAME {
 					ev_arg := new(IR_Var)
-					ev_arg^ = IR_Var{name = ev_arg_id, type = base.IR_Type{wasm_type = .I32, type_id = base.Type_Var_ID(0), is_heap = true}, span = e.span}
+					ev_arg^ = IR_Var {
+						name = ev_arg_id,
+						type = base.IR_Type {
+							wasm_type = .I32,
+							type_id = base.Type_Var_ID(0),
+							is_heap = true,
+						},
+						span = e.span,
+					}
 					append(&new_args, IR_Expr(ev_arg))
 				} else {
 					zero_lit := new(IR_Literal_Int)
-					zero_lit^ = IR_Literal_Int{value = 0, type = base.IR_Type{wasm_type = .I32, type_id = base.Type_Var_ID(0)}, span = e.span}
+					zero_lit^ = IR_Literal_Int {
+						value = 0,
+						type = base.IR_Type{wasm_type = .I32, type_id = base.Type_Var_ID(0)},
+						span = e.span,
+					}
 					append(&new_args, IR_Expr(zero_lit))
 				}
 			}
 		}
 
 		new_tc := new(IR_Tail_Call)
-		new_tc^ = IR_Tail_Call{callee = e.callee, args = new_args, span = e.span}
+		new_tc^ = IR_Tail_Call {
+			callee = e.callee,
+			args   = new_args,
+			span   = e.span,
+		}
 		return IR_Expr(new_tc)
 
 	case ^IR_If:
 		new_if := new(IR_If)
-		new_if^ = IR_If{
-			condition = el_lower_expr(e.condition, env),
+		new_if^ = IR_If {
+			condition   = el_lower_expr(e.condition, env),
 			then_branch = el_lower_expr(e.then_branch, env),
 			else_branch = el_lower_expr(e.else_branch, env),
-			type = e.type,
-			span = e.span,
+			type        = e.type,
+			span        = e.span,
 		}
 		return IR_Expr(new_if)
 
 	case ^IR_Match:
 		new_arms := make([dynamic]IR_Match_Arm, 0, len(e.arms))
 		for arm in e.arms {
-			append(&new_arms, IR_Match_Arm{pattern = arm.pattern, body = el_lower_expr(arm.body, env)})
+			append(
+				&new_arms,
+				IR_Match_Arm{pattern = arm.pattern, body = el_lower_expr(arm.body, env)},
+			)
 		}
 		new_match := new(IR_Match)
-		new_match^ = IR_Match{
+		new_match^ = IR_Match {
 			scrutinee = el_lower_expr(e.scrutinee, env),
-			arms = new_arms,
-			type = e.type,
-			span = e.span,
+			arms      = new_arms,
+			type      = e.type,
+			span      = e.span,
 		}
 		return IR_Expr(new_match)
 
@@ -1083,27 +1479,43 @@ el_lower_expr :: proc(expr: IR_Expr, env: ^Effect_Lower_Env) -> IR_Expr {
 			append(&new_payload, el_lower_expr(p, env))
 		}
 		new_tag := new(IR_Construct_Tag)
-		new_tag^ = IR_Construct_Tag{tag_name = e.tag_name, tag_index = e.tag_index, payload = new_payload, reuse_addr = e.reuse_addr, type = e.type, span = e.span}
+		new_tag^ = IR_Construct_Tag {
+			tag_name   = e.tag_name,
+			tag_index  = e.tag_index,
+			payload    = new_payload,
+			reuse_addr = e.reuse_addr,
+			type       = e.type,
+			span       = e.span,
+		}
 		return IR_Expr(new_tag)
 
 	case ^IR_Construct_Record:
 		new_fields := make([dynamic]IR_Record_Field, 0, len(e.fields))
 		for f in e.fields {
-			append(&new_fields, IR_Record_Field{name = f.name, value = el_lower_expr(f.value, env)})
+			append(
+				&new_fields,
+				IR_Record_Field{name = f.name, value = el_lower_expr(f.value, env)},
+			)
 		}
 		new_rec := new(IR_Construct_Record)
-		new_rec^ = IR_Construct_Record{
-			fields = new_fields,
-			rest = el_lower_expr(e.rest, env),
+		new_rec^ = IR_Construct_Record {
+			fields     = new_fields,
+			rest       = el_lower_expr(e.rest, env),
 			reuse_addr = e.reuse_addr,
-			type = e.type,
-			span = e.span,
+			type       = e.type,
+			span       = e.span,
 		}
 		return IR_Expr(new_rec)
 
 	case ^IR_Field_Access:
 		new_fa := new(IR_Field_Access)
-		new_fa^ = IR_Field_Access{record = el_lower_expr(e.record, env), field = e.field, field_index = e.field_index, type = e.type, span = e.span}
+		new_fa^ = IR_Field_Access {
+			record      = el_lower_expr(e.record, env),
+			field       = e.field,
+			field_index = e.field_index,
+			type        = e.type,
+			span        = e.span,
+		}
 		return IR_Expr(new_fa)
 
 	case ^IR_Method_Call:
@@ -1112,12 +1524,21 @@ el_lower_expr :: proc(expr: IR_Expr, env: ^Effect_Lower_Env) -> IR_Expr {
 			append(&new_args, el_lower_expr(arg, env))
 		}
 		new_mc := new(IR_Method_Call)
-		new_mc^ = IR_Method_Call{receiver = el_lower_expr(e.receiver, env), method = e.method, args = new_args, type = e.type, span = e.span}
+		new_mc^ = IR_Method_Call {
+			receiver = el_lower_expr(e.receiver, env),
+			method   = e.method,
+			args     = new_args,
+			type     = e.type,
+			span     = e.span,
+		}
 		return IR_Expr(new_mc)
 
 	case ^IR_Return:
 		new_ret := new(IR_Return)
-		new_ret^ = IR_Return{value = el_lower_expr(e.value, env), span = e.span}
+		new_ret^ = IR_Return {
+			value = el_lower_expr(e.value, env),
+			span  = e.span,
+		}
 		return IR_Expr(new_ret)
 
 	case ^IR_Block:
@@ -1126,36 +1547,43 @@ el_lower_expr :: proc(expr: IR_Expr, env: ^Effect_Lower_Env) -> IR_Expr {
 			append(&new_stmts, el_lower_expr(stmt, env))
 		}
 		new_block := new(IR_Block)
-		new_block^ = IR_Block{statements = new_stmts, type = e.type, span = e.span}
+		new_block^ = IR_Block {
+			statements = new_stmts,
+			type       = e.type,
+			span       = e.span,
+		}
 		return IR_Expr(new_block)
 
 	case ^IR_BinOp:
 		new_binop := new(IR_BinOp)
-		new_binop^ = IR_BinOp{
-			op = e.op,
-			left = el_lower_expr(e.left, env),
+		new_binop^ = IR_BinOp {
+			op    = e.op,
+			left  = el_lower_expr(e.left, env),
 			right = el_lower_expr(e.right, env),
-			type = e.type,
-			span = e.span,
+			type  = e.type,
+			span  = e.span,
 		}
 		return IR_Expr(new_binop)
 
 	case ^IR_Closure:
 		new_closure := new(IR_Closure)
-	new_closure^ = IR_Closure{
-		fn_name = e.fn_name,
-		params = e.params,
-		env = el_lower_expr(e.env, env),
-		body = el_lower_expr(e.body, env),
-		type = e.type,
-		return_type = e.return_type,
-		span = e.span,
-	}
+		new_closure^ = IR_Closure {
+			fn_name     = e.fn_name,
+			params      = e.params,
+			env         = el_lower_expr(e.env, env),
+			body        = el_lower_expr(e.body, env),
+			type        = e.type,
+			return_type = e.return_type,
+			span        = e.span,
+		}
 		return IR_Expr(new_closure)
 
 	case ^IR_Crash:
 		new_crash := new(IR_Crash)
-		new_crash^ = IR_Crash{message = el_lower_expr(e.message, env), span = e.span}
+		new_crash^ = IR_Crash {
+			message = el_lower_expr(e.message, env),
+			span    = e.span,
+		}
 		return IR_Expr(new_crash)
 	case ^IR_Resume:
 		new_resume := new(IR_Resume)
@@ -1163,31 +1591,31 @@ el_lower_expr :: proc(expr: IR_Expr, env: ^Effect_Lower_Env) -> IR_Expr {
 		if e.ev != nil {
 			ev_val = el_lower_expr(e.ev, env)
 		}
-		new_resume^ = IR_Resume{
+		new_resume^ = IR_Resume {
 			resume_id = e.resume_id,
-			value = el_lower_expr(e.value, env),
-			ev = ev_val,
-			type = e.type,
-			span = e.span,
+			value     = el_lower_expr(e.value, env),
+			ev        = ev_val,
+			type      = e.type,
+			span      = e.span,
 		}
 		return IR_Expr(new_resume)
 
 	case ^IR_I32_Load:
 		new_load := new(IR_I32_Load)
-		new_load^ = IR_I32_Load{
-			base = el_lower_expr(e.base, env),
+		new_load^ = IR_I32_Load {
+			base   = el_lower_expr(e.base, env),
 			offset = e.offset,
-			span = e.span,
+			span   = e.span,
 		}
 		return IR_Expr(new_load)
 
 	case ^IR_I32_Store:
 		new_store := new(IR_I32_Store)
-		new_store^ = IR_I32_Store{
-			base = el_lower_expr(e.base, env),
+		new_store^ = IR_I32_Store {
+			base   = el_lower_expr(e.base, env),
 			offset = e.offset,
-			value = el_lower_expr(e.value, env),
-			span = e.span,
+			value  = el_lower_expr(e.value, env),
+			span   = e.span,
 		}
 		return IR_Expr(new_store)
 
@@ -1205,7 +1633,7 @@ el_lower_expr :: proc(expr: IR_Expr, env: ^Effect_Lower_Env) -> IR_Expr {
 		return IR_Expr(e)
 	case ^IR_Assign:
 		new_assign := new(IR_Assign)
-		new_assign^ = IR_Assign{
+		new_assign^ = IR_Assign {
 			binding = e.binding,
 			value   = el_lower_expr(e.value, env),
 			type    = e.type,
@@ -1214,7 +1642,7 @@ el_lower_expr :: proc(expr: IR_Expr, env: ^Effect_Lower_Env) -> IR_Expr {
 		return IR_Expr(new_assign)
 	case ^IR_Loop:
 		new_loop := new(IR_Loop)
-		new_loop^ = IR_Loop{
+		new_loop^ = IR_Loop {
 			var      = e.var,
 			iterable = el_lower_expr(e.iterable, env),
 			body     = el_lower_expr(e.body, env),
@@ -1226,3 +1654,4 @@ el_lower_expr :: proc(expr: IR_Expr, env: ^Effect_Lower_Env) -> IR_Expr {
 
 	return expr
 }
+
