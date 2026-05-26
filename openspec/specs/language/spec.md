@@ -287,12 +287,17 @@ The compiler SHALL perform principal type inference using bidirectional checking
 - THEN it SHALL produce a principal type including generic type variables and any constraints
 
 ### Requirement: Function Syntax
-All functions SHALL use `|args| body` syntax as the sole function form. Generic constraints via `where` clauses SHALL appear after the parameters and before the body.
+All functions SHALL use `|args| body` syntax as the sole function form. Lambda parameters are not limited to one — multiple parameters are separated by commas. Generic constraints via `where` clauses SHALL appear after the parameters and before the body.
 
 #### Scenario: Named function definition
 - GIVEN a binding `add = |x: Int, y: Int| -> Int { x + y }`
 - WHEN compiled
 - THEN it SHALL define a function named `add` with the specified parameter and return types
+
+#### Scenario: Multi-parameter lambda
+- GIVEN a binding `pair = |a, b| { { fst: a, snd: b } }`
+- WHEN compiled
+- THEN it SHALL define a function that accepts two parameters and returns a record
 
 #### Scenario: Anonymous lambda
 - GIVEN an expression `|x| x + 1`

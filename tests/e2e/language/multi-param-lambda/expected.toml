@@ -1,0 +1,17 @@
+stdout = """
+canonicalized /tmp/camp-e2e/language/multi-param-lambda/src/Main.camp: 2 declaration(s), 0 import(s)
+typecheck passed for /tmp/camp-e2e/language/multi-param-lambda/src/Main.camp
+compiled /tmp/camp-e2e/language/multi-param-lambda/src/Main.camp -> /tmp/camp-e2e/language/multi-param-lambda/src/Main.wasm
+"""
+stderr = ""
+exit = 0
+wasm_exit = 1
+wasm_stdout = ""
+wasm_stderr = """
+Error: failed to compile: wasm[0]::function[20]
+
+Caused by:
+    0: WebAssembly translation error
+    1: Invalid input WebAssembly code at offset 1077: type mismatch: values remaining on stack at end of block
+
+"""

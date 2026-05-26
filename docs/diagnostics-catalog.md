@@ -113,31 +113,25 @@ Each diagnostic should have a unique `C####` code for searchability and `camp --
 
 **Rationale:** Camp mandates braces for all branches. This is a design choice for readability and to avoid dangling-else ambiguity.
 
-### 2.5 LAMBDA MULTI PARAM (C0104) — Error ✅ Implemented
-
-> Lambdas must take a single parameter. Use a record to pass multiple values.
-
-**Rationale:** Camp lambdas take exactly one parameter, following the single-parameter convention of ML-family languages. Multiple values are passed via records.
-
-### 2.6 EMPTY TAG PARENS (C0105) — Error ✅ Implemented
+### 2.5 EMPTY TAG PARENS (C0105) — Error ✅ Implemented
 
 > Tag `{name}` has no payload — write `{name}` without parentheses.
 
 **Rationale:** Tags without payloads should not use parentheses, per the syntax recipe.
 
-### 2.7 EMPTY EFFECT ROW (C0106) — Error ✅ Implemented
+### 2.6 EMPTY EFFECT ROW (C0106) — Error ✅ Implemented
 
 > An effect row cannot be empty. Use `->` for a pure function instead of `-[ ]->`.
 
 **Rationale:** An empty effect row `-[ ]->` is syntactically meaningless. Pure functions use `->`.
 
-### 2.8 UNTERMINATED INTERPOLATION (C0107) — Error ✅ Implemented
+### 2.7 UNTERMINATED INTERPOLATION (C0107) — Error ✅ Implemented
 
 > This string interpolation expression is missing a closing `}`.
 
 **Rationale:** String interpolation `${expr}` requires a closing `}`.
 
-### 2.9 MULTILINE INTERPOLATION (C0108) — Error ✅ Implemented
+### 2.8 MULTILINE INTERPOLATION (C0108) — Error ✅ Implemented
 
 > String interpolation expressions must be on a single line.
 
@@ -145,31 +139,31 @@ Each diagnostic should have a unique `C####` code for searchability and `camp --
 
 **Rationale:** Interpolation expressions must be single-line for readability and parsing simplicity.
 
-### 2.10 UNEXPECTED TOKENS IN INTERPOLATION (C0109) — Error ✅ Implemented
+### 2.9 UNEXPECTED TOKENS IN INTERPOLATION (C0109) — Error ✅ Implemented
 
 > I found extra tokens after the expression in this string interpolation.
 
 **Rationale:** Only one expression is allowed per interpolation hole.
 
-### 2.11 DUPLICATE FIELD IN RECORD LITERAL (C0110) — Error 🆕 New
+### 2.10 DUPLICATE FIELD IN RECORD LITERAL (C0110) — Error 🆕 New
 
 > Field `{name}` appears more than once in this record literal.
 
 **Rationale:** Rust (E0063), TypeScript (2353), and Swift all report duplicate struct/record fields. This is almost always a mistake.
 
-### 2.12 DUPLICATE FIELD IN RECORD PATTERN (C0111) — Error 🆕 New
+### 2.11 DUPLICATE FIELD IN RECORD PATTERN (C0111) — Error 🆕 New
 
 > Field `{name}` appears more than once in this record pattern.
 
 **Rationale:** Destructuring the same field twice is either a typo or confusion about which value is bound.
 
-### 2.13 DUPLICATE VARIANT IN TAG UNION (C0112) — Error 🆕 New
+### 2.12 DUPLICATE VARIANT IN TAG UNION (C0112) — Error 🆕 New
 
 > Variant `{name}` appears more than once in this tag union type.
 
 **Rationale:** Duplicate variants in a union type are meaningless and likely a copy-paste error.
 
-### 2.14 DUPLICATE EFFECT IN ROW (C0113) — Error 🆕 New
+### 2.13 DUPLICATE EFFECT IN ROW (C0113) — Error 🆕 New
 
 > Effect `{name}` appears more than once in this effect row.
 
@@ -177,25 +171,25 @@ Each diagnostic should have a unique `C####` code for searchability and `camp --
 
 **Rationale:** Duplicate effects in a row are semantically redundant and likely a mistake.
 
-### 2.15 INVALID MATCH ARM (C0114) — Error 🆕 New
+### 2.14 INVALID MATCH ARM (C0114) — Error 🆕 New
 
 > This match arm is missing a `=>` and a body.
 
 **Rationale:** Malformed match arms (e.g., just a pattern with no arrow) should be caught with a clear message rather than a generic "expected token" error.
 
-### 2.16 MISSING ARROW IN FUNCTION TYPE (C0115) — Error 🆕 New
+### 2.15 MISSING ARROW IN FUNCTION TYPE (C0115) — Error 🆕 New
 
 > This function type is missing an arrow. Use `->` for pure functions or `-[effects]->` for effectful ones.
 
 **Rationale:** A common mistake when writing function types, especially for newcomers to the effect syntax.
 
-### 2.17 INVALID VISIBILITY MODIFIER (C0116) — Error 🆕 New
+### 2.16 INVALID VISIBILITY MODIFIER (C0116) — Error 🆕 New
 
 > `pub` can only be applied to top-level declarations.
 
 **Rationale:** Applying `pub` to local bindings is meaningless and likely a misunderstanding of visibility rules.
 
-### 2.18 INVALID EFFECT ROW SYNTAX (C0117) — Error 🆕 New
+### 2.17 INVALID EFFECT ROW SYNTAX (C0117) — Error 🆕 New
 
 > Effect rows use `|` as a separator, not `,`. Write `-[A! | B!]->` instead of `-[A!, B!]->`.
 

@@ -1193,13 +1193,6 @@ parser_parse_lambda :: proc(p: ^Parser) -> Expr {
 		}
 	}
 
-	if len(params) > 1 {
-		diagnostics.collector_add_diag(
-			p.collector,
-			diagnostics.diag_lambda_multi_param(p.current.span),
-		)
-	}
-
 	parser_expect(p, .Pipe)
 
 	return_type: ^Type = nil
