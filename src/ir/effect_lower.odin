@@ -641,7 +641,7 @@ el_make_camp_alloc_call :: proc(
 	call^ = IR_Call {
 		callee = callee,
 		args = args,
-		type = base.IR_Type{wasm_type = .I32, type_id = base.Type_Var_ID(0), is_heap = true},
+		type = base.IR_Type{wasm_type = .I32, type_id = base.Type_Var_ID(0), is_heap = false},
 		span = span,
 	}
 	return IR_Expr(call)
@@ -885,7 +885,7 @@ el_lower_expr :: proc(expr: IR_Expr, env: ^Effect_Lower_Env) -> IR_Expr {
 					type = base.IR_Type {
 						wasm_type = .I32,
 						type_id = base.Type_Var_ID(0),
-						is_heap = true,
+						is_heap = false,
 					},
 				},
 			)
@@ -944,7 +944,7 @@ el_lower_expr :: proc(expr: IR_Expr, env: ^Effect_Lower_Env) -> IR_Expr {
 					type = base.IR_Type {
 						wasm_type = .I32,
 						type_id = base.Type_Var_ID(0),
-						is_heap = true,
+						is_heap = false,
 					},
 				},
 			)
@@ -955,7 +955,7 @@ el_lower_expr :: proc(expr: IR_Expr, env: ^Effect_Lower_Env) -> IR_Expr {
 					type = base.IR_Type {
 						wasm_type = .I32,
 						type_id = base.Type_Var_ID(0),
-						is_heap = true,
+						is_heap = false,
 					},
 				},
 			)
@@ -1177,7 +1177,7 @@ el_lower_expr :: proc(expr: IR_Expr, env: ^Effect_Lower_Env) -> IR_Expr {
 		let_expr := new(IR_Let)
 		let_expr^ = IR_Let {
 			binding = ev_var,
-			type = base.IR_Type{wasm_type = .I32, type_id = base.Type_Var_ID(0), is_heap = true},
+			type = base.IR_Type{wasm_type = .I32, type_id = base.Type_Var_ID(0), is_heap = false},
 			value = alloc_call,
 			body = result,
 			span = e.span,

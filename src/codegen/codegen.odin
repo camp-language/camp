@@ -608,13 +608,13 @@ codegen :: proc(
 	camp_str_slice_code := emit_camp_str_slice_body(alloc_func_idx)
 	append(&mod.codes, camp_str_slice_code)
 
-	camp_i64_to_str_code := emit_camp_i64_to_str_body()
+	camp_i64_to_str_code := emit_camp_i64_to_str_body(alloc_func_idx)
 	append(&mod.codes, camp_i64_to_str_code)
-	camp_i32_to_str_code := emit_camp_i32_to_str_body()
+	camp_i32_to_str_code := emit_camp_i32_to_str_body(alloc_func_idx)
 	append(&mod.codes, camp_i32_to_str_code)
-	camp_f64_to_str_code := emit_camp_f64_to_str_body()
+	camp_f64_to_str_code := emit_camp_f64_to_str_body(alloc_func_idx)
 	append(&mod.codes, camp_f64_to_str_code)
-	camp_bool_to_str_code := emit_camp_bool_to_str_body()
+	camp_bool_to_str_code := emit_camp_bool_to_str_body(alloc_func_idx)
 	append(&mod.codes, camp_bool_to_str_code)
 
 	camp_report_drop_overflow_code := emit_camp_report_drop_overflow_body(drop_overflow_msg_offset)
@@ -812,6 +812,7 @@ codegen :: proc(
 
 			for p, i in d.params {
 				env.local_map[p.name] = u32(ev_count + i)
+				env.local_types[p.name] = p.type
 			}
 
 			collected_locals: map[base.Intern_ID]base.IR_Type
