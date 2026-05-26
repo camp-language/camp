@@ -5,6 +5,3 @@ compiled /tmp/camp-e2e/typechecking/effect-declaration/src/Main.camp -> /tmp/cam
 """
 stderr = ""
 exit = 0
-wasm_exit = 0
-wasm_stdout = ""
-wasm_stderr = ""

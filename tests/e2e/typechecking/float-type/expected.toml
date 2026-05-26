@@ -5,6 +5,3 @@ compiled /tmp/camp-e2e/typechecking/float-type/src/Main.camp -> /tmp/camp-e2e/ty
 """
 stderr = ""
 exit = 0
-wasm_exit = 0
-wasm_stdout = ""
-wasm_stderr = ""

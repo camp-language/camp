@@ -5,6 +5,3 @@ compiled /tmp/camp-e2e/typechecking/string-type/src/Main.camp -> /tmp/camp-e2e/t
 """
 stderr = ""
 exit = 0
-wasm_exit = 0
-wasm_stdout = ""
-wasm_stderr = ""
