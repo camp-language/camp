@@ -13,6 +13,22 @@ get_main_return_type :: proc(
 		case ^ir.IR_Decl_Fn:
 			name_str := base.intern_get(interner, d.name.name)
 			if name_str == "main" || name_str == "main!" {
+				if d.is_effectful && len(d.effects) > 0 {
+					// CPS transform changes return_type to Void.
+					// Recover the original type from the body's IR_Let chain.
+					body := d.body
+					for {
+						#partial switch b in body {
+						case ^ir.IR_Let:
+							if b.type.wasm_type != .Void {
+								return b.type.wasm_type
+							}
+							body = b.body
+							continue
+						}
+						break
+					}
+				}
 				return d.return_type.wasm_type
 			}
 		case ^ir.IR_Decl_Const, ^ir.IR_Decl_Effect:
@@ -294,6 +310,9 @@ emit_start_function :: proc(
 			main_ret_type := get_main_return_type(ir_mod, env.interner)
 			if main_ret_type == .I64 {
 				emit_instruction(Wasm_I32_Wrap_I64{}, &code_buf)
+				emit_instruction(Wasm_I32_Const{value = CAMP_EXIT_MASK}, &code_buf)
+				emit_instruction(Wasm_I32_And{}, &code_buf)
+			} else if main_ret_type != .Void {
 				emit_instruction(Wasm_I32_Const{value = CAMP_EXIT_MASK}, &code_buf)
 				emit_instruction(Wasm_I32_And{}, &code_buf)
 			}

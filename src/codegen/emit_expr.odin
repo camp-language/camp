@@ -329,7 +329,11 @@ emit_expr :: proc(expr: ir.IR_Expr, buf: ^[dynamic]u8, env: ^Codegen_Env, runtim
 	case ^ir.IR_Let:
 		emit_expr(e.value, buf, env, runtime_indices)
 		if e.type.wasm_type == .Void {
-			// Void-typed let: value is for side effects only, no binding
+			// Void-typed let: value is for side effects only, drop if non-void
+			value_type := ir_operand_wasm_type(e.value)
+			if value_type != .Void {
+				emit_instruction(Wasm_Drop{}, buf)
+			}
 		} else if idx, ok := env.local_map[e.binding]; ok {
 			emit_instruction(Wasm_Local_Set{index = idx}, buf)
 		} else {
@@ -1121,6 +1125,12 @@ emit_expr :: proc(expr: ir.IR_Expr, buf: ^[dynamic]u8, env: ^Codegen_Env, runtim
 
 	case ^ir.IR_Construct_Tag:
 		num_fields := len(e.payload)
+		scan_size := 0
+		for p in e.payload {
+			if ir.ir_expr_wasm_type(p) == .I32 {
+				scan_size += 1
+			}
+		}
 		total_size := CAMP_TAG_HEADER_SIZE + num_fields * 8
 		tmp_local_idx := env.tmp_local_base
 
@@ -1186,7 +1196,7 @@ emit_expr :: proc(expr: ir.IR_Expr, buf: ^[dynamic]u8, env: ^Codegen_Env, runtim
 		emit_instruction(Wasm_I32_Store8{offset = CAMP_TAG_TAG_OFFSET}, buf)
 
 		emit_instruction(Wasm_Local_Get{index = tmp_local_idx}, buf)
-		emit_instruction(Wasm_I32_Const{value = i32(num_fields)}, buf)
+		emit_instruction(Wasm_I32_Const{value = i32(scan_size)}, buf)
 		emit_instruction(Wasm_I32_Store8{offset = CAMP_TAG_SCAN_SIZE_OFFSET}, buf)
 
 		for i in 0 ..< len(e.payload) {
@@ -1201,6 +1211,12 @@ emit_expr :: proc(expr: ir.IR_Expr, buf: ^[dynamic]u8, env: ^Codegen_Env, runtim
 
 	case ^ir.IR_Construct_Record:
 		num_fields := len(e.fields)
+		scan_size := 0
+		for f in e.fields {
+			if ir.ir_expr_wasm_type(f.value) == .I32 {
+				scan_size += 1
+			}
+		}
 		total_size := CAMP_TAG_HEADER_SIZE + num_fields * 8
 		// Use a unique tmp slot so nested IR_Construct_Record (e.g. closure
 		// records containing env records) don't clobber the outer record's
@@ -1270,7 +1286,7 @@ emit_expr :: proc(expr: ir.IR_Expr, buf: ^[dynamic]u8, env: ^Codegen_Env, runtim
 		emit_instruction(Wasm_I32_Store8{offset = CAMP_TAG_TAG_OFFSET}, buf)
 
 		emit_instruction(Wasm_Local_Get{index = tmp_local_idx}, buf)
-		emit_instruction(Wasm_I32_Const{value = i32(num_fields)}, buf)
+		emit_instruction(Wasm_I32_Const{value = i32(scan_size)}, buf)
 		emit_instruction(Wasm_I32_Store8{offset = CAMP_TAG_SCAN_SIZE_OFFSET}, buf)
 
 		// Pre-compute interned "fn_idx" name for decl-to-wasm translation
@@ -2057,22 +2073,30 @@ ir_operand_wasm_type :: proc(expr: ir.IR_Expr) -> base.IR_Wasm_Type {
 		return .I32
 	case ^ir.IR_Notify:
 		return .I32
-	case ^ir.IR_Let,
-	     ^ir.IR_Tail_Call,
-	     ^ir.IR_Match,
-	     ^ir.IR_Expr_Nominal_Construct,
-	     ^ir.IR_Method_Call,
-	     ^ir.IR_Handle,
-	     ^ir.IR_Perform,
+	case ^ir.IR_Let:
+		return ir_operand_wasm_type(e.body)
+	case ^ir.IR_Tail_Call:
+		return .Void
+	case ^ir.IR_Match:
+		return e.type.wasm_type
+	case ^ir.IR_Method_Call:
+		return e.type.wasm_type
+	case ^ir.IR_Handle:
+		return e.type.wasm_type
+	case ^ir.IR_Perform:
+		return e.type.wasm_type
+	case ^ir.IR_Block:
+		return e.type.wasm_type
+	case ^ir.IR_Dup:
+		return .I32
+	case ^ir.IR_Drop,
 	     ^ir.IR_Return,
-	     ^ir.IR_Block,
-	     ^ir.IR_Dup,
-	     ^ir.IR_Drop,
 	     ^ir.IR_Crash,
-	     ^ir.IR_I32_Load,
 	     ^ir.IR_I32_Store,
 	     ^ir.IR_Atomic_Store,
 	     ^ir.IR_Atomic_Fence:
+		return .Void
+	case ^ir.IR_Expr_Nominal_Construct, ^ir.IR_I32_Load:
 		return .I32
 	}
 	return .I32

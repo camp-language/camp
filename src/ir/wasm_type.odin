@@ -16,7 +16,7 @@ ir_expr_wasm_type :: proc(expr: IR_Expr) -> base.IR_Wasm_Type {
 	case ^IR_Var:
 		return e.type.wasm_type
 	case ^IR_Let:
-		return e.type.wasm_type
+		return ir_expr_wasm_type(e.body)
 	case ^IR_Assign:
 		return e.type.wasm_type
 	case ^IR_Loop:
@@ -53,18 +53,19 @@ ir_expr_wasm_type :: proc(expr: IR_Expr) -> base.IR_Wasm_Type {
 		return .I32
 	case ^IR_Notify:
 		return .I32
-	case ^IR_Expr_Nominal_Construct,
-	     ^IR_Method_Call,
-	     ^IR_Handle,
-	     ^IR_Perform,
-	     ^IR_Return,
-	     ^IR_Block,
-	     ^IR_Dup,
-	     ^IR_Drop,
-	     ^IR_Crash,
-	     ^IR_I32_Load,
-	     ^IR_I32_Store,
-	     ^IR_Atomic_Store:
+	case ^IR_Method_Call:
+		return e.type.wasm_type
+	case ^IR_Handle:
+		return e.type.wasm_type
+	case ^IR_Perform:
+		return e.type.wasm_type
+	case ^IR_Block:
+		return e.type.wasm_type
+	case ^IR_Dup:
+		return .I32
+	case ^IR_Drop, ^IR_Return, ^IR_Crash, ^IR_I32_Store, ^IR_Atomic_Store:
+		return .Void
+	case ^IR_Expr_Nominal_Construct, ^IR_I32_Load:
 		return .I32
 	}
 	return .I32
