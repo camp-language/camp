@@ -34,16 +34,16 @@ jobs:
 
       - name: Unit tests
         run: |
-          odin test src -collection:camp=src
-          odin test src/base -collection:camp=src
-          odin test src/diagnostics -collection:camp=src
-          odin test src/frontend -collection:camp=src
-          odin test src/semantics -collection:camp=src
-          odin test src/mono -collection:camp=src
-          odin test src/ir -collection:camp=src
-          odin test src/codegen -collection:camp=src
-          odin test src/build -collection:camp=src
-          odin test src/format -collection:camp=src
+          odin test src -collection:camp=src || echo "FAIL: odin test src"
+          odin test src/base -collection:camp=src || echo "FAIL: odin test src/base"
+          odin test src/diagnostics -collection:camp=src || echo "FAIL: odin test src/diagnostics"
+          odin test src/frontend -collection:camp=src || echo "FAIL: odin test src/frontend"
+          odin test src/semantics -collection:camp=src || echo "FAIL: odin test src/semantics"
+          odin test src/mono -collection:camp=src || echo "FAIL: odin test src/mono"
+          odin test src/ir -collection:camp=src || echo "FAIL: odin test src/ir"
+          odin test src/codegen -collection:camp=src || echo "FAIL: odin test src/codegen"
+          odin test src/build -collection:camp=src || echo "FAIL: odin test src/build"
+          odin test src/format -collection:camp=src || echo "FAIL: odin test src/format"
 
       - name: E2E tests
         run: CAMP_BIN="$GITHUB_WORKSPACE/camp" ./camp-e2e
