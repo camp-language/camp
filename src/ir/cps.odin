@@ -11,10 +11,16 @@ CPS_Env :: struct {
 }
 
 
-cps_make_continuation :: proc(body: IR_Expr, param_name: base.Intern_ID, return_type: base.IR_Type, k_name: base.Intern_ID, env: ^CPS_Env) -> base.Canonical_Name {
-	cont_name := base.Canonical_Name{
-		module = base.NO_NAME,
-		name = base.fresh_id(&env.fresh_state, "_kc"),
+cps_make_continuation :: proc(
+	body: IR_Expr,
+	param_name: base.Intern_ID,
+	return_type: base.IR_Type,
+	k_name: base.Intern_ID,
+	env: ^CPS_Env,
+) -> base.Canonical_Name {
+	cont_name := base.Canonical_Name {
+		module   = base.NO_NAME,
+		name     = base.fresh_id(&env.fresh_state, "_kc"),
 		is_local = true,
 	}
 
@@ -22,7 +28,7 @@ cps_make_continuation :: proc(body: IR_Expr, param_name: base.Intern_ID, return_
 	append(&cont_params, IR_Param{name = param_name, type = return_type})
 
 	cont_fn := new(IR_Decl_Fn)
-	cont_fn^ = IR_Decl_Fn{
+	cont_fn^ = IR_Decl_Fn {
 		name = cont_name,
 		is_effectful = false,
 		params = cont_params,
@@ -51,7 +57,10 @@ cps_transform :: proc(mod: ^IR_Module, interner: ^base.Intern_Table) -> IR_Modul
 	env: CPS_Env
 	env.interner = interner
 	env.module = &result
-	env.fresh_state = base.Fresh_State{counter = 0, interner = interner}
+	env.fresh_state = base.Fresh_State {
+		counter  = 0,
+		interner = interner,
+	}
 
 	for decl in mod.decls {
 		#partial switch d in decl {
@@ -82,22 +91,43 @@ cps_transform_decl :: proc(decl: IR_Decl, env: ^CPS_Env) -> IR_Decl {
 		new_fn^ = d^
 
 		k_name := base.fresh_id(&env.fresh_state, "_k")
-		append(&new_fn.params, IR_Param{name = k_name, type = base.IR_Type{wasm_type = .I32, type_id = base.Type_Var_ID(0), is_heap = true}})
-		new_fn.return_type = base.IR_Type{wasm_type = .Void, type_id = base.Type_Var_ID(0)}
+		append(
+			&new_fn.params,
+			IR_Param {
+				name = k_name,
+				type = base.IR_Type {
+					wasm_type = .I32,
+					type_id = base.Type_Var_ID(0),
+					is_heap = true,
+				},
+			},
+		)
+		new_fn.return_type = base.IR_Type {
+			wasm_type = .Void,
+			type_id   = base.Type_Var_ID(0),
+		}
 
 		transformed_body := cps_transform_expr(d.body, k_name, env)
 
 		result_name := base.fresh_id(&env.fresh_state, "_result")
 		k_args := make([dynamic]IR_Expr, 0, 1)
 		result_var := new(IR_Var)
-		result_var^ = IR_Var{name = result_name, type = d.return_type, span = d.span}
+		result_var^ = IR_Var {
+			name = result_name,
+			type = d.return_type,
+			span = d.span,
+		}
 		append(&k_args, IR_Expr(result_var))
 
 		k_var := new(IR_Var)
-		k_var^ = IR_Var{name = k_name, type = base.IR_Type{wasm_type = .I32, type_id = base.Type_Var_ID(0), is_heap = true}, span = d.span}
+		k_var^ = IR_Var {
+			name = k_name,
+			type = base.IR_Type{wasm_type = .I32, type_id = base.Type_Var_ID(0), is_heap = true},
+			span = d.span,
+		}
 
 		cc := new(IR_Closure_Call)
-		cc^ = IR_Closure_Call{
+		cc^ = IR_Closure_Call {
 			callee = IR_Expr(k_var),
 			args = k_args,
 			type = base.IR_Type{wasm_type = .Void, type_id = base.Type_Var_ID(0)},
@@ -105,12 +135,12 @@ cps_transform_decl :: proc(decl: IR_Decl, env: ^CPS_Env) -> IR_Decl {
 		}
 
 		let_expr := new(IR_Let)
-		let_expr^ = IR_Let{
+		let_expr^ = IR_Let {
 			binding = result_name,
-			type = d.return_type,
-			value = transformed_body,
-			body = IR_Expr(cc),
-			span = d.span,
+			type    = d.return_type,
+			value   = transformed_body,
+			body    = IR_Expr(cc),
+			span    = d.span,
 		}
 		new_fn.body = IR_Expr(let_expr)
 		return IR_Decl(new_fn)
@@ -124,7 +154,11 @@ cps_transform_expr :: proc(expr: IR_Expr, k_name: base.Intern_ID, env: ^CPS_Env)
 	#partial switch e in expr {
 	case ^IR_Return:
 		k_var := new(IR_Var)
-		k_var^ = IR_Var{name = k_name, type = base.IR_Type{wasm_type = .I32, type_id = base.Type_Var_ID(0), is_heap = true}, span = e.span}
+		k_var^ = IR_Var {
+			name = k_name,
+			type = base.IR_Type{wasm_type = .I32, type_id = base.Type_Var_ID(0), is_heap = true},
+			span = e.span,
+		}
 
 		transformed_value := cps_transform_expr(e.value, k_name, env)
 
@@ -132,14 +166,17 @@ cps_transform_expr :: proc(expr: IR_Expr, k_name: base.Intern_ID, env: ^CPS_Env)
 		append(&args, transformed_value)
 
 		// Use the type from the expression being returned
-		ret_type := base.IR_Type{wasm_type = ir_expr_wasm_type(e.value), type_id = 0}
+		ret_type := base.IR_Type {
+			wasm_type = ir_expr_wasm_type(e.value),
+			type_id   = 0,
+		}
 
 		cc := new(IR_Closure_Call)
-		cc^ = IR_Closure_Call{
+		cc^ = IR_Closure_Call {
 			callee = IR_Expr(k_var),
-			args = args,
-			type = ret_type,
-			span = e.span,
+			args   = args,
+			type   = ret_type,
+			span   = e.span,
 		}
 		return IR_Expr(cc)
 
@@ -150,36 +187,72 @@ cps_transform_expr :: proc(expr: IR_Expr, k_name: base.Intern_ID, env: ^CPS_Env)
 				result_name := base.fresh_id(&env.fresh_state, "_r")
 				result_type := v.type
 
-				cont_name := cps_make_continuation(
-					e.body,
-					result_name,
-					result_type,
-					k_name,
-					env,
-				)
+				cont_name := cps_make_continuation(e.body, result_name, result_type, k_name, env)
 
 				new_args := make([dynamic]IR_Expr, 0, len(v.args) + 1)
 				for arg in v.args {
 					append(&new_args, cps_transform_expr(arg, k_name, env))
 				}
 				cont_var := new(IR_Var)
-				cont_var^ = IR_Var{name = cont_name.name, type = base.IR_Type{wasm_type = .Funcref, type_id = base.Type_Var_ID(0)}, span = e.span}
+				cont_var^ = IR_Var {
+					name = cont_name.name,
+					type = base.IR_Type{wasm_type = .Funcref, type_id = base.Type_Var_ID(0)},
+					span = e.span,
+				}
 				append(&new_args, IR_Expr(cont_var))
 
 				tc := new(IR_Tail_Call)
-				tc^ = IR_Tail_Call{callee = v.callee, args = new_args, span = e.span}
+				tc^ = IR_Tail_Call {
+					callee = v.callee,
+					args   = new_args,
+					span   = e.span,
+				}
 				return IR_Expr(tc)
 			}
-		case ^IR_Literal_Int, ^IR_Literal_Float, ^IR_Literal_String, ^IR_Literal_Bool, ^IR_Var, ^IR_Let, ^IR_Tail_Call, ^IR_If, ^IR_Match, ^IR_Construct_Tag, ^IR_Expr_Nominal_Construct, ^IR_Construct_Record, ^IR_Field_Access, ^IR_Method_Call, ^IR_Handle, ^IR_Perform, ^IR_Resume, ^IR_Closure, ^IR_Closure_Call, ^IR_Return, ^IR_Block, ^IR_BinOp, ^IR_Dup, ^IR_Drop, ^IR_Crash, ^IR_I32_Load, ^IR_I32_Store, ^IR_Atomic_Load, ^IR_Atomic_Store, ^IR_Atomic_RMW, ^IR_Atomic_Fence, ^IR_Wait, ^IR_Notify, ^IR_Assign, ^IR_Loop:
+		case ^IR_Literal_Int,
+		     ^IR_Literal_Float,
+		     ^IR_Literal_String,
+		     ^IR_Literal_Bool,
+		     ^IR_Var,
+		     ^IR_Let,
+		     ^IR_Tail_Call,
+		     ^IR_If,
+		     ^IR_Match,
+		     ^IR_Construct_Tag,
+		     ^IR_Expr_Nominal_Construct,
+		     ^IR_Construct_Record,
+		     ^IR_Field_Access,
+		     ^IR_Method_Call,
+		     ^IR_Handle,
+		     ^IR_Perform,
+		     ^IR_Resume,
+		     ^IR_Closure,
+		     ^IR_Closure_Call,
+		     ^IR_Return,
+		     ^IR_Block,
+		     ^IR_BinOp,
+		     ^IR_Dup,
+		     ^IR_Drop,
+		     ^IR_Crash,
+		     ^IR_I32_Load,
+		     ^IR_I32_Store,
+		     ^IR_Atomic_Load,
+		     ^IR_Atomic_Store,
+		     ^IR_Atomic_RMW,
+		     ^IR_Atomic_Fence,
+		     ^IR_Wait,
+		     ^IR_Notify,
+		     ^IR_Assign,
+		     ^IR_Loop:
 		}
 
 		new_let := new(IR_Let)
-		new_let^ = IR_Let{
+		new_let^ = IR_Let {
 			binding = e.binding,
-			type = e.type,
-			value = cps_transform_expr(e.value, k_name, env),
-			body = cps_transform_expr(e.body, k_name, env),
-			span = e.span,
+			type    = e.type,
+			value   = cps_transform_expr(e.value, k_name, env),
+			body    = cps_transform_expr(e.body, k_name, env),
+			span    = e.span,
 		}
 		return IR_Expr(new_let)
 
@@ -189,7 +262,12 @@ cps_transform_expr :: proc(expr: IR_Expr, k_name: base.Intern_ID, env: ^CPS_Env)
 			append(&new_args, cps_transform_expr(arg, k_name, env))
 		}
 		new_call := new(IR_Call)
-		new_call^ = IR_Call{callee = e.callee, args = new_args, type = e.type, span = e.span}
+		new_call^ = IR_Call {
+			callee = e.callee,
+			args   = new_args,
+			type   = e.type,
+			span   = e.span,
+		}
 		return IR_Expr(new_call)
 
 	case ^IR_Closure_Call:
@@ -198,11 +276,11 @@ cps_transform_expr :: proc(expr: IR_Expr, k_name: base.Intern_ID, env: ^CPS_Env)
 			append(&new_args, cps_transform_expr(arg, k_name, env))
 		}
 		new_cc := new(IR_Closure_Call)
-		new_cc^ = IR_Closure_Call{
+		new_cc^ = IR_Closure_Call {
 			callee = cps_transform_expr(e.callee, k_name, env),
-			args = new_args,
-			type = e.type,
-			span = e.span,
+			args   = new_args,
+			type   = e.type,
+			span   = e.span,
 		}
 		return IR_Expr(new_cc)
 
@@ -212,31 +290,41 @@ cps_transform_expr :: proc(expr: IR_Expr, k_name: base.Intern_ID, env: ^CPS_Env)
 			append(&new_args, cps_transform_expr(arg, k_name, env))
 		}
 		new_tc := new(IR_Tail_Call)
-		new_tc^ = IR_Tail_Call{callee = e.callee, args = new_args, span = e.span}
+		new_tc^ = IR_Tail_Call {
+			callee = e.callee,
+			args   = new_args,
+			span   = e.span,
+		}
 		return IR_Expr(new_tc)
 
 	case ^IR_If:
 		new_if := new(IR_If)
-		new_if^ = IR_If{
-			condition = cps_transform_expr(e.condition, k_name, env),
+		new_if^ = IR_If {
+			condition   = cps_transform_expr(e.condition, k_name, env),
 			then_branch = cps_transform_expr(e.then_branch, k_name, env),
 			else_branch = cps_transform_expr(e.else_branch, k_name, env),
-			type = e.type,
-			span = e.span,
+			type        = e.type,
+			span        = e.span,
 		}
 		return IR_Expr(new_if)
 
 	case ^IR_Match:
 		new_arms := make([dynamic]IR_Match_Arm, 0, len(e.arms))
 		for arm in e.arms {
-			append(&new_arms, IR_Match_Arm{pattern = arm.pattern, body = cps_transform_expr(arm.body, k_name, env)})
+			append(
+				&new_arms,
+				IR_Match_Arm {
+					pattern = arm.pattern,
+					body = cps_transform_expr(arm.body, k_name, env),
+				},
+			)
 		}
 		new_match := new(IR_Match)
-		new_match^ = IR_Match{
+		new_match^ = IR_Match {
 			scrutinee = cps_transform_expr(e.scrutinee, k_name, env),
-			arms = new_arms,
-			type = e.type,
-			span = e.span,
+			arms      = new_arms,
+			type      = e.type,
+			span      = e.span,
 		}
 		return IR_Expr(new_match)
 
@@ -246,32 +334,42 @@ cps_transform_expr :: proc(expr: IR_Expr, k_name: base.Intern_ID, env: ^CPS_Env)
 			append(&new_payload, cps_transform_expr(p, k_name, env))
 		}
 		new_tag := new(IR_Construct_Tag)
-		new_tag^ = IR_Construct_Tag{tag_name = e.tag_name, tag_index = e.tag_index, payload = new_payload, reuse_addr = e.reuse_addr, type = e.type, span = e.span}
+		new_tag^ = IR_Construct_Tag {
+			tag_name   = e.tag_name,
+			tag_index  = e.tag_index,
+			payload    = new_payload,
+			reuse_addr = e.reuse_addr,
+			type       = e.type,
+			span       = e.span,
+		}
 		return IR_Expr(new_tag)
 
 	case ^IR_Construct_Record:
 		new_fields := make([dynamic]IR_Record_Field, 0, len(e.fields))
 		for f in e.fields {
-			append(&new_fields, IR_Record_Field{name = f.name, value = cps_transform_expr(f.value, k_name, env)})
+			append(
+				&new_fields,
+				IR_Record_Field{name = f.name, value = cps_transform_expr(f.value, k_name, env)},
+			)
 		}
 		new_rec := new(IR_Construct_Record)
-		new_rec^ = IR_Construct_Record{
-			fields = new_fields,
-			rest = cps_transform_expr(e.rest, k_name, env),
+		new_rec^ = IR_Construct_Record {
+			fields     = new_fields,
+			rest       = cps_transform_expr(e.rest, k_name, env),
 			reuse_addr = e.reuse_addr,
-			type = e.type,
-			span = e.span,
+			type       = e.type,
+			span       = e.span,
 		}
 		return IR_Expr(new_rec)
 
 	case ^IR_Field_Access:
 		new_fa := new(IR_Field_Access)
-		new_fa^ = IR_Field_Access{
-			record = cps_transform_expr(e.record, k_name, env),
-			field = e.field,
+		new_fa^ = IR_Field_Access {
+			record      = cps_transform_expr(e.record, k_name, env),
+			field       = e.field,
 			field_index = e.field_index,
-			type = e.type,
-			span = e.span,
+			type        = e.type,
+			span        = e.span,
 		}
 		return IR_Expr(new_fa)
 
@@ -281,35 +379,38 @@ cps_transform_expr :: proc(expr: IR_Expr, k_name: base.Intern_ID, env: ^CPS_Env)
 			append(&new_args, cps_transform_expr(arg, k_name, env))
 		}
 		new_mc := new(IR_Method_Call)
-		new_mc^ = IR_Method_Call{
+		new_mc^ = IR_Method_Call {
 			receiver = cps_transform_expr(e.receiver, k_name, env),
-			method = e.method,
-			args = new_args,
-			type = e.type,
-			span = e.span,
+			method   = e.method,
+			args     = new_args,
+			type     = e.type,
+			span     = e.span,
 		}
 		return IR_Expr(new_mc)
 
 	case ^IR_Handle:
 		new_arms := make([dynamic]IR_Handler_Arm, 0, len(e.arms))
 		for arm in e.arms {
-			append(&new_arms, IR_Handler_Arm{
-				op = arm.op,
-				params = arm.params,
-				body = cps_transform_expr(arm.body, arm.params[0], env),
-			})
+			append(
+				&new_arms,
+				IR_Handler_Arm {
+					op = arm.op,
+					params = arm.params,
+					body = cps_transform_expr(arm.body, arm.params[0], env),
+				},
+			)
 		}
 		effects := make([dynamic]base.Canonical_Name, 0, len(e.effects))
 		for eff in e.effects {
 			append(&effects, eff)
 		}
 		new_handle := new(IR_Handle)
-		new_handle^ = IR_Handle{
+		new_handle^ = IR_Handle {
 			effects = effects,
-			body = cps_transform_expr(e.body, k_name, env),
-			arms = new_arms,
-			type = e.type,
-			span = e.span,
+			body    = cps_transform_expr(e.body, k_name, env),
+			arms    = new_arms,
+			type    = e.type,
+			span    = e.span,
 		}
 		return IR_Expr(new_handle)
 
@@ -319,7 +420,13 @@ cps_transform_expr :: proc(expr: IR_Expr, k_name: base.Intern_ID, env: ^CPS_Env)
 			append(&new_args, cps_transform_expr(arg, k_name, env))
 		}
 		new_perf := new(IR_Perform)
-		new_perf^ = IR_Perform{effect = e.effect, op = e.op, args = new_args, type = e.type, span = e.span}
+		new_perf^ = IR_Perform {
+			effect = e.effect,
+			op     = e.op,
+			args   = new_args,
+			type   = e.type,
+			span   = e.span,
+		}
 		return IR_Expr(new_perf)
 
 	case ^IR_Resume:
@@ -328,12 +435,12 @@ cps_transform_expr :: proc(expr: IR_Expr, k_name: base.Intern_ID, env: ^CPS_Env)
 		if e.ev != nil {
 			ev_val = cps_transform_expr(e.ev, k_name, env)
 		}
-		new_resume^ = IR_Resume{
+		new_resume^ = IR_Resume {
 			resume_id = e.resume_id,
-			value = cps_transform_expr(e.value, k_name, env),
-			ev = ev_val,
-			type = e.type,
-			span = e.span,
+			value     = cps_transform_expr(e.value, k_name, env),
+			ev        = ev_val,
+			type      = e.type,
+			span      = e.span,
 		}
 		return IR_Expr(new_resume)
 
@@ -343,23 +450,30 @@ cps_transform_expr :: proc(expr: IR_Expr, k_name: base.Intern_ID, env: ^CPS_Env)
 			append(&new_stmts, cps_transform_expr(stmt, k_name, env))
 		}
 		new_block := new(IR_Block)
-		new_block^ = IR_Block{statements = new_stmts, type = e.type, span = e.span}
+		new_block^ = IR_Block {
+			statements = new_stmts,
+			type       = e.type,
+			span       = e.span,
+		}
 		return IR_Expr(new_block)
 
 	case ^IR_BinOp:
 		new_binop := new(IR_BinOp)
-		new_binop^ = IR_BinOp{
-			op = e.op,
-			left = cps_transform_expr(e.left, k_name, env),
+		new_binop^ = IR_BinOp {
+			op    = e.op,
+			left  = cps_transform_expr(e.left, k_name, env),
 			right = cps_transform_expr(e.right, k_name, env),
-			type = e.type,
-			span = e.span,
+			type  = e.type,
+			span  = e.span,
 		}
 		return IR_Expr(new_binop)
 
 	case ^IR_Crash:
 		new_crash := new(IR_Crash)
-		new_crash^ = IR_Crash{message = cps_transform_expr(e.message, k_name, env), span = e.span}
+		new_crash^ = IR_Crash {
+			message = cps_transform_expr(e.message, k_name, env),
+			span    = e.span,
+		}
 		return IR_Expr(new_crash)
 
 	case ^IR_Atomic_Load:
@@ -376,7 +490,7 @@ cps_transform_expr :: proc(expr: IR_Expr, k_name: base.Intern_ID, env: ^CPS_Env)
 		return IR_Expr(e)
 	case ^IR_Assign:
 		new_assign := new(IR_Assign)
-		new_assign^ = IR_Assign{
+		new_assign^ = IR_Assign {
 			binding = e.binding,
 			value   = cps_transform_expr(e.value, k_name, env),
 			type    = e.type,
@@ -385,7 +499,7 @@ cps_transform_expr :: proc(expr: IR_Expr, k_name: base.Intern_ID, env: ^CPS_Env)
 		return IR_Expr(new_assign)
 	case ^IR_Loop:
 		new_loop := new(IR_Loop)
-		new_loop^ = IR_Loop{
+		new_loop^ = IR_Loop {
 			var      = e.var,
 			iterable = cps_transform_expr(e.iterable, k_name, env),
 			body     = cps_transform_expr(e.body, k_name, env),
@@ -397,3 +511,4 @@ cps_transform_expr :: proc(expr: IR_Expr, k_name: base.Intern_ID, env: ^CPS_Env)
 
 	return expr
 }
+

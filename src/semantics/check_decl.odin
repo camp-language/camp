@@ -3,8 +3,8 @@ package semantics
 import "core:fmt"
 
 import "camp:base"
-import "camp:frontend"
 import "camp:diagnostics"
+import "camp:frontend"
 
 typecheck_decl :: proc(decl: CDecl, env: ^Type_Env, store: ^Type_Store) -> TDecl {
 	switch d in decl {
@@ -34,7 +34,10 @@ typecheck_decl :: proc(decl: CDecl, env: ^Type_Env, store: ^Type_Store) -> TDecl
 					if effect_row_nonempty(store, inf.effect_id) {
 						name_str := base.intern_get(store.interner, d.name.name)
 						effects_str := format_effect_row(store, inf.effect_id)
-						diagnostics.collector_add_diag(store.collector, diagnostics.diag_effectful_naming(name_str, effects_str, d.span))
+						diagnostics.collector_add_diag(
+							store.collector,
+							diagnostics.diag_effectful_naming(name_str, effects_str, d.span),
+						)
 					}
 				}
 			}
@@ -49,16 +52,16 @@ typecheck_decl :: proc(decl: CDecl, env: ^Type_Env, store: ^Type_Store) -> TDecl
 		type_ir := lower_type(store, result.var_id)
 		eff_ir := lower_effect_type(store, result.effects)
 		td := new(TDecl_Const)
-		td^ = TDecl_Const{
-			name = d.name,
-			is_pub = d.is_pub,
-			is_effectful = d.is_effectful,
-			type_ann = d.type_ann,
-			body = result.texpr,
-			type_ = type_ir,
-			eff_ = eff_ir,
+		td^ = TDecl_Const {
+			name           = d.name,
+			is_pub         = d.is_pub,
+			is_effectful   = d.is_effectful,
+			type_ann       = d.type_ann,
+			body           = result.texpr,
+			type_          = type_ir,
+			eff_           = eff_ir,
 			derive_targets = d.derive_targets,
-			span = d.span,
+			span           = d.span,
 		}
 		return TDecl(td)
 
@@ -83,30 +86,33 @@ typecheck_decl :: proc(decl: CDecl, env: ^Type_Env, store: ^Type_Store) -> TDecl
 				} else {
 					param_types[j] = fresh_value_var(store, d.span)
 				}
-				params_t[j] = TFunc_Param{
-					name = p.name,
+				params_t[j] = TFunc_Param {
+					name  = p.name,
 					type_ = lower_type(store, param_types[j]),
-					eff_ = lower_effect_type(store, fresh_effect_row(store, p.span)),
-					span = p.span,
+					eff_  = lower_effect_type(store, fresh_effect_row(store, p.span)),
+					span  = p.span,
 				}
 			}
 			ret_type := fresh_value_var(store, d.span)
 			if op.return_type != nil {
 				ret_type = convert_type_to_var(op.return_type, store, env)
 			}
-			append(&op_sigs, Effect_Op_Sig{
-				name = op.name,
-				param_count = len(op.params),
-				param_types = param_types,
-				return_type = ret_type,
-			})
-			ops_t[i] = TEffect_Op{
-				name = op.name,
-				is_effectful = op.is_effectful,
-				params = params_t,
-				return_type = lower_type(store, ret_type),
+			append(
+				&op_sigs,
+				Effect_Op_Sig {
+					name = op.name,
+					param_count = len(op.params),
+					param_types = param_types,
+					return_type = ret_type,
+				},
+			)
+			ops_t[i] = TEffect_Op {
+				name           = op.name,
+				is_effectful   = op.is_effectful,
+				params         = params_t,
+				return_type    = lower_type(store, ret_type),
 				return_effects = lower_effect_type(store, fresh_effect_row(store, op.span)),
-				span = op.span,
+				span           = op.span,
 			}
 		}
 		store.effect_ops[d.name.name] = op_sigs[:]
@@ -120,52 +126,56 @@ typecheck_decl :: proc(decl: CDecl, env: ^Type_Env, store: ^Type_Store) -> TDecl
 			for c, j in tp.constraints {
 				constraints[j] = c
 			}
-			tp_t[i] = frontend.Type_Param{name = tp.name, constraints = constraints, is_effect = tp.is_effect}
+			tp_t[i] = frontend.Type_Param {
+				name        = tp.name,
+				constraints = constraints,
+				is_effect   = tp.is_effect,
+			}
 		}
 
 		td := new(TDecl_Effect)
-		td^ = TDecl_Effect{
-			name = d.name,
-			is_pub = d.is_pub,
-			operations = ops_t,
+		td^ = TDecl_Effect {
+			name        = d.name,
+			is_pub      = d.is_pub,
+			operations  = ops_t,
 			type_params = tp_t,
-			span = d.span,
+			span        = d.span,
 		}
 		return TDecl(td)
 
 	case ^CDecl_Trait:
 		typecheck_trait_decl(d, env, store)
 		td := new(TDecl_Trait)
-		td^ = TDecl_Trait{
-			name = d.name,
-			is_pub = d.is_pub,
-			parent = d.parent,
+		td^ = TDecl_Trait {
+			name    = d.name,
+			is_pub  = d.is_pub,
+			parent  = d.parent,
 			methods = make([dynamic]TTrait_Method, len(d.methods)),
-			span = d.span,
+			span    = d.span,
 		}
 		for m, i in d.methods {
-			td.methods[i] = TTrait_Method{
-				name = m.name,
-				params = make([dynamic]TFunc_Param, len(m.params)),
+			td.methods[i] = TTrait_Method {
+				name        = m.name,
+				params      = make([dynamic]TFunc_Param, len(m.params)),
 				return_type = lower_type(store, fresh_value_var(store, m.span)),
-				effects = lower_effect_type(store, fresh_effect_row(store, m.span)),
-				span = m.span,
+				effects     = lower_effect_type(store, fresh_effect_row(store, m.span)),
+				span        = m.span,
 			}
 			for p, j in m.params {
 				if p.type_ann != nil {
 					pv := convert_type_to_var(p.type_ann, store, env)
-					td.methods[i].params[j] = TFunc_Param{
-						name = p.name,
+					td.methods[i].params[j] = TFunc_Param {
+						name  = p.name,
 						type_ = lower_type(store, pv),
-						eff_ = lower_effect_type(store, fresh_effect_row(store, p.span)),
-						span = p.span,
+						eff_  = lower_effect_type(store, fresh_effect_row(store, p.span)),
+						span  = p.span,
 					}
 				} else {
-					td.methods[i].params[j] = TFunc_Param{
-						name = p.name,
+					td.methods[i].params[j] = TFunc_Param {
+						name  = p.name,
 						type_ = lower_type(store, fresh_value_var(store, p.span)),
-						eff_ = lower_effect_type(store, fresh_effect_row(store, p.span)),
-						span = p.span,
+						eff_  = lower_effect_type(store, fresh_effect_row(store, p.span)),
+						span  = p.span,
 					}
 				}
 			}
@@ -175,11 +185,11 @@ typecheck_decl :: proc(decl: CDecl, env: ^Type_Env, store: ^Type_Store) -> TDecl
 	case ^CDecl_Alias:
 		convert_type_to_var(d.target, store, env)
 		td := new(TDecl_Alias)
-		td^ = TDecl_Alias{
-			name = d.name,
+		td^ = TDecl_Alias {
+			name   = d.name,
 			is_pub = d.is_pub,
 			target = d.target,
-			span = d.span,
+			span   = d.span,
 		}
 		if d.target != nil && ctype_contains_self(d.target^) {
 			methods := extract_trait_methods_from_ctype(d.target, store, env)
@@ -187,10 +197,10 @@ typecheck_decl :: proc(decl: CDecl, env: ^Type_Env, store: ^Type_Store) -> TDecl
 			if trait_module == base.NO_NAME {
 				trait_module = env.current_module
 			}
-			trait_info := Trait_Info{
-				name = d.name.name,
-				module = trait_module,
-				parent = 0,
+			trait_info := Trait_Info {
+				name    = d.name.name,
+				module  = trait_module,
+				parent  = 0,
 				methods = methods,
 			}
 			store.trait_registry[d.name.name] = trait_info
@@ -207,21 +217,21 @@ typecheck_decl :: proc(decl: CDecl, env: ^Type_Env, store: ^Type_Store) -> TDecl
 			nt_var = store.bindings[d.name.name]
 		}
 		td := new(TDecl_Newtype)
-		td^ = TDecl_Newtype{
-			name = d.name,
-			is_pub = d.is_pub,
-			type_params = d.type_params,
-			inner_type = d.inner_type,
-			type_ = lower_type(store, nt_var),
+		td^ = TDecl_Newtype {
+			name           = d.name,
+			is_pub         = d.is_pub,
+			type_params    = d.type_params,
+			inner_type     = d.inner_type,
+			type_          = lower_type(store, nt_var),
 			derive_targets = d.derive_targets,
-			span = d.span,
+			span           = d.span,
 		}
 		return TDecl(td)
 
 	case ^CDecl_Test:
 		result := typecheck_synth(d.body, env, store)
 		td := new(TDecl_Test)
-		td^ = TDecl_Test{
+		td^ = TDecl_Test {
 			name = d.name,
 			body = result.texpr,
 			span = d.span,
@@ -234,17 +244,17 @@ typecheck_decl :: proc(decl: CDecl, env: ^Type_Env, store: ^Type_Store) -> TDecl
 		bool_var := make_primitive_type(store, bool_name, base.Source_Span_ZERO)
 		unify(store, result.var_id, bool_var)
 		td := new(TDecl_Expect)
-		td^ = TDecl_Expect{
+		td^ = TDecl_Expect {
 			condition = result.texpr,
-			span = d.span,
+			span      = d.span,
 		}
 		return TDecl(td)
 
 	case ^CDecl_Import:
 		td := new(TDecl_Import)
-		td^ = TDecl_Import{
+		td^ = TDecl_Import {
 			deferred = d.deferred,
-			span = d.span,
+			span     = d.span,
 		}
 		return TDecl(td)
 
@@ -252,22 +262,22 @@ typecheck_decl :: proc(decl: CDecl, env: ^Type_Env, store: ^Type_Store) -> TDecl
 		methods := make([dynamic]TIs_Method, len(d.methods))
 		for m, i in d.methods {
 			body_result := typecheck_synth(m.body, env, store)
-			methods[i] = TIs_Method{
-				name = m.name,
+			methods[i] = TIs_Method {
+				name   = m.name,
 				params = make([dynamic]TFunc_Param, 0),
-				body = body_result.texpr,
-				type_ = lower_type(store, body_result.var_id),
-				eff_ = lower_effect_type(store, body_result.effects),
+				body   = body_result.texpr,
+				type_  = lower_type(store, body_result.var_id),
+				eff_   = lower_effect_type(store, body_result.effects),
 				is_pub = false,
-				span = m.span,
+				span   = m.span,
 			}
 		}
 		td := new(TDecl_Is_Impl)
-		td^ = TDecl_Is_Impl{
-			type_name = d.type_name,
+		td^ = TDecl_Is_Impl {
+			type_name  = d.type_name,
 			trait_name = d.trait_name,
-			methods = methods,
-			span = d.span,
+			methods    = methods,
+			span       = d.span,
 		}
 		return TDecl(td)
 	}
@@ -297,17 +307,21 @@ typecheck_newtype_decl :: proc(d: ^CDecl_Newtype, env: ^Type_Env, store: ^Type_S
 	}
 
 	param_ids_slice := make([]base.Intern_ID, len(d.type_params), store.allocator)
-	for i in 0..<len(d.type_params) {
+	for i in 0 ..< len(d.type_params) {
 		param_ids_slice[i] = d.type_params[i]
 	}
 
 	nt_var := fresh_value_var(store, d.span)
-	link_var(store, nt_var, Inferred_Newtype{
-		primitive_name = d.name.name,
-		arity = len(d.type_params),
-		param_ids = param_vars[:],
-		inner_id = inner_type_var,
-	})
+	link_var(
+		store,
+		nt_var,
+		Inferred_Newtype {
+			primitive_name = d.name.name,
+			arity = len(d.type_params),
+			param_ids = param_vars[:],
+			inner_id = inner_type_var,
+		},
+	)
 
 	for i := 0; i < len(d.type_params); i += 1 {
 		delete_key(&env.bindings, d.type_params[i])
@@ -322,7 +336,7 @@ typecheck_newtype_decl :: proc(d: ^CDecl_Newtype, env: ^Type_Env, store: ^Type_S
 	store.bindings[d.name.name] = nt_var
 
 	owned_tags_slice := make([]base.Intern_ID, len(owned_tags), store.allocator)
-	for i in 0..<len(owned_tags) {
+	for i in 0 ..< len(owned_tags) {
 		owned_tags_slice[i] = owned_tags[i]
 	}
 
@@ -331,13 +345,13 @@ typecheck_newtype_decl :: proc(d: ^CDecl_Newtype, env: ^Type_Env, store: ^Type_S
 		defining_module = env.current_module
 	}
 
-	store.newtype_decls[d.name.name] = Newtype_Decl_Info{
-		name = d.name.name,
-		module = defining_module,
+	store.newtype_decls[d.name.name] = Newtype_Decl_Info {
+		name         = d.name.name,
+		module       = defining_module,
 		pub_variants = d.pub_variants,
-		type_params = param_ids_slice[:],
-		inner_type = inner_type_var,
-		owned_tags = owned_tags_slice[:],
+		type_params  = param_ids_slice[:],
+		inner_type   = inner_type_var,
+		owned_tags   = owned_tags_slice[:],
 	}
 
 	delete(param_vars)
@@ -346,7 +360,7 @@ typecheck_newtype_decl :: proc(d: ^CDecl_Newtype, env: ^Type_Env, store: ^Type_S
 
 typecheck_trait_decl :: proc(d: ^CDecl_Trait, env: ^Type_Env, store: ^Type_Store) {
 	methods := make([]Trait_Method_Info, len(d.methods))
-	for i in 0..<len(d.methods) {
+	for i in 0 ..< len(d.methods) {
 		m := d.methods[i]
 		self_var := fresh_value_var(store, m.span)
 		param_types := make([dynamic]base.Type_Var_ID, 0, len(m.params) + 1)
@@ -367,17 +381,17 @@ typecheck_trait_decl :: proc(d: ^CDecl_Trait, env: ^Type_Env, store: ^Type_Store
 			return_type = convert_type_to_var(m.return_type, store, env)
 		}
 
-		methods[i] = Trait_Method_Info{
-			name = m.name,
+		methods[i] = Trait_Method_Info {
+			name        = m.name,
 			param_types = param_types[:],
 			return_type = return_type,
 		}
 	}
 
-	trait_info := Trait_Info{
-		name = d.name.name,
-		module = d.name.module,
-		parent = d.parent,
+	trait_info := Trait_Info {
+		name    = d.name.name,
+		module  = d.name.module,
+		parent  = d.parent,
 		methods = methods,
 	}
 
@@ -388,19 +402,34 @@ typecheck_trait_decl :: proc(d: ^CDecl_Trait, env: ^Type_Env, store: ^Type_Store
 	store.bindings[d.name.name] = trait_var
 }
 
-verify_trait_conformance :: proc(type_name: base.Intern_ID, type_module: base.Intern_ID, trait_name: base.Intern_ID, span: base.Source_Span, store: ^Type_Store, env: ^Type_Env) -> bool {
+verify_trait_conformance :: proc(
+	type_name: base.Intern_ID,
+	type_module: base.Intern_ID,
+	trait_name: base.Intern_ID,
+	span: base.Source_Span,
+	store: ^Type_Store,
+	env: ^Type_Env,
+) -> bool {
 	trait_info, ok := store.trait_registry[trait_name]
 	if !ok {
 		trait_str := base.intern_get(store.interner, trait_name)
-		diagnostics.collector_add_diag(store.collector, diagnostics.diag_internal(
-			fmt.tprintf("trait `{}` not found in registry", trait_str), span))
+		diagnostics.collector_add_diag(
+			store.collector,
+			diagnostics.diag_internal(
+				fmt.tprintf("trait `{}` not found in registry", trait_str),
+				span,
+			),
+		)
 		return false
 	}
 
 	if type_module != trait_info.module && type_module != base.NO_NAME {
 		type_str := base.intern_get(store.interner, type_name)
 		trait_str := base.intern_get(store.interner, trait_name)
-		diagnostics.collector_add_diag(store.collector, diagnostics.diag_orphan_rule_violation(type_str, trait_str, span))
+		diagnostics.collector_add_diag(
+			store.collector,
+			diagnostics.diag_orphan_rule_violation(type_str, trait_str, span),
+		)
 		return false
 	}
 
@@ -408,7 +437,10 @@ verify_trait_conformance :: proc(type_name: base.Intern_ID, type_module: base.In
 		if impl.trait_name == trait_name && impl.type_name == type_name {
 			type_str := base.intern_get(store.interner, type_name)
 			trait_str := base.intern_get(store.interner, trait_name)
-			diagnostics.collector_add_diag(store.collector, diagnostics.diag_overlapping_instance(type_str, trait_str, span))
+			diagnostics.collector_add_diag(
+				store.collector,
+				diagnostics.diag_overlapping_instance(type_str, trait_str, span),
+			)
 			return false
 		}
 	}
@@ -418,7 +450,11 @@ verify_trait_conformance :: proc(type_name: base.Intern_ID, type_module: base.In
 	for req_trait_name in required_traits {
 		req_info := store.trait_registry[req_trait_name]
 		for method in req_info.methods {
-			impl_fn_name := fmt.tprintf("{}_{}", base.intern_get(store.interner, type_name), base.intern_get(store.interner, method.name))
+			impl_fn_name := fmt.tprintf(
+				"{}_{}",
+				base.intern_get(store.interner, type_name),
+				base.intern_get(store.interner, method.name),
+			)
 			impl_fn_id := base.intern(store.interner, impl_fn_name)
 
 			impl_fn_var: base.Type_Var_ID
@@ -443,7 +479,15 @@ verify_trait_conformance :: proc(type_name: base.Intern_ID, type_module: base.In
 				type_str := base.intern_get(store.interner, type_name)
 				req_trait_str := base.intern_get(store.interner, req_trait_name)
 				method_str := base.intern_get(store.interner, method.name)
-				diagnostics.collector_add_diag(store.collector, diagnostics.diag_missing_trait_method(type_str, req_trait_str, method_str, span))
+				diagnostics.collector_add_diag(
+					store.collector,
+					diagnostics.diag_missing_trait_method(
+						type_str,
+						req_trait_str,
+						method_str,
+						span,
+					),
+				)
 				return false
 			}
 
@@ -451,8 +495,13 @@ verify_trait_conformance :: proc(type_name: base.Intern_ID, type_module: base.In
 			defer delete(clone_subst)
 
 			expected_params := store_alloc(store, base.Type_Var_ID, len(method.param_types))
-			for i in 0..<len(method.param_types) {
-				expected_params[i] = deep_clone_type(store, method.param_types[i], span, &clone_subst)
+			for i in 0 ..< len(method.param_types) {
+				expected_params[i] = deep_clone_type(
+					store,
+					method.param_types[i],
+					span,
+					&clone_subst,
+				)
 			}
 
 			type_var := store.bindings[type_name]
@@ -462,11 +511,15 @@ verify_trait_conformance :: proc(type_name: base.Intern_ID, type_module: base.In
 			expected_effect := fresh_effect_row(store, span)
 
 			expected_fn_var := fresh_value_var(store, span)
-			link_var(store, expected_fn_var, Inferred_Function{
-				param_ids = expected_params,
-				return_id = expected_return,
-				effect_id = expected_effect,
-			})
+			link_var(
+				store,
+				expected_fn_var,
+				Inferred_Function {
+					param_ids = expected_params,
+					return_id = expected_return,
+					effect_id = expected_effect,
+				},
+			)
 
 			expected_sig := format_type_var(store, expected_fn_var)
 			actual_sig := format_type_var(store, impl_fn_var)
@@ -478,9 +531,12 @@ verify_trait_conformance :: proc(type_name: base.Intern_ID, type_module: base.In
 				for len(store.collector.diagnostics) > diag_count_before {
 					d := &store.collector.diagnostics[len(store.collector.diagnostics) - 1]
 					switch d.category {
-					case .Warning:  store.collector.warning_count -= 1
-					case .Error:    store.collector.error_count -= 1
-					case .Internal: store.collector.internal_count -= 1
+					case .Warning:
+						store.collector.warning_count -= 1
+					case .Error:
+						store.collector.error_count -= 1
+					case .Internal:
+						store.collector.internal_count -= 1
 					}
 					delete(d.labels)
 					delete(d.hints)
@@ -490,8 +546,17 @@ verify_trait_conformance :: proc(type_name: base.Intern_ID, type_module: base.In
 				type_str := base.intern_get(store.interner, type_name)
 				req_trait_str := base.intern_get(store.interner, req_trait_name)
 				method_str := base.intern_get(store.interner, method.name)
-				diagnostics.collector_add_diag(store.collector, diagnostics.diag_trait_method_signature_mismatch(
-					type_str, req_trait_str, method_str, expected_sig, actual_sig, span))
+				diagnostics.collector_add_diag(
+					store.collector,
+					diagnostics.diag_trait_method_signature_mismatch(
+						type_str,
+						req_trait_str,
+						method_str,
+						expected_sig,
+						actual_sig,
+						span,
+					),
+				)
 				return false
 			}
 		}
@@ -499,16 +564,24 @@ verify_trait_conformance :: proc(type_name: base.Intern_ID, type_module: base.In
 
 	methods := make(map[base.Intern_ID]base.Canonical_Name, len(trait_info.methods))
 	for method in trait_info.methods {
-		impl_fn_name := fmt.tprintf("{}_{}", base.intern_get(store.interner, type_name), base.intern_get(store.interner, method.name))
+		impl_fn_name := fmt.tprintf(
+			"{}_{}",
+			base.intern_get(store.interner, type_name),
+			base.intern_get(store.interner, method.name),
+		)
 		impl_fn_id := base.intern(store.interner, impl_fn_name)
-		methods[method.name] = base.Canonical_Name{module = type_module, name = impl_fn_id, is_local = false}
+		methods[method.name] = base.Canonical_Name {
+			module   = type_module,
+			name     = impl_fn_id,
+			is_local = false,
+		}
 	}
 
-	impl := Trait_Impl{
-		trait_name = trait_name,
-		type_name = type_name,
+	impl := Trait_Impl {
+		trait_name  = trait_name,
+		type_name   = type_name,
 		type_module = type_module,
-		methods = methods,
+		methods     = methods,
 	}
 	append(&store.trait_impls, impl)
 
@@ -552,17 +625,33 @@ ctype_contains_self :: proc(t: CType) -> bool {
 	return false
 }
 
-convert_ctype_self_aware :: proc(t: CType, self_var: base.Type_Var_ID, store: ^Type_Store, env: ^Type_Env) -> base.Type_Var_ID {
+convert_ctype_self_aware :: proc(
+	t: CType,
+	self_var: base.Type_Var_ID,
+	store: ^Type_Store,
+	env: ^Type_Env,
+) -> base.Type_Var_ID {
 	#partial switch ty in t {
 	case ^CType_Self:
 		return self_var
-	case ^CType_Primitive, ^CType_Applied, ^CType_Function, ^CType_Record, ^CType_Tag_Union, ^CType_Effect_Row, ^CType_Variable, ^CType_Wildcard:
+	case ^CType_Primitive,
+	     ^CType_Applied,
+	     ^CType_Function,
+	     ^CType_Record,
+	     ^CType_Tag_Union,
+	     ^CType_Effect_Row,
+	     ^CType_Variable,
+	     ^CType_Wildcard:
 		return convert_type_to_var_val(t, store, env, closed = true)
 	}
 	return fresh_value_var(store, base.Source_Span_ZERO)
 }
 
-extract_trait_methods_from_ctype :: proc(t: ^CType, store: ^Type_Store, env: ^Type_Env) -> []Trait_Method_Info {
+extract_trait_methods_from_ctype :: proc(
+	t: ^CType,
+	store: ^Type_Store,
+	env: ^Type_Env,
+) -> []Trait_Method_Info {
 	#partial switch ty in t^ {
 	case ^CType_Record:
 		methods := make([]Trait_Method_Info, len(ty.fields))
@@ -575,21 +664,35 @@ extract_trait_methods_from_ctype :: proc(t: ^CType, store: ^Type_Store, env: ^Ty
 				for p in ft.params {
 					append(&param_types, convert_ctype_self_aware(p, self_var, store, env))
 				}
-				methods[i] = Trait_Method_Info{
-					name = f.name,
+				methods[i] = Trait_Method_Info {
+					name        = f.name,
 					param_types = param_types[:],
 					return_type = convert_ctype_self_aware(ft.return_, self_var, store, env),
 				}
-			case ^CType_Primitive, ^CType_Applied, ^CType_Record, ^CType_Tag_Union, ^CType_Effect_Row, ^CType_Variable, ^CType_Wildcard, ^CType_Self:
-				methods[i] = Trait_Method_Info{
-					name = f.name,
+			case ^CType_Primitive,
+			     ^CType_Applied,
+			     ^CType_Record,
+			     ^CType_Tag_Union,
+			     ^CType_Effect_Row,
+			     ^CType_Variable,
+			     ^CType_Wildcard,
+			     ^CType_Self:
+				methods[i] = Trait_Method_Info {
+					name        = f.name,
 					param_types = param_types[:],
 					return_type = self_var,
 				}
 			}
 		}
 		return methods
-	case ^CType_Primitive, ^CType_Applied, ^CType_Function, ^CType_Tag_Union, ^CType_Effect_Row, ^CType_Variable, ^CType_Wildcard, ^CType_Self:
+	case ^CType_Primitive,
+	     ^CType_Applied,
+	     ^CType_Function,
+	     ^CType_Tag_Union,
+	     ^CType_Effect_Row,
+	     ^CType_Variable,
+	     ^CType_Wildcard,
+	     ^CType_Self:
 	}
 	return make([]Trait_Method_Info, 0)
 }
@@ -628,7 +731,11 @@ check_constraint_violation :: proc(type_var_id: base.Type_Var_ID, store: ^Type_S
 			if impl_type_name != base.NO_NAME {
 				type_name = base.intern_get(store.interner, impl_type_name)
 			}
-			diagnostics.collector_add_diag(store.collector, diagnostics.diag_constraint_violation(type_name, constraint_str, rv.span))
+			diagnostics.collector_add_diag(
+				store.collector,
+				diagnostics.diag_constraint_violation(type_name, constraint_str, rv.span),
+			)
 		}
 	}
 }
+

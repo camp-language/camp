@@ -1,15 +1,19 @@
 package camp
 
-import "core:testing"
 import "camp:base"
-import "camp:frontend"
-import "camp:diagnostics"
 import "camp:build"
+import "camp:diagnostics"
+import "camp:frontend"
+import "core:testing"
 
 parse_expr :: proc(source: string, ctx: ^build.Compilation_Context) -> frontend.Expr {
 	old_allocator := context.allocator
 	context.allocator = ctx.allocator
-	file := base.Source_File{path = "<test>", contents = source, id = 0}
+	file := base.Source_File {
+		path     = "<test>",
+		contents = source,
+		id       = 0,
+	}
 	lexer: frontend.Lexer
 	frontend.lexer_init(&lexer, file, &ctx.collector, &ctx.interner)
 
@@ -249,7 +253,11 @@ test_parser_dot_lambda_chained :: proc(t: ^testing.T) {
 parse_decl :: proc(source: string, ctx: ^build.Compilation_Context) -> frontend.Decl {
 	old_allocator := context.allocator
 	context.allocator = ctx.allocator
-	file := base.Source_File{path = "<test>", contents = source, id = 0}
+	file := base.Source_File {
+		path     = "<test>",
+		contents = source,
+		id       = 0,
+	}
 	lexer: frontend.Lexer
 	frontend.lexer_init(&lexer, file, &ctx.collector, &ctx.interner)
 
@@ -365,7 +373,7 @@ test_parse_simple_interpolation :: proc(t: ^testing.T) {
 		case frontend.Expr:
 			#partial switch inner in p1 {
 			case ^frontend.Expr_Identifier:
-				// name — success
+			// name — success
 			case:
 				testing.expect(t, false)
 			}
@@ -466,3 +474,4 @@ test_parser_nominal_destructure :: proc(t: ^testing.T) {
 		testing.expect(t, false)
 	}
 }
+

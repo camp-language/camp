@@ -75,3 +75,4 @@ doc_destroy :: proc(d: Doc) {
 		delete(d.children)
 	}
 }
+

@@ -10,28 +10,28 @@ Intern_ID :: distinct int
 GROUP_WIDTH :: 8
 GROUP_MASK :: int(GROUP_WIDTH - 1)
 
-CTRL_EMPTY   : u8 : 0x80
-CTRL_DELETED : u8 : 0xFE
+CTRL_EMPTY: u8 : 0x80
+CTRL_DELETED: u8 : 0xFE
 
 // SWAR bit-operation constants
-MSB_MASK : u64 : 0x80_80_80_80_80_80_80_80
-LSB_MASK : u64 : 0x01_01_01_01_01_01_01_01
+MSB_MASK: u64 : 0x80_80_80_80_80_80_80_80
+LSB_MASK: u64 : 0x01_01_01_01_01_01_01_01
 
 // --- Intern_Table (Swiss Table + contiguous string buffer) ---
 
 Intern_Table :: struct {
 	// Swiss Table hash map
-	ctrl:         [dynamic]u8,        // 1 byte per slot + GROUP_WIDTH cloned tail
-	id_from_slot: [dynamic]Intern_ID, // slot → Intern_ID
-	capacity:     int,                // total slots (power of 2, ≥ GROUP_WIDTH)
-	mask:         u32,                // capacity - 1
-	count:        int,                // number of entries
-	growth_left:  int,                // capacity*7/8 - count
+	ctrl:           [dynamic]u8, // 1 byte per slot + GROUP_WIDTH cloned tail
+	id_from_slot:   [dynamic]Intern_ID, // slot → Intern_ID
+	capacity:       int, // total slots (power of 2, ≥ GROUP_WIDTH)
+	mask:           u32, // capacity - 1
+	count:          int, // number of entries
+	growth_left:    int, // capacity*7/8 - count
 
 	// Contiguous string storage (SoA)
-	string_buffer:  [dynamic]u8,      // all interned strings concatenated
-	string_offsets: [dynamic]u32,     // Intern_ID → offset into buffer
-	string_lengths: [dynamic]u32,     // Intern_ID → string length
+	string_buffer:  [dynamic]u8, // all interned strings concatenated
+	string_offsets: [dynamic]u32, // Intern_ID → offset into buffer
+	string_lengths: [dynamic]u32, // Intern_ID → string length
 	next_id:        Intern_ID,
 }
 
@@ -66,14 +66,16 @@ compress_mask :: #force_inline proc(sparse: u64) -> u64 {
 // The ctrl array has capacity + GROUP_WIDTH bytes, so this is safe for
 // any base in [0, capacity) since the tail is cloned.
 load_group :: #force_inline proc(ctrl: []u8, base: int) -> u64 {
-	return u64(ctrl[base]) |
-		(u64(ctrl[base+1]) << 8) |
-		(u64(ctrl[base+2]) << 16) |
-		(u64(ctrl[base+3]) << 24) |
-		(u64(ctrl[base+4]) << 32) |
-		(u64(ctrl[base+5]) << 40) |
-		(u64(ctrl[base+6]) << 48) |
-		(u64(ctrl[base+7]) << 56)
+	return(
+		u64(ctrl[base]) |
+		(u64(ctrl[base + 1]) << 8) |
+		(u64(ctrl[base + 2]) << 16) |
+		(u64(ctrl[base + 3]) << 24) |
+		(u64(ctrl[base + 4]) << 32) |
+		(u64(ctrl[base + 5]) << 40) |
+		(u64(ctrl[base + 6]) << 48) |
+		(u64(ctrl[base + 7]) << 56) \
+	)
 }
 
 // --- FNV-1a hash ---
@@ -139,7 +141,8 @@ intern :: proc(table: ^Intern_Table, s: string) -> Intern_ID {
 				id := table.id_from_slot[matched_slot]
 				offset := table.string_offsets[int(id)]
 				length := table.string_lengths[int(id)]
-				if length == u32(len(s)) && string(table.string_buffer[offset:offset+length]) == s {
+				if length == u32(len(s)) &&
+				   string(table.string_buffer[offset:offset + length]) == s {
 					return id
 				}
 			}
@@ -190,7 +193,7 @@ intern :: proc(table: ^Intern_Table, s: string) -> Intern_ID {
 intern_get :: proc(table: ^Intern_Table, id: Intern_ID) -> string {
 	offset := table.string_offsets[int(id)]
 	length := table.string_lengths[int(id)]
-	return string(table.string_buffer[offset:offset+length])
+	return string(table.string_buffer[offset:offset + length])
 }
 
 mangle_name :: proc(module: Intern_ID, name: Intern_ID, interner: ^Intern_Table) -> string {
@@ -284,7 +287,10 @@ intern_grow :: proc(table: ^Intern_Table) {
 		}
 		// This is a full slot — re-insert
 		id := old_ids[slot]
-		s := string(table.string_buffer[table.string_offsets[int(id)]:table.string_offsets[int(id)]+table.string_lengths[int(id)]])
+		s := string(
+			table.string_buffer[table.string_offsets[int(id)]:table.string_offsets[int(id)] +
+			table.string_lengths[int(id)]],
+		)
 		hash := hash_string(s)
 		h2 := u8(hash & 0x7F)
 		h1 := u32(hash >> 7)
@@ -302,3 +308,4 @@ intern_grow :: proc(table: ^Intern_Table) {
 	delete(old_ctrl)
 	delete(old_ids)
 }
+

@@ -14,3 +14,4 @@ JSON_RPC_Error :: struct {
 	code:    int,
 	message: string,
 }
+

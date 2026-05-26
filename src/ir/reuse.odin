@@ -53,12 +53,12 @@ reuse_analyze_expr :: proc(expr: IR_Expr) -> IR_Expr {
 		}
 
 		new_let := new(IR_Let)
-		new_let^ = IR_Let{
+		new_let^ = IR_Let {
 			binding = e.binding,
-			type = e.type,
-			value = new_value,
-			body = new_body,
-			span = e.span,
+			type    = e.type,
+			value   = new_value,
+			body    = new_body,
+			span    = e.span,
 		}
 		return IR_Expr(new_let)
 
@@ -72,34 +72,38 @@ reuse_analyze_expr :: proc(expr: IR_Expr) -> IR_Expr {
 		new_stmts = optimize_block_drops(new_stmts)
 
 		new_block := new(IR_Block)
-		new_block^ = IR_Block{statements = new_stmts, type = e.type, span = e.span}
+		new_block^ = IR_Block {
+			statements = new_stmts,
+			type       = e.type,
+			span       = e.span,
+		}
 		return IR_Expr(new_block)
 
 	case ^IR_If:
 		new_if := new(IR_If)
-		new_if^ = IR_If{
-			condition = reuse_analyze_expr(e.condition),
+		new_if^ = IR_If {
+			condition   = reuse_analyze_expr(e.condition),
 			then_branch = reuse_analyze_expr(e.then_branch),
 			else_branch = reuse_analyze_expr(e.else_branch),
-			type = e.type,
-			span = e.span,
+			type        = e.type,
+			span        = e.span,
 		}
 		return IR_Expr(new_if)
 
 	case ^IR_Match:
 		new_arms := make([dynamic]IR_Match_Arm, 0, len(e.arms))
 		for arm in e.arms {
-			append(&new_arms, IR_Match_Arm{
-				pattern = arm.pattern,
-				body = reuse_analyze_expr(arm.body),
-			})
+			append(
+				&new_arms,
+				IR_Match_Arm{pattern = arm.pattern, body = reuse_analyze_expr(arm.body)},
+			)
 		}
 		new_match := new(IR_Match)
-		new_match^ = IR_Match{
+		new_match^ = IR_Match {
 			scrutinee = reuse_analyze_expr(e.scrutinee),
-			arms = new_arms,
-			type = e.type,
-			span = e.span,
+			arms      = new_arms,
+			type      = e.type,
+			span      = e.span,
 		}
 		return IR_Expr(new_match)
 
@@ -109,7 +113,12 @@ reuse_analyze_expr :: proc(expr: IR_Expr) -> IR_Expr {
 			append(&new_args, reuse_analyze_expr(arg))
 		}
 		new_call := new(IR_Call)
-		new_call^ = IR_Call{callee = e.callee, args = new_args, type = e.type, span = e.span}
+		new_call^ = IR_Call {
+			callee = e.callee,
+			args   = new_args,
+			type   = e.type,
+			span   = e.span,
+		}
 		return IR_Expr(new_call)
 
 	case ^IR_Closure_Call:
@@ -118,11 +127,11 @@ reuse_analyze_expr :: proc(expr: IR_Expr) -> IR_Expr {
 			append(&new_args, reuse_analyze_expr(arg))
 		}
 		new_cc := new(IR_Closure_Call)
-		new_cc^ = IR_Closure_Call{
+		new_cc^ = IR_Closure_Call {
 			callee = reuse_analyze_expr(e.callee),
-			args = new_args,
-			type = e.type,
-			span = e.span,
+			args   = new_args,
+			type   = e.type,
+			span   = e.span,
 		}
 		return IR_Expr(new_cc)
 
@@ -132,7 +141,11 @@ reuse_analyze_expr :: proc(expr: IR_Expr) -> IR_Expr {
 			append(&new_args, reuse_analyze_expr(arg))
 		}
 		new_tc := new(IR_Tail_Call)
-		new_tc^ = IR_Tail_Call{callee = e.callee, args = new_args, span = e.span}
+		new_tc^ = IR_Tail_Call {
+			callee = e.callee,
+			args   = new_args,
+			span   = e.span,
+		}
 		return IR_Expr(new_tc)
 
 	case ^IR_Construct_Tag:
@@ -141,39 +154,42 @@ reuse_analyze_expr :: proc(expr: IR_Expr) -> IR_Expr {
 			append(&new_payload, reuse_analyze_expr(p))
 		}
 		new_tag := new(IR_Construct_Tag)
-		new_tag^ = IR_Construct_Tag{
-			tag_name = e.tag_name,
-			tag_index = e.tag_index,
-			payload = new_payload,
+		new_tag^ = IR_Construct_Tag {
+			tag_name   = e.tag_name,
+			tag_index  = e.tag_index,
+			payload    = new_payload,
 			reuse_addr = e.reuse_addr,
-			type = e.type,
-			span = e.span,
+			type       = e.type,
+			span       = e.span,
 		}
 		return IR_Expr(new_tag)
 
 	case ^IR_Construct_Record:
 		new_fields := make([dynamic]IR_Record_Field, 0, len(e.fields))
 		for f in e.fields {
-			append(&new_fields, IR_Record_Field{name = f.name, value = reuse_analyze_expr(f.value)})
+			append(
+				&new_fields,
+				IR_Record_Field{name = f.name, value = reuse_analyze_expr(f.value)},
+			)
 		}
 		new_rec := new(IR_Construct_Record)
-		new_rec^ = IR_Construct_Record{
-			fields = new_fields,
-			rest = reuse_analyze_expr(e.rest),
+		new_rec^ = IR_Construct_Record {
+			fields     = new_fields,
+			rest       = reuse_analyze_expr(e.rest),
 			reuse_addr = e.reuse_addr,
-			type = e.type,
-			span = e.span,
+			type       = e.type,
+			span       = e.span,
 		}
 		return IR_Expr(new_rec)
 
 	case ^IR_Field_Access:
 		new_fa := new(IR_Field_Access)
-		new_fa^ = IR_Field_Access{
-			record = reuse_analyze_expr(e.record),
-			field = e.field,
+		new_fa^ = IR_Field_Access {
+			record      = reuse_analyze_expr(e.record),
+			field       = e.field,
 			field_index = e.field_index,
-			type = e.type,
-			span = e.span,
+			type        = e.type,
+			span        = e.span,
 		}
 		return IR_Expr(new_fa)
 
@@ -183,35 +199,38 @@ reuse_analyze_expr :: proc(expr: IR_Expr) -> IR_Expr {
 			append(&new_args, reuse_analyze_expr(arg))
 		}
 		new_mc := new(IR_Method_Call)
-		new_mc^ = IR_Method_Call{
+		new_mc^ = IR_Method_Call {
 			receiver = reuse_analyze_expr(e.receiver),
-			method = e.method,
-			args = new_args,
-			type = e.type,
-			span = e.span,
+			method   = e.method,
+			args     = new_args,
+			type     = e.type,
+			span     = e.span,
 		}
 		return IR_Expr(new_mc)
 
 	case ^IR_Handle:
 		new_arms := make([dynamic]IR_Handler_Arm, 0, len(e.arms))
 		for arm in e.arms {
-			append(&new_arms, IR_Handler_Arm{
-				op = arm.op,
-				params = arm.params,
-				body = reuse_analyze_expr(arm.body),
-			})
+			append(
+				&new_arms,
+				IR_Handler_Arm {
+					op = arm.op,
+					params = arm.params,
+					body = reuse_analyze_expr(arm.body),
+				},
+			)
 		}
 		effects := make([dynamic]base.Canonical_Name, 0, len(e.effects))
 		for eff in e.effects {
 			append(&effects, eff)
 		}
 		new_handle := new(IR_Handle)
-		new_handle^ = IR_Handle{
+		new_handle^ = IR_Handle {
 			effects = effects,
-			body = reuse_analyze_expr(e.body),
-			arms = new_arms,
-			type = e.type,
-			span = e.span,
+			body    = reuse_analyze_expr(e.body),
+			arms    = new_arms,
+			type    = e.type,
+			span    = e.span,
 		}
 		return IR_Expr(new_handle)
 
@@ -221,7 +240,13 @@ reuse_analyze_expr :: proc(expr: IR_Expr) -> IR_Expr {
 			append(&new_args, reuse_analyze_expr(arg))
 		}
 		new_perf := new(IR_Perform)
-		new_perf^ = IR_Perform{effect = e.effect, op = e.op, args = new_args, type = e.type, span = e.span}
+		new_perf^ = IR_Perform {
+			effect = e.effect,
+			op     = e.op,
+			args   = new_args,
+			type   = e.type,
+			span   = e.span,
+		}
 		return IR_Expr(new_perf)
 
 	case ^IR_Resume:
@@ -230,54 +255,60 @@ reuse_analyze_expr :: proc(expr: IR_Expr) -> IR_Expr {
 			ev_val = reuse_analyze_expr(e.ev)
 		}
 		new_resume := new(IR_Resume)
-		new_resume^ = IR_Resume{
+		new_resume^ = IR_Resume {
 			resume_id = e.resume_id,
-			value = reuse_analyze_expr(e.value),
-			ev = ev_val,
-			type = e.type,
-			span = e.span,
+			value     = reuse_analyze_expr(e.value),
+			ev        = ev_val,
+			type      = e.type,
+			span      = e.span,
 		}
 		return IR_Expr(new_resume)
 
 	case ^IR_Return:
 		new_ret := new(IR_Return)
-		new_ret^ = IR_Return{value = reuse_analyze_expr(e.value), span = e.span}
+		new_ret^ = IR_Return {
+			value = reuse_analyze_expr(e.value),
+			span  = e.span,
+		}
 		return IR_Expr(new_ret)
 
 	case ^IR_BinOp:
 		new_binop := new(IR_BinOp)
-		new_binop^ = IR_BinOp{
-			op = e.op,
-			left = reuse_analyze_expr(e.left),
+		new_binop^ = IR_BinOp {
+			op    = e.op,
+			left  = reuse_analyze_expr(e.left),
 			right = reuse_analyze_expr(e.right),
-			type = e.type,
-			span = e.span,
+			type  = e.type,
+			span  = e.span,
 		}
 		return IR_Expr(new_binop)
 
 	case ^IR_Crash:
 		new_crash := new(IR_Crash)
-		new_crash^ = IR_Crash{message = reuse_analyze_expr(e.message), span = e.span}
+		new_crash^ = IR_Crash {
+			message = reuse_analyze_expr(e.message),
+			span    = e.span,
+		}
 		return IR_Expr(new_crash)
 
 	case ^IR_Assign:
 		new_assign := new(IR_Assign)
-		new_assign^ = IR_Assign{
+		new_assign^ = IR_Assign {
 			binding = e.binding,
-			value = reuse_analyze_expr(e.value),
-			type = e.type,
-			span = e.span,
+			value   = reuse_analyze_expr(e.value),
+			type    = e.type,
+			span    = e.span,
 		}
 		return IR_Expr(new_assign)
 
 	case ^IR_Loop:
 		new_loop := new(IR_Loop)
-		new_loop^ = IR_Loop{
-			var = e.var,
+		new_loop^ = IR_Loop {
+			var      = e.var,
 			iterable = reuse_analyze_expr(e.iterable),
-			body = reuse_analyze_expr(e.body),
-			type = e.type,
-			span = e.span,
+			body     = reuse_analyze_expr(e.body),
+			type     = e.type,
+			span     = e.span,
 		}
 		return IR_Expr(new_loop)
 
@@ -309,7 +340,7 @@ extract_reuse_from_body :: proc(body: IR_Expr) -> (IR_Expr, base.Intern_ID) {
 				// Found a drop — extract it and return the rest
 				reuse_addr := first.value
 				rest := make([dynamic]IR_Expr, 0, len(b.statements) - 1)
-				for i in 1..<len(b.statements) {
+				for i in 1 ..< len(b.statements) {
 					append(&rest, b.statements[i])
 				}
 
@@ -321,7 +352,11 @@ extract_reuse_from_body :: proc(body: IR_Expr) -> (IR_Expr, base.Intern_ID) {
 				}
 
 				new_block := new(IR_Block)
-				new_block^ = IR_Block{statements = rest, type = b.type, span = b.span}
+				new_block^ = IR_Block {
+					statements = rest,
+					type       = b.type,
+					span       = b.span,
+				}
 				return IR_Expr(new_block), reuse_addr
 			}
 		}
@@ -340,23 +375,23 @@ set_reuse_addr :: proc(expr: IR_Expr, reuse_addr: base.Intern_ID) -> IR_Expr {
 	#partial switch e in expr {
 	case ^IR_Construct_Tag:
 		new_tag := new(IR_Construct_Tag)
-		new_tag^ = IR_Construct_Tag{
-			tag_name = e.tag_name,
-			tag_index = e.tag_index,
-			payload = e.payload,
+		new_tag^ = IR_Construct_Tag {
+			tag_name   = e.tag_name,
+			tag_index  = e.tag_index,
+			payload    = e.payload,
 			reuse_addr = reuse_addr,
-			type = e.type,
-			span = e.span,
+			type       = e.type,
+			span       = e.span,
 		}
 		return IR_Expr(new_tag)
 	case ^IR_Construct_Record:
 		new_rec := new(IR_Construct_Record)
-		new_rec^ = IR_Construct_Record{
-			fields = e.fields,
-			rest = e.rest,
+		new_rec^ = IR_Construct_Record {
+			fields     = e.fields,
+			rest       = e.rest,
 			reuse_addr = reuse_addr,
-			type = e.type,
-			span = e.span,
+			type       = e.type,
+			span       = e.span,
 		}
 		return IR_Expr(new_rec)
 	}
@@ -387,13 +422,13 @@ optimize_block_drops :: proc(stmts: [dynamic]IR_Expr) -> [dynamic]IR_Expr {
 					case ^IR_Construct_Tag:
 						if val.reuse_addr == NO_REUSE_ADDR {
 							new_construct := new(IR_Construct_Tag)
-							new_construct^ = IR_Construct_Tag{
-								tag_name = val.tag_name,
-								tag_index = val.tag_index,
-								payload = val.payload,
+							new_construct^ = IR_Construct_Tag {
+								tag_name   = val.tag_name,
+								tag_index  = val.tag_index,
+								payload    = val.payload,
 								reuse_addr = drop_stmt.value,
-								type = val.type,
-								span = val.span,
+								type       = val.type,
+								span       = val.span,
 							}
 							next.value = IR_Expr(new_construct)
 							append(&result, stmts[i + 1])
@@ -403,12 +438,12 @@ optimize_block_drops :: proc(stmts: [dynamic]IR_Expr) -> [dynamic]IR_Expr {
 					case ^IR_Construct_Record:
 						if val.reuse_addr == NO_REUSE_ADDR {
 							new_construct := new(IR_Construct_Record)
-							new_construct^ = IR_Construct_Record{
-								fields = val.fields,
-								rest = val.rest,
+							new_construct^ = IR_Construct_Record {
+								fields     = val.fields,
+								rest       = val.rest,
 								reuse_addr = drop_stmt.value,
-								type = val.type,
-								span = val.span,
+								type       = val.type,
+								span       = val.span,
 							}
 							next.value = IR_Expr(new_construct)
 							append(&result, stmts[i + 1])
@@ -429,3 +464,4 @@ optimize_block_drops :: proc(stmts: [dynamic]IR_Expr) -> [dynamic]IR_Expr {
 	delete(stmts)
 	return result
 }
+

@@ -6,7 +6,7 @@ import "core:encoding/json"
 import "core:fmt"
 import "core:os"
 
-@(private="file")
+@(private = "file")
 g_json_mode: bool = false
 
 set_json_mode :: proc(enabled: bool) {
@@ -17,17 +17,20 @@ is_json_mode :: proc() -> bool {
 	return g_json_mode
 }
 
-@(private="file")
+@(private = "file")
 severity_string :: proc(c: Diagnostic_Category) -> string {
 	switch c {
-	case .Error:    return "error"
-	case .Warning:  return "warning"
-	case .Internal: return "internal"
+	case .Error:
+		return "error"
+	case .Warning:
+		return "warning"
+	case .Internal:
+		return "internal"
 	}
 	return "error"
 }
 
-@(private="file")
+@(private = "file")
 span_to_object :: proc(source: string, span: base.Source_Span) -> json.Object {
 	obj := make(json.Object, 6)
 	obj["start"] = json.Integer(span.start)
@@ -43,7 +46,7 @@ span_to_object :: proc(source: string, span: base.Source_Span) -> json.Object {
 	return obj
 }
 
-@(private="file")
+@(private = "file")
 diagnostic_to_object :: proc(d: Diagnostic, source: string) -> json.Object {
 	obj := make(json.Object, 8)
 	obj["severity"] = json.String(severity_string(d.category))
@@ -99,3 +102,4 @@ render_all_json :: proc(collector: ^Diagnostic_Collector, file_path: string, sou
 	os.write(os.stdout, bytes)
 	os.write(os.stdout, []u8{'\n'})
 }
+

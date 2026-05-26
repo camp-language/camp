@@ -1,13 +1,13 @@
 package build
 
-import "camp:base"
-import "camp:frontend"
-import "camp:semantics"
-import "camp:ir"
-import "camp:codegen"
-import "camp:mono"
-import "camp:diagnostics"
 import "camp:analysis"
+import "camp:base"
+import "camp:codegen"
+import "camp:diagnostics"
+import "camp:frontend"
+import "camp:ir"
+import "camp:mono"
+import "camp:semantics"
 import "core:fmt"
 import "core:os"
 
@@ -69,13 +69,16 @@ run_build_project :: proc(thread_count: int = 1) -> Build_Result {
 			}
 			mi.exports = make([dynamic]Export_Info, 0, len(manifest.exports))
 			for m_exp in manifest.exports {
-				append(&mi.exports, Export_Info{
-					name = base.intern(&ctx.interner, m_exp.name),
-					kind = m_exp.kind,
-					is_pub = m_exp.is_pub,
-					pub_variants = m_exp.pub_variants,
-					type_var = base.Type_Var_ID(-1),
-				})
+				append(
+					&mi.exports,
+					Export_Info {
+						name = base.intern(&ctx.interner, m_exp.name),
+						kind = m_exp.kind,
+						is_pub = m_exp.is_pub,
+						pub_variants = m_exp.pub_variants,
+						type_var = base.Type_Var_ID(-1),
+					},
+				)
 			}
 			manifest_destroy(&manifest)
 			continue
@@ -147,7 +150,12 @@ run_build_project :: proc(thread_count: int = 1) -> Build_Result {
 
 		if diagnostics.diag_collector_has_errors(&ctx.collector) {
 			diagnostics.render_all(&ctx.collector, mi.path, mi.source)
-			return Build_Result(Build_Error{message = fmt.tprintf("typecheck errors in module {}", mod_id), code = 1})
+			return Build_Result(
+				Build_Error {
+					message = fmt.tprintf("typecheck errors in module {}", mod_id),
+					code = 1,
+				},
+			)
 		}
 
 		ctx.module_stores[mod_id] = store
@@ -160,8 +168,21 @@ run_build_project :: proc(thread_count: int = 1) -> Build_Result {
 		if !mi2_ok do continue
 		if mi2_ptr.cfile == nil do continue
 
-		scope := resolve_imports(mod_id, mi2_ptr.cfile, &ctx.export_tables, &project, &ctx.interner, &ctx.collector)
-		apply_import_resolution(mi2_ptr.cfile, &scope, &ctx.export_tables, &ctx.interner, &ctx.collector)
+		scope := resolve_imports(
+			mod_id,
+			mi2_ptr.cfile,
+			&ctx.export_tables,
+			&project,
+			&ctx.interner,
+			&ctx.collector,
+		)
+		apply_import_resolution(
+			mi2_ptr.cfile,
+			&scope,
+			&ctx.export_tables,
+			&ctx.interner,
+			&ctx.collector,
+		)
 		import_scope_destroy(&scope)
 	}
 
@@ -209,9 +230,14 @@ run_build_project :: proc(thread_count: int = 1) -> Build_Result {
 	output_path := "a.wasm"
 	write_err := os.write_entire_file_from_bytes(output_path, wasm_bytes)
 	if write_err != nil {
-		diagnostics.collector_add_diag(&ctx.collector, diagnostics.diag_file_write_failed(output_path, fmt.tprintf("{}", write_err)))
+		diagnostics.collector_add_diag(
+			&ctx.collector,
+			diagnostics.diag_file_write_failed(output_path, fmt.tprintf("{}", write_err)),
+		)
 		diagnostics.render_all(&ctx.collector, "", "")
-		return Build_Result(Build_Error{message = fmt.tprintf("write failed: {}", output_path), code = 1})
+		return Build_Result(
+			Build_Error{message = fmt.tprintf("write failed: {}", output_path), code = 1},
+		)
 	}
 	fmt.printfln("compiled project -> {}", output_path)
 	return Build_Result(Build_Output{wasm_path = output_path, has_errors = false})
@@ -222,7 +248,11 @@ parse_and_canonicalize :: proc(mi: ^Module_Info, ctx: ^Compilation_Context) -> B
 	context.allocator = ctx.allocator
 	defer context.allocator = old_allocator
 
-	source_file := base.Source_File{path = mi.path, contents = mi.source, id = 0}
+	source_file := base.Source_File {
+		path     = mi.path,
+		contents = mi.source,
+		id       = 0,
+	}
 	lexer: frontend.Lexer
 	frontend.lexer_init(&lexer, source_file, &ctx.collector, &ctx.interner)
 
@@ -232,7 +262,9 @@ parse_and_canonicalize :: proc(mi: ^Module_Info, ctx: ^Compilation_Context) -> B
 
 	if diagnostics.diag_collector_has_errors(&ctx.collector) {
 		diagnostics.render_all(&ctx.collector, mi.path, mi.source)
-		return Build_Result(Build_Error{message = fmt.tprintf("parse errors in {}", mi.path), code = 1})
+		return Build_Result(
+			Build_Error{message = fmt.tprintf("parse errors in {}", mi.path), code = 1},
+		)
 	}
 
 	canon := semantics.canonicalize(ast_file, &ctx.interner, &ctx.collector)
@@ -246,7 +278,11 @@ parse_and_canonicalize :: proc(mi: ^Module_Info, ctx: ^Compilation_Context) -> B
 	return Build_Result(Build_Output{wasm_path = "", has_errors = false})
 }
 
-combine_module_irs :: proc(sorted: []base.Intern_ID, project: ^Project_Discovery, ctx: ^Compilation_Context) -> ir.IR_Module {
+combine_module_irs :: proc(
+	sorted: []base.Intern_ID,
+	project: ^Project_Discovery,
+	ctx: ^Compilation_Context,
+) -> ir.IR_Module {
 	old_allocator := context.allocator
 	context.allocator = ctx.allocator
 	defer context.allocator = old_allocator
@@ -293,3 +329,4 @@ combine_module_irs :: proc(sorted: []base.Intern_ID, project: ^Project_Discovery
 
 	return combined
 }
+

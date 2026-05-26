@@ -1,9 +1,9 @@
 package lsp
 
-import "core:strings"
 import "camp:base"
 import "camp:diagnostics"
 import "camp:semantics"
+import "core:strings"
 
 Symbol_Kind :: enum {
 	Function,
@@ -39,15 +39,25 @@ destroy_symbol_index :: proc(idx: ^Symbol_Index) {
 	delete(idx.by_name)
 }
 
-symbol_index_add :: proc(idx: ^Symbol_Index, name: string, uri: string, range: diagnostics.LSP_Range, kind: Symbol_Kind, type_str: string) {
+symbol_index_add :: proc(
+	idx: ^Symbol_Index,
+	name: string,
+	uri: string,
+	range: diagnostics.LSP_Range,
+	kind: Symbol_Kind,
+	type_str: string,
+) {
 	entry_index := len(idx.entries)
-	append(&idx.entries, Symbol_Entry{
-		name = clone_string(name, context.allocator),
-		uri = clone_string(uri, context.allocator),
-		range = range,
-		kind = kind,
-		type_str = clone_string(type_str, context.allocator),
-	})
+	append(
+		&idx.entries,
+		Symbol_Entry {
+			name = clone_string(name, context.allocator),
+			uri = clone_string(uri, context.allocator),
+			range = range,
+			kind = kind,
+			type_str = clone_string(type_str, context.allocator),
+		},
+	)
 
 	// Clone the name for the map key — the original is a borrowed reference
 	// (e.g., from an interner) that may be freed before the map is destroyed.
@@ -76,7 +86,13 @@ symbol_index_lookup :: proc(idx: ^Symbol_Index, name: string) -> []int {
 	return indices
 }
 
-build_symbol_index :: proc(idx: ^Symbol_Index, file: semantics.CFile, uri: string, source: string, store: ^semantics.Type_Store) {
+build_symbol_index :: proc(
+	idx: ^Symbol_Index,
+	file: semantics.CFile,
+	uri: string,
+	source: string,
+	store: ^semantics.Type_Store,
+) {
 	for decl in file.decls {
 		#partial switch d in decl {
 		case ^semantics.CDecl_Const:
@@ -92,7 +108,14 @@ build_symbol_index :: proc(idx: ^Symbol_Index, file: semantics.CFile, uri: strin
 		case ^semantics.CDecl_Effect:
 			name_str := base.intern_get(store.interner, d.name.name)
 			range := span_to_lsp_range(source, d.span)
-			symbol_index_add(idx, strings.concatenate({name_str, "!"}, context.allocator), uri, range, .Effect, "effect type")
+			symbol_index_add(
+				idx,
+				strings.concatenate({name_str, "!"}, context.allocator),
+				uri,
+				range,
+				.Effect,
+				"effect type",
+			)
 			for op in d.operations {
 				op_name := base.intern_get(store.interner, op.name)
 				op_range := span_to_lsp_range(source, op.span)
@@ -118,7 +141,10 @@ build_symbol_index :: proc(idx: ^Symbol_Index, file: semantics.CFile, uri: strin
 				type_str = format_type_ann(d.target, store)
 			}
 			symbol_index_add(idx, name_str, uri, range, .Type, type_str)
-		case ^semantics.CDecl_Newtype, ^semantics.CDecl_Import, ^semantics.CDecl_Test, ^semantics.CDecl_Expect:
+		case ^semantics.CDecl_Newtype,
+		     ^semantics.CDecl_Import,
+		     ^semantics.CDecl_Test,
+		     ^semantics.CDecl_Expect:
 		}
 	}
 }
@@ -192,8 +218,9 @@ format_resolved_type :: proc(store: ^semantics.Type_Store, var_id: base.Type_Var
 span_to_lsp_range :: proc(source: string, span: base.Source_Span) -> diagnostics.LSP_Range {
 	line, col := diagnostics.diag_span_to_line_col(source, span)
 	end_line, end_col := diagnostics.span_end_to_line_col(source, span)
-	return diagnostics.LSP_Range{
+	return diagnostics.LSP_Range {
 		start = diagnostics.LSP_Position{line = uint(line - 1), character = uint(col - 1)},
-		end   = diagnostics.LSP_Position{line = uint(end_line - 1), character = uint(end_col - 1)},
+		end = diagnostics.LSP_Position{line = uint(end_line - 1), character = uint(end_col - 1)},
 	}
 }
+

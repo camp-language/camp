@@ -1,12 +1,12 @@
 package lsp
 
+import "camp:diagnostics"
 import "core:encoding/json"
 import "core:fmt"
 import "core:mem"
 import "core:mem/virtual"
 import "core:os"
 import "core:strings"
-import "camp:diagnostics"
 
 LSP_Server :: struct {
 	transport: Transport,
@@ -85,8 +85,12 @@ dispatch_request :: proc(server: ^LSP_Server, id: int, method: string, params: j
 	case "textDocument/hover":
 		handle_hover(server, id, params)
 	case:
-		send_error(server, id, int(JSON_RPC_Error_Code.MethodNotFound),
-			fmt.tprintf("method not found: {}", method))
+		send_error(
+			server,
+			id,
+			int(JSON_RPC_Error_Code.MethodNotFound),
+			fmt.tprintf("method not found: {}", method),
+		)
 	}
 }
 
@@ -261,9 +265,12 @@ url_decode :: proc(s: string) -> string {
 
 hex_val :: proc(ch: u8) -> int {
 	switch ch {
-	case '0'..='9': return int(ch - '0')
-	case 'a'..='f': return int(ch - 'a' + 10)
-	case 'A'..='F': return int(ch - 'A' + 10)
+	case '0' ..= '9':
+		return int(ch - '0')
+	case 'a' ..= 'f':
+		return int(ch - 'a' + 10)
+	case 'A' ..= 'F':
+		return int(ch - 'A' + 10)
 	}
 	return -1
 }
@@ -312,3 +319,4 @@ send_notification :: proc(server: ^LSP_Server, method: string, params: json.Valu
 	}
 	write_message(&server.transport, string(msg_bytes))
 }
+

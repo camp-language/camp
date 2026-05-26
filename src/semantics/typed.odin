@@ -38,31 +38,31 @@ TExpr :: union {
 }
 
 TExpr_Int :: struct {
-	value:  i64,
-	type_:  base.IR_Type,
-	eff_:   base.IR_Type,
-	span:   base.Source_Span,
+	value: i64,
+	type_: base.IR_Type,
+	eff_:  base.IR_Type,
+	span:  base.Source_Span,
 }
 
 TExpr_Float :: struct {
-	value:  f64,
-	type_:  base.IR_Type,
-	eff_:   base.IR_Type,
-	span:   base.Source_Span,
+	value: f64,
+	type_: base.IR_Type,
+	eff_:  base.IR_Type,
+	span:  base.Source_Span,
 }
 
 TExpr_String :: struct {
-	value:  string,
-	type_:  base.IR_Type,
-	eff_:   base.IR_Type,
-	span:   base.Source_Span,
+	value: string,
+	type_: base.IR_Type,
+	eff_:  base.IR_Type,
+	span:  base.Source_Span,
 }
 
 TExpr_Bool :: struct {
-	value:  bool,
-	type_:  base.IR_Type,
-	eff_:   base.IR_Type,
-	span:   base.Source_Span,
+	value: bool,
+	type_: base.IR_Type,
+	eff_:  base.IR_Type,
+	span:  base.Source_Span,
 }
 
 TExpr_Char :: struct {
@@ -81,11 +81,11 @@ TExpr_Tag :: struct {
 }
 
 TExpr_Nominal_Construct :: struct {
-	type_name: base.Canonical_Name,
-	variant:   base.Intern_ID,
-	payload:   [dynamic]TExpr,
+	type_name:     base.Canonical_Name,
+	variant:       base.Intern_ID,
+	payload:       [dynamic]TExpr,
 	resolved_type: Type_ID,
-	span:      base.Source_Span,
+	span:          base.Source_Span,
 }
 
 TExpr_Record :: struct {
@@ -149,10 +149,10 @@ TExpr_Lambda :: struct {
 }
 
 TFunc_Param :: struct {
-	name:     base.Intern_ID,
-	type_:    base.IR_Type,
-	eff_:     base.IR_Type,
-	span:     base.Source_Span,
+	name:  base.Intern_ID,
+	type_: base.IR_Type,
+	eff_:  base.IR_Type,
+	span:  base.Source_Span,
 }
 
 TExpr_Block :: struct {
@@ -176,7 +176,7 @@ TExpr_Match :: struct {
 	arms:      [dynamic]TMatch_Arm,
 	type_:     base.IR_Type,
 	eff_:      base.IR_Type,
-	span:       base.Source_Span,
+	span:      base.Source_Span,
 }
 
 TMatch_Arm :: struct {
@@ -273,27 +273,27 @@ TExpr_BinOp :: struct {
 }
 
 TExpr_PrefixOp :: struct {
-	op:     base.Token_Kind,
+	op:      base.Token_Kind,
 	operand: TExpr,
-	type_:  base.IR_Type,
-	eff_:   base.IR_Type,
-	span:   base.Source_Span,
-}
-
-TExpr_Field_Access :: struct {
-	record:  TExpr,
-	field:   base.Intern_ID,
 	type_:   base.IR_Type,
 	eff_:    base.IR_Type,
 	span:    base.Source_Span,
 }
 
+TExpr_Field_Access :: struct {
+	record: TExpr,
+	field:  base.Intern_ID,
+	type_:  base.IR_Type,
+	eff_:   base.IR_Type,
+	span:   base.Source_Span,
+}
+
 TExpr_Record_Update :: struct {
-	rest:     TExpr,
-	updates:  [dynamic]TRecord_Field,
-	type_:    base.IR_Type,
-	eff_:     base.IR_Type,
-	span:     base.Source_Span,
+	rest:    TExpr,
+	updates: [dynamic]TRecord_Field,
+	type_:   base.IR_Type,
+	eff_:    base.IR_Type,
+	span:    base.Source_Span,
 }
 
 TExpr_Assign :: struct {
@@ -345,18 +345,18 @@ TExpr_String_Literal :: struct {
 }
 
 TExpr_String_Expr :: struct {
-	expr:          TExpr,
-	needs_to_str:  bool,
-	display_impl:  base.Canonical_Name,
+	expr:         TExpr,
+	needs_to_str: bool,
+	display_impl: base.Canonical_Name,
 }
 
 TExpr_Handle :: struct {
 	effects: [dynamic]base.Canonical_Name,
-	body:   TExpr,
-	arms:   [dynamic]THandler_Arm,
-	type_:  base.IR_Type,
-	eff_:   base.IR_Type,
-	span:   base.Source_Span,
+	body:    TExpr,
+	arms:    [dynamic]THandler_Arm,
+	type_:   base.IR_Type,
+	eff_:    base.IR_Type,
+	span:    base.Source_Span,
 }
 
 TExpr_Perform :: struct {
@@ -408,23 +408,23 @@ TDecl :: union {
 }
 
 TDecl_Const :: struct {
-	name:            base.Canonical_Name,
-	is_pub:          bool,
-	is_effectful:    bool,
-	type_ann:        ^CType,
-	body:            TExpr,
-	type_:           base.IR_Type,
-	eff_:            base.IR_Type,
-	derive_targets:  [dynamic]base.Intern_ID,
-	span:            base.Source_Span,
+	name:           base.Canonical_Name,
+	is_pub:         bool,
+	is_effectful:   bool,
+	type_ann:       ^CType,
+	body:           TExpr,
+	type_:          base.IR_Type,
+	eff_:           base.IR_Type,
+	derive_targets: [dynamic]base.Intern_ID,
+	span:           base.Source_Span,
 }
 
 TDecl_Effect :: struct {
-	name:       base.Canonical_Name,
-	is_pub:     bool,
-	operations: [dynamic]TEffect_Op,
+	name:        base.Canonical_Name,
+	is_pub:      bool,
+	operations:  [dynamic]TEffect_Op,
 	type_params: [dynamic]frontend.Type_Param,
-	span:       base.Source_Span,
+	span:        base.Source_Span,
 }
 
 TEffect_Op :: struct {
@@ -493,13 +493,13 @@ TDecl_Is_Impl :: struct {
 }
 
 TIs_Method :: struct {
-	name:    base.Intern_ID,
-	params:  [dynamic]TFunc_Param,
-	body:    TExpr,
-	type_:   base.IR_Type,
-	eff_:    base.IR_Type,
-	is_pub:  bool,
-	span:    base.Source_Span,
+	name:   base.Intern_ID,
+	params: [dynamic]TFunc_Param,
+	body:   TExpr,
+	type_:  base.IR_Type,
+	eff_:   base.IR_Type,
+	is_pub: bool,
+	span:   base.Source_Span,
 }
 
 TFile :: struct {
@@ -508,3 +508,4 @@ TFile :: struct {
 	imports: [dynamic]base.Deferred_Import,
 	span:    base.Source_Span,
 }
+

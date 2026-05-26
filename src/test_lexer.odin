@@ -1,15 +1,19 @@
 package camp
 
-import "core:testing"
 import "camp:base"
-import "camp:frontend"
 import "camp:build"
+import "camp:frontend"
+import "core:testing"
 
 lex_all :: proc(source: string, ctx: ^build.Compilation_Context) -> []base.Token {
 	old_allocator := context.allocator
 	context.allocator = ctx.allocator
 	defer context.allocator = old_allocator
-	file := base.Source_File{path = "<test>", contents = source, id = 0}
+	file := base.Source_File {
+		path     = "<test>",
+		contents = source,
+		id       = 0,
+	}
 	lexer: frontend.Lexer
 	frontend.lexer_init(&lexer, file, &ctx.collector, &ctx.interner)
 
@@ -17,7 +21,7 @@ lex_all :: proc(source: string, ctx: ^build.Compilation_Context) -> []base.Token
 	for {
 		tok := frontend.lexer_next(&lexer)
 		append(&tokens, tok)
-		if tok.kind == .Eof { break }
+		if tok.kind == .Eof {break}
 	}
 
 	return tokens[:]
@@ -337,8 +341,7 @@ test_simd_32_consecutive_spaces :: proc(t: ^testing.T) {
 	build.context_init(&ctx)
 	defer build.context_destroy(&ctx)
 
-	src := "                                " +
-	       "42"
+	src := "                                " + "42"
 	tokens := lex_all(src, &ctx)
 	defer delete(tokens)
 
@@ -367,8 +370,7 @@ test_simd_chunk_boundary_15 :: proc(t: ^testing.T) {
 	build.context_init(&ctx)
 	defer build.context_destroy(&ctx)
 
-	src := "               " + // 15 spaces
-	       "42"
+	src := "               " + "42" // 15 spaces
 	tokens := lex_all(src, &ctx)
 	defer delete(tokens)
 
@@ -382,8 +384,7 @@ test_simd_chunk_boundary_16 :: proc(t: ^testing.T) {
 	build.context_init(&ctx)
 	defer build.context_destroy(&ctx)
 
-	src := "                " + // 16 spaces
-	       "42"
+	src := "                " + "42" // 16 spaces
 	tokens := lex_all(src, &ctx)
 	defer delete(tokens)
 
@@ -397,8 +398,7 @@ test_simd_chunk_boundary_17 :: proc(t: ^testing.T) {
 	build.context_init(&ctx)
 	defer build.context_destroy(&ctx)
 
-	src := "                 " + // 17 spaces
-	       "42"
+	src := "                 " + "42" // 17 spaces
 	tokens := lex_all(src, &ctx)
 	defer delete(tokens)
 
@@ -412,9 +412,7 @@ test_simd_comment_at_chunk_boundary :: proc(t: ^testing.T) {
 	build.context_init(&ctx)
 	defer build.context_destroy(&ctx)
 
-	src := "              " + // 14 spaces
-	       "// comment\n" +
-	       "42"
+	src := "              " + "// comment\n" + "42" // 14 spaces
 	tokens := lex_all(src, &ctx)
 	defer delete(tokens)
 
@@ -580,7 +578,7 @@ test_simd_long_string :: proc(t: ^testing.T) {
 	buf: [130]u8
 	i := 0
 	buf[i] = '"'; i += 1
-	for _ in 0..<120 {
+	for _ in 0 ..< 120 {
 		buf[i] = 'a'; i += 1
 	}
 	buf[i] = '"'; i += 1
@@ -734,7 +732,7 @@ test_simd_token_stream_equivalence :: proc(t: ^testing.T) {
 		case .Kw_Pub:
 			found_pub = true
 		case .Int_Literal:
-			if tok.int_value == 42 { found_int_42 = true }
+			if tok.int_value == 42 {found_int_42 = true}
 		case .Float_Literal:
 			found_float = true
 		case .String_Literal:
@@ -785,7 +783,6 @@ test_simd_token_stream_equivalence :: proc(t: ^testing.T) {
 
 	// Last non-EOF token should be the closing brace
 	testing.expect(t, len(tokens) >= 2)
-	testing.expect(t, tokens[len(tokens)-2].kind == .RBrace)
+	testing.expect(t, tokens[len(tokens) - 2].kind == .RBrace)
 }
-
 

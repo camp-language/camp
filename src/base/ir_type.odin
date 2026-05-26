@@ -17,3 +17,4 @@ IR_Type :: struct {
 	type_id:   Type_Var_ID,
 	is_heap:   bool,
 }
+

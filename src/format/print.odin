@@ -84,3 +84,4 @@ doc_newline_with_indent :: proc(indent: int) -> string {
 	}
 	return strings.clone(strings.to_string(b))
 }
+

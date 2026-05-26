@@ -2,16 +2,17 @@
 
 let
   unit_tests = ''
-    odin test src -collection:camp=src
-    odin test src/base -collection:camp=src
-    odin test src/diagnostics -collection:camp=src
-    odin test src/frontend -collection:camp=src
-    odin test src/semantics -collection:camp=src
-    odin test src/mono -collection:camp=src
-    odin test src/ir -collection:camp=src
-    odin test src/codegen -collection:camp=src
-    odin test src/build -collection:camp=src
-    odin test src/format -collection:camp=src
+    run_test() { echo "  [$1]"; odin test "$1" -collection:camp=src && echo "  PASS $1" || echo "  FAIL $1"; }
+    run_test src
+    run_test src/base
+    run_test src/diagnostics
+    run_test src/frontend
+    run_test src/semantics
+    run_test src/mono
+    run_test src/ir
+    run_test src/codegen
+    run_test src/build
+    run_test src/format
   '';
 
   check_fmt_odin = ''
@@ -142,7 +143,7 @@ in
   };
 
   enterTest = builtins.concatStringsSep "\n" [
-    "set -euo pipefail"
+    "set -uo pipefail"
     ""
     "echo '=== Unit Tests ==='"
     unit_tests

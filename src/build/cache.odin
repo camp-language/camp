@@ -12,20 +12,20 @@ Cache_Entry :: struct {
 	file_path: string,
 }
 
-MODULE_MANIFEST_MAGIC :u32 : 0x434D4D46
-MODULE_MANIFEST_VERSION :u32 : 4
+MODULE_MANIFEST_MAGIC: u32 : 0x434D4D46
+MODULE_MANIFEST_VERSION: u32 : 4
 
 Module_Manifest :: struct {
-	content_hash:  string,
-	module_name:   string,
-	imports:       [dynamic]Manifest_Import,
-	exports:       [dynamic]Manifest_Export,
+	content_hash: string,
+	module_name:  string,
+	imports:      [dynamic]Manifest_Import,
+	exports:      [dynamic]Manifest_Export,
 }
 
 Manifest_Import :: struct {
-	module:   string,
-	names:    [dynamic]string,
-	alias:    string,
+	module: string,
+	names:  [dynamic]string,
+	alias:  string,
 }
 
 Manifest_Export :: struct {
@@ -85,7 +85,11 @@ cache_key_for_file :: proc(mi: ^Module_Info) -> string {
 	return mi.content_hash
 }
 
-cache_key_for_typecheck :: proc(mi: ^Module_Info, project: ^Project_Discovery, interner: ^base.Intern_Table) -> string {
+cache_key_for_typecheck :: proc(
+	mi: ^Module_Info,
+	project: ^Project_Discovery,
+	interner: ^base.Intern_Table,
+) -> string {
 	builder: strings.Builder
 	strings.builder_init_len_cap(&builder, 0, 256)
 
@@ -182,44 +186,44 @@ deserialize_manifest :: proc(data: []byte, allocator: mem.Allocator) -> (Module_
 	manifest.module_name = module_name
 
 	num_imports_val, imp_cnt_ok := read_u32_le(data, &pos)
-	if !imp_cnt_ok { manifest_destroy(&manifest); return Module_Manifest{}, false }
+	if !imp_cnt_ok {manifest_destroy(&manifest); return Module_Manifest{}, false}
 	num_imports := int(num_imports_val)
 	for i := 0; i < num_imports; i += 1 {
 		imp: Manifest_Import
 		imp.names = make([dynamic]string, 0, 8)
 
 		mod_str, mod_ok := read_string(data, &pos, allocator)
-		if !mod_ok { manifest_destroy(&manifest); return Module_Manifest{}, false }
+		if !mod_ok {manifest_destroy(&manifest); return Module_Manifest{}, false}
 		imp.module = mod_str
 
 		num_names_val, name_cnt_ok := read_u32_le(data, &pos)
-		if !name_cnt_ok { manifest_destroy(&manifest); return Module_Manifest{}, false }
+		if !name_cnt_ok {manifest_destroy(&manifest); return Module_Manifest{}, false}
 		num_names := int(num_names_val)
 		for j := 0; j < num_names; j += 1 {
 			name_str, name_ok := read_string(data, &pos, allocator)
-			if !name_ok { manifest_destroy(&manifest); return Module_Manifest{}, false }
+			if !name_ok {manifest_destroy(&manifest); return Module_Manifest{}, false}
 			append(&imp.names, name_str)
 		}
 
 		alias_str, alias_ok := read_string(data, &pos, allocator)
-		if !alias_ok { manifest_destroy(&manifest); return Module_Manifest{}, false }
+		if !alias_ok {manifest_destroy(&manifest); return Module_Manifest{}, false}
 		imp.alias = alias_str
 
 		append(&manifest.imports, imp)
 	}
 
 	num_exports_val, exp_cnt_ok2 := read_u32_le(data, &pos)
-	if !exp_cnt_ok2 { manifest_destroy(&manifest); return Module_Manifest{}, false }
+	if !exp_cnt_ok2 {manifest_destroy(&manifest); return Module_Manifest{}, false}
 	num_exports := int(num_exports_val)
 	for i := 0; i < num_exports; i += 1 {
 		exp: Manifest_Export
 
 		name_str, name_ok := read_string(data, &pos, allocator)
-		if !name_ok { manifest_destroy(&manifest); return Module_Manifest{}, false }
+		if !name_ok {manifest_destroy(&manifest); return Module_Manifest{}, false}
 		exp.name = name_str
 
 		kind_val_u16, kind_ok := read_u16_le(data, &pos)
-		if !kind_ok { manifest_destroy(&manifest); return Module_Manifest{}, false }
+		if !kind_ok {manifest_destroy(&manifest); return Module_Manifest{}, false}
 		kind_val := int(kind_val_u16)
 		if kind_val > int(Export_Kind.Newtype) {
 			manifest_destroy(&manifest)
@@ -288,7 +292,13 @@ cache_write_manifest :: proc(mi: ^Module_Info, interner: ^base.Intern_Table) -> 
 	return ok
 }
 
-cache_read_manifest :: proc(content_hash: string, allocator: mem.Allocator) -> (Module_Manifest, bool) {
+cache_read_manifest :: proc(
+	content_hash: string,
+	allocator: mem.Allocator,
+) -> (
+	Module_Manifest,
+	bool,
+) {
 	data, ok := cache_read(content_hash, ".manifest", allocator)
 	if !ok {
 		return Module_Manifest{}, false
@@ -314,7 +324,7 @@ read_u32_le :: proc(data: []u8, pos: ^int) -> (value: u32, ok: bool) {
 	if pos^ + 4 > len(data) {
 		return 0, false
 	}
-	result :u32 = u32(data[pos^])
+	result: u32 = u32(data[pos^])
 	result |= u32(data[pos^ + 1]) << 8
 	result |= u32(data[pos^ + 2]) << 16
 	result |= u32(data[pos^ + 3]) << 24
@@ -326,7 +336,7 @@ read_u16_le :: proc(data: []u8, pos: ^int) -> (value: u16, ok: bool) {
 	if pos^ + 2 > len(data) {
 		return 0, false
 	}
-	result :u16 = u16(data[pos^])
+	result: u16 = u16(data[pos^])
 	result |= u16(data[pos^ + 1]) << 8
 	pos^ += 2
 	return result, true
@@ -344,7 +354,7 @@ read_string :: proc(data: []u8, pos: ^int, allocator: mem.Allocator) -> (string,
 		return "", false
 	}
 	length_val, ok := read_u32_le(data, pos)
-	if !ok { return "", false }
+	if !ok {return "", false}
 	length := int(length_val)
 	if length > 4096 || pos^ + length > len(data) {
 		return "", false
@@ -373,3 +383,4 @@ simple_sort_strings :: proc(arr: ^[dynamic]string) {
 		}
 	}
 }
+

@@ -1,9 +1,9 @@
 package format
 
-import "core:mem"
 import "camp:base"
-import "camp:frontend"
 import "camp:diagnostics"
+import "camp:frontend"
+import "core:mem"
 
 Format_Result :: struct {
 	output:      string,
@@ -25,10 +25,10 @@ format :: proc(source: string, file_path: string, allocator: mem.Allocator) -> F
 	diagnostics.diag_collector_init(&collector)
 	defer diagnostics.diag_collector_destroy(&collector)
 
-	file := base.Source_File{
-		path = file_path,
+	file := base.Source_File {
+		path     = file_path,
 		contents = source,
-		id = 0,
+		id       = 0,
 	}
 
 	// Lex all tokens
@@ -92,3 +92,4 @@ copy_diagnostics :: proc(diags: []diagnostics.Diagnostic) -> []diagnostics.Diagn
 	}
 	return result
 }
+
