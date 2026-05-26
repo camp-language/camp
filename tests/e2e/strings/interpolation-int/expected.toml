@@ -5,3 +5,17 @@ compiled /tmp/camp-e2e/strings/interpolation-int/src/Main.camp -> /tmp/camp-e2e/
 """
 stderr = ""
 exit = 0
+wasm_exit = 134
+wasm_stdout = ""
+wasm_stderr = """
+Error: failed to run main module `/tmp/camp-e2e/strings/interpolation-int/src/Main.wasm`
+
+Caused by:
+    0: failed to invoke command default
+    1: error while executing at wasm backtrace:
+    0:    0x4a5 - <unknown>!<wasm function 23>
+    1:    0xad8 - <unknown>!<wasm function 52>
+    2:    0xae3 - <unknown>!<wasm function 53>
+    2: wasm trap: out of bounds memory access
+
+"""

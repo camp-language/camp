@@ -5,3 +5,6 @@ compiled /tmp/camp-e2e/typechecking/function-param-inference/src/Main.camp -> /t
 """
 stderr = ""
 exit = 0
+wasm_exit = 0
+wasm_stdout = ""
+wasm_stderr = ""
