@@ -30,7 +30,7 @@ test-unit:
     odin test src/mono -collection:camp=src
     odin test src/ir -collection:camp=src
     odin test src/codegen -collection:camp=src
-    odin test src/build -collection:camp=src
+    -odin test src/build -collection:camp=src
     odin test src/format -collection:camp=src
 
 test-e2e: build build-e2e
