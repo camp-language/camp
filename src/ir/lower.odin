@@ -635,11 +635,11 @@ lower_tcall :: proc(e: ^semantics.TExpr_Call, env: ^Lower_Env) -> IR_Expr {
 		if callee_name.is_local && !is_module_decl(env.module, callee_name.name) {
 			callee_expr := lower_texpr(e.callee, env)
 			ccall := new(IR_Closure_Call)
-			ccall^ = IR_Closure_Call{
+			ccall^ = IR_Closure_Call {
 				callee = callee_expr,
-				args = ir_args,
-				type = e.type_,
-				span = e.span,
+				args   = ir_args,
+				type   = e.type_,
+				span   = e.span,
 			}
 			return IR_Expr(ccall)
 		}

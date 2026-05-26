@@ -9,7 +9,7 @@ Closure_Convert_Env :: struct {
 	fresh_state: base.Fresh_State,
 	// Names of synthesized closed_fn decls — references to these are
 	// function pointers, not free variables to capture.
-	known_fns:  map[base.Intern_ID]bool,
+	known_fns:   map[base.Intern_ID]bool,
 }
 
 
@@ -440,9 +440,18 @@ cc_convert_expr :: proc(expr: IR_Expr, env: ^Closure_Convert_Env) -> IR_Expr {
 		for fv, idx in free {
 			ft, ok := free_types[fv]
 			if !ok {
-				ft = base.IR_Type{wasm_type = .I32, type_id = base.Type_Var_ID(0)}
+				ft = base.IR_Type {
+					wasm_type = .I32,
+					type_id   = base.Type_Var_ID(0),
+				}
 			}
-			env_access_map[fv] = make_env_field_access(env_param_name, idx, ft, e.span, env.interner)
+			env_access_map[fv] = make_env_field_access(
+				env_param_name,
+				idx,
+				ft,
+				e.span,
+				env.interner,
+			)
 		}
 
 		converted_body := cc_convert_expr(e.body, env)
@@ -478,26 +487,45 @@ cc_convert_expr :: proc(expr: IR_Expr, env: ^Closure_Convert_Env) -> IR_Expr {
 			for fv in free {
 				ft, ok := free_types[fv]
 				if !ok {
-					ft = base.IR_Type{wasm_type = .I32, type_id = base.Type_Var_ID(0)}
+					ft = base.IR_Type {
+						wasm_type = .I32,
+						type_id   = base.Type_Var_ID(0),
+					}
 				}
 				fv_var := new(IR_Var)
-				fv_var^ = IR_Var{name = fv, type = ft, span = e.span}
+				fv_var^ = IR_Var {
+					name = fv,
+					type = ft,
+					span = e.span,
+				}
 				append(&env_fields, IR_Record_Field{name = fv, value = IR_Expr(fv_var)})
 			}
 			env_nil := new(IR_Literal_Int)
-			env_nil^ = IR_Literal_Int{value = 0, type = base.IR_Type{wasm_type = .I32, type_id = base.Type_Var_ID(0)}, span = e.span}
+			env_nil^ = IR_Literal_Int {
+				value = 0,
+				type = base.IR_Type{wasm_type = .I32, type_id = base.Type_Var_ID(0)},
+				span = e.span,
+			}
 			env_rec := new(IR_Construct_Record)
-			env_rec^ = IR_Construct_Record{
+			env_rec^ = IR_Construct_Record {
 				fields = env_fields,
 				rest = IR_Expr(env_nil),
 				reuse_addr = NO_REUSE_ADDR,
-				type = base.IR_Type{wasm_type = .I32, type_id = base.Type_Var_ID(0), is_heap = true},
+				type = base.IR_Type {
+					wasm_type = .I32,
+					type_id = base.Type_Var_ID(0),
+					is_heap = true,
+				},
 				span = e.span,
 			}
 			env_rec_expr = IR_Expr(env_rec)
 		} else {
 			env_nil := new(IR_Literal_Int)
-			env_nil^ = IR_Literal_Int{value = 0, type = base.IR_Type{wasm_type = .I32, type_id = base.Type_Var_ID(0)}, span = e.span}
+			env_nil^ = IR_Literal_Int {
+				value = 0,
+				type = base.IR_Type{wasm_type = .I32, type_id = base.Type_Var_ID(0)},
+				span = e.span,
+			}
 			env_rec_expr = IR_Expr(env_nil)
 		}
 
@@ -821,11 +849,11 @@ make_env_field_access :: proc(
 
 	field_access := new(IR_Field_Access)
 	field_access^ = IR_Field_Access {
-		record = IR_Expr(env_var),
-		field = base.intern(interner, fmt.tprintf("env_{}", field_index)),
+		record      = IR_Expr(env_var),
+		field       = base.intern(interner, fmt.tprintf("env_{}", field_index)),
 		field_index = field_index,
-		type = field_type,
-		span = span,
+		type        = field_type,
+		span        = span,
 	}
 	return IR_Expr(field_access)
 }
