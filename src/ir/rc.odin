@@ -637,7 +637,10 @@ rc_insert_expr_inner :: proc(
 				guard_rem := copy_remaining(remaining)
 				guard_new = rc_insert_expr_inner(arm.guard, &guard_rem, heap_types, interner)
 			}
-			append(&new_arms, IR_Match_Arm{pattern = arm.pattern, guard = guard_new, body = new_body})
+			append(
+				&new_arms,
+				IR_Match_Arm{pattern = arm.pattern, guard = guard_new, body = new_body},
+			)
 
 			// Merge: take minimum across arms (conservative)
 			if first {

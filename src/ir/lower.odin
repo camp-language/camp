@@ -1042,18 +1042,24 @@ lower_tmatch :: proc(e: ^semantics.TExpr_Match, env: ^Lower_Env) -> IR_Expr {
 		or_pat, is_or := e.arms[i].pattern.(^semantics.TPattern_Or)
 		if is_or {
 			for alt in or_pat.alternatives {
-				append(&arms, IR_Match_Arm {
-					pattern = lower_tpattern(alt, env, scrutinee_type_id),
-					guard   = guard_ir,
-					body    = body_ir,
-				})
+				append(
+					&arms,
+					IR_Match_Arm {
+						pattern = lower_tpattern(alt, env, scrutinee_type_id),
+						guard = guard_ir,
+						body = body_ir,
+					},
+				)
 			}
 		} else {
-			append(&arms, IR_Match_Arm {
-				pattern = lower_tpattern(e.arms[i].pattern, env, scrutinee_type_id),
-				guard   = guard_ir,
-				body    = body_ir,
-			})
+			append(
+				&arms,
+				IR_Match_Arm {
+					pattern = lower_tpattern(e.arms[i].pattern, env, scrutinee_type_id),
+					guard = guard_ir,
+					body = body_ir,
+				},
+			)
 		}
 	}
 
