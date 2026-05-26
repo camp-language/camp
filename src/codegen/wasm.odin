@@ -513,11 +513,11 @@ emit_instruction :: proc(instr: Wasm_Instruction, buf: ^[dynamic]u8) {
 	case Wasm_I64_Lt_S:
 		append(buf, 0x53)
 	case Wasm_I64_Gt_S:
-		append(buf, 0x54)
-	case Wasm_I64_Le_S:
 		append(buf, 0x55)
+	case Wasm_I64_Le_S:
+		append(buf, 0x57)
 	case Wasm_I64_Ge_S:
-		append(buf, 0x56)
+		append(buf, 0x59)
 	case Wasm_I32_And:
 		append(buf, 0x71)
 	case Wasm_I32_Or:
@@ -977,8 +977,11 @@ ir_wasm_type_to_value_type :: proc(t: base.IR_Wasm_Type) -> Wasm_Value_Type {
 		return .F32
 	case .F64:
 		return .F64
+	// After closure conversion, function-typed values are heap-allocated
+	// closure records (i32 pointers). Funcref only surfaces as the table
+	// element type, never on the value stack.
 	case .Funcref:
-		return .Funcref
+		return .I32
 	case .Void:
 		return .I64
 	}

@@ -5,3 +5,6 @@ compiled /tmp/camp-e2e/records/record-nested-access/src/Main.camp -> /tmp/camp-e
 """
 stderr = ""
 exit = 0
+wasm_exit = 99
+wasm_stdout = ""
+wasm_stderr = ""

@@ -5,3 +5,6 @@ compiled /tmp/camp-e2e/execution/comparison-eq/src/Main.camp -> /tmp/camp-e2e/ex
 """
 stderr = ""
 exit = 0
+wasm_exit = 1
+wasm_stdout = ""
+wasm_stderr = ""

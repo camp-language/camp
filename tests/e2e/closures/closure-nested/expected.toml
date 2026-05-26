@@ -5,3 +5,6 @@ compiled /tmp/camp-e2e/closures/closure-nested/src/Main.camp -> /tmp/camp-e2e/cl
 """
 stderr = ""
 exit = 0
+wasm_exit = 1
+wasm_stdout = ""
+wasm_stderr = ""

@@ -548,10 +548,16 @@ lower_tlambda_as_decl :: proc(
 	// to the typechecker's results, so e.effects.type_id is Unlinked.
 	effects := extract_effects_from_fn_binding(env.store, name, env.module.effect_defs[:])
 
+	// `!` suffix sets is_effectful syntactically, but every downstream pass
+	// (effect_lower, closure_convert, cps, codegen) treats this flag as
+	// "performs at least one effect" — evidence params, CPS continuation,
+	// default handlers. Normalize here so the whole pipeline sees a
+	// consistent view; otherwise `main! = || { 42 }` is half-effectful and
+	// produces invalid WASM.
 	fn_decl := new(IR_Decl_Fn)
 	fn_decl^ = IR_Decl_Fn {
 		name         = name,
-		is_effectful = is_effectful,
+		is_effectful = is_effectful && len(effects) > 0,
 		params       = params,
 		return_type  = e.return_type,
 		effect_row   = e.effects,
@@ -604,6 +610,18 @@ inject_prelude_effect_defs :: proc(mod: ^IR_Module, store: ^semantics.Type_Store
 	inject_prelude_effects_lower(mod, store)
 }
 
+is_module_decl :: proc(mod: ^IR_Module, name: base.Intern_ID) -> bool {
+	for d in mod.decls {
+		#partial switch dd in d {
+		case ^IR_Decl_Fn:
+			if dd.name.name == name do return true
+		case ^IR_Decl_Const:
+			if dd.name.name == name do return true
+		}
+	}
+	return false
+}
+
 lower_tcall :: proc(e: ^semantics.TExpr_Call, env: ^Lower_Env) -> IR_Expr {
 	#partial switch c in e.callee {
 	case ^semantics.TExpr_Name:
@@ -611,6 +629,19 @@ lower_tcall :: proc(e: ^semantics.TExpr_Call, env: ^Lower_Env) -> IR_Expr {
 		ir_args := make([dynamic]IR_Expr, 0, len(e.args))
 		for arg in e.args {
 			append(&ir_args, lower_texpr(arg, env))
+		}
+		// A let-bound name refers to a closure record on the heap, not a
+		// top-level function decl — dispatch through the closure.
+		if callee_name.is_local && !is_module_decl(env.module, callee_name.name) {
+			callee_expr := lower_texpr(e.callee, env)
+			ccall := new(IR_Closure_Call)
+			ccall^ = IR_Closure_Call {
+				callee = callee_expr,
+				args   = ir_args,
+				type   = e.type_,
+				span   = e.span,
+			}
+			return IR_Expr(ccall)
 		}
 		call := new(IR_Call)
 		call^ = IR_Call {
@@ -847,24 +878,16 @@ lower_tlambda :: proc(e: ^semantics.TExpr_Lambda, env: ^Lower_Env) -> IR_Expr {
 
 	effects := extract_effects_from_fn_binding(env.store, name, env.module.effect_defs[:])
 
-	fn_decl := new(IR_Decl_Fn)
-	fn_decl^ = IR_Decl_Fn {
-		name         = name,
-		is_effectful = false,
-		params       = params,
-		return_type  = e.return_type,
-		effect_row   = e.effects,
-		effects      = effects,
-		body         = body,
-		span         = e.span,
-	}
-	append(&env.pending_decls, IR_Decl(fn_decl))
+	_ = effects
 
 	closure_params := make([dynamic]IR_Param, len(params))
 	for p, i in params {
 		closure_params[i] = p
 	}
 
+	// closure_convert produces the IR_Decl_Fn (rewriting free-var access
+	// through the env record) — emitting a separate, unrewritten decl here
+	// would leave free vars unbound at codegen.
 	closure := new(IR_Closure)
 	closure^ = IR_Closure {
 		fn_name     = name,
@@ -882,11 +905,20 @@ lower_tblock :: proc(e: ^semantics.TExpr_Block, env: ^Lower_Env) -> IR_Expr {
 	if len(e.statements) == 0 {
 		return make_ir_lit_int(0, e.type_, e.span)
 	}
-	last: IR_Expr
-	for stmt in e.statements {
-		last = lower_texpr(stmt, env)
+	if len(e.statements) == 1 {
+		return lower_texpr(e.statements[0], env)
 	}
-	return last
+	stmts := make([dynamic]IR_Expr, 0, len(e.statements))
+	for stmt in e.statements {
+		append(&stmts, lower_texpr(stmt, env))
+	}
+	block := new(IR_Block)
+	block^ = IR_Block {
+		statements = stmts,
+		type       = e.type_,
+		span       = e.span,
+	}
+	return IR_Expr(block)
 }
 
 lower_tif :: proc(e: ^semantics.TExpr_If, env: ^Lower_Env) -> IR_Expr {
@@ -977,24 +1009,17 @@ resolve_tag_payload_wasm_types :: proc(
 	if scrutinee_type_id == base.Type_Var_ID(0) {
 		return nil
 	}
-	resolved := semantics.resolve_var(store, scrutinee_type_id)
-	v := store.vars[int(resolved)]
-	inf, is_inf := v.link.(semantics.Inferred_Type)
-	if !is_inf {
-		return nil
-	}
-	#partial switch vi in inf {
-	case semantics.Inferred_Newtype:
-		return resolve_tag_payload_wasm_types(store, vi.inner_id, tag_name)
-	case semantics.Inferred_Tag_Union_Row:
-		for entry in vi.tag_entries {
-			if entry.name == tag_name {
-				types := make([]base.IR_Wasm_Type, len(entry.payload))
-				for i in 0 ..< len(entry.payload) {
-					types[i] = semantics.lower_type(store, entry.payload[i]).wasm_type
-				}
-				return types
+	entries: [dynamic]semantics.Type_Tag_Entry
+	entries = make([dynamic]semantics.Type_Tag_Entry, 0, 4)
+	defer delete(entries)
+	flatten_tag_entries(store, scrutinee_type_id, &entries)
+	for entry in entries {
+		if entry.name == tag_name {
+			types := make([]base.IR_Wasm_Type, len(entry.payload))
+			for i in 0 ..< len(entry.payload) {
+				types[i] = semantics.lower_type(store, entry.payload[i]).wasm_type
 			}
+			return types
 		}
 	}
 	return nil
@@ -1005,8 +1030,13 @@ lower_tmatch :: proc(e: ^semantics.TExpr_Match, env: ^Lower_Env) -> IR_Expr {
 	scrutinee_type_id := texpr_type_id(e.scrutinee)
 	arms := make([dynamic]IR_Match_Arm, len(e.arms))
 	for i in 0 ..< len(e.arms) {
+		guard_ir: IR_Expr
+		if e.arms[i].guard != nil {
+			guard_ir = lower_texpr(e.arms[i].guard, env)
+		}
 		arms[i] = IR_Match_Arm {
 			pattern = lower_tpattern(e.arms[i].pattern, env, scrutinee_type_id),
+			guard   = guard_ir,
 			body    = lower_texpr(e.arms[i].body, env),
 		}
 	}
@@ -1046,6 +1076,7 @@ lower_tpattern :: proc(
 		}
 		result := new(IR_Pat_Tag)
 		result.name = p.name.name
+		result.tag_index = resolve_tag_index(env.store, scrutinee_type_id, p.name.name)
 		result.payload = payload_ids
 		result.payload_wasm_types = resolve_tag_payload_wasm_types(
 			env.store,
@@ -1056,10 +1087,25 @@ lower_tpattern :: proc(
 
 	case ^semantics.TPattern_Record:
 		fields_ir := make([dynamic]IR_Pat_Field, len(p.fields))
+		canonical := canonical_field_order(env.store, scrutinee_type_id)
+		defer delete(canonical)
 		for i in 0 ..< len(p.fields) {
+			f := p.fields[i]
+			idx := 0
+			wt: base.IR_Wasm_Type = .I64
+			for c, ci in canonical {
+				if c.name == f.name {
+					idx = ci
+					field_type := semantics.lower_type(env.store, c.var)
+					wt = field_type.wasm_type
+					break
+				}
+			}
 			fields_ir[i] = IR_Pat_Field {
-				name    = p.fields[i].name,
-				binding = p.fields[i].binding,
+				name        = f.name,
+				binding     = f.binding,
+				field_index = idx,
+				wasm_type   = wt,
 			}
 		}
 		result := new(IR_Pat_Record)
@@ -1098,6 +1144,11 @@ lower_tpattern :: proc(
 				if elem_var, ok := elem_pat.(^IR_Pat_Var); ok {
 					prev_cons := new(IR_Pat_Tag)
 					prev_cons.name = base.intern(env.interner, "Cons")
+					prev_cons.tag_index = resolve_tag_index(
+						env.store,
+						scrutinee_type_id,
+						prev_cons.name,
+					)
 					prev_cons.payload = make([dynamic]base.Intern_ID, 0)
 					append(&prev_cons.payload, elem_var.name)
 					append(&prev_cons.payload, list_var)
@@ -1132,6 +1183,14 @@ lower_tpattern :: proc(
 		return IR_Pattern(result)
 
 	case ^semantics.TPattern_Identifier:
+		// Treat `_` as a wildcard: it shouldn't reserve a local or emit a
+		// binding store. The parser produces Pattern_Identifier for any
+		// lowercase name including `_`, so the wildcard distinction has to
+		// happen here.
+		if base.intern_get(env.interner, p.name) == "_" {
+			result := new(IR_Pat_Wildcard)
+			return IR_Pattern(result)
+		}
 		result := new(IR_Pat_Var)
 		result.name = p.name
 		return IR_Pattern(result)
@@ -1323,26 +1382,111 @@ lower_tprefixop :: proc(e: ^semantics.TExpr_PrefixOp, env: ^Lower_Env) -> IR_Exp
 	return operand_ir
 }
 
+// Flatten an open tag row into its full sequence of (name, payload) entries.
+// Row unification stashes newly-introduced tags in the polymorphic tail
+// (tag_rest), so the immediate tag_entries of a row var may not list every
+// tag the scrutinee can actually take. Walk the rest until we hit an
+// unlinked / non-row var.
+flatten_tag_entries :: proc(
+	store: ^semantics.Type_Store,
+	type_var: base.Type_Var_ID,
+	out: ^[dynamic]semantics.Type_Tag_Entry,
+) {
+	resolved := semantics.resolve_var(store, type_var)
+	v := store.vars[int(resolved)]
+	inf, is_inf := v.link.(semantics.Inferred_Type)
+	if !is_inf do return
+	#partial switch vi in inf {
+	case semantics.Inferred_Newtype:
+		flatten_tag_entries(store, vi.inner_id, out)
+	case semantics.Inferred_Tag_Union_Row:
+		for entry in vi.tag_entries {
+			already := false
+			for existing in out {
+				if existing.name == entry.name {
+					already = true
+					break
+				}
+			}
+			if !already do append(out, entry)
+		}
+		flatten_tag_entries(store, vi.tag_rest, out)
+	}
+}
+
 resolve_tag_index :: proc(
 	store: ^semantics.Type_Store,
 	type_var: base.Type_Var_ID,
 	tag_name: base.Intern_ID,
 ) -> int {
+	entries: [dynamic]semantics.Type_Tag_Entry
+	entries = make([dynamic]semantics.Type_Tag_Entry, 0, 4)
+	defer delete(entries)
+	flatten_tag_entries(store, type_var, &entries)
+	for entry, i in entries {
+		if entry.name == tag_name do return i
+	}
+	return 0
+}
+
+flatten_record_fields :: proc(
+	store: ^semantics.Type_Store,
+	type_var: base.Type_Var_ID,
+	out: ^[dynamic]semantics.Type_Field_Entry,
+) {
 	resolved := semantics.resolve_var(store, type_var)
 	v := store.vars[int(resolved)]
 	inf, is_inf := v.link.(semantics.Inferred_Type)
-	if !is_inf {
-		return 0
-	}
+	if !is_inf do return
 	#partial switch vi in inf {
 	case semantics.Inferred_Newtype:
-		return resolve_tag_index(store, vi.inner_id, tag_name)
-	case semantics.Inferred_Tag_Union_Row:
-		for entry, i in vi.tag_entries {
-			if entry.name == tag_name {
-				return i
+		flatten_record_fields(store, vi.inner_id, out)
+	case semantics.Inferred_Record_Row:
+		for entry in vi.record_fields {
+			already := false
+			for existing in out {
+				if existing.name == entry.name {
+					already = true
+					break
+				}
+			}
+			if !already do append(out, entry)
+		}
+		flatten_record_fields(store, vi.record_rest, out)
+	}
+}
+
+canonical_field_order :: proc(
+	store: ^semantics.Type_Store,
+	type_var: base.Type_Var_ID,
+	allocator := context.allocator,
+) -> []semantics.Type_Field_Entry {
+	entries := make([dynamic]semantics.Type_Field_Entry, 0, 4, allocator)
+	flatten_record_fields(store, type_var, &entries)
+	// Canonical order = alphabetical by intern string so construct and access agree.
+	for i in 1 ..< len(entries) {
+		for j := i; j > 0; j -= 1 {
+			a := base.intern_get(store.interner, entries[j].name)
+			b := base.intern_get(store.interner, entries[j - 1].name)
+			if a < b {
+				entries[j], entries[j - 1] = entries[j - 1], entries[j]
+			} else {
+				break
 			}
 		}
+	}
+	return entries[:]
+}
+
+resolve_field_index :: proc(
+	store: ^semantics.Type_Store,
+	type_var: base.Type_Var_ID,
+	field_name: base.Intern_ID,
+) -> int {
+	entries := canonical_field_order(store, type_var)
+	defer delete(entries)
+	for entry, i in entries {
+		if entry.name == field_name do return i
 	}
 	return 0
 }
@@ -1366,9 +1510,28 @@ lower_ttag :: proc(e: ^semantics.TExpr_Tag, env: ^Lower_Env) -> IR_Expr {
 }
 
 lower_trecord :: proc(e: ^semantics.TExpr_Record, env: ^Lower_Env) -> IR_Expr {
-	fields := make([dynamic]IR_Record_Field, 0, len(e.fields))
+	// Lower all field values in literal order first, then reorder to canonical
+	// (alphabetical by name) so construct/access agree on field_index offsets.
+	lowered := make([dynamic]IR_Record_Field, 0, len(e.fields))
+	defer delete(lowered)
 	for f in e.fields {
-		append(&fields, IR_Record_Field{name = f.name, value = lower_texpr(f.value, env)})
+		append(&lowered, IR_Record_Field{name = f.name, value = lower_texpr(f.value, env)})
+	}
+	canonical := canonical_field_order(env.store, e.type_.type_id)
+	defer delete(canonical)
+	fields := make([dynamic]IR_Record_Field, 0, len(lowered))
+	for c in canonical {
+		for lf in lowered {
+			if lf.name == c.name {
+				append(&fields, lf)
+				break
+			}
+		}
+	}
+	if len(fields) != len(lowered) {
+		// Type info incomplete (open row with no full info) — fall back to literal order.
+		clear(&fields)
+		for lf in lowered do append(&fields, lf)
 	}
 	rest := lower_texpr(e.rest, env)
 	result := new(IR_Construct_Record)
@@ -1384,12 +1547,18 @@ lower_trecord :: proc(e: ^semantics.TExpr_Record, env: ^Lower_Env) -> IR_Expr {
 
 lower_tfield_access :: proc(e: ^semantics.TExpr_Field_Access, env: ^Lower_Env) -> IR_Expr {
 	record_ir := lower_texpr(e.record, env)
+	record_type_id := texpr_type_id(e.record)
+	idx := resolve_field_index(env.store, record_type_id, e.field)
+	// Re-resolve type: later unifications (e.g. nested-access constraints)
+	// may refine the field's wasm type after this TExpr was constructed.
+	resolved_type := semantics.lower_type(env.store, e.type_.type_id)
 	result := new(IR_Field_Access)
 	result^ = IR_Field_Access {
-		record = record_ir,
-		field  = e.field,
-		type   = e.type_,
-		span   = e.span,
+		record      = record_ir,
+		field       = e.field,
+		field_index = idx,
+		type        = resolved_type,
+		span        = e.span,
 	}
 	return IR_Expr(result)
 }

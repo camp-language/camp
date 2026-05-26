@@ -389,10 +389,35 @@ store_alloc :: proc(store: ^Type_Store, $T: typeid, count: int) -> []T {
 	return make([]T, count, store.allocator)
 }
 
+// Return the suffix-less form of an effect name. Effect decls are interned
+// without `!`; receiver call sites may include it. This normalizes to the
+// stored form so Effect_Row_Entry / declared_effects comparisons line up.
+canonical_effect_name :: proc(store: ^Type_Store, name: base.Intern_ID) -> base.Intern_ID {
+	s := base.intern_get(store.interner, name)
+	if len(s) > 0 && s[len(s) - 1] == '!' {
+		return base.intern(store.interner, s[:len(s) - 1])
+	}
+	return name
+}
+
 is_declared_effect :: proc(store: ^Type_Store, name: base.Intern_ID) -> bool {
+	// Effect decls are interned WITHOUT the `!` suffix (parser strips it).
+	// Receiver expressions may be written either way: `Console.println!()`
+	// or `Ask!.read!()`. Accept both forms by also probing the suffix-less
+	// intern when the query has a trailing `!`.
 	for ef in store.declared_effects {
 		if ef == name {
 			return true
+		}
+	}
+	s := base.intern_get(store.interner, name)
+	if len(s) > 0 && s[len(s) - 1] == '!' {
+		stripped := s[:len(s) - 1]
+		stripped_id := base.intern(store.interner, stripped)
+		for ef in store.declared_effects {
+			if ef == stripped_id {
+				return true
+			}
 		}
 	}
 	return false

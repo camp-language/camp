@@ -5,3 +5,6 @@ compiled /tmp/camp-e2e/effects/effect-multiple-effects/src/Main.camp -> /tmp/cam
 """
 stderr = ""
 exit = 0
+wasm_exit = 0
+wasm_stdout = ""
+wasm_stderr = ""

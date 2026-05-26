@@ -1,13 +1,7 @@
 stdout = """
 canonicalized /tmp/camp-e2e/effects/effect-perform-return-value/src/Main.camp: 2 declaration(s), 0 import(s)
--- C9000: INTERNAL ERROR --- /tmp/camp-e2e/effects/effect-perform-return-value/src/Main.camp
-
-Something went wrong inside the compiler: operation `read!` not found in effects
-`Ask!`
-   4 |     .read!(resume) => resume(42)
-            ^^^^^
-  This is a bug in Camp. Please report it at https://github.com/smores56/camp/issues
-compilation failed with 1 error(s)
+typecheck passed for /tmp/camp-e2e/effects/effect-perform-return-value/src/Main.camp
+compiled /tmp/camp-e2e/effects/effect-perform-return-value/src/Main.camp -> /tmp/camp-e2e/effects/effect-perform-return-value/src/Main.wasm
 """
 stderr = ""
-exit = 1
+exit = 0

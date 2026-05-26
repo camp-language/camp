@@ -242,6 +242,7 @@ IR_Match :: struct {
 
 IR_Match_Arm :: struct {
 	pattern: IR_Pattern,
+	guard:   IR_Expr, // nil when the arm has no `if` guard
 	body:    IR_Expr,
 }
 
@@ -257,6 +258,7 @@ IR_Pattern :: union {
 
 IR_Pat_Tag :: struct {
 	name:               ba.Intern_ID,
+	tag_index:          int,
 	payload:            [dynamic]ba.Intern_ID,
 	payload_wasm_types: []ba.IR_Wasm_Type,
 }
@@ -265,8 +267,10 @@ IR_Pat_Record :: struct {
 	is_open: bool,
 }
 IR_Pat_Field :: struct {
-	name:    ba.Intern_ID,
-	binding: ba.Intern_ID,
+	name:        ba.Intern_ID,
+	binding:     ba.Intern_ID,
+	field_index: int,
+	wasm_type:   ba.IR_Wasm_Type,
 }
 IR_Pat_Var :: struct {
 	name: ba.Intern_ID,

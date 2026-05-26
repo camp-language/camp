@@ -370,6 +370,7 @@ el_replace_resume :: proc(
 				&new_arms,
 				IR_Match_Arm {
 					pattern = arm.pattern,
+					guard = arm.guard,
 					body = el_replace_resume(arm.body, resume_id, resume_param, ev_param, env),
 				},
 			)
@@ -1461,7 +1462,11 @@ el_lower_expr :: proc(expr: IR_Expr, env: ^Effect_Lower_Env) -> IR_Expr {
 		for arm in e.arms {
 			append(
 				&new_arms,
-				IR_Match_Arm{pattern = arm.pattern, body = el_lower_expr(arm.body, env)},
+				IR_Match_Arm {
+					pattern = arm.pattern,
+					guard = arm.guard,
+					body = el_lower_expr(arm.body, env),
+				},
 			)
 		}
 		new_match := new(IR_Match)

@@ -930,33 +930,43 @@ parser_parse_method_chain :: proc(p: ^Parser, initial: Expr) -> Expr {
 			}
 
 			is_effectful := strings.has_suffix(method_tok.text, "!")
-
 			method_id := base.intern(p.intern, method_tok.text)
 
-			mc := new(Expr_Method_Call)
-			mc^ = Expr_Method_Call {
-				receiver     = result,
-				method       = method_id,
-				args         = make([dynamic]Expr, 0, 4),
-				is_effectful = is_effectful,
-				dispatch     = .Nominal,
-				span         = method_tok.span,
-			}
-
-			if p.current.kind == .LParen {
-				parser_advance(p)
-				for p.current.kind != .RParen && p.current.kind != .Eof {
-					arg := parser_parse_expr(p)
-					append(&mc.args, arg)
-					if p.current.kind == .Comma {
-						parser_advance(p)
-						parser_skip_backslashes(p)
-					}
+			// `obj.name` with no following `(` is field access; with `(` is a method call.
+			if p.current.kind != .LParen && !is_effectful {
+				fa := new(Expr_Field_Access)
+				fa^ = Expr_Field_Access {
+					record = result,
+					field  = method_id,
+					span   = method_tok.span,
 				}
-				parser_expect(p, .RParen)
-			}
+				result = fa
+			} else {
+				mc := new(Expr_Method_Call)
+				mc^ = Expr_Method_Call {
+					receiver     = result,
+					method       = method_id,
+					args         = make([dynamic]Expr, 0, 4),
+					is_effectful = is_effectful,
+					dispatch     = .Nominal,
+					span         = method_tok.span,
+				}
 
-			result = mc
+				if p.current.kind == .LParen {
+					parser_advance(p)
+					for p.current.kind != .RParen && p.current.kind != .Eof {
+						arg := parser_parse_expr(p)
+						append(&mc.args, arg)
+						if p.current.kind == .Comma {
+							parser_advance(p)
+							parser_skip_backslashes(p)
+						}
+					}
+					parser_expect(p, .RParen)
+				}
+
+				result = mc
+			}
 		} else if p.current.kind == .Arrow {
 			// -> UFCS (lexical dispatch)
 			parser_advance(p)

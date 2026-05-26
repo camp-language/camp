@@ -5,3 +5,6 @@ compiled /tmp/camp-e2e/execution/nested-if/src/Main.camp -> /tmp/camp-e2e/execut
 """
 stderr = ""
 exit = 0
+wasm_exit = 2
+wasm_stdout = ""
+wasm_stderr = ""
