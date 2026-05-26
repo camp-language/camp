@@ -32,7 +32,7 @@ Match_Kind :: enum {
 	String,
 }
 
-determine_match_kind :: proc(arms: []ir.IR_Match_Arm) -> Match_Kind {
+determine_match_kind :: proc(arms: []ir.IR_Match_Arm, scrutinee: ir.IR_Expr) -> Match_Kind {
 	for arm in arms {
 		#partial switch p in arm.pattern {
 		case ^ir.IR_Pat_Tag:
@@ -45,6 +45,14 @@ determine_match_kind :: proc(arms: []ir.IR_Match_Arm) -> Match_Kind {
 			return .String
 		case ^ir.IR_Pat_Record, ^ir.IR_Pat_Var, ^ir.IR_Pat_Wildcard:
 		}
+	}
+	// All arms are catch-alls (var/wildcard). Pick a kind based on the
+	// scrutinee's wasm type so the dispatch path matches the value layout.
+	#partial switch ir.ir_expr_wasm_type(scrutinee) {
+	case .I64:
+		return .Int
+	case .I32:
+		return .Bool
 	}
 	return .Tag_Union
 }

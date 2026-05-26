@@ -513,11 +513,11 @@ emit_instruction :: proc(instr: Wasm_Instruction, buf: ^[dynamic]u8) {
 	case Wasm_I64_Lt_S:
 		append(buf, 0x53)
 	case Wasm_I64_Gt_S:
-		append(buf, 0x54)
-	case Wasm_I64_Le_S:
 		append(buf, 0x55)
+	case Wasm_I64_Le_S:
+		append(buf, 0x57)
 	case Wasm_I64_Ge_S:
-		append(buf, 0x56)
+		append(buf, 0x59)
 	case Wasm_I32_And:
 		append(buf, 0x71)
 	case Wasm_I32_Or:

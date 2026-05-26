@@ -632,7 +632,10 @@ rc_insert_expr_inner :: proc(
 			arm_drops := emit_drops_for_branch(remaining, &arm_rem, heap_types)
 			new_body = wrap_with_drops(new_body, arm_drops)
 
-			append(&new_arms, IR_Match_Arm{pattern = arm.pattern, body = new_body})
+			append(
+				&new_arms,
+				IR_Match_Arm{pattern = arm.pattern, guard = arm.guard, body = new_body},
+			)
 
 			// Merge: take minimum across arms (conservative)
 			if first {

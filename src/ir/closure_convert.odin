@@ -483,7 +483,11 @@ cc_convert_expr :: proc(expr: IR_Expr, env: ^Closure_Convert_Env) -> IR_Expr {
 		for arm in e.arms {
 			append(
 				&new_arms,
-				IR_Match_Arm{pattern = arm.pattern, body = cc_convert_expr(arm.body, env)},
+				IR_Match_Arm {
+					pattern = arm.pattern,
+					guard = arm.guard,
+					body = cc_convert_expr(arm.body, env),
+				},
 			)
 		}
 		new_match := new(IR_Match)
@@ -803,6 +807,7 @@ rewrite_free_var_access :: proc(expr: IR_Expr, env_map: ^map[base.Intern_ID]IR_E
 				&new_arms,
 				IR_Match_Arm {
 					pattern = arm.pattern,
+					guard = arm.guard,
 					body = rewrite_free_var_access(arm.body, env_map),
 				},
 			)

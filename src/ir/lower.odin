@@ -1013,8 +1013,13 @@ lower_tmatch :: proc(e: ^semantics.TExpr_Match, env: ^Lower_Env) -> IR_Expr {
 	scrutinee_type_id := texpr_type_id(e.scrutinee)
 	arms := make([dynamic]IR_Match_Arm, len(e.arms))
 	for i in 0 ..< len(e.arms) {
+		guard_ir: IR_Expr
+		if e.arms[i].guard != nil {
+			guard_ir = lower_texpr(e.arms[i].guard, env)
+		}
 		arms[i] = IR_Match_Arm {
 			pattern = lower_tpattern(e.arms[i].pattern, env, scrutinee_type_id),
+			guard   = guard_ir,
 			body    = lower_texpr(e.arms[i].body, env),
 		}
 	}

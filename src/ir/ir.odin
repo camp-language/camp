@@ -242,6 +242,7 @@ IR_Match :: struct {
 
 IR_Match_Arm :: struct {
 	pattern: IR_Pattern,
+	guard:   IR_Expr, // nil when the arm has no `if` guard
 	body:    IR_Expr,
 }
 

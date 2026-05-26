@@ -31,8 +31,10 @@ collect_locals :: proc(expr: ir.IR_Expr, locals: ^map[base.Intern_ID]base.IR_Typ
 		collect_locals(e.else_branch, locals)
 	case ^ir.IR_Match:
 		collect_locals(e.scrutinee, locals)
+		scrut_type := ir.ir_expr_wasm_type(e.scrutinee)
 		for arm in e.arms {
-			collect_pattern_locals(arm.pattern, locals)
+			collect_pattern_locals(arm.pattern, locals, scrut_type)
+			if arm.guard != nil do collect_locals(arm.guard, locals)
 			collect_locals(arm.body, locals)
 		}
 	case ^ir.IR_BinOp:
@@ -121,7 +123,11 @@ collect_locals :: proc(expr: ir.IR_Expr, locals: ^map[base.Intern_ID]base.IR_Typ
 	}
 }
 
-collect_pattern_locals :: proc(pattern: ir.IR_Pattern, locals: ^map[base.Intern_ID]base.IR_Type) {
+collect_pattern_locals :: proc(
+	pattern: ir.IR_Pattern,
+	locals: ^map[base.Intern_ID]base.IR_Type,
+	scrut_type: base.IR_Wasm_Type = .I32,
+) {
 	if pattern == nil do return
 
 	#partial switch p in pattern {
@@ -137,8 +143,12 @@ collect_pattern_locals :: proc(pattern: ir.IR_Pattern, locals: ^map[base.Intern_
 			}
 		}
 	case ^ir.IR_Pat_Var:
+		// A var pattern binds the scrutinee directly, so the binding's
+		// wasm type matches the scrutinee's. Defaulting to i32 was wrong
+		// for any non-i32 scrutinee (notably i64 integer matches with
+		// guards).
 		locals^[p.name] = base.IR_Type {
-			wasm_type = .I32,
+			wasm_type = scrut_type,
 			type_id   = base.Type_Var_ID(0),
 		}
 	case ^ir.IR_Pat_Record:
@@ -645,7 +655,7 @@ emit_expr :: proc(expr: ir.IR_Expr, buf: ^[dynamic]u8, env: ^Codegen_Env, runtim
 			emit_instruction(Wasm_Drop{}, buf)
 		}
 	case ^ir.IR_Match:
-		match_kind := determine_match_kind(e.arms[:])
+		match_kind := determine_match_kind(e.arms[:], e.scrutinee)
 		block_type := ir_wasm_type_to_block_type(e.type.wasm_type)
 
 		switch match_kind {
@@ -832,19 +842,19 @@ emit_expr :: proc(expr: ir.IR_Expr, buf: ^[dynamic]u8, env: ^Codegen_Env, runtim
 			for arm_idx in 0 ..< len(e.arms) {
 				arm := e.arms[arm_idx]
 				is_last := arm_idx == len(e.arms) - 1
+				has_guard := arm.guard != nil
 
-				is_catchall := false
+				is_catchall_pat := false
 				#partial switch _ in arm.pattern {
 				case ^ir.IR_Pat_Wildcard, ^ir.IR_Pat_Var:
-					is_catchall = true
+					is_catchall_pat = true
 				}
 
-				// Emit condition + if-wrapper only when the arm has a
-				// discriminant to test. Wildcard / var patterns always match,
-				// so wrapping them in `if true` only emits dead validation
-				// burden and an extra block depth.
-				wrapped_in_if := false
-				if !is_last && !is_catchall {
+				// An arm is a hard catch-all only when its pattern matches
+				// everything AND has no guard; a guarded var/wildcard arm
+				// still needs an if-wrapper for the guard test.
+				needs_pat_wrap := !is_last && !is_catchall_pat
+				if needs_pat_wrap {
 					#partial switch p in arm.pattern {
 					case ^ir.IR_Pat_Int:
 						emit_instruction(Wasm_Local_Get{index = scrutinee_local}, buf)
@@ -854,9 +864,10 @@ emit_expr :: proc(expr: ir.IR_Expr, buf: ^[dynamic]u8, env: ^Codegen_Env, runtim
 						emit_instruction(Wasm_I32_Const{value = 1}, buf)
 					}
 					emit_instruction(Wasm_If{block_type = .Void}, buf)
-					wrapped_in_if = true
 				}
 
+				// Bind the pattern's variables BEFORE evaluating the guard so
+				// the guard can reference them.
 				#partial switch p in arm.pattern {
 				case ^ir.IR_Pat_Var:
 					if local_idx, ok := env.local_map[p.name]; ok {
@@ -871,14 +882,28 @@ emit_expr :: proc(expr: ir.IR_Expr, buf: ^[dynamic]u8, env: ^Codegen_Env, runtim
 				     ^ir.IR_Pat_String:
 				}
 
-				emit_expr(arm.body, buf, env, runtime_indices)
-				emit_instruction(Wasm_Br{label = 1}, buf)
+				if has_guard {
+					emit_expr(arm.guard, buf, env, runtime_indices)
+					emit_instruction(Wasm_If{block_type = .Void}, buf)
+				}
 
-				if wrapped_in_if {
+				// `br label` jumps to the end of the result block. The number
+				// of enclosing if-wrappers determines the label depth from
+				// the innermost block (the body).
+				wrap_depth: u32 = 0
+				if needs_pat_wrap do wrap_depth += 1
+				if has_guard do wrap_depth += 1
+				emit_expr(arm.body, buf, env, runtime_indices)
+				emit_instruction(Wasm_Br{label = wrap_depth}, buf)
+
+				if has_guard {
+					emit_instruction(Wasm_End{}, buf)
+				}
+				if needs_pat_wrap {
 					emit_instruction(Wasm_End{}, buf)
 				}
 
-				if is_catchall {break}
+				if is_catchall_pat && !has_guard {break}
 			}
 
 			emit_instruction(Wasm_Unreachable{}, buf)
