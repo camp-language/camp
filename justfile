@@ -1,3 +1,20 @@
+format:
+    #!/usr/bin/env sh
+    for f in $(find src -name '*.odin'); do
+      odinfmt "$f" > "$f.tmp" && mv "$f.tmp" "$f"
+    done
+
+format-check:
+    #!/usr/bin/env sh
+    for f in $(find src -name '*.odin'); do
+      odinfmt "$f" > "$f.tmp"
+      if ! diff "$f" "$f.tmp" > /dev/null; then
+        echo "FAIL: $f is not formatted" && rm "$f.tmp" && exit 1
+      fi
+      rm "$f.tmp"
+    done
+    echo "All .odin files properly formatted"
+
 build:
     odin build src -collection:camp=src -out:camp
 

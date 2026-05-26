@@ -12,11 +12,48 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - uses: cachix/install-nix-action@v27
+      - name: Install tree-sitter CLI
+        run: npm install -g tree-sitter-cli
 
-      - uses: cachix/cachix-action@v14
-        with:
-          name: devenv
+      - name: Install Odin
+        run: |
+          ODIN_VERSION=$(curl -s https://api.github.com/repos/odin-lang/Odin/releases/latest | jq -r '.tag_name')
+          ODIN_URL="https://github.com/odin-lang/Odin/releases/download/${ODIN_VERSION}/odin-ubuntu-24.04-amd64-dev-${ODIN_VERSION#dev-}.tar.gz"
+          curl -L -o odin.tar.gz "$ODIN_URL"
+          sudo tar -xzf odin.tar.gz -C /usr/local/bin odin
 
-      - name: Run tests
-        run: nix develop --impure -c bash ./test.sh
+      - name: Build compiler
+        run: odin build src -collection:camp=src -out:camp
+
+      - name: Build E2E runner
+        run: odin build src/e2e -collection:camp=src -out:camp-e2e
+
+      - name: Unit tests
+        run: |
+          odin test src -collection:camp=src
+          odin test src/base -collection:camp=src
+          odin test src/diagnostics -collection:camp=src
+          odin test src/frontend -collection:camp=src
+          odin test src/semantics -collection:camp=src
+          odin test src/mono -collection:camp=src
+          odin test src/ir -collection:camp=src
+          odin test src/codegen -collection:camp=src
+          odin test src/build -collection:camp=src
+          odin test src/format -collection:camp=src
+
+      - name: E2E tests
+        run: CAMP_BIN="$GITHUB_WORKSPACE/camp" ./camp-e2e
+
+      - name: Tree-sitter tests
+        run: |
+          cd tree-sitter && tree-sitter generate && tree-sitter test
+
+      - name: Tree-sitter validate
+        run: |
+          cd tree-sitter
+          for f in ../tests/e2e/**/*.camp; do
+            if tree-sitter parse "$f" 2>&1 | grep -q 'ERROR'; then
+              echo "FAIL: $f has parse errors" && exit 1
+            fi
+          done
+          echo "All .camp files parse successfully"

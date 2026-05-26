@@ -1,5 +1,6 @@
 camp
 camp-*
+build
 *.bin
 tree-sitter/node_modules/
 tree-sitter/build/
@@ -8,10 +9,6 @@ tree-sitter/build/
 # OpenSpec
 .openspec/
 
-
-# Devenv
-.devenv/
-devenv.local.nix
 
 # Beads / Dolt files (added by bd init)
 .dolt/
