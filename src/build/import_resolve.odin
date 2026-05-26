@@ -314,8 +314,12 @@ resolve_expr_names :: proc(
 		     ^semantics.CExpr_Handle,
 		     ^semantics.CExpr_Perform,
 		     ^semantics.CExpr_For,
-		     ^semantics.CExpr_Par:
+		     ^semantics.CExpr_Par,
+		     ^semantics.CExpr_Tuple,
+		     ^semantics.CExpr_Field_Index:
 		}
+	case ^semantics.CExpr_Field_Index:
+		resolve_expr_names(e.record, scope, export_tables, interner, collector)
 
 	case ^semantics.CExpr_Call:
 		resolve_expr_names(e.callee, scope, export_tables, interner, collector)
@@ -378,6 +382,10 @@ resolve_expr_names :: proc(
 	case ^semantics.CExpr_Record:
 		for &f in e.fields {
 			resolve_expr_names(f.value, scope, export_tables, interner, collector)
+		}
+	case ^semantics.CExpr_Tuple:
+		for &el in e.elements {
+			resolve_expr_names(el, scope, export_tables, interner, collector)
 		}
 
 	case ^semantics.CExpr_List:

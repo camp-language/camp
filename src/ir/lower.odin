@@ -306,6 +306,32 @@ lower_texpr :: proc(expr: semantics.TExpr, env: ^Lower_Env) -> IR_Expr {
 
 	case ^semantics.TExpr_Field_Access:
 		return lower_tfield_access(e, env)
+	case ^semantics.TExpr_Tuple:
+		elements := make([dynamic]IR_Expr, 0, len(e.elements))
+		for el in e.elements {
+			append(&elements, lower_texpr(el, env))
+		}
+		result := new(IR_Construct_Tuple)
+		result^ = IR_Construct_Tuple {
+			elements   = elements,
+			reuse_addr = NO_REUSE_ADDR,
+			type       = e.type_,
+			span       = e.span,
+		}
+		return IR_Expr(result)
+
+	case ^semantics.TExpr_Field_Index:
+		record_ir := lower_texpr(e.record, env)
+		resolved_type := semantics.lower_type(env.store, e.type_.type_id)
+		result := new(IR_Field_Access)
+		result^ = IR_Field_Access {
+			record      = record_ir,
+			field       = base.NO_NAME,
+			field_index = e.field_index,
+			type        = resolved_type,
+			span        = e.span,
+		}
+		return IR_Expr(result)
 
 	case ^semantics.TExpr_Record_Update:
 		return lower_trecord_update(e, env)
@@ -979,6 +1005,10 @@ texpr_type_id :: proc(e: semantics.TExpr) -> base.Type_Var_ID {
 		return expr.type_.type_id
 	case ^semantics.TExpr_Field_Access:
 		return expr.type_.type_id
+	case ^semantics.TExpr_Tuple:
+		return expr.type_.type_id
+	case ^semantics.TExpr_Field_Index:
+		return expr.type_.type_id
 	case ^semantics.TExpr_Record_Update:
 		return expr.type_.type_id
 	case ^semantics.TExpr_Assign:
@@ -1134,6 +1164,37 @@ lower_tpattern :: proc(
 		result := new(IR_Pat_Record)
 		result.fields = fields_ir
 		result.is_open = p.is_open
+		return IR_Pattern(result)
+	case ^semantics.TPattern_Tuple:
+		elements_ir := make([dynamic]IR_Pat_Tuple_Element, len(p.elements))
+		for i in 0 ..< len(p.elements) {
+			sub := p.elements[i]
+			binding: base.Intern_ID = 0
+			#partial switch s in sub {
+			case ^semantics.TPattern_Identifier:
+				binding = s.name
+			case ^semantics.TPattern_Tag,
+			     ^semantics.TPattern_Record,
+			     ^semantics.TPattern_Tuple,
+			     ^semantics.TPattern_List,
+			     ^semantics.TPattern_Int,
+			     ^semantics.TPattern_String,
+			     ^semantics.TPattern_Bool,
+			     ^semantics.TPattern_Wildcard,
+			     ^semantics.TPattern_Destructure,
+			     ^semantics.TPattern_Or:
+				binding = base.Intern_ID(0)
+			}
+			wt: base.IR_Wasm_Type = .I64
+			elements_ir[i] = IR_Pat_Tuple_Element {
+				binding     = binding,
+				field_index = i,
+				wasm_type   = wt,
+			}
+		}
+		result := new(IR_Pat_Tuple)
+		result.elements = elements_ir
+		result.span = p.span
 		return IR_Pattern(result)
 
 	case ^semantics.TPattern_List:

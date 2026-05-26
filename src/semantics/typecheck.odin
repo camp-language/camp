@@ -416,6 +416,11 @@ typecheck_synth :: proc(expr: CExpr, env: ^Type_Env, store: ^Type_Store) -> Synt
 	case ^CExpr_Record:
 		return typecheck_record(e, env, store)
 
+	case ^CExpr_Tuple:
+		return typecheck_tuple(e, env, store)
+
+	case ^CExpr_Field_Index:
+		return typecheck_field_index(e, env, store)
 	case ^CExpr_Field_Access:
 		return typecheck_field_access(e, env, store)
 
@@ -554,7 +559,8 @@ typecheck_synth :: proc(expr: CExpr, env: ^Type_Env, store: ^Type_Store) -> Synt
 					     Inferred_Record_Row,
 					     Inferred_Tag_Union_Row,
 					     Inferred_Effect_Row,
-					     Inferred_Handle:
+					     Inferred_Handle,
+					     Inferred_Tuple:
 					}
 				}
 
@@ -989,6 +995,22 @@ convert_type_to_var_val :: proc(
 			},
 		)
 		return vid
+	case ^CType_Tuple:
+		element_ids := store_alloc(store, base.Type_Var_ID, len(ty.elements))
+		for i in 0 ..< len(ty.elements) {
+			element_ids[i] = convert_type_to_var_val(ty.elements[i], store, env, closed = true)
+		}
+		vid := fresh_value_var(store, ty.span)
+		link_var(
+			store,
+			vid,
+			Inferred_Tuple {
+				element_types = element_ids,
+				element_count = len(ty.elements),
+				closed = true,
+			},
+		)
+		return vid
 
 	case ^CType_Tag_Union:
 		tt := ty
@@ -1173,6 +1195,23 @@ instantiate_rec :: proc(
 		vid := fresh_value_var(store, v.span)
 		link_var(store, vid, Inferred_Handle{inner_id = inner_id, effect_id = effect_id})
 		return vid
+
+	case Inferred_Tuple:
+		element_types := store_alloc(store, base.Type_Var_ID, len(f.element_types))
+		for i in 0 ..< len(f.element_types) {
+			element_types[i] = instantiate_rec(store, f.element_types[i], subst)
+		}
+		vid := fresh_value_var(store, v.span)
+		link_var(
+			store,
+			vid,
+			Inferred_Tuple {
+				element_types = element_types,
+				element_count = f.element_count,
+				closed = f.closed,
+			},
+		)
+		return vid
 	}
 
 	return resolved
@@ -1305,6 +1344,24 @@ deep_clone_type :: proc(
 			store,
 			fresh,
 			Inferred_Tag_Union_Row{tag_entries = tag_entries, tag_rest = tag_rest},
+		)
+		subst[resolved] = fresh
+		return fresh
+
+	case Inferred_Tuple:
+		element_types := store_alloc(store, base.Type_Var_ID, len(f.element_types))
+		for i in 0 ..< len(f.element_types) {
+			element_types[i] = deep_clone_type(store, f.element_types[i], span, subst)
+		}
+		fresh := fresh_value_var(store, span)
+		link_var(
+			store,
+			fresh,
+			Inferred_Tuple {
+				element_types = element_types,
+				element_count = f.element_count,
+				closed = f.closed,
+			},
 		)
 		subst[resolved] = fresh
 		return fresh

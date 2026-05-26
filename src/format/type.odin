@@ -21,6 +21,8 @@ format_type :: proc(
 		return format_type_function(v, info, interner)
 	case ^frontend.Type_Record:
 		return format_type_record(v, info, interner)
+	case ^frontend.Type_Tuple:
+		return format_type_tuple(v, info, interner)
 	case ^frontend.Type_Tag_Union:
 		return format_type_tag_union(v, info, interner)
 	case ^frontend.Type_Effect_Row:
@@ -99,6 +101,24 @@ format_type_record :: proc(
 		return format_record_multiline(t, info, interner)
 	}
 	return format_record_flat(t, info, interner)
+}
+
+format_type_tuple :: proc(
+	t: ^frontend.Type_Tuple,
+	info: ^Format_Source_Info,
+	interner: ^base.Intern_Table,
+) -> Doc {
+	parts: [dynamic]Doc
+	defer delete(parts)
+	append(&parts, doc_text("("))
+	for i in 0 ..< len(t.elements) {
+		if i > 0 {
+			append(&parts, doc_text(", "))
+		}
+		append(&parts, format_type(&t.elements[i], info, interner))
+	}
+	append(&parts, doc_text(")"))
+	return doc_concat(parts[:])
 }
 
 format_record_flat :: proc(

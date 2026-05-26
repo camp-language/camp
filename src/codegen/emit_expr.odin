@@ -55,6 +55,10 @@ collect_locals :: proc(expr: ir.IR_Expr, locals: ^map[base.Intern_ID]base.IR_Typ
 			collect_locals(f.value, locals)
 		}
 		collect_locals(e.rest, locals)
+	case ^ir.IR_Construct_Tuple:
+		for el in e.elements {
+			collect_locals(el, locals)
+		}
 	case ^ir.IR_Field_Access:
 		collect_locals(e.record, locals)
 	case ^ir.IR_Method_Call:
@@ -159,6 +163,13 @@ collect_pattern_locals :: proc(
 			}
 		}
 	case ^ir.IR_Pat_Wildcard:
+	case ^ir.IR_Pat_Tuple:
+		for el in p.elements {
+			locals^[el.binding] = base.IR_Type {
+				wasm_type = el.wasm_type,
+				type_id   = base.Type_Var_ID(0),
+			}
+		}
 	case ^ir.IR_Pat_Bool:
 	case ^ir.IR_Pat_Int:
 	case ^ir.IR_Pat_String:
@@ -231,6 +242,7 @@ extract_effectful_body :: proc(expr: ir.IR_Expr) -> ir.IR_Expr {
 		     ^ir.IR_Construct_Tag,
 		     ^ir.IR_Expr_Nominal_Construct,
 		     ^ir.IR_Construct_Record,
+		     ^ir.IR_Construct_Tuple,
 		     ^ir.IR_Field_Access,
 		     ^ir.IR_Method_Call,
 		     ^ir.IR_Handle,
@@ -268,6 +280,7 @@ extract_effectful_body :: proc(expr: ir.IR_Expr) -> ir.IR_Expr {
 	     ^ir.IR_Construct_Tag,
 	     ^ir.IR_Expr_Nominal_Construct,
 	     ^ir.IR_Construct_Record,
+	     ^ir.IR_Construct_Tuple,
 	     ^ir.IR_Field_Access,
 	     ^ir.IR_Method_Call,
 	     ^ir.IR_Handle,
@@ -695,7 +708,11 @@ emit_expr :: proc(expr: ir.IR_Expr, buf: ^[dynamic]u8, env: ^Codegen_Env, runtim
 							emit_instruction(Wasm_I32_Eq{}, buf)
 						case ^ir.IR_Pat_Wildcard, ^ir.IR_Pat_Var:
 							emit_instruction(Wasm_I32_Const{value = 1}, buf)
-						case ^ir.IR_Pat_Record, ^ir.IR_Pat_Bool, ^ir.IR_Pat_Int, ^ir.IR_Pat_String:
+						case ^ir.IR_Pat_Record,
+						     ^ir.IR_Pat_Tuple,
+						     ^ir.IR_Pat_Bool,
+						     ^ir.IR_Pat_Int,
+						     ^ir.IR_Pat_String:
 							emit_instruction(Wasm_I32_Const{value = 1}, buf)
 						}
 						emit_instruction(Wasm_If{block_type = .Void}, buf)
@@ -730,7 +747,7 @@ emit_expr :: proc(expr: ir.IR_Expr, buf: ^[dynamic]u8, env: ^Codegen_Env, runtim
 							emit_instruction(Wasm_Drop{}, buf)
 						}
 					case ^ir.IR_Pat_Wildcard:
-					case ^ir.IR_Pat_Record:
+					case ^ir.IR_Pat_Record, ^ir.IR_Pat_Tuple:
 					case ^ir.IR_Pat_Bool, ^ir.IR_Pat_Int, ^ir.IR_Pat_String:
 					}
 
@@ -776,7 +793,11 @@ emit_expr :: proc(expr: ir.IR_Expr, buf: ^[dynamic]u8, env: ^Codegen_Env, runtim
 						if catchall_arm < 0 do catchall_arm = i
 					case ^ir.IR_Pat_Tag:
 						if p.tag_index > max_tag do max_tag = p.tag_index
-					case ^ir.IR_Pat_Record, ^ir.IR_Pat_Bool, ^ir.IR_Pat_Int, ^ir.IR_Pat_String:
+					case ^ir.IR_Pat_Record,
+					     ^ir.IR_Pat_Tuple,
+					     ^ir.IR_Pat_Bool,
+					     ^ir.IR_Pat_Int,
+					     ^ir.IR_Pat_String:
 					}
 				}
 
@@ -796,6 +817,7 @@ emit_expr :: proc(expr: ir.IR_Expr, buf: ^[dynamic]u8, env: ^Codegen_Env, runtim
 					case ^ir.IR_Pat_Wildcard,
 					     ^ir.IR_Pat_Var,
 					     ^ir.IR_Pat_Record,
+					     ^ir.IR_Pat_Tuple,
 					     ^ir.IR_Pat_Bool,
 					     ^ir.IR_Pat_Int,
 					     ^ir.IR_Pat_String:
@@ -856,6 +878,7 @@ emit_expr :: proc(expr: ir.IR_Expr, buf: ^[dynamic]u8, env: ^Codegen_Env, runtim
 						}
 					case ^ir.IR_Pat_Wildcard,
 					     ^ir.IR_Pat_Record,
+					     ^ir.IR_Pat_Tuple,
 					     ^ir.IR_Pat_Bool,
 					     ^ir.IR_Pat_Int,
 					     ^ir.IR_Pat_String:
@@ -892,7 +915,11 @@ emit_expr :: proc(expr: ir.IR_Expr, buf: ^[dynamic]u8, env: ^Codegen_Env, runtim
 						emit_instruction(Wasm_I32_Eq{}, buf)
 					case ^ir.IR_Pat_Wildcard, ^ir.IR_Pat_Var:
 						emit_instruction(Wasm_I32_Const{value = 1}, buf)
-					case ^ir.IR_Pat_Tag, ^ir.IR_Pat_Record, ^ir.IR_Pat_Int, ^ir.IR_Pat_String:
+					case ^ir.IR_Pat_Tag,
+					     ^ir.IR_Pat_Record,
+					     ^ir.IR_Pat_Tuple,
+					     ^ir.IR_Pat_Int,
+					     ^ir.IR_Pat_String:
 						emit_instruction(Wasm_I32_Const{value = 1}, buf)
 					}
 					emit_instruction(Wasm_If{block_type = .Void}, buf)
@@ -908,6 +935,7 @@ emit_expr :: proc(expr: ir.IR_Expr, buf: ^[dynamic]u8, env: ^Codegen_Env, runtim
 					}
 				case ^ir.IR_Pat_Tag,
 				     ^ir.IR_Pat_Record,
+				     ^ir.IR_Pat_Tuple,
 				     ^ir.IR_Pat_Wildcard,
 				     ^ir.IR_Pat_Bool,
 				     ^ir.IR_Pat_Int,
@@ -963,7 +991,11 @@ emit_expr :: proc(expr: ir.IR_Expr, buf: ^[dynamic]u8, env: ^Codegen_Env, runtim
 						emit_instruction(Wasm_Local_Get{index = scrutinee_local}, buf)
 						emit_instruction(Wasm_I64_Const{value = p.value}, buf)
 						emit_instruction(Wasm_I64_Eq{}, buf)
-					case ^ir.IR_Pat_Tag, ^ir.IR_Pat_Record, ^ir.IR_Pat_Bool, ^ir.IR_Pat_String:
+					case ^ir.IR_Pat_Tag,
+					     ^ir.IR_Pat_Record,
+					     ^ir.IR_Pat_Tuple,
+					     ^ir.IR_Pat_Bool,
+					     ^ir.IR_Pat_String:
 						emit_instruction(Wasm_I32_Const{value = 1}, buf)
 					}
 					emit_instruction(Wasm_If{block_type = .Void}, buf)
@@ -979,6 +1011,7 @@ emit_expr :: proc(expr: ir.IR_Expr, buf: ^[dynamic]u8, env: ^Codegen_Env, runtim
 					}
 				case ^ir.IR_Pat_Tag,
 				     ^ir.IR_Pat_Record,
+				     ^ir.IR_Pat_Tuple,
 				     ^ir.IR_Pat_Wildcard,
 				     ^ir.IR_Pat_Bool,
 				     ^ir.IR_Pat_Int,
@@ -1038,7 +1071,11 @@ emit_expr :: proc(expr: ir.IR_Expr, buf: ^[dynamic]u8, env: ^Codegen_Env, runtim
 						)
 					case ^ir.IR_Pat_Wildcard, ^ir.IR_Pat_Var:
 						emit_instruction(Wasm_I32_Const{value = 1}, buf)
-					case ^ir.IR_Pat_Tag, ^ir.IR_Pat_Record, ^ir.IR_Pat_Bool, ^ir.IR_Pat_Int:
+					case ^ir.IR_Pat_Tag,
+					     ^ir.IR_Pat_Record,
+					     ^ir.IR_Pat_Tuple,
+					     ^ir.IR_Pat_Bool,
+					     ^ir.IR_Pat_Int:
 						emit_instruction(Wasm_I32_Const{value = 1}, buf)
 					}
 					emit_instruction(Wasm_If{block_type = .Void}, buf)
@@ -1054,6 +1091,7 @@ emit_expr :: proc(expr: ir.IR_Expr, buf: ^[dynamic]u8, env: ^Codegen_Env, runtim
 					}
 				case ^ir.IR_Pat_Tag,
 				     ^ir.IR_Pat_Record,
+				     ^ir.IR_Pat_Tuple,
 				     ^ir.IR_Pat_Wildcard,
 				     ^ir.IR_Pat_Bool,
 				     ^ir.IR_Pat_Int,
@@ -1101,6 +1139,21 @@ emit_expr :: proc(expr: ir.IR_Expr, buf: ^[dynamic]u8, env: ^Codegen_Env, runtim
 							)
 							emit_instruction(Wasm_I32_Add{}, buf)
 							emit_load_for_type(f.wasm_type, buf)
+							emit_instruction(Wasm_Local_Set{index = local_idx}, buf)
+						}
+					}
+				case ^ir.IR_Pat_Tuple:
+					for el in p.elements {
+						if local_idx, ok := env.local_map[el.binding]; ok {
+							emit_instruction(Wasm_Local_Get{index = scrutinee_local}, buf)
+							emit_instruction(
+								Wasm_I32_Const {
+									value = i32(CAMP_TAG_FIELDS_OFFSET + el.field_index * 8),
+								},
+								buf,
+							)
+							emit_instruction(Wasm_I32_Add{}, buf)
+							emit_load_for_type(el.wasm_type, buf)
 							emit_instruction(Wasm_Local_Set{index = local_idx}, buf)
 						}
 					}
@@ -1312,6 +1365,37 @@ emit_expr :: proc(expr: ir.IR_Expr, buf: ^[dynamic]u8, env: ^Codegen_Env, runtim
 
 		emit_instruction(Wasm_Local_Get{index = tmp_local_idx}, buf)
 
+	case ^ir.IR_Construct_Tuple:
+		num_fields := len(e.elements)
+		total_size := CAMP_TAG_HEADER_SIZE + num_fields * 8
+		tmp_local_idx := env.tmp_local_base + env.tmp_count
+		env.tmp_count += 1
+
+		emit_instruction(Wasm_I32_Const{value = i32(total_size)}, buf)
+		emit_instruction(Wasm_Call{index = u32(runtime_indices[Runtime_Func.Alloc])}, buf)
+		emit_instruction(Wasm_Local_Set{index = tmp_local_idx}, buf)
+
+		emit_instruction(Wasm_Local_Get{index = tmp_local_idx}, buf)
+		emit_instruction(Wasm_I32_Const{value = 1}, buf)
+		emit_instruction(Wasm_I32_Store{align = 2, offset = CAMP_TAG_REFCOUNT_OFFSET}, buf)
+
+		emit_instruction(Wasm_Local_Get{index = tmp_local_idx}, buf)
+		emit_instruction(Wasm_I32_Const{value = 0xFF}, buf)
+		emit_instruction(Wasm_I32_Store8{offset = CAMP_TAG_TAG_OFFSET}, buf)
+
+		emit_instruction(Wasm_Local_Get{index = tmp_local_idx}, buf)
+		emit_instruction(Wasm_I32_Const{value = i32(num_fields)}, buf)
+		emit_instruction(Wasm_I32_Store8{offset = CAMP_TAG_SCAN_SIZE_OFFSET}, buf)
+
+		for i in 0 ..< len(e.elements) {
+			emit_instruction(Wasm_Local_Get{index = tmp_local_idx}, buf)
+			emit_instruction(Wasm_I32_Const{value = i32(CAMP_TAG_FIELDS_OFFSET + i * 8)}, buf)
+			emit_instruction(Wasm_I32_Add{}, buf)
+			emit_expr(e.elements[i], buf, env, runtime_indices)
+			emit_store_for_type(ir.ir_expr_wasm_type(e.elements[i]), buf)
+		}
+
+		emit_instruction(Wasm_Local_Get{index = tmp_local_idx}, buf)
 	case ^ir.IR_Field_Access:
 		emit_expr(e.record, buf, env, runtime_indices)
 		emit_instruction(
@@ -2062,6 +2146,8 @@ ir_operand_wasm_type :: proc(expr: ir.IR_Expr) -> base.IR_Wasm_Type {
 	case ^ir.IR_Construct_Tag:
 		return .I32
 	case ^ir.IR_Construct_Record:
+		return .I32
+	case ^ir.IR_Construct_Tuple:
 		return .I32
 	case ^ir.IR_Closure:
 		return .I32

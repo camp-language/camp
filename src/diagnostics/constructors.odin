@@ -2261,3 +2261,62 @@ diag_compilation_limit :: proc(limit: string) -> Diagnostic {
 	return d
 }
 
+diag_tuple_size :: proc(count: int, span: base.Source_Span) -> Diagnostic {
+	d := diag_init(
+		.Error,
+		"C0118",
+		"TUPLE SIZE",
+		span,
+		fmt.tprintf("Tuple must have 2 or 3 elements, got {}", count),
+	)
+	return d
+}
+
+diag_tuple_empty :: proc(span: base.Source_Span) -> Diagnostic {
+	d := diag_init(
+		.Error,
+		"C0119",
+		"EMPTY TUPLE",
+		span,
+		"Empty tuple `()` is not valid; use `{}` for unit",
+	)
+	return d
+}
+
+diag_tuple_type_size :: proc(count: int, span: base.Source_Span) -> Diagnostic {
+	d := diag_init(
+		.Error,
+		"C0120",
+		"TUPLE TYPE SIZE",
+		span,
+		fmt.tprintf("Tuple type must have 2 or 3 elements, got {}", count),
+	)
+	return d
+}
+
+diag_tuple_single_element :: proc(span: base.Source_Span) -> Diagnostic {
+	d := diag_init(
+		.Error,
+		"C0121",
+		"SINGLE-ELEMENT TUPLE",
+		span,
+		"Single-element tuple is not valid; use the type directly or add a return type for a function: `(T) -> R`",
+	)
+	return d
+}
+
+diag_tuple_pattern_count :: proc(
+	expected: int,
+	actual: int,
+	span: base.Source_Span,
+) -> Diagnostic {
+	d := diag_init(
+		.Error,
+		"C0320",
+		"TUPLE PATTERN COUNT MISMATCH",
+		span,
+		fmt.tprintf("Tuple pattern has {} elements but expected {}", actual, expected),
+	)
+	return d
+}
+

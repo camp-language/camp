@@ -160,6 +160,8 @@ format_type_ann :: proc(type_ann: ^semantics.CType, store: ^semantics.Type_Store
 		return "function"
 	case ^semantics.CType_Record:
 		return "record"
+	case ^semantics.CType_Tuple:
+		return "tuple"
 	case ^semantics.CType_Tag_Union:
 		return "tag union"
 	case ^semantics.CType_Effect_Row:
@@ -211,6 +213,8 @@ format_resolved_type :: proc(store: ^semantics.Type_Store, var_id: base.Type_Var
 		return "[ ... ]"
 	case semantics.Inferred_Effect_Row:
 		return "{}"
+	case semantics.Inferred_Tuple:
+		return "(...)"
 	}
 	return "?"
 }

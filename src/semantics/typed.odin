@@ -15,6 +15,7 @@ TExpr :: union {
 	^TExpr_Tag,
 	^TExpr_Nominal_Construct,
 	^TExpr_Record,
+	^TExpr_Tuple,
 	^TExpr_List,
 	^TExpr_Name,
 	^TExpr_Call,
@@ -26,6 +27,7 @@ TExpr :: union {
 	^TExpr_BinOp,
 	^TExpr_PrefixOp,
 	^TExpr_Field_Access,
+	^TExpr_Field_Index,
 	^TExpr_Record_Update,
 	^TExpr_Assign,
 	^TExpr_Return,
@@ -95,6 +97,12 @@ TExpr_Record :: struct {
 	type_:   base.IR_Type,
 	eff_:    base.IR_Type,
 	span:    base.Source_Span,
+}
+TExpr_Tuple :: struct {
+	elements: [dynamic]TExpr,
+	type_:    base.IR_Type,
+	eff_:     base.IR_Type,
+	span:     base.Source_Span,
 }
 
 TRecord_Field :: struct {
@@ -189,6 +197,7 @@ TMatch_Arm :: struct {
 TPattern :: union {
 	^TPattern_Tag,
 	^TPattern_Record,
+	^TPattern_Tuple,
 	^TPattern_List,
 	^TPattern_Int,
 	^TPattern_String,
@@ -210,6 +219,10 @@ TPattern_Record :: struct {
 	fields:  [dynamic]TPattern_Field,
 	is_open: bool,
 	span:    base.Source_Span,
+}
+TPattern_Tuple :: struct {
+	elements: [dynamic]TPattern,
+	span:     base.Source_Span,
 }
 
 TPattern_Field :: struct {
@@ -287,6 +300,13 @@ TExpr_Field_Access :: struct {
 	type_:  base.IR_Type,
 	eff_:   base.IR_Type,
 	span:   base.Source_Span,
+}
+TExpr_Field_Index :: struct {
+	record:      TExpr,
+	field_index: int,
+	type_:       base.IR_Type,
+	eff_:        base.IR_Type,
+	span:        base.Source_Span,
 }
 
 TExpr_Record_Update :: struct {

@@ -633,6 +633,17 @@ canonicalize_expr :: proc(
 			span    = e.span,
 		}
 		return c
+	case ^frontend.Expr_Tuple:
+		elements := make([dynamic]CExpr, 0, len(e.elements))
+		for el in e.elements {
+			append(&elements, canonicalize_expr(el, scope, interner, collector))
+		}
+		c := new(CExpr_Tuple)
+		c^ = CExpr_Tuple {
+			elements = elements,
+			span     = e.span,
+		}
+		return c
 
 	case ^frontend.Expr_List:
 		elements := make([dynamic]CExpr, 0, len(e.elements))
@@ -1157,6 +1168,17 @@ canonicalize_pattern :: proc(
 			span    = p.span,
 		}
 		return c
+	case ^frontend.Pattern_Tuple:
+		elements := make([dynamic]CPattern, 0, len(p.elements))
+		for el in p.elements {
+			append(&elements, canonicalize_pattern(el, scope, interner, collector))
+		}
+		c := new(CPattern_Tuple)
+		c^ = CPattern_Tuple {
+			elements = elements,
+			span     = p.span,
+		}
+		return c
 
 	case ^frontend.Pattern_List:
 		elements := make([dynamic]CPattern, 0, len(p.elements))
@@ -1316,6 +1338,18 @@ canonicalize_type :: proc(
 			rest    = ty.rest,
 			is_open = ty.is_open,
 			span    = ty.span,
+		}
+		result = CType(c)
+	case ^frontend.Type_Tuple:
+		elements := make([dynamic]CType, 0, len(ty.elements))
+		for el in ty.elements {
+			ce := canonicalize_type(el, scope, interner, collector)
+			append(&elements, ce^)
+		}
+		c := new(CType_Tuple)
+		c^ = CType_Tuple {
+			elements = elements,
+			span     = ty.span,
 		}
 		result = CType(c)
 
@@ -1679,6 +1713,10 @@ collect_type_variable_names :: proc(
 	case ^CType_Record:
 		for f in ty.fields {
 			collect_type_variable_names(f.type, seen, names)
+		}
+	case ^CType_Tuple:
+		for el in ty.elements {
+			collect_type_variable_names(el, seen, names)
 		}
 	case ^CType_Tag_Union:
 		for tag in ty.tags {

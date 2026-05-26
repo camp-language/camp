@@ -129,6 +129,7 @@ Expr :: union {
 	^Expr_Tag,
 	^Expr_Nominal_Construct,
 	^Expr_Record,
+	^Expr_Tuple,
 	^Expr_List,
 	^Expr_Identifier,
 	^Expr_Dollar_Identifier,
@@ -196,6 +197,10 @@ Expr_Record :: struct {
 	rest:    Expr,
 	is_open: bool,
 	span:    base.Source_Span,
+}
+Expr_Tuple :: struct {
+	elements: [dynamic]Expr,
+	span:     base.Source_Span,
 }
 
 Record_Field :: struct {
@@ -291,6 +296,7 @@ Match_Arm :: struct {
 Pattern :: union {
 	^Pattern_Tag,
 	^Pattern_Record,
+	^Pattern_Tuple,
 	^Pattern_List,
 	^Pattern_Int,
 	^Pattern_String,
@@ -302,6 +308,7 @@ Pattern :: union {
 	^Pattern_Or,
 }
 
+
 Pattern_Tag :: struct {
 	name:    base.Intern_ID,
 	payload: [dynamic]Pattern,
@@ -312,6 +319,10 @@ Pattern_Record :: struct {
 	fields:  [dynamic]Pattern_Field,
 	is_open: bool,
 	span:    base.Source_Span,
+}
+Pattern_Tuple :: struct {
+	elements: [dynamic]Pattern,
+	span:     base.Source_Span,
 }
 
 Pattern_Field :: struct {
@@ -468,12 +479,14 @@ Type :: union {
 	^Type_Applied,
 	^Type_Function,
 	^Type_Record,
+	^Type_Tuple,
 	^Type_Tag_Union,
 	^Type_Effect_Row,
 	^Type_Variable,
 	^Type_Wildcard,
 	^Type_Self,
 }
+
 
 Type_Primitive :: struct {
 	name: base.Intern_ID,
@@ -498,6 +511,10 @@ Type_Record :: struct {
 	rest:    base.Intern_ID,
 	is_open: bool,
 	span:    base.Source_Span,
+}
+Type_Tuple :: struct {
+	elements: [dynamic]Type,
+	span:     base.Source_Span,
 }
 
 Type_Field :: struct {

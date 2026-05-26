@@ -48,6 +48,8 @@ lower_type :: proc(store: ^Type_Store, type_var: base.Type_Var_ID) -> base.IR_Ty
 			is_heap = inner.is_heap
 		case Inferred_Handle:
 			wasm_type = .I32; is_heap = true
+		case Inferred_Tuple:
+			wasm_type = .I32; is_heap = true
 		}
 	}
 

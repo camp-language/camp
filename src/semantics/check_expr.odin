@@ -447,6 +447,38 @@ typecheck_record :: proc(e: ^CExpr_Record, env: ^Type_Env, store: ^Type_Store) -
 	}
 	return Synth_Result{var_id = var_id, effects = eff, texpr = TExpr(t)}
 }
+typecheck_tuple :: proc(e: ^CExpr_Tuple, env: ^Type_Env, store: ^Type_Store) -> Synth_Result {
+	eff := fresh_effect_row(store, e.span)
+
+	element_types := store_alloc(store, base.Type_Var_ID, len(e.elements))
+	elements_t := make([dynamic]TExpr, len(e.elements))
+	for i in 0 ..< len(e.elements) {
+		element_result := typecheck_synth(e.elements[i], env, store)
+		unify(store, eff, element_result.effects)
+		element_types[i] = element_result.var_id
+		elements_t[i] = element_result.texpr
+	}
+
+	var_id := fresh_value_var(store, e.span)
+	link_var(
+		store,
+		var_id,
+		Inferred_Tuple {
+			element_types = element_types,
+			element_count = len(e.elements),
+			closed = true,
+		},
+	)
+
+	t := new(TExpr_Tuple)
+	t^ = TExpr_Tuple {
+		elements = elements_t,
+		type_    = lower_type(store, var_id),
+		eff_     = lower_effect_type(store, eff),
+		span     = e.span,
+	}
+	return Synth_Result{var_id = var_id, effects = eff, texpr = TExpr(t)}
+}
 
 typecheck_field_access :: proc(
 	e: ^CExpr_Field_Access,
@@ -475,6 +507,51 @@ typecheck_field_access :: proc(
 		type_  = lower_type(store, field_var),
 		eff_   = lower_effect_type(store, record_result.effects),
 		span   = e.span,
+	}
+	return Synth_Result{var_id = field_var, effects = record_result.effects, texpr = TExpr(t)}
+}
+typecheck_field_index :: proc(
+	e: ^CExpr_Field_Index,
+	env: ^Type_Env,
+	store: ^Type_Store,
+) -> Synth_Result {
+	record_result := typecheck_synth(e.record, env, store)
+
+	element_count := 0
+	record_var := resolve_var(store, record_result.var_id)
+	rv := store.vars[int(record_var)]
+	if inf, ok := rv.link.(Inferred_Type); ok {
+		if tuple_inf, ok := inf.(Inferred_Tuple); ok {
+			element_count = tuple_inf.element_count
+		}
+	}
+
+	element_types := store_alloc(store, base.Type_Var_ID, element_count)
+	for i in 0 ..< element_count {
+		element_types[i] = fresh_value_var(store, e.span)
+	}
+
+	tuple_var := fresh_value_var(store, e.span)
+	link_var(
+		store,
+		tuple_var,
+		Inferred_Tuple {
+			element_types = element_types,
+			element_count = element_count,
+			closed = true,
+		},
+	)
+	unify(store, record_result.var_id, tuple_var)
+
+	field_var := element_types[e.field_index]
+
+	t := new(TExpr_Field_Index)
+	t^ = TExpr_Field_Index {
+		record      = record_result.texpr,
+		field_index = e.field_index,
+		type_       = lower_type(store, field_var),
+		eff_        = lower_effect_type(store, record_result.effects),
+		span        = e.span,
 	}
 	return Synth_Result{var_id = field_var, effects = record_result.effects, texpr = TExpr(t)}
 }

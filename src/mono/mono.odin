@@ -156,6 +156,8 @@ format_type_var_for_key :: proc(
 		return "Tag"
 	case semantics.Inferred_Effect_Row:
 		return "Eff"
+	case semantics.Inferred_Tuple:
+		return "Tuple"
 	case semantics.Inferred_Function:
 		return "Fn"
 	}
@@ -383,6 +385,19 @@ find_type_params_in_trees :: proc(
 			type_args,
 		)
 
+	case semantics.Inferred_Tuple:
+		inst_link, ok := inst_inf.(semantics.Inferred_Tuple)
+		if !ok do return
+		for i in 0 ..< min(len(orig_link.element_types), len(inst_link.element_types)) {
+			find_type_params_in_trees(
+				store,
+				orig_link.element_types[i],
+				inst_link.element_types[i],
+				tp_var_ids,
+				type_args,
+			)
+		}
+
 	case semantics.Inferred_Primitive, semantics.Inferred_Constructor:
 	// Leaf types — no type params inside
 	}
@@ -521,7 +536,17 @@ substitute_types_in_expr :: proc(
 		result.eff_ = substitute_ir_type(e.eff_, type_args, env)
 		result.span = e.span
 		return semantics.TExpr(result)
-
+	case ^semantics.TExpr_Tuple:
+		elements_t := make([dynamic]semantics.TExpr, len(e.elements))
+		for i in 0 ..< len(e.elements) {
+			elements_t[i] = substitute_types_in_expr(e.elements[i], type_args, env)
+		}
+		result := new(semantics.TExpr_Tuple)
+		result.elements = elements_t
+		result.type_ = substitute_ir_type(e.type_, type_args, env)
+		result.eff_ = substitute_ir_type(e.eff_, type_args, env)
+		result.span = e.span
+		return semantics.TExpr(result)
 	case ^semantics.TExpr_List:
 		elements_t := make([dynamic]semantics.TExpr, len(e.elements))
 		for i in 0 ..< len(e.elements) {
@@ -695,7 +720,14 @@ substitute_types_in_expr :: proc(
 		result.eff_ = substitute_ir_type(e.eff_, type_args, env)
 		result.span = e.span
 		return semantics.TExpr(result)
-
+	case ^semantics.TExpr_Field_Index:
+		result := new(semantics.TExpr_Field_Index)
+		result.record = substitute_types_in_expr(e.record, type_args, env)
+		result.field_index = e.field_index
+		result.type_ = substitute_ir_type(e.type_, type_args, env)
+		result.eff_ = substitute_ir_type(e.eff_, type_args, env)
+		result.span = e.span
+		return semantics.TExpr(result)
 	case ^semantics.TExpr_Record_Update:
 		updates_t := make([dynamic]semantics.TRecord_Field, len(e.updates))
 		for i in 0 ..< len(e.updates) {
@@ -933,6 +965,10 @@ get_expr_ir_type :: proc(expr: semantics.TExpr) -> base.IR_Type {
 		return e.type_
 	case ^semantics.TExpr_Field_Access:
 		return e.type_
+	case ^semantics.TExpr_Tuple:
+		return e.type_
+	case ^semantics.TExpr_Field_Index:
+		return e.type_
 	case ^semantics.TExpr_Record_Update:
 		return e.type_
 	case ^semantics.TExpr_Assign:
@@ -1074,6 +1110,8 @@ walk_expr_for_call_sites :: proc(expr: semantics.TExpr, env: ^Mono_Env) {
 				     ^semantics.TExpr_Tag,
 				     ^semantics.TExpr_Nominal_Construct,
 				     ^semantics.TExpr_Record,
+				     ^semantics.TExpr_Tuple,
+				     ^semantics.TExpr_Field_Index,
 				     ^semantics.TExpr_List,
 				     ^semantics.TExpr_Name,
 				     ^semantics.TExpr_Call,
@@ -1104,6 +1142,7 @@ walk_expr_for_call_sites :: proc(expr: semantics.TExpr, env: ^Mono_Env) {
 		     ^semantics.TExpr_Tag,
 		     ^semantics.TExpr_Nominal_Construct,
 		     ^semantics.TExpr_Record,
+		     ^semantics.TExpr_Tuple,
 		     ^semantics.TExpr_List,
 		     ^semantics.TExpr_Call,
 		     ^semantics.TExpr_Method_Call,
@@ -1114,6 +1153,7 @@ walk_expr_for_call_sites :: proc(expr: semantics.TExpr, env: ^Mono_Env) {
 		     ^semantics.TExpr_BinOp,
 		     ^semantics.TExpr_PrefixOp,
 		     ^semantics.TExpr_Field_Access,
+		     ^semantics.TExpr_Field_Index,
 		     ^semantics.TExpr_Record_Update,
 		     ^semantics.TExpr_Assign,
 		     ^semantics.TExpr_Return,
@@ -1154,6 +1194,12 @@ walk_expr_for_call_sites :: proc(expr: semantics.TExpr, env: ^Mono_Env) {
 	case ^semantics.TExpr_PrefixOp:
 		walk_expr_for_call_sites(e.operand, env)
 	case ^semantics.TExpr_Field_Access:
+		walk_expr_for_call_sites(e.record, env)
+	case ^semantics.TExpr_Tuple:
+		for el in e.elements {
+			walk_expr_for_call_sites(el, env)
+		}
+	case ^semantics.TExpr_Field_Index:
 		walk_expr_for_call_sites(e.record, env)
 	case ^semantics.TExpr_Record_Update:
 		walk_expr_for_call_sites(e.rest, env)
@@ -1324,6 +1370,12 @@ rewrite_calls_in_expr :: proc(
 	case ^semantics.TExpr_PrefixOp:
 		e.operand = rewrite_calls_in_expr(e.operand, specializations, env)
 	case ^semantics.TExpr_Field_Access:
+		e.record = rewrite_calls_in_expr(e.record, specializations, env)
+	case ^semantics.TExpr_Tuple:
+		for i in 0 ..< len(e.elements) {
+			e.elements[i] = rewrite_calls_in_expr(e.elements[i], specializations, env)
+		}
+	case ^semantics.TExpr_Field_Index:
 		e.record = rewrite_calls_in_expr(e.record, specializations, env)
 	case ^semantics.TExpr_Record_Update:
 		e.rest = rewrite_calls_in_expr(e.rest, specializations, env)
