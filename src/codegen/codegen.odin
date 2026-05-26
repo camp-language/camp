@@ -278,8 +278,11 @@ codegen :: proc(
 	emit_wasi_imports(&env)
 	emit_runtime_types(&env)
 
-	// Memory: always shared with max — runtime uses atomic instructions for Perceus RC
-	append(&mod.memories, Wasm_Memory{min = 20, max = 256, has_max = true, shared = false})
+	// Memory: shared when multi-threaded — runtime uses atomic instructions for Perceus RC
+	append(
+		&mod.memories,
+		Wasm_Memory{min = 20, max = 256, has_max = true, shared = thread_count > 1},
+	)
 
 	env.table_idx = len(mod.tables)
 	append(&mod.tables, Wasm_Table{elem_type = .Funcref, min = 1, max = 1, has_max = true})
@@ -416,27 +419,6 @@ codegen :: proc(
 	report_drop_overflow_func_idx := add_function(&env, report_drop_overflow_type_idx)
 	runtime_func_indices[Runtime_Func.Report_Drop_Overflow] = report_drop_overflow_func_idx
 
-	async_init_type_idx := get_or_create_type(&env, []Wasm_Value_Type{}, []Wasm_Value_Type{})
-	async_enqueue_type_idx := get_or_create_type(
-		&env,
-		[]Wasm_Value_Type{.I32, .I32},
-		[]Wasm_Value_Type{.I32},
-	)
-	async_dequeue_type_idx := get_or_create_type(
-		&env,
-		[]Wasm_Value_Type{},
-		[]Wasm_Value_Type{.I32},
-	)
-	async_run_type_idx := get_or_create_type(&env, []Wasm_Value_Type{}, []Wasm_Value_Type{.I32})
-
-	async_init_func_idx := add_function(&env, async_init_type_idx)
-	runtime_func_indices[Runtime_Func.Async_Init] = async_init_func_idx
-	async_enqueue_func_idx := add_function(&env, async_enqueue_type_idx)
-	runtime_func_indices[Runtime_Func.Async_Enqueue] = async_enqueue_func_idx
-	async_dequeue_func_idx := add_function(&env, async_dequeue_type_idx)
-	runtime_func_indices[Runtime_Func.Async_Dequeue] = async_dequeue_func_idx
-	async_run_func_idx := add_function(&env, async_run_type_idx)
-	runtime_func_indices[Runtime_Func.Async_Run] = async_run_func_idx
 
 	// Scheduler runtime function types
 	sched_init_type_idx := get_or_create_type(&env, []Wasm_Value_Type{.I32}, []Wasm_Value_Type{})
@@ -504,6 +486,38 @@ codegen :: proc(
 	runtime_func_indices[Runtime_Func.Sched_Park] = sched_park_func_idx
 	sched_worker_loop_func_idx := add_function(&env, sched_worker_loop_type_idx)
 	runtime_func_indices[Runtime_Func.Sched_Worker_Loop] = sched_worker_loop_func_idx
+	sched_current_task_type_idx := get_or_create_type(
+		&env,
+		[]Wasm_Value_Type{},
+		[]Wasm_Value_Type{.I32},
+	)
+	sched_run_single_type_idx := get_or_create_type(&env, []Wasm_Value_Type{}, []Wasm_Value_Type{})
+	sched_poll_and_dispatch_type_idx := get_or_create_type(
+		&env,
+		[]Wasm_Value_Type{},
+		[]Wasm_Value_Type{},
+	)
+	sched_timer_tick_type_idx := get_or_create_type(&env, []Wasm_Value_Type{}, []Wasm_Value_Type{})
+	sched_timer_process_expired_type_idx := get_or_create_type(
+		&env,
+		[]Wasm_Value_Type{},
+		[]Wasm_Value_Type{},
+	)
+
+	sched_current_task_func_idx := add_function(&env, sched_current_task_type_idx)
+	runtime_func_indices[Runtime_Func.Sched_Current_Task] = sched_current_task_func_idx
+	sched_run_single_func_idx := add_function(&env, sched_run_single_type_idx)
+	runtime_func_indices[Runtime_Func.Sched_Run_Single] = sched_run_single_func_idx
+	sched_poll_and_dispatch_func_idx := add_function(&env, sched_poll_and_dispatch_type_idx)
+	runtime_func_indices[Runtime_Func.Sched_Poll_And_Dispatch] = sched_poll_and_dispatch_func_idx
+	sched_timer_tick_func_idx := add_function(&env, sched_timer_tick_type_idx)
+	runtime_func_indices[Runtime_Func.Sched_Timer_Tick] = sched_timer_tick_func_idx
+	sched_timer_process_expired_func_idx := add_function(
+		&env,
+		sched_timer_process_expired_type_idx,
+	)
+	runtime_func_indices[Runtime_Func.Sched_Timer_Process_Expired] =
+		sched_timer_process_expired_func_idx
 
 	// Parallel! runtime function types
 	// camp_parallel_map(fn_idx: i32, fn_env: i32, items_ptr: i32, items_len: i32, chunk_size: i32) -> i32
@@ -620,17 +634,6 @@ codegen :: proc(
 	camp_report_drop_overflow_code := emit_camp_report_drop_overflow_body(drop_overflow_msg_offset)
 	append(&mod.codes, camp_report_drop_overflow_code)
 
-	camp_async_init_code := emit_camp_async_init_body()
-	append(&mod.codes, camp_async_init_code)
-
-	camp_async_enqueue_code := emit_camp_async_enqueue_body()
-	append(&mod.codes, camp_async_enqueue_code)
-
-	camp_async_dequeue_code := emit_camp_async_dequeue_body()
-	append(&mod.codes, camp_async_dequeue_code)
-
-	camp_async_run_code := emit_camp_async_run_body()
-	append(&mod.codes, camp_async_run_code)
 
 	// Scheduler runtime function bodies
 	append(&mod.codes, emit_camp_sched_init_body())
@@ -645,6 +648,11 @@ codegen :: proc(
 	append(&mod.codes, emit_camp_sched_notify_body())
 	append(&mod.codes, emit_camp_sched_park_body())
 	append(&mod.codes, emit_camp_sched_worker_loop_body())
+	append(&mod.codes, emit_camp_sched_current_task_body())
+	append(&mod.codes, emit_camp_sched_run_single_body())
+	append(&mod.codes, emit_camp_sched_poll_and_dispatch_body())
+	append(&mod.codes, emit_camp_sched_timer_tick_body())
+	append(&mod.codes, emit_camp_sched_timer_process_expired_body())
 
 	// Parallel! runtime function bodies
 	append(&mod.codes, emit_camp_parallel_map_body(runtime_func_indices))
@@ -769,6 +777,7 @@ codegen :: proc(
 	}
 
 	cont_func_idx := -1
+	main_entry_wrapper_fn_idx := -1
 	if main_fn_idx >= 0 &&
 	   main_decl != nil &&
 	   main_decl.is_effectful &&
@@ -784,6 +793,43 @@ codegen :: proc(
 			append(&env.func_type_indices, 0)
 		}
 		env.func_type_indices[cont_func_idx] = u32(cont_type_idx)
+
+		// Main entry wrapper: (i32) -> (i32) for scheduler call_indirect dispatch
+		// Unpacks evidence pointers from env record and calls main!
+		main_entry_wrapper_type_idx := get_or_create_type(
+			&env,
+			[]Wasm_Value_Type{.I32},
+			[]Wasm_Value_Type{.I32},
+		)
+		main_entry_wrapper_fn_idx = add_function(&env, main_entry_wrapper_type_idx)
+
+		for len(env.func_type_indices) <= main_entry_wrapper_fn_idx {
+			append(&env.func_type_indices, 0)
+		}
+		env.func_type_indices[main_entry_wrapper_fn_idx] = u32(main_entry_wrapper_type_idx)
+
+		// Emit wrapper code body: reads evidence from env, calls main!, unreachable
+		ev_param_count := len(main_decl.effects)
+		wrapper_buf: [dynamic]u8
+		wrapper_buf = make([dynamic]u8, 0, CODE_BUF_MINOR)
+		for i in 0 ..< ev_param_count {
+			emit_instruction(Wasm_Local_Get{index = 0}, &wrapper_buf)
+			emit_instruction(Wasm_I32_Load{align = 2, offset = u32(i * 4)}, &wrapper_buf)
+		}
+		// Continuation closure at offset ev_param_count * 4
+		emit_instruction(Wasm_Local_Get{index = 0}, &wrapper_buf)
+		emit_instruction(Wasm_I32_Load{align = 2, offset = u32(ev_param_count * 4)}, &wrapper_buf)
+		// Call main! — CPS-transformed, never returns
+		emit_instruction(Wasm_Call{index = u32(main_fn_idx)}, &wrapper_buf)
+		emit_instruction(Wasm_Unreachable{}, &wrapper_buf)
+		emit_instruction(Wasm_End{}, &wrapper_buf)
+
+		wrapper_locals := make([]Wasm_Local_Decl, 0)
+		append(
+			&mod.codes,
+			Wasm_Code{locals = wrapper_locals, body = copy_dynamic_bytes(wrapper_buf)},
+		)
+		delete(wrapper_buf)
 	}
 
 	start_func_idx := -1
@@ -929,6 +975,7 @@ codegen :: proc(
 		ir_mod,
 		thread_count,
 		&deferred_handler_codes,
+		main_entry_wrapper_fn_idx,
 	)
 
 	// Append deferred handler code bodies after _start and worker,
