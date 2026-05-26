@@ -195,6 +195,38 @@ Each diagnostic should have a unique `C####` code for searchability and `camp --
 
 **Rationale:** Per the syntax recipe, effect rows use `|` as separator. A common mistake for users coming from languages with comma-separated lists.
 
+### 2.18 TUPLE SIZE (C0118) — Error 🆕 New
+
+> Tuple must have 2 or 3 elements, got {count}.
+
+**Rationale:** Per the syntax recipe, tuples are capped at 3 elements. Users who need more fields should use records instead.
+
+---
+
+### 2.19 EMPTY TUPLE (C0119) — Error 🆕 New
+
+> Empty tuple `()` is not valid; use `{}` for unit.
+
+**Rationale:** `()` is not a valid expression or type in Camp. The unit type and value use `{}`.
+
+---
+
+### 2.20 TUPLE TYPE SIZE (C0120) — Error 🆕 New
+
+> Tuple type must have 2 or 3 elements, got {count}.
+
+**Rationale:** Same size constraint as tuple expressions, applied to type annotations.
+
+---
+
+### 2.21 SINGLE-ELEMENT TUPLE (C0121) — Error 🆕 New
+
+> Single-element tuple is not valid; use the type directly or add a return type for a function: `(T) -> R`
+
+**Rationale:** Parenthesizing a single type is valid for grouping (e.g., in function types), but `(T)` alone is not a tuple type.
+
+---
+
 ---
 
 ## 3. Name Resolution Errors
@@ -418,6 +450,14 @@ Each diagnostic should have a unique `C####` code for searchability and `camp --
 > Tag union `{name}` has no variants. A tag union must have at least one variant.
 
 **Rationale:** An empty tag union is uninhabitable and almost certainly a mistake.
+
+---
+
+### 4.21 TUPLE PATTERN COUNT MISMATCH (C0320) — Error 🆕 New
+
+> Tuple pattern has {actual} elements but expected {expected}.
+
+**Rationale:** Tuple patterns must match the arity of the scrutinee type. A 2-element tuple cannot be matched with a 3-element pattern and vice versa.
 
 ---
 
@@ -1040,9 +1080,9 @@ Camp uses Perceus reference counting for deterministic memory management. These 
 | Category | Count | Codes | Priority |
 |----------|-------|-------|----------|
 | Lexer | 4 | C0003–C0006 | Medium |
-| Parser | 9 | C0110–C0118 | Medium |
+| Parser | 12 | C0110–C0121 | Medium |
 | Name Resolution | 7 | C0203–C0209 | High |
-| Type System | 12 | C0307–C0318 | High |
+| Type System | 13 | C0307–C0320 | High |
 | Effect System | 10 | C0402–C0411 | **Critical** |
 | Pattern Matching | 7 | C0502, C0504–C0509 | High |
 | Traits/Generics | 6 | C0605–C0610 | Medium |
@@ -1052,7 +1092,7 @@ Camp uses Perceus reference counting for deterministic memory management. These 
 | Perceus/RC | 3 | C1100–C1102 | Medium |
 | CLI/Build | 4 | C1204–C1207 | Low |
 
-### Total Proposed Catalog: 123 diagnostics (65 existing + 58 new)
+### Total Proposed Catalog: 126 diagnostics (65 existing + 61 new)
 
 ---
 
