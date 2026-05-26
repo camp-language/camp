@@ -5,13 +5,3 @@ compiled /tmp/camp-e2e/errors/syntax-paren-lambda-compose/src/Main.camp -> /tmp/
 """
 stderr = ""
 exit = 0
-wasm_exit = 1
-wasm_stdout = ""
-wasm_stderr = """
-Error: failed to compile: wasm[0]::function[20]
-
-Caused by:
-    0: WebAssembly translation error
-    1: Invalid input WebAssembly code at offset 1021: type mismatch: values remaining on stack at end of block
-
-"""
