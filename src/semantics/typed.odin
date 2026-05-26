@@ -181,6 +181,7 @@ TExpr_Match :: struct {
 
 TMatch_Arm :: struct {
 	pattern: TPattern,
+	guard:   TExpr, // nil when the arm has no `if` guard
 	body:    TExpr,
 	span:    base.Source_Span,
 }
