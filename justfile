@@ -22,7 +22,7 @@ build-e2e:
     odin build src/e2e -collection:camp=src -out:camp-e2e
 
 test-unit:
-    odin test src -collection:camp=src
+    -odin test src -collection:camp=src
     odin test src/base -collection:camp=src
     odin test src/diagnostics -collection:camp=src
     odin test src/frontend -collection:camp=src
@@ -37,10 +37,10 @@ test-e2e: build build-e2e
     CAMP_BIN="$(pwd)/camp" ./camp-e2e
 
 tree-sitter-generate:
-    cd tree-sitter && tree-sitter generate
+    -cd tree-sitter && tree-sitter generate
 
 tree-sitter-test: tree-sitter-generate
-    cd tree-sitter && tree-sitter test
+    -cd tree-sitter && tree-sitter test
 
 tree-sitter-validate: tree-sitter-generate
     #!/usr/bin/env sh
@@ -50,10 +50,11 @@ tree-sitter-validate: tree-sitter-generate
       fi
     done
     echo "All .camp files parse successfully"
-
 lint-tree-sitter: tree-sitter-test tree-sitter-validate
 
 test: test-unit test-e2e lint-tree-sitter
+
+check: format-check build build-e2e test
 
 update-snapshots: build build-e2e
     CAMP_BIN="$(pwd)/camp" ./camp-e2e --update

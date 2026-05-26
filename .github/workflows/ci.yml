@@ -12,6 +12,10 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - name: Install just
+        run: |
+          curl --proto '=https' --tlsv1.2 -sSf https://just.systems/install.sh | bash -s -- --to /usr/local/bin
+
       - name: Install tree-sitter CLI
         run: npm install -g tree-sitter-cli
 
@@ -26,40 +30,5 @@ jobs:
           echo "ODIN_ROOT=$ODIN_DIR" >> "$GITHUB_ENV"
           rm odin.tar.gz
 
-      - name: Build compiler
-        run: odin build src -collection:camp=src -out:camp
-
-      - name: Build E2E runner
-        run: odin build src/e2e -collection:camp=src -out:camp-e2e
-
-      - name: Unit tests
-        run: |
-          odin test src -collection:camp=src || echo "FAIL: odin test src"
-          odin test src/base -collection:camp=src || echo "FAIL: odin test src/base"
-          odin test src/diagnostics -collection:camp=src || echo "FAIL: odin test src/diagnostics"
-          odin test src/frontend -collection:camp=src || echo "FAIL: odin test src/frontend"
-          odin test src/semantics -collection:camp=src || echo "FAIL: odin test src/semantics"
-          odin test src/mono -collection:camp=src || echo "FAIL: odin test src/mono"
-          odin test src/ir -collection:camp=src || echo "FAIL: odin test src/ir"
-          odin test src/codegen -collection:camp=src || echo "FAIL: odin test src/codegen"
-          odin test src/build -collection:camp=src || echo "FAIL: odin test src/build"
-          odin test src/format -collection:camp=src || echo "FAIL: odin test src/format"
-
-      - name: E2E tests
-        run: CAMP_BIN="$GITHUB_WORKSPACE/camp" ./camp-e2e
-
-      - name: Tree-sitter tests
-        run: |
-          cd tree-sitter && tree-sitter generate && tree-sitter test
-        continue-on-error: true
-
-      - name: Tree-sitter validate
-        run: |
-          cd tree-sitter
-          for f in ../tests/e2e/**/*.camp; do
-            if tree-sitter parse "$f" 2>&1 | grep -q 'ERROR'; then
-              echo "FAIL: $f has parse errors" && exit 1
-            fi
-          done
-          echo "All .camp files parse successfully"
-        continue-on-error: true
+      - name: Run checks
+        run: just check
