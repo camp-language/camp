@@ -1,2 +1,2 @@
-IO! : { println!: || -> () }
+IO! : { println!: || -> {} }
 _main = || -> -[IO]-> I64 { 0 }

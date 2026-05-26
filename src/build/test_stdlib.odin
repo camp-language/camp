@@ -2,7 +2,7 @@ package build
 
 import "core:testing"
 
-EXPECTED_STDLIB_MODULE_COUNT :: 43
+EXPECTED_STDLIB_MODULE_COUNT :: 44
 
 ALL_MODULE_NAMES :: []string {
 	"Result",
