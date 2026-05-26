@@ -896,7 +896,11 @@ lower_tblock :: proc(e: ^semantics.TExpr_Block, env: ^Lower_Env) -> IR_Expr {
 		append(&stmts, lower_texpr(stmt, env))
 	}
 	block := new(IR_Block)
-	block^ = IR_Block{statements = stmts, type = e.type_, span = e.span}
+	block^ = IR_Block {
+		statements = stmts,
+		type       = e.type_,
+		span       = e.span,
+	}
 	return IR_Expr(block)
 }
 

@@ -735,8 +735,14 @@ emit_camp_str_eq_body :: proc() -> Wasm_Code {
 	emit_instruction(Wasm_End{}, &buf) // end function
 
 	locals := make([]Wasm_Local_Decl, 2)
-	locals[0] = Wasm_Local_Decl{count = 1, type = .I32} // len_a
-	locals[1] = Wasm_Local_Decl{count = 1, type = .I32} // loop_i
+	locals[0] = Wasm_Local_Decl {
+		count = 1,
+		type  = .I32,
+	} // len_a
+	locals[1] = Wasm_Local_Decl {
+		count = 1,
+		type  = .I32,
+	} // loop_i
 
 	body := make([]u8, len(buf))
 	for b, i in buf {

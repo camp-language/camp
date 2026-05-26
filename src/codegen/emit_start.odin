@@ -302,8 +302,14 @@ emit_start_function :: proc(
 			emit_instruction(Wasm_End{}, &code_buf)
 
 			start_locals := make([]Wasm_Local_Decl, 1)
-			start_locals[0] = Wasm_Local_Decl{count = 4, type = .I32}
-			append(&env.mod.codes, Wasm_Code{locals = start_locals, body = copy_dynamic_bytes(code_buf)})
+			start_locals[0] = Wasm_Local_Decl {
+				count = 4,
+				type  = .I32,
+			}
+			append(
+				&env.mod.codes,
+				Wasm_Code{locals = start_locals, body = copy_dynamic_bytes(code_buf)},
+			)
 		}
 
 		delete(code_buf)

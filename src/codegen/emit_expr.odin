@@ -630,12 +630,12 @@ emit_expr :: proc(expr: ir.IR_Expr, buf: ^[dynamic]u8, env: ^Codegen_Env, runtim
 	case ^ir.IR_Block:
 		for stmt, idx in e.statements {
 			emit_expr(stmt, buf, env, runtime_indices)
-			if idx == len(e.statements) - 1 { continue }
+			if idx == len(e.statements) - 1 {continue}
 			// Drop the stmt's value if it leaves one on the stack. IR_Assign /
 			// IR_Drop net to zero (their emit consumes whatever they push), and
 			// Void-typed exprs push nothing — so they need no drop.
 			stmt_type := ir.ir_expr_wasm_type(stmt)
-			if stmt_type == .Void { continue }
+			if stmt_type == .Void {continue}
 			#partial switch _ in stmt {
 			case ^ir.IR_Assign, ^ir.IR_Drop:
 				continue
@@ -831,7 +831,7 @@ emit_expr :: proc(expr: ir.IR_Expr, buf: ^[dynamic]u8, env: ^Codegen_Env, runtim
 					emit_instruction(Wasm_End{}, buf)
 				}
 
-				if is_catchall { break }
+				if is_catchall {break}
 			}
 
 			emit_instruction(Wasm_Unreachable{}, buf)
