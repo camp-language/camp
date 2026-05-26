@@ -992,24 +992,17 @@ resolve_tag_payload_wasm_types :: proc(
 	if scrutinee_type_id == base.Type_Var_ID(0) {
 		return nil
 	}
-	resolved := semantics.resolve_var(store, scrutinee_type_id)
-	v := store.vars[int(resolved)]
-	inf, is_inf := v.link.(semantics.Inferred_Type)
-	if !is_inf {
-		return nil
-	}
-	#partial switch vi in inf {
-	case semantics.Inferred_Newtype:
-		return resolve_tag_payload_wasm_types(store, vi.inner_id, tag_name)
-	case semantics.Inferred_Tag_Union_Row:
-		for entry in vi.tag_entries {
-			if entry.name == tag_name {
-				types := make([]base.IR_Wasm_Type, len(entry.payload))
-				for i in 0 ..< len(entry.payload) {
-					types[i] = semantics.lower_type(store, entry.payload[i]).wasm_type
-				}
-				return types
+	entries: [dynamic]semantics.Type_Tag_Entry
+	entries = make([dynamic]semantics.Type_Tag_Entry, 0, 4)
+	defer delete(entries)
+	flatten_tag_entries(store, scrutinee_type_id, &entries)
+	for entry in entries {
+		if entry.name == tag_name {
+			types := make([]base.IR_Wasm_Type, len(entry.payload))
+			for i in 0 ..< len(entry.payload) {
+				types[i] = semantics.lower_type(store, entry.payload[i]).wasm_type
 			}
+			return types
 		}
 	}
 	return nil
@@ -1061,6 +1054,7 @@ lower_tpattern :: proc(
 		}
 		result := new(IR_Pat_Tag)
 		result.name = p.name.name
+		result.tag_index = resolve_tag_index(env.store, scrutinee_type_id, p.name.name)
 		result.payload = payload_ids
 		result.payload_wasm_types = resolve_tag_payload_wasm_types(
 			env.store,
@@ -1113,6 +1107,11 @@ lower_tpattern :: proc(
 				if elem_var, ok := elem_pat.(^IR_Pat_Var); ok {
 					prev_cons := new(IR_Pat_Tag)
 					prev_cons.name = base.intern(env.interner, "Cons")
+					prev_cons.tag_index = resolve_tag_index(
+						env.store,
+						scrutinee_type_id,
+						prev_cons.name,
+					)
 					prev_cons.payload = make([dynamic]base.Intern_ID, 0)
 					append(&prev_cons.payload, elem_var.name)
 					append(&prev_cons.payload, list_var)
@@ -1346,26 +1345,49 @@ lower_tprefixop :: proc(e: ^semantics.TExpr_PrefixOp, env: ^Lower_Env) -> IR_Exp
 	return operand_ir
 }
 
+// Flatten an open tag row into its full sequence of (name, payload) entries.
+// Row unification stashes newly-introduced tags in the polymorphic tail
+// (tag_rest), so the immediate tag_entries of a row var may not list every
+// tag the scrutinee can actually take. Walk the rest until we hit an
+// unlinked / non-row var.
+flatten_tag_entries :: proc(
+	store: ^semantics.Type_Store,
+	type_var: base.Type_Var_ID,
+	out: ^[dynamic]semantics.Type_Tag_Entry,
+) {
+	resolved := semantics.resolve_var(store, type_var)
+	v := store.vars[int(resolved)]
+	inf, is_inf := v.link.(semantics.Inferred_Type)
+	if !is_inf do return
+	#partial switch vi in inf {
+	case semantics.Inferred_Newtype:
+		flatten_tag_entries(store, vi.inner_id, out)
+	case semantics.Inferred_Tag_Union_Row:
+		for entry in vi.tag_entries {
+			already := false
+			for existing in out {
+				if existing.name == entry.name {
+					already = true
+					break
+				}
+			}
+			if !already do append(out, entry)
+		}
+		flatten_tag_entries(store, vi.tag_rest, out)
+	}
+}
+
 resolve_tag_index :: proc(
 	store: ^semantics.Type_Store,
 	type_var: base.Type_Var_ID,
 	tag_name: base.Intern_ID,
 ) -> int {
-	resolved := semantics.resolve_var(store, type_var)
-	v := store.vars[int(resolved)]
-	inf, is_inf := v.link.(semantics.Inferred_Type)
-	if !is_inf {
-		return 0
-	}
-	#partial switch vi in inf {
-	case semantics.Inferred_Newtype:
-		return resolve_tag_index(store, vi.inner_id, tag_name)
-	case semantics.Inferred_Tag_Union_Row:
-		for entry, i in vi.tag_entries {
-			if entry.name == tag_name {
-				return i
-			}
-		}
+	entries: [dynamic]semantics.Type_Tag_Entry
+	entries = make([dynamic]semantics.Type_Tag_Entry, 0, 4)
+	defer delete(entries)
+	flatten_tag_entries(store, type_var, &entries)
+	for entry, i in entries {
+		if entry.name == tag_name do return i
 	}
 	return 0
 }

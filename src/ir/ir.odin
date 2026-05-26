@@ -257,6 +257,7 @@ IR_Pattern :: union {
 
 IR_Pat_Tag :: struct {
 	name:               ba.Intern_ID,
+	tag_index:          int,
 	payload:            [dynamic]ba.Intern_ID,
 	payload_wasm_types: []ba.IR_Wasm_Type,
 }
