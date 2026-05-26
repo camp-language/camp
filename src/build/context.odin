@@ -7,15 +7,15 @@ import "core:mem"
 import "core:mem/virtual"
 
 Compilation_Context :: struct {
-	arena:          virtual.Arena,
-	allocator:      mem.Allocator,
-	interner:       base.Intern_Table,
-	collector:      diagnostics.Diagnostic_Collector,
-	project:        Project_Discovery,
-	export_tables:  map[base.Intern_ID]Export_Table,
-	module_stores:  map[base.Intern_ID]semantics.Type_Store,
-	type_store:     ^semantics.Type_Store,
-	thread_count:   int,
+	arena:         virtual.Arena,
+	allocator:     mem.Allocator,
+	interner:      base.Intern_Table,
+	collector:     diagnostics.Diagnostic_Collector,
+	project:       Project_Discovery,
+	export_tables: map[base.Intern_ID]Export_Table,
+	module_stores: map[base.Intern_ID]semantics.Type_Store,
+	type_store:    ^semantics.Type_Store,
+	thread_count:  int,
 }
 
 context_init :: proc(ctx: ^Compilation_Context) -> mem.Allocator {
@@ -49,3 +49,4 @@ context_destroy :: proc(ctx: ^Compilation_Context) {
 	base.intern_destroy(&ctx.interner)
 	virtual.arena_destroy(&ctx.arena)
 }
+

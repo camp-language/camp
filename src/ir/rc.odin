@@ -217,7 +217,11 @@ make_ir_duo :: proc(a: IR_Expr, b: IR_Expr) -> [dynamic]IR_Expr {
 // (and thus a drop was emitted for it). A binding is considered "dropped in branch"
 // if it was not used in the branch (initial and final remaining counts are the same,
 // or the binding is not in the remaining map at all).
-was_dropped_in_branch :: proc(name: base.Intern_ID, initial_remaining: ^map[base.Intern_ID]int, final_remaining: ^map[base.Intern_ID]int) -> bool {
+was_dropped_in_branch :: proc(
+	name: base.Intern_ID,
+	initial_remaining: ^map[base.Intern_ID]int,
+	final_remaining: ^map[base.Intern_ID]int,
+) -> bool {
 	initial_count, was_in_initial := (initial_remaining^)[name]
 	final_count, was_in_final := (final_remaining^)[name]
 
@@ -239,7 +243,11 @@ was_dropped_in_branch :: proc(name: base.Intern_ID, initial_remaining: ^map[base
 // `initial_remaining` is the remaining map at the START of the branch (before processing).
 // `final_remaining` is the remaining map AFTER processing the branch.
 // `heap_types` maps binding names to their IR_Types.
-emit_drops_for_branch :: proc(initial_remaining: ^map[base.Intern_ID]int, final_remaining: ^map[base.Intern_ID]int, heap_types: ^map[base.Intern_ID]base.IR_Type) -> [dynamic]IR_Expr {
+emit_drops_for_branch :: proc(
+	initial_remaining: ^map[base.Intern_ID]int,
+	final_remaining: ^map[base.Intern_ID]int,
+	heap_types: ^map[base.Intern_ID]base.IR_Type,
+) -> [dynamic]IR_Expr {
 	drops: [dynamic]IR_Expr
 	drops = make([dynamic]IR_Expr, 0, 4)
 
@@ -260,12 +268,18 @@ emit_drops_for_branch :: proc(initial_remaining: ^map[base.Intern_ID]int, final_
 
 		if !used_in_branch {
 			drop := new(IR_Drop)
-			drop^ = IR_Drop{value = name, span = base.Source_Span{}}
+			drop^ = IR_Drop {
+				value = name,
+				span  = base.Source_Span{},
+			}
 			append(&drops, IR_Expr(drop))
 		} else if was_in_final && final_count > 0 {
-			for i in 0..<final_count {
+			for i in 0 ..< final_count {
 				drop := new(IR_Drop)
-				drop^ = IR_Drop{value = name, span = base.Source_Span{}}
+				drop^ = IR_Drop {
+					value = name,
+					span  = base.Source_Span{},
+				}
 				append(&drops, IR_Expr(drop))
 			}
 			(final_remaining^)[name] = 0
@@ -277,7 +291,11 @@ emit_drops_for_branch :: proc(initial_remaining: ^map[base.Intern_ID]int, final_
 
 // emit_param_drops emits IR_Drop nodes for heap-typed function parameters
 // that were not consumed in the function body.
-emit_param_drops :: proc(params: []IR_Param, remaining: ^map[base.Intern_ID]int, heap_types: ^map[base.Intern_ID]base.IR_Type) -> [dynamic]IR_Expr {
+emit_param_drops :: proc(
+	params: []IR_Param,
+	remaining: ^map[base.Intern_ID]int,
+	heap_types: ^map[base.Intern_ID]base.IR_Type,
+) -> [dynamic]IR_Expr {
 	drops: [dynamic]IR_Expr
 	drops = make([dynamic]IR_Expr, 0, 4)
 
@@ -287,13 +305,19 @@ emit_param_drops :: proc(params: []IR_Param, remaining: ^map[base.Intern_ID]int,
 		if !ok {
 			// Parameter never used — emit drop
 			drop := new(IR_Drop)
-			drop^ = IR_Drop{value = param.name, span = base.Source_Span{}}
+			drop^ = IR_Drop {
+				value = param.name,
+				span  = base.Source_Span{},
+			}
 			append(&drops, IR_Expr(drop))
 		} else if count > 0 {
 			// Parameter has unconsumed remaining uses — emit that many drops
-			for i in 0..<count {
+			for i in 0 ..< count {
 				drop := new(IR_Drop)
-				drop^ = IR_Drop{value = param.name, span = base.Source_Span{}}
+				drop^ = IR_Drop {
+					value = param.name,
+					span  = base.Source_Span{},
+				}
 				append(&drops, IR_Expr(drop))
 			}
 			(remaining^)[param.name] = 0
@@ -318,26 +342,45 @@ wrap_with_drops :: proc(expr: IR_Expr, drops: [dynamic]IR_Expr) -> IR_Expr {
 	delete(drops)
 
 	// Determine the type from the expression
-	block_type := base.IR_Type{wasm_type = .Void}
+	block_type := base.IR_Type {
+		wasm_type = .Void,
+	}
 	#partial switch e in expr {
-	case ^IR_Literal_Int: block_type = e.type
-	case ^IR_Literal_Bool: block_type = e.type
-	case ^IR_Literal_Float: block_type = e.type
-	case ^IR_Var: block_type = e.type
-	case ^IR_BinOp: block_type = e.type
-	case ^IR_Call: block_type = e.type
-	case ^IR_Closure_Call: block_type = e.type
-	case ^IR_Field_Access: block_type = e.type
-	case ^IR_Construct_Tag: block_type = e.type
-	case ^IR_Construct_Record: block_type = e.type
-	case ^IR_If: block_type = e.type
-	case ^IR_Match: block_type = e.type
-	case ^IR_Block: block_type = e.type
+	case ^IR_Literal_Int:
+		block_type = e.type
+	case ^IR_Literal_Bool:
+		block_type = e.type
+	case ^IR_Literal_Float:
+		block_type = e.type
+	case ^IR_Var:
+		block_type = e.type
+	case ^IR_BinOp:
+		block_type = e.type
+	case ^IR_Call:
+		block_type = e.type
+	case ^IR_Closure_Call:
+		block_type = e.type
+	case ^IR_Field_Access:
+		block_type = e.type
+	case ^IR_Construct_Tag:
+		block_type = e.type
+	case ^IR_Construct_Record:
+		block_type = e.type
+	case ^IR_If:
+		block_type = e.type
+	case ^IR_Match:
+		block_type = e.type
+	case ^IR_Block:
+		block_type = e.type
 	case:
 	}
 
 	block := new(IR_Block)
-	block^ = IR_Block{statements = stmts, type = block_type, span = base.Source_Span{}}
+	block^ = IR_Block {
+		statements = stmts,
+		type       = block_type,
+		span       = base.Source_Span{},
+	}
 	return IR_Expr(block)
 }
 
@@ -410,7 +453,12 @@ collect_heap_types :: proc(expr: IR_Expr, types: ^map[base.Intern_ID]base.IR_Typ
 	}
 }
 
-rc_insert_expr_inner :: proc(expr: IR_Expr, remaining: ^map[base.Intern_ID]int, heap_types: ^map[base.Intern_ID]base.IR_Type, interner: ^base.Intern_Table) -> IR_Expr {
+rc_insert_expr_inner :: proc(
+	expr: IR_Expr,
+	remaining: ^map[base.Intern_ID]int,
+	heap_types: ^map[base.Intern_ID]base.IR_Type,
+	interner: ^base.Intern_Table,
+) -> IR_Expr {
 	#partial switch e in expr {
 	case ^IR_Var:
 		count, ok := (remaining^)[e.name]
@@ -418,12 +466,15 @@ rc_insert_expr_inner :: proc(expr: IR_Expr, remaining: ^map[base.Intern_ID]int, 
 		(remaining^)[e.name] = count - 1
 		if (remaining^)[e.name] > 0 {
 			dup := new(IR_Dup)
-			dup^ = IR_Dup{value = e.name, span = e.span}
+			dup^ = IR_Dup {
+				value = e.name,
+				span  = e.span,
+			}
 			block := new(IR_Block)
-			block^ = IR_Block{
+			block^ = IR_Block {
 				statements = make_ir_duo(IR_Expr(dup), expr),
-				type = e.type,
-				span = e.span,
+				type       = e.type,
+				span       = e.span,
 			}
 			return IR_Expr(block)
 		}
@@ -446,15 +497,21 @@ rc_insert_expr_inner :: proc(expr: IR_Expr, remaining: ^map[base.Intern_ID]int, 
 			// if is_heap, we need to drop the original ownership
 			if e.type.is_heap {
 				drop := new(IR_Drop)
-				drop^ = IR_Drop{value = e.binding, span = e.span}
+				drop^ = IR_Drop {
+					value = e.binding,
+					span  = e.span,
+				}
 				append(&drops, IR_Expr(drop))
 			}
 		} else {
 			// Binding has unconsumed remaining uses — emit that many drops
 			if e.type.is_heap {
-				for i in 0..<binding_count {
+				for i in 0 ..< binding_count {
 					drop := new(IR_Drop)
-					drop^ = IR_Drop{value = e.binding, span = e.span}
+					drop^ = IR_Drop {
+						value = e.binding,
+						span  = e.span,
+					}
 					append(&drops, IR_Expr(drop))
 				}
 			}
@@ -462,12 +519,12 @@ rc_insert_expr_inner :: proc(expr: IR_Expr, remaining: ^map[base.Intern_ID]int, 
 		}
 
 		new_let := new(IR_Let)
-		new_let^ = IR_Let{
+		new_let^ = IR_Let {
 			binding = e.binding,
-			type = e.type,
-			value = new_value,
-			body = wrap_with_drops(new_body, drops),
-			span = e.span,
+			type    = e.type,
+			value   = new_value,
+			body    = wrap_with_drops(new_body, drops),
+			span    = e.span,
 		}
 		return IR_Expr(new_let)
 
@@ -477,7 +534,12 @@ rc_insert_expr_inner :: proc(expr: IR_Expr, remaining: ^map[base.Intern_ID]int, 
 			append(&new_args, rc_insert_expr_inner(arg, remaining, heap_types, interner))
 		}
 		new_call := new(IR_Call)
-		new_call^ = IR_Call{callee = e.callee, args = new_args, type = e.type, span = e.span}
+		new_call^ = IR_Call {
+			callee = e.callee,
+			args   = new_args,
+			type   = e.type,
+			span   = e.span,
+		}
 		return IR_Expr(new_call)
 
 	case ^IR_Closure_Call:
@@ -486,11 +548,11 @@ rc_insert_expr_inner :: proc(expr: IR_Expr, remaining: ^map[base.Intern_ID]int, 
 			append(&new_args, rc_insert_expr_inner(arg, remaining, heap_types, interner))
 		}
 		new_cc := new(IR_Closure_Call)
-		new_cc^ = IR_Closure_Call{
+		new_cc^ = IR_Closure_Call {
 			callee = rc_insert_expr_inner(e.callee, remaining, heap_types, interner),
-			args = new_args,
-			type = e.type,
-			span = e.span,
+			args   = new_args,
+			type   = e.type,
+			span   = e.span,
 		}
 		return IR_Expr(new_cc)
 
@@ -500,7 +562,11 @@ rc_insert_expr_inner :: proc(expr: IR_Expr, remaining: ^map[base.Intern_ID]int, 
 			append(&new_args, rc_insert_expr_inner(arg, remaining, heap_types, interner))
 		}
 		new_tc := new(IR_Tail_Call)
-		new_tc^ = IR_Tail_Call{callee = e.callee, args = new_args, span = e.span}
+		new_tc^ = IR_Tail_Call {
+			callee = e.callee,
+			args   = new_args,
+			span   = e.span,
+		}
 		return IR_Expr(new_tc)
 
 	case ^IR_If:
@@ -546,12 +612,12 @@ rc_insert_expr_inner :: proc(expr: IR_Expr, remaining: ^map[base.Intern_ID]int, 
 		delete(else_rem)
 
 		new_if := new(IR_If)
-		new_if^ = IR_If{
-			condition = rc_insert_expr_inner(e.condition, remaining, heap_types, interner),
+		new_if^ = IR_If {
+			condition   = rc_insert_expr_inner(e.condition, remaining, heap_types, interner),
 			then_branch = then_branch,
 			else_branch = else_branch,
-			type = e.type,
-			span = e.span,
+			type        = e.type,
+			span        = e.span,
 		}
 		return IR_Expr(new_if)
 
@@ -609,11 +675,11 @@ rc_insert_expr_inner :: proc(expr: IR_Expr, remaining: ^map[base.Intern_ID]int, 
 		}
 
 		new_match := new(IR_Match)
-		new_match^ = IR_Match{
+		new_match^ = IR_Match {
 			scrutinee = rc_insert_expr_inner(e.scrutinee, remaining, heap_types, interner),
-			arms = new_arms,
-			type = e.type,
-			span = e.span,
+			arms      = new_arms,
+			type      = e.type,
+			span      = e.span,
 		}
 		return IR_Expr(new_match)
 
@@ -623,32 +689,45 @@ rc_insert_expr_inner :: proc(expr: IR_Expr, remaining: ^map[base.Intern_ID]int, 
 			append(&new_payload, rc_insert_expr_inner(p, remaining, heap_types, interner))
 		}
 		new_tag := new(IR_Construct_Tag)
-		new_tag^ = IR_Construct_Tag{tag_name = e.tag_name, tag_index = e.tag_index, payload = new_payload, reuse_addr = e.reuse_addr, type = e.type, span = e.span}
+		new_tag^ = IR_Construct_Tag {
+			tag_name   = e.tag_name,
+			tag_index  = e.tag_index,
+			payload    = new_payload,
+			reuse_addr = e.reuse_addr,
+			type       = e.type,
+			span       = e.span,
+		}
 		return IR_Expr(new_tag)
 
 	case ^IR_Construct_Record:
 		new_fields := make([dynamic]IR_Record_Field, 0, len(e.fields))
 		for f in e.fields {
-			append(&new_fields, IR_Record_Field{name = f.name, value = rc_insert_expr_inner(f.value, remaining, heap_types, interner)})
+			append(
+				&new_fields,
+				IR_Record_Field {
+					name = f.name,
+					value = rc_insert_expr_inner(f.value, remaining, heap_types, interner),
+				},
+			)
 		}
 		new_rec := new(IR_Construct_Record)
-		new_rec^ = IR_Construct_Record{
-			fields = new_fields,
-			rest = rc_insert_expr_inner(e.rest, remaining, heap_types, interner),
+		new_rec^ = IR_Construct_Record {
+			fields     = new_fields,
+			rest       = rc_insert_expr_inner(e.rest, remaining, heap_types, interner),
 			reuse_addr = e.reuse_addr,
-			type = e.type,
-			span = e.span,
+			type       = e.type,
+			span       = e.span,
 		}
 		return IR_Expr(new_rec)
 
 	case ^IR_Field_Access:
 		new_fa := new(IR_Field_Access)
-		new_fa^ = IR_Field_Access{
-			record = rc_insert_expr_inner(e.record, remaining, heap_types, interner),
-			field = e.field,
+		new_fa^ = IR_Field_Access {
+			record      = rc_insert_expr_inner(e.record, remaining, heap_types, interner),
+			field       = e.field,
 			field_index = e.field_index,
-			type = e.type,
-			span = e.span,
+			type        = e.type,
+			span        = e.span,
 		}
 		return IR_Expr(new_fa)
 
@@ -658,35 +737,38 @@ rc_insert_expr_inner :: proc(expr: IR_Expr, remaining: ^map[base.Intern_ID]int, 
 			append(&new_args, rc_insert_expr_inner(arg, remaining, heap_types, interner))
 		}
 		new_mc := new(IR_Method_Call)
-		new_mc^ = IR_Method_Call{
+		new_mc^ = IR_Method_Call {
 			receiver = rc_insert_expr_inner(e.receiver, remaining, heap_types, interner),
-			method = e.method,
-			args = new_args,
-			type = e.type,
-			span = e.span,
+			method   = e.method,
+			args     = new_args,
+			type     = e.type,
+			span     = e.span,
 		}
 		return IR_Expr(new_mc)
 
 	case ^IR_Handle:
 		new_arms := make([dynamic]IR_Handler_Arm, 0, len(e.arms))
 		for arm in e.arms {
-			append(&new_arms, IR_Handler_Arm{
-				op = arm.op,
-				params = arm.params,
-				body = rc_insert_expr_inner(arm.body, remaining, heap_types, interner),
-			})
+			append(
+				&new_arms,
+				IR_Handler_Arm {
+					op = arm.op,
+					params = arm.params,
+					body = rc_insert_expr_inner(arm.body, remaining, heap_types, interner),
+				},
+			)
 		}
 		effects := make([dynamic]base.Canonical_Name, 0, len(e.effects))
 		for eff in e.effects {
 			append(&effects, eff)
 		}
 		new_handle := new(IR_Handle)
-		new_handle^ = IR_Handle{
+		new_handle^ = IR_Handle {
 			effects = effects,
-			body = rc_insert_expr_inner(e.body, remaining, heap_types, interner),
-			arms = new_arms,
-			type = e.type,
-			span = e.span,
+			body    = rc_insert_expr_inner(e.body, remaining, heap_types, interner),
+			arms    = new_arms,
+			type    = e.type,
+			span    = e.span,
 		}
 		return IR_Expr(new_handle)
 
@@ -696,7 +778,13 @@ rc_insert_expr_inner :: proc(expr: IR_Expr, remaining: ^map[base.Intern_ID]int, 
 			append(&new_args, rc_insert_expr_inner(arg, remaining, heap_types, interner))
 		}
 		new_perf := new(IR_Perform)
-		new_perf^ = IR_Perform{effect = e.effect, op = e.op, args = new_args, type = e.type, span = e.span}
+		new_perf^ = IR_Perform {
+			effect = e.effect,
+			op     = e.op,
+			args   = new_args,
+			type   = e.type,
+			span   = e.span,
+		}
 		return IR_Expr(new_perf)
 
 	case ^IR_Resume:
@@ -705,18 +793,21 @@ rc_insert_expr_inner :: proc(expr: IR_Expr, remaining: ^map[base.Intern_ID]int, 
 		if e.ev != nil {
 			ev_val = rc_insert_expr_inner(e.ev, remaining, heap_types, interner)
 		}
-		new_resume^ = IR_Resume{
+		new_resume^ = IR_Resume {
 			resume_id = e.resume_id,
-			value = rc_insert_expr_inner(e.value, remaining, heap_types, interner),
-			ev = ev_val,
-			type = e.type,
-			span = e.span,
+			value     = rc_insert_expr_inner(e.value, remaining, heap_types, interner),
+			ev        = ev_val,
+			type      = e.type,
+			span      = e.span,
 		}
 		return IR_Expr(new_resume)
 
 	case ^IR_Return:
 		new_ret := new(IR_Return)
-		new_ret^ = IR_Return{value = rc_insert_expr_inner(e.value, remaining, heap_types, interner), span = e.span}
+		new_ret^ = IR_Return {
+			value = rc_insert_expr_inner(e.value, remaining, heap_types, interner),
+			span  = e.span,
+		}
 		return IR_Expr(new_ret)
 
 	case ^IR_Block:
@@ -725,24 +816,31 @@ rc_insert_expr_inner :: proc(expr: IR_Expr, remaining: ^map[base.Intern_ID]int, 
 			append(&new_stmts, rc_insert_expr_inner(stmt, remaining, heap_types, interner))
 		}
 		new_block := new(IR_Block)
-		new_block^ = IR_Block{statements = new_stmts, type = e.type, span = e.span}
+		new_block^ = IR_Block {
+			statements = new_stmts,
+			type       = e.type,
+			span       = e.span,
+		}
 		return IR_Expr(new_block)
 
 	case ^IR_BinOp:
 		new_binop := new(IR_BinOp)
-		new_binop^ = IR_BinOp{
-			op = e.op,
-			left = rc_insert_expr_inner(e.left, remaining, heap_types, interner),
+		new_binop^ = IR_BinOp {
+			op    = e.op,
+			left  = rc_insert_expr_inner(e.left, remaining, heap_types, interner),
 			right = rc_insert_expr_inner(e.right, remaining, heap_types, interner),
-			type = e.type,
-			span = e.span,
+			type  = e.type,
+			span  = e.span,
 		}
 		return IR_Expr(new_binop)
 
 	case ^IR_Crash:
 		new_msg := rc_insert_expr_inner(e.message, remaining, heap_types, interner)
 		new_crash := new(IR_Crash)
-		new_crash^ = IR_Crash{message = new_msg, span = e.span}
+		new_crash^ = IR_Crash {
+			message = new_msg,
+			span    = e.span,
+		}
 		return IR_Expr(new_crash)
 
 	case ^IR_Atomic_Load:
@@ -759,7 +857,7 @@ rc_insert_expr_inner :: proc(expr: IR_Expr, remaining: ^map[base.Intern_ID]int, 
 		return IR_Expr(e)
 	case ^IR_Assign:
 		new_assign := new(IR_Assign)
-		new_assign^ = IR_Assign{
+		new_assign^ = IR_Assign {
 			binding = e.binding,
 			value   = rc_insert_expr_inner(e.value, remaining, heap_types, interner),
 			type    = e.type,
@@ -768,7 +866,7 @@ rc_insert_expr_inner :: proc(expr: IR_Expr, remaining: ^map[base.Intern_ID]int, 
 		return IR_Expr(new_assign)
 	case ^IR_Loop:
 		new_loop := new(IR_Loop)
-		new_loop^ = IR_Loop{
+		new_loop^ = IR_Loop {
 			var      = e.var,
 			iterable = rc_insert_expr_inner(e.iterable, remaining, heap_types, interner),
 			body     = rc_insert_expr_inner(e.body, remaining, heap_types, interner),
@@ -780,3 +878,4 @@ rc_insert_expr_inner :: proc(expr: IR_Expr, remaining: ^map[base.Intern_ID]int, 
 
 	return expr
 }
+

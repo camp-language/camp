@@ -1,10 +1,10 @@
 package format
 
+import "camp:diagnostics"
 import "core:fmt"
 import "core:os"
 import "core:path/filepath"
 import "core:strings"
-import "camp:diagnostics"
 
 Run_Error :: struct {
 	message: string,
@@ -173,7 +173,11 @@ run_fmt_file :: proc(file_path: string, check_mode: bool) -> (changed: bool, had
 	return true, false
 }
 
-render_fmt_diagnostics :: proc(diags: []diagnostics.Diagnostic, file_path: string, source: string) {
+render_fmt_diagnostics :: proc(
+	diags: []diagnostics.Diagnostic,
+	file_path: string,
+	source: string,
+) {
 	collector: diagnostics.Diagnostic_Collector
 	diagnostics.diag_collector_init(&collector)
 	defer diagnostics.diag_collector_destroy(&collector)
@@ -193,5 +197,4 @@ fmt_cleanup_result :: proc(result: ^Format_Result) {
 	}
 	delete(result.diagnostics)
 }
-
 

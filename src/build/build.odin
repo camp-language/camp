@@ -1,13 +1,13 @@
 package build
 
+import "camp:analysis"
 import "camp:base"
-import "camp:frontend"
-import "camp:semantics"
-import "camp:ir"
 import "camp:codegen"
 import "camp:diagnostics"
+import "camp:frontend"
+import "camp:ir"
 import "camp:mono"
-import "camp:analysis"
+import "camp:semantics"
 import "core:fmt"
 import "core:mem"
 import "core:mem/virtual"
@@ -45,20 +45,30 @@ run_build_single :: proc(file_path: string, thread_count: int = 1) -> Build_Resu
 
 	if filepath.ext(file_path) != ".camp" {
 		ext := filepath.ext(file_path)
-		diagnostics.collector_add_diag(&ctx.collector, diagnostics.diag_invalid_extension(file_path, ext))
+		diagnostics.collector_add_diag(
+			&ctx.collector,
+			diagnostics.diag_invalid_extension(file_path, ext),
+		)
 		diagnostics.render_all(&ctx.collector, file_path, "")
 		return Build_Error{message = fmt.tprintf("invalid file extension: {}", ext), code = 1}
 	}
 
 	data, err := os.read_entire_file(file_path, ctx.allocator)
 	if err != nil {
-		diagnostics.collector_add_diag(&ctx.collector, diagnostics.diag_file_not_found(file_path, fmt.tprintf("{}", err)))
+		diagnostics.collector_add_diag(
+			&ctx.collector,
+			diagnostics.diag_file_not_found(file_path, fmt.tprintf("{}", err)),
+		)
 		diagnostics.render_all(&ctx.collector, file_path, "")
 		return Build_Error{message = fmt.tprintf("file not found: {}", file_path), code = 1}
 	}
 	source := string(data)
 
-	file_rec := base.Source_File{path = file_path, contents = source, id = 0}
+	file_rec := base.Source_File {
+		path     = file_path,
+		contents = source,
+		id       = 0,
+	}
 
 	lexer: frontend.Lexer
 	frontend.lexer_init(&lexer, file_rec, &ctx.collector, &ctx.interner)
@@ -75,7 +85,12 @@ run_build_single :: proc(file_path: string, thread_count: int = 1) -> Build_Resu
 	canon := semantics.canonicalize(ast_file, &ctx.interner, &ctx.collector)
 
 	if !diagnostics.is_json_mode() {
-		fmt.printfln("canonicalized {}: {} declaration(s), {} import(s)", file_path, len(canon.decls), len(canon.imports))
+		fmt.printfln(
+			"canonicalized {}: {} declaration(s), {} import(s)",
+			file_path,
+			len(canon.decls),
+			len(canon.imports),
+		)
 	}
 
 	store: semantics.Type_Store
@@ -120,7 +135,10 @@ run_build_single :: proc(file_path: string, thread_count: int = 1) -> Build_Resu
 
 	write_err := os.write_entire_file_from_bytes(output_path, wasm_bytes)
 	if write_err != nil {
-		diagnostics.collector_add_diag(&ctx.collector, diagnostics.diag_file_write_failed(output_path, fmt.tprintf("{}", write_err)))
+		diagnostics.collector_add_diag(
+			&ctx.collector,
+			diagnostics.diag_file_write_failed(output_path, fmt.tprintf("{}", write_err)),
+		)
 		diagnostics.render_all(&ctx.collector, file_path, source)
 		return Build_Error{message = fmt.tprintf("write failed: {}", output_path), code = 1}
 	}
@@ -150,20 +168,30 @@ run_check :: proc(args: []string) -> Build_Result {
 
 	if filepath.ext(file_path) != ".camp" {
 		ext := filepath.ext(file_path)
-		diagnostics.collector_add_diag(&ctx.collector, diagnostics.diag_invalid_extension(file_path, ext))
+		diagnostics.collector_add_diag(
+			&ctx.collector,
+			diagnostics.diag_invalid_extension(file_path, ext),
+		)
 		diagnostics.render_all(&ctx.collector, file_path, "")
 		return Build_Error{message = fmt.tprintf("invalid file extension: {}", ext), code = 1}
 	}
 
 	data, err := os.read_entire_file(file_path, ctx.allocator)
 	if err != nil {
-		diagnostics.collector_add_diag(&ctx.collector, diagnostics.diag_file_not_found(file_path, fmt.tprintf("{}", err)))
+		diagnostics.collector_add_diag(
+			&ctx.collector,
+			diagnostics.diag_file_not_found(file_path, fmt.tprintf("{}", err)),
+		)
 		diagnostics.render_all(&ctx.collector, file_path, "")
 		return Build_Error{message = fmt.tprintf("file not found: {}", file_path), code = 1}
 	}
 	source := string(data)
 
-	file_rec := base.Source_File{path = file_path, contents = source, id = 0}
+	file_rec := base.Source_File {
+		path     = file_path,
+		contents = source,
+		id       = 0,
+	}
 
 	lexer: frontend.Lexer
 	frontend.lexer_init(&lexer, file_rec, &ctx.collector, &ctx.interner)
@@ -244,7 +272,10 @@ run_test :: proc(args: []string) -> Build_Result {
 
 	if len(file_args) == 0 {
 		fmt.eprintln("usage: camp test [--filter <pattern>] [--verbose] <file.camp>")
-		return Build_Error{message = "usage: camp test [--filter <pattern>] [--verbose] <file.camp>", code = 1}
+		return Build_Error {
+			message = "usage: camp test [--filter <pattern>] [--verbose] <file.camp>",
+			code = 1,
+		}
 	}
 
 	file_path := file_args[0]
@@ -263,7 +294,11 @@ run_test :: proc(args: []string) -> Build_Result {
 	ctx.thread_count = 1
 	defer context_destroy(&ctx)
 
-	file_rec := base.Source_File{path = file_path, contents = source, id = 0}
+	file_rec := base.Source_File {
+		path     = file_path,
+		contents = source,
+		id       = 0,
+	}
 
 	lexer: frontend.Lexer
 	frontend.lexer_init(&lexer, file_rec, &ctx.collector, &ctx.interner)
@@ -406,7 +441,13 @@ run_test :: proc(args: []string) -> Build_Result {
 	return Build_Output{wasm_path = "", has_errors = false}
 }
 
-compile_test_canon :: proc(orig_canon: semantics.CFile, test_body: semantics.CExpr, output_path: string, interner: ^base.Intern_Table, arena: ^virtual.Arena) -> bool {
+compile_test_canon :: proc(
+	orig_canon: semantics.CFile,
+	test_body: semantics.CExpr,
+	output_path: string,
+	interner: ^base.Intern_Table,
+	arena: ^virtual.Arena,
+) -> bool {
 	alloc := virtual.arena_allocator(arena)
 
 	collector: diagnostics.Diagnostic_Collector
@@ -419,17 +460,21 @@ compile_test_canon :: proc(orig_canon: semantics.CFile, test_body: semantics.CEx
 
 	// Build a new CFile: copy all declarations + add main! = test_body
 	main_name_id := base.intern(interner, "main!")
-	main_cn := base.Canonical_Name{module = base.NO_NAME, name = main_name_id, is_local = false}
+	main_cn := base.Canonical_Name {
+		module   = base.NO_NAME,
+		name     = main_name_id,
+		is_local = false,
+	}
 
 	main_decl := new(semantics.CDecl_Const)
-	main_decl^ = semantics.CDecl_Const{
-		name   = main_cn,
-		is_pub = false,
-		is_effectful = true,
-		body   = test_body,
-		where_clauses = make([dynamic]frontend.Where_Clause, 0),
+	main_decl^ = semantics.CDecl_Const {
+		name           = main_cn,
+		is_pub         = false,
+		is_effectful   = true,
+		body           = test_body,
+		where_clauses  = make([dynamic]frontend.Where_Clause, 0),
 		derive_targets = make([dynamic]base.Intern_ID, 0),
-		span   = base.Source_Span_ZERO,
+		span           = base.Source_Span_ZERO,
 	}
 
 	// Copy declarations from original, replacing semantics.CDecl_Test/Expect with main!
@@ -439,18 +484,22 @@ compile_test_canon :: proc(orig_canon: semantics.CFile, test_body: semantics.CEx
 	for decl in orig_canon.decls {
 		#partial switch d in decl {
 		case ^semantics.CDecl_Test:
-			// Skip test declarations (we're compiling the test body as main!)
+		// Skip test declarations (we're compiling the test body as main!)
 		case ^semantics.CDecl_Expect:
-			// Skip expect declarations (compile-time assertions)
-		case ^semantics.CDecl_Const, ^semantics.CDecl_Effect, ^semantics.CDecl_Trait, ^semantics.CDecl_Alias,
-		     ^semantics.CDecl_Newtype, ^semantics.CDecl_Import:
+		// Skip expect declarations (compile-time assertions)
+		case ^semantics.CDecl_Const,
+		     ^semantics.CDecl_Effect,
+		     ^semantics.CDecl_Trait,
+		     ^semantics.CDecl_Alias,
+		     ^semantics.CDecl_Newtype,
+		     ^semantics.CDecl_Import:
 			append(&new_decls, decl)
 		}
 	}
 
 	append(&new_decls, semantics.CDecl(main_decl))
 
-	cf := semantics.CFile{
+	cf := semantics.CFile {
 		path    = orig_canon.path,
 		decls   = new_decls,
 		imports = orig_canon.imports,
@@ -525,11 +574,9 @@ run_command :: proc(command: []string) -> (stdout: string, stderr: string, exit_
 	}
 	defer os.close(stderr_f)
 
-	start_proc, start_err := os.process_start(os.Process_Desc{
-		command = command,
-		stdout = stdout_f,
-		stderr = stderr_f,
-	})
+	start_proc, start_err := os.process_start(
+		os.Process_Desc{command = command, stdout = stdout_f, stderr = stderr_f},
+	)
 	if start_err != nil {
 		os.remove(stdout_path)
 		os.remove(stderr_path)
@@ -568,7 +615,11 @@ run_command :: proc(command: []string) -> (stdout: string, stderr: string, exit_
 sanitize_test_name :: proc(name: string) -> string {
 	b := make([]u8, len(name), context.allocator)
 	for c, i in name {
-		if (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') || (c >= '0' && c <= '9') || c == '-' || c == '_' {
+		if (c >= 'a' && c <= 'z') ||
+		   (c >= 'A' && c <= 'Z') ||
+		   (c >= '0' && c <= '9') ||
+		   c == '-' ||
+		   c == '_' {
 			b[i] = u8(c)
 		} else {
 			b[i] = '_'
@@ -576,3 +627,4 @@ sanitize_test_name :: proc(name: string) -> string {
 	}
 	return string(b)
 }
+

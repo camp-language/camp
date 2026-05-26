@@ -44,12 +44,21 @@ lsp_from_diagnostic :: proc(d: Diagnostic, source: string, uri: string) -> LSP_D
 	line, col := diag_span_to_line_col(source, d.span)
 	end_line, end_col := span_end_to_line_col(source, d.span)
 	result: LSP_Diagnostic
-	result.range.start = LSP_Position{line = uint(line - 1), character = uint(col - 1)}
-	result.range.end = LSP_Position{line = uint(end_line - 1), character = uint(end_col - 1)}
+	result.range.start = LSP_Position {
+		line      = uint(line - 1),
+		character = uint(col - 1),
+	}
+	result.range.end = LSP_Position {
+		line      = uint(end_line - 1),
+		character = uint(end_col - 1),
+	}
 	switch d.category {
-	case .Error:    result.severity = .Error
-	case .Warning:  result.severity = .Warning
-	case .Internal: result.severity = .Error
+	case .Error:
+		result.severity = .Error
+	case .Warning:
+		result.severity = .Warning
+	case .Internal:
+		result.severity = .Error
 	}
 	result.code = d.code
 	b: strings.Builder
@@ -65,16 +74,19 @@ lsp_from_diagnostic :: proc(d: Diagnostic, source: string, uri: string) -> LSP_D
 	for label in d.labels {
 		ll, lc := diag_span_to_line_col(source, label.span)
 		el, ec := span_end_to_line_col(source, label.span)
-		append(&result.related, LSP_DiagnosticRelatedInfo{
-			location = LSP_Location{
-				uri = uri,
-				range = LSP_Range{
-					start = LSP_Position{line = uint(ll - 1), character = uint(lc - 1)},
-					end   = LSP_Position{line = uint(el - 1), character = uint(ec - 1)},
+		append(
+			&result.related,
+			LSP_DiagnosticRelatedInfo {
+				location = LSP_Location {
+					uri = uri,
+					range = LSP_Range {
+						start = LSP_Position{line = uint(ll - 1), character = uint(lc - 1)},
+						end = LSP_Position{line = uint(el - 1), character = uint(ec - 1)},
+					},
 				},
+				message = label.label,
 			},
-			message = label.label,
-		})
+		)
 	}
 	return result
 }
@@ -82,8 +94,8 @@ lsp_from_diagnostic :: proc(d: Diagnostic, source: string, uri: string) -> LSP_D
 span_end_to_line_col :: proc(source: string, span: base.Source_Span) -> (int, int) {
 	line := 1
 	col := 1
-	for i in 0..<span.end {
-		if i >= len(source) { break }
+	for i in 0 ..< span.end {
+		if i >= len(source) {break}
 		if source[i] == '\n' {
 			line += 1
 			col = 1
@@ -93,3 +105,4 @@ span_end_to_line_col :: proc(source: string, span: base.Source_Span) -> (int, in
 	}
 	return line, col
 }
+

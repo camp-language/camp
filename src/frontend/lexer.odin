@@ -1,49 +1,54 @@
 #+feature dynamic-literals
 package frontend
 
-import "core:fmt"
-import "core:simd"
-import "core:strconv"
 import "base:intrinsics"
 import "camp:base"
 import "camp:diagnostics"
+import "core:fmt"
+import "core:simd"
+import "core:strconv"
 
-KEYWORDS :map[string]base.Token_Kind = {
-	"if"        = .Kw_If,
-	"else"      = .Kw_Else,
-	"match"     = .Kw_Match,
-	"is"        = .Kw_Is,
-	"derives"   = .Kw_Derives,
-	"handle"    = .Kw_Handle,
-	"in"        = .Kw_In,
-	"with"      = .Kw_With,
-	"import"    = .Kw_Import,
-	"as"        = .Kw_As,
-	"for"       = .Kw_For,
-	"and"       = .Kw_And,
-	"or"        = .Kw_Or,
-	"expect"    = .Kw_Expect,
-	"test"      = .Kw_Test,
-	"not"       = .Kw_Not,
-	"pub"       = .Kw_Pub,
-	"Self"      = .Kw_Self,
-	"par"       = .Kw_Par,
-	"where"     = .Kw_Where,
-	"return"    = .Kw_Return,
-	"crash"    = .Kw_Crash,
-	"todo"     = .Kw_Todo,
+KEYWORDS: map[string]base.Token_Kind = {
+	"if"      = .Kw_If,
+	"else"    = .Kw_Else,
+	"match"   = .Kw_Match,
+	"is"      = .Kw_Is,
+	"derives" = .Kw_Derives,
+	"handle"  = .Kw_Handle,
+	"in"      = .Kw_In,
+	"with"    = .Kw_With,
+	"import"  = .Kw_Import,
+	"as"      = .Kw_As,
+	"for"     = .Kw_For,
+	"and"     = .Kw_And,
+	"or"      = .Kw_Or,
+	"expect"  = .Kw_Expect,
+	"test"    = .Kw_Test,
+	"not"     = .Kw_Not,
+	"pub"     = .Kw_Pub,
+	"Self"    = .Kw_Self,
+	"par"     = .Kw_Par,
+	"where"   = .Kw_Where,
+	"return"  = .Kw_Return,
+	"crash"   = .Kw_Crash,
+	"todo"    = .Kw_Todo,
 }
 
 Lexer :: struct {
-	source:    string,
-	pos:       int,
-	collector: ^diagnostics.Diagnostic_Collector,
-	intern:    ^base.Intern_Table,
-	file_id:   int,
-	at_line_start: bool,  // true when pos is at the start of a new line
+	source:        string,
+	pos:           int,
+	collector:     ^diagnostics.Diagnostic_Collector,
+	intern:        ^base.Intern_Table,
+	file_id:       int,
+	at_line_start: bool, // true when pos is at the start of a new line
 }
 
-lexer_init :: proc(l: ^Lexer, file: base.Source_File, collector: ^diagnostics.Diagnostic_Collector, table: ^base.Intern_Table) {
+lexer_init :: proc(
+	l: ^Lexer,
+	file: base.Source_File,
+	collector: ^diagnostics.Diagnostic_Collector,
+	table: ^base.Intern_Table,
+) {
 	l.source = file.contents
 	l.pos = 0
 	l.collector = collector
@@ -53,12 +58,12 @@ lexer_init :: proc(l: ^Lexer, file: base.Source_File, collector: ^diagnostics.Di
 }
 
 lexer_peek :: proc(l: ^Lexer) -> u8 {
-	if l.pos >= len(l.source) { return 0 }
+	if l.pos >= len(l.source) {return 0}
 	return l.source[l.pos]
 }
 
 lexer_advance :: proc(l: ^Lexer) -> u8 {
-	if l.pos >= len(l.source) { return 0 }
+	if l.pos >= len(l.source) {return 0}
 	ch := l.source[l.pos]
 	l.pos += 1
 	return ch
@@ -73,30 +78,30 @@ lexer_skip_whitespace :: proc(l: ^Lexer) {
 
 when simd.HAS_HARDWARE_SIMD {
 
-lexer_skip_whitespace_simd :: proc(l: ^Lexer) {
-	source_len := len(l.source)
-	for l.pos + 16 <= source_len {
-		chunk := load_chunk(l.source, l.pos)
-		ws_bits := extract_mask(is_whitespace_simd(chunk))
-		nl_bits := extract_mask(is_newline_simd(chunk))
-		all_ws_bits := ws_bits | nl_bits
+	lexer_skip_whitespace_simd :: proc(l: ^Lexer) {
+		source_len := len(l.source)
+		for l.pos + 16 <= source_len {
+			chunk := load_chunk(l.source, l.pos)
+			ws_bits := extract_mask(is_whitespace_simd(chunk))
+			nl_bits := extract_mask(is_newline_simd(chunk))
+			all_ws_bits := ws_bits | nl_bits
 
-		not_ws_bits := ~all_ws_bits
-		if not_ws_bits == 0 {
-			// All 16 bytes are whitespace
-			if nl_bits != 0 { l.at_line_start = true }
-			l.pos += 16
-			continue
+			not_ws_bits := ~all_ws_bits
+			if not_ws_bits == 0 {
+				// All 16 bytes are whitespace
+				if nl_bits != 0 {l.at_line_start = true}
+				l.pos += 16
+				continue
+			}
+
+			// Found non-whitespace within this chunk
+			first_non_ws := int(intrinsics.count_trailing_zeros(not_ws_bits))
+			prefix_mask := u16(1 << u16(first_non_ws)) - 1
+			if (nl_bits & prefix_mask) != 0 {l.at_line_start = true}
+			l.pos += first_non_ws
+			return
 		}
-
-		// Found non-whitespace within this chunk
-		first_non_ws := int(intrinsics.count_trailing_zeros(not_ws_bits))
-		prefix_mask := u16(1 << u16(first_non_ws)) - 1
-		if (nl_bits & prefix_mask) != 0 { l.at_line_start = true }
-		l.pos += first_non_ws
-		return
 	}
-}
 
 }
 
@@ -108,7 +113,10 @@ lexer_skip_whitespace_scalar :: proc(l: ^Lexer) {
 		} else if ch == '\n' {
 			l.pos += 1
 			l.at_line_start = true
-		} else if ch == '/' && l.pos + 2 < len(l.source) && l.source[l.pos + 1] == '/' && l.source[l.pos + 2] == '/' {
+		} else if ch == '/' &&
+		   l.pos + 2 < len(l.source) &&
+		   l.source[l.pos + 1] == '/' &&
+		   l.source[l.pos + 2] == '/' {
 			// /// doc comment — stop so lexer_next can produce a Doc_Comment token
 			break
 		} else if ch == '/' && l.pos + 1 < len(l.source) && l.source[l.pos + 1] == '/' {
@@ -131,7 +139,12 @@ lexer_make_span :: proc(l: ^Lexer, start: int) -> base.Source_Span {
 	return base.Source_Span{file_id = l.file_id, start = start, end = l.pos}
 }
 
-lexer_make_token :: proc(l: ^Lexer, kind: base.Token_Kind, start: int, text: string) -> base.Token {
+lexer_make_token :: proc(
+	l: ^Lexer,
+	kind: base.Token_Kind,
+	start: int,
+	text: string,
+) -> base.Token {
 	return base.Token{kind = kind, text = text, span = lexer_make_span(l, start)}
 }
 
@@ -146,7 +159,10 @@ lexer_next :: proc(l: ^Lexer) -> base.Token {
 	ch := l.source[l.pos]
 
 	// /// doc comment
-	if ch == '/' && l.pos + 2 < len(l.source) && l.source[l.pos + 1] == '/' && l.source[l.pos + 2] == '/' {
+	if ch == '/' &&
+	   l.pos + 2 < len(l.source) &&
+	   l.source[l.pos + 1] == '/' &&
+	   l.source[l.pos + 2] == '/' {
 		l.pos += 3
 		// Skip optional space after ///
 		if l.pos < len(l.source) && l.source[l.pos] == ' ' {
@@ -168,7 +184,9 @@ lexer_next :: proc(l: ^Lexer) -> base.Token {
 		if lookahead < len(l.source) && l.source[lookahead] == ' ' {
 			lookahead += 1
 		}
-		if lookahead < len(l.source) && l.source[lookahead] != '\n' && l.source[lookahead] != '\r' {
+		if lookahead < len(l.source) &&
+		   l.source[lookahead] != '\n' &&
+		   l.source[lookahead] != '\r' {
 			// Content after \ — this is a per-line string
 			return lexer_lex_perline_string(l, start)
 		}
@@ -198,12 +216,15 @@ lexer_next :: proc(l: ^Lexer) -> base.Token {
 			l.pos += 1
 		}
 		if l.pos >= len(l.source) {
-			diagnostics.collector_add_diag(l.collector, diagnostics.diag_unexpected_char('`', lexer_make_span(l, start)))
+			diagnostics.collector_add_diag(
+				l.collector,
+				diagnostics.diag_unexpected_char('`', lexer_make_span(l, start)),
+			)
 			return lexer_next(l)
 		}
 		l.pos += 1 // skip closing backtick
 		// Extract the identifier text without the backticks
-		inner_text := l.source[start+1:l.pos-1]
+		inner_text := l.source[start + 1:l.pos - 1]
 		// Return as a regular Identifier token
 		return base.Token{kind = .Identifier, text = inner_text, span = lexer_make_span(l, start)}
 	}
@@ -259,7 +280,10 @@ lexer_next :: proc(l: ^Lexer) -> base.Token {
 			return lexer_make_token(l, .Bang_Eq, start, l.source[start:l.pos])
 		}
 		// ! without = is an error — not a valid token
-		diagnostics.collector_add_diag(l.collector, diagnostics.diag_unexpected_char('!', lexer_make_span(l, start)))
+		diagnostics.collector_add_diag(
+			l.collector,
+			diagnostics.diag_unexpected_char('!', lexer_make_span(l, start)),
+		)
 		return lexer_next(l)
 	}
 
@@ -287,7 +311,10 @@ lexer_next :: proc(l: ^Lexer) -> base.Token {
 	}
 
 	l.pos += 1
-	diagnostics.collector_add_diag(l.collector, diagnostics.diag_unexpected_char(ch, lexer_make_span(l, start)))
+	diagnostics.collector_add_diag(
+		l.collector,
+		diagnostics.diag_unexpected_char(ch, lexer_make_span(l, start)),
+	)
 	return lexer_next(l)
 }
 
@@ -314,7 +341,9 @@ lexer_lex_number :: proc(l: ^Lexer, start: int) -> base.Token {
 			if ch >= '0' && ch <= '9' {
 				l.pos += 1
 			} else if ch == '.' && !is_float {
-				if l.pos + 1 < len(l.source) && l.source[l.pos + 1] >= '0' && l.source[l.pos + 1] <= '9' {
+				if l.pos + 1 < len(l.source) &&
+				   l.source[l.pos + 1] >= '0' &&
+				   l.source[l.pos + 1] <= '9' {
 					is_float = true
 					l.pos += 1
 				} else {
@@ -410,25 +439,55 @@ lexer_lex_binary_number :: proc(l: ^Lexer, start: int) -> base.Token {
 
 when simd.HAS_HARDWARE_SIMD {
 
-scan_number_simd :: proc(l: ^Lexer, is_float: ^bool) {
-	source_len := len(l.source)
-	for {
-		for l.pos + 16 <= source_len {
-			chunk := load_chunk(l.source, l.pos)
-			num_bits := extract_mask(is_number_continue_simd(chunk))
+	scan_number_simd :: proc(l: ^Lexer, is_float: ^bool) {
+		source_len := len(l.source)
+		for {
+			for l.pos + 16 <= source_len {
+				chunk := load_chunk(l.source, l.pos)
+				num_bits := extract_mask(is_number_continue_simd(chunk))
 
-			if num_bits == 0 {
-				return
-			}
+				if num_bits == 0 {
+					return
+				}
 
-			not_num_bits := ~num_bits
-			if not_num_bits == 0 {
-				// All 16 bytes are number-continue chars — check for dots
+				not_num_bits := ~num_bits
+				if not_num_bits == 0 {
+					// All 16 bytes are number-continue chars — check for dots
+					dot_bits := extract_mask(simd.lanes_eq(chunk, simd.u8x16('.')))
+					if dot_bits != 0 {
+						dot_pos := int(intrinsics.count_trailing_zeros(dot_bits))
+						abs_dot := l.pos + dot_pos
+						if abs_dot + 1 < source_len &&
+						   l.source[abs_dot + 1] >= '0' &&
+						   l.source[abs_dot + 1] <= '9' {
+							is_float^ = true
+							l.pos = abs_dot + 1
+							continue
+						} else {
+							l.pos += dot_pos
+							return
+						}
+					}
+					l.pos += 16
+					continue
+				}
+
+				first_non_num := int(intrinsics.count_trailing_zeros(not_num_bits))
+				if first_non_num == 0 {
+					return
+				}
+
+				// Check for '.' in the matched region
+				prefix_mask := u16(1) << u16(first_non_num) - 1
 				dot_bits := extract_mask(simd.lanes_eq(chunk, simd.u8x16('.')))
-				if dot_bits != 0 {
-					dot_pos := int(intrinsics.count_trailing_zeros(dot_bits))
+				dot_in_prefix := dot_bits & prefix_mask
+
+				if dot_in_prefix != 0 {
+					dot_pos := int(intrinsics.count_trailing_zeros(dot_in_prefix))
 					abs_dot := l.pos + dot_pos
-					if abs_dot + 1 < source_len && l.source[abs_dot + 1] >= '0' && l.source[abs_dot + 1] <= '9' {
+					if abs_dot + 1 < source_len &&
+					   l.source[abs_dot + 1] >= '0' &&
+					   l.source[abs_dot + 1] <= '9' {
 						is_float^ = true
 						l.pos = abs_dot + 1
 						continue
@@ -437,58 +496,34 @@ scan_number_simd :: proc(l: ^Lexer, is_float: ^bool) {
 						return
 					}
 				}
-				l.pos += 16
-				continue
-			}
 
-			first_non_num := int(intrinsics.count_trailing_zeros(not_num_bits))
-			if first_non_num == 0 {
+				l.pos += first_non_num
 				return
 			}
 
-			// Check for '.' in the matched region
-			prefix_mask := u16(1) << u16(first_non_num) - 1
-			dot_bits := extract_mask(simd.lanes_eq(chunk, simd.u8x16('.')))
-			dot_in_prefix := dot_bits & prefix_mask
-
-			if dot_in_prefix != 0 {
-				dot_pos := int(intrinsics.count_trailing_zeros(dot_in_prefix))
-				abs_dot := l.pos + dot_pos
-				if abs_dot + 1 < source_len && l.source[abs_dot + 1] >= '0' && l.source[abs_dot + 1] <= '9' {
-					is_float^ = true
-					l.pos = abs_dot + 1
-					continue
-				} else {
-					l.pos += dot_pos
-					return
-				}
-			}
-
-			l.pos += first_non_num
-			return
-		}
-
-		// Scalar fallback for remaining bytes
-		for l.pos < source_len {
-			ch := l.source[l.pos]
-			if ch >= '0' && ch <= '9' {
-				l.pos += 1
-			} else if ch == '.' && !is_float^ {
-				if l.pos + 1 < source_len && l.source[l.pos + 1] >= '0' && l.source[l.pos + 1] <= '9' {
-					is_float^ = true
+			// Scalar fallback for remaining bytes
+			for l.pos < source_len {
+				ch := l.source[l.pos]
+				if ch >= '0' && ch <= '9' {
+					l.pos += 1
+				} else if ch == '.' && !is_float^ {
+					if l.pos + 1 < source_len &&
+					   l.source[l.pos + 1] >= '0' &&
+					   l.source[l.pos + 1] <= '9' {
+						is_float^ = true
+						l.pos += 1
+					} else {
+						break
+					}
+				} else if ch == '_' {
 					l.pos += 1
 				} else {
 					break
 				}
-			} else if ch == '_' {
-				l.pos += 1
-			} else {
-				break
 			}
+			return
 		}
-		return
 	}
-}
 
 }
 
@@ -503,7 +538,9 @@ lexer_lex_string :: proc(l: ^Lexer, start: int) -> base.Token {
 		for l.pos < len(l.source) && l.source[l.pos] != '"' {
 			if l.source[l.pos] == '\\' {
 				l.pos += 1
-			} else if l.source[l.pos] == '$' && l.pos + 1 < len(l.source) && l.source[l.pos + 1] == '{' {
+			} else if l.source[l.pos] == '$' &&
+			   l.pos + 1 < len(l.source) &&
+			   l.source[l.pos + 1] == '{' {
 				has_interpolation = true
 			}
 			l.pos += 1
@@ -513,7 +550,10 @@ lexer_lex_string :: proc(l: ^Lexer, start: int) -> base.Token {
 	if l.pos < len(l.source) {
 		l.pos += 1
 	} else {
-		diagnostics.collector_add_diag(l.collector, diagnostics.diag_unterminated_string(lexer_make_span(l, start)))
+		diagnostics.collector_add_diag(
+			l.collector,
+			diagnostics.diag_unterminated_string(lexer_make_span(l, start)),
+		)
 	}
 
 	text := l.source[start:l.pos]
@@ -526,82 +566,82 @@ lexer_lex_string :: proc(l: ^Lexer, start: int) -> base.Token {
 
 when simd.HAS_HARDWARE_SIMD {
 
-scan_string_body_simd :: proc(l: ^Lexer, has_interpolation: ^bool) {
-	source_len := len(l.source)
-	for {
-		// SIMD scan for ", \, $
-		for l.pos + 16 <= source_len {
-			chunk := load_chunk(l.source, l.pos)
-			interesting_bits := extract_mask(is_string_interesting_simd(chunk))
+	scan_string_body_simd :: proc(l: ^Lexer, has_interpolation: ^bool) {
+		source_len := len(l.source)
+		for {
+			// SIMD scan for ", \, $
+			for l.pos + 16 <= source_len {
+				chunk := load_chunk(l.source, l.pos)
+				interesting_bits := extract_mask(is_string_interesting_simd(chunk))
 
-			if interesting_bits == 0 {
-				l.pos += 16
-				continue
+				if interesting_bits == 0 {
+					l.pos += 16
+					continue
+				}
+
+				// Found interesting byte within this chunk
+				first := int(intrinsics.count_trailing_zeros(interesting_bits))
+				l.pos += first
+				break
 			}
 
-			// Found interesting byte within this chunk
-			first := int(intrinsics.count_trailing_zeros(interesting_bits))
-			l.pos += first
-			break
-		}
+			// Handle the interesting byte (or scalar tail)
+			if l.pos >= source_len {return}
+			ch := l.source[l.pos]
 
-		// Handle the interesting byte (or scalar tail)
-		if l.pos >= source_len { return }
-		ch := l.source[l.pos]
-
-		if ch == '"' {
-			return
-		} else if ch == '\\' {
-			l.pos += 1 // skip escape char
-			if l.pos < source_len { l.pos += 1 } // skip escaped char
-			continue
-		} else if ch == '$' && l.pos + 1 < source_len && l.source[l.pos + 1] == '{' {
-			has_interpolation^ = true
-			l.pos += 1
-			continue
-		} else {
-			l.pos += 1
-			continue
-		}
-	}
-}
-
-scan_perline_content_simd :: proc(l: ^Lexer, has_interpolation: ^bool) {
-	source_len := len(l.source)
-	for {
-		for l.pos + 16 <= source_len {
-			chunk := load_chunk(l.source, l.pos)
-			interesting_bits := extract_mask(is_perline_interesting_simd(chunk))
-
-			if interesting_bits == 0 {
-				l.pos += 16
+			if ch == '"' {
+				return
+			} else if ch == '\\' {
+				l.pos += 1 // skip escape char
+				if l.pos < source_len {l.pos += 1} 	// skip escaped char
+				continue
+			} else if ch == '$' && l.pos + 1 < source_len && l.source[l.pos + 1] == '{' {
+				has_interpolation^ = true
+				l.pos += 1
+				continue
+			} else {
+				l.pos += 1
 				continue
 			}
-
-			first := int(intrinsics.count_trailing_zeros(interesting_bits))
-			l.pos += first
-			break
-		}
-
-		if l.pos >= source_len { return }
-		ch := l.source[l.pos]
-
-		if ch == '\n' {
-			return
-		} else if ch == '\\' {
-			l.pos += 1
-			if l.pos < source_len { l.pos += 1 }
-			continue
-		} else if ch == '$' && l.pos + 1 < source_len && l.source[l.pos + 1] == '{' {
-			has_interpolation^ = true
-			l.pos += 1
-			continue
-		} else {
-			l.pos += 1
-			continue
 		}
 	}
-}
+
+	scan_perline_content_simd :: proc(l: ^Lexer, has_interpolation: ^bool) {
+		source_len := len(l.source)
+		for {
+			for l.pos + 16 <= source_len {
+				chunk := load_chunk(l.source, l.pos)
+				interesting_bits := extract_mask(is_perline_interesting_simd(chunk))
+
+				if interesting_bits == 0 {
+					l.pos += 16
+					continue
+				}
+
+				first := int(intrinsics.count_trailing_zeros(interesting_bits))
+				l.pos += first
+				break
+			}
+
+			if l.pos >= source_len {return}
+			ch := l.source[l.pos]
+
+			if ch == '\n' {
+				return
+			} else if ch == '\\' {
+				l.pos += 1
+				if l.pos < source_len {l.pos += 1}
+				continue
+			} else if ch == '$' && l.pos + 1 < source_len && l.source[l.pos + 1] == '{' {
+				has_interpolation^ = true
+				l.pos += 1
+				continue
+			} else {
+				l.pos += 1
+				continue
+			}
+		}
+	}
 
 }
 
@@ -622,7 +662,10 @@ lexer_lex_char :: proc(l: ^Lexer, start: int) -> base.Token {
 	if l.pos < len(l.source) && l.source[l.pos] == '\'' {
 		l.pos += 1
 	} else {
-		diagnostics.collector_add_diag(l.collector, diagnostics.diag_unterminated_string(lexer_make_span(l, start)))
+		diagnostics.collector_add_diag(
+			l.collector,
+			diagnostics.diag_unterminated_string(lexer_make_span(l, start)),
+		)
 	}
 
 	text := l.source[start:l.pos]
@@ -647,7 +690,9 @@ lexer_lex_perline_string :: proc(l: ^Lexer, start: int) -> base.Token {
 			scan_perline_content_simd(l, &has_interpolation)
 		} else {
 			for l.pos < len(l.source) && l.source[l.pos] != '\n' {
-				if l.source[l.pos] == '$' && l.pos + 1 < len(l.source) && l.source[l.pos + 1] == '{' {
+				if l.source[l.pos] == '$' &&
+				   l.pos + 1 < len(l.source) &&
+				   l.source[l.pos + 1] == '{' {
 					has_interpolation = true
 				}
 				l.pos += 1
@@ -718,7 +763,10 @@ lexer_lex_identifier :: proc(l: ^Lexer, start: int) -> base.Token {
 		// Double ! suffix is not allowed (e.g. main!! is invalid)
 		// Only check if we already absorbed one ! (bang_count > 0)
 		if bang_count > 0 && l.pos < len(l.source) && l.source[l.pos] == '!' {
-			diagnostics.collector_add_diag(l.collector, diagnostics.diag_double_bang_suffix(lexer_make_span(l, l.pos)))
+			diagnostics.collector_add_diag(
+				l.collector,
+				diagnostics.diag_double_bang_suffix(lexer_make_span(l, l.pos)),
+			)
 			l.pos += 1 // skip the extra ! to avoid cascading errors
 		}
 	}
@@ -738,30 +786,30 @@ lexer_lex_identifier :: proc(l: ^Lexer, start: int) -> base.Token {
 
 when simd.HAS_HARDWARE_SIMD {
 
-scan_identifier_simd :: proc(l: ^Lexer) {
-	source_len := len(l.source)
-	for l.pos + 16 <= source_len {
-		chunk := load_chunk(l.source, l.pos)
-		ident_bits := extract_mask(is_identifier_continue_simd(chunk))
+	scan_identifier_simd :: proc(l: ^Lexer) {
+		source_len := len(l.source)
+		for l.pos + 16 <= source_len {
+			chunk := load_chunk(l.source, l.pos)
+			ident_bits := extract_mask(is_identifier_continue_simd(chunk))
 
-		not_ident_bits := ~ident_bits
-		if not_ident_bits == 0 {
-			// All 16 bytes are identifier-continue chars
-			l.pos += 16
-			continue
+			not_ident_bits := ~ident_bits
+			if not_ident_bits == 0 {
+				// All 16 bytes are identifier-continue chars
+				l.pos += 16
+				continue
+			}
+
+			// Found non-identifier byte within this chunk
+			first_non_ident := int(intrinsics.count_trailing_zeros(not_ident_bits))
+			l.pos += first_non_ident
+			return
 		}
 
-		// Found non-identifier byte within this chunk
-		first_non_ident := int(intrinsics.count_trailing_zeros(not_ident_bits))
-		l.pos += first_non_ident
-		return
+		// Scalar fallback for remaining bytes
+		for l.pos < source_len && is_identifier_continue(l.source[l.pos]) {
+			l.pos += 1
+		}
 	}
-
-	// Scalar fallback for remaining bytes
-	for l.pos < source_len && is_identifier_continue(l.source[l.pos]) {
-		l.pos += 1
-	}
-}
 
 }
 
@@ -772,3 +820,4 @@ is_identifier_start :: proc(ch: u8) -> bool {
 is_identifier_continue :: proc(ch: u8) -> bool {
 	return is_identifier_start(ch) || (ch >= '0' && ch <= '9')
 }
+

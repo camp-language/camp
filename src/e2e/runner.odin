@@ -8,10 +8,10 @@ import "core:strings"
 import "core:time"
 
 E2E_Test :: struct {
-	category:      string,
-	name:          string,
-	test_dir:      string,
-	expected_path: string,
+	category:        string,
+	name:            string,
+	test_dir:        string,
+	expected_path:   string,
 	is_multi_module: bool,
 }
 
@@ -41,7 +41,11 @@ Test_Report :: struct {
 	actual_exit:   int,
 }
 
-discover_tests :: proc(root: string, filter: string, allocator: mem.Allocator) -> [dynamic]E2E_Test {
+discover_tests :: proc(
+	root: string,
+	filter: string,
+	allocator: mem.Allocator,
+) -> [dynamic]E2E_Test {
 	tests: [dynamic]E2E_Test
 	tests.allocator = allocator
 
@@ -52,25 +56,25 @@ discover_tests :: proc(root: string, filter: string, allocator: mem.Allocator) -
 	defer os.file_info_slice_delete(categories, allocator)
 
 	for cat_info in categories {
-		if cat_info.type != .Directory { continue }
+		if cat_info.type != .Directory {continue}
 		category := cat_info.name
-		if category == "." || category == ".." { continue }
+		if category == "." || category == ".." {continue}
 
 		cat_path, cat_err2 := filepath.join({root, category}, allocator)
-		if cat_err2 != nil { continue }
+		if cat_err2 != nil {continue}
 		defer delete(cat_path, allocator)
 
 		test_dirs, td_err := os.read_all_directory_by_path(cat_path, allocator)
-		if td_err != nil { continue }
+		if td_err != nil {continue}
 		defer os.file_info_slice_delete(test_dirs, allocator)
 
 		for fi in test_dirs {
-			if fi.type != .Directory { continue }
+			if fi.type != .Directory {continue}
 			test_name := fi.name
-			if test_name == "." || test_name == ".." { continue }
+			if test_name == "." || test_name == ".." {continue}
 
 			test_dir_path, tdpe_err := filepath.join({cat_path, test_name}, allocator)
-			if tdpe_err != nil { continue }
+			if tdpe_err != nil {continue}
 			defer delete(test_dir_path, allocator)
 
 			expected_path, ep_err := filepath.join({test_dir_path, "expected.toml"}, allocator)
@@ -80,7 +84,7 @@ discover_tests :: proc(root: string, filter: string, allocator: mem.Allocator) -
 			}
 
 			if !os.exists(expected_path) {
-				continue  // deferred delete handles cleanup
+				continue // deferred delete handles cleanup
 			}
 
 			main_camp_path, mc_err := filepath.join({test_dir_path, "Main.camp"}, allocator)
@@ -90,7 +94,7 @@ discover_tests :: proc(root: string, filter: string, allocator: mem.Allocator) -
 			}
 
 			if !os.exists(main_camp_path) {
-				continue  // deferred delete handles cleanup
+				continue // deferred delete handles cleanup
 			}
 
 			category_name := fmt.tprintf("{}/{}", category, test_name)
@@ -107,13 +111,16 @@ discover_tests :: proc(root: string, filter: string, allocator: mem.Allocator) -
 
 			is_multi := count_camp_files(test_dir_path, allocator) > 1
 
-			append(&tests, E2E_Test{
-				category       = cat_clone,
-				name           = name_clone,
-				test_dir       = dir_clone,
-				expected_path  = exp_clone,
-				is_multi_module = is_multi,
-			})
+			append(
+				&tests,
+				E2E_Test {
+					category = cat_clone,
+					name = name_clone,
+					test_dir = dir_clone,
+					expected_path = exp_clone,
+					is_multi_module = is_multi,
+				},
+			)
 		}
 	}
 
@@ -130,22 +137,22 @@ copy_dir_recursive :: proc(dst: string, src: string) -> os.Error {
 	os.make_directory_all(dst)
 
 	for fi in infos {
-		if fi.name == "." || fi.name == ".." { continue }
+		if fi.name == "." || fi.name == ".." {continue}
 
 		src_path, sp_err := filepath.join({src, fi.name}, context.allocator)
-		if sp_err != nil { return sp_err }
+		if sp_err != nil {return sp_err}
 		defer delete(src_path, context.allocator)
 
 		dst_path, dp_err := filepath.join({dst, fi.name}, context.allocator)
-		if dp_err != nil { return dp_err }
+		if dp_err != nil {return dp_err}
 		defer delete(dst_path, context.allocator)
 
 		if fi.type == .Directory {
 			copy_err := copy_dir_recursive(dst_path, src_path)
-			if copy_err != nil { return copy_err }
+			if copy_err != nil {return copy_err}
 		} else if fi.type == .Regular {
 			copy_err := os.copy_file(dst_path, src_path)
-			if copy_err != nil { return copy_err }
+			if copy_err != nil {return copy_err}
 		}
 	}
 
@@ -172,7 +179,10 @@ run_test :: proc(test: E2E_Test, update: bool) -> Test_Report {
 	report: Test_Report
 	report.test = test
 
-	tmp_base, tmp_err := filepath.join({"/tmp/camp-e2e", test.category, test.name}, context.allocator)
+	tmp_base, tmp_err := filepath.join(
+		{"/tmp/camp-e2e", test.category, test.name},
+		context.allocator,
+	)
 	if tmp_err != nil {
 		report.result = .Fail
 		report.diff = "  setup: could not build temp path"
@@ -254,7 +264,10 @@ run_test :: proc(test: E2E_Test, update: bool) -> Test_Report {
 		if tw_err != nil {
 			has_wasm = false
 		} else {
-			wasm_stdout, wasm_stderr, wasm_exit, wasm_available = run_wasmtime(wasm_path, unique_prefix)
+			wasm_stdout, wasm_stderr, wasm_exit, wasm_available = run_wasmtime(
+				wasm_path,
+				unique_prefix,
+			)
 		}
 	}
 
@@ -305,18 +318,25 @@ run_test :: proc(test: E2E_Test, update: bool) -> Test_Report {
 		expected_we_int := 0
 		if v, ok := toml_get(&expected_dict, "wasm_exit"); ok {
 			#partial switch e in v {
-			case int: expected_we_int = e
+			case int:
+				expected_we_int = e
 			}
 		}
 		if wasm_exit != expected_we_int {
 			passed = false
-			fmt.sbprintf(&diff_builder, "  wasm_exit: expected {}, got {}\n", expected_we_int, wasm_exit)
+			fmt.sbprintf(
+				&diff_builder,
+				"  wasm_exit: expected {}, got {}\n",
+				expected_we_int,
+				wasm_exit,
+			)
 		}
 
 		expected_wasm_stdout := ""
 		if v, ok := toml_get(&expected_dict, "wasm_stdout"); ok {
 			#partial switch s in v {
-			case string: expected_wasm_stdout = s
+			case string:
+				expected_wasm_stdout = s
 			}
 		}
 		if wasm_stdout != expected_wasm_stdout {
@@ -327,7 +347,8 @@ run_test :: proc(test: E2E_Test, update: bool) -> Test_Report {
 		expected_wasm_stderr := ""
 		if v, ok := toml_get(&expected_dict, "wasm_stderr"); ok {
 			#partial switch s in v {
-			case string: expected_wasm_stderr = s
+			case string:
+				expected_wasm_stderr = s
 			}
 		}
 		if wasm_stderr != expected_wasm_stderr {
@@ -344,7 +365,18 @@ run_test :: proc(test: E2E_Test, update: bool) -> Test_Report {
 				args_str = a
 			}
 		}
-		write_update_file(test.expected_path, stdout_str, stderr_str, exit_code, has_wasm, wasm_stdout, wasm_stderr, wasm_exit, has_args, args_str)
+		write_update_file(
+			test.expected_path,
+			stdout_str,
+			stderr_str,
+			exit_code,
+			has_wasm,
+			wasm_stdout,
+			wasm_stderr,
+			wasm_exit,
+			has_args,
+			args_str,
+		)
 		passed = true
 		report.updated = true
 	}
@@ -370,7 +402,15 @@ run_command :: proc(command: []string) -> (stdout: string, stderr: string, exit_
 	return run_command_prefixed(command, "")
 }
 
-run_command_prefixed :: proc(command: []string, prefix: string, cwd: string = "") -> (stdout: string, stderr: string, exit_code: int) {
+run_command_prefixed :: proc(
+	command: []string,
+	prefix: string,
+	cwd: string = "",
+) -> (
+	stdout: string,
+	stderr: string,
+	exit_code: int,
+) {
 	pid := os.get_pid()
 	stdout_path: string
 	stderr_path: string
@@ -396,12 +436,14 @@ run_command_prefixed :: proc(command: []string, prefix: string, cwd: string = ""
 	}
 	defer os.close(stderr_f)
 
-	start_proc, start_err := os.process_start(os.Process_Desc{
-		working_dir = cwd,
-		command = command,
-		stdout = stdout_f,
-		stderr = stderr_f,
-	})
+	start_proc, start_err := os.process_start(
+		os.Process_Desc {
+			working_dir = cwd,
+			command = command,
+			stdout = stdout_f,
+			stderr = stderr_f,
+		},
+	)
 	if start_err != nil {
 		os.remove(stdout_path)
 		os.remove(stderr_path)
@@ -436,7 +478,14 @@ run_command_prefixed :: proc(command: []string, prefix: string, cwd: string = ""
 	return
 }
 
-run_camp_project :: proc(project_dir: string, unique_prefix: string) -> (stdout: string, stderr: string, exit_code: int) {
+run_camp_project :: proc(
+	project_dir: string,
+	unique_prefix: string,
+) -> (
+	stdout: string,
+	stderr: string,
+	exit_code: int,
+) {
 	camp_env := os.get_env("CAMP_BIN", context.allocator)
 	camp_bin: string
 	if len(camp_env) > 0 {
@@ -447,7 +496,14 @@ run_camp_project :: proc(project_dir: string, unique_prefix: string) -> (stdout:
 	return run_command_prefixed({camp_bin, "build"}, unique_prefix, cwd = project_dir)
 }
 
-run_camp_build :: proc(camp_path: string, unique_prefix: string) -> (stdout: string, stderr: string, exit_code: int) {
+run_camp_build :: proc(
+	camp_path: string,
+	unique_prefix: string,
+) -> (
+	stdout: string,
+	stderr: string,
+	exit_code: int,
+) {
 	camp_env := os.get_env("CAMP_BIN", context.allocator)
 	camp_bin: string
 	if len(camp_env) > 0 {
@@ -467,9 +523,20 @@ resolve_wasmtime :: proc() -> string {
 	return "wasmtime"
 }
 
-run_wasmtime :: proc(wasm_path: string, unique_prefix: string) -> (stdout: string, stderr: string, exit_code: int, available: bool) {
+run_wasmtime :: proc(
+	wasm_path: string,
+	unique_prefix: string,
+) -> (
+	stdout: string,
+	stderr: string,
+	exit_code: int,
+	available: bool,
+) {
 	wasmtime_bin := resolve_wasmtime()
-	stdout, stderr, exit_code = run_command_prefixed({wasmtime_bin, "run", wasm_path}, unique_prefix)
+	stdout, stderr, exit_code = run_command_prefixed(
+		{wasmtime_bin, "run", wasm_path},
+		unique_prefix,
+	)
 	if exit_code == -1 && stderr == "process timed out after 10s" {
 		return "", "", 0, false
 	}
@@ -480,7 +547,15 @@ run_wasmtime :: proc(wasm_path: string, unique_prefix: string) -> (stdout: strin
 	return
 }
 
-run_special_command :: proc(args: string, tmp_base: string, unique_prefix: string) -> (stdout: string, stderr: string, exit_code: int) {
+run_special_command :: proc(
+	args: string,
+	tmp_base: string,
+	unique_prefix: string,
+) -> (
+	stdout: string,
+	stderr: string,
+	exit_code: int,
+) {
 	switch args {
 	case "no-args":
 		return run_command_prefixed({"./camp"}, fmt.tprintf("{}-noargs", unique_prefix))
@@ -497,10 +572,16 @@ run_special_command :: proc(args: string, tmp_base: string, unique_prefix: strin
 		if write_err != nil {
 			return "", fmt.tprintf("failed to write test file: {}", write_err), 1
 		}
-		return run_command_prefixed({"./camp", "build", txt_path}, fmt.tprintf("{}-non-camp", unique_prefix))
+		return run_command_prefixed(
+			{"./camp", "build", txt_path},
+			fmt.tprintf("{}-non-camp", unique_prefix),
+		)
 
 	case "build-missing":
-		return run_command_prefixed({"./camp", "build", "/nonexistent.camp"}, fmt.tprintf("{}-missing", unique_prefix))
+		return run_command_prefixed(
+			{"./camp", "build", "/nonexistent.camp"},
+			fmt.tprintf("{}-missing", unique_prefix),
+		)
 	}
 
 	return "", fmt.tprintf("unknown special args: {}", args), 1
@@ -513,13 +594,13 @@ write_string_diff :: proc(buf: ^strings.Builder, field: string, expected: string
 		actual_lines := strings.split(actual, "\n", context.allocator)
 
 		max_len := len(expected_lines)
-		if len(actual_lines) > max_len { max_len = len(actual_lines) }
+		if len(actual_lines) > max_len {max_len = len(actual_lines)}
 
-		for i in 0..<max_len {
+		for i in 0 ..< max_len {
 			e_line := ""
 			a_line := ""
-			if i < len(expected_lines) { e_line = expected_lines[i] }
-			if i < len(actual_lines) { a_line = actual_lines[i] }
+			if i < len(expected_lines) {e_line = expected_lines[i]}
+			if i < len(actual_lines) {a_line = actual_lines[i]}
 			if e_line != a_line {
 				fmt.sbprintf(buf, "    - {}\n", e_line)
 				fmt.sbprintf(buf, "    + {}\n", a_line)
@@ -530,7 +611,18 @@ write_string_diff :: proc(buf: ^strings.Builder, field: string, expected: string
 	}
 }
 
-write_update_file :: proc(path: string, stdout: string, stderr: string, exit: int, has_wasm: bool, wasm_stdout: string, wasm_stderr: string, wasm_exit: int, has_args: bool, args: string) {
+write_update_file :: proc(
+	path: string,
+	stdout: string,
+	stderr: string,
+	exit: int,
+	has_wasm: bool,
+	wasm_stdout: string,
+	wasm_stderr: string,
+	wasm_exit: int,
+	has_args: bool,
+	args: string,
+) {
 	dict: Toml_Dict
 	dict.entries = make([dynamic]Toml_Entry, 0, 8, context.allocator)
 
@@ -556,3 +648,4 @@ write_update_file :: proc(path: string, stdout: string, stderr: string, exit: in
 	content := strings.to_string(buf)
 	_ = os.write_entire_file_from_string(path, content)
 }
+

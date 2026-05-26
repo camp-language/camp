@@ -25,7 +25,7 @@ is_color_tty :: proc() -> bool {
 }
 
 Color_Scheme :: struct {
-	header_title:   string,
+	header_title:    string,
 	header_dash:     string,
 	file_path:       string,
 	primary_caret:   string,
@@ -41,7 +41,7 @@ color_scheme_for :: proc(category: Diagnostic_Category, use_color: bool) -> Colo
 	if !use_color do return no_color_scheme
 	switch category {
 	case .Error:
-		return Color_Scheme{
+		return Color_Scheme {
 			header_title = ANSI_BOLD_RED,
 			header_dash = ANSI_DIM,
 			file_path = ANSI_UNDERLINE,
@@ -52,7 +52,7 @@ color_scheme_for :: proc(category: Diagnostic_Category, use_color: bool) -> Colo
 			reset = ANSI_RESET,
 		}
 	case .Warning:
-		return Color_Scheme{
+		return Color_Scheme {
 			header_title = ANSI_BOLD_YELLOW,
 			header_dash = ANSI_DIM,
 			file_path = ANSI_UNDERLINE,
@@ -63,7 +63,7 @@ color_scheme_for :: proc(category: Diagnostic_Category, use_color: bool) -> Colo
 			reset = ANSI_RESET,
 		}
 	case .Internal:
-		return Color_Scheme{
+		return Color_Scheme {
 			header_title = ANSI_BOLD_MAGENTA,
 			header_dash = ANSI_DIM,
 			file_path = ANSI_UNDERLINE,
@@ -141,7 +141,7 @@ render_header :: proc(code: string, title: string, file_path: string, colors: Co
 	if dash_count < 3 do dash_count = 3
 
 	strings.write_rune(&builder, ' ')
-	for i in 0..<dash_count {
+	for i in 0 ..< dash_count {
 		strings.write_rune(&builder, '-')
 	}
 	strings.write_rune(&builder, ' ')
@@ -155,8 +155,8 @@ render_header :: proc(code: string, title: string, file_path: string, colors: Co
 diag_span_to_line_col :: proc(source: string, span: base.Source_Span) -> (int, int) {
 	line := 1
 	col := 1
-	for i in 0..<span.start {
-		if i >= len(source) { break }
+	for i in 0 ..< span.start {
+		if i >= len(source) {break}
 		if source[i] == '\n' {
 			line += 1
 			col = 1
@@ -171,7 +171,7 @@ get_source_line :: proc(source: string, line_num: int) -> string {
 	current_line := 1
 	line_start := 0
 	found := false
-	for i in 0..<len(source) {
+	for i in 0 ..< len(source) {
 		if current_line == line_num {
 			line_start = i
 			found = true
@@ -189,7 +189,14 @@ get_source_line :: proc(source: string, line_num: int) -> string {
 	return source[line_start:end]
 }
 
-render_snippet :: proc(source: string, span: base.Source_Span, marker: string, label: string, colors: Color_Scheme, marker_color: string) {
+render_snippet :: proc(
+	source: string,
+	span: base.Source_Span,
+	marker: string,
+	label: string,
+	colors: Color_Scheme,
+	marker_color: string,
+) {
 	line, col := diag_span_to_line_col(source, span)
 	line_text := get_source_line(source, line)
 
@@ -200,7 +207,7 @@ render_snippet :: proc(source: string, span: base.Source_Span, marker: string, l
 	line_num_str := fmt.tprintf("{}", line)
 	padding := gutter_width - len(line_num_str)
 	fmt.print(colors.line_number)
-	for i in 0..<padding {
+	for i in 0 ..< padding {
 		fmt.print(" ")
 	}
 	fmt.print(line_num_str)
@@ -213,7 +220,7 @@ render_snippet :: proc(source: string, span: base.Source_Span, marker: string, l
 
 	fmt.print(char_repeat(" ", gutter_width + 3 + col - 1))
 	fmt.print(marker_color)
-	for i in 0..<span_len {
+	for i in 0 ..< span_len {
 		fmt.print(marker)
 	}
 	if len(label) > 0 {
@@ -226,7 +233,7 @@ render_snippet :: proc(source: string, span: base.Source_Span, marker: string, l
 char_repeat :: proc(s: string, count: int) -> string {
 	if count <= 0 do return ""
 	result := make([]u8, count)
-	for i in 0..<count {
+	for i in 0 ..< count {
 		result[i] = s[0]
 	}
 	return string(result)
@@ -239,7 +246,7 @@ word_wrap :: proc(text: string, width: int) -> string {
 
 	line_len := 0
 	word_start := 0
-	for i in 0..<len(text) + 1 {
+	for i in 0 ..< len(text) + 1 {
 		if i == len(text) || text[i] == ' ' {
 			word := text[word_start:i]
 			if line_len + len(word) + 1 > width && line_len > 0 {
@@ -257,3 +264,4 @@ word_wrap :: proc(text: string, width: int) -> string {
 
 	return strings.to_string(builder)
 }
+

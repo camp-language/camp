@@ -4,7 +4,7 @@ import "core:testing"
 
 EXPECTED_STDLIB_MODULE_COUNT :: 43
 
-ALL_MODULE_NAMES :: []string{
+ALL_MODULE_NAMES :: []string {
 	"Result",
 	"Bool",
 	"Str",
@@ -64,8 +64,13 @@ _contains :: proc(s, substr: string) -> bool {
 
 @(test)
 test_stdlib_modules_count :: proc(t: ^testing.T) {
-	testing.expectf(t, len(STDLIB_MODULES) == EXPECTED_STDLIB_MODULE_COUNT,
-		"expected %d stdlib modules, got %d", EXPECTED_STDLIB_MODULE_COUNT, len(STDLIB_MODULES))
+	testing.expectf(
+		t,
+		len(STDLIB_MODULES) == EXPECTED_STDLIB_MODULE_COUNT,
+		"expected %d stdlib modules, got %d",
+		EXPECTED_STDLIB_MODULE_COUNT,
+		len(STDLIB_MODULES),
+	)
 }
 
 @(test)
@@ -74,8 +79,12 @@ test_stdlib_lookup_known_modules :: proc(t: ^testing.T) {
 		mod, ok := stdlib_lookup(name)
 		testing.expectf(t, ok, "stdlib_lookup(%q) should return true", name)
 		if ok {
-			testing.expectf(t, len(mod.source) > 0,
-				"stdlib_lookup(%q).source should be non-empty", name)
+			testing.expectf(
+				t,
+				len(mod.source) > 0,
+				"stdlib_lookup(%q).source should be non-empty",
+				name,
+			)
 		}
 	}
 }
@@ -89,8 +98,7 @@ test_stdlib_lookup_unknown_module :: proc(t: ^testing.T) {
 @(test)
 test_stdlib_is_module_known :: proc(t: ^testing.T) {
 	for name in ALL_MODULE_NAMES {
-		testing.expectf(t, stdlib_is_module(name),
-			"stdlib_is_module(%q) should return true", name)
+		testing.expectf(t, stdlib_is_module(name), "stdlib_is_module(%q) should return true", name)
 	}
 }
 
@@ -114,16 +122,14 @@ test_stdlib_modules_unique_names :: proc(t: ^testing.T) {
 @(test)
 test_stdlib_modules_nonempty_source :: proc(t: ^testing.T) {
 	for mod in STDLIB_MODULES {
-		testing.expectf(t, len(mod.source) > 0,
-			"module %q has empty source", mod.name)
+		testing.expectf(t, len(mod.source) > 0, "module %q has empty source", mod.name)
 	}
 }
 
 @(test)
 test_stdlib_modules_nonempty_path :: proc(t: ^testing.T) {
 	for mod in STDLIB_MODULES {
-		testing.expectf(t, len(mod.path) > 0,
-			"module %q has empty path", mod.name)
+		testing.expectf(t, len(mod.path) > 0, "module %q has empty path", mod.name)
 	}
 }
 
@@ -132,10 +138,20 @@ test_stdlib_modules_path_format :: proc(t: ^testing.T) {
 	for mod in STDLIB_MODULES {
 		has_prefix := len(mod.path) >= 7 && mod.path[:7] == "stdlib/"
 		has_suffix := len(mod.path) >= 5 && mod.path[len(mod.path) - 5:] == ".camp"
-		testing.expectf(t, has_prefix,
-			"module %q path %q should start with \"stdlib/\"", mod.name, mod.path)
-		testing.expectf(t, has_suffix,
-			"module %q path %q should end with \".camp\"", mod.name, mod.path)
+		testing.expectf(
+			t,
+			has_prefix,
+			"module %q path %q should start with \"stdlib/\"",
+			mod.name,
+			mod.path,
+		)
+		testing.expectf(
+			t,
+			has_suffix,
+			"module %q path %q should end with \".camp\"",
+			mod.name,
+			mod.path,
+		)
 	}
 }
 
@@ -143,22 +159,28 @@ test_stdlib_modules_path_format :: proc(t: ^testing.T) {
 test_stdlib_lookup_result_source :: proc(t: ^testing.T) {
 	mod, ok := stdlib_lookup("Result")
 	testing.expect(t, ok)
-	testing.expectf(t, _contains(mod.source, "@Result(a, e): pub [Ok(a) | Err(e)]"),
-		"Result source should contain @Result annotation")
+	testing.expectf(
+		t,
+		_contains(mod.source, "@Result(a, e): pub [Ok(a) | Err(e)]"),
+		"Result source should contain @Result annotation",
+	)
 }
 
 @(test)
 test_stdlib_lookup_bool_source :: proc(t: ^testing.T) {
 	mod, ok := stdlib_lookup("Bool")
 	testing.expect(t, ok)
-	testing.expectf(t, _contains(mod.source, "pub not"),
-		"Bool source should contain \"pub not\"")
+	testing.expectf(t, _contains(mod.source, "pub not"), "Bool source should contain \"pub not\"")
 }
 
 @(test)
 test_stdlib_lookup_random_source :: proc(t: ^testing.T) {
 	mod, ok := stdlib_lookup("Random")
 	testing.expect(t, ok)
-	testing.expectf(t, _contains(mod.source, "effect Random!"),
-		"Random source should contain \"effect Random!\"")
+	testing.expectf(
+		t,
+		_contains(mod.source, "effect Random!"),
+		"Random source should contain \"effect Random!\"",
+	)
 }
+

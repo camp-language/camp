@@ -1,5 +1,6 @@
 camp
 camp-*
+build
 *.bin
 tree-sitter/node_modules/
 tree-sitter/build/

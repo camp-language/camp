@@ -1,7 +1,7 @@
 package format
 
-import "core:strings"
 import "camp:base"
+import "core:strings"
 
 Comment_Info :: struct {
 	text:   string,
@@ -137,13 +137,16 @@ collect_comments :: proc(source: string) -> [dynamic]Comment_Found {
 			comment_text := strings.trim_space(source[comment_start:i])
 			comment_end := i
 
-			append(&comments, Comment_Found{
-				text = comment_text,
-				start = start,
-				end = comment_end,
-				line = current_line,
-				is_doc = is_doc,
-			})
+			append(
+				&comments,
+				Comment_Found {
+					text = comment_text,
+					start = start,
+					end = comment_end,
+					line = current_line,
+					is_doc = is_doc,
+				},
+			)
 		} else {
 			i += 1
 		}
@@ -195,7 +198,7 @@ source_text_analysis :: proc(source: string, tokens: []base.Token, info: ^Format
 
 				if comment_line == prev_line {
 					// Comment is on the same line as the previous token → trailing
-					ci := Comment_Info{
+					ci := Comment_Info {
 						text = comment.text,
 						span = base.Source_Span{start = comment.start, end = comment.end},
 						is_doc = comment.is_doc,
@@ -205,33 +208,33 @@ source_text_analysis :: proc(source: string, tokens: []base.Token, info: ^Format
 					// Comment is on its own line before the next token
 					next := tokens[next_token_idx]
 					if next.kind == .Eof do continue
-					ci := Comment_Info{
+					ci := Comment_Info {
 						text = comment.text,
 						span = base.Source_Span{start = comment.start, end = comment.end},
 						is_doc = comment.is_doc,
 					}
+					existing := info.comments_before[next.span.start]
+					new_slice := make([]Comment_Info, len(existing) + 1)
+					copy(new_slice, existing)
+					new_slice[len(existing)] = ci
+					delete(existing)
+					info.comments_before[next.span.start] = new_slice
+				}
+			} else if next_token_idx >= 0 {
+				// No previous token → comment before the first token
+				next := tokens[next_token_idx]
+				if next.kind == .Eof do continue
+				ci := Comment_Info {
+					text = comment.text,
+					span = base.Source_Span{start = comment.start, end = comment.end},
+					is_doc = comment.is_doc,
+				}
 				existing := info.comments_before[next.span.start]
 				new_slice := make([]Comment_Info, len(existing) + 1)
 				copy(new_slice, existing)
 				new_slice[len(existing)] = ci
 				delete(existing)
 				info.comments_before[next.span.start] = new_slice
-			}
-		} else if next_token_idx >= 0 {
-			// No previous token → comment before the first token
-			next := tokens[next_token_idx]
-			if next.kind == .Eof do continue
-			ci := Comment_Info{
-				text = comment.text,
-				span = base.Source_Span{start = comment.start, end = comment.end},
-				is_doc = comment.is_doc,
-			}
-			existing := info.comments_before[next.span.start]
-			new_slice := make([]Comment_Info, len(existing) + 1)
-			copy(new_slice, existing)
-			new_slice[len(existing)] = ci
-			delete(existing)
-			info.comments_before[next.span.start] = new_slice
 			}
 		}
 	}
@@ -307,3 +310,4 @@ has_backslash_in_gap :: proc(gap: string) -> bool {
 	}
 	return false
 }
+

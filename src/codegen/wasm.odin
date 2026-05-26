@@ -51,10 +51,10 @@ Wasm_Import :: struct {
 }
 
 Wasm_External_Kind :: enum u8 {
-	Func    = 0,
-	Table   = 1,
-	Memory  = 2,
-	Global  = 3,
+	Func   = 0,
+	Table  = 1,
+	Memory = 2,
+	Global = 3,
 }
 
 Wasm_Table :: struct {
@@ -105,15 +105,33 @@ Wasm_Data :: struct {
 	bytes:   []u8,
 }
 
-Wasm_I32_Const :: struct { value: i32 }
-Wasm_I64_Const :: struct { value: i64 }
-Wasm_F32_Const :: struct { value: f32 }
-Wasm_F64_Const :: struct { value: f64 }
-Wasm_Local_Get :: struct { index: u32 }
-Wasm_Local_Set :: struct { index: u32 }
-Wasm_Local_Tee :: struct { index: u32 }
-Wasm_Global_Get :: struct { index: u32 }
-Wasm_Global_Set :: struct { index: u32 }
+Wasm_I32_Const :: struct {
+	value: i32,
+}
+Wasm_I64_Const :: struct {
+	value: i64,
+}
+Wasm_F32_Const :: struct {
+	value: f32,
+}
+Wasm_F64_Const :: struct {
+	value: f64,
+}
+Wasm_Local_Get :: struct {
+	index: u32,
+}
+Wasm_Local_Set :: struct {
+	index: u32,
+}
+Wasm_Local_Tee :: struct {
+	index: u32,
+}
+Wasm_Global_Get :: struct {
+	index: u32,
+}
+Wasm_Global_Set :: struct {
+	index: u32,
+}
 Wasm_I32_Add :: struct {}
 Wasm_I64_Add :: struct {}
 Wasm_I32_Sub :: struct {}
@@ -157,38 +175,89 @@ Wasm_I64_Div_S :: struct {}
 Wasm_I64_Div_U :: struct {}
 Wasm_I64_Rem_S :: struct {}
 Wasm_I64_Rem_U :: struct {}
-Wasm_Call :: struct { index: u32 }
-Wasm_Call_Indirect :: struct { type_idx: u32, table_idx: u32 }
-Wasm_Return_Call :: struct { index: u32 }
-Wasm_Return_Call_Indirect :: struct { type_idx: u32, table_idx: u32 }
-Wasm_Br :: struct { label: u32 }
-Wasm_Br_If :: struct { label: u32 }
-Wasm_BrTable :: struct { targets: []u32, default_idx: u32 }
+Wasm_Call :: struct {
+	index: u32,
+}
+Wasm_Call_Indirect :: struct {
+	type_idx:  u32,
+	table_idx: u32,
+}
+Wasm_Return_Call :: struct {
+	index: u32,
+}
+Wasm_Return_Call_Indirect :: struct {
+	type_idx:  u32,
+	table_idx: u32,
+}
+Wasm_Br :: struct {
+	label: u32,
+}
+Wasm_Br_If :: struct {
+	label: u32,
+}
+Wasm_BrTable :: struct {
+	targets:     []u32,
+	default_idx: u32,
+}
 Wasm_Return :: struct {}
 Wasm_Drop :: struct {}
 Wasm_Select :: struct {}
-Wasm_I32_Load :: struct { align: u32, offset: u32 }
-Wasm_I32_Load8U :: struct { align: u32, offset: u32 }
-Wasm_I64_Load :: struct { align: u32, offset: u32 }
-Wasm_I32_Store :: struct { align: u32, offset: u32 }
-Wasm_I32_Store8 :: struct { align: u32, offset: u32 }
-Wasm_I64_Store :: struct { align: u32, offset: u32 }
+Wasm_I32_Load :: struct {
+	align:  u32,
+	offset: u32,
+}
+Wasm_I32_Load8U :: struct {
+	align:  u32,
+	offset: u32,
+}
+Wasm_I64_Load :: struct {
+	align:  u32,
+	offset: u32,
+}
+Wasm_I32_Store :: struct {
+	align:  u32,
+	offset: u32,
+}
+Wasm_I32_Store8 :: struct {
+	align:  u32,
+	offset: u32,
+}
+Wasm_I64_Store :: struct {
+	align:  u32,
+	offset: u32,
+}
 Wasm_Memory_Copy :: struct {}
-Wasm_F64_Store :: struct { align: u32, offset: u32 }
-Wasm_F64_Load :: struct { align: u32, offset: u32 }
+Wasm_F64_Store :: struct {
+	align:  u32,
+	offset: u32,
+}
+Wasm_F64_Load :: struct {
+	align:  u32,
+	offset: u32,
+}
 Wasm_Memory_Size :: struct {}
 Wasm_Memory_Grow :: struct {}
-Wasm_Block :: struct { block_type: Wasm_Block_Type }
-Wasm_Loop :: struct { block_type: Wasm_Block_Type }
-Wasm_If :: struct { block_type: Wasm_Block_Type }
+Wasm_Block :: struct {
+	block_type: Wasm_Block_Type,
+}
+Wasm_Loop :: struct {
+	block_type: Wasm_Block_Type,
+}
+Wasm_If :: struct {
+	block_type: Wasm_Block_Type,
+}
 Wasm_Else :: struct {}
 Wasm_End :: struct {}
 Wasm_Nop :: struct {}
 Wasm_Unreachable :: struct {}
 Wasm_I32_Wrap_I64 :: struct {}
 Wasm_I64_Extend_I32_S :: struct {}
-Wasm_Ref_Null :: struct { heap_type: u8 }
-Wasm_Ref_Func :: struct { index: u32 }
+Wasm_Ref_Null :: struct {
+	heap_type: u8,
+}
+Wasm_Ref_Func :: struct {
+	index: u32,
+}
 Wasm_Atomic_Fence :: struct {}
 
 Wasm_Atomic_Op :: enum {
@@ -228,28 +297,47 @@ ATOMIC_PREFIX :: u8(0xFE)
 atomic_opcode :: proc(op: Wasm_Atomic_Op, width: Wasm_Atomic_Width) -> u8 {
 	base := u8(0)
 	switch op {
-	case .Load:       base = 0x10
-	case .Store:      base = 0x17
-	case .RMW_Add:    base = 0x1E
-	case .RMW_Sub:    base = 0x25
-	case .RMW_And:    base = 0x2C
-	case .RMW_Or:     base = 0x33
-	case .RMW_Xor:    base = 0x3A
-	case .RMW_Xchg:   base = 0x41
-	case .RMW_CmpXchg: base = 0x48
-	case .Notify:     return 0x00
-	case .Wait32:     return 0x01
-	case .Wait64:     return 0x02
+	case .Load:
+		base = 0x10
+	case .Store:
+		base = 0x17
+	case .RMW_Add:
+		base = 0x1E
+	case .RMW_Sub:
+		base = 0x25
+	case .RMW_And:
+		base = 0x2C
+	case .RMW_Or:
+		base = 0x33
+	case .RMW_Xor:
+		base = 0x3A
+	case .RMW_Xchg:
+		base = 0x41
+	case .RMW_CmpXchg:
+		base = 0x48
+	case .Notify:
+		return 0x00
+	case .Wait32:
+		return 0x01
+	case .Wait64:
+		return 0x02
 	}
 	offset := u8(0)
 	switch width {
-	case .I32:    offset = 0
-	case .I64:    offset = 1
-	case .I32_8:  offset = 2
-	case .I32_16: offset = 3
-	case .I64_8:  offset = 4
-	case .I64_16: offset = 5
-	case .I64_32: offset = 6
+	case .I32:
+		offset = 0
+	case .I64:
+		offset = 1
+	case .I32_8:
+		offset = 2
+	case .I32_16:
+		offset = 3
+	case .I64_8:
+		offset = 4
+	case .I64_16:
+		offset = 5
+	case .I64_32:
+		offset = 6
 	}
 	return base + offset
 }
@@ -656,7 +744,12 @@ wasm_encode_section_raw :: proc(id: u8, content: []u8, buf: ^[dynamic]u8) {
 	}
 }
 
-wasm_encode_section :: proc(section_id: u8, buf: ^[dynamic]u8, body: proc(mod: Wasm_Module, content: ^[dynamic]u8), mod: Wasm_Module) {
+wasm_encode_section :: proc(
+	section_id: u8,
+	buf: ^[dynamic]u8,
+	body: proc(mod: Wasm_Module, content: ^[dynamic]u8),
+	mod: Wasm_Module,
+) {
 	content: [dynamic]u8
 	body(mod, &content)
 	wasm_encode_section_raw(section_id, content[:], buf)
@@ -678,190 +771,195 @@ wasm_serialize :: proc(mod: Wasm_Module) -> []u8 {
 
 	if len(mod.types) > 0 {
 		wasm_encode_section(1, &buf, proc(mod: Wasm_Module, content: ^[dynamic]u8) {
-			encode_u32_leb128(u32(len(mod.types)), content)
-			for ft in mod.types {
-				append(content, 0x60)
-				encode_u32_leb128(u32(len(ft.params)), content)
-				for p in ft.params {
-					append(content, u8(p))
+				encode_u32_leb128(u32(len(mod.types)), content)
+				for ft in mod.types {
+					append(content, 0x60)
+					encode_u32_leb128(u32(len(ft.params)), content)
+					for p in ft.params {
+						append(content, u8(p))
+					}
+					encode_u32_leb128(u32(len(ft.results)), content)
+					for r in ft.results {
+						append(content, u8(r))
+					}
 				}
-				encode_u32_leb128(u32(len(ft.results)), content)
-				for r in ft.results {
-					append(content, u8(r))
-				}
-			}
-		}, mod)
+			}, mod)
 	}
 
 	if len(mod.imports) > 0 {
 		wasm_encode_section(2, &buf, proc(mod: Wasm_Module, content: ^[dynamic]u8) {
-			encode_u32_leb128(u32(len(mod.imports)), content)
-			for imp in mod.imports {
-				wasm_encode_string(imp.module, content)
-				wasm_encode_string(imp.field, content)
-				append(content, u8(imp.kind))
-				switch imp.kind {
-				case .Func:
-					encode_u32_leb128(u32(imp.index), content)
-				case .Table:
-					append(content, u8(Wasm_Value_Type.Funcref))
-					if imp.index >= 0 {
-						append(content, 1)
-						encode_u32_leb128(0, content)
+				encode_u32_leb128(u32(len(mod.imports)), content)
+				for imp in mod.imports {
+					wasm_encode_string(imp.module, content)
+					wasm_encode_string(imp.field, content)
+					append(content, u8(imp.kind))
+					switch imp.kind {
+					case .Func:
 						encode_u32_leb128(u32(imp.index), content)
-					} else {
+					case .Table:
+						append(content, u8(Wasm_Value_Type.Funcref))
+						if imp.index >= 0 {
+							append(content, 1)
+							encode_u32_leb128(0, content)
+							encode_u32_leb128(u32(imp.index), content)
+						} else {
+							append(content, 0)
+							encode_u32_leb128(0, content)
+						}
+					case .Memory:
 						append(content, 0)
-						encode_u32_leb128(0, content)
+						encode_u32_leb128(1, content)
+					case .Global:
+						append(content, u8(Wasm_Value_Type.I32))
+						append(content, 0)
 					}
-				case .Memory:
-					append(content, 0)
-					encode_u32_leb128(1, content)
-				case .Global:
-					append(content, u8(Wasm_Value_Type.I32))
-					append(content, 0)
 				}
-			}
-		}, mod)
+			}, mod)
 	}
 
 	if len(mod.functions) > 0 {
 		wasm_encode_section(3, &buf, proc(mod: Wasm_Module, content: ^[dynamic]u8) {
-			encode_u32_leb128(u32(len(mod.functions)), content)
-			for idx in mod.functions {
-				encode_u32_leb128(u32(idx), content)
-			}
-		}, mod)
+				encode_u32_leb128(u32(len(mod.functions)), content)
+				for idx in mod.functions {
+					encode_u32_leb128(u32(idx), content)
+				}
+			}, mod)
 	}
 
 	if len(mod.tables) > 0 {
 		wasm_encode_section(4, &buf, proc(mod: Wasm_Module, content: ^[dynamic]u8) {
-			encode_u32_leb128(u32(len(mod.tables)), content)
-			for tbl in mod.tables {
-				append(content, u8(tbl.elem_type))
-				if tbl.has_max {
-					append(content, 1)
-					encode_u32_leb128(tbl.min, content)
-					encode_u32_leb128(tbl.max, content)
-				} else {
-					append(content, 0)
-					encode_u32_leb128(tbl.min, content)
+				encode_u32_leb128(u32(len(mod.tables)), content)
+				for tbl in mod.tables {
+					append(content, u8(tbl.elem_type))
+					if tbl.has_max {
+						append(content, 1)
+						encode_u32_leb128(tbl.min, content)
+						encode_u32_leb128(tbl.max, content)
+					} else {
+						append(content, 0)
+						encode_u32_leb128(tbl.min, content)
+					}
 				}
-			}
-		}, mod)
+			}, mod)
 	}
 
 	if len(mod.memories) > 0 {
-		wasm_encode_section(5, &buf, proc(mod: Wasm_Module, content: ^[dynamic]u8) {
-			encode_u32_leb128(u32(len(mod.memories)), content)
-			for mem in mod.memories {
-				if mem.has_max && mem.shared {
-					append(content, 3) // shared + has_max
-					encode_u32_leb128(mem.min, content)
-					encode_u32_leb128(mem.max, content)
-				} else if mem.has_max {
-					append(content, 1)
-					encode_u32_leb128(mem.min, content)
-					encode_u32_leb128(mem.max, content)
-				} else {
-					append(content, 0)
-					encode_u32_leb128(mem.min, content)
+		wasm_encode_section(
+			5,
+			&buf,
+			proc(mod: Wasm_Module, content: ^[dynamic]u8) {
+				encode_u32_leb128(u32(len(mod.memories)), content)
+				for mem in mod.memories {
+					if mem.has_max && mem.shared {
+						append(content, 3) // shared + has_max
+						encode_u32_leb128(mem.min, content)
+						encode_u32_leb128(mem.max, content)
+					} else if mem.has_max {
+						append(content, 1)
+						encode_u32_leb128(mem.min, content)
+						encode_u32_leb128(mem.max, content)
+					} else {
+						append(content, 0)
+						encode_u32_leb128(mem.min, content)
+					}
 				}
-			}
-		}, mod)
+			},
+			mod,
+		)
 	}
 
 	if len(mod.globals) > 0 {
 		wasm_encode_section(6, &buf, proc(mod: Wasm_Module, content: ^[dynamic]u8) {
-			encode_u32_leb128(u32(len(mod.globals)), content)
-			for g in mod.globals {
-				append(content, u8(g.type))
-				if g.mutable {
-					append(content, 1)
-				} else {
-					append(content, 0)
+				encode_u32_leb128(u32(len(mod.globals)), content)
+				for g in mod.globals {
+					append(content, u8(g.type))
+					if g.mutable {
+						append(content, 1)
+					} else {
+						append(content, 0)
+					}
+					for b in g.init {
+						append(content, b)
+					}
+					append(content, 0x0B)
 				}
-				for b in g.init {
-					append(content, b)
-				}
-				append(content, 0x0B)
-			}
-		}, mod)
+			}, mod)
 	}
 
 	if len(mod.exports) > 0 {
 		wasm_encode_section(7, &buf, proc(mod: Wasm_Module, content: ^[dynamic]u8) {
-			encode_u32_leb128(u32(len(mod.exports)), content)
-			for exp in mod.exports {
-				wasm_encode_string(exp.name, content)
-				append(content, u8(exp.kind))
-				encode_u32_leb128(u32(exp.index), content)
-			}
-		}, mod)
+				encode_u32_leb128(u32(len(mod.exports)), content)
+				for exp in mod.exports {
+					wasm_encode_string(exp.name, content)
+					append(content, u8(exp.kind))
+					encode_u32_leb128(u32(exp.index), content)
+				}
+			}, mod)
 	}
 
 	if mod.start >= 0 {
 		wasm_encode_section(8, &buf, proc(mod: Wasm_Module, content: ^[dynamic]u8) {
-			encode_u32_leb128(u32(mod.start), content)
-		}, mod)
+				encode_u32_leb128(u32(mod.start), content)
+			}, mod)
 	}
 
 	if len(mod.elements) > 0 {
 		wasm_encode_section(9, &buf, proc(mod: Wasm_Module, content: ^[dynamic]u8) {
-			encode_u32_leb128(u32(len(mod.elements)), content)
-			for elem in mod.elements {
-				encode_u32_leb128(u32(elem.table_idx), content)
-				for b in elem.offset {
-					append(content, b)
+				encode_u32_leb128(u32(len(mod.elements)), content)
+				for elem in mod.elements {
+					encode_u32_leb128(u32(elem.table_idx), content)
+					for b in elem.offset {
+						append(content, b)
+					}
+					append(content, 0x0B)
+					encode_u32_leb128(u32(len(elem.func_idxs)), content)
+					for idx in elem.func_idxs {
+						encode_u32_leb128(u32(idx), content)
+					}
 				}
-				append(content, 0x0B)
-				encode_u32_leb128(u32(len(elem.func_idxs)), content)
-				for idx in elem.func_idxs {
-					encode_u32_leb128(u32(idx), content)
-				}
-			}
-		}, mod)
+			}, mod)
 	}
 
 	if len(mod.codes) > 0 {
 		wasm_encode_section(10, &buf, proc(mod: Wasm_Module, content: ^[dynamic]u8) {
-			encode_u32_leb128(u32(len(mod.codes)), content)
-			for code in mod.codes {
-				body_buf: [dynamic]u8
-				body_buf = make([dynamic]u8, 0, CODE_BUF_XL)
+				encode_u32_leb128(u32(len(mod.codes)), content)
+				for code in mod.codes {
+					body_buf: [dynamic]u8
+					body_buf = make([dynamic]u8, 0, CODE_BUF_XL)
 
-				encode_u32_leb128(u32(len(code.locals)), &body_buf)
-				for loc in code.locals {
-					encode_u32_leb128(loc.count, &body_buf)
-					append(&body_buf, u8(loc.type))
-				}
-				for b in code.body {
-					append(&body_buf, b)
-				}
+					encode_u32_leb128(u32(len(code.locals)), &body_buf)
+					for loc in code.locals {
+						encode_u32_leb128(loc.count, &body_buf)
+						append(&body_buf, u8(loc.type))
+					}
+					for b in code.body {
+						append(&body_buf, b)
+					}
 
-				encode_u32_leb128(u32(len(body_buf)), content)
-				for b in body_buf {
-					append(content, b)
+					encode_u32_leb128(u32(len(body_buf)), content)
+					for b in body_buf {
+						append(content, b)
+					}
+					delete(body_buf)
 				}
-				delete(body_buf)
-			}
-		}, mod)
+			}, mod)
 	}
 
 	if len(mod.datas) > 0 {
 		wasm_encode_section(11, &buf, proc(mod: Wasm_Module, content: ^[dynamic]u8) {
-			encode_u32_leb128(u32(len(mod.datas)), content)
-			for d in mod.datas {
-				encode_u32_leb128(u32(d.mem_idx), content)
-				for b in d.offset {
-					append(content, b)
+				encode_u32_leb128(u32(len(mod.datas)), content)
+				for d in mod.datas {
+					encode_u32_leb128(u32(d.mem_idx), content)
+					for b in d.offset {
+						append(content, b)
+					}
+					append(content, 0x0B)
+					encode_u32_leb128(u32(len(d.bytes)), content)
+					for b in d.bytes {
+						append(content, b)
+					}
 				}
-				append(content, 0x0B)
-				encode_u32_leb128(u32(len(d.bytes)), content)
-				for b in d.bytes {
-					append(content, b)
-				}
-			}
-		}, mod)
+			}, mod)
 	}
 
 	result := buf[:]
@@ -871,23 +969,35 @@ wasm_serialize :: proc(mod: Wasm_Module) -> []u8 {
 
 ir_wasm_type_to_value_type :: proc(t: base.IR_Wasm_Type) -> Wasm_Value_Type {
 	switch t {
-	case .I32: return .I32
-	case .I64: return .I64
-	case .F32: return .F32
-	case .F64: return .F64
-	case .Funcref: return .Funcref
-	case .Void: return .I64
+	case .I32:
+		return .I32
+	case .I64:
+		return .I64
+	case .F32:
+		return .F32
+	case .F64:
+		return .F64
+	case .Funcref:
+		return .Funcref
+	case .Void:
+		return .I64
 	}
 	return .I32
 }
 
 ir_wasm_type_to_block_type :: proc(t: base.IR_Wasm_Type) -> Wasm_Block_Type {
 	switch t {
-	case .I32: return .I32
-	case .I64: return .I64
-	case .F32: return .F32
-	case .F64: return .F64
-	case .Funcref, .Void: return .Void
+	case .I32:
+		return .I32
+	case .I64:
+		return .I64
+	case .F32:
+		return .F32
+	case .F64:
+		return .F64
+	case .Funcref, .Void:
+		return .Void
 	}
 	return .Void
 }
+

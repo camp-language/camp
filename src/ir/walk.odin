@@ -117,7 +117,7 @@ walk_expr_children :: proc(expr: IR_Expr, visitor: proc(expr: IR_Expr, ctx: rawp
 	     ^IR_Dup,
 	     ^IR_Drop,
 	     ^IR_Atomic_Fence:
-		// no children
+	// no children
 	}
 }
 
@@ -133,6 +133,7 @@ walk_decl_children :: proc(decl: IR_Decl, visitor: proc(expr: IR_Expr, ctx: rawp
 		visitor(d.value, ctx)
 	// IR_Decl_Effect has no expression children
 	case ^IR_Decl_Effect:
-		// no children
+	// no children
 	}
 }
+

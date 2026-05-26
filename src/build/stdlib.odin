@@ -1554,6 +1554,15 @@ Default(a) : {
   default : a,
 }`
 
+CLONE_CAMP :: `-- Clone trait -- shallow copy
+-- Perceus RC makes values implicitly shared; Clone provides explicit copying
+-- when a distinct instance is needed (e.g., mutable operations on a value
+-- that would otherwise be shared).
+
+Clone(a) : {
+  clone : a -> a,
+}`
+
 INTO_ITER_CAMP :: `-- IntoIter trait -- convert a collection into an iterator
 
 IntoIter(a) : {
@@ -2145,7 +2154,7 @@ pub splitn = |_r, _s, _n| crash "intrinsic: Regex.splitn"
 pub escape : Str -> Str                          -- escape regex metacharacters
 pub escape = |_s| crash "intrinsic: Regex.escape"  -- TODO: pure Camp implementation`
 
-STDLIB_MODULES: []Stdlib_Module = []Stdlib_Module{
+STDLIB_MODULES: []Stdlib_Module = []Stdlib_Module {
 	{"Result", RESULT_CAMP, "stdlib/Result.camp"},
 	{"Bool", BOOL_CAMP, "stdlib/Bool.camp"},
 	{"Str", STR_CAMP, "stdlib/Str.camp"},
@@ -2170,6 +2179,7 @@ STDLIB_MODULES: []Stdlib_Module = []Stdlib_Module{
 	{"Hash", HASH_CAMP, "stdlib/Hash.camp"},
 	{"Debug", DEBUG_CAMP, "stdlib/Debug.camp"},
 	{"Default", DEFAULT_CAMP, "stdlib/Default.camp"},
+	{"Clone", CLONE_CAMP, "stdlib/Clone.camp"},
 	{"IntoIter", INTO_ITER_CAMP, "stdlib/IntoIter.camp"},
 	{"FromIter", FROM_ITER_CAMP, "stdlib/FromIter.camp"},
 	{"From", FROM_CAMP, "stdlib/From.camp"},
@@ -2204,3 +2214,4 @@ stdlib_is_module :: proc(name: string) -> bool {
 	_, ok := stdlib_lookup(name)
 	return ok
 }
+

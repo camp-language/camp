@@ -1,13 +1,18 @@
 package lsp
 
+import "camp:base"
+import "camp:diagnostics"
+import "camp:frontend"
+import "camp:semantics"
 import "core:mem"
 import "core:mem/virtual"
-import "camp:base"
-import "camp:frontend"
-import "camp:diagnostics"
-import "camp:semantics"
 
-analyze_document :: proc(text: string, file_path: string, uri: string, allocator: mem.Allocator) -> Document_Analysis {
+analyze_document :: proc(
+	text: string,
+	file_path: string,
+	uri: string,
+	allocator: mem.Allocator,
+) -> Document_Analysis {
 	result: Document_Analysis
 	result.diagnostics = make([dynamic]diagnostics.LSP_Diagnostic, 0, 16)
 	symbol_index_init(&result.symbols)
@@ -32,7 +37,11 @@ analyze_document :: proc(text: string, file_path: string, uri: string, allocator
 	defer diagnostics.diag_collector_destroy(&collector)
 
 	source := text
-	file_rec := base.Source_File{path = file_path, contents = source, id = 0}
+	file_rec := base.Source_File {
+		path     = file_path,
+		contents = source,
+		id       = 0,
+	}
 
 	lexer: frontend.Lexer
 	frontend.lexer_init(&lexer, file_rec, &collector, &itable)
@@ -48,7 +57,7 @@ analyze_document :: proc(text: string, file_path: string, uri: string, allocator
 		for d in collector.diagnostics {
 			lsp_diag := diagnostics.lsp_from_diagnostic(d, source, uri)
 			lsp_diag.message = clone_string(lsp_diag.message, allocator)
-			for i in 0..<len(lsp_diag.related) {
+			for i in 0 ..< len(lsp_diag.related) {
 				lsp_diag.related[i].message = clone_string(lsp_diag.related[i].message, allocator)
 			}
 			append(&result.diagnostics, lsp_diag)
@@ -73,7 +82,7 @@ analyze_document :: proc(text: string, file_path: string, uri: string, allocator
 	for d in collector.diagnostics {
 		lsp_diag := diagnostics.lsp_from_diagnostic(d, source, uri)
 		lsp_diag.message = clone_string(lsp_diag.message, allocator)
-		for i in 0..<len(lsp_diag.related) {
+		for i in 0 ..< len(lsp_diag.related) {
 			lsp_diag.related[i].message = clone_string(lsp_diag.related[i].message, allocator)
 		}
 		append(&result.diagnostics, lsp_diag)
@@ -89,3 +98,4 @@ analyze_document :: proc(text: string, file_path: string, uri: string, allocator
 
 	return result
 }
+

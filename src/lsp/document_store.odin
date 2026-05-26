@@ -1,10 +1,10 @@
 package lsp
 
-import "core:mem"
 import "camp:diagnostics"
+import "core:mem"
 
 Document_Analysis :: struct {
-	diagnostics: [dynamic]diagnostics.LSP_Diagnostic,
+	diagnostics:  [dynamic]diagnostics.LSP_Diagnostic,
 	symbols:      Symbol_Index,
 	parse_ok:     bool,
 	typecheck_ok: bool,
@@ -95,3 +95,4 @@ clone_string :: proc(s: string, allocator: mem.Allocator) -> string {
 	copy(buf, transmute([]u8)s)
 	return string(buf)
 }
+

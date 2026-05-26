@@ -4,10 +4,15 @@ import "core:fmt"
 import "core:strings"
 
 import "camp:base"
-import "camp:frontend"
 import "camp:diagnostics"
+import "camp:frontend"
 
-typecheck_pattern :: proc(pattern: CPattern, scrutinee_var: base.Type_Var_ID, env: ^Type_Env, store: ^Type_Store) -> Pat_Result {
+typecheck_pattern :: proc(
+	pattern: CPattern,
+	scrutinee_var: base.Type_Var_ID,
+	env: ^Type_Env,
+	store: ^Type_Store,
+) -> Pat_Result {
 	eff := fresh_effect_row(store, base.Source_Span_ZERO)
 
 	#partial switch p in pattern {
@@ -15,12 +20,17 @@ typecheck_pattern :: proc(pattern: CPattern, scrutinee_var: base.Type_Var_ID, en
 		check_shadow(env, p.name, store, p.span)
 		env.bindings[p.name] = scrutinee_var
 		tp := new(TPattern_Identifier)
-		tp^ = TPattern_Identifier{name = p.name, span = p.span}
+		tp^ = TPattern_Identifier {
+			name = p.name,
+			span = p.span,
+		}
 		return Pat_Result{var_id = scrutinee_var, effects = eff, tpat = TPattern(tp)}
 
 	case ^CPattern_Wildcard:
 		tp := new(TPattern_Wildcard)
-		tp^ = TPattern_Wildcard{span = p.span}
+		tp^ = TPattern_Wildcard {
+			span = p.span,
+		}
 		return Pat_Result{var_id = scrutinee_var, effects = eff, tpat = TPattern(tp)}
 
 	case ^CPattern_Bool:
@@ -28,7 +38,10 @@ typecheck_pattern :: proc(pattern: CPattern, scrutinee_var: base.Type_Var_ID, en
 		bool_var := make_primitive_type(store, bool_name, p.span)
 		unify(store, scrutinee_var, bool_var)
 		tp := new(TPattern_Bool)
-		tp^ = TPattern_Bool{value = p.value, span = p.span}
+		tp^ = TPattern_Bool {
+			value = p.value,
+			span  = p.span,
+		}
 		return Pat_Result{var_id = bool_var, effects = eff, tpat = TPattern(tp)}
 
 	case ^CPattern_Int:
@@ -36,7 +49,10 @@ typecheck_pattern :: proc(pattern: CPattern, scrutinee_var: base.Type_Var_ID, en
 		i64_var := make_primitive_type(store, i64_name, p.span)
 		unify(store, scrutinee_var, i64_var)
 		tp := new(TPattern_Int)
-		tp^ = TPattern_Int{value = p.value, span = p.span}
+		tp^ = TPattern_Int {
+			value = p.value,
+			span  = p.span,
+		}
 		return Pat_Result{var_id = i64_var, effects = eff, tpat = TPattern(tp)}
 
 	case ^CPattern_String:
@@ -44,7 +60,10 @@ typecheck_pattern :: proc(pattern: CPattern, scrutinee_var: base.Type_Var_ID, en
 		str_var := make_primitive_type(store, str_name, p.span)
 		unify(store, scrutinee_var, str_var)
 		tp := new(TPattern_String)
-		tp^ = TPattern_String{value = p.value, span = p.span}
+		tp^ = TPattern_String {
+			value = p.value,
+			span  = p.span,
+		}
 		return Pat_Result{var_id = str_var, effects = eff, tpat = TPattern(tp)}
 
 	case ^CPattern_Char:
@@ -52,7 +71,10 @@ typecheck_pattern :: proc(pattern: CPattern, scrutinee_var: base.Type_Var_ID, en
 		i64_var := make_primitive_type(store, i64_name, p.span)
 		unify(store, scrutinee_var, i64_var)
 		tp := new(TPattern_Char)
-		tp^ = TPattern_Char{value = p.value, span = p.span}
+		tp^ = TPattern_Char {
+			value = p.value,
+			span  = p.span,
+		}
 		return Pat_Result{var_id = i64_var, effects = eff, tpat = TPattern(tp)}
 
 	case ^CPattern_Tag:
@@ -61,7 +83,14 @@ typecheck_pattern :: proc(pattern: CPattern, scrutinee_var: base.Type_Var_ID, en
 			nt_info := store.newtype_decls[nt_name]
 			if !nt_info.pub_variants {
 				nt_str := base.intern_get(store.interner, nt_name)
-				diagnostics.collector_add_diag(store.collector, diagnostics.diag_newtype_opaque_violation(nt_str, "destructure variant", p.span))
+				diagnostics.collector_add_diag(
+					store.collector,
+					diagnostics.diag_newtype_opaque_violation(
+						nt_str,
+						"destructure variant",
+						p.span,
+					),
+				)
 			}
 		}
 
@@ -75,15 +104,26 @@ typecheck_pattern :: proc(pattern: CPattern, scrutinee_var: base.Type_Var_ID, en
 		}
 		rest_var := fresh_tag_row(store, p.span)
 		tag_entries := store_alloc(store, Type_Tag_Entry, 1)
-		tag_entries[0] = Type_Tag_Entry{name = p.name.name, payload = payload_ids}
+		tag_entries[0] = Type_Tag_Entry {
+			name    = p.name.name,
+			payload = payload_ids,
+		}
 		tag_var := fresh_value_var(store, p.span)
-		link_var(store, tag_var, Inferred_Tag_Union_Row{
-			tag_entries = tag_entries,
-			tag_rest = resolve_var(store, rest_var),
-		})
+		link_var(
+			store,
+			tag_var,
+			Inferred_Tag_Union_Row {
+				tag_entries = tag_entries,
+				tag_rest = resolve_var(store, rest_var),
+			},
+		)
 		unify(store, scrutinee_var, tag_var)
 		tp := new(TPattern_Tag)
-		tp^ = TPattern_Tag{name = p.name, payload = payload_t, span = p.span}
+		tp^ = TPattern_Tag {
+			name    = p.name,
+			payload = payload_t,
+			span    = p.span,
+		}
 		return Pat_Result{var_id = tag_var, effects = eff, tpat = TPattern(tp)}
 
 	case ^CPattern_Record:
@@ -93,18 +133,30 @@ typecheck_pattern :: proc(pattern: CPattern, scrutinee_var: base.Type_Var_ID, en
 			field_entries[i].name = sf.name
 			field_entries[i].var = fresh_value_var(store, p.span)
 			env.bindings[sf.binding] = field_entries[i].var
-			fields_t[i] = TPattern_Field{name = sf.name, binding = sf.binding, span = sf.span}
+			fields_t[i] = TPattern_Field {
+				name    = sf.name,
+				binding = sf.binding,
+				span    = sf.span,
+			}
 		}
 		rest_var := fresh_record_row(store, p.span)
 		rec_var := fresh_value_var(store, p.span)
-		link_var(store, rec_var, Inferred_Record_Row{
-			record_fields = field_entries,
-			record_rest = resolve_var(store, rest_var),
-			closed = false,
-		})
+		link_var(
+			store,
+			rec_var,
+			Inferred_Record_Row {
+				record_fields = field_entries,
+				record_rest = resolve_var(store, rest_var),
+				closed = false,
+			},
+		)
 		unify(store, scrutinee_var, rec_var)
 		tp := new(TPattern_Record)
-		tp^ = TPattern_Record{fields = fields_t, is_open = p.is_open, span = p.span}
+		tp^ = TPattern_Record {
+			fields  = fields_t,
+			is_open = p.is_open,
+			span    = p.span,
+		}
 		return Pat_Result{var_id = rec_var, effects = eff, tpat = TPattern(tp)}
 
 	case ^CPattern_Or:
@@ -114,7 +166,10 @@ typecheck_pattern :: proc(pattern: CPattern, scrutinee_var: base.Type_Var_ID, en
 			append(&alternatives, pat_result.tpat)
 		}
 		tp := new(TPattern_Or)
-		tp^ = TPattern_Or{alternatives = alternatives, span = p.span}
+		tp^ = TPattern_Or {
+			alternatives = alternatives,
+			span         = p.span,
+		}
 		return Pat_Result{var_id = scrutinee_var, effects = eff, tpat = TPattern(tp)}
 
 	case ^CPattern_Destructure:
@@ -122,7 +177,10 @@ typecheck_pattern :: proc(pattern: CPattern, scrutinee_var: base.Type_Var_ID, en
 			nt_info, nt_ok := store.newtype_decls[p.type_name.name]
 			if nt_ok && !is_same_module(env, nt_info.module) {
 				nt_str := base.intern_get(store.interner, p.type_name.name)
-				diagnostics.collector_add_diag(store.collector, diagnostics.diag_newtype_opaque_violation(nt_str, "destructure", p.span))
+				diagnostics.collector_add_diag(
+					store.collector,
+					diagnostics.diag_newtype_opaque_violation(nt_str, "destructure", p.span),
+				)
 			}
 		}
 		inner_var := fresh_value_var(store, p.span)
@@ -138,7 +196,11 @@ typecheck_pattern :: proc(pattern: CPattern, scrutinee_var: base.Type_Var_ID, en
 		unify(store, inner_var, store.newtype_decls[p.type_name.name].inner_type)
 
 		tp := new(TPattern_Destructure)
-		tp^ = TPattern_Destructure{type_name = p.type_name, inner = pat_result.tpat, span = p.span}
+		tp^ = TPattern_Destructure {
+			type_name = p.type_name,
+			inner     = pat_result.tpat,
+			span      = p.span,
+		}
 		return Pat_Result{var_id = inst_binding, effects = eff, tpat = TPattern(tp)}
 
 	case ^CPattern_List:
@@ -159,12 +221,18 @@ typecheck_pattern :: proc(pattern: CPattern, scrutinee_var: base.Type_Var_ID, en
 		}
 
 		tp := new(TPattern_List)
-		tp^ = TPattern_List{elements = elements_t, rest = rest_t, span = p.span}
+		tp^ = TPattern_List {
+			elements = elements_t,
+			rest     = rest_t,
+			span     = p.span,
+		}
 		return Pat_Result{var_id = scrutinee_var, effects = eff, tpat = TPattern(tp)}
 	}
 
 	tp := new(TPattern_Wildcard)
-	tp^ = TPattern_Wildcard{span = base.Source_Span_ZERO}
+	tp^ = TPattern_Wildcard {
+		span = base.Source_Span_ZERO,
+	}
 	return Pat_Result{var_id = scrutinee_var, effects = eff, tpat = TPattern(tp)}
 }
 
@@ -219,12 +287,12 @@ typecheck_match :: proc(e: ^CExpr_Match, env: ^Type_Env, store: ^Type_Store) -> 
 		eff := scrutinee_result.effects
 		arms_t := make([dynamic]TMatch_Arm, 0)
 		t := new(TExpr_Match)
-		t^ = TExpr_Match{
+		t^ = TExpr_Match {
 			scrutinee = scrutinee_result.texpr,
-			arms = arms_t,
-			type_ = lower_type(store, var_id),
-			eff_ = lower_effect_type(store, eff),
-			span = e.span,
+			arms      = arms_t,
+			type_     = lower_type(store, var_id),
+			eff_      = lower_effect_type(store, eff),
+			span      = e.span,
 		}
 		return Synth_Result{var_id = var_id, effects = eff, texpr = TExpr(t)}
 	}
@@ -245,10 +313,10 @@ typecheck_match :: proc(e: ^CExpr_Match, env: ^Type_Env, store: ^Type_Store) -> 
 
 	// Track per-arm coverage for redundancy detection
 	arm_coverages := make([dynamic]Match_Coverage, len(e.arms))
-	for i in 0..<len(e.arms) {
+	for i in 0 ..< len(e.arms) {
 		match_coverage_init(&arm_coverages[i], 1)
 	}
-	defer for i in 0..<len(arm_coverages) {
+	defer for i in 0 ..< len(arm_coverages) {
 		match_coverage_destroy(&arm_coverages[i])
 	}
 	defer delete(arm_coverages)
@@ -290,11 +358,19 @@ typecheck_match :: proc(e: ^CExpr_Match, env: ^Type_Env, store: ^Type_Store) -> 
 				if cov.tags[p.name.name] {
 					is_redundant = true
 				}
-			case ^CPattern_Record, ^CPattern_List, ^CPattern_Identifier, ^CPattern_Wildcard, ^CPattern_Destructure, ^CPattern_Or:
+			case ^CPattern_Record,
+			     ^CPattern_List,
+			     ^CPattern_Identifier,
+			     ^CPattern_Wildcard,
+			     ^CPattern_Destructure,
+			     ^CPattern_Or:
 			}
 		}
 		if is_redundant {
-			diagnostics.collector_add_diag(store.collector, diagnostics.diag_redundant_pattern(arm.span))
+			diagnostics.collector_add_diag(
+				store.collector,
+				diagnostics.diag_redundant_pattern(arm.span),
+			)
 		}
 
 		collect_pattern_coverage(arm.pattern, &cov)
@@ -304,7 +380,11 @@ typecheck_match :: proc(e: ^CExpr_Match, env: ^Type_Env, store: ^Type_Store) -> 
 		unify(store, result_var, arm_result.var_id)
 		unify(store, effect_row, arm_result.effects)
 
-		arms_t[i] = TMatch_Arm{pattern = pat_result.tpat, body = arm_result.texpr, span = arm.span}
+		arms_t[i] = TMatch_Arm {
+			pattern = pat_result.tpat,
+			body    = arm_result.texpr,
+			span    = arm.span,
+		}
 	}
 
 	// Exhaustiveness checking
@@ -327,9 +407,13 @@ typecheck_match :: proc(e: ^CExpr_Match, env: ^Type_Env, store: ^Type_Store) -> 
 					for j := 1; j < len(missing_list); j += 1 {
 						missing = fmt.tprintf("{}, {}", missing, missing_list[j])
 					}
-					diagnostics.collector_add_diag(store.collector, diagnostics.diag_internal(
-						fmt.tprintf("non-exhaustive match: missing branch for {}", missing),
-						e.span))
+					diagnostics.collector_add_diag(
+						store.collector,
+						diagnostics.diag_internal(
+							fmt.tprintf("non-exhaustive match: missing branch for {}", missing),
+							e.span,
+						),
+					)
 				}
 			}
 		case Inferred_Primitive:
@@ -344,18 +428,33 @@ typecheck_match :: proc(e: ^CExpr_Match, env: ^Type_Env, store: ^Type_Store) -> 
 					} else {
 						missing = "False"
 					}
-					diagnostics.collector_add_diag(store.collector, diagnostics.diag_non_exhaustive_bool(missing, e.span))
+					diagnostics.collector_add_diag(
+						store.collector,
+						diagnostics.diag_non_exhaustive_bool(missing, e.span),
+					)
 				}
 			}
 			// Int/String exhaustiveness: can never be exhaustive without wildcard
 			if !cov.saturated {
 				prim_name := base.intern_get(store.interner, v.primitive_name)
-				if prim_name == "I64" || prim_name == "I32" || prim_name == "I16" || prim_name == "I8" ||
-				   prim_name == "U64" || prim_name == "U32" || prim_name == "U16" || prim_name == "U8" {
-					diagnostics.collector_add_diag(store.collector, diagnostics.diag_non_exhaustive_int_string(prim_name, e.span))
+				if prim_name == "I64" ||
+				   prim_name == "I32" ||
+				   prim_name == "I16" ||
+				   prim_name == "I8" ||
+				   prim_name == "U64" ||
+				   prim_name == "U32" ||
+				   prim_name == "U16" ||
+				   prim_name == "U8" {
+					diagnostics.collector_add_diag(
+						store.collector,
+						diagnostics.diag_non_exhaustive_int_string(prim_name, e.span),
+					)
 				}
 				if prim_name == "Str" {
-					diagnostics.collector_add_diag(store.collector, diagnostics.diag_non_exhaustive_int_string(prim_name, e.span))
+					diagnostics.collector_add_diag(
+						store.collector,
+						diagnostics.diag_non_exhaustive_int_string(prim_name, e.span),
+					)
 				}
 			}
 		}
@@ -363,12 +462,13 @@ typecheck_match :: proc(e: ^CExpr_Match, env: ^Type_Env, store: ^Type_Store) -> 
 	}
 
 	t := new(TExpr_Match)
-	t^ = TExpr_Match{
+	t^ = TExpr_Match {
 		scrutinee = scrutinee_result.texpr,
-		arms = arms_t,
-		type_ = lower_type(store, result_var),
-		eff_ = lower_effect_type(store, effect_row),
-		span = e.span,
+		arms      = arms_t,
+		type_     = lower_type(store, result_var),
+		eff_      = lower_effect_type(store, effect_row),
+		span      = e.span,
 	}
 	return Synth_Result{var_id = result_var, effects = effect_row, texpr = TExpr(t)}
 }
+

@@ -4,8 +4,8 @@ import "core:fmt"
 import "core:strings"
 
 import "camp:base"
-import "camp:frontend"
 import "camp:diagnostics"
+import "camp:frontend"
 
 Type_Env :: struct {
 	bindings:        map[base.Intern_ID]base.Type_Var_ID,
@@ -43,20 +43,41 @@ env_lookup :: proc(env: ^Type_Env, name: base.Intern_ID) -> (base.Type_Var_ID, b
 	return base.Type_Var_ID(-1), false
 }
 
-check_shadow :: proc(env: ^Type_Env, name: base.Intern_ID, store: ^Type_Store, span: base.Source_Span) {
+check_shadow :: proc(
+	env: ^Type_Env,
+	name: base.Intern_ID,
+	store: ^Type_Store,
+	span: base.Source_Span,
+) {
 	if _, exists := env_lookup(env, name); exists {
 		name_str := base.intern_get(store.interner, name)
-		diagnostics.collector_add_diag(store.collector, diagnostics.diag_shadow(name, name_str, span))
+		diagnostics.collector_add_diag(
+			store.collector,
+			diagnostics.diag_shadow(name, name_str, span),
+		)
 	}
 }
 
-fresh_with_effects :: proc(store: ^Type_Store, span: base.Source_Span) -> (base.Type_Var_ID, base.Type_Var_ID) {
+fresh_with_effects :: proc(
+	store: ^Type_Store,
+	span: base.Source_Span,
+) -> (
+	base.Type_Var_ID,
+	base.Type_Var_ID,
+) {
 	v := fresh_value_var(store, span)
 	e := fresh_effect_row(store, span)
 	return v, e
 }
 
-type_eff_pair :: proc(store: ^Type_Store, var_id: base.Type_Var_ID, eff_var: base.Type_Var_ID) -> (base.IR_Type, base.IR_Type) {
+type_eff_pair :: proc(
+	store: ^Type_Store,
+	var_id: base.Type_Var_ID,
+	eff_var: base.Type_Var_ID,
+) -> (
+	base.IR_Type,
+	base.IR_Type,
+) {
 	return lower_type(store, var_id), lower_effect_type(store, eff_var)
 }
 
@@ -68,36 +89,36 @@ levenshtein_distance :: proc(a: string, b: string) -> int {
 	b_len := len(b)
 	dist: [dynamic][dynamic]int
 	dist = make([dynamic][dynamic]int, a_len + 1)
-	for i in 0..<a_len + 1 {
+	for i in 0 ..< a_len + 1 {
 		dist[i] = make([dynamic]int, b_len + 1)
 		dist[i][0] = i
 	}
-	for j in 0..<b_len + 1 {
+	for j in 0 ..< b_len + 1 {
 		dist[0][j] = j
 	}
 	defer {
-		for i in 0..<a_len + 1 {
+		for i in 0 ..< a_len + 1 {
 			delete(dist[i])
 		}
 		delete(dist)
 	}
 
-	for i in 1..<a_len + 1 {
-		for j in 1..<b_len + 1 {
+	for i in 1 ..< a_len + 1 {
+		for j in 1 ..< b_len + 1 {
 			cost := 1
-			if a[i-1] == b[j-1] do cost = 0
-			dist[i][j] = min(
-				dist[i-1][j] + 1,
-				dist[i][j-1] + 1,
-				dist[i-1][j-1] + cost,
-			)
+			if a[i - 1] == b[j - 1] do cost = 0
+			dist[i][j] = min(dist[i - 1][j] + 1, dist[i][j - 1] + 1, dist[i - 1][j - 1] + cost)
 		}
 	}
 
 	return dist[a_len][b_len]
 }
 
-find_similar_names :: proc(name: string, env: ^Type_Env, interner: ^base.Intern_Table) -> [dynamic]string {
+find_similar_names :: proc(
+	name: string,
+	env: ^Type_Env,
+	interner: ^base.Intern_Table,
+) -> [dynamic]string {
 	names: [dynamic]string
 	current := env
 	for current != nil {
@@ -124,7 +145,10 @@ format_effect_row :: proc(store: ^Type_Store, effects: base.Type_Var_ID) -> stri
 		strings.write_rune(&builder, '[')
 		for entry, i in it_effect.effects {
 			if i > 0 do strings.write_string(&builder, " | ")
-			strings.write_string(&builder, base.intern_get(store.interner, base.Intern_ID(entry.name)))
+			strings.write_string(
+				&builder,
+				base.intern_get(store.interner, base.Intern_ID(entry.name)),
+			)
 		}
 		strings.write_rune(&builder, ']')
 		result := strings.to_string(builder)
@@ -134,7 +158,11 @@ format_effect_row :: proc(store: ^Type_Store, effects: base.Type_Var_ID) -> stri
 	return "[]"
 }
 
-typecheck_file :: proc(file: CFile, store: ^Type_Store, current_module: base.Intern_ID = base.NO_NAME) -> TFile {
+typecheck_file :: proc(
+	file: CFile,
+	store: ^Type_Store,
+	current_module: base.Intern_ID = base.NO_NAME,
+) -> TFile {
 	env: Type_Env
 	env.bindings = make(map[base.Intern_ID]base.Type_Var_ID, 64)
 	env.parent = nil
@@ -146,8 +174,7 @@ typecheck_file :: proc(file: CFile, store: ^Type_Store, current_module: base.Int
 	defer delete(env.spawned_handles)
 	defer {
 		for span in env.spawned_handles {
-			diagnostics.collector_add_diag(store.collector,
-				diagnostics.diag_unjoined_spawn(span))
+			diagnostics.collector_add_diag(store.collector, diagnostics.diag_unjoined_spawn(span))
 		}
 	}
 
@@ -167,7 +194,13 @@ typecheck_file :: proc(file: CFile, store: ^Type_Store, current_module: base.Int
 	for decl in file.decls {
 		#partial switch d in decl {
 		case ^CDecl_Newtype:
-		case ^CDecl_Const, ^CDecl_Effect, ^CDecl_Trait, ^CDecl_Alias, ^CDecl_Import, ^CDecl_Test, ^CDecl_Expect:
+		case ^CDecl_Const,
+		     ^CDecl_Effect,
+		     ^CDecl_Trait,
+		     ^CDecl_Alias,
+		     ^CDecl_Import,
+		     ^CDecl_Test,
+		     ^CDecl_Expect:
 		}
 	}
 
@@ -203,18 +236,17 @@ inject_prelude :: proc(store: ^Type_Store) {
 			payload = make([]base.Type_Var_ID, 1, store.allocator)
 			payload[0] = p
 		}
-		tag_entries[0] = Type_Tag_Entry{name = name_id, payload = payload}
+		tag_entries[0] = Type_Tag_Entry {
+			name    = name_id,
+			payload = payload,
+		}
 		rest := fresh_tag_row(store, base.Source_Span_ZERO)
-		link_var(store, var_id, Inferred_Tag_Union_Row{
-			tag_entries = tag_entries,
-			tag_rest = rest,
-		})
+		link_var(store, var_id, Inferred_Tag_Union_Row{tag_entries = tag_entries, tag_rest = rest})
 		store.bindings[name_id] = var_id
 	}
 
 	inject_prelude_effects_typecheck(store)
 }
-
 
 
 typecheck_synth :: proc(expr: CExpr, env: ^Type_Env, store: ^Type_Store) -> Synth_Result {
@@ -226,7 +258,12 @@ typecheck_synth :: proc(expr: CExpr, env: ^Type_Env, store: ^Type_Store) -> Synt
 		eff := fresh_effect_row(store, e.span)
 		t := new(TExpr_Int)
 		type_ir, eff_ir := type_eff_pair(store, var_id, eff)
-		t^ = TExpr_Int{value = e.value, type_ = type_ir, eff_ = eff_ir, span = e.span}
+		t^ = TExpr_Int {
+			value = e.value,
+			type_ = type_ir,
+			eff_  = eff_ir,
+			span  = e.span,
+		}
 		return Synth_Result{var_id = var_id, effects = eff, texpr = TExpr(t)}
 
 	case ^CExpr_Float:
@@ -236,7 +273,12 @@ typecheck_synth :: proc(expr: CExpr, env: ^Type_Env, store: ^Type_Store) -> Synt
 		eff := fresh_effect_row(store, e.span)
 		t := new(TExpr_Float)
 		type_ir, eff_ir := type_eff_pair(store, var_id, eff)
-		t^ = TExpr_Float{value = e.value, type_ = type_ir, eff_ = eff_ir, span = e.span}
+		t^ = TExpr_Float {
+			value = e.value,
+			type_ = type_ir,
+			eff_  = eff_ir,
+			span  = e.span,
+		}
 		return Synth_Result{var_id = var_id, effects = eff, texpr = TExpr(t)}
 
 	case ^CExpr_String:
@@ -245,7 +287,12 @@ typecheck_synth :: proc(expr: CExpr, env: ^Type_Env, store: ^Type_Store) -> Synt
 		eff := fresh_effect_row(store, e.span)
 		t := new(TExpr_String)
 		type_ir, eff_ir := type_eff_pair(store, var_id, eff)
-		t^ = TExpr_String{value = e.value, type_ = type_ir, eff_ = eff_ir, span = e.span}
+		t^ = TExpr_String {
+			value = e.value,
+			type_ = type_ir,
+			eff_  = eff_ir,
+			span  = e.span,
+		}
 		return Synth_Result{var_id = var_id, effects = eff, texpr = TExpr(t)}
 
 	case ^CExpr_Bool:
@@ -254,7 +301,12 @@ typecheck_synth :: proc(expr: CExpr, env: ^Type_Env, store: ^Type_Store) -> Synt
 		eff := fresh_effect_row(store, e.span)
 		t := new(TExpr_Bool)
 		type_ir, eff_ir := type_eff_pair(store, var_id, eff)
-		t^ = TExpr_Bool{value = e.value, type_ = type_ir, eff_ = eff_ir, span = e.span}
+		t^ = TExpr_Bool {
+			value = e.value,
+			type_ = type_ir,
+			eff_  = eff_ir,
+			span  = e.span,
+		}
 		return Synth_Result{var_id = var_id, effects = eff, texpr = TExpr(t)}
 
 	case ^CExpr_Char:
@@ -263,7 +315,12 @@ typecheck_synth :: proc(expr: CExpr, env: ^Type_Env, store: ^Type_Store) -> Synt
 		eff := fresh_effect_row(store, e.span)
 		t := new(TExpr_Char)
 		type_ir, eff_ir := type_eff_pair(store, var_id, eff)
-		t^ = TExpr_Char{value = e.value, type_ = type_ir, eff_ = eff_ir, span = e.span}
+		t^ = TExpr_Char {
+			value = e.value,
+			type_ = type_ir,
+			eff_  = eff_ir,
+			span  = e.span,
+		}
 		return Synth_Result{var_id = var_id, effects = eff, texpr = TExpr(t)}
 
 	case ^CExpr_Todo:
@@ -276,7 +333,12 @@ typecheck_synth :: proc(expr: CExpr, env: ^Type_Env, store: ^Type_Store) -> Synt
 		}
 		t := new(TExpr_Todo)
 		type_ir, eff_ir := type_eff_pair(store, var_id, eff)
-		t^ = TExpr_Todo{message = msg, type_ = type_ir, eff_ = eff_ir, span = e.span}
+		t^ = TExpr_Todo {
+			message = msg,
+			type_   = type_ir,
+			eff_    = eff_ir,
+			span    = e.span,
+		}
 		return Synth_Result{var_id = var_id, effects = eff, texpr = TExpr(t)}
 
 	case ^CExpr_Name:
@@ -285,18 +347,31 @@ typecheck_synth :: proc(expr: CExpr, env: ^Type_Env, store: ^Type_Store) -> Synt
 			eff := fresh_effect_row(store, e.span)
 			t := new(TExpr_Name)
 			type_ir, eff_ir := type_eff_pair(store, inst, eff)
-			t^ = TExpr_Name{name = e.name, type_ = type_ir, eff_ = eff_ir, span = e.span}
+			t^ = TExpr_Name {
+				name  = e.name,
+				type_ = type_ir,
+				eff_  = eff_ir,
+				span  = e.span,
+			}
 			return Synth_Result{var_id = inst, effects = eff, texpr = TExpr(t)}
 		}
 		var_id := fresh_value_var(store, e.span)
 		name_str := base.intern_get(store.interner, e.name.name)
 		similar := find_similar_names(name_str, env, store.interner)
 		defer delete(similar)
-		diagnostics.collector_add_diag(store.collector, diagnostics.diag_undefined_name(name_str, similar[:], e.span))
+		diagnostics.collector_add_diag(
+			store.collector,
+			diagnostics.diag_undefined_name(name_str, similar[:], e.span),
+		)
 		eff := fresh_effect_row(store, e.span)
 		t := new(TExpr_Name)
 		type_ir, eff_ir := type_eff_pair(store, var_id, eff)
-		t^ = TExpr_Name{name = e.name, type_ = type_ir, eff_ = eff_ir, span = e.span}
+		t^ = TExpr_Name {
+			name  = e.name,
+			type_ = type_ir,
+			eff_  = eff_ir,
+			span  = e.span,
+		}
 		return Synth_Result{var_id = var_id, effects = eff, texpr = TExpr(t)}
 
 	case ^CExpr_Lambda:
@@ -329,12 +404,12 @@ typecheck_synth :: proc(expr: CExpr, env: ^Type_Env, store: ^Type_Store) -> Synt
 			payload[i] = p_result.texpr
 		}
 		t := new(TExpr_Nominal_Construct)
-		t^ = TExpr_Nominal_Construct{
-			type_name = e.type_name,
-			variant = e.variant,
-			payload = payload,
+		t^ = TExpr_Nominal_Construct {
+			type_name     = e.type_name,
+			variant       = e.variant,
+			payload       = payload,
 			resolved_type = type_var,
-			span = e.span,
+			span          = e.span,
 		}
 		return Synth_Result{var_id = type_var, effects = eff, texpr = TExpr(t)}
 
@@ -366,21 +441,63 @@ typecheck_synth :: proc(expr: CExpr, env: ^Type_Env, store: ^Type_Store) -> Synt
 			env.bindings[target.name.name] = result.var_id
 			t_name := new(TExpr_Name)
 			type_ir, eff_ir := type_eff_pair(store, result.var_id, result.effects)
-			t_name^ = TExpr_Name{name = target.name, type_ = type_ir, eff_ = eff_ir, span = target.span}
+			t_name^ = TExpr_Name {
+				name  = target.name,
+				type_ = type_ir,
+				eff_  = eff_ir,
+				span  = target.span,
+			}
 			target_t = TExpr(t_name)
-		case ^CExpr_Int, ^CExpr_Float, ^CExpr_String, ^CExpr_Bool, ^CExpr_Char, ^CExpr_Tag, ^CExpr_Nominal_Construct, ^CExpr_Record, ^CExpr_List, ^CExpr_Call, ^CExpr_Method_Call, ^CExpr_Lambda, ^CExpr_Block, ^CExpr_If, ^CExpr_Match, ^CExpr_BinOp, ^CExpr_PrefixOp, ^CExpr_Field_Access, ^CExpr_Record_Update, ^CExpr_Return, ^CExpr_Crash, ^CExpr_Todo, ^CExpr_Interpolated_String, ^CExpr_Handle, ^CExpr_Perform, ^CExpr_Par, ^CExpr_For:
+		case ^CExpr_Int,
+		     ^CExpr_Float,
+		     ^CExpr_String,
+		     ^CExpr_Bool,
+		     ^CExpr_Char,
+		     ^CExpr_Tag,
+		     ^CExpr_Nominal_Construct,
+		     ^CExpr_Record,
+		     ^CExpr_List,
+		     ^CExpr_Call,
+		     ^CExpr_Method_Call,
+		     ^CExpr_Lambda,
+		     ^CExpr_Block,
+		     ^CExpr_If,
+		     ^CExpr_Match,
+		     ^CExpr_BinOp,
+		     ^CExpr_PrefixOp,
+		     ^CExpr_Field_Access,
+		     ^CExpr_Record_Update,
+		     ^CExpr_Return,
+		     ^CExpr_Crash,
+		     ^CExpr_Todo,
+		     ^CExpr_Interpolated_String,
+		     ^CExpr_Handle,
+		     ^CExpr_Perform,
+		     ^CExpr_Par,
+		     ^CExpr_For:
 			target_t = typecheck_synth(e.target, env, store).texpr
 		}
 		t := new(TExpr_Assign)
 		type_ir, eff_ir := type_eff_pair(store, result.var_id, result.effects)
-		t^ = TExpr_Assign{target = target_t, value = result.texpr, type_ = type_ir, eff_ = eff_ir, span = e.span}
+		t^ = TExpr_Assign {
+			target = target_t,
+			value  = result.texpr,
+			type_  = type_ir,
+			eff_   = eff_ir,
+			span   = e.span,
+		}
 		return Synth_Result{var_id = result.var_id, effects = result.effects, texpr = TExpr(t)}
 
 	case ^CExpr_Return:
 		result := typecheck_synth(e.value, env, store)
 		t := new(TExpr_Return)
 		type_ir, eff_ir := type_eff_pair(store, result.var_id, result.effects)
-		t^ = TExpr_Return{value = result.texpr, type_ = type_ir, eff_ = eff_ir, span = e.span}
+		t^ = TExpr_Return {
+			value = result.texpr,
+			type_ = type_ir,
+			eff_  = eff_ir,
+			span  = e.span,
+		}
 		return Synth_Result{var_id = result.var_id, effects = result.effects, texpr = TExpr(t)}
 
 	case ^CExpr_Crash:
@@ -388,7 +505,12 @@ typecheck_synth :: proc(expr: CExpr, env: ^Type_Env, store: ^Type_Store) -> Synt
 		msg_result := typecheck_synth(e.message, env, store)
 		t := new(TExpr_Crash)
 		type_ir, eff_ir := type_eff_pair(store, var_id, eff)
-		t^ = TExpr_Crash{message = msg_result.texpr, type_ = type_ir, eff_ = eff_ir, span = e.span}
+		t^ = TExpr_Crash {
+			message = msg_result.texpr,
+			type_   = type_ir,
+			eff_    = eff_ir,
+			span    = e.span,
+		}
 		return Synth_Result{var_id = var_id, effects = eff, texpr = TExpr(t)}
 
 	case ^CExpr_Interpolated_String:
@@ -403,11 +525,11 @@ typecheck_synth :: proc(expr: CExpr, env: ^Type_Env, store: ^Type_Store) -> Synt
 			case ^CExpr_String_Literal:
 				clit := new(TExpr_String_Literal)
 				type_ir, eff_ir := type_eff_pair(store, str_var, eff)
-				clit^ = TExpr_String_Literal{
+				clit^ = TExpr_String_Literal {
 					value = p.value,
 					type_ = type_ir,
-					eff_ = eff_ir,
-					span = p.span,
+					eff_  = eff_ir,
+					span  = p.span,
 				}
 				append(&parts_t, TExpr_String_Part(clit))
 			case CExpr:
@@ -422,10 +544,17 @@ typecheck_synth :: proc(expr: CExpr, env: ^Type_Env, store: ^Type_Store) -> Synt
 				type_name: base.Intern_ID = base.NO_NAME
 				if inf, ok := v.link.(Inferred_Type); ok {
 					switch nf in inf {
-					case Inferred_Primitive: type_name = nf.primitive_name
-					case Inferred_Constructor: type_name = nf.primitive_name
-					case Inferred_Newtype: type_name = nf.primitive_name
-					case Inferred_Function, Inferred_Record_Row, Inferred_Tag_Union_Row, Inferred_Effect_Row, Inferred_Handle:
+					case Inferred_Primitive:
+						type_name = nf.primitive_name
+					case Inferred_Constructor:
+						type_name = nf.primitive_name
+					case Inferred_Newtype:
+						type_name = nf.primitive_name
+					case Inferred_Function,
+					     Inferred_Record_Row,
+					     Inferred_Tag_Union_Row,
+					     Inferred_Effect_Row,
+					     Inferred_Handle:
 					}
 				}
 
@@ -440,18 +569,27 @@ typecheck_synth :: proc(expr: CExpr, env: ^Type_Env, store: ^Type_Store) -> Synt
 							expr_part.display_impl = to_str_impl
 						} else {
 							type_str := base.intern_get(store.interner, type_name)
-							diagnostics.collector_add_diag(store.collector, diagnostics.diag_display_not_implemented(type_str, e.span))
+							diagnostics.collector_add_diag(
+								store.collector,
+								diagnostics.diag_display_not_implemented(type_str, e.span),
+							)
 							expr_part.needs_to_str = false
 							expr_part.display_impl = base.Canonical_Name{}
 						}
 					} else {
 						type_str := base.intern_get(store.interner, type_name)
-						diagnostics.collector_add_diag(store.collector, diagnostics.diag_display_not_implemented(type_str, e.span))
+						diagnostics.collector_add_diag(
+							store.collector,
+							diagnostics.diag_display_not_implemented(type_str, e.span),
+						)
 						expr_part.needs_to_str = false
 						expr_part.display_impl = base.Canonical_Name{}
 					}
 				} else {
-					diagnostics.collector_add_diag(store.collector, diagnostics.diag_display_not_implemented("unknown type", e.span))
+					diagnostics.collector_add_diag(
+						store.collector,
+						diagnostics.diag_display_not_implemented("unknown type", e.span),
+					)
 					expr_part.needs_to_str = false
 					expr_part.display_impl = base.Canonical_Name{}
 				}
@@ -461,11 +599,11 @@ typecheck_synth :: proc(expr: CExpr, env: ^Type_Env, store: ^Type_Store) -> Synt
 		}
 		t := new(TExpr_Interpolated_String)
 		type_ir, eff_ir := type_eff_pair(store, str_var, eff)
-		t^ = TExpr_Interpolated_String{
+		t^ = TExpr_Interpolated_String {
 			parts = parts_t,
 			type_ = type_ir,
-			eff_ = eff_ir,
-			span = e.span,
+			eff_  = eff_ir,
+			span  = e.span,
 		}
 		return Synth_Result{var_id = str_var, effects = eff, texpr = TExpr(t)}
 
@@ -509,7 +647,7 @@ typecheck_synth :: proc(expr: CExpr, env: ^Type_Env, store: ^Type_Store) -> Synt
 
 			if sig_found {
 				sig := found_sig
-				for i in 0..<len(arm.params) {
+				for i in 0 ..< len(arm.params) {
 					pv := fresh_value_var(store, arm.span)
 					check_shadow(&arm_env, arm.params[i], store, arm.span)
 					arm_env.bindings[arm.params[i]] = pv
@@ -529,12 +667,18 @@ typecheck_synth :: proc(expr: CExpr, env: ^Type_Env, store: ^Type_Store) -> Synt
 				actual_param_count := len(arm.params) - 1
 				expected_param_count := sig.param_count
 				if actual_param_count != expected_param_count {
-					diagnostics.collector_add_diag(store.collector, diagnostics.diag_internal(fmt.tprintf(
-						"handler arm `{}` has {} parameters, expected {}",
-						base.intern_get(store.interner, arm.op),
-						actual_param_count,
-						expected_param_count,
-					), arm.span))
+					diagnostics.collector_add_diag(
+						store.collector,
+						diagnostics.diag_internal(
+							fmt.tprintf(
+								"handler arm `{}` has {} parameters, expected {}",
+								base.intern_get(store.interner, arm.op),
+								actual_param_count,
+								expected_param_count,
+							),
+							arm.span,
+						),
+					)
 				}
 			} else {
 				effect_str := "unknown"
@@ -542,14 +686,25 @@ typecheck_synth :: proc(expr: CExpr, env: ^Type_Env, store: ^Type_Store) -> Synt
 					if ei == 0 {
 						effect_str = base.intern_get(store.interner, eff.name)
 					} else {
-						effect_str = fmt.tprintf("{}, {}", effect_str, base.intern_get(store.interner, eff.name))
+						effect_str = fmt.tprintf(
+							"{}, {}",
+							effect_str,
+							base.intern_get(store.interner, eff.name),
+						)
 					}
 				}
 				op_str := base.intern_get(store.interner, arm.op)
-				diagnostics.collector_add_diag(store.collector, diagnostics.diag_internal(fmt.tprintf(
-					"operation `{}` not found in effects `{}`",
-					op_str, effect_str,
-				), arm.span))
+				diagnostics.collector_add_diag(
+					store.collector,
+					diagnostics.diag_internal(
+						fmt.tprintf(
+							"operation `{}` not found in effects `{}`",
+							op_str,
+							effect_str,
+						),
+						arm.span,
+					),
+				)
 				for p in arm.params {
 					check_shadow(&arm_env, p, store, arm.span)
 					arm_env.bindings[p] = fresh_value_var(store, arm.span)
@@ -558,7 +713,12 @@ typecheck_synth :: proc(expr: CExpr, env: ^Type_Env, store: ^Type_Store) -> Synt
 				unify(store, arm_body_result.effects, body_result.effects)
 			}
 
-			arms_t[arm_idx] = THandler_Arm{op = arm.op, params = arm.params, body = arm_body_result.texpr, span = arm.span}
+			arms_t[arm_idx] = THandler_Arm {
+				op     = arm.op,
+				params = arm.params,
+				body   = arm_body_result.texpr,
+				span   = arm.span,
+			}
 
 			delete(arm_env.bindings)
 			delete(arm_env.handled_effects)
@@ -570,15 +730,19 @@ typecheck_synth :: proc(expr: CExpr, env: ^Type_Env, store: ^Type_Store) -> Synt
 		}
 		t := new(TExpr_Handle)
 		type_ir, eff_ir := type_eff_pair(store, body_result.var_id, result_effects)
-		t^ = TExpr_Handle{
+		t^ = TExpr_Handle {
 			effects = e.effects,
-			body = body_result.texpr,
-			arms = arms_t,
-			type_ = type_ir,
-			eff_ = eff_ir,
-			span = e.span,
+			body    = body_result.texpr,
+			arms    = arms_t,
+			type_   = type_ir,
+			eff_    = eff_ir,
+			span    = e.span,
 		}
-		return Synth_Result{var_id = body_result.var_id, effects = result_effects, texpr = TExpr(t)}
+		return Synth_Result {
+			var_id = body_result.var_id,
+			effects = result_effects,
+			texpr = TExpr(t),
+		}
 
 	case ^CExpr_Perform:
 		var_id, effects := fresh_with_effects(store, e.span)
@@ -590,7 +754,14 @@ typecheck_synth :: proc(expr: CExpr, env: ^Type_Env, store: ^Type_Store) -> Synt
 		}
 		t := new(TExpr_Perform)
 		type_ir, eff_ir := type_eff_pair(store, var_id, effects)
-		t^ = TExpr_Perform{effect = e.effect, op = e.op, args = args_t, type_ = type_ir, eff_ = eff_ir, span = e.span}
+		t^ = TExpr_Perform {
+			effect = e.effect,
+			op     = e.op,
+			args   = args_t,
+			type_  = type_ir,
+			eff_   = eff_ir,
+			span   = e.span,
+		}
 		return Synth_Result{var_id = var_id, effects = effects, texpr = TExpr(t)}
 
 	case ^CExpr_Par:
@@ -606,13 +777,13 @@ typecheck_synth :: proc(expr: CExpr, env: ^Type_Env, store: ^Type_Store) -> Synt
 			unify(store, eff, body_result.effects)
 			t := new(TExpr_Par)
 			type_ir, eff_ir := type_eff_pair(store, var_id, eff)
-			t^ = TExpr_Par{
-				for_var = e.for_var,
+			t^ = TExpr_Par {
+				for_var  = e.for_var,
 				for_iter = iter_result.texpr,
 				for_body = body_result.texpr,
-				type_ = type_ir,
-				eff_ = eff_ir,
-				span = e.span,
+				type_    = type_ir,
+				eff_     = eff_ir,
+				span     = e.span,
 			}
 			return Synth_Result{var_id = var_id, effects = eff, texpr = TExpr(t)}
 		}
@@ -621,7 +792,7 @@ typecheck_synth :: proc(expr: CExpr, env: ^Type_Env, store: ^Type_Store) -> Synt
 		if len(e.names) > 0 {
 			exprs := make([dynamic]TExpr, 0, len(e.expressions))
 			field_entries := make([dynamic]Type_Field_Entry, 0, len(e.names))
-			for idx in 0..<len(e.expressions) {
+			for idx in 0 ..< len(e.expressions) {
 				result := typecheck_synth(e.expressions[idx], env, store)
 				unify(store, eff, result.effects)
 				append(&exprs, result.texpr)
@@ -631,20 +802,24 @@ typecheck_synth :: proc(expr: CExpr, env: ^Type_Env, store: ^Type_Store) -> Synt
 			// Build record type: { name: T1, name2: T2, ... }
 			record_rest := fresh_record_row(store, e.span)
 			record_var_id := fresh_value_var(store, e.span)
-			link_var(store, record_var_id, Inferred_Record_Row{
-				record_fields = field_entries[:],
-				record_rest = record_rest,
-				closed = false,
-			})
+			link_var(
+				store,
+				record_var_id,
+				Inferred_Record_Row {
+					record_fields = field_entries[:],
+					record_rest = record_rest,
+					closed = false,
+				},
+			)
 
 			t := new(TExpr_Par)
 			type_ir, eff_ir := type_eff_pair(store, record_var_id, eff)
-			t^ = TExpr_Par{
-				names = e.names,
+			t^ = TExpr_Par {
+				names       = e.names,
 				expressions = exprs,
-				type_ = type_ir,
-				eff_ = eff_ir,
-				span = e.span,
+				type_       = type_ir,
+				eff_        = eff_ir,
+				span        = e.span,
 			}
 			return Synth_Result{var_id = record_var_id, effects = eff, texpr = TExpr(t)}
 		}
@@ -661,11 +836,11 @@ typecheck_synth :: proc(expr: CExpr, env: ^Type_Env, store: ^Type_Store) -> Synt
 		unify(store, var_id, last_var_id)
 		t := new(TExpr_Par)
 		type_ir, eff_ir := type_eff_pair(store, var_id, eff)
-		t^ = TExpr_Par{
+		t^ = TExpr_Par {
 			expressions = exprs,
-			type_ = type_ir,
-			eff_ = eff_ir,
-			span = e.span,
+			type_       = type_ir,
+			eff_        = eff_ir,
+			span        = e.span,
 		}
 		return Synth_Result{var_id = var_id, effects = eff, texpr = TExpr(t)}
 
@@ -687,7 +862,7 @@ typecheck_synth :: proc(expr: CExpr, env: ^Type_Env, store: ^Type_Store) -> Synt
 
 		tfor := new(TExpr_For)
 		type_ir, eff_ir := type_eff_pair(store, unit_var, eff)
-		tfor^ = TExpr_For{
+		tfor^ = TExpr_For {
 			var      = e.var,
 			iterable = iter_result.texpr,
 			body     = body_result.texpr,
@@ -700,11 +875,18 @@ typecheck_synth :: proc(expr: CExpr, env: ^Type_Env, store: ^Type_Store) -> Synt
 	var_id, eff := fresh_with_effects(store, base.Source_Span_ZERO)
 	t := new(TExpr_Int)
 	type_ir, eff_ir := type_eff_pair(store, var_id, eff)
-	t^ = TExpr_Int{type_ = type_ir, eff_ = eff_ir, span = base.Source_Span_ZERO}
+	t^ = TExpr_Int {
+		type_ = type_ir,
+		eff_  = eff_ir,
+		span  = base.Source_Span_ZERO,
+	}
 	return Synth_Result{var_id = var_id, effects = eff, texpr = TExpr(t)}
 }
 
-mark_effect_type_params_in_ctype :: proc(type_params: [dynamic]frontend.Type_Param, effects_type: ^CType) {
+mark_effect_type_params_in_ctype :: proc(
+	type_params: [dynamic]frontend.Type_Param,
+	effects_type: ^CType,
+) {
 	if effects_type == nil do return
 	#partial switch t in effects_type^ {
 	case ^CType_Effect_Row:
@@ -723,7 +905,12 @@ convert_type_to_var :: proc(t: ^CType, store: ^Type_Store, env: ^Type_Env) -> ba
 	return convert_type_to_var_val(t^, store, env)
 }
 
-convert_type_to_var_val :: proc(t: CType, store: ^Type_Store, env: ^Type_Env, closed: bool = false) -> base.Type_Var_ID {
+convert_type_to_var_val :: proc(
+	t: CType,
+	store: ^Type_Store,
+	env: ^Type_Env,
+	closed: bool = false,
+) -> base.Type_Var_ID {
 	switch ty in t {
 	case ^CType_Primitive:
 		return make_primitive_type(store, ty.name, ty.span)
@@ -743,7 +930,7 @@ convert_type_to_var_val :: proc(t: CType, store: ^Type_Store, env: ^Type_Env, cl
 	case ^CType_Function:
 		ft := ty
 		param_ids := store_alloc(store, base.Type_Var_ID, len(ft.params))
-		for i in 0..<len(ft.params) {
+		for i in 0 ..< len(ft.params) {
 			param_ids[i] = convert_type_to_var_val(ft.params[i], store, env, closed = true)
 		}
 		return_id := convert_type_to_var_val(ft.return_, store, env, closed = true)
@@ -752,11 +939,11 @@ convert_type_to_var_val :: proc(t: CType, store: ^Type_Store, env: ^Type_Env, cl
 			effect_id = convert_type_to_var(ft.effects, store, env)
 		}
 		vid := fresh_value_var(store, ft.span)
-		link_var(store, vid, Inferred_Function{
-			param_ids = param_ids,
-			return_id = return_id,
-			effect_id = effect_id,
-		})
+		link_var(
+			store,
+			vid,
+			Inferred_Function{param_ids = param_ids, return_id = return_id, effect_id = effect_id},
+		)
 		return vid
 
 	case ^CType_Applied:
@@ -767,56 +954,59 @@ convert_type_to_var_val :: proc(t: CType, store: ^Type_Store, env: ^Type_Env, cl
 		vid := fresh_value_var(store, ty.span)
 		handle_name := base.intern(store.interner, "Handle")
 		if ty.name == handle_name && len(ty.args) == 2 {
-			link_var(store, vid, Inferred_Handle{
-				inner_id = arg_ids[0],
-				effect_id = arg_ids[1],
-			})
+			link_var(store, vid, Inferred_Handle{inner_id = arg_ids[0], effect_id = arg_ids[1]})
 		} else {
-			link_var(store, vid, Inferred_Constructor{
-				primitive_name = ty.name,
-				arity = len(ty.args),
-			})
+			link_var(
+				store,
+				vid,
+				Inferred_Constructor{primitive_name = ty.name, arity = len(ty.args)},
+			)
 		}
 		return vid
 
 	case ^CType_Record:
 		rt := ty
 		record_fields := store_alloc(store, Type_Field_Entry, len(rt.fields))
-		for i in 0..<len(rt.fields) {
-			record_fields[i] = Type_Field_Entry{
+		for i in 0 ..< len(rt.fields) {
+			record_fields[i] = Type_Field_Entry {
 				name = rt.fields[i].name,
 				var  = convert_type_to_var_val(rt.fields[i].type, store, env, closed),
 			}
 		}
 		record_rest := fresh_record_row(store, rt.span)
 		vid := fresh_value_var(store, rt.span)
-		link_var(store, vid, Inferred_Record_Row{
-			record_fields = record_fields,
-			record_rest = record_rest,
-			closed = closed,
-		})
+		link_var(
+			store,
+			vid,
+			Inferred_Record_Row {
+				record_fields = record_fields,
+				record_rest = record_rest,
+				closed = closed,
+			},
+		)
 		return vid
 
 	case ^CType_Tag_Union:
 		tt := ty
 		tag_entries := store_alloc(store, Type_Tag_Entry, len(tt.tags))
-		for i in 0..<len(tt.tags) {
+		for i in 0 ..< len(tt.tags) {
 			tg := tt.tags[i]
 			payload := store_alloc(store, base.Type_Var_ID, len(tg.payload))
-			for j in 0..<len(tg.payload) {
+			for j in 0 ..< len(tg.payload) {
 				payload[j] = convert_type_to_var_val(tg.payload[j], store, env)
 			}
-			tag_entries[i] = Type_Tag_Entry{
+			tag_entries[i] = Type_Tag_Entry {
 				name    = tg.name,
 				payload = payload,
 			}
 		}
 		tag_rest := fresh_tag_row(store, tt.span)
 		vid := fresh_value_var(store, tt.span)
-		link_var(store, vid, Inferred_Tag_Union_Row{
-			tag_entries = tag_entries,
-			tag_rest = tag_rest,
-		})
+		link_var(
+			store,
+			vid,
+			Inferred_Tag_Union_Row{tag_entries = tag_entries, tag_rest = tag_rest},
+		)
 		return vid
 
 	case ^CType_Effect_Row:
@@ -825,20 +1015,20 @@ convert_type_to_var_val :: proc(t: CType, store: ^Type_Store, env: ^Type_Env, cl
 			return fresh_effect_row(store, ert.span)
 		}
 		effect_entries := store_alloc(store, Effect_Row_Entry, len(ert.effects))
-		for i in 0..<len(ert.effects) {
+		for i in 0 ..< len(ert.effects) {
 			ce := ert.effects[i]
 			type_args := store_alloc(store, base.Type_Var_ID, len(ce.type_args))
-			for j in 0..<len(ce.type_args) {
+			for j in 0 ..< len(ce.type_args) {
 				type_args[j] = convert_type_to_var(&ce.type_args[j], store, env)
 			}
-			effect_entries[i] = Effect_Row_Entry{name = ce.name, type_args = type_args}
+			effect_entries[i] = Effect_Row_Entry {
+				name      = ce.name,
+				type_args = type_args,
+			}
 		}
 		rest_id := fresh_effect_row(store, ert.span)
 		vid := fresh_effect_row(store, ert.span)
-		link_var(store, vid, Inferred_Effect_Row{
-			effects = effect_entries,
-			rest_id = rest_id,
-		})
+		link_var(store, vid, Inferred_Effect_Row{effects = effect_entries, rest_id = rest_id})
 		return vid
 	}
 	return fresh_value_var(store, base.Source_Span_ZERO)
@@ -850,7 +1040,11 @@ instantiate :: proc(store: ^Type_Store, var_id: base.Type_Var_ID) -> base.Type_V
 	return instantiate_rec(store, var_id, &subst)
 }
 
-instantiate_rec :: proc(store: ^Type_Store, var_id: base.Type_Var_ID, subst: ^map[base.Type_Var_ID]base.Type_Var_ID) -> base.Type_Var_ID {
+instantiate_rec :: proc(
+	store: ^Type_Store,
+	var_id: base.Type_Var_ID,
+	subst: ^map[base.Type_Var_ID]base.Type_Var_ID,
+) -> base.Type_Var_ID {
 	resolved := resolve_var(store, var_id)
 	v := store.vars[int(resolved)]
 
@@ -875,106 +1069,117 @@ instantiate_rec :: proc(store: ^Type_Store, var_id: base.Type_Var_ID, subst: ^ma
 
 	case Inferred_Newtype:
 		param_ids := store_alloc(store, base.Type_Var_ID, len(f.param_ids))
-		for i in 0..<len(f.param_ids) {
+		for i in 0 ..< len(f.param_ids) {
 			param_ids[i] = instantiate_rec(store, f.param_ids[i], subst)
 		}
 		inner_id := instantiate_rec(store, f.inner_id, subst)
 		vid := fresh_value_var(store, v.span)
-		link_var(store, vid, Inferred_Newtype{
-			primitive_name = f.primitive_name,
-			arity = f.arity,
-			param_ids = param_ids,
-			inner_id = inner_id,
-		})
+		link_var(
+			store,
+			vid,
+			Inferred_Newtype {
+				primitive_name = f.primitive_name,
+				arity = f.arity,
+				param_ids = param_ids,
+				inner_id = inner_id,
+			},
+		)
 		return vid
 
 	case Inferred_Function:
 		param_ids := store_alloc(store, base.Type_Var_ID, len(f.param_ids))
-		for i in 0..<len(f.param_ids) {
+		for i in 0 ..< len(f.param_ids) {
 			param_ids[i] = instantiate_rec(store, f.param_ids[i], subst)
 		}
 		return_id := instantiate_rec(store, f.return_id, subst)
 		effect_id := instantiate_rec(store, f.effect_id, subst)
 		vid := fresh_value_var(store, v.span)
-		link_var(store, vid, Inferred_Function{
-			param_ids = param_ids,
-			return_id = return_id,
-			effect_id = effect_id,
-		})
+		link_var(
+			store,
+			vid,
+			Inferred_Function{param_ids = param_ids, return_id = return_id, effect_id = effect_id},
+		)
 		return vid
 
 	case Inferred_Effect_Row:
 		effect_entries := store_alloc(store, Effect_Row_Entry, len(f.effects))
-		for i in 0..<len(f.effects) {
+		for i in 0 ..< len(f.effects) {
 			entry := f.effects[i]
 			type_args := store_alloc(store, base.Type_Var_ID, len(entry.type_args))
-			for j in 0..<len(entry.type_args) {
+			for j in 0 ..< len(entry.type_args) {
 				type_args[j] = instantiate_rec(store, entry.type_args[j], subst)
 			}
-			effect_entries[i] = Effect_Row_Entry{name = entry.name, type_args = type_args}
+			effect_entries[i] = Effect_Row_Entry {
+				name      = entry.name,
+				type_args = type_args,
+			}
 		}
 		rest_id := instantiate_rec(store, f.rest_id, subst)
 		vid := fresh_effect_row(store, v.span)
-		link_var(store, vid, Inferred_Effect_Row{
-			effects = effect_entries,
-			rest_id = rest_id,
-		})
+		link_var(store, vid, Inferred_Effect_Row{effects = effect_entries, rest_id = rest_id})
 		return vid
 
 	case Inferred_Record_Row:
 		record_fields := store_alloc(store, Type_Field_Entry, len(f.record_fields))
-		for i in 0..<len(f.record_fields) {
+		for i in 0 ..< len(f.record_fields) {
 			rf := f.record_fields[i]
-			record_fields[i] = Type_Field_Entry{
+			record_fields[i] = Type_Field_Entry {
 				name = rf.name,
 				var  = instantiate_rec(store, rf.var, subst),
 			}
 		}
 		record_rest := instantiate_rec(store, f.record_rest, subst)
 		vid := fresh_value_var(store, v.span)
-		link_var(store, vid, Inferred_Record_Row{
-			record_fields = record_fields,
-			record_rest = record_rest,
-			closed = f.closed,
-		})
+		link_var(
+			store,
+			vid,
+			Inferred_Record_Row {
+				record_fields = record_fields,
+				record_rest = record_rest,
+				closed = f.closed,
+			},
+		)
 		return vid
 
 	case Inferred_Tag_Union_Row:
 		tag_entries := store_alloc(store, Type_Tag_Entry, len(f.tag_entries))
-		for i in 0..<len(f.tag_entries) {
+		for i in 0 ..< len(f.tag_entries) {
 			te := f.tag_entries[i]
 			payload := store_alloc(store, base.Type_Var_ID, len(te.payload))
-			for j in 0..<len(te.payload) {
+			for j in 0 ..< len(te.payload) {
 				payload[j] = instantiate_rec(store, te.payload[j], subst)
 			}
-			tag_entries[i] = Type_Tag_Entry{
+			tag_entries[i] = Type_Tag_Entry {
 				name    = te.name,
 				payload = payload,
 			}
 		}
 		tag_rest := instantiate_rec(store, f.tag_rest, subst)
 		vid := fresh_value_var(store, v.span)
-		link_var(store, vid, Inferred_Tag_Union_Row{
-			tag_entries = tag_entries,
-			tag_rest = tag_rest,
-		})
+		link_var(
+			store,
+			vid,
+			Inferred_Tag_Union_Row{tag_entries = tag_entries, tag_rest = tag_rest},
+		)
 		return vid
 
 	case Inferred_Handle:
 		inner_id := instantiate_rec(store, f.inner_id, subst)
 		effect_id := instantiate_rec(store, f.effect_id, subst)
 		vid := fresh_value_var(store, v.span)
-		link_var(store, vid, Inferred_Handle{
-			inner_id = inner_id,
-			effect_id = effect_id,
-		})
+		link_var(store, vid, Inferred_Handle{inner_id = inner_id, effect_id = effect_id})
 		return vid
 	}
 
 	return resolved
 }
 
-deep_clone_type :: proc(store: ^Type_Store, id: base.Type_Var_ID, span: base.Source_Span, subst: ^map[base.Type_Var_ID]base.Type_Var_ID) -> base.Type_Var_ID {
+deep_clone_type :: proc(
+	store: ^Type_Store,
+	id: base.Type_Var_ID,
+	span: base.Source_Span,
+	subst: ^map[base.Type_Var_ID]base.Type_Var_ID,
+) -> base.Type_Var_ID {
 	resolved := resolve_var(store, id)
 
 	if existing, ok := subst[resolved]; ok {
@@ -1001,93 +1206,102 @@ deep_clone_type :: proc(store: ^Type_Store, id: base.Type_Var_ID, span: base.Sou
 
 	case Inferred_Newtype:
 		param_ids := store_alloc(store, base.Type_Var_ID, len(f.param_ids))
-		for i in 0..<len(f.param_ids) {
+		for i in 0 ..< len(f.param_ids) {
 			param_ids[i] = deep_clone_type(store, f.param_ids[i], span, subst)
 		}
 		inner_id := deep_clone_type(store, f.inner_id, span, subst)
 		fresh := fresh_value_var(store, span)
-		link_var(store, fresh, Inferred_Newtype{
-			primitive_name = f.primitive_name,
-			arity = f.arity,
-			param_ids = param_ids,
-			inner_id = inner_id,
-		})
+		link_var(
+			store,
+			fresh,
+			Inferred_Newtype {
+				primitive_name = f.primitive_name,
+				arity = f.arity,
+				param_ids = param_ids,
+				inner_id = inner_id,
+			},
+		)
 		subst[resolved] = fresh
 		return fresh
 
 	case Inferred_Function:
 		param_ids := store_alloc(store, base.Type_Var_ID, len(f.param_ids))
-		for i in 0..<len(f.param_ids) {
+		for i in 0 ..< len(f.param_ids) {
 			param_ids[i] = deep_clone_type(store, f.param_ids[i], span, subst)
 		}
 		return_id := deep_clone_type(store, f.return_id, span, subst)
 		effect_id := deep_clone_type(store, f.effect_id, span, subst)
 		fresh := fresh_value_var(store, span)
-		link_var(store, fresh, Inferred_Function{
-			param_ids = param_ids,
-			return_id = return_id,
-			effect_id = effect_id,
-		})
+		link_var(
+			store,
+			fresh,
+			Inferred_Function{param_ids = param_ids, return_id = return_id, effect_id = effect_id},
+		)
 		subst[resolved] = fresh
 		return fresh
 
 	case Inferred_Effect_Row:
 		effect_entries := store_alloc(store, Effect_Row_Entry, len(f.effects))
-		for i in 0..<len(f.effects) {
+		for i in 0 ..< len(f.effects) {
 			entry := f.effects[i]
 			type_args := store_alloc(store, base.Type_Var_ID, len(entry.type_args))
-			for j in 0..<len(entry.type_args) {
+			for j in 0 ..< len(entry.type_args) {
 				type_args[j] = deep_clone_type(store, entry.type_args[j], span, subst)
 			}
-			effect_entries[i] = Effect_Row_Entry{name = entry.name, type_args = type_args}
+			effect_entries[i] = Effect_Row_Entry {
+				name      = entry.name,
+				type_args = type_args,
+			}
 		}
 		rest_id := deep_clone_type(store, f.rest_id, span, subst)
 		fresh := fresh_effect_row(store, span)
-		link_var(store, fresh, Inferred_Effect_Row{
-			effects = effect_entries,
-			rest_id = rest_id,
-		})
+		link_var(store, fresh, Inferred_Effect_Row{effects = effect_entries, rest_id = rest_id})
 		subst[resolved] = fresh
 		return fresh
 
 	case Inferred_Record_Row:
 		record_fields := store_alloc(store, Type_Field_Entry, len(f.record_fields))
-		for i in 0..<len(f.record_fields) {
+		for i in 0 ..< len(f.record_fields) {
 			rf := f.record_fields[i]
-			record_fields[i] = Type_Field_Entry{
+			record_fields[i] = Type_Field_Entry {
 				name = rf.name,
 				var  = deep_clone_type(store, rf.var, span, subst),
 			}
 		}
 		record_rest := deep_clone_type(store, f.record_rest, span, subst)
 		fresh := fresh_record_row(store, span)
-		link_var(store, fresh, Inferred_Record_Row{
-			record_fields = record_fields,
-			record_rest = record_rest,
-			closed = f.closed,
-		})
+		link_var(
+			store,
+			fresh,
+			Inferred_Record_Row {
+				record_fields = record_fields,
+				record_rest = record_rest,
+				closed = f.closed,
+			},
+		)
 		subst[resolved] = fresh
 		return fresh
 
 	case Inferred_Tag_Union_Row:
 		tag_entries := store_alloc(store, Type_Tag_Entry, len(f.tag_entries))
-		for i in 0..<len(f.tag_entries) {
+		for i in 0 ..< len(f.tag_entries) {
 			te := f.tag_entries[i]
 			payload := store_alloc(store, base.Type_Var_ID, len(te.payload))
-			for j in 0..<len(te.payload) {
+			for j in 0 ..< len(te.payload) {
 				payload[j] = deep_clone_type(store, te.payload[j], span, subst)
 			}
-			tag_entries[i] = Type_Tag_Entry{
+			tag_entries[i] = Type_Tag_Entry {
 				name    = te.name,
 				payload = payload,
 			}
 		}
 		tag_rest := deep_clone_type(store, f.tag_rest, span, subst)
 		fresh := fresh_tag_row(store, span)
-		link_var(store, fresh, Inferred_Tag_Union_Row{
-			tag_entries = tag_entries,
-			tag_rest = tag_rest,
-		})
+		link_var(
+			store,
+			fresh,
+			Inferred_Tag_Union_Row{tag_entries = tag_entries, tag_rest = tag_rest},
+		)
 		subst[resolved] = fresh
 		return fresh
 
@@ -1095,10 +1309,7 @@ deep_clone_type :: proc(store: ^Type_Store, id: base.Type_Var_ID, span: base.Sou
 		inner_id := deep_clone_type(store, f.inner_id, span, subst)
 		effect_id := deep_clone_type(store, f.effect_id, span, subst)
 		fresh := fresh_value_var(store, span)
-		link_var(store, fresh, Inferred_Handle{
-			inner_id = inner_id,
-			effect_id = effect_id,
-		})
+		link_var(store, fresh, Inferred_Handle{inner_id = inner_id, effect_id = effect_id})
 		subst[resolved] = fresh
 		return fresh
 	}
@@ -1106,7 +1317,12 @@ deep_clone_type :: proc(store: ^Type_Store, id: base.Type_Var_ID, span: base.Sou
 	return resolved
 }
 
-subtract_effect_from_row :: proc(store: ^Type_Store, row: base.Type_Var_ID, effect: base.Intern_ID, span: base.Source_Span) -> base.Type_Var_ID {
+subtract_effect_from_row :: proc(
+	store: ^Type_Store,
+	row: base.Type_Var_ID,
+	effect: base.Intern_ID,
+	span: base.Source_Span,
+) -> base.Type_Var_ID {
 	rid := resolve_var(store, row)
 	rv := store.vars[int(rid)]
 
@@ -1133,10 +1349,11 @@ subtract_effect_from_row :: proc(store: ^Type_Store, row: base.Type_Var_ID, effe
 				}
 			}
 			new_row := fresh_effect_row(store, span)
-			link_var(store, new_row, Inferred_Effect_Row{
-				effects = new_entries,
-				rest_id = inf_effect.rest_id,
-			})
+			link_var(
+				store,
+				new_row,
+				Inferred_Effect_Row{effects = new_entries, rest_id = inf_effect.rest_id},
+			)
 			return new_row
 		}
 		return rid
@@ -1146,12 +1363,16 @@ subtract_effect_from_row :: proc(store: ^Type_Store, row: base.Type_Var_ID, effe
 	if is_unlinked {
 		handled_rest := fresh_effect_row(store, span)
 		effect_entries := store_alloc(store, Effect_Row_Entry, 1)
-		effect_entries[0] = Effect_Row_Entry{name = effect, type_args = {}}
+		effect_entries[0] = Effect_Row_Entry {
+			name      = effect,
+			type_args = {},
+		}
 		handled_row := fresh_effect_row(store, span)
-		link_var(store, handled_row, Inferred_Effect_Row{
-			effects = effect_entries,
-			rest_id = handled_rest,
-		})
+		link_var(
+			store,
+			handled_row,
+			Inferred_Effect_Row{effects = effect_entries, rest_id = handled_rest},
+		)
 		unify(store, rid, handled_row)
 		return handled_rest
 	}
@@ -1202,7 +1423,11 @@ is_effect_handled :: proc(env: ^Type_Env, effect_id: base.Intern_ID) -> bool {
 	return false
 }
 
-typecheck_newtype_construct :: proc(e: ^CExpr_Tag, env: ^Type_Env, store: ^Type_Store) -> Synth_Result {
+typecheck_newtype_construct :: proc(
+	e: ^CExpr_Tag,
+	env: ^Type_Env,
+	store: ^Type_Store,
+) -> Synth_Result {
 	eff := fresh_effect_row(store, e.span)
 
 	nt_info, ok := store.newtype_decls[e.name.name]
@@ -1211,19 +1436,22 @@ typecheck_newtype_construct :: proc(e: ^CExpr_Tag, env: ^Type_Env, store: ^Type_
 		payload_t := make([dynamic]TExpr, 0)
 		t := new(TExpr_Tag)
 		type_ir, eff_ir := type_eff_pair(store, var_id, eff)
-		t^ = TExpr_Tag{
-			name = e.name,
+		t^ = TExpr_Tag {
+			name    = e.name,
 			payload = payload_t,
-			type_ = type_ir,
-			eff_ = eff_ir,
-			span = e.span,
+			type_   = type_ir,
+			eff_    = eff_ir,
+			span    = e.span,
 		}
 		return Synth_Result{var_id = var_id, effects = eff, texpr = TExpr(t)}
 	}
 
 	if !is_same_module(env, nt_info.module) {
 		nt_str := base.intern_get(store.interner, e.name.name)
-		diagnostics.collector_add_diag(store.collector, diagnostics.diag_newtype_opaque_violation(nt_str, "construct", e.span))
+		diagnostics.collector_add_diag(
+			store.collector,
+			diagnostics.diag_newtype_opaque_violation(nt_str, "construct", e.span),
+		)
 	}
 
 	nt_binding, has_binding := env_lookup(env, e.name.name)
@@ -1278,17 +1506,23 @@ typecheck_newtype_construct :: proc(e: ^CExpr_Tag, env: ^Type_Env, store: ^Type_
 	payload_t[0] = arg_texpr
 	t := new(TExpr_Tag)
 	type_ir, eff_ir := type_eff_pair(store, inst_binding, eff)
-	t^ = TExpr_Tag{
-		name = e.name,
+	t^ = TExpr_Tag {
+		name    = e.name,
 		payload = payload_t,
-		type_ = type_ir,
-		eff_ = eff_ir,
-		span = e.span,
+		type_   = type_ir,
+		eff_    = eff_ir,
+		span    = e.span,
 	}
 	return Synth_Result{var_id = inst_binding, effects = eff, texpr = TExpr(t)}
 }
 
-newtype_owning_tag :: proc(store: ^Type_Store, tag_name: base.Intern_ID) -> (base.Intern_ID, bool) {
+newtype_owning_tag :: proc(
+	store: ^Type_Store,
+	tag_name: base.Intern_ID,
+) -> (
+	base.Intern_ID,
+	bool,
+) {
 	for nt_name, info in store.newtype_decls {
 		for owned in info.owned_tags {
 			if owned == tag_name {
@@ -1317,9 +1551,4 @@ is_same_module :: proc(env: ^Type_Env, defining_module: base.Intern_ID) -> bool 
 	}
 	return false
 }
-
-
-
-
-
 

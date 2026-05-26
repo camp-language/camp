@@ -5,13 +5,13 @@ import "camp:semantics"
 import "core:fmt"
 
 Mono_Env :: struct {
-	store:             ^semantics.Type_Store,
-	interner:          ^base.Intern_Table,
-	specializations:   map[string]base.Canonical_Name,
-	decl_map:          map[base.Canonical_Name]^semantics.TDecl_Const,
-	newtype_map:       map[base.Canonical_Name]^semantics.TDecl_Newtype,
-	worklist:         [dynamic]Mono_Item,
-	output_decls:      [dynamic]semantics.TDecl,
+	store:           ^semantics.Type_Store,
+	interner:        ^base.Intern_Table,
+	specializations: map[string]base.Canonical_Name,
+	decl_map:        map[base.Canonical_Name]^semantics.TDecl_Const,
+	newtype_map:     map[base.Canonical_Name]^semantics.TDecl_Newtype,
+	worklist:        [dynamic]Mono_Item,
+	output_decls:    [dynamic]semantics.TDecl,
 }
 
 Mono_Item :: struct {
@@ -20,7 +20,11 @@ Mono_Item :: struct {
 	span:      base.Source_Span,
 }
 
-mono :: proc(tfile: semantics.TFile, store: ^semantics.Type_Store, interner: ^base.Intern_Table) -> semantics.TFile {
+mono :: proc(
+	tfile: semantics.TFile,
+	store: ^semantics.Type_Store,
+	interner: ^base.Intern_Table,
+) -> semantics.TFile {
 	env: Mono_Env
 	env.store = store
 	env.interner = interner
@@ -85,7 +89,11 @@ mono :: proc(tfile: semantics.TFile, store: ^semantics.Type_Store, interner: ^ba
 	return result
 }
 
-specialization_key :: proc(item: Mono_Item, store: ^semantics.Type_Store, interner: ^base.Intern_Table) -> string {
+specialization_key :: proc(
+	item: Mono_Item,
+	store: ^semantics.Type_Store,
+	interner: ^base.Intern_Table,
+) -> string {
 	name_str := base.intern_get(interner, item.original.name)
 	base_str: string
 	if item.original.module != base.NO_NAME {
@@ -116,7 +124,11 @@ specialization_key :: proc(item: Mono_Item, store: ^semantics.Type_Store, intern
 	return key
 }
 
-format_type_var_for_key :: proc(store: ^semantics.Type_Store, v: ^semantics.Type_Var, interner: ^base.Intern_Table) -> string {
+format_type_var_for_key :: proc(
+	store: ^semantics.Type_Store,
+	v: ^semantics.Type_Var,
+	interner: ^base.Intern_Table,
+) -> string {
 	link := v.link
 	for {
 		linked, is_id := link.(base.Type_Var_ID)
@@ -239,60 +251,149 @@ find_type_params_in_trees :: proc(
 	case semantics.Inferred_Function:
 		inst_link, ok := inst_inf.(semantics.Inferred_Function)
 		if !ok do return
-		for i in 0..<min(len(orig_link.param_ids), len(inst_link.param_ids)) {
-			find_type_params_in_trees(store, orig_link.param_ids[i], inst_link.param_ids[i], tp_var_ids, type_args)
+		for i in 0 ..< min(len(orig_link.param_ids), len(inst_link.param_ids)) {
+			find_type_params_in_trees(
+				store,
+				orig_link.param_ids[i],
+				inst_link.param_ids[i],
+				tp_var_ids,
+				type_args,
+			)
 		}
-		find_type_params_in_trees(store, orig_link.return_id, inst_link.return_id, tp_var_ids, type_args)
-		find_type_params_in_trees(store, orig_link.effect_id, inst_link.effect_id, tp_var_ids, type_args)
+		find_type_params_in_trees(
+			store,
+			orig_link.return_id,
+			inst_link.return_id,
+			tp_var_ids,
+			type_args,
+		)
+		find_type_params_in_trees(
+			store,
+			orig_link.effect_id,
+			inst_link.effect_id,
+			tp_var_ids,
+			type_args,
+		)
 
 	case semantics.Inferred_Newtype:
 		inst_link, ok := inst_inf.(semantics.Inferred_Newtype)
 		if !ok do return
-		for i in 0..<min(len(orig_link.param_ids), len(inst_link.param_ids)) {
-			find_type_params_in_trees(store, orig_link.param_ids[i], inst_link.param_ids[i], tp_var_ids, type_args)
+		for i in 0 ..< min(len(orig_link.param_ids), len(inst_link.param_ids)) {
+			find_type_params_in_trees(
+				store,
+				orig_link.param_ids[i],
+				inst_link.param_ids[i],
+				tp_var_ids,
+				type_args,
+			)
 		}
-		find_type_params_in_trees(store, orig_link.inner_id, inst_link.inner_id, tp_var_ids, type_args)
+		find_type_params_in_trees(
+			store,
+			orig_link.inner_id,
+			inst_link.inner_id,
+			tp_var_ids,
+			type_args,
+		)
 
 	case semantics.Inferred_Tag_Union_Row:
 		inst_link, ok := inst_inf.(semantics.Inferred_Tag_Union_Row)
 		if !ok do return
-		for i in 0..<min(len(orig_link.tag_entries), len(inst_link.tag_entries)) {
-			for j in 0..<min(len(orig_link.tag_entries[i].payload), len(inst_link.tag_entries[i].payload)) {
-				find_type_params_in_trees(store, orig_link.tag_entries[i].payload[j], inst_link.tag_entries[i].payload[j], tp_var_ids, type_args)
+		for i in 0 ..< min(len(orig_link.tag_entries), len(inst_link.tag_entries)) {
+			for j in 0 ..< min(
+				len(orig_link.tag_entries[i].payload),
+				len(inst_link.tag_entries[i].payload),
+			) {
+				find_type_params_in_trees(
+					store,
+					orig_link.tag_entries[i].payload[j],
+					inst_link.tag_entries[i].payload[j],
+					tp_var_ids,
+					type_args,
+				)
 			}
 		}
-		find_type_params_in_trees(store, orig_link.tag_rest, inst_link.tag_rest, tp_var_ids, type_args)
+		find_type_params_in_trees(
+			store,
+			orig_link.tag_rest,
+			inst_link.tag_rest,
+			tp_var_ids,
+			type_args,
+		)
 
 	case semantics.Inferred_Record_Row:
 		inst_link, ok := inst_inf.(semantics.Inferred_Record_Row)
 		if !ok do return
-		for i in 0..<min(len(orig_link.record_fields), len(inst_link.record_fields)) {
-			find_type_params_in_trees(store, orig_link.record_fields[i].var, inst_link.record_fields[i].var, tp_var_ids, type_args)
+		for i in 0 ..< min(len(orig_link.record_fields), len(inst_link.record_fields)) {
+			find_type_params_in_trees(
+				store,
+				orig_link.record_fields[i].var,
+				inst_link.record_fields[i].var,
+				tp_var_ids,
+				type_args,
+			)
 		}
-		find_type_params_in_trees(store, orig_link.record_rest, inst_link.record_rest, tp_var_ids, type_args)
+		find_type_params_in_trees(
+			store,
+			orig_link.record_rest,
+			inst_link.record_rest,
+			tp_var_ids,
+			type_args,
+		)
 
 	case semantics.Inferred_Effect_Row:
 		inst_link, ok := inst_inf.(semantics.Inferred_Effect_Row)
 		if !ok do return
-		for i in 0..<min(len(orig_link.effects), len(inst_link.effects)) {
-			for j in 0..<min(len(orig_link.effects[i].type_args), len(inst_link.effects[i].type_args)) {
-				find_type_params_in_trees(store, orig_link.effects[i].type_args[j], inst_link.effects[i].type_args[j], tp_var_ids, type_args)
+		for i in 0 ..< min(len(orig_link.effects), len(inst_link.effects)) {
+			for j in 0 ..< min(
+				len(orig_link.effects[i].type_args),
+				len(inst_link.effects[i].type_args),
+			) {
+				find_type_params_in_trees(
+					store,
+					orig_link.effects[i].type_args[j],
+					inst_link.effects[i].type_args[j],
+					tp_var_ids,
+					type_args,
+				)
 			}
 		}
-		find_type_params_in_trees(store, orig_link.rest_id, inst_link.rest_id, tp_var_ids, type_args)
+		find_type_params_in_trees(
+			store,
+			orig_link.rest_id,
+			inst_link.rest_id,
+			tp_var_ids,
+			type_args,
+		)
 
 	case semantics.Inferred_Handle:
 		inst_link, ok := inst_inf.(semantics.Inferred_Handle)
 		if !ok do return
-		find_type_params_in_trees(store, orig_link.inner_id, inst_link.inner_id, tp_var_ids, type_args)
-		find_type_params_in_trees(store, orig_link.effect_id, inst_link.effect_id, tp_var_ids, type_args)
+		find_type_params_in_trees(
+			store,
+			orig_link.inner_id,
+			inst_link.inner_id,
+			tp_var_ids,
+			type_args,
+		)
+		find_type_params_in_trees(
+			store,
+			orig_link.effect_id,
+			inst_link.effect_id,
+			tp_var_ids,
+			type_args,
+		)
 
 	case semantics.Inferred_Primitive, semantics.Inferred_Constructor:
-		// Leaf types — no type params inside
+	// Leaf types — no type params inside
 	}
 }
 
-mangle :: proc(name: base.Canonical_Name, type_args: map[base.Intern_ID]base.Type_Var_ID, interner: ^base.Intern_Table, store: ^semantics.Type_Store) -> base.Canonical_Name {
+mangle :: proc(
+	name: base.Canonical_Name,
+	type_args: map[base.Intern_ID]base.Type_Var_ID,
+	interner: ^base.Intern_Table,
+	store: ^semantics.Type_Store,
+) -> base.Canonical_Name {
 	name_str := base.intern_get(interner, name.name)
 	base_str := name_str
 
@@ -311,11 +412,7 @@ mangle :: proc(name: base.Canonical_Name, type_args: map[base.Intern_ID]base.Typ
 	}
 
 	mangled_name := base.intern(interner, base_str)
-	return base.Canonical_Name{
-		module = name.module,
-		name = mangled_name,
-		is_local = name.is_local,
-	}
+	return base.Canonical_Name{module = name.module, name = mangled_name, is_local = name.is_local}
 }
 
 specialize_newtype :: proc(item: Mono_Item, env: ^Mono_Env) -> ^semantics.TDecl_Newtype {
@@ -363,7 +460,11 @@ specialize_decl :: proc(item: Mono_Item, env: ^Mono_Env) -> ^semantics.TDecl_Con
 	return decl
 }
 
-substitute_types_in_expr :: proc(expr: semantics.TExpr, type_args: map[base.Intern_ID]base.Type_Var_ID, env: ^Mono_Env) -> semantics.TExpr {
+substitute_types_in_expr :: proc(
+	expr: semantics.TExpr,
+	type_args: map[base.Intern_ID]base.Type_Var_ID,
+	env: ^Mono_Env,
+) -> semantics.TExpr {
 	switch e in expr {
 	case ^semantics.TExpr_Int:
 		return expr
@@ -392,7 +493,7 @@ substitute_types_in_expr :: proc(expr: semantics.TExpr, type_args: map[base.Inte
 
 	case ^semantics.TExpr_Tag:
 		payload_t := make([dynamic]semantics.TExpr, len(e.payload))
-		for i in 0..<len(e.payload) {
+		for i in 0 ..< len(e.payload) {
 			payload_t[i] = substitute_types_in_expr(e.payload[i], type_args, env)
 		}
 		result := new(semantics.TExpr_Tag)
@@ -405,11 +506,11 @@ substitute_types_in_expr :: proc(expr: semantics.TExpr, type_args: map[base.Inte
 
 	case ^semantics.TExpr_Record:
 		fields_t := make([dynamic]semantics.TRecord_Field, len(e.fields))
-		for i in 0..<len(e.fields) {
-			fields_t[i] = semantics.TRecord_Field{
-				name = e.fields[i].name,
+		for i in 0 ..< len(e.fields) {
+			fields_t[i] = semantics.TRecord_Field {
+				name  = e.fields[i].name,
 				value = substitute_types_in_expr(e.fields[i].value, type_args, env),
-				span = e.fields[i].span,
+				span  = e.fields[i].span,
 			}
 		}
 		result := new(semantics.TExpr_Record)
@@ -423,7 +524,7 @@ substitute_types_in_expr :: proc(expr: semantics.TExpr, type_args: map[base.Inte
 
 	case ^semantics.TExpr_List:
 		elements_t := make([dynamic]semantics.TExpr, len(e.elements))
-		for i in 0..<len(e.elements) {
+		for i in 0 ..< len(e.elements) {
 			elements_t[i] = substitute_types_in_expr(e.elements[i], type_args, env)
 		}
 		result := new(semantics.TExpr_List)
@@ -443,7 +544,7 @@ substitute_types_in_expr :: proc(expr: semantics.TExpr, type_args: map[base.Inte
 
 	case ^semantics.TExpr_Call:
 		args_t := make([dynamic]semantics.TExpr, len(e.args))
-		for i in 0..<len(e.args) {
+		for i in 0 ..< len(e.args) {
 			args_t[i] = substitute_types_in_expr(e.args[i], type_args, env)
 		}
 		result := new(semantics.TExpr_Call)
@@ -457,7 +558,7 @@ substitute_types_in_expr :: proc(expr: semantics.TExpr, type_args: map[base.Inte
 	case ^semantics.TExpr_Method_Call:
 		sub_receiver := substitute_types_in_expr(e.receiver, type_args, env)
 		sub_args := make([dynamic]semantics.TExpr, len(e.args))
-		for i in 0..<len(e.args) {
+		for i in 0 ..< len(e.args) {
 			sub_args[i] = substitute_types_in_expr(e.args[i], type_args, env)
 		}
 
@@ -469,11 +570,11 @@ substitute_types_in_expr :: proc(expr: semantics.TExpr, type_args: map[base.Inte
 			impl_name, found := find_method_impl(receiver_type_name, e.method.name, env.store)
 			if found {
 				callee := new(semantics.TExpr_Name)
-				callee^ = semantics.TExpr_Name{
-					name = impl_name,
+				callee^ = semantics.TExpr_Name {
+					name  = impl_name,
 					type_ = sub_type,
-					eff_ = sub_eff,
-					span = e.span,
+					eff_  = sub_eff,
+					span  = e.span,
 				}
 
 				all_args := make([dynamic]semantics.TExpr, len(sub_args) + 1)
@@ -483,37 +584,37 @@ substitute_types_in_expr :: proc(expr: semantics.TExpr, type_args: map[base.Inte
 				}
 
 				result := new(semantics.TExpr_Call)
-				result^ = semantics.TExpr_Call{
+				result^ = semantics.TExpr_Call {
 					callee = semantics.TExpr(callee),
-					args = all_args,
-					type_ = sub_type,
-					eff_ = sub_eff,
-					span = e.span,
+					args   = all_args,
+					type_  = sub_type,
+					eff_   = sub_eff,
+					span   = e.span,
 				}
 				return semantics.TExpr(result)
 			}
 		}
 
 		result := new(semantics.TExpr_Method_Call)
-		result^ = semantics.TExpr_Method_Call{
-			receiver = sub_receiver,
-			method = e.method,
-			args = sub_args,
-			type_ = sub_type,
-			eff_ = sub_eff,
+		result^ = semantics.TExpr_Method_Call {
+			receiver  = sub_receiver,
+			method    = e.method,
+			args      = sub_args,
+			type_     = sub_type,
+			eff_      = sub_eff,
 			resolved_ = e.resolved_,
-			span = e.span,
+			span      = e.span,
 		}
 		return semantics.TExpr(result)
 
 	case ^semantics.TExpr_Lambda:
 		substituted_params := make([dynamic]semantics.TFunc_Param, len(e.params))
-		for i in 0..<len(e.params) {
-			substituted_params[i] = semantics.TFunc_Param{
-				name = e.params[i].name,
+		for i in 0 ..< len(e.params) {
+			substituted_params[i] = semantics.TFunc_Param {
+				name  = e.params[i].name,
 				type_ = substitute_ir_type(e.params[i].type_, type_args, env),
-				eff_ = substitute_ir_type(e.params[i].eff_, type_args, env),
-				span = e.params[i].span,
+				eff_  = substitute_ir_type(e.params[i].eff_, type_args, env),
+				span  = e.params[i].span,
 			}
 		}
 		result := new(semantics.TExpr_Lambda)
@@ -529,7 +630,7 @@ substitute_types_in_expr :: proc(expr: semantics.TExpr, type_args: map[base.Inte
 
 	case ^semantics.TExpr_Block:
 		statements_t := make([dynamic]semantics.TExpr, len(e.statements))
-		for i in 0..<len(e.statements) {
+		for i in 0 ..< len(e.statements) {
 			statements_t[i] = substitute_types_in_expr(e.statements[i], type_args, env)
 		}
 		result := new(semantics.TExpr_Block)
@@ -551,11 +652,11 @@ substitute_types_in_expr :: proc(expr: semantics.TExpr, type_args: map[base.Inte
 
 	case ^semantics.TExpr_Match:
 		arms_t := make([dynamic]semantics.TMatch_Arm, len(e.arms))
-		for i in 0..<len(e.arms) {
-			arms_t[i] = semantics.TMatch_Arm{
+		for i in 0 ..< len(e.arms) {
+			arms_t[i] = semantics.TMatch_Arm {
 				pattern = e.arms[i].pattern,
-				body = substitute_types_in_expr(e.arms[i].body, type_args, env),
-				span = e.arms[i].span,
+				body    = substitute_types_in_expr(e.arms[i].body, type_args, env),
+				span    = e.arms[i].span,
 			}
 		}
 		result := new(semantics.TExpr_Match)
@@ -596,11 +697,11 @@ substitute_types_in_expr :: proc(expr: semantics.TExpr, type_args: map[base.Inte
 
 	case ^semantics.TExpr_Record_Update:
 		updates_t := make([dynamic]semantics.TRecord_Field, len(e.updates))
-		for i in 0..<len(e.updates) {
-			updates_t[i] = semantics.TRecord_Field{
-				name = e.updates[i].name,
+		for i in 0 ..< len(e.updates) {
+			updates_t[i] = semantics.TRecord_Field {
+				name  = e.updates[i].name,
 				value = substitute_types_in_expr(e.updates[i].value, type_args, env),
-				span = e.updates[i].span,
+				span  = e.updates[i].span,
 			}
 		}
 		result := new(semantics.TExpr_Record_Update)
@@ -642,17 +743,17 @@ substitute_types_in_expr :: proc(expr: semantics.TExpr, type_args: map[base.Inte
 			switch p in part {
 			case ^semantics.TExpr_String_Literal:
 				clit := new(semantics.TExpr_String_Literal)
-				clit^ = semantics.TExpr_String_Literal{
+				clit^ = semantics.TExpr_String_Literal {
 					value = p.value,
 					type_ = substitute_ir_type(p.type_, type_args, env),
-					eff_ = substitute_ir_type(p.eff_, type_args, env),
-					span = p.span,
+					eff_  = substitute_ir_type(p.eff_, type_args, env),
+					span  = p.span,
 				}
 				append(&tparts, semantics.TExpr_String_Part(clit))
 			case ^semantics.TExpr_String_Expr:
 				sexpr := new(semantics.TExpr_String_Expr)
-				sexpr^ = semantics.TExpr_String_Expr{
-					expr = substitute_types_in_expr(p.expr, type_args, env),
+				sexpr^ = semantics.TExpr_String_Expr {
+					expr         = substitute_types_in_expr(p.expr, type_args, env),
 					needs_to_str = p.needs_to_str,
 					display_impl = p.display_impl,
 				}
@@ -668,12 +769,12 @@ substitute_types_in_expr :: proc(expr: semantics.TExpr, type_args: map[base.Inte
 
 	case ^semantics.TExpr_Handle:
 		arms_t := make([dynamic]semantics.THandler_Arm, len(e.arms))
-		for i in 0..<len(e.arms) {
-			arms_t[i] = semantics.THandler_Arm{
-				op = e.arms[i].op,
+		for i in 0 ..< len(e.arms) {
+			arms_t[i] = semantics.THandler_Arm {
+				op     = e.arms[i].op,
 				params = e.arms[i].params,
-				body = substitute_types_in_expr(e.arms[i].body, type_args, env),
-				span = e.arms[i].span,
+				body   = substitute_types_in_expr(e.arms[i].body, type_args, env),
+				span   = e.arms[i].span,
 			}
 		}
 		result := new(semantics.TExpr_Handle)
@@ -690,7 +791,7 @@ substitute_types_in_expr :: proc(expr: semantics.TExpr, type_args: map[base.Inte
 
 	case ^semantics.TExpr_Perform:
 		args_t := make([dynamic]semantics.TExpr, len(e.args))
-		for i in 0..<len(e.args) {
+		for i in 0 ..< len(e.args) {
 			args_t[i] = substitute_types_in_expr(e.args[i], type_args, env)
 		}
 		result := new(semantics.TExpr_Perform)
@@ -726,7 +827,7 @@ substitute_types_in_expr :: proc(expr: semantics.TExpr, type_args: map[base.Inte
 		}
 		result.expressions = exprs
 		names := make([dynamic]base.Intern_ID, len(e.names))
-		for idx in 0..<len(e.names) {
+		for idx in 0 ..< len(e.names) {
 			names[idx] = e.names[idx]
 		}
 		result.names = names
@@ -734,23 +835,27 @@ substitute_types_in_expr :: proc(expr: semantics.TExpr, type_args: map[base.Inte
 
 	case ^semantics.TExpr_Nominal_Construct:
 		payload_t := make([dynamic]semantics.TExpr, len(e.payload))
-		for i in 0..<len(e.payload) {
+		for i in 0 ..< len(e.payload) {
 			payload_t[i] = substitute_types_in_expr(e.payload[i], type_args, env)
 		}
 		result := new(semantics.TExpr_Nominal_Construct)
-		result^ = semantics.TExpr_Nominal_Construct{
-			type_name = e.type_name,
-			variant = e.variant,
-			payload = payload_t,
+		result^ = semantics.TExpr_Nominal_Construct {
+			type_name     = e.type_name,
+			variant       = e.variant,
+			payload       = payload_t,
 			resolved_type = e.resolved_type,
-			span = e.span,
+			span          = e.span,
 		}
 		return semantics.TExpr(result)
 	}
 	return expr
 }
 
-substitute_ir_type :: proc(ir_type: base.IR_Type, type_args: map[base.Intern_ID]base.Type_Var_ID, env: ^Mono_Env) -> base.IR_Type {
+substitute_ir_type :: proc(
+	ir_type: base.IR_Type,
+	type_args: map[base.Intern_ID]base.Type_Var_ID,
+	env: ^Mono_Env,
+) -> base.IR_Type {
 	if len(type_args) == 0 {
 		return ir_type
 	}
@@ -851,7 +956,11 @@ get_expr_ir_type :: proc(expr: semantics.TExpr) -> base.IR_Type {
 	return base.IR_Type{}
 }
 
-resolve_mono_type :: proc(expr: semantics.TExpr, type_args: map[base.Intern_ID]base.Type_Var_ID, env: ^Mono_Env) -> base.Intern_ID {
+resolve_mono_type :: proc(
+	expr: semantics.TExpr,
+	type_args: map[base.Intern_ID]base.Type_Var_ID,
+	env: ^Mono_Env,
+) -> base.Intern_ID {
 	ir_type := get_expr_ir_type(expr)
 
 	subbed := substitute_ir_type(ir_type, type_args, env)
@@ -875,7 +984,14 @@ resolve_mono_type :: proc(expr: semantics.TExpr, type_args: map[base.Intern_ID]b
 	return base.NO_NAME
 }
 
-find_method_impl :: proc(type_name: base.Intern_ID, method_name: base.Intern_ID, store: ^semantics.Type_Store) -> (base.Canonical_Name, bool) {
+find_method_impl :: proc(
+	type_name: base.Intern_ID,
+	method_name: base.Intern_ID,
+	store: ^semantics.Type_Store,
+) -> (
+	base.Canonical_Name,
+	bool,
+) {
 	impl, found := semantics.find_trait_impl_by_method(store, type_name, method_name)
 	if !found {
 		return base.Canonical_Name{}, false
@@ -908,11 +1024,10 @@ walk_decl_for_call_sites :: proc(decl: semantics.TDecl, env: ^Mono_Env) {
 				}
 			}
 			if len(type_args) > 0 {
-				append(&env.worklist, Mono_Item{
-					original = d.name,
-					type_args = type_args,
-					span = d.span,
-				})
+				append(
+					&env.worklist,
+					Mono_Item{original = d.name, type_args = type_args, span = d.span},
+				)
 			} else {
 				delete(type_args)
 			}
@@ -937,31 +1052,76 @@ walk_expr_for_call_sites :: proc(expr: semantics.TExpr, env: ^Mono_Env) {
 					if len(body.type_params) > 0 {
 						type_args := extract_type_args(callee, body, env)
 						if len(type_args) > 0 {
-							append(&env.worklist, Mono_Item{
-								original = callee.name,
-								type_args = type_args,
-								span = e.span,
-							})
+							append(
+								&env.worklist,
+								Mono_Item {
+									original = callee.name,
+									type_args = type_args,
+									span = e.span,
+								},
+							)
 						} else {
 							delete(type_args)
 						}
 					}
-				case ^semantics.TExpr_Int, ^semantics.TExpr_Float, ^semantics.TExpr_String, ^semantics.TExpr_Bool, ^semantics.TExpr_Char, ^semantics.TExpr_Todo,
-				     ^semantics.TExpr_Tag, ^semantics.TExpr_Nominal_Construct, ^semantics.TExpr_Record, ^semantics.TExpr_List,
-				     ^semantics.TExpr_Name, ^semantics.TExpr_Call, ^semantics.TExpr_Method_Call, ^semantics.TExpr_Block,
-				     ^semantics.TExpr_If, ^semantics.TExpr_Match, ^semantics.TExpr_BinOp, ^semantics.TExpr_PrefixOp,
-				     ^semantics.TExpr_Field_Access, ^semantics.TExpr_Record_Update, ^semantics.TExpr_Assign,
-				     ^semantics.TExpr_Return, ^semantics.TExpr_Crash, ^semantics.TExpr_Interpolated_String,
-				     ^semantics.TExpr_Handle, ^semantics.TExpr_Perform, ^semantics.TExpr_For, ^semantics.TExpr_Par:
+				case ^semantics.TExpr_Int,
+				     ^semantics.TExpr_Float,
+				     ^semantics.TExpr_String,
+				     ^semantics.TExpr_Bool,
+				     ^semantics.TExpr_Char,
+				     ^semantics.TExpr_Todo,
+				     ^semantics.TExpr_Tag,
+				     ^semantics.TExpr_Nominal_Construct,
+				     ^semantics.TExpr_Record,
+				     ^semantics.TExpr_List,
+				     ^semantics.TExpr_Name,
+				     ^semantics.TExpr_Call,
+				     ^semantics.TExpr_Method_Call,
+				     ^semantics.TExpr_Block,
+				     ^semantics.TExpr_If,
+				     ^semantics.TExpr_Match,
+				     ^semantics.TExpr_BinOp,
+				     ^semantics.TExpr_PrefixOp,
+				     ^semantics.TExpr_Field_Access,
+				     ^semantics.TExpr_Record_Update,
+				     ^semantics.TExpr_Assign,
+				     ^semantics.TExpr_Return,
+				     ^semantics.TExpr_Crash,
+				     ^semantics.TExpr_Interpolated_String,
+				     ^semantics.TExpr_Handle,
+				     ^semantics.TExpr_Perform,
+				     ^semantics.TExpr_For,
+				     ^semantics.TExpr_Par:
 				}
 			}
-		case ^semantics.TExpr_Int, ^semantics.TExpr_Float, ^semantics.TExpr_String, ^semantics.TExpr_Bool, ^semantics.TExpr_Char, ^semantics.TExpr_Todo,
-		     ^semantics.TExpr_Tag, ^semantics.TExpr_Nominal_Construct, ^semantics.TExpr_Record, ^semantics.TExpr_List,
-		     ^semantics.TExpr_Call, ^semantics.TExpr_Method_Call, ^semantics.TExpr_Lambda, ^semantics.TExpr_Block,
-		     ^semantics.TExpr_If, ^semantics.TExpr_Match, ^semantics.TExpr_BinOp, ^semantics.TExpr_PrefixOp,
-		     ^semantics.TExpr_Field_Access, ^semantics.TExpr_Record_Update, ^semantics.TExpr_Assign,
-		     ^semantics.TExpr_Return, ^semantics.TExpr_Crash, ^semantics.TExpr_Interpolated_String,
-		     ^semantics.TExpr_Handle, ^semantics.TExpr_Perform, ^semantics.TExpr_For, ^semantics.TExpr_Par:
+		case ^semantics.TExpr_Int,
+		     ^semantics.TExpr_Float,
+		     ^semantics.TExpr_String,
+		     ^semantics.TExpr_Bool,
+		     ^semantics.TExpr_Char,
+		     ^semantics.TExpr_Todo,
+		     ^semantics.TExpr_Tag,
+		     ^semantics.TExpr_Nominal_Construct,
+		     ^semantics.TExpr_Record,
+		     ^semantics.TExpr_List,
+		     ^semantics.TExpr_Call,
+		     ^semantics.TExpr_Method_Call,
+		     ^semantics.TExpr_Lambda,
+		     ^semantics.TExpr_Block,
+		     ^semantics.TExpr_If,
+		     ^semantics.TExpr_Match,
+		     ^semantics.TExpr_BinOp,
+		     ^semantics.TExpr_PrefixOp,
+		     ^semantics.TExpr_Field_Access,
+		     ^semantics.TExpr_Record_Update,
+		     ^semantics.TExpr_Assign,
+		     ^semantics.TExpr_Return,
+		     ^semantics.TExpr_Crash,
+		     ^semantics.TExpr_Interpolated_String,
+		     ^semantics.TExpr_Handle,
+		     ^semantics.TExpr_Perform,
+		     ^semantics.TExpr_For,
+		     ^semantics.TExpr_Par:
 		}
 		walk_expr_for_call_sites(e.callee, env)
 		for arg in e.args {
@@ -1017,13 +1177,27 @@ walk_expr_for_call_sites :: proc(expr: semantics.TExpr, env: ^Mono_Env) {
 		for arg in e.args {
 			walk_expr_for_call_sites(arg, env)
 		}
-	case ^semantics.TExpr_Int, ^semantics.TExpr_Float, ^semantics.TExpr_String, ^semantics.TExpr_Bool, ^semantics.TExpr_Char, ^semantics.TExpr_Todo,
-		^semantics.TExpr_Tag, ^semantics.TExpr_Nominal_Construct, ^semantics.TExpr_Record, ^semantics.TExpr_List, ^semantics.TExpr_Name,
-		^semantics.TExpr_For, ^semantics.TExpr_Par:
+	case ^semantics.TExpr_Int,
+	     ^semantics.TExpr_Float,
+	     ^semantics.TExpr_String,
+	     ^semantics.TExpr_Bool,
+	     ^semantics.TExpr_Char,
+	     ^semantics.TExpr_Todo,
+	     ^semantics.TExpr_Tag,
+	     ^semantics.TExpr_Nominal_Construct,
+	     ^semantics.TExpr_Record,
+	     ^semantics.TExpr_List,
+	     ^semantics.TExpr_Name,
+	     ^semantics.TExpr_For,
+	     ^semantics.TExpr_Par:
 	}
 }
 
-rewrite_calls_in_decl :: proc(decl: semantics.TDecl, specializations: map[string]base.Canonical_Name, env: ^Mono_Env) -> semantics.TDecl {
+rewrite_calls_in_decl :: proc(
+	decl: semantics.TDecl,
+	specializations: map[string]base.Canonical_Name,
+	env: ^Mono_Env,
+) -> semantics.TDecl {
 	switch d in decl {
 	case ^semantics.TDecl_Const:
 		new_body := rewrite_calls_in_expr(d.body, specializations, env)
@@ -1049,21 +1223,33 @@ rewrite_calls_in_decl :: proc(decl: semantics.TDecl, specializations: map[string
 			delete(type_args)
 		}
 	case ^semantics.TDecl_Is_Impl:
-	case ^semantics.TDecl_Effect, ^semantics.TDecl_Trait, ^semantics.TDecl_Alias, ^semantics.TDecl_Import:
+	case ^semantics.TDecl_Effect,
+	     ^semantics.TDecl_Trait,
+	     ^semantics.TDecl_Alias,
+	     ^semantics.TDecl_Import:
 	}
 	return decl
 }
 
-rewrite_calls_in_expr :: proc(expr: semantics.TExpr, specializations: map[string]base.Canonical_Name, env: ^Mono_Env) -> semantics.TExpr {
+rewrite_calls_in_expr :: proc(
+	expr: semantics.TExpr,
+	specializations: map[string]base.Canonical_Name,
+	env: ^Mono_Env,
+) -> semantics.TExpr {
 	switch e in expr {
 	case ^semantics.TExpr_Call:
 		// Rewrite generic callee names to specialized names
 		if name_expr, is_name := e.callee.(^semantics.TExpr_Name); is_name {
 			if d, ok := env.decl_map[name_expr.name]; ok {
-				if lambda, is_lambda := d.body.(^semantics.TExpr_Lambda); is_lambda && len(lambda.type_params) > 0 {
+				if lambda, is_lambda := d.body.(^semantics.TExpr_Lambda);
+				   is_lambda && len(lambda.type_params) > 0 {
 					type_args := extract_type_args(name_expr, lambda, env)
 					if len(type_args) > 0 {
-						item := Mono_Item{original = name_expr.name, type_args = type_args, span = e.span}
+						item := Mono_Item {
+							original  = name_expr.name,
+							type_args = type_args,
+							span      = e.span,
+						}
 						key := specialization_key(item, env.store, env.interner)
 						if spec_name, ok := specializations[key]; ok {
 							name_expr.name = spec_name
@@ -1073,12 +1259,12 @@ rewrite_calls_in_expr :: proc(expr: semantics.TExpr, specializations: map[string
 				}
 			}
 		}
-		for i in 0..<len(e.args) {
+		for i in 0 ..< len(e.args) {
 			e.args[i] = rewrite_calls_in_expr(e.args[i], specializations, env)
 		}
 		e.callee = rewrite_calls_in_expr(e.callee, specializations, env)
 	case ^semantics.TExpr_Method_Call:
-		for i in 0..<len(e.args) {
+		for i in 0 ..< len(e.args) {
 			e.args[i] = rewrite_calls_in_expr(e.args[i], specializations, env)
 		}
 		e.receiver = rewrite_calls_in_expr(e.receiver, specializations, env)
@@ -1089,11 +1275,11 @@ rewrite_calls_in_expr :: proc(expr: semantics.TExpr, specializations: map[string
 			impl_name, found := find_method_impl(receiver_type_name, e.method.name, env.store)
 			if found {
 				callee := new(semantics.TExpr_Name)
-				callee^ = semantics.TExpr_Name{
-					name = impl_name,
+				callee^ = semantics.TExpr_Name {
+					name  = impl_name,
 					type_ = e.type_,
-					eff_ = e.eff_,
-					span = e.span,
+					eff_  = e.eff_,
+					span  = e.span,
 				}
 
 				all_args := make([dynamic]semantics.TExpr, len(e.args) + 1)
@@ -1103,12 +1289,12 @@ rewrite_calls_in_expr :: proc(expr: semantics.TExpr, specializations: map[string
 				}
 
 				result := new(semantics.TExpr_Call)
-				result^ = semantics.TExpr_Call{
+				result^ = semantics.TExpr_Call {
 					callee = semantics.TExpr(callee),
-					args = all_args,
-					type_ = e.type_,
-					eff_ = e.eff_,
-					span = e.span,
+					args   = all_args,
+					type_  = e.type_,
+					eff_   = e.eff_,
+					span   = e.span,
 				}
 				return semantics.TExpr(result)
 			}
@@ -1116,7 +1302,7 @@ rewrite_calls_in_expr :: proc(expr: semantics.TExpr, specializations: map[string
 	case ^semantics.TExpr_Lambda:
 		e.body = rewrite_calls_in_expr(e.body, specializations, env)
 	case ^semantics.TExpr_Block:
-		for i in 0..<len(e.statements) {
+		for i in 0 ..< len(e.statements) {
 			e.statements[i] = rewrite_calls_in_expr(e.statements[i], specializations, env)
 		}
 	case ^semantics.TExpr_If:
@@ -1125,7 +1311,7 @@ rewrite_calls_in_expr :: proc(expr: semantics.TExpr, specializations: map[string
 		e.else_branch = rewrite_calls_in_expr(e.else_branch, specializations, env)
 	case ^semantics.TExpr_Match:
 		e.scrutinee = rewrite_calls_in_expr(e.scrutinee, specializations, env)
-		for i in 0..<len(e.arms) {
+		for i in 0 ..< len(e.arms) {
 			e.arms[i].body = rewrite_calls_in_expr(e.arms[i].body, specializations, env)
 		}
 	case ^semantics.TExpr_BinOp:
@@ -1145,7 +1331,7 @@ rewrite_calls_in_expr :: proc(expr: semantics.TExpr, specializations: map[string
 	case ^semantics.TExpr_Crash:
 		e.message = rewrite_calls_in_expr(e.message, specializations, env)
 	case ^semantics.TExpr_Interpolated_String:
-		for i in 0..<len(e.parts) {
+		for i in 0 ..< len(e.parts) {
 			switch p in e.parts[i] {
 			case ^semantics.TExpr_String_Literal:
 			case ^semantics.TExpr_String_Expr:
@@ -1155,12 +1341,23 @@ rewrite_calls_in_expr :: proc(expr: semantics.TExpr, specializations: map[string
 	case ^semantics.TExpr_Handle:
 		e.body = rewrite_calls_in_expr(e.body, specializations, env)
 	case ^semantics.TExpr_Perform:
-		for i in 0..<len(e.args) {
+		for i in 0 ..< len(e.args) {
 			e.args[i] = rewrite_calls_in_expr(e.args[i], specializations, env)
 		}
-	case ^semantics.TExpr_Int, ^semantics.TExpr_Float, ^semantics.TExpr_String, ^semantics.TExpr_Bool, ^semantics.TExpr_Char, ^semantics.TExpr_Todo,
-		^semantics.TExpr_Tag, ^semantics.TExpr_Nominal_Construct, ^semantics.TExpr_Record, ^semantics.TExpr_List, ^semantics.TExpr_Name,
-		^semantics.TExpr_For, ^semantics.TExpr_Par:
+	case ^semantics.TExpr_Int,
+	     ^semantics.TExpr_Float,
+	     ^semantics.TExpr_String,
+	     ^semantics.TExpr_Bool,
+	     ^semantics.TExpr_Char,
+	     ^semantics.TExpr_Todo,
+	     ^semantics.TExpr_Tag,
+	     ^semantics.TExpr_Nominal_Construct,
+	     ^semantics.TExpr_Record,
+	     ^semantics.TExpr_List,
+	     ^semantics.TExpr_Name,
+	     ^semantics.TExpr_For,
+	     ^semantics.TExpr_Par:
 	}
 	return expr
 }
+

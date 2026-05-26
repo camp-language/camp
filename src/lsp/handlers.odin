@@ -1,8 +1,8 @@
 package lsp
 
+import "camp:diagnostics"
 import "core:encoding/json"
 import "core:fmt"
-import "camp:diagnostics"
 
 handle_definition :: proc(server: ^LSP_Server, id: int, params: json.Value) {
 	text_doc, td_ok := json_get_object(params, "textDocument")
@@ -131,7 +131,11 @@ handle_hover :: proc(server: ^LSP_Server, id: int, params: json.Value) {
 	send_result(server, id, hover_obj)
 }
 
-publish_diagnostics :: proc(server: ^LSP_Server, uri: string, diagnostics: [dynamic]diagnostics.LSP_Diagnostic) {
+publish_diagnostics :: proc(
+	server: ^LSP_Server,
+	uri: string,
+	diagnostics: [dynamic]diagnostics.LSP_Diagnostic,
+) {
 	diag_array := make(json.Array, 0, len(diagnostics))
 
 	for d in diagnostics {
@@ -157,7 +161,7 @@ publish_diagnostics :: proc(server: ^LSP_Server, uri: string, diagnostics: [dyna
 position_to_offset :: proc(text: string, line: int, character: int) -> int {
 	current_line := 0
 	current_col := 0
-	for i in 0..<len(text) {
+	for i in 0 ..< len(text) {
 		if current_line == line && current_col == character {
 			return i
 		}
@@ -193,28 +197,44 @@ identifier_at_offset :: proc(text: string, offset: int) -> string {
 }
 
 is_ident_char :: proc(c: u8) -> bool {
-	return (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') ||
-		(c >= '0' && c <= '9') || c == '_' || c == '!'
+	return(
+		(c >= 'a' && c <= 'z') ||
+		(c >= 'A' && c <= 'Z') ||
+		(c >= '0' && c <= '9') ||
+		c == '_' ||
+		c == '!' \
+	)
 }
 
 symbol_kind_to_string :: proc(kind: Symbol_Kind) -> string {
 	switch kind {
-	case .Function:  return "function"
-	case .Type:      return "type"
-	case .Effect:    return "effect type"
-	case .Parameter: return "parameter"
-	case .Local:     return "local"
-	case:            return "unknown"
+	case .Function:
+		return "function"
+	case .Type:
+		return "type"
+	case .Effect:
+		return "effect type"
+	case .Parameter:
+		return "parameter"
+	case .Local:
+		return "local"
+	case:
+		return "unknown"
 	}
 }
 
 lsp_severity_to_int :: proc(s: diagnostics.LSP_DiagnosticSeverity) -> (int, bool) {
 	switch s {
-	case .Error:       return 1, true
-	case .Warning:     return 2, true
-	case .Information: return 3, true
-	case .Hint:        return 4, true
-	case:              return 0, false
+	case .Error:
+		return 1, true
+	case .Warning:
+		return 2, true
+	case .Information:
+		return 3, true
+	case .Hint:
+		return 4, true
+	case:
+		return 0, false
 	}
 }
 
@@ -286,3 +306,4 @@ json_get_int :: proc(v: json.Value, key: string) -> (int, bool) {
 	}
 	return int(int_val), true
 }
+

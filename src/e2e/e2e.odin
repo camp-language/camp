@@ -9,10 +9,10 @@ import "core:sync"
 import "core:thread"
 
 Test_Worker_Context :: struct {
-	tests:    []E2E_Test,
-	update:   bool,
-	reports:  ^[dynamic]Test_Report,
-	mutex:    ^sync.Mutex,
+	tests:   []E2E_Test,
+	update:  bool,
+	reports: ^[dynamic]Test_Report,
+	mutex:   ^sync.Mutex,
 }
 
 run_test_worker :: proc(ctx_ptr: rawptr) {
@@ -21,10 +21,10 @@ run_test_worker :: proc(ctx_ptr: rawptr) {
 		test_arena: virtual.Arena
 		arena_err := virtual.arena_init_growing(&test_arena)
 		if arena_err != nil {
-			report := Test_Report{
-				test = test,
+			report := Test_Report {
+				test   = test,
 				result = .Fail,
-				diff = fmt.tprintf("  ERROR: failed to init arena: {}", arena_err),
+				diff   = fmt.tprintf("  ERROR: failed to init arena: {}", arena_err),
 			}
 			sync.mutex_lock(ctx.mutex)
 			append(ctx.reports, report)
@@ -66,7 +66,7 @@ main :: proc() {
 		} else if args[i] == "--verbose" {
 			verbose = true
 		} else if args[i] == "--filter" && i + 1 < len(args) {
-			filter = args[i+1]
+			filter = args[i + 1]
 			i += 1
 		}
 		i += 1
@@ -98,22 +98,22 @@ main :: proc() {
 	worker_ctxs := make([]Test_Worker_Context, num_workers)
 
 	offset := 0
-	for w in 0..<num_workers {
+	for w in 0 ..< num_workers {
 		count := tests_per_worker
 		if w < remainder {
 			count += 1
 		}
-		worker_ctxs[w] = Test_Worker_Context{
-			tests = tests[offset:offset + count],
-			update = update,
+		worker_ctxs[w] = Test_Worker_Context {
+			tests   = tests[offset:offset + count],
+			update  = update,
 			reports = &reports,
-			mutex = &mutex,
+			mutex   = &mutex,
 		}
 		offset += count
 	}
 
 	threads := make([]^thread.Thread, num_workers)
-	for w in 0..<num_workers {
+	for w in 0 ..< num_workers {
 		threads[w] = thread.create_and_start_with_data(&worker_ctxs[w], run_test_worker)
 	}
 
@@ -150,9 +150,16 @@ main :: proc() {
 		}
 	}
 
-	fmt.printfln("\n{} passed, {} failed, {} skipped ({} total)", pass_count, fail_count, skip_count, len(tests))
+	fmt.printfln(
+		"\n{} passed, {} failed, {} skipped ({} total)",
+		pass_count,
+		fail_count,
+		skip_count,
+		len(tests),
+	)
 
 	if fail_count > 0 {
 		os.exit(1)
 	}
 }
+

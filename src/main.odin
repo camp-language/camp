@@ -5,8 +5,8 @@ import "core:os"
 import "core:strconv"
 
 import "camp:base"
-import "camp:diagnostics"
 import "camp:build"
+import "camp:diagnostics"
 import "camp:format"
 import "camp:lsp"
 
@@ -81,3 +81,4 @@ main :: proc() {
 		os.exit(failed.code)
 	}
 }
+

@@ -25,26 +25,26 @@ Decl_Const :: struct {
 }
 
 Where_Clause :: struct {
-	type_param:  base.Intern_ID,
-	trait_name:  base.Intern_ID,
-	span:        base.Source_Span,
-}
-
-Decl_Effect :: struct {
-	name:       base.Intern_ID,
-	is_pub:     bool,
-	operations: [dynamic]Effect_Op,
-	type_params: [dynamic]Type_Param,
+	type_param: base.Intern_ID,
+	trait_name: base.Intern_ID,
 	span:       base.Source_Span,
 }
 
+Decl_Effect :: struct {
+	name:        base.Intern_ID,
+	is_pub:      bool,
+	operations:  [dynamic]Effect_Op,
+	type_params: [dynamic]Type_Param,
+	span:        base.Source_Span,
+}
+
 Effect_Op :: struct {
-	name:          base.Intern_ID,
-	is_effectful:  bool,
-	params:        [dynamic]Func_Param,
-	return_type:   ^Type,
+	name:           base.Intern_ID,
+	is_effectful:   bool,
+	params:         [dynamic]Func_Param,
+	return_type:    ^Type,
 	return_effects: ^Type,
-	span:          base.Source_Span,
+	span:           base.Source_Span,
 }
 
 Decl_Trait :: struct {
@@ -90,10 +90,10 @@ Import_Variant_Group :: struct {
 }
 
 Decl_Import :: struct {
-	module:   string,
-	names:    [dynamic]Import_Item,
-	alias:    base.Intern_ID,
-	span:     base.Source_Span,
+	module: string,
+	names:  [dynamic]Import_Item,
+	alias:  base.Intern_ID,
+	span:   base.Source_Span,
 }
 
 Decl_Test :: struct {
@@ -108,16 +108,16 @@ Decl_Expect :: struct {
 }
 
 Decl_Is_Impl :: struct {
-	type_name:    base.Intern_ID,
-	trait_name:   base.Intern_ID,
-	methods:      [dynamic]Is_Method,
-	span:         base.Source_Span,
+	type_name:  base.Intern_ID,
+	trait_name: base.Intern_ID,
+	methods:    [dynamic]Is_Method,
+	span:       base.Source_Span,
 }
 
 Is_Method :: struct {
-	name:   base.Intern_ID,
-	body:   Expr,
-	span:   base.Source_Span,
+	name: base.Intern_ID,
+	body: Expr,
+	span: base.Source_Span,
 }
 
 Expr :: union {
@@ -186,7 +186,7 @@ Expr_Tag :: struct {
 
 Expr_Nominal_Construct :: struct {
 	type_name: base.Intern_ID,
-	variant:   base.Intern_ID,  // 0 = simple wrap @TypeName(args), non-zero = @TypeName.Variant(args)
+	variant:   base.Intern_ID, // 0 = simple wrap @TypeName(args), non-zero = @TypeName.Variant(args)
 	payload:   [dynamic]Expr,
 	span:      base.Source_Span,
 }
@@ -227,18 +227,18 @@ Expr_Call :: struct {
 }
 
 Dispatch_Kind :: enum {
-	Nominal,    // obj.method(args) — type promised it
-	Lexical,    // obj->func(args) — scope provides function
+	Nominal, // obj.method(args) — type promised it
+	Lexical, // obj->func(args) — scope provides function
 	Structural, // obj.(field)(args) — value stores function
 }
 
 Expr_Method_Call :: struct {
-	receiver:      Expr,
-	method:        base.Intern_ID,
-	args:          [dynamic]Expr,
-	is_effectful:  bool,
-	dispatch:      Dispatch_Kind,
-	span:          base.Source_Span,
+	receiver:     Expr,
+	method:       base.Intern_ID,
+	args:         [dynamic]Expr,
+	is_effectful: bool,
+	dispatch:     Dispatch_Kind,
+	span:         base.Source_Span,
 }
 
 Expr_Lambda :: struct {
@@ -272,7 +272,7 @@ Expr_If :: struct {
 	condition:   Expr,
 	then_branch: Expr,
 	else_branch: Expr,
-	span:       base.Source_Span,
+	span:        base.Source_Span,
 }
 
 Expr_Match :: struct {
@@ -409,7 +409,7 @@ Expr_Crash :: struct {
 }
 
 Expr_Todo :: struct {
-	message: Expr,  // nil for bare `todo`, non-nil for `todo "msg"`
+	message: Expr, // nil for bare `todo`, non-nil for `todo "msg"`
 	span:    base.Source_Span,
 }
 
@@ -456,10 +456,10 @@ Expr_For :: struct {
 
 Expr_Par :: struct {
 	names:       [dynamic]base.Intern_ID, // field names for par { name: expr, ... }
-	expressions: [dynamic]Expr,          // for par { e1, e2 }
-	for_var:     base.Intern_ID,         // 0 if not par-for
-	for_iter:    Expr,                   // the xs in "par for x in xs"
-	for_body:    Expr,                   // the body in "par for x in xs { body }"
+	expressions: [dynamic]Expr, // for par { e1, e2 }
+	for_var:     base.Intern_ID, // 0 if not par-for
+	for_iter:    Expr, // the xs in "par for x in xs"
+	for_body:    Expr, // the body in "par for x in xs { body }"
 	span:        base.Source_Span,
 }
 
@@ -521,7 +521,7 @@ Type_Tag :: struct {
 
 Type_Effect_Entry :: struct {
 	name:      base.Intern_ID,
-	type_args: [dynamic]Type,  // Type from ast.odin — empty for unparameterized
+	type_args: [dynamic]Type, // Type from ast.odin — empty for unparameterized
 	span:      base.Source_Span,
 }
 
@@ -550,3 +550,4 @@ File :: struct {
 	decls: [dynamic]Decl,
 	span:  base.Source_Span,
 }
+

@@ -57,8 +57,8 @@ IR_Effect_Op :: struct {
 }
 
 IR_Effect_Def :: struct {
-	name:       ba.Canonical_Name,
-	operations: [dynamic]IR_Effect_Op,
+	name:        ba.Canonical_Name,
+	operations:  [dynamic]IR_Effect_Op,
 	type_params: [dynamic]ba.Intern_ID,
 }
 
@@ -113,7 +113,7 @@ IR_Wait :: struct {
 	expected: IR_Expr,
 	timeout:  IR_Expr,
 	width:    Atomic_Width,
-	span:      ba.Source_Span,
+	span:     ba.Source_Span,
 }
 
 IR_Notify :: struct {
@@ -162,12 +162,32 @@ IR_Expr :: union {
 	^IR_Loop,
 }
 
-IR_Literal_Int :: struct { value: i64, type: ba.IR_Type, span: ba.Source_Span }
-IR_Literal_Float :: struct { value: f64, type: ba.IR_Type, span: ba.Source_Span }
-IR_Literal_String :: struct { value: string, type: ba.IR_Type, span: ba.Source_Span }
-IR_Literal_Bool :: struct { value: bool, type: ba.IR_Type, span: ba.Source_Span }
+IR_Literal_Int :: struct {
+	value: i64,
+	type:  ba.IR_Type,
+	span:  ba.Source_Span,
+}
+IR_Literal_Float :: struct {
+	value: f64,
+	type:  ba.IR_Type,
+	span:  ba.Source_Span,
+}
+IR_Literal_String :: struct {
+	value: string,
+	type:  ba.IR_Type,
+	span:  ba.Source_Span,
+}
+IR_Literal_Bool :: struct {
+	value: bool,
+	type:  ba.IR_Type,
+	span:  ba.Source_Span,
+}
 
-IR_Var :: struct { name: ba.Intern_ID, type: ba.IR_Type, span: ba.Source_Span }
+IR_Var :: struct {
+	name: ba.Intern_ID,
+	type: ba.IR_Type,
+	span: ba.Source_Span,
+}
 
 IR_Let :: struct {
 	binding: ba.Intern_ID,
@@ -235,14 +255,32 @@ IR_Pattern :: union {
 	^IR_Pat_String,
 }
 
-IR_Pat_Tag :: struct { name: ba.Intern_ID, payload: [dynamic]ba.Intern_ID, payload_wasm_types: []ba.IR_Wasm_Type }
-IR_Pat_Record :: struct { fields: [dynamic]IR_Pat_Field, is_open: bool }
-IR_Pat_Field :: struct { name: ba.Intern_ID, binding: ba.Intern_ID }
-IR_Pat_Var :: struct { name: ba.Intern_ID }
+IR_Pat_Tag :: struct {
+	name:               ba.Intern_ID,
+	payload:            [dynamic]ba.Intern_ID,
+	payload_wasm_types: []ba.IR_Wasm_Type,
+}
+IR_Pat_Record :: struct {
+	fields:  [dynamic]IR_Pat_Field,
+	is_open: bool,
+}
+IR_Pat_Field :: struct {
+	name:    ba.Intern_ID,
+	binding: ba.Intern_ID,
+}
+IR_Pat_Var :: struct {
+	name: ba.Intern_ID,
+}
 IR_Pat_Wildcard :: struct {}
-IR_Pat_Bool :: struct { value: bool }
-IR_Pat_Int :: struct { value: i64 }
-IR_Pat_String :: struct { string_id: ba.Intern_ID }
+IR_Pat_Bool :: struct {
+	value: bool,
+}
+IR_Pat_Int :: struct {
+	value: i64,
+}
+IR_Pat_String :: struct {
+	string_id: ba.Intern_ID,
+}
 
 IR_Construct_Tag :: struct {
 	tag_name:   ba.Intern_ID,
@@ -255,7 +293,7 @@ IR_Construct_Tag :: struct {
 
 IR_Expr_Nominal_Construct :: struct {
 	type_name: ba.Canonical_Name,
-	variant:   ba.Intern_ID,  // 0 = simple wrap, non-zero = qualified variant
+	variant:   ba.Intern_ID, // 0 = simple wrap, non-zero = qualified variant
 	payload:   [dynamic]IR_Expr,
 	span:      ba.Source_Span,
 }
@@ -268,9 +306,18 @@ IR_Construct_Record :: struct {
 	span:       ba.Source_Span,
 }
 
-IR_Record_Field :: struct { name: ba.Intern_ID, value: IR_Expr }
+IR_Record_Field :: struct {
+	name:  ba.Intern_ID,
+	value: IR_Expr,
+}
 
-IR_Field_Access :: struct { record: IR_Expr, field: ba.Intern_ID, field_index: int, type: ba.IR_Type, span: ba.Source_Span }
+IR_Field_Access :: struct {
+	record:      IR_Expr,
+	field:       ba.Intern_ID,
+	field_index: int,
+	type:        ba.IR_Type,
+	span:        ba.Source_Span,
+}
 
 IR_Method_Call :: struct {
 	receiver: IR_Expr,
@@ -327,9 +374,16 @@ IR_Closure_Call :: struct {
 	span:   ba.Source_Span,
 }
 
-IR_Return :: struct { value: IR_Expr, span: ba.Source_Span }
+IR_Return :: struct {
+	value: IR_Expr,
+	span:  ba.Source_Span,
+}
 
-IR_Block :: struct { statements: [dynamic]IR_Expr, type: ba.IR_Type, span: ba.Source_Span }
+IR_Block :: struct {
+	statements: [dynamic]IR_Expr,
+	type:       ba.IR_Type,
+	span:       ba.Source_Span,
+}
 
 IR_BinOp_Kind :: enum {
 	Add,
@@ -348,10 +402,22 @@ IR_BinOp_Kind :: enum {
 	Or,
 }
 
-IR_BinOp :: struct { op: IR_BinOp_Kind, left: IR_Expr, right: IR_Expr, type: ba.IR_Type, span: ba.Source_Span }
+IR_BinOp :: struct {
+	op:    IR_BinOp_Kind,
+	left:  IR_Expr,
+	right: IR_Expr,
+	type:  ba.IR_Type,
+	span:  ba.Source_Span,
+}
 
-IR_Dup :: struct { value: ba.Intern_ID, span: ba.Source_Span }
-IR_Drop :: struct { value: ba.Intern_ID, span: ba.Source_Span }
+IR_Dup :: struct {
+	value: ba.Intern_ID,
+	span:  ba.Source_Span,
+}
+IR_Drop :: struct {
+	value: ba.Intern_ID,
+	span:  ba.Source_Span,
+}
 IR_Crash :: struct {
 	message: IR_Expr,
 	span:    ba.Source_Span,
@@ -369,3 +435,4 @@ IR_I32_Store :: struct {
 	value:  IR_Expr,
 	span:   ba.Source_Span,
 }
+

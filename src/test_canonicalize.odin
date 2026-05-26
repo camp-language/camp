@@ -1,11 +1,11 @@
 package camp
 
-import "core:testing"
 import "camp:base"
-import "camp:frontend"
-import "camp:semantics"
 import "camp:build"
 import "camp:diagnostics"
+import "camp:frontend"
+import "camp:semantics"
+import "core:testing"
 
 canon_file :: proc(source: string) -> (semantics.CFile, ^build.Compilation_Context) {
 	ctx: ^build.Compilation_Context = new(build.Compilation_Context)
@@ -15,7 +15,11 @@ canon_file :: proc(source: string) -> (semantics.CFile, ^build.Compilation_Conte
 	table: ^base.Intern_Table = &ctx.interner
 	collector: ^diagnostics.Diagnostic_Collector = &ctx.collector
 
-	file := base.Source_File{path = "<test>", contents = source, id = 0}
+	file := base.Source_File {
+		path     = "<test>",
+		contents = source,
+		id       = 0,
+	}
 	lexer: frontend.Lexer
 	frontend.lexer_init(&lexer, file, collector, table)
 
@@ -270,3 +274,4 @@ test_canonicalize_derive_clone :: proc(t: ^testing.T) {
 		testing.expect(t, false)
 	}
 }
+

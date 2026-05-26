@@ -16,22 +16,22 @@ CDecl :: union {
 }
 
 CDecl_Const :: struct {
-	name:            base.Canonical_Name,
-	is_pub:          bool,
-	is_effectful:    bool,
-	type_ann:        ^CType,
-	body:            CExpr,
-	derive_targets:  [dynamic]base.Intern_ID,
-	where_clauses:   [dynamic]frontend.Where_Clause,
-	span:            base.Source_Span,
+	name:           base.Canonical_Name,
+	is_pub:         bool,
+	is_effectful:   bool,
+	type_ann:       ^CType,
+	body:           CExpr,
+	derive_targets: [dynamic]base.Intern_ID,
+	where_clauses:  [dynamic]frontend.Where_Clause,
+	span:           base.Source_Span,
 }
 
 CDecl_Effect :: struct {
-	name:       base.Canonical_Name,
-	is_pub:     bool,
-	operations: [dynamic]CEffect_Op,
+	name:        base.Canonical_Name,
+	is_pub:      bool,
+	operations:  [dynamic]CEffect_Op,
 	type_params: [dynamic]frontend.Type_Param,
-	span:       base.Source_Span,
+	span:        base.Source_Span,
 }
 
 CEffect_Op :: struct {
@@ -169,7 +169,7 @@ CExpr_Tag :: struct {
 
 CExpr_Nominal_Construct :: struct {
 	type_name: base.Canonical_Name,
-	variant:   base.Intern_ID,  // 0 = simple wrap, non-zero = qualified variant
+	variant:   base.Intern_ID, // 0 = simple wrap, non-zero = qualified variant
 	payload:   [dynamic]CExpr,
 	span:      base.Source_Span,
 }
@@ -205,22 +205,22 @@ CExpr_Call :: struct {
 }
 
 CExpr_Method_Call :: struct {
-	receiver:      CExpr,
-	method:        base.Canonical_Name,
-	args:          [dynamic]CExpr,
-	is_effectful:  bool,
-	dispatch:      frontend.Dispatch_Kind,
-	span:          base.Source_Span,
+	receiver:     CExpr,
+	method:       base.Canonical_Name,
+	args:         [dynamic]CExpr,
+	is_effectful: bool,
+	dispatch:     frontend.Dispatch_Kind,
+	span:         base.Source_Span,
 }
 
 CExpr_Lambda :: struct {
-	type_params:    [dynamic]frontend.Type_Param,
-	params:         [dynamic]CFunc_Param,
-	return_type:    ^CType,
-	effects:        ^CType,
-	where_clauses:  [dynamic]frontend.Where_Clause,
-	body:           CExpr,
-	span:           base.Source_Span,
+	type_params:   [dynamic]frontend.Type_Param,
+	params:        [dynamic]CFunc_Param,
+	return_type:   ^CType,
+	effects:       ^CType,
+	where_clauses: [dynamic]frontend.Where_Clause,
+	body:          CExpr,
+	span:          base.Source_Span,
 }
 
 CFunc_Param :: struct {
@@ -311,9 +311,9 @@ CExpr_String_Literal :: struct {
 
 CExpr_Handle :: struct {
 	effects: [dynamic]base.Canonical_Name,
-	body:   CExpr,
-	arms:   [dynamic]CHandler_Arm,
-	span:   base.Source_Span,
+	body:    CExpr,
+	arms:    [dynamic]CHandler_Arm,
+	span:    base.Source_Span,
 }
 
 CExpr_Perform :: struct {
@@ -332,10 +332,10 @@ CExpr_For :: struct {
 
 CExpr_Par :: struct {
 	names:       [dynamic]base.Intern_ID, // field names for par { name: expr, ... }
-	expressions: [dynamic]CExpr,  // for par { e1, e2 }
-	for_var:     base.Intern_ID,      // 0 if not par-for
-	for_iter:    CExpr,          // the xs in "par for x in xs"
-	for_body:    CExpr,          // the body in "par for x in xs { body }"
+	expressions: [dynamic]CExpr, // for par { e1, e2 }
+	for_var:     base.Intern_ID, // 0 if not par-for
+	for_iter:    CExpr, // the xs in "par for x in xs"
+	for_body:    CExpr, // the body in "par for x in xs { body }"
 	span:        base.Source_Span,
 }
 
@@ -519,3 +519,4 @@ CFile :: struct {
 	imports: [dynamic]base.Deferred_Import,
 	span:    base.Source_Span,
 }
+

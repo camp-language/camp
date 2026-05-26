@@ -1,10 +1,10 @@
 package analysis
 
+import "camp:base"
+import "camp:diagnostics"
+import "camp:semantics"
 import "core:fmt"
 import "core:strings"
-import "camp:base"
-import "camp:semantics"
-import "camp:diagnostics"
 
 Name_Classification :: enum {
 	Normal,
@@ -47,16 +47,16 @@ Assignment_Info :: struct {
 }
 
 Binding_Info :: struct {
-	name:                   base.Intern_ID,
-	span:                   base.Source_Span,
-	classification:         Name_Classification,
-	is_top_level:           bool,
-	is_pub:                 bool,
-	is_effectful:           bool,
-	assignments:            [dynamic]Assignment_Info,
-	use_sites:              [dynamic]Use_Site,
-	field_accesses:         map[base.Intern_ID][dynamic]base.Source_Span,
-	escaped:                bool,
+	name:           base.Intern_ID,
+	span:           base.Source_Span,
+	classification: Name_Classification,
+	is_top_level:   bool,
+	is_pub:         bool,
+	is_effectful:   bool,
+	assignments:    [dynamic]Assignment_Info,
+	use_sites:      [dynamic]Use_Site,
+	field_accesses: map[base.Intern_ID][dynamic]base.Source_Span,
+	escaped:        bool,
 }
 
 Import_Info :: struct {
@@ -85,7 +85,11 @@ Unused_Analysis :: struct {
 	in_unreachable: bool,
 }
 
-unused_analysis_init :: proc(analysis: ^Unused_Analysis, interner: ^base.Intern_Table, collector: ^diagnostics.Diagnostic_Collector) {
+unused_analysis_init :: proc(
+	analysis: ^Unused_Analysis,
+	interner: ^base.Intern_Table,
+	collector: ^diagnostics.Diagnostic_Collector,
+) {
 	analysis.bindings = make(map[base.Intern_ID]Binding_Info, 64)
 	analysis.imports = make([dynamic]Import_Info, 0, 16)
 	analysis.record_fields = make([dynamic]Record_Field_Info, 0, 16)
@@ -112,7 +116,14 @@ unused_analysis_destroy :: proc(analysis: ^Unused_Analysis) {
 }
 
 // Register a binding in the analysis
-register_binding :: proc(analysis: ^Unused_Analysis, name: base.Intern_ID, span: base.Source_Span, is_top_level: bool, is_pub: bool, is_effectful: bool = false) {
+register_binding :: proc(
+	analysis: ^Unused_Analysis,
+	name: base.Intern_ID,
+	span: base.Source_Span,
+	is_top_level: bool,
+	is_pub: bool,
+	is_effectful: bool = false,
+) {
 	name_str := base.intern_get(analysis.interner, name)
 
 	bi: Binding_Info
@@ -130,13 +141,20 @@ register_binding :: proc(analysis: ^Unused_Analysis, name: base.Intern_ID, span:
 	analysis.bindings[name] = bi
 
 	if bi.classification == .Contradictory {
-		diagnostics.collector_add_diag(analysis.collector,
-			diagnostics.diag_contradictory_prefix(name_str, span))
+		diagnostics.collector_add_diag(
+			analysis.collector,
+			diagnostics.diag_contradictory_prefix(name_str, span),
+		)
 	}
 }
 
 // Record a use of a binding
-record_use :: proc(analysis: ^Unused_Analysis, name: base.Intern_ID, kind: Use_Kind, span: base.Source_Span) {
+record_use :: proc(
+	analysis: ^Unused_Analysis,
+	name: base.Intern_ID,
+	kind: Use_Kind,
+	span: base.Source_Span,
+) {
 	if bi, ok := analysis.bindings[name]; ok {
 		append(&bi.use_sites, Use_Site{kind = kind, span = span})
 		analysis.bindings[name] = bi
@@ -144,13 +162,17 @@ record_use :: proc(analysis: ^Unused_Analysis, name: base.Intern_ID, kind: Use_K
 }
 
 // Record an assignment to a $-var
-record_assignment :: proc(analysis: ^Unused_Analysis, name: base.Intern_ID, span: base.Source_Span, value_expr: semantics.CExpr) {
+record_assignment :: proc(
+	analysis: ^Unused_Analysis,
+	name: base.Intern_ID,
+	span: base.Source_Span,
+	value_expr: semantics.CExpr,
+) {
 	if bi, ok := analysis.bindings[name]; ok {
-		append(&bi.assignments, Assignment_Info{
-			span = span,
-			value_expr = value_expr,
-			is_in_loop = analysis.in_loop,
-		})
+		append(
+			&bi.assignments,
+			Assignment_Info{span = span, value_expr = value_expr, is_in_loop = analysis.in_loop},
+		)
 		analysis.bindings[name] = bi
 	}
 }
@@ -164,7 +186,12 @@ mark_escaped :: proc(analysis: ^Unused_Analysis, name: base.Intern_ID) {
 }
 
 // Register an import for tracking
-register_import :: proc(analysis: ^Unused_Analysis, name: base.Intern_ID, module_name: base.Intern_ID, span: base.Source_Span) {
+register_import :: proc(
+	analysis: ^Unused_Analysis,
+	name: base.Intern_ID,
+	module_name: base.Intern_ID,
+	span: base.Source_Span,
+) {
 	ii: Import_Info
 	ii.name = name
 	ii.module_name = module_name
@@ -184,7 +211,13 @@ mark_import_used :: proc(analysis: ^Unused_Analysis, name: base.Intern_ID) {
 }
 
 // Register a record field for tracking
-register_record_field :: proc(analysis: ^Unused_Analysis, binding_name: base.Intern_ID, field_name: base.Intern_ID, record_span: base.Source_Span, field_span: base.Source_Span) {
+register_record_field :: proc(
+	analysis: ^Unused_Analysis,
+	binding_name: base.Intern_ID,
+	field_name: base.Intern_ID,
+	record_span: base.Source_Span,
+	field_span: base.Source_Span,
+) {
 	rfi: Record_Field_Info
 	rfi.binding_name = binding_name
 	rfi.field_name = field_name
@@ -195,7 +228,11 @@ register_record_field :: proc(analysis: ^Unused_Analysis, binding_name: base.Int
 }
 
 // Mark a record field as accessed
-mark_field_accessed :: proc(analysis: ^Unused_Analysis, binding_name: base.Intern_ID, field_name: base.Intern_ID) {
+mark_field_accessed :: proc(
+	analysis: ^Unused_Analysis,
+	binding_name: base.Intern_ID,
+	field_name: base.Intern_ID,
+) {
 	for &rfi in analysis.record_fields {
 		if rfi.binding_name == binding_name && rfi.field_name == field_name {
 			rfi.accessed = true
@@ -225,13 +262,24 @@ collect_uses_cfile :: proc(analysis: ^Unused_Analysis, cfile: semantics.CFile) {
 collect_uses_decl :: proc(analysis: ^Unused_Analysis, decl: semantics.CDecl) {
 	#partial switch d in decl {
 	case ^semantics.CDecl_Const:
-		register_binding(analysis, d.name.name, d.span, is_top_level = true, is_pub = d.is_pub, is_effectful = d.is_effectful)
+		register_binding(
+			analysis,
+			d.name.name,
+			d.span,
+			is_top_level = true,
+			is_pub = d.is_pub,
+			is_effectful = d.is_effectful,
+		)
 		collect_uses_expr(analysis, d.body)
 	case ^semantics.CDecl_Test:
 		collect_uses_expr(analysis, d.body)
 	case ^semantics.CDecl_Expect:
 		collect_uses_expr(analysis, d.condition)
-	case ^semantics.CDecl_Effect, ^semantics.CDecl_Trait, ^semantics.CDecl_Alias, ^semantics.CDecl_Newtype, ^semantics.CDecl_Import:
+	case ^semantics.CDecl_Effect,
+	     ^semantics.CDecl_Trait,
+	     ^semantics.CDecl_Alias,
+	     ^semantics.CDecl_Newtype,
+	     ^semantics.CDecl_Import:
 	}
 }
 
@@ -282,11 +330,17 @@ collect_uses_expr :: proc(analysis: ^Unused_Analysis, expr: semantics.CExpr) {
 		}
 	case ^semantics.CExpr_Lambda:
 		for &param in e.params {
-			register_binding(analysis, param.name, param.span, is_top_level = false, is_pub = false)
+			register_binding(
+				analysis,
+				param.name,
+				param.span,
+				is_top_level = false,
+				is_pub = false,
+			)
 		}
 		collect_uses_expr(analysis, e.body)
 	case ^semantics.CExpr_Block:
-		for i in 0..<len(e.statements) {
+		for i in 0 ..< len(e.statements) {
 			collect_uses_stmt(analysis, e.statements[i])
 		}
 	case ^semantics.CExpr_If:
@@ -383,12 +437,28 @@ collect_uses_stmt :: proc(analysis: ^Unused_Analysis, stmt: semantics.CExpr) {
 	case ^semantics.CExpr_Crash:
 		collect_uses_expr(analysis, s.message)
 		analysis.in_unreachable = true
-	case ^semantics.CExpr_Int, ^semantics.CExpr_Float, ^semantics.CExpr_String, ^semantics.CExpr_Bool,
-	     ^semantics.CExpr_Tag, ^semantics.CExpr_Nominal_Construct, ^semantics.CExpr_Record, ^semantics.CExpr_List,
-	     ^semantics.CExpr_Method_Call, ^semantics.CExpr_Lambda, ^semantics.CExpr_Block, ^semantics.CExpr_If,
-	     ^semantics.CExpr_Match, ^semantics.CExpr_BinOp, ^semantics.CExpr_PrefixOp, ^semantics.CExpr_Field_Access,
-	     ^semantics.CExpr_Record_Update, ^semantics.CExpr_Interpolated_String, ^semantics.CExpr_Handle,
-	     ^semantics.CExpr_Perform, ^semantics.CExpr_For, ^semantics.CExpr_Par:
+	case ^semantics.CExpr_Int,
+	     ^semantics.CExpr_Float,
+	     ^semantics.CExpr_String,
+	     ^semantics.CExpr_Bool,
+	     ^semantics.CExpr_Tag,
+	     ^semantics.CExpr_Nominal_Construct,
+	     ^semantics.CExpr_Record,
+	     ^semantics.CExpr_List,
+	     ^semantics.CExpr_Method_Call,
+	     ^semantics.CExpr_Lambda,
+	     ^semantics.CExpr_Block,
+	     ^semantics.CExpr_If,
+	     ^semantics.CExpr_Match,
+	     ^semantics.CExpr_BinOp,
+	     ^semantics.CExpr_PrefixOp,
+	     ^semantics.CExpr_Field_Access,
+	     ^semantics.CExpr_Record_Update,
+	     ^semantics.CExpr_Interpolated_String,
+	     ^semantics.CExpr_Handle,
+	     ^semantics.CExpr_Perform,
+	     ^semantics.CExpr_For,
+	     ^semantics.CExpr_Par:
 		collect_uses_expr(analysis, stmt)
 	}
 }
@@ -410,8 +480,10 @@ collect_uses_assign :: proc(analysis: ^Unused_Analysis, assign: ^semantics.CExpr
 				// Reassignment to existing $-var
 				// Check for self-assignment: $x = $x
 				if is_self_assignment(analysis, name, value) {
-					diagnostics.collector_add_diag(analysis.collector,
-						diagnostics.diag_noop_assignment(name_str, assign.span))
+					diagnostics.collector_add_diag(
+						analysis.collector,
+						diagnostics.diag_noop_assignment(name_str, assign.span),
+					)
 				}
 				record_assignment(analysis, name, assign.span, value)
 				// The RHS read of $x is a Self_Assign_Rhs use
@@ -430,19 +502,42 @@ collect_uses_assign :: proc(analysis: ^Unused_Analysis, assign: ^semantics.CExpr
 				register_binding(analysis, name, t.span, is_top_level = false, is_pub = false)
 			}
 		}
-	case ^semantics.CExpr_Int, ^semantics.CExpr_Float, ^semantics.CExpr_String, ^semantics.CExpr_Bool,
-	     ^semantics.CExpr_Tag, ^semantics.CExpr_Nominal_Construct, ^semantics.CExpr_Record, ^semantics.CExpr_List,
-	     ^semantics.CExpr_Call, ^semantics.CExpr_Method_Call, ^semantics.CExpr_Lambda, ^semantics.CExpr_Block,
-	     ^semantics.CExpr_If, ^semantics.CExpr_Match, ^semantics.CExpr_BinOp, ^semantics.CExpr_PrefixOp,
-	     ^semantics.CExpr_Field_Access, ^semantics.CExpr_Record_Update, ^semantics.CExpr_Assign,
-	     ^semantics.CExpr_Return, ^semantics.CExpr_Crash, ^semantics.CExpr_Interpolated_String,
-	     ^semantics.CExpr_Handle, ^semantics.CExpr_Perform, ^semantics.CExpr_For, ^semantics.CExpr_Par:
+	case ^semantics.CExpr_Int,
+	     ^semantics.CExpr_Float,
+	     ^semantics.CExpr_String,
+	     ^semantics.CExpr_Bool,
+	     ^semantics.CExpr_Tag,
+	     ^semantics.CExpr_Nominal_Construct,
+	     ^semantics.CExpr_Record,
+	     ^semantics.CExpr_List,
+	     ^semantics.CExpr_Call,
+	     ^semantics.CExpr_Method_Call,
+	     ^semantics.CExpr_Lambda,
+	     ^semantics.CExpr_Block,
+	     ^semantics.CExpr_If,
+	     ^semantics.CExpr_Match,
+	     ^semantics.CExpr_BinOp,
+	     ^semantics.CExpr_PrefixOp,
+	     ^semantics.CExpr_Field_Access,
+	     ^semantics.CExpr_Record_Update,
+	     ^semantics.CExpr_Assign,
+	     ^semantics.CExpr_Return,
+	     ^semantics.CExpr_Crash,
+	     ^semantics.CExpr_Interpolated_String,
+	     ^semantics.CExpr_Handle,
+	     ^semantics.CExpr_Perform,
+	     ^semantics.CExpr_For,
+	     ^semantics.CExpr_Par:
 		collect_uses_expr(analysis, target)
 	}
 }
 
 // Check if value is a self-assignment: $x = $x
-is_self_assignment :: proc(analysis: ^Unused_Analysis, target_name: base.Intern_ID, value: semantics.CExpr) -> bool {
+is_self_assignment :: proc(
+	analysis: ^Unused_Analysis,
+	target_name: base.Intern_ID,
+	value: semantics.CExpr,
+) -> bool {
 	name_expr, is_name := value.(^semantics.CExpr_Name)
 	if !is_name do return false
 	return name_expr.name.name == target_name
@@ -462,7 +557,13 @@ collect_uses_pattern :: proc(analysis: ^Unused_Analysis, pattern: semantics.CPat
 	case ^semantics.CPattern_Record:
 		for &field in p.fields {
 			if field.binding != base.NO_NAME {
-				register_binding(analysis, field.binding, field.span, is_top_level = false, is_pub = false)
+				register_binding(
+					analysis,
+					field.binding,
+					field.span,
+					is_top_level = false,
+					is_pub = false,
+				)
 			}
 		}
 	case ^semantics.CPattern_List:
@@ -481,7 +582,12 @@ collect_uses_pattern :: proc(analysis: ^Unused_Analysis, pattern: semantics.CPat
 }
 
 // Record a field access on a record expression
-record_field_access :: proc(analysis: ^Unused_Analysis, record_expr: semantics.CExpr, field: base.Intern_ID, span: base.Source_Span) {
+record_field_access :: proc(
+	analysis: ^Unused_Analysis,
+	record_expr: semantics.CExpr,
+	field: base.Intern_ID,
+	span: base.Source_Span,
+) {
 	name_expr, is_name := record_expr.(^semantics.CExpr_Name)
 	if !is_name do return
 
@@ -518,13 +624,28 @@ mark_args_escaped :: proc(analysis: ^Unused_Analysis, arg: semantics.CExpr) {
 		mark_args_escaped(analysis, a.right)
 	case ^semantics.CExpr_Field_Access:
 		mark_args_escaped(analysis, a.record)
-	case ^semantics.CExpr_Int, ^semantics.CExpr_Float, ^semantics.CExpr_String, ^semantics.CExpr_Bool,
-	     ^semantics.CExpr_Tag, ^semantics.CExpr_Nominal_Construct, ^semantics.CExpr_List,
-	     ^semantics.CExpr_Method_Call, ^semantics.CExpr_Lambda, ^semantics.CExpr_Block, ^semantics.CExpr_If,
-	     ^semantics.CExpr_Match, ^semantics.CExpr_PrefixOp, ^semantics.CExpr_Record_Update,
-	     ^semantics.CExpr_Assign, ^semantics.CExpr_Return, ^semantics.CExpr_Crash,
-	     ^semantics.CExpr_Interpolated_String, ^semantics.CExpr_Handle, ^semantics.CExpr_Perform,
-	     ^semantics.CExpr_For, ^semantics.CExpr_Par:
+	case ^semantics.CExpr_Int,
+	     ^semantics.CExpr_Float,
+	     ^semantics.CExpr_String,
+	     ^semantics.CExpr_Bool,
+	     ^semantics.CExpr_Tag,
+	     ^semantics.CExpr_Nominal_Construct,
+	     ^semantics.CExpr_List,
+	     ^semantics.CExpr_Method_Call,
+	     ^semantics.CExpr_Lambda,
+	     ^semantics.CExpr_Block,
+	     ^semantics.CExpr_If,
+	     ^semantics.CExpr_Match,
+	     ^semantics.CExpr_PrefixOp,
+	     ^semantics.CExpr_Record_Update,
+	     ^semantics.CExpr_Assign,
+	     ^semantics.CExpr_Return,
+	     ^semantics.CExpr_Crash,
+	     ^semantics.CExpr_Interpolated_String,
+	     ^semantics.CExpr_Handle,
+	     ^semantics.CExpr_Perform,
+	     ^semantics.CExpr_For,
+	     ^semantics.CExpr_Par:
 	}
 }
 
@@ -543,13 +664,30 @@ mark_returned_bindings :: proc(analysis: ^Unused_Analysis, expr: semantics.CExpr
 		for &arg in e.args {
 			mark_returned_bindings(analysis, arg)
 		}
-	case ^semantics.CExpr_Int, ^semantics.CExpr_Float, ^semantics.CExpr_String, ^semantics.CExpr_Bool,
-	     ^semantics.CExpr_Tag, ^semantics.CExpr_Nominal_Construct, ^semantics.CExpr_List,
-	     ^semantics.CExpr_Method_Call, ^semantics.CExpr_Lambda, ^semantics.CExpr_Block, ^semantics.CExpr_If,
-	     ^semantics.CExpr_Match, ^semantics.CExpr_BinOp, ^semantics.CExpr_PrefixOp, ^semantics.CExpr_Field_Access,
-	     ^semantics.CExpr_Record_Update, ^semantics.CExpr_Assign, ^semantics.CExpr_Return, ^semantics.CExpr_Crash,
-	     ^semantics.CExpr_Interpolated_String, ^semantics.CExpr_Handle, ^semantics.CExpr_Perform,
-	     ^semantics.CExpr_For, ^semantics.CExpr_Par:
+	case ^semantics.CExpr_Int,
+	     ^semantics.CExpr_Float,
+	     ^semantics.CExpr_String,
+	     ^semantics.CExpr_Bool,
+	     ^semantics.CExpr_Tag,
+	     ^semantics.CExpr_Nominal_Construct,
+	     ^semantics.CExpr_List,
+	     ^semantics.CExpr_Method_Call,
+	     ^semantics.CExpr_Lambda,
+	     ^semantics.CExpr_Block,
+	     ^semantics.CExpr_If,
+	     ^semantics.CExpr_Match,
+	     ^semantics.CExpr_BinOp,
+	     ^semantics.CExpr_PrefixOp,
+	     ^semantics.CExpr_Field_Access,
+	     ^semantics.CExpr_Record_Update,
+	     ^semantics.CExpr_Assign,
+	     ^semantics.CExpr_Return,
+	     ^semantics.CExpr_Crash,
+	     ^semantics.CExpr_Interpolated_String,
+	     ^semantics.CExpr_Handle,
+	     ^semantics.CExpr_Perform,
+	     ^semantics.CExpr_For,
+	     ^semantics.CExpr_Par:
 	}
 }
 
@@ -564,13 +702,31 @@ mark_perform_args_escaped :: proc(analysis: ^Unused_Analysis, arg: semantics.CEx
 		for &field in a.fields {
 			mark_perform_args_escaped(analysis, field.value)
 		}
-	case ^semantics.CExpr_Int, ^semantics.CExpr_Float, ^semantics.CExpr_String, ^semantics.CExpr_Bool,
-	     ^semantics.CExpr_Tag, ^semantics.CExpr_Nominal_Construct, ^semantics.CExpr_List,
-	     ^semantics.CExpr_Call, ^semantics.CExpr_Method_Call, ^semantics.CExpr_Lambda, ^semantics.CExpr_Block,
-	     ^semantics.CExpr_If, ^semantics.CExpr_Match, ^semantics.CExpr_BinOp, ^semantics.CExpr_PrefixOp,
-	     ^semantics.CExpr_Field_Access, ^semantics.CExpr_Record_Update, ^semantics.CExpr_Assign,
-	     ^semantics.CExpr_Return, ^semantics.CExpr_Crash, ^semantics.CExpr_Interpolated_String,
-	     ^semantics.CExpr_Handle, ^semantics.CExpr_Perform, ^semantics.CExpr_For, ^semantics.CExpr_Par:
+	case ^semantics.CExpr_Int,
+	     ^semantics.CExpr_Float,
+	     ^semantics.CExpr_String,
+	     ^semantics.CExpr_Bool,
+	     ^semantics.CExpr_Tag,
+	     ^semantics.CExpr_Nominal_Construct,
+	     ^semantics.CExpr_List,
+	     ^semantics.CExpr_Call,
+	     ^semantics.CExpr_Method_Call,
+	     ^semantics.CExpr_Lambda,
+	     ^semantics.CExpr_Block,
+	     ^semantics.CExpr_If,
+	     ^semantics.CExpr_Match,
+	     ^semantics.CExpr_BinOp,
+	     ^semantics.CExpr_PrefixOp,
+	     ^semantics.CExpr_Field_Access,
+	     ^semantics.CExpr_Record_Update,
+	     ^semantics.CExpr_Assign,
+	     ^semantics.CExpr_Return,
+	     ^semantics.CExpr_Crash,
+	     ^semantics.CExpr_Interpolated_String,
+	     ^semantics.CExpr_Handle,
+	     ^semantics.CExpr_Perform,
+	     ^semantics.CExpr_For,
+	     ^semantics.CExpr_Par:
 	}
 }
 
@@ -590,7 +746,7 @@ check_unused :: proc(analysis: ^Unused_Analysis) {
 	}
 
 	// Sort by source span start position for deterministic output
-	for i in 1..<len(binding_keys) {
+	for i in 1 ..< len(binding_keys) {
 		key := binding_keys[i]
 		bi_i := analysis.bindings[key]
 		j := i - 1
@@ -631,13 +787,19 @@ check_unused_imports :: proc(analysis: ^Unused_Analysis) {
 		if !ii.used {
 			name_str := base.intern_get(analysis.interner, ii.name)
 			module_str := base.intern_get(analysis.interner, ii.module_name)
-			diagnostics.collector_add_diag(analysis.collector,
-				diagnostics.diag_unused_import(name_str, module_str, ii.span))
+			diagnostics.collector_add_diag(
+				analysis.collector,
+				diagnostics.diag_unused_import(name_str, module_str, ii.span),
+			)
 		}
 	}
 }
 
-check_immutable_binding :: proc(analysis: ^Unused_Analysis, name: base.Intern_ID, bi: Binding_Info) {
+check_immutable_binding :: proc(
+	analysis: ^Unused_Analysis,
+	name: base.Intern_ID,
+	bi: Binding_Info,
+) {
 	name_str := base.intern_get(analysis.interner, name)
 
 	has_essential_use := binding_has_essential_use(bi)
@@ -648,14 +810,18 @@ check_immutable_binding :: proc(analysis: ^Unused_Analysis, name: base.Intern_ID
 
 		if bi.is_top_level {
 			if !bi.is_pub && !bi.is_effectful {
-				diagnostics.collector_add_diag(analysis.collector,
-					diagnostics.diag_unused_binding(name_str, "", bi.span))
+				diagnostics.collector_add_diag(
+					analysis.collector,
+					diagnostics.diag_unused_binding(name_str, "", bi.span),
+				)
 			}
 			return
 		}
 
-		diagnostics.collector_add_diag(analysis.collector,
-			diagnostics.diag_unused_binding(name_str, "", bi.span))
+		diagnostics.collector_add_diag(
+			analysis.collector,
+			diagnostics.diag_unused_binding(name_str, "", bi.span),
+		)
 		return
 	}
 
@@ -665,8 +831,10 @@ check_immutable_binding :: proc(analysis: ^Unused_Analysis, name: base.Intern_ID
 			if use.kind == .Discard {
 				for &assign in bi.assignments {
 					if !expr_is_structural_effectful(assign.value_expr) {
-						diagnostics.collector_add_diag(analysis.collector,
-							diagnostics.diag_pointless_evaluation("", use.span))
+						diagnostics.collector_add_diag(
+							analysis.collector,
+							diagnostics.diag_pointless_evaluation("", use.span),
+						)
 					}
 				}
 			}
@@ -689,13 +857,22 @@ binding_has_essential_use :: proc(bi: Binding_Info) -> bool {
 
 expr_is_structural_effectful :: proc(expr: semantics.CExpr) -> bool {
 	#partial switch e in expr {
-	case ^semantics.CExpr_Int, ^semantics.CExpr_Float, ^semantics.CExpr_String,
-	     ^semantics.CExpr_Bool, ^semantics.CExpr_Char, ^semantics.CExpr_Name,
+	case ^semantics.CExpr_Int,
+	     ^semantics.CExpr_Float,
+	     ^semantics.CExpr_String,
+	     ^semantics.CExpr_Bool,
+	     ^semantics.CExpr_Char,
+	     ^semantics.CExpr_Name,
 	     ^semantics.CExpr_Lambda:
 		return false
-	case ^semantics.CExpr_Call, ^semantics.CExpr_Method_Call, ^semantics.CExpr_Perform,
-	     ^semantics.CExpr_Handle, ^semantics.CExpr_For, ^semantics.CExpr_Par,
-	     ^semantics.CExpr_Return, ^semantics.CExpr_Crash:
+	case ^semantics.CExpr_Call,
+	     ^semantics.CExpr_Method_Call,
+	     ^semantics.CExpr_Perform,
+	     ^semantics.CExpr_Handle,
+	     ^semantics.CExpr_For,
+	     ^semantics.CExpr_Par,
+	     ^semantics.CExpr_Return,
+	     ^semantics.CExpr_Crash:
 		return true
 	case ^semantics.CExpr_Assign:
 		return expr_is_structural_effectful(e.value)
@@ -762,13 +939,17 @@ expr_is_structural_effectful :: proc(expr: semantics.CExpr) -> bool {
 	return false
 }
 
-check_reassignable_var :: proc(analysis: ^Unused_Analysis, name: base.Intern_ID, bi: Binding_Info) {
+check_reassignable_var :: proc(
+	analysis: ^Unused_Analysis,
+	name: base.Intern_ID,
+	bi: Binding_Info,
+) {
 	name_str := base.intern_get(analysis.interner, name)
 
 	if len(bi.assignments) == 0 do return
 
 	// Check each assignment for overwrite-before-read
-	for i in 0..<len(bi.assignments) {
+	for i in 0 ..< len(bi.assignments) {
 		assign := bi.assignments[i]
 
 		// Check if this assignment is overwritten before any read
@@ -776,8 +957,15 @@ check_reassignable_var :: proc(analysis: ^Unused_Analysis, name: base.Intern_ID,
 			next_assign := bi.assignments[i + 1]
 			if !assignment_has_read_before(analysis, name, assign.span, next_assign.span) {
 				assign_no := i + 1
-				diagnostics.collector_add_diag(analysis.collector,
-					diagnostics.diag_unused_assignment(name_str, assign_no, "Value is overwritten before read.", assign.span))
+				diagnostics.collector_add_diag(
+					analysis.collector,
+					diagnostics.diag_unused_assignment(
+						name_str,
+						assign_no,
+						"Value is overwritten before read.",
+						assign.span,
+					),
+				)
 			}
 		} else {
 			// Last assignment: check if final value is consumed
@@ -787,8 +975,15 @@ check_reassignable_var :: proc(analysis: ^Unused_Analysis, name: base.Intern_ID,
 					continue
 				}
 				assign_no := len(bi.assignments)
-				diagnostics.collector_add_diag(analysis.collector,
-					diagnostics.diag_unused_assignment(name_str, assign_no, "Final value is never consumed.", assign.span))
+				diagnostics.collector_add_diag(
+					analysis.collector,
+					diagnostics.diag_unused_assignment(
+						name_str,
+						assign_no,
+						"Final value is never consumed.",
+						assign.span,
+					),
+				)
 			}
 		}
 	}
@@ -799,17 +994,27 @@ check_reassignable_var :: proc(analysis: ^Unused_Analysis, name: base.Intern_ID,
 		// (avoid double-reporting)
 		if len(bi.assignments) == 1 && !bi.assignments[0].is_in_loop {
 			// Single assignment with no reads = unused binding
-			diagnostics.collector_add_diag(analysis.collector,
-				diagnostics.diag_unused_binding(name_str, "", bi.span))
+			diagnostics.collector_add_diag(
+				analysis.collector,
+				diagnostics.diag_unused_binding(name_str, "", bi.span),
+			)
 		}
 	}
 }
 
 // Check if there is a read of the binding between two source positions
-assignment_has_read_before :: proc(analysis: ^Unused_Analysis, name: base.Intern_ID, after_span: base.Source_Span, before_span: base.Source_Span) -> bool {
+assignment_has_read_before :: proc(
+	analysis: ^Unused_Analysis,
+	name: base.Intern_ID,
+	after_span: base.Source_Span,
+	before_span: base.Source_Span,
+) -> bool {
 	for use in analysis.bindings[name].use_sites {
-		if use.kind == .Read || use.kind == .Field_Access ||
-		   use.kind == .Escape_Fn_Arg || use.kind == .Escape_Return || use.kind == .Escape_Perform {
+		if use.kind == .Read ||
+		   use.kind == .Field_Access ||
+		   use.kind == .Escape_Fn_Arg ||
+		   use.kind == .Escape_Return ||
+		   use.kind == .Escape_Perform {
 			// Path-insensitive: if any read exists, consider it possibly read
 			return true
 		}
@@ -818,7 +1023,11 @@ assignment_has_read_before :: proc(analysis: ^Unused_Analysis, name: base.Intern
 }
 
 // Check if a $-var has essential reads within a loop body
-has_essential_reads_in_loop :: proc(analysis: ^Unused_Analysis, name: base.Intern_ID, bi: Binding_Info) -> bool {
+has_essential_reads_in_loop :: proc(
+	analysis: ^Unused_Analysis,
+	name: base.Intern_ID,
+	bi: Binding_Info,
+) -> bool {
 	for use in bi.use_sites {
 		#partial switch use.kind {
 		case .Escape_Fn_Arg, .Escape_Return, .Escape_Perform:
@@ -841,8 +1050,10 @@ check_unused_record_fields :: proc(analysis: ^Unused_Analysis) {
 
 		if !rfi.accessed {
 			field_str := base.intern_get(analysis.interner, rfi.field_name)
-			diagnostics.collector_add_diag(analysis.collector,
-				diagnostics.diag_unused_record_field(field_str, rfi.record_span, rfi.field_span))
+			diagnostics.collector_add_diag(
+				analysis.collector,
+				diagnostics.diag_unused_record_field(field_str, rfi.record_span, rfi.field_span),
+			)
 		}
 	}
 }
@@ -851,7 +1062,11 @@ check_unused_record_fields :: proc(analysis: ^Unused_Analysis) {
 // Entry point: run the full unused analysis pass
 // ============================================================
 
-run_unused_analysis :: proc(cfile: semantics.CFile, interner: ^base.Intern_Table, collector: ^diagnostics.Diagnostic_Collector) {
+run_unused_analysis :: proc(
+	cfile: semantics.CFile,
+	interner: ^base.Intern_Table,
+	collector: ^diagnostics.Diagnostic_Collector,
+) {
 	analysis: Unused_Analysis
 	unused_analysis_init(&analysis, interner, collector)
 	defer unused_analysis_destroy(&analysis)
@@ -868,3 +1083,4 @@ run_unused_analysis :: proc(cfile: semantics.CFile, interner: ^base.Intern_Table
 	collect_uses_cfile(&analysis, cfile)
 	check_unused(&analysis)
 }
+

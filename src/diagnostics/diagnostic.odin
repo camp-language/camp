@@ -104,8 +104,8 @@ Module_Cyclic_Dep :: struct {
 	cycle_path: string,
 }
 Import_Not_Exported :: struct {
-	name:         string,
-	module_name:  string,
+	name:        string,
+	module_name: string,
 }
 Import_Conflicts_Binding :: struct {
 	name:        string,
@@ -141,7 +141,7 @@ Trait_Missing_Method :: struct {
 	method:     string,
 }
 Trait_Method_Signature_Mismatch :: struct {
-	type_name:     string,
+	type_name:    string,
 	trait_name:   string,
 	method:       string,
 	expected_sig: string,
@@ -154,7 +154,7 @@ Newtype_Opaque_Violation :: struct {
 
 Unused_Binding :: struct {
 	name: string,
-	hint:  string,
+	hint: string,
 }
 
 Unused_Record_Field :: struct {
@@ -216,24 +216,24 @@ Parse_Invalid_Effect_Row_Syntax :: struct {}
 
 // Name Resolution
 Name_Undefined_Type :: struct {
-	type_name: string,
+	type_name:     string,
 	similar_names: []string,
 }
 Name_Undefined_Effect :: struct {
-	effect_name: string,
+	effect_name:   string,
 	similar_names: []string,
 }
 Name_Private_Access :: struct {
-	name: string,
+	name:        string,
 	module_name: string,
 }
 Name_Ambiguous_Reference :: struct {
-	name: string,
+	name:    string,
 	scope_a: string,
 	scope_b: string,
 }
 Name_Not_A_Function :: struct {
-	name: string,
+	name:      string,
 	type_name: string,
 }
 Name_Not_A_Type :: struct {
@@ -247,41 +247,41 @@ Name_Raw_Id_Not_Needed :: struct {
 // Type System
 Type_Cannot_Infer_Return :: struct {}
 Type_Annotation_Mismatch :: struct {
-	annotated: string,
-	inferred: string,
+	annotated:       string,
+	inferred:        string,
 	annotation_span: base.Source_Span,
 }
 Type_Missing_Field :: struct {
-	type_name: string,
+	type_name:  string,
 	field_name: string,
 }
 Type_Unknown_Field :: struct {
-	field_name: string,
-	type_name: string,
+	field_name:    string,
+	type_name:     string,
 	similar_names: []string,
 }
 Type_Field_Type_Mismatch :: struct {
 	field_name: string,
-	expected: string,
-	actual: string,
+	expected:   string,
+	actual:     string,
 }
 Type_Cannot_Unify_Effect_Rows :: struct {
-	actual_row: string,
+	actual_row:   string,
 	expected_row: string,
-	effect_name: string,
-	effect_span: base.Source_Span,
+	effect_name:  string,
+	effect_span:  base.Source_Span,
 }
 Type_Row_Label_Mismatch :: struct {
-	actual_row: string,
-	expected_row: string,
+	actual_row:    string,
+	expected_row:  string,
 	missing_label: string,
-	extra_label: string,
+	extra_label:   string,
 }
 Type_Param_Kind_Mismatch :: struct {
-	param_name: string,
+	param_name:    string,
 	expected_kind: string,
-	actual_name: string,
-	actual_kind: string,
+	actual_name:   string,
+	actual_kind:   string,
 }
 Type_Recursive_Alias :: struct {
 	alias_name: string,
@@ -298,22 +298,22 @@ Type_Empty_Tag_Union :: struct {
 
 // Effect System
 Effect_Row_Mismatch :: struct {
-	actual_row: string,
-	expected_row: string,
-	ctx: string,
+	actual_row:     string,
+	expected_row:   string,
+	ctx:            string,
 	missing_effect: string,
 }
 Effect_Unnecessary_In_Signature :: struct {
 	effect_name: string,
 }
 Effect_Not_In_Scope :: struct {
-	effect_name: string,
+	effect_name:   string,
 	similar_names: []string,
 }
 Effect_Handler_Signature_Mismatch :: struct {
 	effect_name: string,
-	expected: int,
-	actual: int,
+	expected:    int,
+	actual:      int,
 }
 Effect_Missing_Resume :: struct {
 	effect_name: string,
@@ -326,13 +326,13 @@ Effect_Redundant_Handler :: struct {
 	effect_name: string,
 }
 Effect_Row_Subtype :: struct {
-	actual_row: string,
+	actual_row:   string,
 	declared_row: string,
 }
 
 // Pattern Matching
 Match_Non_Exhaustive_Tag :: struct {
-	type_name: string,
+	type_name:       string,
 	missing_variant: string,
 }
 Match_Fragile :: struct {
@@ -345,8 +345,8 @@ Match_Missing_Field_Pattern :: struct {
 	field_name: string,
 }
 Match_Unknown_Field_Pattern :: struct {
-	field_name: string,
-	type_name: string,
+	field_name:    string,
+	type_name:     string,
 	similar_names: []string,
 }
 Match_Duplicate_Binding :: struct {
@@ -360,37 +360,37 @@ Trait_Missing_Constraint :: struct {
 	constraint: string,
 }
 Trait_Conflicting_Implementations :: struct {
-	trait_name: string,
-	type_name: string,
+	trait_name:  string,
+	type_name:   string,
 	other_trait: string,
 }
 Trait_Not_Found :: struct {
-	trait_name: string,
+	trait_name:    string,
 	similar_names: []string,
 }
 Trait_Supertrait_Not_Satisfied :: struct {
 	trait_name: string,
 	supertrait: string,
-	type_name: string,
+	type_name:  string,
 }
 Trait_Cyclic_Dependency :: struct {
 	trait_name: string,
-	cycle: string,
+	cycle:      string,
 }
 Trait_Ambiguous_Resolution :: struct {
 	trait_name: string,
-	type_name: string,
+	type_name:  string,
 }
 
 // Newtype
 Newtype_Field_Access :: struct {
 	field_name: string,
-	type_name: string,
+	type_name:  string,
 }
 
 // Module/Import
 Import_Duplicate :: struct {
-	name: string,
+	name:        string,
 	module_name: string,
 }
 Import_Shadows_Binding :: struct {
@@ -400,7 +400,7 @@ Import_Self :: struct {
 	module_name: string,
 }
 Import_Suggest :: struct {
-	type_name: string,
+	type_name:   string,
 	module_name: string,
 }
 
@@ -432,7 +432,7 @@ RC_Reference_Leak :: struct {
 }
 RC_Unnecessary_Copy :: struct {}
 RC_Consume_After_Use :: struct {
-	name: string,
+	name:         string,
 	consume_span: base.Source_Span,
 }
 
@@ -476,12 +476,16 @@ diag_collector_destroy :: proc(collector: ^Diagnostic_Collector) {
 collector_add_diag :: proc(collector: ^Diagnostic_Collector, d: Diagnostic) {
 	append(&collector.diagnostics, d)
 	switch d.category {
-	case .Warning:  collector.warning_count += 1
-	case .Error:    collector.error_count += 1
-	case .Internal: collector.internal_count += 1
+	case .Warning:
+		collector.warning_count += 1
+	case .Error:
+		collector.error_count += 1
+	case .Internal:
+		collector.internal_count += 1
 	}
 }
 
 diag_collector_has_errors :: proc(collector: ^Diagnostic_Collector) -> bool {
 	return collector.error_count > 0 || collector.internal_count > 0
 }
+

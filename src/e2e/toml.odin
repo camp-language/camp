@@ -27,7 +27,7 @@ toml_parse :: proc(input: string, allocator: mem.Allocator) -> Toml_Dict {
 	pos: int = 0
 	for pos < len(input) {
 		pos = skip_whitespace_and_newlines(input, pos)
-		if pos >= len(input) { break }
+		if pos >= len(input) {break}
 
 		if input[pos] == '#' {
 			pos = skip_comment(input, pos)
@@ -38,16 +38,16 @@ toml_parse :: proc(input: string, allocator: mem.Allocator) -> Toml_Dict {
 		for pos < len(input) && input[pos] != '=' && input[pos] != '\n' {
 			pos += 1
 		}
-		if pos >= len(input) || input[pos] != '=' { break }
+		if pos >= len(input) || input[pos] != '=' {break}
 		key := strings.trim_space(input[key_start:pos])
 		pos += 1
 
 		pos = skip_whitespace_and_newlines(input, pos)
-		if pos >= len(input) { break }
+		if pos >= len(input) {break}
 
 		value: Toml_Value
 		if input[pos] == '"' {
-			if pos + 2 < len(input) && input[pos+1] == '"' && input[pos+2] == '"' {
+			if pos + 2 < len(input) && input[pos + 1] == '"' && input[pos + 2] == '"' {
 				value, pos = parse_multiline_string(input, pos + 3, allocator)
 			} else {
 				value, pos = parse_string(input, pos, allocator)
@@ -100,7 +100,8 @@ toml_write :: proc(dict: ^Toml_Dict, buf: ^strings.Builder) {
 
 skip_whitespace_and_newlines :: proc(input: string, start: int) -> int {
 	p := start
-	for p < len(input) && (input[p] == ' ' || input[p] == '\t' || input[p] == '\n' || input[p] == '\r') {
+	for p < len(input) &&
+	    (input[p] == ' ' || input[p] == '\t' || input[p] == '\n' || input[p] == '\r') {
 		p += 1
 	}
 	return p
@@ -138,7 +139,14 @@ parse_string :: proc(input: string, start: int, allocator: mem.Allocator) -> (To
 	return Toml_Value(s), p + 1
 }
 
-parse_multiline_string :: proc(input: string, start: int, allocator: mem.Allocator) -> (Toml_Value, int) {
+parse_multiline_string :: proc(
+	input: string,
+	start: int,
+	allocator: mem.Allocator,
+) -> (
+	Toml_Value,
+	int,
+) {
 	p := start
 	if p < len(input) && input[p] == '\n' {
 		p += 1
@@ -149,7 +157,7 @@ parse_multiline_string :: proc(input: string, start: int, allocator: mem.Allocat
 
 	content_start := p
 	for p + 2 < len(input) {
-		if input[p] == '"' && input[p+1] == '"' && input[p+2] == '"' {
+		if input[p] == '"' && input[p + 1] == '"' && input[p + 2] == '"' {
 			break
 		}
 		p += 1
@@ -189,3 +197,4 @@ parse_integer :: proc(input: string, start: int) -> (Toml_Value, int) {
 	}
 	return Toml_Value(val), p
 }
+

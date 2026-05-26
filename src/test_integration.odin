@@ -1,16 +1,20 @@
 package camp
 
 import "camp:base"
-import "camp:frontend"
 import "camp:build"
-import "camp:semantics"
 import "camp:diagnostics"
+import "camp:frontend"
+import "camp:semantics"
 import "core:testing"
 
 parse_camp_source :: proc(source: string, ctx: ^build.Compilation_Context) -> frontend.File {
 	old_allocator := context.allocator
 	context.allocator = ctx.allocator
-	file := base.Source_File{path = "<test>", contents = source, id = 0}
+	file := base.Source_File {
+		path     = "<test>",
+		contents = source,
+		id       = 0,
+	}
 
 	lexer: frontend.Lexer
 	frontend.lexer_init(&lexer, file, &ctx.collector, &ctx.interner)
@@ -85,7 +89,10 @@ test_integration_multiple_decls :: proc(t: ^testing.T) {
 	build.context_init(&ctx)
 	defer build.context_destroy(&ctx)
 
-	file := parse_camp_source("name = \"Camp\"\nversion = 1\nmain! = || -> -[Console]-> Str { \"Hello\" }", &ctx)
+	file := parse_camp_source(
+		"name = \"Camp\"\nversion = 1\nmain! = || -> -[Console]-> Str { \"Hello\" }",
+		&ctx,
+	)
 	testing.expect(t, !diagnostics.diag_collector_has_errors(&ctx.collector))
 	testing.expect(t, len(file.decls) == 3)
 }
@@ -98,7 +105,11 @@ test_integration_typecheck_simple :: proc(t: ^testing.T) {
 	defer build.context_destroy(&ctx)
 
 	source := "x = 42\ny = x + 1"
-	file_rec := base.Source_File{path = "<integration>", contents = source, id = 0}
+	file_rec := base.Source_File {
+		path     = "<integration>",
+		contents = source,
+		id       = 0,
+	}
 	lexer: frontend.Lexer
 	frontend.lexer_init(&lexer, file_rec, &ctx.collector, &ctx.interner)
 	parser: frontend.Parser
@@ -126,7 +137,11 @@ test_integration_typecheck_effectful :: proc(t: ^testing.T) {
 	defer build.context_destroy(&ctx)
 
 	source := "main! = || { 42 }"
-	file_rec := base.Source_File{path = "<integration>", contents = source, id = 0}
+	file_rec := base.Source_File {
+		path     = "<integration>",
+		contents = source,
+		id       = 0,
+	}
 	lexer: frontend.Lexer
 	frontend.lexer_init(&lexer, file_rec, &ctx.collector, &ctx.interner)
 	parser: frontend.Parser
@@ -152,7 +167,11 @@ test_integration_typecheck_import :: proc(t: ^testing.T) {
 	defer build.context_destroy(&ctx)
 
 	source := "import List { map }\nx = 42"
-	file_rec := base.Source_File{path = "<integration>", contents = source, id = 0}
+	file_rec := base.Source_File {
+		path     = "<integration>",
+		contents = source,
+		id       = 0,
+	}
 	lexer: frontend.Lexer
 	frontend.lexer_init(&lexer, file_rec, &ctx.collector, &ctx.interner)
 	parser: frontend.Parser
@@ -169,3 +188,4 @@ test_integration_typecheck_import :: proc(t: ^testing.T) {
 
 	semantics.typecheck_file(canon, &store)
 }
+
