@@ -1095,7 +1095,11 @@ emit_expr :: proc(expr: ir.IR_Expr, buf: ^[dynamic]u8, env: ^Codegen_Env, runtim
 	case ^ir.IR_Construct_Record:
 		num_fields := len(e.fields)
 		total_size := CAMP_TAG_HEADER_SIZE + num_fields * 8
-		tmp_local_idx := env.tmp_local_base
+		// Use a unique tmp slot so nested IR_Construct_Record (e.g. closure
+		// records containing env records) don't clobber the outer record's
+		// pointer between alloc and field stores.
+		tmp_local_idx := env.tmp_local_base + env.tmp_count
+		env.tmp_count += 1
 
 		if e.reuse_addr != ir.NO_REUSE_ADDR {
 			// Perceus inline reuse: decrement reuse_addr refcount, reuse if zero + big enough

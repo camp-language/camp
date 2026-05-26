@@ -610,6 +610,18 @@ inject_prelude_effect_defs :: proc(mod: ^IR_Module, store: ^semantics.Type_Store
 	inject_prelude_effects_lower(mod, store)
 }
 
+is_module_decl :: proc(mod: ^IR_Module, name: base.Intern_ID) -> bool {
+	for d in mod.decls {
+		#partial switch dd in d {
+		case ^IR_Decl_Fn:
+			if dd.name.name == name do return true
+		case ^IR_Decl_Const:
+			if dd.name.name == name do return true
+		}
+	}
+	return false
+}
+
 lower_tcall :: proc(e: ^semantics.TExpr_Call, env: ^Lower_Env) -> IR_Expr {
 	#partial switch c in e.callee {
 	case ^semantics.TExpr_Name:
@@ -617,6 +629,19 @@ lower_tcall :: proc(e: ^semantics.TExpr_Call, env: ^Lower_Env) -> IR_Expr {
 		ir_args := make([dynamic]IR_Expr, 0, len(e.args))
 		for arg in e.args {
 			append(&ir_args, lower_texpr(arg, env))
+		}
+		// A let-bound name refers to a closure record on the heap, not a
+		// top-level function decl — dispatch through the closure.
+		if callee_name.is_local && !is_module_decl(env.module, callee_name.name) {
+			callee_expr := lower_texpr(e.callee, env)
+			ccall := new(IR_Closure_Call)
+			ccall^ = IR_Closure_Call{
+				callee = callee_expr,
+				args = ir_args,
+				type = e.type_,
+				span = e.span,
+			}
+			return IR_Expr(ccall)
 		}
 		call := new(IR_Call)
 		call^ = IR_Call {
@@ -853,24 +878,16 @@ lower_tlambda :: proc(e: ^semantics.TExpr_Lambda, env: ^Lower_Env) -> IR_Expr {
 
 	effects := extract_effects_from_fn_binding(env.store, name, env.module.effect_defs[:])
 
-	fn_decl := new(IR_Decl_Fn)
-	fn_decl^ = IR_Decl_Fn {
-		name         = name,
-		is_effectful = false,
-		params       = params,
-		return_type  = e.return_type,
-		effect_row   = e.effects,
-		effects      = effects,
-		body         = body,
-		span         = e.span,
-	}
-	append(&env.pending_decls, IR_Decl(fn_decl))
+	_ = effects
 
 	closure_params := make([dynamic]IR_Param, len(params))
 	for p, i in params {
 		closure_params[i] = p
 	}
 
+	// closure_convert produces the IR_Decl_Fn (rewriting free-var access
+	// through the env record) — emitting a separate, unrewritten decl here
+	// would leave free vars unbound at codegen.
 	closure := new(IR_Closure)
 	closure^ = IR_Closure {
 		fn_name     = name,

@@ -7,6 +7,9 @@ Closure_Convert_Env :: struct {
 	module:      ^IR_Module,
 	interner:    ^base.Intern_Table,
 	fresh_state: base.Fresh_State,
+	// Names of synthesized closed_fn decls — references to these are
+	// function pointers, not free variables to capture.
+	known_fns:  map[base.Intern_ID]bool,
 }
 
 
@@ -170,6 +173,9 @@ cc_free_vars :: proc(expr: IR_Expr, bound: ^map[base.Intern_ID]bool) -> [dynamic
 		inner := cc_free_vars(e.value, bound)
 		for v in inner {append(&result, v)}
 		delete(inner)
+		// Bind the assigned name so later statements in the same block don't
+		// treat it as free.
+		bound^[e.binding] = true
 	case ^IR_Loop:
 		iter := cc_free_vars(e.iterable, bound)
 		for v in iter {append(&result, v)}
@@ -205,6 +211,71 @@ cc_free_vars :: proc(expr: IR_Expr, bound: ^map[base.Intern_ID]bool) -> [dynamic
 	}
 
 	return result
+}
+
+// Walks an expression and records the IR_Type seen for each variable name.
+// Used to thread free-var types through closure capture so the env record
+// load uses the right wasm width (i32 vs i64).
+cc_collect_var_types :: proc(expr: IR_Expr, types: ^map[base.Intern_ID]base.IR_Type) {
+	if expr == nil do return
+	#partial switch e in expr {
+	case ^IR_Var:
+		if _, exists := types^[e.name]; !exists {
+			types^[e.name] = e.type
+		}
+	case ^IR_Let:
+		types^[e.binding] = e.type
+		cc_collect_var_types(e.value, types)
+		cc_collect_var_types(e.body, types)
+	case ^IR_Call:
+		for arg in e.args do cc_collect_var_types(arg, types)
+	case ^IR_Closure_Call:
+		cc_collect_var_types(e.callee, types)
+		for arg in e.args do cc_collect_var_types(arg, types)
+	case ^IR_Tail_Call:
+		for arg in e.args do cc_collect_var_types(arg, types)
+	case ^IR_If:
+		cc_collect_var_types(e.condition, types)
+		cc_collect_var_types(e.then_branch, types)
+		cc_collect_var_types(e.else_branch, types)
+	case ^IR_BinOp:
+		cc_collect_var_types(e.left, types)
+		cc_collect_var_types(e.right, types)
+	case ^IR_Crash:
+		cc_collect_var_types(e.message, types)
+	case ^IR_Return:
+		cc_collect_var_types(e.value, types)
+	case ^IR_Block:
+		for stmt in e.statements do cc_collect_var_types(stmt, types)
+	case ^IR_Construct_Tag:
+		for p in e.payload do cc_collect_var_types(p, types)
+	case ^IR_Construct_Record:
+		for f in e.fields do cc_collect_var_types(f.value, types)
+		cc_collect_var_types(e.rest, types)
+	case ^IR_Field_Access:
+		cc_collect_var_types(e.record, types)
+	case ^IR_Method_Call:
+		cc_collect_var_types(e.receiver, types)
+		for arg in e.args do cc_collect_var_types(arg, types)
+	case ^IR_Handle:
+		cc_collect_var_types(e.body, types)
+		for arm in e.arms do cc_collect_var_types(arm.body, types)
+	case ^IR_Perform:
+		for arg in e.args do cc_collect_var_types(arg, types)
+	case ^IR_Resume:
+		cc_collect_var_types(e.value, types)
+		if e.ev != nil do cc_collect_var_types(e.ev, types)
+	case ^IR_Closure:
+		cc_collect_var_types(e.body, types)
+	case ^IR_Assign:
+		cc_collect_var_types(e.value, types)
+	case ^IR_Loop:
+		cc_collect_var_types(e.iterable, types)
+		cc_collect_var_types(e.body, types)
+	case ^IR_Match:
+		cc_collect_var_types(e.scrutinee, types)
+		for arm in e.arms do cc_collect_var_types(arm.body, types)
+	}
 }
 
 cc_bind_pattern_vars :: proc(pat: IR_Pattern, bound: ^map[base.Intern_ID]bool) {
@@ -321,7 +392,24 @@ cc_convert_expr :: proc(expr: IR_Expr, env: ^Closure_Convert_Env) -> IR_Expr {
 			bound[p.name] = true
 		}
 
-		free := cc_free_vars(e.body, &bound)
+		raw_free := cc_free_vars(e.body, &bound)
+		// Filter out references to synthesized closed_fn decls — those are
+		// function pointers resolved via func_map, not captured variables.
+		free: [dynamic]base.Intern_ID
+		free = make([dynamic]base.Intern_ID, 0, len(raw_free))
+		for v in raw_free {
+			if _, is_fn := env.known_fns[v]; !is_fn {
+				append(&free, v)
+			}
+		}
+		delete(raw_free)
+
+		// Collect types for free vars so capture stores and env loads use
+		// the right wasm width (a captured I64 must round-trip as I64).
+		free_types: map[base.Intern_ID]base.IR_Type
+		free_types = make(map[base.Intern_ID]base.IR_Type, len(free))
+		defer delete(free_types)
+		cc_collect_var_types(e.body, &free_types)
 
 		params := make([dynamic]IR_Param, 0, len(e.params) + 1)
 		append(
@@ -347,15 +435,14 @@ cc_convert_expr :: proc(expr: IR_Expr, env: ^Closure_Convert_Env) -> IR_Expr {
 
 		env_access_map: map[base.Intern_ID]IR_Expr
 		env_access_map = make(map[base.Intern_ID]IR_Expr, len(free))
-		field_offset: u32 = 8
-		for fv in free {
-			env_access_map[fv] = make_env_field_access(
-				env_param_name,
-				field_offset,
-				e.span,
-				env.interner,
-			)
-			field_offset += 4
+		// The closed function receives the env record (built below) as its
+		// first param. Free vars occupy slots 0..N-1 of that record.
+		for fv, idx in free {
+			ft, ok := free_types[fv]
+			if !ok {
+				ft = base.IR_Type{wasm_type = .I32, type_id = base.Type_Var_ID(0)}
+			}
+			env_access_map[fv] = make_env_field_access(env_param_name, idx, ft, e.span, env.interner)
 		}
 
 		converted_body := cc_convert_expr(e.body, env)
@@ -372,6 +459,8 @@ cc_convert_expr :: proc(expr: IR_Expr, env: ^Closure_Convert_Env) -> IR_Expr {
 			span = e.span,
 		}
 		append(&env.module.decls, IR_Decl(closed_fn))
+		if env.known_fns == nil do env.known_fns = make(map[base.Intern_ID]bool, 8)
+		env.known_fns[closed_fn_name.name] = true
 
 		fn_idx_var := new(IR_Var)
 		fn_idx_var^ = IR_Var {
@@ -380,19 +469,43 @@ cc_convert_expr :: proc(expr: IR_Expr, env: ^Closure_Convert_Env) -> IR_Expr {
 			span = e.span,
 		}
 
-		fields := make([dynamic]IR_Record_Field, 0, len(free) + 1)
-		fn_idx_id := base.intern(env.interner, "fn_idx")
-		append(&fields, IR_Record_Field{name = fn_idx_id, value = IR_Expr(fn_idx_var)})
-
-		for fv in free {
-			fv_var := new(IR_Var)
-			fv_var^ = IR_Var {
-				name = fv,
-				type = base.IR_Type{wasm_type = .I32, type_id = base.Type_Var_ID(0)},
+		// Build a separate env record holding the captured free vars, then a
+		// closure record [fn_idx, env_ptr] — matches the IR_Closure layout
+		// that IR_Closure_Call expects (slot 0 = fn, slot 1 = env_ptr).
+		env_rec_expr: IR_Expr
+		if len(free) > 0 {
+			env_fields := make([dynamic]IR_Record_Field, 0, len(free))
+			for fv in free {
+				ft, ok := free_types[fv]
+				if !ok {
+					ft = base.IR_Type{wasm_type = .I32, type_id = base.Type_Var_ID(0)}
+				}
+				fv_var := new(IR_Var)
+				fv_var^ = IR_Var{name = fv, type = ft, span = e.span}
+				append(&env_fields, IR_Record_Field{name = fv, value = IR_Expr(fv_var)})
+			}
+			env_nil := new(IR_Literal_Int)
+			env_nil^ = IR_Literal_Int{value = 0, type = base.IR_Type{wasm_type = .I32, type_id = base.Type_Var_ID(0)}, span = e.span}
+			env_rec := new(IR_Construct_Record)
+			env_rec^ = IR_Construct_Record{
+				fields = env_fields,
+				rest = IR_Expr(env_nil),
+				reuse_addr = NO_REUSE_ADDR,
+				type = base.IR_Type{wasm_type = .I32, type_id = base.Type_Var_ID(0), is_heap = true},
 				span = e.span,
 			}
-			append(&fields, IR_Record_Field{name = fv, value = IR_Expr(fv_var)})
+			env_rec_expr = IR_Expr(env_rec)
+		} else {
+			env_nil := new(IR_Literal_Int)
+			env_nil^ = IR_Literal_Int{value = 0, type = base.IR_Type{wasm_type = .I32, type_id = base.Type_Var_ID(0)}, span = e.span}
+			env_rec_expr = IR_Expr(env_nil)
 		}
+
+		fields := make([dynamic]IR_Record_Field, 0, 2)
+		fn_idx_id := base.intern(env.interner, "fn_idx")
+		env_id := base.intern(env.interner, "env")
+		append(&fields, IR_Record_Field{name = fn_idx_id, value = IR_Expr(fn_idx_var)})
+		append(&fields, IR_Record_Field{name = env_id, value = env_rec_expr})
 
 		rest_nil := new(IR_Literal_Int)
 		rest_nil^ = IR_Literal_Int {
@@ -694,7 +807,8 @@ cc_convert_expr :: proc(expr: IR_Expr, env: ^Closure_Convert_Env) -> IR_Expr {
 
 make_env_field_access :: proc(
 	env_name: base.Intern_ID,
-	offset: u32,
+	field_index: int,
+	field_type: base.IR_Type,
 	span: base.Source_Span,
 	interner: ^base.Intern_Table,
 ) -> IR_Expr {
@@ -708,9 +822,9 @@ make_env_field_access :: proc(
 	field_access := new(IR_Field_Access)
 	field_access^ = IR_Field_Access {
 		record = IR_Expr(env_var),
-		field = base.intern(interner, fmt.tprintf("env_{}", offset)),
-		field_index = int((offset - 8) / 4),
-		type = base.IR_Type{wasm_type = .I32, type_id = base.Type_Var_ID(0)},
+		field = base.intern(interner, fmt.tprintf("env_{}", field_index)),
+		field_index = field_index,
+		type = field_type,
 		span = span,
 	}
 	return IR_Expr(field_access)
