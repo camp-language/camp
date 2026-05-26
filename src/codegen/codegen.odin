@@ -778,6 +778,7 @@ codegen :: proc(
 
 	cont_func_idx := -1
 	main_entry_wrapper_fn_idx := -1
+	main_entry_wrapper_code: ^Wasm_Code
 	if main_fn_idx >= 0 &&
 	   main_decl != nil &&
 	   main_decl.is_effectful &&
@@ -825,10 +826,11 @@ codegen :: proc(
 		emit_instruction(Wasm_End{}, &wrapper_buf)
 
 		wrapper_locals := make([]Wasm_Local_Decl, 0)
-		append(
-			&mod.codes,
-			Wasm_Code{locals = wrapper_locals, body = copy_dynamic_bytes(wrapper_buf)},
-		)
+		wrapper_code_val := Wasm_Code {
+			locals = wrapper_locals,
+			body   = copy_dynamic_bytes(wrapper_buf),
+		}
+		main_entry_wrapper_code = &wrapper_code_val
 		delete(wrapper_buf)
 	}
 
@@ -976,6 +978,7 @@ codegen :: proc(
 		thread_count,
 		&deferred_handler_codes,
 		main_entry_wrapper_fn_idx,
+		main_entry_wrapper_code,
 	)
 
 	// Append deferred handler code bodies after _start and worker,

@@ -49,6 +49,7 @@ emit_start_function :: proc(
 	thread_count: int,
 	deferred_handler_codes: ^[dynamic]Wasm_Code,
 	main_entry_wrapper_fn_idx: int,
+	main_entry_wrapper_code: ^Wasm_Code,
 ) {
 	if start_func_idx >= 0 && main_decl != nil {
 		env.next_local = 4
@@ -83,6 +84,11 @@ emit_start_function :: proc(
 				Wasm_Code{locals = cont_locals, body = copy_dynamic_bytes(cont_body_buf)},
 			)
 			delete(cont_body_buf)
+
+			// Append main entry wrapper code at correct position (after continuation)
+			if main_entry_wrapper_code != nil {
+				append(&env.mod.codes, main_entry_wrapper_code^)
+			}
 
 			ev_param_count := len(main_decl.effects)
 
@@ -303,10 +309,7 @@ emit_start_function :: proc(
 
 			// Spawn main! via scheduler:
 			// sched_spawn(fn_index=main_entry_wrapper_fn_idx, env_ptr=env_record, scope_id=0)
-			emit_instruction(
-				Wasm_I32_Const{value = i32(main_entry_wrapper_fn_idx)},
-				&code_buf,
-			)
+			emit_instruction(Wasm_I32_Const{value = i32(main_entry_wrapper_fn_idx)}, &code_buf)
 			emit_instruction(Wasm_Local_Get{index = env_record_local}, &code_buf)
 			emit_instruction(Wasm_I32_Const{value = 0}, &code_buf) // scope_id = 0
 			emit_instruction(

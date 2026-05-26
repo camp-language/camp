@@ -1431,9 +1431,12 @@ emit_camp_sched_spawn_body :: proc() -> Wasm_Code {
 	handle_table_base :=
 		SCHED_BASE + SCHED_WORKER_COUNT_SIZE + SCHED_SPINNING_SIZE + SCHED_NOTIFICATION_SIZE
 	emit_instruction(Wasm_I32_Const{value = i32(handle_table_base)}, &buf)
+	emit_instruction(Wasm_I32_Load{align = 2, offset = 0}, &buf)
+	emit_instruction(Wasm_Local_Tee{index = 3}, &buf)
 	emit_instruction(Wasm_I32_Const{value = 1}, &buf)
-	emit_instruction(Wasm_Atomic_Mem{op = .RMW_Add, width = .I32, align = 2, offset = 0}, &buf)
-	emit_instruction(Wasm_Local_Set{index = 3}, &buf)
+	emit_instruction(Wasm_I32_Add{}, &buf)
+	emit_instruction(Wasm_I32_Const{value = i32(handle_table_base)}, &buf)
+	emit_instruction(Wasm_I32_Store{align = 2, offset = 0}, &buf)
 	emit_instruction(Wasm_I32_Const{value = i32(handle_table_base + 4)}, &buf)
 	emit_instruction(Wasm_Local_Get{index = 3}, &buf)
 	emit_instruction(Wasm_I32_Const{value = i32(SCHED_HANDLE_ENTRY_SIZE)}, &buf)
@@ -1448,7 +1451,7 @@ emit_camp_sched_spawn_body :: proc() -> Wasm_Code {
 	emit_instruction(Wasm_I32_Store{align = 2, offset = 20}, &buf)
 	global_queue_base := handle_table_base + SCHED_HANDLE_TABLE_SIZE
 	emit_instruction(Wasm_I32_Const{value = i32(global_queue_base + 4)}, &buf)
-	emit_instruction(Wasm_Atomic_Mem{op = .Load, width = .I32, align = 2, offset = 0}, &buf)
+	emit_instruction(Wasm_I32_Load{align = 2, offset = 0}, &buf)
 	emit_instruction(Wasm_Local_Set{index = 5}, &buf)
 	emit_instruction(Wasm_I32_Const{value = i32(global_queue_base + 12)}, &buf)
 	emit_instruction(Wasm_Local_Get{index = 5}, &buf)
@@ -1472,18 +1475,12 @@ emit_camp_sched_spawn_body :: proc() -> Wasm_Code {
 	emit_instruction(Wasm_Local_Get{index = 3}, &buf)
 	emit_instruction(Wasm_I32_Store{align = 2, offset = 8}, &buf)
 	emit_instruction(Wasm_I32_Const{value = i32(global_queue_base + 4)}, &buf)
+	emit_instruction(Wasm_I32_Load{align = 2, offset = 0}, &buf)
 	emit_instruction(Wasm_I32_Const{value = 1}, &buf)
-	emit_instruction(Wasm_Atomic_Mem{op = .RMW_Add, width = .I32, align = 2, offset = 0}, &buf)
-	emit_instruction(Wasm_Drop{}, &buf)
+	emit_instruction(Wasm_I32_Add{}, &buf)
+	emit_instruction(Wasm_I32_Const{value = i32(global_queue_base + 4)}, &buf)
+	emit_instruction(Wasm_I32_Store{align = 2, offset = 0}, &buf)
 	notification_base := SCHED_BASE + SCHED_WORKER_COUNT_SIZE + SCHED_SPINNING_SIZE
-	emit_instruction(Wasm_I32_Const{value = i32(notification_base)}, &buf)
-	emit_instruction(Wasm_I32_Const{value = 1}, &buf)
-	emit_instruction(Wasm_Atomic_Mem{op = .RMW_Add, width = .I32, align = 2, offset = 0}, &buf)
-	emit_instruction(Wasm_Drop{}, &buf)
-	emit_instruction(Wasm_I32_Const{value = i32(notification_base)}, &buf)
-	emit_instruction(Wasm_I32_Const{value = 1}, &buf)
-	emit_instruction(Wasm_Atomic_Mem{op = .Notify, width = .I32, align = 2, offset = 0}, &buf)
-	emit_instruction(Wasm_Drop{}, &buf)
 	emit_instruction(Wasm_Local_Get{index = 3}, &buf)
 	emit_instruction(Wasm_End{}, &buf)
 	locals := make([]Wasm_Local_Decl, 3)
@@ -1626,7 +1623,7 @@ emit_camp_sched_complete_body :: proc() -> Wasm_Code {
 	// Push to local queue tail
 	emit_instruction(Wasm_I32_Const{value = i32(SCHED_PER_WORKER_START + 4)}, &buf)
 	emit_instruction(Wasm_I32_Load{align = 2, offset = 0}, &buf) // tail
-	emit_instruction(Wasm_Local_Tee{index = 12}, &buf)
+	emit_instruction(Wasm_Local_Set{index = 12}, &buf)
 
 	emit_instruction(Wasm_I32_Const{value = i32(SCHED_PER_WORKER_START + 16)}, &buf)
 	emit_instruction(Wasm_Local_Get{index = 12}, &buf)
@@ -1918,14 +1915,6 @@ emit_camp_sched_cancel_body :: proc() -> Wasm_Code {
 	emit_instruction(Wasm_I32_Const{value = HANDLE_STATUS_CANCELLED}, &buf)
 	emit_instruction(Wasm_I32_Store{align = 2, offset = 0}, &buf)
 	notification_base := SCHED_BASE + SCHED_WORKER_COUNT_SIZE + SCHED_SPINNING_SIZE
-	emit_instruction(Wasm_I32_Const{value = i32(notification_base)}, &buf)
-	emit_instruction(Wasm_I32_Const{value = 1}, &buf)
-	emit_instruction(Wasm_Atomic_Mem{op = .RMW_Add, width = .I32, align = 2, offset = 0}, &buf)
-	emit_instruction(Wasm_Drop{}, &buf)
-	emit_instruction(Wasm_I32_Const{value = i32(notification_base)}, &buf)
-	emit_instruction(Wasm_I32_Const{value = 1}, &buf)
-	emit_instruction(Wasm_Atomic_Mem{op = .Notify, width = .I32, align = 2, offset = 0}, &buf)
-	emit_instruction(Wasm_Drop{}, &buf)
 	emit_instruction(Wasm_End{}, &buf)
 	locals := make([]Wasm_Local_Decl, 1)
 	locals[0] = Wasm_Local_Decl {
@@ -1971,7 +1960,7 @@ emit_camp_sched_yield_body :: proc() -> Wasm_Code {
 	// tail is at worker_region_base + 4
 	emit_instruction(Wasm_I32_Const{value = i32(SCHED_PER_WORKER_START + 4)}, &buf)
 	emit_instruction(Wasm_I32_Load{align = 2, offset = 0}, &buf)
-	emit_instruction(Wasm_Local_Tee{index = 3}, &buf)
+	emit_instruction(Wasm_Local_Set{index = 3}, &buf)
 
 	// entry_addr = worker_region_base + 16 + tail * ENTRY_SIZE
 	emit_instruction(Wasm_I32_Const{value = i32(SCHED_PER_WORKER_START + 16)}, &buf)
@@ -2182,9 +2171,12 @@ emit_camp_sched_timer_insert_body :: proc() -> Wasm_Code {
 	emit_instruction(Wasm_End{}, &buf)
 	timer_pool_base := timer_wheel_base + SCHED_TIMER_WHEEL_SIZE
 	emit_instruction(Wasm_I32_Const{value = i32(timer_pool_base)}, &buf)
+	emit_instruction(Wasm_I32_Load{align = 2, offset = 0}, &buf)
+	emit_instruction(Wasm_Local_Tee{index = 7}, &buf)
 	emit_instruction(Wasm_I32_Const{value = 1}, &buf)
-	emit_instruction(Wasm_Atomic_Mem{op = .RMW_Add, width = .I32, align = 2, offset = 0}, &buf)
-	emit_instruction(Wasm_Local_Set{index = 7}, &buf)
+	emit_instruction(Wasm_I32_Add{}, &buf)
+	emit_instruction(Wasm_I32_Const{value = i32(timer_pool_base)}, &buf)
+	emit_instruction(Wasm_I32_Store{align = 2, offset = 0}, &buf)
 	emit_instruction(Wasm_I32_Const{value = i32(timer_pool_base + 4)}, &buf)
 	emit_instruction(Wasm_Local_Get{index = 7}, &buf)
 	emit_instruction(Wasm_I32_Const{value = i32(SCHED_TIMER_ENTRY_SIZE)}, &buf)
@@ -2282,14 +2274,6 @@ emit_camp_sched_notify_body :: proc() -> Wasm_Code {
 	buf: [dynamic]u8
 	buf = make([dynamic]u8, 0, CODE_BUF_DEFAULT)
 	notification_base := SCHED_BASE + SCHED_WORKER_COUNT_SIZE + SCHED_SPINNING_SIZE
-	emit_instruction(Wasm_I32_Const{value = i32(notification_base)}, &buf)
-	emit_instruction(Wasm_I32_Const{value = 1}, &buf)
-	emit_instruction(Wasm_Atomic_Mem{op = .RMW_Add, width = .I32, align = 2, offset = 0}, &buf)
-	emit_instruction(Wasm_Drop{}, &buf)
-	emit_instruction(Wasm_I32_Const{value = i32(notification_base)}, &buf)
-	emit_instruction(Wasm_I32_Const{value = 1}, &buf)
-	emit_instruction(Wasm_Atomic_Mem{op = .Notify, width = .I32, align = 2, offset = 0}, &buf)
-	emit_instruction(Wasm_Drop{}, &buf)
 	emit_instruction(Wasm_End{}, &buf)
 	locals := make([]Wasm_Local_Decl, 0)
 	body := make([]u8, len(buf))
@@ -2302,11 +2286,7 @@ emit_camp_sched_park_body :: proc() -> Wasm_Code {
 	buf: [dynamic]u8
 	buf = make([dynamic]u8, 0, CODE_BUF_DEFAULT)
 	notification_base := SCHED_BASE + SCHED_WORKER_COUNT_SIZE + SCHED_SPINNING_SIZE
-	emit_instruction(Wasm_I32_Const{value = i32(notification_base)}, &buf)
-	emit_instruction(Wasm_I32_Const{value = i32(notification_base)}, &buf)
-	emit_instruction(Wasm_Atomic_Mem{op = .Load, width = .I32, align = 2, offset = 0}, &buf)
-	emit_instruction(Wasm_I64_Const{value = -1}, &buf)
-	emit_instruction(Wasm_Atomic_Mem{op = .Wait32, width = .I32, align = 2, offset = 0}, &buf)
+	emit_instruction(Wasm_Call{index = u32(WASI_IMPORT_SCHED_YIELD)}, &buf)
 	emit_instruction(Wasm_Drop{}, &buf)
 	emit_instruction(Wasm_End{}, &buf)
 	locals := make([]Wasm_Local_Decl, 0)
@@ -2335,10 +2315,10 @@ emit_camp_sched_worker_loop_body :: proc() -> Wasm_Code {
 	emit_instruction(Wasm_Local_Set{index = 1}, &buf)
 	emit_instruction(Wasm_Loop{block_type = .Void}, &buf)
 	emit_instruction(Wasm_I32_Const{value = i32(global_queue_base)}, &buf)
-	emit_instruction(Wasm_Atomic_Mem{op = .Load, width = .I32, align = 2, offset = 0}, &buf)
+	emit_instruction(Wasm_I32_Load{align = 2, offset = 0}, &buf)
 	emit_instruction(Wasm_Local_Tee{index = 2}, &buf)
 	emit_instruction(Wasm_I32_Const{value = i32(global_queue_base + 4)}, &buf)
-	emit_instruction(Wasm_Atomic_Mem{op = .Load, width = .I32, align = 2, offset = 0}, &buf)
+	emit_instruction(Wasm_I32_Load{align = 2, offset = 0}, &buf)
 	emit_instruction(Wasm_Local_Tee{index = 3}, &buf)
 	emit_instruction(Wasm_I32_Eq{}, &buf)
 	emit_instruction(Wasm_If{block_type = .Void}, &buf)
@@ -2350,19 +2330,18 @@ emit_camp_sched_worker_loop_body :: proc() -> Wasm_Code {
 	emit_instruction(Wasm_Drop{}, &buf)
 	emit_instruction(Wasm_Else{}, &buf)
 	notification_base := SCHED_BASE + SCHED_WORKER_COUNT_SIZE + SCHED_SPINNING_SIZE
-	emit_instruction(Wasm_I32_Const{value = i32(notification_base)}, &buf)
-	emit_instruction(Wasm_I32_Const{value = i32(notification_base)}, &buf)
-	emit_instruction(Wasm_Atomic_Mem{op = .Load, width = .I32, align = 2, offset = 0}, &buf)
-	emit_instruction(Wasm_I64_Const{value = -1}, &buf)
-	emit_instruction(Wasm_Atomic_Mem{op = .Wait32, width = .I32, align = 2, offset = 0}, &buf)
+	emit_instruction(Wasm_Call{index = u32(WASI_IMPORT_SCHED_YIELD)}, &buf)
 	emit_instruction(Wasm_Drop{}, &buf)
 	emit_instruction(Wasm_End{}, &buf)
 	emit_instruction(Wasm_Br{label = 0}, &buf)
 	emit_instruction(Wasm_Else{}, &buf)
 	emit_instruction(Wasm_I32_Const{value = i32(global_queue_base)}, &buf)
+	emit_instruction(Wasm_I32_Load{align = 2, offset = 0}, &buf)
+	emit_instruction(Wasm_Local_Tee{index = 2}, &buf)
 	emit_instruction(Wasm_I32_Const{value = 1}, &buf)
-	emit_instruction(Wasm_Atomic_Mem{op = .RMW_Add, width = .I32, align = 2, offset = 0}, &buf)
-	emit_instruction(Wasm_Local_Set{index = 2}, &buf)
+	emit_instruction(Wasm_I32_Add{}, &buf)
+	emit_instruction(Wasm_I32_Const{value = i32(global_queue_base)}, &buf)
+	emit_instruction(Wasm_I32_Store{align = 2, offset = 0}, &buf)
 	emit_instruction(Wasm_I32_Const{value = i32(global_queue_base + 12)}, &buf)
 	emit_instruction(Wasm_Local_Get{index = 2}, &buf)
 	emit_instruction(Wasm_I32_Const{value = i32(SCHED_LOCAL_QUEUE_ENTRY_SIZE)}, &buf)
@@ -2720,7 +2699,6 @@ emit_camp_sched_run_single_body :: proc() -> Wasm_Code {
 
 	// store env_ptr at entries[tail] + 4
 	emit_instruction(Wasm_I32_Const{value = i32(SCHED_PER_WORKER_START + 16)}, &buf)
-	emit_instruction(Wasm_Local_Get{index = 11}, &buf)
 	emit_instruction(Wasm_I32_Const{value = i32(SCHED_LOCAL_QUEUE_ENTRY_SIZE)}, &buf)
 	emit_instruction(Wasm_I32_Mul{}, &buf)
 	emit_instruction(Wasm_I32_Add{}, &buf)
@@ -2737,7 +2715,6 @@ emit_camp_sched_run_single_body :: proc() -> Wasm_Code {
 	emit_instruction(Wasm_I32_Store{align = 2, offset = 0}, &buf)
 
 	// Move to next in chain: next = i32.load(entry_addr + 12)
-	emit_instruction(Wasm_Local_Get{index = 11}, &buf)
 	// Re-compute entry addr for this pool_idx
 	emit_instruction(Wasm_I32_Const{value = i32(timer_pool_base + 4)}, &buf)
 	emit_instruction(Wasm_Local_Get{index = 12}, &buf)
@@ -3071,7 +3048,7 @@ emit_camp_sched_poll_and_dispatch_body :: proc() -> Wasm_Code {
 	// Read tail at SCHED_PER_WORKER_START + 4
 	emit_instruction(Wasm_I32_Const{value = i32(SCHED_PER_WORKER_START + 4)}, &buf)
 	emit_instruction(Wasm_I32_Load{align = 2, offset = 0}, &buf)
-	emit_instruction(Wasm_Local_Tee{index = 10}, &buf) // local 10 = tail
+	emit_instruction(Wasm_Local_Set{index = 10}, &buf) // local 10 = tail
 
 	// entry_addr = SCHED_PER_WORKER_START + 16 + tail * ENTRY_SIZE
 	emit_instruction(Wasm_I32_Const{value = i32(SCHED_PER_WORKER_START + 16)}, &buf)
@@ -3120,7 +3097,6 @@ emit_camp_sched_poll_and_dispatch_body :: proc() -> Wasm_Code {
 	emit_instruction(Wasm_I32_Const{value = 0}, &buf)
 	emit_instruction(Wasm_I32_Store{align = 2, offset = 4}, &buf) // clear task_ptr
 
-	emit_instruction(Wasm_End{}, &buf) // end if ready
 
 	// i++
 	emit_instruction(Wasm_Local_Get{index = 1}, &buf)
@@ -3220,7 +3196,7 @@ emit_camp_sched_timer_tick_body :: proc() -> Wasm_Code {
 	// Cancelled: skip to next
 	emit_instruction(Wasm_Local_Get{index = 2}, &buf)
 	emit_instruction(Wasm_I32_Load{align = 2, offset = 12}, &buf) // next
-	emit_instruction(Wasm_Local_Set{index = 1}, &buf)
+	emit_instruction(Wasm_Local_Tee{index = 1}, &buf)
 	emit_instruction(Wasm_Local_Get{index = 1}, &buf)
 	emit_instruction(Wasm_I32_Eqz{}, &buf)
 	emit_instruction(Wasm_Br_If{label = 1}, &buf) // end of list
@@ -3253,7 +3229,7 @@ emit_camp_sched_timer_tick_body :: proc() -> Wasm_Code {
 	// Push to local queue
 	emit_instruction(Wasm_I32_Const{value = i32(SCHED_PER_WORKER_START + 4)}, &buf)
 	emit_instruction(Wasm_I32_Load{align = 2, offset = 0}, &buf) // tail
-	emit_instruction(Wasm_Local_Tee{index = 7}, &buf)
+	emit_instruction(Wasm_Local_Set{index = 7}, &buf)
 
 	emit_instruction(Wasm_I32_Const{value = i32(SCHED_PER_WORKER_START + 16)}, &buf)
 	emit_instruction(Wasm_Local_Get{index = 7}, &buf)
@@ -3297,7 +3273,7 @@ emit_camp_sched_timer_tick_body :: proc() -> Wasm_Code {
 	// Move to next entry
 	emit_instruction(Wasm_Local_Get{index = 2}, &buf)
 	emit_instruction(Wasm_I32_Load{align = 2, offset = 12}, &buf) // next
-	emit_instruction(Wasm_Local_Set{index = 1}, &buf)
+	emit_instruction(Wasm_Local_Tee{index = 1}, &buf)
 	emit_instruction(Wasm_Local_Get{index = 1}, &buf)
 	emit_instruction(Wasm_I32_Eqz{}, &buf)
 	emit_instruction(Wasm_Br_If{label = 0}, &buf) // end of list
