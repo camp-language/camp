@@ -1775,6 +1775,9 @@ emit_expr :: proc(expr: ir.IR_Expr, buf: ^[dynamic]u8, env: ^Codegen_Env, runtim
 		emit_instruction(Wasm_Drop{}, buf)
 		emit_instruction(Wasm_I32_Const{value = 1}, buf)
 		emit_instruction(Wasm_Call{index = u32(runtime_indices[Runtime_Func.Exit])}, buf)
+		// camp_exit never returns; mark the stack as polymorphic so the
+		// validator accepts whatever shape the enclosing context expects.
+		emit_instruction(Wasm_Unreachable{}, buf)
 	case ^ir.IR_I32_Load:
 		emit_expr(e.base, buf, env, runtime_indices)
 		emit_instruction(Wasm_I32_Const{value = i32(e.offset)}, buf)
