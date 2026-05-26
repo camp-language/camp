@@ -977,8 +977,11 @@ ir_wasm_type_to_value_type :: proc(t: base.IR_Wasm_Type) -> Wasm_Value_Type {
 		return .F32
 	case .F64:
 		return .F64
+	// After closure conversion, function-typed values are heap-allocated
+	// closure records (i32 pointers). Funcref only surfaces as the table
+	// element type, never on the value stack.
 	case .Funcref:
-		return .Funcref
+		return .I32
 	case .Void:
 		return .I64
 	}
