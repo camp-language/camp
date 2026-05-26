@@ -1,10 +1,5 @@
 stdout = """
--- C0104: LAMBDA MULTI PARAM --- /tmp/camp-e2e/generics/generic-list-map/src/Main.camp
-
-Lambdas must take a single parameter. Use a record to pass multiple values.
-   7 | map = |f, xs| { match xs { Nil => Nil | Cons(h, t) => Cons(f(h), map(f, t)) } }
-                   ^
-compilation failed with 1 error(s)
+canonicalized /tmp/camp-e2e/generics/generic-list-map/src/Main.camp: 1 declaration(s), 0 import(s)
 """
 stderr = ""
-exit = 1
+exit = 11

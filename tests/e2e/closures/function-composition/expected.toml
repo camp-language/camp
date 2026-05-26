@@ -1,10 +1,17 @@
 stdout = """
--- C0104: LAMBDA MULTI PARAM --- /tmp/camp-e2e/closures/function-composition/src/Main.camp
-
-Lambdas must take a single parameter. Use a record to pass multiple values.
-   1 | compose = |f, g| -> |I64| -> I64 {
-                      ^
-compilation failed with 1 error(s)
+canonicalized /tmp/camp-e2e/closures/function-composition/src/Main.camp: 1 declaration(s), 0 import(s)
+typecheck passed for /tmp/camp-e2e/closures/function-composition/src/Main.camp
+compiled /tmp/camp-e2e/closures/function-composition/src/Main.camp -> /tmp/camp-e2e/closures/function-composition/src/Main.wasm
 """
 stderr = ""
-exit = 1
+exit = 0
+wasm_exit = 1
+wasm_stdout = ""
+wasm_stderr = """
+Error: failed to compile: wasm[0]::function[20]
+
+Caused by:
+    0: WebAssembly translation error
+    1: Invalid input WebAssembly code at offset 1035: type mismatch: values remaining on stack at end of block
+
+"""
