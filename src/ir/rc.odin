@@ -198,7 +198,7 @@ rc_collect_uses :: proc(expr: IR_Expr, uses: ^map[base.Intern_ID]int) {
 	     ^IR_Literal_Bool,
 	     ^IR_Expr_Nominal_Construct,
 	     ^IR_Closure:
-}
+	}
 }
 
 copy_remaining :: proc(src: ^map[base.Intern_ID]int) -> map[base.Intern_ID]int {

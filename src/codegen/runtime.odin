@@ -2057,25 +2057,25 @@ emit_camp_i64_to_str_body :: proc(alloc_func_idx: int) -> Wasm_Code {
 	buf = make([dynamic]u8, 0, CODE_BUF_LARGE)
 
 	// Check if negative
-	emit_instruction(Wasm_Local_Get{index = 0}, &buf)    // val
+	emit_instruction(Wasm_Local_Get{index = 0}, &buf) // val
 	emit_instruction(Wasm_I64_Const{value = 0}, &buf)
-	emit_instruction(Wasm_I64_Lt_S{}, &buf)               // val < 0
-	emit_instruction(Wasm_Local_Set{index = 2}, &buf)     // is_neg = val < 0
+	emit_instruction(Wasm_I64_Lt_S{}, &buf) // val < 0
+	emit_instruction(Wasm_Local_Set{index = 2}, &buf) // is_neg = val < 0
 
 	// abs_val = is_neg ? -val : val
 	emit_instruction(Wasm_Local_Get{index = 2}, &buf)
 	emit_instruction(Wasm_If{block_type = .I64}, &buf)
 	emit_instruction(Wasm_Local_Get{index = 0}, &buf)
 	emit_instruction(Wasm_I64_Const{value = -1}, &buf)
-	emit_instruction(Wasm_I64_Mul{}, &buf)                 // -val
+	emit_instruction(Wasm_I64_Mul{}, &buf) // -val
 	emit_instruction(Wasm_Else{}, &buf)
-	emit_instruction(Wasm_Local_Get{index = 0}, &buf)     // val
+	emit_instruction(Wasm_Local_Get{index = 0}, &buf) // val
 	emit_instruction(Wasm_End{}, &buf)
-	emit_instruction(Wasm_Local_Set{index = 1}, &buf)     // abs_val
+	emit_instruction(Wasm_Local_Set{index = 1}, &buf) // abs_val
 
 	// Count digits: num_digits = 1, temp = abs_val
 	emit_instruction(Wasm_I32_Const{value = 1}, &buf)
-	emit_instruction(Wasm_Local_Set{index = 3}, &buf)     // num_digits = 1
+	emit_instruction(Wasm_Local_Set{index = 3}, &buf) // num_digits = 1
 
 	// while temp >= 10: temp /= 10, num_digits++
 	// while temp >= 10: temp /= 10, num_digits++
@@ -2083,16 +2083,16 @@ emit_camp_i64_to_str_body :: proc(alloc_func_idx: int) -> Wasm_Code {
 	emit_instruction(Wasm_Loop{block_type = .Void}, &buf)
 	emit_instruction(Wasm_Local_Get{index = 1}, &buf)
 	emit_instruction(Wasm_I64_Const{value = 10}, &buf)
-	emit_instruction(Wasm_I64_Lt_S{}, &buf)                // abs_val < 10
-	emit_instruction(Wasm_Br_If{label = 1}, &buf)         // break if abs_val < 10
+	emit_instruction(Wasm_I64_Lt_S{}, &buf) // abs_val < 10
+	emit_instruction(Wasm_Br_If{label = 1}, &buf) // break if abs_val < 10
 	emit_instruction(Wasm_Local_Get{index = 1}, &buf)
 	emit_instruction(Wasm_I64_Const{value = 10}, &buf)
-	emit_instruction(Wasm_I64_Div_S{}, &buf)               // abs_val / 10
-	emit_instruction(Wasm_Local_Set{index = 1}, &buf)     // abs_val = abs_val / 10
+	emit_instruction(Wasm_I64_Div_S{}, &buf) // abs_val / 10
+	emit_instruction(Wasm_Local_Set{index = 1}, &buf) // abs_val = abs_val / 10
 	emit_instruction(Wasm_Local_Get{index = 3}, &buf)
 	emit_instruction(Wasm_I32_Const{value = 1}, &buf)
-	emit_instruction(Wasm_I32_Add{}, &buf)                 // num_digits + 1
-	emit_instruction(Wasm_Local_Set{index = 3}, &buf)     // num_digits++
+	emit_instruction(Wasm_I32_Add{}, &buf) // num_digits + 1
+	emit_instruction(Wasm_Local_Set{index = 3}, &buf) // num_digits++
 	emit_instruction(Wasm_Br{label = 0}, &buf)
 	emit_instruction(Wasm_End{}, &buf)
 	emit_instruction(Wasm_End{}, &buf)
@@ -2110,16 +2110,16 @@ emit_camp_i64_to_str_body :: proc(alloc_func_idx: int) -> Wasm_Code {
 
 	// total_len = num_digits + (is_neg ? 1 : 0)
 	emit_instruction(Wasm_Local_Get{index = 3}, &buf)
-	emit_instruction(Wasm_Local_Get{index = 2}, &buf)     // is_neg (0 or 1)
+	emit_instruction(Wasm_Local_Get{index = 2}, &buf) // is_neg (0 or 1)
 	emit_instruction(Wasm_I32_Add{}, &buf)
-	emit_instruction(Wasm_Local_Set{index = 4}, &buf)     // total_len
+	emit_instruction(Wasm_Local_Set{index = 4}, &buf) // total_len
 
 	// result = alloc(total_len + 4)
 	emit_instruction(Wasm_Local_Get{index = 4}, &buf)
 	emit_instruction(Wasm_I32_Const{value = 4}, &buf)
 	emit_instruction(Wasm_I32_Add{}, &buf)
 	emit_instruction(Wasm_Call{index = u32(alloc_func_idx)}, &buf)
-	emit_instruction(Wasm_Local_Set{index = 5}, &buf)     // result
+	emit_instruction(Wasm_Local_Set{index = 5}, &buf) // result
 
 	// [result] = total_len
 	emit_instruction(Wasm_Local_Get{index = 5}, &buf)
@@ -2130,23 +2130,23 @@ emit_camp_i64_to_str_body :: proc(alloc_func_idx: int) -> Wasm_Code {
 	emit_instruction(Wasm_Local_Get{index = 4}, &buf)
 	emit_instruction(Wasm_I32_Const{value = 1}, &buf)
 	emit_instruction(Wasm_I32_Sub{}, &buf)
-	emit_instruction(Wasm_Local_Set{index = 6}, &buf)     // pos
+	emit_instruction(Wasm_Local_Set{index = 6}, &buf) // pos
 
 	// Write digits from right to left
 	emit_instruction(Wasm_Block{block_type = .Void}, &buf)
 	emit_instruction(Wasm_Loop{block_type = .Void}, &buf)
 	// Store digit = abs_val % 10 + '0'
-	emit_instruction(Wasm_Local_Get{index = 5}, &buf)     // result
+	emit_instruction(Wasm_Local_Get{index = 5}, &buf) // result
 	emit_instruction(Wasm_I32_Const{value = 4}, &buf)
-	emit_instruction(Wasm_I32_Add{}, &buf)                 // data_ptr = result + 4
-	emit_instruction(Wasm_Local_Get{index = 6}, &buf)     // pos
-	emit_instruction(Wasm_I32_Add{}, &buf)                 // data_ptr + pos
-	emit_instruction(Wasm_Local_Get{index = 1}, &buf)     // abs_val
+	emit_instruction(Wasm_I32_Add{}, &buf) // data_ptr = result + 4
+	emit_instruction(Wasm_Local_Get{index = 6}, &buf) // pos
+	emit_instruction(Wasm_I32_Add{}, &buf) // data_ptr + pos
+	emit_instruction(Wasm_Local_Get{index = 1}, &buf) // abs_val
 	emit_instruction(Wasm_I64_Const{value = 10}, &buf)
-	emit_instruction(Wasm_I64_Rem_S{}, &buf)               // abs_val % 10
-	emit_instruction(Wasm_I32_Wrap_I64{}, &buf)            // as i32
-	emit_instruction(Wasm_I32_Const{value = 48}, &buf)    // '0'
-	emit_instruction(Wasm_I32_Add{}, &buf)                 // digit + '0'
+	emit_instruction(Wasm_I64_Rem_S{}, &buf) // abs_val % 10
+	emit_instruction(Wasm_I32_Wrap_I64{}, &buf) // as i32
+	emit_instruction(Wasm_I32_Const{value = 48}, &buf) // '0'
+	emit_instruction(Wasm_I32_Add{}, &buf) // digit + '0'
 	emit_instruction(Wasm_I32_Store8{align = 0, offset = 0}, &buf) // store byte
 
 	// abs_val /= 10
@@ -2172,22 +2172,37 @@ emit_camp_i64_to_str_body :: proc(alloc_func_idx: int) -> Wasm_Code {
 	// Write '-' sign if negative
 	emit_instruction(Wasm_Local_Get{index = 2}, &buf)
 	emit_instruction(Wasm_If{block_type = .Void}, &buf)
-	emit_instruction(Wasm_Local_Get{index = 5}, &buf)     // result
+	emit_instruction(Wasm_Local_Get{index = 5}, &buf) // result
 	emit_instruction(Wasm_I32_Const{value = 4}, &buf)
-	emit_instruction(Wasm_I32_Add{}, &buf)                 // result + 4
-	emit_instruction(Wasm_I32_Const{value = 45}, &buf)    // '-'
+	emit_instruction(Wasm_I32_Add{}, &buf) // result + 4
+	emit_instruction(Wasm_I32_Const{value = 45}, &buf) // '-'
 	emit_instruction(Wasm_I32_Store8{align = 0, offset = 0}, &buf)
 	emit_instruction(Wasm_End{}, &buf)
 
-	emit_instruction(Wasm_Local_Get{index = 5}, &buf)     // return result
+	emit_instruction(Wasm_Local_Get{index = 5}, &buf) // return result
 	emit_instruction(Wasm_End{}, &buf)
 
 	locals := make([]Wasm_Local_Decl, 5)
-	locals[0] = Wasm_Local_Decl{count = 1, type = .I64}  // abs_val
-	locals[1] = Wasm_Local_Decl{count = 1, type = .I32}  // is_neg
-	locals[2] = Wasm_Local_Decl{count = 1, type = .I32}  // num_digits
-	locals[3] = Wasm_Local_Decl{count = 1, type = .I32}  // total_len
-	locals[4] = Wasm_Local_Decl{count = 2, type = .I32}  // result, pos
+	locals[0] = Wasm_Local_Decl {
+		count = 1,
+		type  = .I64,
+	} // abs_val
+	locals[1] = Wasm_Local_Decl {
+		count = 1,
+		type  = .I32,
+	} // is_neg
+	locals[2] = Wasm_Local_Decl {
+		count = 1,
+		type  = .I32,
+	} // num_digits
+	locals[3] = Wasm_Local_Decl {
+		count = 1,
+		type  = .I32,
+	} // total_len
+	locals[4] = Wasm_Local_Decl {
+		count = 2,
+		type  = .I32,
+	} // result, pos
 
 	body := make([]u8, len(buf))
 	for b, i in buf {body[i] = b}
@@ -2328,11 +2343,26 @@ emit_camp_i32_to_str_body :: proc(alloc_func_idx: int) -> Wasm_Code {
 	emit_instruction(Wasm_End{}, &buf)
 
 	locals := make([]Wasm_Local_Decl, 5)
-	locals[0] = Wasm_Local_Decl{count = 1, type = .I64}
-	locals[1] = Wasm_Local_Decl{count = 1, type = .I32}
-	locals[2] = Wasm_Local_Decl{count = 1, type = .I32}
-	locals[3] = Wasm_Local_Decl{count = 1, type = .I32}
-	locals[4] = Wasm_Local_Decl{count = 2, type = .I32}
+	locals[0] = Wasm_Local_Decl {
+		count = 1,
+		type  = .I64,
+	}
+	locals[1] = Wasm_Local_Decl {
+		count = 1,
+		type  = .I32,
+	}
+	locals[2] = Wasm_Local_Decl {
+		count = 1,
+		type  = .I32,
+	}
+	locals[3] = Wasm_Local_Decl {
+		count = 1,
+		type  = .I32,
+	}
+	locals[4] = Wasm_Local_Decl {
+		count = 2,
+		type  = .I32,
+	}
 
 	body := make([]u8, len(buf))
 	for b, i in buf {body[i] = b}
@@ -2365,3 +2395,4 @@ emit_camp_bool_to_str_body :: proc(alloc_func_idx: int) -> Wasm_Code {
 	delete(buf)
 	return Wasm_Code{locals = locals, body = body}
 }
+
