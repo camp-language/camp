@@ -132,7 +132,7 @@ in
       exec = ''CAMP_BIN="$PWD/camp" ./camp-e2e --update'';
     };
 
-    "clean" = {
+    "misc:clean" = {
       description = "Clean build/test artifacts";
       exec = ''
         git clean -fdX tests/e2e/
