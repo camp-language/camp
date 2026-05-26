@@ -253,7 +253,6 @@ run_test :: proc(test: E2E_Test, update: bool) -> Test_Report {
 	wasm_available := true
 
 	if exit_code == 0 {
-		has_wasm = true
 		wasm_path: string
 		tw_err: os.Error
 		if test.is_multi_module {
@@ -261,9 +260,13 @@ run_test :: proc(test: E2E_Test, update: bool) -> Test_Report {
 		} else {
 			wasm_path, tw_err = filepath.join({tmp_src, "Main.wasm"}, context.allocator)
 		}
-		if tw_err != nil {
-			has_wasm = false
-		} else {
+		// Only attempt to run the WASM when it actually exports `_start`.
+		// Camp source files with no `main!` (library-style: just top-level
+		// fn or type decls) are valid programs that compile but don't run,
+		// and asking wasmtime to `run` such a module just returns a generic
+		// "no _start" error that obscures the real test signal.
+		if tw_err == nil && wasm_has_start_export(wasm_path) {
+			has_wasm = true
 			wasm_stdout, wasm_stderr, wasm_exit, wasm_available = run_wasmtime(
 				wasm_path,
 				unique_prefix,
@@ -521,6 +524,52 @@ resolve_wasmtime :: proc() -> string {
 		return clone
 	}
 	return "wasmtime"
+}
+
+// wasm_has_start_export returns true if the module at wasm_path declares an
+// export named `_start`. Camp programs without `main!` produce a module that
+// compiles but has no entry point — running them with wasmtime emits a
+// generic error that drowns out the actual test signal, so we skip the run.
+wasm_has_start_export :: proc(wasm_path: string) -> bool {
+	data, read_err := os.read_entire_file(wasm_path, context.allocator)
+	if read_err != nil do return false
+	defer delete(data, context.allocator)
+	if len(data) < 8 do return false
+	// Skip the 4-byte magic + 4-byte version header.
+	p := 8
+	for p < len(data) {
+		sec_id := data[p]; p += 1
+		size, np := read_uleb_u32(data, p); p = np
+		if sec_id == 7 { 	// export section
+			n, ep := read_uleb_u32(data, p); p = ep
+			for i: u32 = 0; i < n; i += 1 {
+				name_len, lp := read_uleb_u32(data, p); p = lp
+				if p + int(name_len) > len(data) do return false
+				name := string(data[p:p + int(name_len)])
+				p += int(name_len)
+				if p >= len(data) do return false
+				p += 1 // export kind byte
+				_, kp := read_uleb_u32(data, p); p = kp
+				if name == "_start" do return true
+			}
+			return false
+		}
+		p += int(size)
+	}
+	return false
+}
+
+read_uleb_u32 :: proc(b: []u8, start: int) -> (u32, int) {
+	result: u32 = 0
+	shift: u32 = 0
+	p := start
+	for p < len(b) {
+		byte := b[p]; p += 1
+		result |= u32(byte & 0x7f) << shift
+		if (byte & 0x80) == 0 do return result, p
+		shift += 7
+	}
+	return result, p
 }
 
 run_wasmtime :: proc(
