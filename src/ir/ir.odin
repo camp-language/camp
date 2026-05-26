@@ -267,8 +267,10 @@ IR_Pat_Record :: struct {
 	is_open: bool,
 }
 IR_Pat_Field :: struct {
-	name:    ba.Intern_ID,
-	binding: ba.Intern_ID,
+	name:        ba.Intern_ID,
+	binding:     ba.Intern_ID,
+	field_index: int,
+	wasm_type:   ba.IR_Wasm_Type,
 }
 IR_Pat_Var :: struct {
 	name: ba.Intern_ID,

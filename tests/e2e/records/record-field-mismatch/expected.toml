@@ -5,6 +5,3 @@ compiled /tmp/camp-e2e/records/record-field-mismatch/src/Main.camp -> /tmp/camp-
 """
 stderr = ""
 exit = 0
-wasm_exit = 0
-wasm_stdout = ""
-wasm_stderr = ""

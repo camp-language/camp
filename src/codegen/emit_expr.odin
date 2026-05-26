@@ -154,7 +154,7 @@ collect_pattern_locals :: proc(
 	case ^ir.IR_Pat_Record:
 		for f in p.fields {
 			locals^[f.binding] = base.IR_Type {
-				wasm_type = .I32,
+				wasm_type = f.wasm_type,
 				type_id   = base.Type_Var_ID(0),
 			}
 		}
@@ -963,6 +963,49 @@ emit_expr :: proc(expr: ir.IR_Expr, buf: ^[dynamic]u8, env: ^Codegen_Env, runtim
 				if !is_last {
 					emit_instruction(Wasm_End{}, buf)
 				}
+			}
+
+			emit_instruction(Wasm_Unreachable{}, buf)
+			emit_instruction(Wasm_End{}, buf)
+
+		case .Record:
+			emit_instruction(Wasm_Block{block_type = block_type}, buf)
+
+			emit_expr(e.scrutinee, buf, env, runtime_indices)
+			scrutinee_local := env.tmp_local_base + 2
+			emit_instruction(Wasm_Local_Set{index = scrutinee_local}, buf)
+
+			for arm_idx in 0 ..< len(e.arms) {
+				arm := e.arms[arm_idx]
+				#partial switch p in arm.pattern {
+				case ^ir.IR_Pat_Record:
+					for f in p.fields {
+						if local_idx, ok := env.local_map[f.binding]; ok {
+							emit_instruction(Wasm_Local_Get{index = scrutinee_local}, buf)
+							emit_instruction(
+								Wasm_I32_Const {
+									value = i32(CAMP_TAG_FIELDS_OFFSET + f.field_index * 8),
+								},
+								buf,
+							)
+							emit_instruction(Wasm_I32_Add{}, buf)
+							emit_load_for_type(f.wasm_type, buf)
+							emit_instruction(Wasm_Local_Set{index = local_idx}, buf)
+						}
+					}
+				case ^ir.IR_Pat_Var:
+					if local_idx, ok := env.local_map[p.name]; ok {
+						emit_instruction(Wasm_Local_Get{index = scrutinee_local}, buf)
+						emit_instruction(Wasm_Local_Set{index = local_idx}, buf)
+					}
+				case ^ir.IR_Pat_Tag,
+				     ^ir.IR_Pat_Wildcard,
+				     ^ir.IR_Pat_Bool,
+				     ^ir.IR_Pat_Int,
+				     ^ir.IR_Pat_String:
+				}
+				emit_expr(arm.body, buf, env, runtime_indices)
+				emit_instruction(Wasm_Br{label = 0}, buf)
 			}
 
 			emit_instruction(Wasm_Unreachable{}, buf)

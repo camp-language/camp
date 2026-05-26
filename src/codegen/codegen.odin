@@ -30,6 +30,7 @@ Match_Kind :: enum {
 	Bool,
 	Int,
 	String,
+	Record,
 }
 
 determine_match_kind :: proc(arms: []ir.IR_Match_Arm, scrutinee: ir.IR_Expr) -> Match_Kind {
@@ -43,7 +44,9 @@ determine_match_kind :: proc(arms: []ir.IR_Match_Arm, scrutinee: ir.IR_Expr) -> 
 			return .Int
 		case ^ir.IR_Pat_String:
 			return .String
-		case ^ir.IR_Pat_Record, ^ir.IR_Pat_Var, ^ir.IR_Pat_Wildcard:
+		case ^ir.IR_Pat_Record:
+			return .Record
+		case ^ir.IR_Pat_Var, ^ir.IR_Pat_Wildcard:
 		}
 	}
 	// All arms are catch-alls (var/wildcard). Pick a kind based on the
