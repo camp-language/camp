@@ -309,6 +309,8 @@ emit_expr :: proc(expr: ir.IR_Expr, buf: ^[dynamic]u8, env: ^Codegen_Env, runtim
 	case ^ir.IR_Var:
 		if idx, ok := env.local_map[e.name]; ok {
 			emit_instruction(Wasm_Local_Get{index = idx}, buf)
+		} else if g, ok := env.const_globals[e.name]; ok {
+			emit_instruction(Wasm_Global_Get{index = g.global_idx}, buf)
 		} else if idx, ok := env.func_map[u64(e.name)]; ok {
 			emit_instruction(Wasm_I32_Const{value = i32(idx)}, buf)
 		} else {

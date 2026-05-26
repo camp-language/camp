@@ -49,6 +49,11 @@ determine_match_kind :: proc(arms: []ir.IR_Match_Arm) -> Match_Kind {
 	return .Tag_Union
 }
 
+Const_Global_Info :: struct {
+	global_idx: u32,
+	wasm_type:  base.IR_Wasm_Type,
+}
+
 Codegen_Env :: struct {
 	mod:                     ^Wasm_Module,
 	interner:                ^base.Intern_Table,
@@ -74,6 +79,7 @@ Codegen_Env :: struct {
 	console_id:              base.Intern_ID,
 	time_id:                 base.Intern_ID,
 	decl_to_wasm_fn_idx:     map[int]int,
+	const_globals:           map[base.Intern_ID]Const_Global_Info,
 	string_offsets:          map[base.Intern_ID]u32,
 	throw_err_msg_offset:    u32,
 	throw_err_suffix_offset: u32,
@@ -247,6 +253,7 @@ codegen :: proc(
 	env.local_map = make(map[base.Intern_ID]u32, 32)
 	env.local_types = make(map[base.Intern_ID]base.IR_Type, 32)
 	env.string_offsets = make(map[base.Intern_ID]u32, 16)
+	env.const_globals = make(map[base.Intern_ID]Const_Global_Info, 8)
 	env.table_idx = -1
 	env.func_type_indices = make([dynamic]u32, 0, 64)
 	env.next_scope_id = 1
@@ -640,6 +647,63 @@ codegen :: proc(
 	env.func_map[u64(camp_alloc_name)] = alloc_func_idx
 	camp_dealloc_name := base.intern(interner, "camp_dealloc")
 	env.func_map[u64(camp_dealloc_name)] = dealloc_func_idx
+
+	// Register top-level const decls as WASM globals so user code can
+	// reference them via global.get. Only literal-valued consts are handled
+	// here; computed initializers would need a _start prelude pass.
+	for decl in ir_mod.decls {
+		c, is_const := decl.(^ir.IR_Decl_Const)
+		if !is_const {continue}
+
+		init_buf: [dynamic]u8
+		init_buf = make([dynamic]u8, 0, 8)
+		valtype: Wasm_Value_Type = .I32
+
+		#partial switch v in c.value {
+		case ^ir.IR_Literal_Int:
+			if v.type.wasm_type == .I32 {
+				emit_instruction(Wasm_I32_Const{value = i32(v.value)}, &init_buf)
+				valtype = .I32
+			} else {
+				emit_instruction(Wasm_I64_Const{value = v.value}, &init_buf)
+				valtype = .I64
+			}
+		case ^ir.IR_Literal_Bool:
+			emit_instruction(Wasm_I32_Const{value = v.value ? 1 : 0}, &init_buf)
+			valtype = .I32
+		case ^ir.IR_Literal_Float:
+			emit_instruction(Wasm_F64_Const{value = v.value}, &init_buf)
+			valtype = .F64
+		case:
+			delete(init_buf)
+			continue
+		}
+
+		gidx := u32(len(mod.globals))
+		append(
+			&mod.globals,
+			Wasm_Global{type = valtype, mutable = false, init = copy_dynamic_bytes(init_buf)},
+		)
+		delete(init_buf)
+
+		wt: base.IR_Wasm_Type = .I32
+		switch valtype {
+		case .I32:
+			wt = .I32
+		case .I64:
+			wt = .I64
+		case .F32:
+			wt = .F32
+		case .F64:
+			wt = .F64
+		case .Funcref:
+			wt = .I32
+		}
+		env.const_globals[c.name.name] = Const_Global_Info {
+			global_idx = gidx,
+			wasm_type  = wt,
+		}
+	}
 
 	main_fn_idx := -1
 	main_decl: ^ir.IR_Decl_Fn = nil
