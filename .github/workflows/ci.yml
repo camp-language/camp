@@ -18,9 +18,10 @@ jobs:
       - name: Install Odin
         run: |
           ODIN_VERSION=$(curl -s https://api.github.com/repos/odin-lang/Odin/releases/latest | jq -r '.tag_name')
-          ODIN_URL="https://github.com/odin-lang/Odin/releases/download/${ODIN_VERSION}/odin-ubuntu-24.04-amd64-dev-${ODIN_VERSION#dev-}.tar.gz"
-          curl -L -o odin.tar.gz "$ODIN_URL"
-          sudo tar -xzf odin.tar.gz -C /usr/local/bin odin
+          curl -L -o odin.tar.gz "https://github.com/odin-lang/Odin/releases/download/${ODIN_VERSION}/odin-linux-amd64-${ODIN_VERSION}.tar.gz"
+          tar -xzf odin.tar.gz
+          sudo mv odin-linux-*/odin /usr/local/bin/odin
+          rm -rf odin-linux-* odin.tar.gz
 
       - name: Build compiler
         run: odin build src -collection:camp=src -out:camp
