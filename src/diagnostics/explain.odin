@@ -16,8 +16,6 @@ explain_for_code :: proc(code: string) -> (string, bool) {
 	case "C0101":
 		return "A name is defined more than once in the same scope. Rename or remove the duplicate.",
 			true
-	case "C0104":
-		return "Lambdas must take a single parameter. Use a record to pass multiple values.", true
 	case "C0200":
 		return "The types in this expression are incompatible. Check the type annotations and inferred types.",
 			true
@@ -42,7 +40,6 @@ KNOWN_CODES :: [?]string {
 	"C0002",
 	"C0100",
 	"C0101",
-	"C0104",
 	"C0200",
 	"C0202",
 	"C0300",

@@ -965,17 +965,6 @@ diag_if_requires_braces :: proc(span: base.Source_Span) -> Diagnostic {
 	return d
 }
 
-diag_lambda_multi_param :: proc(span: base.Source_Span) -> Diagnostic {
-	d := diag_init(
-		.Error,
-		"C0104",
-		"LAMBDA MULTI PARAM",
-		span,
-		"Lambdas must take a single parameter. Use a record to pass multiple values.",
-	)
-	return d
-}
-
 diag_ambiguous_type :: proc(name: string, span: base.Source_Span) -> Diagnostic {
 	d := diag_init(
 		.Error,

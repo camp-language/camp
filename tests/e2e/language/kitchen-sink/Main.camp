@@ -158,6 +158,9 @@ primitives_demo = || -> I64 {
 
 add_one = |x: I64| -> I64 { x + 1 }
 
+// Multi-param lambda
+add = |x, y| x + y
+
 // Anonymous lambda: |x| x + 1
 // Effectful function: read_line! = || -[Console!]-> Str { ... }
 // Generic: add = |x: a, y: a| -> a where a is Add { x + y }
