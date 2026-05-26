@@ -187,13 +187,16 @@ rc_collect_uses :: proc(expr: IR_Expr, uses: ^map[base.Intern_ID]int) {
 	case ^IR_Loop:
 		rc_collect_uses(e.iterable, uses)
 		rc_collect_uses(e.body, uses)
+	case ^IR_I32_Load:
+		rc_collect_uses(e.base, uses)
+	case ^IR_I32_Store:
+		rc_collect_uses(e.base, uses)
+		rc_collect_uses(e.value, uses)
 	case ^IR_Literal_Int,
 	     ^IR_Literal_Float,
 	     ^IR_Literal_String,
 	     ^IR_Literal_Bool,
 	     ^IR_Expr_Nominal_Construct,
-	     ^IR_I32_Load,
-	     ^IR_I32_Store,
 	     ^IR_Closure:
 	}
 }
@@ -327,18 +330,18 @@ emit_param_drops :: proc(
 	return drops
 }
 
-// wrap_with_drops wraps an expression with trailing drop statements.
+// wrap_with_drops wraps an expression with leading drop statements.
 // If no drops, returns the expression unchanged.
-// If drops exist, wraps in IR_Block{expr, drop1, drop2, ...}.
+// If drops exist, wraps in IR_Block{drop1, drop2, ..., expr}.
 // The block's type is the same as the expression's type (drops don't produce values).
 wrap_with_drops :: proc(expr: IR_Expr, drops: [dynamic]IR_Expr) -> IR_Expr {
 	if len(drops) == 0 do return expr
 
 	stmts := make([dynamic]IR_Expr, 0, 1 + len(drops))
-	append(&stmts, expr)
 	for drop in drops {
 		append(&stmts, drop)
 	}
+	append(&stmts, expr)
 	delete(drops)
 
 	// Determine the type from the expression
@@ -796,11 +799,15 @@ rc_insert_expr_inner :: proc(
 		return IR_Expr(new_perf)
 
 	case ^IR_Resume:
-		new_resume := new(IR_Resume)
+		count, ok := (remaining^)[e.resume_id]
+		if ok && count > 0 {
+			(remaining^)[e.resume_id] = count - 1
+		}
 		ev_val: IR_Expr = nil
 		if e.ev != nil {
 			ev_val = rc_insert_expr_inner(e.ev, remaining, heap_types, interner)
 		}
+		new_resume := new(IR_Resume)
 		new_resume^ = IR_Resume {
 			resume_id = e.resume_id,
 			value     = rc_insert_expr_inner(e.value, remaining, heap_types, interner),
@@ -850,7 +857,23 @@ rc_insert_expr_inner :: proc(
 			span    = e.span,
 		}
 		return IR_Expr(new_crash)
-
+	case ^IR_I32_Load:
+		new_load := new(IR_I32_Load)
+		new_load^ = IR_I32_Load {
+			base   = rc_insert_expr_inner(e.base, remaining, heap_types, interner),
+			offset = e.offset,
+			span   = e.span,
+		}
+		return IR_Expr(new_load)
+	case ^IR_I32_Store:
+		new_store := new(IR_I32_Store)
+		new_store^ = IR_I32_Store {
+			base   = rc_insert_expr_inner(e.base, remaining, heap_types, interner),
+			offset = e.offset,
+			value  = rc_insert_expr_inner(e.value, remaining, heap_types, interner),
+			span   = e.span,
+		}
+		return IR_Expr(new_store)
 	case ^IR_Atomic_Load:
 		return IR_Expr(e)
 	case ^IR_Atomic_Store:
