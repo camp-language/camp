@@ -18,8 +18,5 @@ jobs:
         with:
           name: devenv
 
-      - name: Install devenv
-        run: nix profile add nixpkgs#devenv
-
       - name: Run tests
-        run: devenv test
+        run: nix run nixpkgs#devenv -- test
