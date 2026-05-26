@@ -137,6 +137,7 @@ IR_Expr :: union {
 	^IR_Construct_Tag,
 	^IR_Expr_Nominal_Construct,
 	^IR_Construct_Record,
+	^IR_Construct_Tuple,
 	^IR_Field_Access,
 	^IR_Method_Call,
 	^IR_Handle,
@@ -254,6 +255,7 @@ IR_Pattern :: union {
 	^IR_Pat_Bool,
 	^IR_Pat_Int,
 	^IR_Pat_String,
+	^IR_Pat_Tuple,
 }
 
 IR_Pat_Tag :: struct {
@@ -271,6 +273,15 @@ IR_Pat_Field :: struct {
 	binding:     ba.Intern_ID,
 	field_index: int,
 	wasm_type:   ba.IR_Wasm_Type,
+}
+IR_Pat_Tuple_Element :: struct {
+	binding:     ba.Intern_ID,
+	field_index: int,
+	wasm_type:   ba.IR_Wasm_Type,
+}
+IR_Pat_Tuple :: struct {
+	elements: [dynamic]IR_Pat_Tuple_Element,
+	span:     ba.Source_Span,
 }
 IR_Pat_Var :: struct {
 	name: ba.Intern_ID,
@@ -305,6 +316,12 @@ IR_Expr_Nominal_Construct :: struct {
 IR_Construct_Record :: struct {
 	fields:     [dynamic]IR_Record_Field,
 	rest:       IR_Expr,
+	reuse_addr: ba.Intern_ID,
+	type:       ba.IR_Type,
+	span:       ba.Source_Span,
+}
+IR_Construct_Tuple :: struct {
+	elements:   [dynamic]IR_Expr,
 	reuse_addr: ba.Intern_ID,
 	type:       ba.IR_Type,
 	span:       ba.Source_Span,

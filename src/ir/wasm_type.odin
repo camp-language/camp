@@ -33,6 +33,8 @@ ir_expr_wasm_type :: proc(expr: IR_Expr) -> base.IR_Wasm_Type {
 		return .I32
 	case ^IR_Construct_Record:
 		return .I32
+	case ^IR_Construct_Tuple:
+		return .I32
 	case ^IR_Field_Access:
 		return e.type.wasm_type
 	case ^IR_BinOp:

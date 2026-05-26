@@ -106,6 +106,11 @@ Inferred_Handle :: struct {
 	inner_id:  base.Type_Var_ID,
 	effect_id: base.Type_Var_ID,
 }
+Inferred_Tuple :: struct {
+	element_types: []base.Type_Var_ID,
+	element_count: int,
+	closed:        bool,
+}
 
 Inferred_Type :: union {
 	Inferred_Primitive,
@@ -116,6 +121,7 @@ Inferred_Type :: union {
 	Inferred_Tag_Union_Row,
 	Inferred_Effect_Row,
 	Inferred_Handle,
+	Inferred_Tuple,
 }
 
 Newtype_Decl_Info :: struct {
@@ -203,6 +209,8 @@ type_store_destroy :: proc(store: ^Type_Store) {
 				delete(f.effects, store.allocator)
 			}
 		case Inferred_Primitive, Inferred_Constructor, Inferred_Handle:
+		case Inferred_Tuple:
+			if f.element_types != nil do delete(f.element_types, store.allocator)
 		}
 	}
 	for _, sigs in store.effect_ops {
@@ -331,6 +339,12 @@ all_children_at_or_below :: proc(store: ^Type_Store, link: Type_Link, max_level:
 		if child_inner.level > max_level do return false
 		child_eff := store.vars[int(resolve_var(store, f.effect_id))]
 		if child_eff.level > max_level do return false
+
+	case Inferred_Tuple:
+		for eid in f.element_types {
+			child := store.vars[int(resolve_var(store, eid))]
+			if child.level > max_level do return false
+		}
 
 	case Inferred_Primitive, Inferred_Constructor:
 	}

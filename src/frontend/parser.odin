@@ -120,6 +120,8 @@ expr_span :: proc(expr: Expr, which: Span_End) -> int {
 		return e.span.start if which == .Start else e.span.end
 	case ^Expr_Record:
 		return e.span.start if which == .Start else e.span.end
+	case ^Expr_Tuple:
+		return e.span.start if which == .Start else e.span.end
 	case ^Expr_Record_Update:
 		return e.span.start if which == .Start else e.span.end
 	case ^Expr_List:
@@ -626,9 +628,51 @@ parser_parse_prefix :: proc(p: ^Parser) -> Expr {
 
 	case .LParen:
 		parser_advance(p)
-		expr := parser_parse_expr(p)
+		span_start := tok.span
+
+		if p.current.kind == .RParen {
+			diagnostics.collector_add_diag(
+				p.collector,
+				diagnostics.diag_tuple_empty(p.current.span),
+			)
+			parser_advance(p)
+			fallback := new(Expr_Int)
+			fallback^ = Expr_Int {
+				value = 0,
+				span  = tok.span,
+			}
+			return fallback
+		}
+
+		first := parser_parse_expr(p)
+
+		if p.current.kind == .Comma {
+			elements := make([dynamic]Expr, 0, 3)
+			append(&elements, first)
+			for p.current.kind == .Comma {
+				parser_advance(p)
+				elem := parser_parse_expr(p)
+				append(&elements, elem)
+			}
+			rparen := parser_expect(p, .RParen)
+
+			if len(elements) < 2 || len(elements) > 3 {
+				diagnostics.collector_add_diag(
+					p.collector,
+					diagnostics.diag_tuple_size(len(elements), span_start),
+				)
+			}
+
+			t := new(Expr_Tuple)
+			t^ = Expr_Tuple {
+				elements = elements,
+				span     = {span_start.start, rparen.span.end, span_start.file_id},
+			}
+			return t
+		}
+
 		parser_expect(p, .RParen)
-		return expr
+		return first
 
 	case .Minus, .Kw_Not:
 		parser_advance(p)
@@ -1867,6 +1911,52 @@ parser_parse_pattern :: proc(p: ^Parser) -> Pattern {
 
 	case .At:
 		return parser_parse_nominal_destructure(p)
+	case .LParen:
+		span_start := p.current.span
+		parser_advance(p)
+
+		if p.current.kind == .RParen {
+			diagnostics.collector_add_diag(
+				p.collector,
+				diagnostics.diag_tuple_empty(p.current.span),
+			)
+			parser_advance(p)
+			fallback := new(Pattern_Wildcard)
+			fallback^ = Pattern_Wildcard {
+				span = span_start,
+			}
+			return fallback
+		}
+
+		first := parser_parse_pattern(p)
+
+		if p.current.kind == .Comma {
+			elements := make([dynamic]Pattern, 0, 3)
+			append(&elements, first)
+			for p.current.kind == .Comma {
+				parser_advance(p)
+				elem := parser_parse_pattern(p)
+				append(&elements, elem)
+			}
+			rparen := parser_expect(p, .RParen)
+
+			if len(elements) < 2 || len(elements) > 3 {
+				diagnostics.collector_add_diag(
+					p.collector,
+					diagnostics.diag_tuple_size(len(elements), span_start),
+				)
+			}
+
+			t := new(Pattern_Tuple)
+			t^ = Pattern_Tuple {
+				elements = elements,
+				span     = {span_start.start, rparen.span.end, span_start.file_id},
+			}
+			return t
+		}
+
+		parser_expect(p, .RParen)
+		return first
 
 	case .Float_Literal,
 	     .Interpolated_String_Literal,
@@ -1919,7 +2009,6 @@ parser_parse_pattern :: proc(p: ^Parser) -> Pattern {
 	     .Caret,
 	     .Tilde,
 	     .Backslash,
-	     .LParen,
 	     .RParen,
 	     .RBrack,
 	     .RBrace,
@@ -2126,7 +2215,65 @@ parser_parse_type :: proc(p: ^Parser) -> ^Type {
 	case .LBrack:
 		t = parser_parse_tag_union_type(p)
 
-	case .LParen, .Pipe:
+	case .LParen:
+		span_start := p.current.span
+		parser_advance(p)
+
+		types_in_parens := make([dynamic]Type, 0, 3)
+		if p.current.kind != .RParen {
+			first_param := parser_parse_type(p)
+			append(&types_in_parens, first_param^)
+			for p.current.kind == .Comma {
+				parser_advance(p)
+				parser_skip_backslashes(p)
+				param := parser_parse_type(p)
+				append(&types_in_parens, param^)
+			}
+		}
+		rparen := parser_expect(p, .RParen)
+
+		// Check if this is a function type (followed by -> or -[...]->)
+		if p.current.kind == .Arrow || p.current.kind == .Minus {
+			// Function type — delegate to parser_parse_function_type_with_params
+			t = parser_parse_function_type_with_params(p, types_in_parens[:], span_start)
+		} else if len(types_in_parens) >= 2 {
+			// Tuple type (2-3 elements)
+			if len(types_in_parens) > 3 {
+				diagnostics.collector_add_diag(
+					p.collector,
+					diagnostics.diag_tuple_type_size(len(types_in_parens), span_start),
+				)
+			}
+			tt := new(Type_Tuple)
+			tt^ = Type_Tuple {
+				elements = types_in_parens,
+				span     = {span_start.start, rparen.span.end, span_start.file_id},
+			}
+			t = tt
+		} else if len(types_in_parens) == 1 {
+			// Single element in parens with no arrow — error
+			diagnostics.collector_add_diag(
+				p.collector,
+				diagnostics.diag_tuple_single_element(span_start),
+			)
+			single := new(Type_Primitive)
+			single^ = Type_Primitive {
+				name = 0,
+				span = span_start,
+			}
+			t = single
+		} else {
+			// Empty parens — error
+			diagnostics.collector_add_diag(p.collector, diagnostics.diag_tuple_empty(span_start))
+			fallback := new(Type_Primitive)
+			fallback^ = Type_Primitive {
+				name = 0,
+				span = span_start,
+			}
+			t = fallback
+		}
+
+	case .Pipe:
 		t = parser_parse_function_type(p)
 
 	case .Int_Literal,
@@ -2281,6 +2428,46 @@ parser_parse_function_type :: proc(p: ^Parser) -> Type {
 	}
 
 	return nil
+}
+parser_parse_function_type_with_params :: proc(
+	p: ^Parser,
+	params: []Type,
+	start: base.Source_Span,
+) -> Type {
+	effects: ^Type = nil
+	if p.current.kind == .Arrow {
+		// -> (pure arrow, or followed by -[...]-> effect row)
+		parser_advance(p)
+		if p.current.kind == .Minus {
+			// -> -[ Eff1, Eff2 ]-> syntax (legacy: arrow then effect row)
+			parser_advance(p)
+			parser_expect(p, .LBrack)
+			effects = parser_parse_effect_row_type(p)
+			parser_expect(p, .RBrack)
+			parser_expect(p, .Arrow)
+		}
+	} else if p.current.kind == .Minus {
+		// -[ Eff1, Eff2 ]-> syntax (spec: effect row IS the arrow)
+		parser_advance(p)
+		parser_expect(p, .LBrack)
+		effects = parser_parse_effect_row_type(p)
+		parser_expect(p, .RBrack)
+		parser_expect(p, .Arrow)
+	}
+
+	return_type := parser_parse_type(p)
+	params_dyn := make([dynamic]Type, len(params), len(params))
+	for i in 0 ..< len(params) {
+		params_dyn[i] = params[i]
+	}
+	ft := new(Type_Function)
+	ft^ = Type_Function {
+		params  = params_dyn,
+		effects = effects,
+		return_ = return_type^,
+		span    = start,
+	}
+	return ft
 }
 
 parser_parse_record_type :: proc(p: ^Parser) -> Type {

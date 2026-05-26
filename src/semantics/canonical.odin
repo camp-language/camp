@@ -113,6 +113,7 @@ CExpr :: union {
 	^CExpr_Tag,
 	^CExpr_Nominal_Construct,
 	^CExpr_Record,
+	^CExpr_Tuple,
 	^CExpr_List,
 	^CExpr_Name,
 	^CExpr_Call,
@@ -124,6 +125,7 @@ CExpr :: union {
 	^CExpr_BinOp,
 	^CExpr_PrefixOp,
 	^CExpr_Field_Access,
+	^CExpr_Field_Index,
 	^CExpr_Record_Update,
 	^CExpr_Assign,
 	^CExpr_Return,
@@ -179,6 +181,10 @@ CExpr_Record :: struct {
 	rest:    CExpr,
 	is_open: bool,
 	span:    base.Source_Span,
+}
+CExpr_Tuple :: struct {
+	elements: [dynamic]CExpr,
+	span:     base.Source_Span,
 }
 
 CRecord_Field :: struct {
@@ -264,6 +270,11 @@ CExpr_Field_Access :: struct {
 	record: CExpr,
 	field:  base.Intern_ID,
 	span:   base.Source_Span,
+}
+CExpr_Field_Index :: struct {
+	record:      CExpr,
+	field_index: int,
+	span:        base.Source_Span,
 }
 
 CExpr_Record_Update :: struct {
@@ -356,6 +367,7 @@ CMatch_Arm :: struct {
 CPattern :: union {
 	^CPattern_Tag,
 	^CPattern_Record,
+	^CPattern_Tuple,
 	^CPattern_List,
 	^CPattern_Int,
 	^CPattern_String,
@@ -377,6 +389,10 @@ CPattern_Record :: struct {
 	fields:  [dynamic]CPattern_Field,
 	is_open: bool,
 	span:    base.Source_Span,
+}
+CPattern_Tuple :: struct {
+	elements: [dynamic]CPattern,
+	span:     base.Source_Span,
 }
 
 CPattern_Field :: struct {
@@ -436,6 +452,7 @@ CType :: union {
 	^CType_Applied,
 	^CType_Function,
 	^CType_Record,
+	^CType_Tuple,
 	^CType_Tag_Union,
 	^CType_Effect_Row,
 	^CType_Variable,
@@ -466,6 +483,10 @@ CType_Record :: struct {
 	rest:    base.Intern_ID,
 	is_open: bool,
 	span:    base.Source_Span,
+}
+CType_Tuple :: struct {
+	elements: [dynamic]CType,
+	span:     base.Source_Span,
 }
 
 CType_Field :: struct {

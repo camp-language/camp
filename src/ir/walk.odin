@@ -46,6 +46,10 @@ walk_expr_children :: proc(expr: IR_Expr, visitor: proc(expr: IR_Expr, ctx: rawp
 			visitor(field.value, ctx)
 		}
 		visitor(e.rest, ctx)
+	case ^IR_Construct_Tuple:
+		for el in e.elements {
+			visitor(el, ctx)
+		}
 	case ^IR_Field_Access:
 		visitor(e.record, ctx)
 	case ^IR_Method_Call:

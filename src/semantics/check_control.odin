@@ -159,6 +159,33 @@ typecheck_pattern :: proc(
 		}
 		return Pat_Result{var_id = rec_var, effects = eff, tpat = TPattern(tp)}
 
+	case ^CPattern_Tuple:
+		element_types := store_alloc(store, base.Type_Var_ID, len(p.elements))
+		elements_t := make([dynamic]TPattern, len(p.elements))
+		for sp, i in p.elements {
+			element_types[i] = fresh_value_var(store, p.span)
+			pat_result := typecheck_pattern(sp, element_types[i], env, store)
+			unify(store, eff, pat_result.effects)
+			elements_t[i] = pat_result.tpat
+		}
+		tuple_var := fresh_value_var(store, p.span)
+		link_var(
+			store,
+			tuple_var,
+			Inferred_Tuple {
+				element_types = element_types,
+				element_count = len(p.elements),
+				closed = true,
+			},
+		)
+		unify(store, scrutinee_var, tuple_var)
+		tp := new(TPattern_Tuple)
+		tp^ = TPattern_Tuple {
+			elements = elements_t,
+			span     = p.span,
+		}
+		return Pat_Result{var_id = tuple_var, effects = eff, tpat = TPattern(tp)}
+
 	case ^CPattern_Or:
 		alternatives := make([dynamic]TPattern, 0, len(p.alternatives))
 		for alt in p.alternatives {
@@ -275,7 +302,7 @@ collect_pattern_coverage :: proc(pattern: CPattern, cov: ^Match_Coverage) {
 		for alt in p.alternatives {
 			collect_pattern_coverage(alt, cov)
 		}
-	case ^CPattern_Record, ^CPattern_List, ^CPattern_Destructure:
+	case ^CPattern_Record, ^CPattern_List, ^CPattern_Destructure, ^CPattern_Tuple:
 	}
 }
 

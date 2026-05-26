@@ -89,6 +89,9 @@ format_expr :: proc(
 		return format_expr_nominal_construct(v, info, interner)
 	case ^frontend.Expr_Record:
 		return format_expr_record(v, info, interner)
+	case ^frontend.Expr_Tuple:
+		return format_expr_tuple(v, info, interner)
+
 	case ^frontend.Expr_List:
 		return format_expr_list(v, info, interner)
 	case ^frontend.Expr_Identifier:
@@ -298,6 +301,24 @@ format_expr_list :: proc(
 	}
 
 	append(&parts, doc_text("]"))
+	return doc_concat(parts[:])
+}
+
+format_expr_tuple :: proc(
+	e: ^frontend.Expr_Tuple,
+	info: ^Format_Source_Info,
+	interner: ^base.Intern_Table,
+) -> Doc {
+	parts: [dynamic]Doc
+	defer delete(parts)
+	append(&parts, doc_text("("))
+	for el, i in e.elements {
+		if i > 0 {
+			append(&parts, doc_text(", "))
+		}
+		append(&parts, format_expr(el, info, interner))
+	}
+	append(&parts, doc_text(")"))
 	return doc_concat(parts[:])
 }
 
@@ -522,6 +543,9 @@ format_pattern :: proc(
 		return format_pattern_tag(v, info, interner)
 	case ^frontend.Pattern_Record:
 		return format_pattern_record(v, info, interner)
+	case ^frontend.Pattern_Tuple:
+		return format_pattern_tuple(v, info, interner)
+
 	case ^frontend.Pattern_List:
 		return format_pattern_list(v, info, interner)
 	case ^frontend.Pattern_Int:
@@ -602,6 +626,24 @@ format_pattern_record :: proc(
 		append(&parts, doc_text(".."))
 	}
 	append(&parts, doc_text(" }"))
+	return doc_concat(parts[:])
+}
+
+format_pattern_tuple :: proc(
+	p: ^frontend.Pattern_Tuple,
+	info: ^Format_Source_Info,
+	interner: ^base.Intern_Table,
+) -> Doc {
+	parts: [dynamic]Doc
+	defer delete(parts)
+	append(&parts, doc_text("("))
+	for el, i in p.elements {
+		if i > 0 {
+			append(&parts, doc_text(", "))
+		}
+		append(&parts, format_pattern(el, info, interner))
+	}
+	append(&parts, doc_text(")"))
 	return doc_concat(parts[:])
 }
 

@@ -2,6 +2,8 @@ package semantics
 
 import "core:fmt"
 
+import "core:strings"
+
 import "camp:base"
 import "camp:diagnostics"
 
@@ -37,7 +39,8 @@ unify :: proc(store: ^Type_Store, a: base.Type_Var_ID, b: base.Type_Var_ID) -> b
 				     Inferred_Constructor,
 				     Inferred_Function,
 				     Inferred_Newtype,
-				     Inferred_Handle:
+				     Inferred_Handle,
+				     Inferred_Tuple:
 				}
 			}
 			diagnostics.collector_add_diag(
@@ -66,7 +69,8 @@ unify :: proc(store: ^Type_Store, a: base.Type_Var_ID, b: base.Type_Var_ID) -> b
 				     Inferred_Constructor,
 				     Inferred_Function,
 				     Inferred_Newtype,
-				     Inferred_Handle:
+				     Inferred_Handle,
+				     Inferred_Tuple:
 				}
 			}
 			diagnostics.collector_add_diag(
@@ -366,6 +370,38 @@ unify_inferred :: proc(
 		}
 		if !unify(store, va.effect_id, vb.effect_id) {
 			return false
+		}
+	case Inferred_Tuple:
+		vb, ok := b.(Inferred_Tuple)
+		if !ok {
+			type_a_str := format_inferred_type(store, a)
+			type_b_str := format_inferred_type(store, b)
+			va_var := store.vars[int(resolve_var(store, a_id))]
+			vb_var := store.vars[int(resolve_var(store, b_id))]
+			diagnostics.collector_add_diag(
+				store.collector,
+				diagnostics.diag_type_mismatch(type_a_str, type_b_str, va_var.span, vb_var.span),
+			)
+			return false
+		}
+		if va.element_count != vb.element_count {
+			va_var := store.vars[int(resolve_var(store, a_id))]
+			vb_var := store.vars[int(resolve_var(store, b_id))]
+			diagnostics.collector_add_diag(
+				store.collector,
+				diagnostics.diag_arity_mismatch(
+					va.element_count,
+					vb.element_count,
+					va_var.span,
+					vb_var.span,
+				),
+			)
+			return false
+		}
+		for i in 0 ..< len(va.element_types) {
+			if !unify(store, va.element_types[i], vb.element_types[i]) {
+				return false
+			}
 		}
 	}
 
@@ -821,6 +857,14 @@ occurs_check_inferred :: proc(
 		if occurs_check(store, target, v.effect_id) {
 			return true
 		}
+
+	case Inferred_Tuple:
+		for eid in v.element_types {
+			if occurs_check(store, target, eid) {
+				return true
+			}
+		}
+
 	case Inferred_Primitive, Inferred_Constructor:
 	}
 	return false
@@ -852,6 +896,12 @@ format_inferred_type :: proc(store: ^Type_Store, t: Inferred_Type) -> string {
 			format_type_var(store, v.inner_id),
 			format_type_var(store, v.effect_id),
 		)
+	case Inferred_Tuple:
+		parts: []string = make([]string, len(v.element_types))
+		for i in 0 ..< len(v.element_types) {
+			parts[i] = format_type_var(store, v.element_types[i])
+		}
+		return fmt.tprintf("({})", strings.join(parts, ", "))
 	}
 	return "unknown"
 }
