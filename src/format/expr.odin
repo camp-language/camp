@@ -502,6 +502,10 @@ format_match_arms :: proc(
 		}
 		append(&arm_parts, doc_text("| "))
 		append(&arm_parts, format_pattern(arm.pattern, info, interner))
+		if arm.guard != nil {
+			append(&arm_parts, doc_text(" if "))
+			append(&arm_parts, format_expr(arm.guard, info, interner))
+		}
 		append(&arm_parts, doc_text(" -> "))
 		append(&arm_parts, format_expr(arm.body, info, interner))
 	}

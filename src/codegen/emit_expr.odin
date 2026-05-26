@@ -658,88 +658,49 @@ emit_expr :: proc(expr: ir.IR_Expr, buf: ^[dynamic]u8, env: ^Codegen_Env, runtim
 		match_kind := determine_match_kind(e.arms[:], e.scrutinee)
 		block_type := ir_wasm_type_to_block_type(e.type.wasm_type)
 
+		// Check if any arm has a guard — if so, Tag_Union matches can't use br_table
+		has_guard := false
+		for arm in e.arms {
+			if arm.guard != nil {
+				has_guard = true
+				break
+			}
+		}
+
 		switch match_kind {
 		case .Tag_Union:
-			// Standard nested-block dispatch:
-			//   block $result(i64) {
-			//     block $arm_n-1 { ... block $arm_0 {
-			//       load tag; br_table [arm_for_tag_0, ..., arm_for_tag_max] default=catchall
-			//     } end arm_0
-			//     ;; arm 0's body, then br to $result
-			//     end arm_1 ;; arm 1's body, br $result
-			//     ...
-			//   }
-			// targets[tag_value] = arm-index that handles that tag.
-			// catchall = wildcard/var arm (or num_arms if there is none).
-			num_arms := len(e.arms)
+			if has_guard {
+				// Sequential if-else: guards can fail and fall through,
+				// so br_table dispatch is not usable.
+				emit_instruction(Wasm_Block{block_type = block_type}, buf)
 
-			catchall_arm := -1
-			max_tag := -1
-			for i in 0 ..< num_arms {
-				#partial switch p in e.arms[i].pattern {
-				case ^ir.IR_Pat_Wildcard, ^ir.IR_Pat_Var:
-					if catchall_arm < 0 do catchall_arm = i
-				case ^ir.IR_Pat_Tag:
-					if p.tag_index > max_tag do max_tag = p.tag_index
-				case ^ir.IR_Pat_Record, ^ir.IR_Pat_Bool, ^ir.IR_Pat_Int, ^ir.IR_Pat_String:
-				}
-			}
+				emit_expr(e.scrutinee, buf, env, runtime_indices)
+				scrutinee_local := env.tmp_local_base + 2
+				emit_instruction(Wasm_Local_Set{index = scrutinee_local}, buf)
 
-			default_label := u32(num_arms)
-			if catchall_arm >= 0 {
-				default_label = u32(catchall_arm)
-			}
+				for arm_idx in 0 ..< len(e.arms) {
+					arm := e.arms[arm_idx]
+					is_last := arm_idx == len(e.arms) - 1
 
-			targets := make([]u32, max_tag + 1)
-			for i in 0 ..= max_tag {
-				targets[i] = default_label
-			}
-			for i in 0 ..< num_arms {
-				#partial switch p in e.arms[i].pattern {
-				case ^ir.IR_Pat_Tag:
-					targets[p.tag_index] = u32(i)
-				case ^ir.IR_Pat_Wildcard,
-				     ^ir.IR_Pat_Var,
-				     ^ir.IR_Pat_Record,
-				     ^ir.IR_Pat_Bool,
-				     ^ir.IR_Pat_Int,
-				     ^ir.IR_Pat_String:
-				}
-			}
+					if !is_last {
+						#partial switch p in arm.pattern {
+						case ^ir.IR_Pat_Tag:
+							emit_instruction(Wasm_Local_Get{index = scrutinee_local}, buf)
+							emit_instruction(Wasm_I32_Load8U{offset = CAMP_TAG_TAG_OFFSET}, buf)
+							emit_instruction(Wasm_I32_Const{value = i32(p.tag_index)}, buf)
+							emit_instruction(Wasm_I32_Eq{}, buf)
+						case ^ir.IR_Pat_Wildcard, ^ir.IR_Pat_Var:
+							emit_instruction(Wasm_I32_Const{value = 1}, buf)
+						case ^ir.IR_Pat_Record, ^ir.IR_Pat_Bool, ^ir.IR_Pat_Int, ^ir.IR_Pat_String:
+							emit_instruction(Wasm_I32_Const{value = 1}, buf)
+						}
+						emit_instruction(Wasm_If{block_type = .Void}, buf)
+					}
 
-			scrutinee_local := env.tmp_local_base + 2
-
-			// Outer result block (depth grows from here)
-			emit_instruction(Wasm_Block{block_type = block_type}, buf)
-
-			// If no catchall, add an extra block that traps when reached
-			if catchall_arm < 0 {
-				emit_instruction(Wasm_Block{block_type = .Void}, buf)
-			}
-
-			// Nested case blocks, outermost first (arm n-1 → arm 0)
-			for _ in 0 ..< num_arms {
-				emit_instruction(Wasm_Block{block_type = .Void}, buf)
-			}
-
-			// Innermost: load tag, dispatch
-			emit_expr(e.scrutinee, buf, env, runtime_indices)
-			emit_instruction(Wasm_Local_Set{index = scrutinee_local}, buf)
-			emit_instruction(Wasm_Local_Get{index = scrutinee_local}, buf)
-			emit_instruction(Wasm_I32_Load8U{offset = CAMP_TAG_TAG_OFFSET}, buf)
-			emit_instruction(Wasm_BrTable{targets = targets, default_idx = default_label}, buf)
-
-			// For each arm (innermost first = arm 0), close its block and emit its body.
-			// After closing arm_i's block, the br to $result is at label (num_arms - i).
-			for arm_idx in 0 ..< num_arms {
-				emit_instruction(Wasm_End{}, buf) // close case_arm_idx block
-
-				arm := e.arms[arm_idx]
-				#partial switch p in arm.pattern {
-				case ^ir.IR_Pat_Tag:
-					for j in 0 ..< len(p.payload) {
-						payload_name := p.payload[j]
-						if local_idx, ok := env.local_map[payload_name]; ok {
+					#partial switch p in arm.pattern {
+					case ^ir.IR_Pat_Tag:
+						for j in 0 ..< len(p.payload) {
+							payload_name := p.payload[j]
 							emit_instruction(Wasm_Local_Get{index = scrutinee_local}, buf)
 							emit_instruction(
 								Wasm_I32_Const{value = i32(CAMP_TAG_FIELDS_OFFSET + j * 8)},
@@ -751,33 +712,163 @@ emit_expr :: proc(expr: ir.IR_Expr, buf: ^[dynamic]u8, env: ^Codegen_Env, runtim
 								wt = p.payload_wasm_types[j]
 							}
 							emit_load_for_type(wt, buf)
-							emit_instruction(Wasm_Local_Set{index = local_idx}, buf)
+							if local_idx, ok := env.local_map[payload_name]; ok {
+								emit_instruction(Wasm_Local_Set{index = local_idx}, buf)
+							} else {
+								emit_instruction(Wasm_Drop{}, buf)
+							}
 						}
-					}
-				case ^ir.IR_Pat_Var:
-					if local_idx, ok := env.local_map[p.name]; ok {
+					case ^ir.IR_Pat_Var:
 						emit_instruction(Wasm_Local_Get{index = scrutinee_local}, buf)
-						emit_instruction(Wasm_Local_Set{index = local_idx}, buf)
+						if local_idx, ok := env.local_map[p.name]; ok {
+							emit_instruction(Wasm_Local_Set{index = local_idx}, buf)
+						} else {
+							emit_instruction(Wasm_Drop{}, buf)
+						}
+					case ^ir.IR_Pat_Wildcard:
+					case ^ir.IR_Pat_Record:
+					case ^ir.IR_Pat_Bool, ^ir.IR_Pat_Int, ^ir.IR_Pat_String:
 					}
-				case ^ir.IR_Pat_Wildcard,
-				     ^ir.IR_Pat_Record,
-				     ^ir.IR_Pat_Bool,
-				     ^ir.IR_Pat_Int,
-				     ^ir.IR_Pat_String:
+
+					// Guard check: if guard is present, wrap body in conditional
+					if arm.guard != nil {
+						emit_expr(arm.guard, buf, env, runtime_indices)
+						emit_instruction(Wasm_If{block_type = .Void}, buf)
+						emit_expr(arm.body, buf, env, runtime_indices)
+						emit_instruction(Wasm_Br{label = 1}, buf)
+						emit_instruction(Wasm_End{}, buf)
+					} else {
+						emit_expr(arm.body, buf, env, runtime_indices)
+						emit_instruction(Wasm_Br{label = 1}, buf)
+					}
+
+					if !is_last {
+						emit_instruction(Wasm_End{}, buf)
+					}
 				}
 
-				emit_expr(arm.body, buf, env, runtime_indices)
-				emit_instruction(Wasm_Br{label = u32(num_arms - arm_idx)}, buf)
-			}
-
-			// Optional trap block for non-exhaustive matches
-			if catchall_arm < 0 {
-				emit_instruction(Wasm_End{}, buf)
 				emit_instruction(Wasm_Unreachable{}, buf)
+				emit_instruction(Wasm_End{}, buf)
+			} else {
+				// No guards: use br_table for efficient dispatch
+				// Standard nested-block dispatch:
+				//   block $result(i64) {
+				//     block $arm_n-1 { ... block $arm_0 {
+				//       load tag; br_table [arm_for_tag_0, ..., arm_for_tag_max] default=catchall
+				//     } end arm_0
+				//     ;; arm 0's body, then br to $result
+				//     end arm_1 ;; arm 1's body, br $result
+				//     ...
+				//   }
+				// targets[tag_value] = arm-index that handles that tag.
+				// catchall = wildcard/var arm (or num_arms if there is none).
+				num_arms := len(e.arms)
+
+				catchall_arm := -1
+				max_tag := -1
+				for i in 0 ..< num_arms {
+					#partial switch p in e.arms[i].pattern {
+					case ^ir.IR_Pat_Wildcard, ^ir.IR_Pat_Var:
+						if catchall_arm < 0 do catchall_arm = i
+					case ^ir.IR_Pat_Tag:
+						if p.tag_index > max_tag do max_tag = p.tag_index
+					case ^ir.IR_Pat_Record, ^ir.IR_Pat_Bool, ^ir.IR_Pat_Int, ^ir.IR_Pat_String:
+					}
+				}
+
+				default_label := u32(num_arms)
+				if catchall_arm >= 0 {
+					default_label = u32(catchall_arm)
+				}
+
+				targets := make([]u32, max_tag + 1)
+				for i in 0 ..= max_tag {
+					targets[i] = default_label
+				}
+				for i in 0 ..< num_arms {
+					#partial switch p in e.arms[i].pattern {
+					case ^ir.IR_Pat_Tag:
+						targets[p.tag_index] = u32(i)
+					case ^ir.IR_Pat_Wildcard,
+					     ^ir.IR_Pat_Var,
+					     ^ir.IR_Pat_Record,
+					     ^ir.IR_Pat_Bool,
+					     ^ir.IR_Pat_Int,
+					     ^ir.IR_Pat_String:
+					}
+				}
+
+				scrutinee_local := env.tmp_local_base + 2
+
+				// Outer result block (depth grows from here)
+				emit_instruction(Wasm_Block{block_type = block_type}, buf)
+
+				// If no catchall, add an extra block that traps when reached
+				if catchall_arm < 0 {
+					emit_instruction(Wasm_Block{block_type = .Void}, buf)
+				}
+
+				// Nested case blocks, outermost first (arm n-1 → arm 0)
+				for _ in 0 ..< num_arms {
+					emit_instruction(Wasm_Block{block_type = .Void}, buf)
+				}
+
+				// Innermost: load tag, dispatch
+				emit_expr(e.scrutinee, buf, env, runtime_indices)
+				emit_instruction(Wasm_Local_Set{index = scrutinee_local}, buf)
+				emit_instruction(Wasm_Local_Get{index = scrutinee_local}, buf)
+				emit_instruction(Wasm_I32_Load8U{offset = CAMP_TAG_TAG_OFFSET}, buf)
+				emit_instruction(Wasm_BrTable{targets = targets, default_idx = default_label}, buf)
+
+				// For each arm (innermost first = arm 0), close its block and emit its body.
+				// After closing arm_i's block, the br to $result is at label (num_arms - i).
+				for arm_idx in 0 ..< num_arms {
+					emit_instruction(Wasm_End{}, buf) // close case_arm_idx block
+
+					arm := e.arms[arm_idx]
+					#partial switch p in arm.pattern {
+					case ^ir.IR_Pat_Tag:
+						for j in 0 ..< len(p.payload) {
+							payload_name := p.payload[j]
+							if local_idx, ok := env.local_map[payload_name]; ok {
+								emit_instruction(Wasm_Local_Get{index = scrutinee_local}, buf)
+								emit_instruction(
+									Wasm_I32_Const{value = i32(CAMP_TAG_FIELDS_OFFSET + j * 8)},
+									buf,
+								)
+								emit_instruction(Wasm_I32_Add{}, buf)
+								wt: base.IR_Wasm_Type = .I32
+								if j < len(p.payload_wasm_types) {
+									wt = p.payload_wasm_types[j]
+								}
+								emit_load_for_type(wt, buf)
+								emit_instruction(Wasm_Local_Set{index = local_idx}, buf)
+							}
+						}
+					case ^ir.IR_Pat_Var:
+						if local_idx, ok := env.local_map[p.name]; ok {
+							emit_instruction(Wasm_Local_Get{index = scrutinee_local}, buf)
+							emit_instruction(Wasm_Local_Set{index = local_idx}, buf)
+						}
+					case ^ir.IR_Pat_Wildcard,
+					     ^ir.IR_Pat_Record,
+					     ^ir.IR_Pat_Bool,
+					     ^ir.IR_Pat_Int,
+					     ^ir.IR_Pat_String:
+					}
+
+					emit_expr(arm.body, buf, env, runtime_indices)
+					emit_instruction(Wasm_Br{label = u32(num_arms - arm_idx)}, buf)
+				}
+
+				// Optional trap block for non-exhaustive matches
+				if catchall_arm < 0 {
+					emit_instruction(Wasm_End{}, buf)
+					emit_instruction(Wasm_Unreachable{}, buf)
+				}
+
+				emit_instruction(Wasm_End{}, buf) // close result block
 			}
-
-			emit_instruction(Wasm_End{}, buf) // close result block
-
 		case .Bool:
 			emit_instruction(Wasm_Block{block_type = block_type}, buf)
 
@@ -819,8 +910,16 @@ emit_expr :: proc(expr: ir.IR_Expr, buf: ^[dynamic]u8, env: ^Codegen_Env, runtim
 				     ^ir.IR_Pat_String:
 				}
 
-				emit_expr(arm.body, buf, env, runtime_indices)
-				emit_instruction(Wasm_Br{label = 1}, buf)
+				if arm.guard != nil {
+					emit_expr(arm.guard, buf, env, runtime_indices)
+					emit_instruction(Wasm_If{block_type = .Void}, buf)
+					emit_expr(arm.body, buf, env, runtime_indices)
+					emit_instruction(Wasm_Br{label = 1}, buf)
+					emit_instruction(Wasm_End{}, buf)
+				} else {
+					emit_expr(arm.body, buf, env, runtime_indices)
+					emit_instruction(Wasm_Br{label = 1}, buf)
+				}
 
 				if !is_last {
 					emit_instruction(Wasm_End{}, buf)
@@ -957,8 +1056,16 @@ emit_expr :: proc(expr: ir.IR_Expr, buf: ^[dynamic]u8, env: ^Codegen_Env, runtim
 				     ^ir.IR_Pat_String:
 				}
 
-				emit_expr(arm.body, buf, env, runtime_indices)
-				emit_instruction(Wasm_Br{label = 1}, buf)
+				if arm.guard != nil {
+					emit_expr(arm.guard, buf, env, runtime_indices)
+					emit_instruction(Wasm_If{block_type = .Void}, buf)
+					emit_expr(arm.body, buf, env, runtime_indices)
+					emit_instruction(Wasm_Br{label = 1}, buf)
+					emit_instruction(Wasm_End{}, buf)
+				} else {
+					emit_expr(arm.body, buf, env, runtime_indices)
+					emit_instruction(Wasm_Br{label = 1}, buf)
+				}
 
 				if !is_last {
 					emit_instruction(Wasm_End{}, buf)

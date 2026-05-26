@@ -336,6 +336,17 @@ typecheck_match :: proc(e: ^CExpr_Match, env: ^Type_Env, store: ^Type_Store) -> 
 		pat_result := typecheck_pattern(arm.pattern, scrutinee_result.var_id, env, store)
 		unify(store, effect_row, pat_result.effects)
 
+		// Typecheck guard if present (must be Bool)
+		guard_t: TExpr = nil
+		if arm.guard != nil {
+			guard_result := typecheck_synth(arm.guard, env, store)
+			bool_id := base.intern(store.interner, "Bool")
+			bool_var := make_primitive_type(store, bool_id, arm.span)
+			unify(store, guard_result.var_id, bool_var)
+			unify(store, effect_row, guard_result.effects)
+			guard_t = guard_result.texpr
+		}
+
 		// Check redundancy: is this pattern already covered by earlier arms?
 		is_redundant := false
 		if cov.saturated {
@@ -375,15 +386,6 @@ typecheck_match :: proc(e: ^CExpr_Match, env: ^Type_Env, store: ^Type_Store) -> 
 
 		collect_pattern_coverage(arm.pattern, &cov)
 		collect_pattern_coverage(arm.pattern, &arm_coverages[i])
-
-		guard_t: TExpr
-		if arm.guard != nil {
-			guard_result := typecheck_synth(arm.guard, env, store)
-			bool_var := make_primitive_type(store, base.intern(store.interner, "Bool"), arm.span)
-			unify(store, guard_result.var_id, bool_var)
-			unify(store, effect_row, guard_result.effects)
-			guard_t = guard_result.texpr
-		}
 
 		arm_result := typecheck_synth(arm.body, env, store)
 		unify(store, result_var, arm_result.var_id)

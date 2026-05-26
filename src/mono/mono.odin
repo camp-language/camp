@@ -655,6 +655,7 @@ substitute_types_in_expr :: proc(
 		for i in 0 ..< len(e.arms) {
 			arms_t[i] = semantics.TMatch_Arm {
 				pattern = e.arms[i].pattern,
+				guard   = substitute_types_in_expr(e.arms[i].guard, type_args, env) if e.arms[i].guard != nil else nil,
 				body    = substitute_types_in_expr(e.arms[i].body, type_args, env),
 				span    = e.arms[i].span,
 			}
@@ -1312,6 +1313,9 @@ rewrite_calls_in_expr :: proc(
 	case ^semantics.TExpr_Match:
 		e.scrutinee = rewrite_calls_in_expr(e.scrutinee, specializations, env)
 		for i in 0 ..< len(e.arms) {
+			if e.arms[i].guard != nil {
+				e.arms[i].guard = rewrite_calls_in_expr(e.arms[i].guard, specializations, env)
+			}
 			e.arms[i].body = rewrite_calls_in_expr(e.arms[i].body, specializations, env)
 		}
 	case ^semantics.TExpr_BinOp:

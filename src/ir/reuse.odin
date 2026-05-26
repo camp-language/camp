@@ -97,7 +97,7 @@ reuse_analyze_expr :: proc(expr: IR_Expr) -> IR_Expr {
 				&new_arms,
 				IR_Match_Arm {
 					pattern = arm.pattern,
-					guard = arm.guard,
+					guard = reuse_analyze_expr(arm.guard) if arm.guard != nil else nil,
 					body = reuse_analyze_expr(arm.body),
 				},
 			)

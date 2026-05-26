@@ -315,7 +315,7 @@ cps_transform_expr :: proc(expr: IR_Expr, k_name: base.Intern_ID, env: ^CPS_Env)
 				&new_arms,
 				IR_Match_Arm {
 					pattern = arm.pattern,
-					guard = arm.guard,
+					guard = cps_transform_expr(arm.guard, k_name, env) if arm.guard != nil else nil,
 					body = cps_transform_expr(arm.body, k_name, env),
 				},
 			)
