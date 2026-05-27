@@ -160,7 +160,10 @@ emit_start_function :: proc(
 									)
 								} else if op_name == "readln!" {
 									readln_handler_idx, readln_code :=
-										emit_console_readln_handler_fn(env)
+										emit_console_readln_handler_fn(
+											env,
+											runtime_func_indices[:],
+										)
 									append(deferred_handler_codes, readln_code)
 									emit_handler_into_evidence(
 										&code_buf,

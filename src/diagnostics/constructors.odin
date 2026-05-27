@@ -948,7 +948,10 @@ diag_mutable_capture :: proc(name: string, span: base.Source_Span) -> Diagnostic
 		"C1002",
 		"MUTABLE CAPTURE",
 		span,
-		fmt.tprintf("Mutable variable `{}` cannot be captured by a closure — it is stack-local and cannot escape.", name),
+		fmt.tprintf(
+			"Mutable variable `{}` cannot be captured by a closure — it is stack-local and cannot escape.",
+			name,
+		),
 	)
 	append(&d.hints, "Pass the value as a parameter instead, or use an immutable binding.")
 	return d

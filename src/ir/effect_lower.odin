@@ -32,13 +32,30 @@ Effect_Lower_Env :: struct {
 is_scheduler_effect_by_ids :: proc(
 	effect_name: base.Intern_ID,
 	async_id, spawn_id, parallel_id, file_id, console_id, time_id: base.Intern_ID,
+	interner: ^base.Intern_Table,
 ) -> bool {
-	if effect_name == async_id do return true
-	if effect_name == spawn_id do return true
-	if effect_name == parallel_id do return true
-	if effect_name == file_id do return true
-	if effect_name == console_id do return true
-	if effect_name == time_id do return true
+	ids := []base.Intern_ID{async_id, spawn_id, parallel_id, file_id, console_id, time_id}
+	for id in ids {
+		if effect_name == id {
+			return true
+		}
+	}
+	// Effect decls are stored without `!` suffix, but scheduler IDs include `!`.
+	// Accept effect names missing the `!` by probing each scheduler ID stripped.
+	name_str := base.intern_get(interner, effect_name)
+	bare_name := name_str
+	if len(name_str) > 0 && name_str[len(name_str) - 1] == '!' {
+		bare_name = name_str[:len(name_str) - 1]
+	}
+	for id in ids {
+		id_str := base.intern_get(interner, id)
+		if len(id_str) > 0 && id_str[len(id_str) - 1] == '!' {
+			bare_id_str := id_str[:len(id_str) - 1]
+			if bare_name == bare_id_str {
+				return true
+			}
+		}
+	}
 	return false
 }
 
@@ -51,6 +68,7 @@ is_scheduler_effect :: proc(effect: base.Canonical_Name, env: ^Effect_Lower_Env)
 		env.file_id,
 		env.console_id,
 		env.time_id,
+		env.interner,
 	)
 }
 
@@ -737,6 +755,11 @@ el_lower_let_perform :: proc(
 	ev_var := el_find_evidence(perform.effect, env)
 
 	if ev_var == base.NO_NAME {
+		// Scheduler-mediated effects (File!, Console!, Time!, Async!, Parallel!, Spawn!)
+		// are handled directly by the codegen rather than via CPS evidence passing.
+		if is_scheduler_effect(perform.effect, env) {
+			return IR_Expr(perform) // pass through IR_Perform to codegen
+		}
 		diagnostics.collector_add_diag(
 			env.collector,
 			diagnostics.diag_internal("perform without handler evidence", perform.span),
@@ -1241,6 +1264,10 @@ el_lower_expr :: proc(expr: IR_Expr, env: ^Effect_Lower_Env) -> IR_Expr {
 		ev_var := el_find_evidence(e.effect, env)
 
 		if ev_var == base.NO_NAME {
+			// Scheduler-mediated effects are handled directly by the codegen
+			if is_scheduler_effect(e.effect, env) {
+				return expr // pass through to codegen
+			}
 			diagnostics.collector_add_diag(
 				env.collector,
 				diagnostics.diag_internal("perform without handler evidence", e.span),

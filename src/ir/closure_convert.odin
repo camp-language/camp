@@ -297,7 +297,11 @@ cc_bind_pattern_vars :: proc(pat: IR_Pattern, bound: ^map[base.Intern_ID]bool) {
 	}
 }
 
-closure_convert :: proc(mod: ^IR_Module, interner: ^base.Intern_Table, collector: ^diagnostics.Diagnostic_Collector) -> IR_Module {
+closure_convert :: proc(
+	mod: ^IR_Module,
+	interner: ^base.Intern_Table,
+	collector: ^diagnostics.Diagnostic_Collector,
+) -> IR_Module {
 	result: IR_Module
 	result.decls = make([dynamic]IR_Decl, 0, len(mod.decls) + 16)
 	result.effect_defs = make([dynamic]IR_Effect_Def, 0, len(mod.effect_defs))
