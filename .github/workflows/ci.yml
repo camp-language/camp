@@ -12,23 +12,15 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Install just
-        run: |
-          curl --proto '=https' --tlsv1.2 -sSf https://just.systems/install.sh | bash -s -- --to /usr/local/bin
+      - uses: extractions/setup-just@v4
 
-      - name: Install tree-sitter CLI
-        run: npm install -g tree-sitter-cli
+      - uses: tree-sitter/setup-action@v2
+        with:
+          install-lib: false
 
-      - name: Install Odin
-        run: |
-          ODIN_VERSION=$(curl -s https://api.github.com/repos/odin-lang/Odin/releases/latest | jq -r '.tag_name')
-          curl -L -o odin.tar.gz "https://github.com/odin-lang/Odin/releases/download/${ODIN_VERSION}/odin-linux-amd64-${ODIN_VERSION}.tar.gz"
-          sudo tar -xzf odin.tar.gz -C /usr/local
-          ODIN_DIR=$(ls -d /usr/local/odin-linux-*)
-          sudo ln -s "$ODIN_DIR" /usr/local/odin
-          sudo ln -s /usr/local/odin/odin /usr/local/bin/odin
-          echo "ODIN_ROOT=$ODIN_DIR" >> "$GITHUB_ENV"
-          rm odin.tar.gz
+      - uses: laytan/setup-odin@v2
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Install odinfmt
         run: |
