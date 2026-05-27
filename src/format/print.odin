@@ -77,3 +77,4 @@ write_newline_with_indent :: proc(b: ^strings.Builder, indent: int) {
 		strings.write_byte(b, ' ')
 	}
 }
+
