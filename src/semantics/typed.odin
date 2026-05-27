@@ -767,6 +767,9 @@ tpattern_destroy :: proc(p: TPattern) {
 		for elem in v.alternatives do tpattern_destroy(elem)
 		delete(v.alternatives)
 		free(v)
+	case ^TPattern_As:
+		tpattern_destroy(v.inner)
+		free(v)
 	}
 }
 
