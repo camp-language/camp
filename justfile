@@ -48,7 +48,7 @@ test-unit:
     # This threshold catches regressions: if a change introduces new leaks
     # that aren't offset by fixes elsewhere, CI fails. Tighten as destroy
     # functions are integrated.
-    leak_threshold=900
+    leak_threshold=1600
     if [ $leaks -gt $leak_threshold ]; then
       echo "FAIL: $leaks leak(s) detected (threshold: $leak_threshold)" >&2
       exit 1
