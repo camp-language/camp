@@ -4626,3 +4626,164 @@ emit_map_max_body :: proc(alloc_func_idx: int) -> Wasm_Code {
 	return Wasm_Code{locals = locals, body = body}
 }
 
+emit_set_min_body :: proc(alloc_func_idx: int) -> Wasm_Code {
+	// (set: i32) -> i32
+	// Returns Result(key, EmptySet). Min = first node.
+	// Result layout: tag 0=Ok with 1 field (key), tag 1=Err with 0 fields
+	// Locals: 0=set, 1=root, 2=result
+	buf: [dynamic]u8
+	buf = make([dynamic]u8, 0, CODE_BUF_XL)
+
+	// root = set.root
+	emit_instruction(Wasm_Local_Get{index = 0}, &buf)
+	emit_instruction(Wasm_I32_Load{align = 2, offset = MAP_HEADER_ROOT_OFFSET}, &buf)
+	emit_instruction(Wasm_Local_Set{index = 1}, &buf)
+
+	emit_instruction(Wasm_Local_Get{index = 1}, &buf)
+	// if root == 0, return Err
+	emit_instruction(Wasm_I32_Eqz{}, &buf)
+	emit_instruction(Wasm_If{block_type = .I32}, &buf)
+
+	// Err: allocate result with header only
+	emit_instruction(Wasm_I32_Const{value = 8}, &buf)
+	emit_instruction(Wasm_Call{index = u32(alloc_func_idx)}, &buf)
+	emit_instruction(Wasm_Local_Set{index = 2}, &buf)
+	emit_instruction(Wasm_Local_Get{index = 2}, &buf)
+	emit_instruction(Wasm_I32_Const{value = 1}, &buf)
+	emit_instruction(Wasm_I32_Store{align = 2, offset = CAMP_TAG_REFCOUNT_OFFSET}, &buf)
+	emit_instruction(Wasm_Local_Get{index = 2}, &buf)
+	emit_instruction(Wasm_I32_Const{value = 1}, &buf)
+	emit_instruction(Wasm_I32_Store8{align = 0, offset = CAMP_TAG_TAG_OFFSET}, &buf)
+	emit_instruction(Wasm_Local_Get{index = 2}, &buf)
+	emit_instruction(Wasm_I32_Const{value = 0}, &buf)
+	emit_instruction(Wasm_I32_Store8{align = 0, offset = CAMP_TAG_SCAN_SIZE_OFFSET}, &buf)
+	emit_instruction(Wasm_Local_Get{index = 2}, &buf)
+	emit_instruction(Wasm_Return{}, &buf)
+
+	emit_instruction(Wasm_Else{}, &buf)
+
+	// Ok: allocate result with header + 1 field = 16
+	emit_instruction(Wasm_I32_Const{value = 16}, &buf)
+	emit_instruction(Wasm_Call{index = u32(alloc_func_idx)}, &buf)
+	emit_instruction(Wasm_Local_Set{index = 2}, &buf)
+	emit_instruction(Wasm_Local_Get{index = 2}, &buf)
+	emit_instruction(Wasm_I32_Const{value = 1}, &buf)
+	emit_instruction(Wasm_I32_Store{align = 2, offset = CAMP_TAG_REFCOUNT_OFFSET}, &buf)
+	emit_instruction(Wasm_Local_Get{index = 2}, &buf)
+	emit_instruction(Wasm_I32_Const{value = 0}, &buf)
+	emit_instruction(Wasm_I32_Store8{align = 0, offset = CAMP_TAG_TAG_OFFSET}, &buf)
+	emit_instruction(Wasm_Local_Get{index = 2}, &buf)
+	emit_instruction(Wasm_I32_Const{value = 1}, &buf)
+	emit_instruction(Wasm_I32_Store8{align = 0, offset = CAMP_TAG_SCAN_SIZE_OFFSET}, &buf)
+
+	// field[0] = root.key
+	emit_instruction(Wasm_Local_Get{index = 2}, &buf)
+	emit_instruction(Wasm_Local_Get{index = 1}, &buf)
+	emit_instruction(Wasm_I32_Load{align = 2, offset = MAP_NODE_KEY_OFFSET}, &buf)
+	emit_instruction(Wasm_I32_Store{align = 2, offset = CAMP_TAG_FIELDS_OFFSET}, &buf)
+
+	emit_instruction(Wasm_Local_Get{index = 2}, &buf)
+	emit_instruction(Wasm_End{}, &buf) // end if/else
+	emit_instruction(Wasm_End{}, &buf) // end function
+
+	locals := make([]Wasm_Local_Decl, 1)
+	locals[0] = Wasm_Local_Decl {
+		count = 2,
+		type  = .I32,
+	} // locals 1-2: root, result
+	body := make([]u8, len(buf))
+	for b, i in buf {body[i] = b}
+	delete(buf)
+	return Wasm_Code{locals = locals, body = body}
+}
+
+emit_set_max_body :: proc(alloc_func_idx: int) -> Wasm_Code {
+	// (set: i32) -> i32
+	// Returns Result(key, EmptySet). Max = last node.
+	// Walk to last node, then same Result construction as min.
+	// Locals: 0=set, 1=current, 2=result
+	buf: [dynamic]u8
+	buf = make([dynamic]u8, 0, CODE_BUF_XL)
+
+	// current = set.root
+	emit_instruction(Wasm_Local_Get{index = 0}, &buf)
+	emit_instruction(Wasm_I32_Load{align = 2, offset = MAP_HEADER_ROOT_OFFSET}, &buf)
+	emit_instruction(Wasm_Local_Set{index = 1}, &buf)
+
+	// if current == 0, return Err
+	emit_instruction(Wasm_Local_Get{index = 1}, &buf)
+	emit_instruction(Wasm_I32_Eqz{}, &buf)
+	emit_instruction(Wasm_If{block_type = .I32}, &buf)
+
+	// Err
+	emit_instruction(Wasm_I32_Const{value = 8}, &buf)
+	emit_instruction(Wasm_Call{index = u32(alloc_func_idx)}, &buf)
+	emit_instruction(Wasm_Local_Set{index = 2}, &buf)
+	emit_instruction(Wasm_Local_Get{index = 2}, &buf)
+	emit_instruction(Wasm_I32_Const{value = 1}, &buf)
+	emit_instruction(Wasm_I32_Store{align = 2, offset = CAMP_TAG_REFCOUNT_OFFSET}, &buf)
+	emit_instruction(Wasm_Local_Get{index = 2}, &buf)
+	emit_instruction(Wasm_I32_Const{value = 1}, &buf)
+	emit_instruction(Wasm_I32_Store8{align = 0, offset = CAMP_TAG_TAG_OFFSET}, &buf)
+	emit_instruction(Wasm_Local_Get{index = 2}, &buf)
+	emit_instruction(Wasm_I32_Const{value = 0}, &buf)
+	emit_instruction(Wasm_I32_Store8{align = 0, offset = CAMP_TAG_SCAN_SIZE_OFFSET}, &buf)
+	emit_instruction(Wasm_Local_Get{index = 2}, &buf)
+	emit_instruction(Wasm_Return{}, &buf)
+
+	emit_instruction(Wasm_Else{}, &buf)
+
+	// Walk to last node: while current.next != 0, advance
+	emit_instruction(Wasm_Block{block_type = .Void}, &buf)
+	emit_instruction(Wasm_Loop{block_type = .Void}, &buf)
+
+	// if current.next == 0, break
+	emit_instruction(Wasm_Local_Get{index = 1}, &buf)
+	emit_instruction(Wasm_I32_Load{align = 2, offset = MAP_NODE_NEXT_OFFSET}, &buf)
+	emit_instruction(Wasm_I32_Eqz{}, &buf)
+	emit_instruction(Wasm_Br_If{label = 1}, &buf)
+
+	// current = current.next
+	emit_instruction(Wasm_Local_Get{index = 1}, &buf)
+	emit_instruction(Wasm_I32_Load{align = 2, offset = MAP_NODE_NEXT_OFFSET}, &buf)
+	emit_instruction(Wasm_Local_Set{index = 1}, &buf)
+	emit_instruction(Wasm_Br{label = 0}, &buf)
+
+	emit_instruction(Wasm_End{}, &buf) // end loop
+	emit_instruction(Wasm_End{}, &buf) // end block
+
+	// Ok: current is last node
+	emit_instruction(Wasm_I32_Const{value = 16}, &buf)
+	emit_instruction(Wasm_Call{index = u32(alloc_func_idx)}, &buf)
+	emit_instruction(Wasm_Local_Set{index = 2}, &buf)
+	emit_instruction(Wasm_Local_Get{index = 2}, &buf)
+	emit_instruction(Wasm_I32_Const{value = 1}, &buf)
+	emit_instruction(Wasm_I32_Store{align = 2, offset = CAMP_TAG_REFCOUNT_OFFSET}, &buf)
+	emit_instruction(Wasm_Local_Get{index = 2}, &buf)
+	emit_instruction(Wasm_I32_Const{value = 0}, &buf)
+	emit_instruction(Wasm_I32_Store8{align = 0, offset = CAMP_TAG_TAG_OFFSET}, &buf)
+	emit_instruction(Wasm_Local_Get{index = 2}, &buf)
+	emit_instruction(Wasm_I32_Const{value = 1}, &buf)
+	emit_instruction(Wasm_I32_Store8{align = 0, offset = CAMP_TAG_SCAN_SIZE_OFFSET}, &buf)
+
+	// field[0] = current.key
+	emit_instruction(Wasm_Local_Get{index = 2}, &buf)
+	emit_instruction(Wasm_Local_Get{index = 1}, &buf)
+	emit_instruction(Wasm_I32_Load{align = 2, offset = MAP_NODE_KEY_OFFSET}, &buf)
+	emit_instruction(Wasm_I32_Store{align = 2, offset = CAMP_TAG_FIELDS_OFFSET}, &buf)
+
+	emit_instruction(Wasm_Local_Get{index = 2}, &buf)
+	emit_instruction(Wasm_End{}, &buf) // end if/else
+	emit_instruction(Wasm_End{}, &buf) // end function
+
+	locals := make([]Wasm_Local_Decl, 1)
+	locals[0] = Wasm_Local_Decl {
+		count = 2,
+		type  = .I32,
+	} // locals 1-2: current, result
+	body := make([]u8, len(buf))
+	for b, i in buf {body[i] = b}
+	delete(buf)
+	return Wasm_Code{locals = locals, body = body}
+}
+
