@@ -94,6 +94,7 @@ test_resolve_empty :: proc(t: ^testing.T) {
 test_resolve_group_flat :: proc(t: ^testing.T) {
 	children := []format.Doc{format.doc_text("a"), format.doc_soft_line(), format.doc_text("b")}
 	d := format.doc_group(children)
+	defer format.doc_destroy(d)
 	result := format.doc_resolve(d, 0)
 	defer delete(result)
 	testing.expect(t, result == "a b")
@@ -103,6 +104,7 @@ test_resolve_group_flat :: proc(t: ^testing.T) {
 test_resolve_group_broken :: proc(t: ^testing.T) {
 	children := []format.Doc{format.doc_text("a"), format.doc_line(), format.doc_text("b")}
 	d := format.doc_group(children)
+	defer format.doc_destroy(d)
 	result := format.doc_resolve(d, 0)
 	defer delete(result)
 	testing.expect(t, result == "a\nb")
@@ -115,6 +117,7 @@ test_resolve_nest_indent :: proc(t: ^testing.T) {
 	nested := format.doc_nest(4, inner)
 	outer_children := []format.Doc{format.doc_text("a"), format.doc_line(), nested}
 	d := format.doc_group(outer_children)
+	defer format.doc_destroy(d)
 	result := format.doc_resolve(d, 0)
 	defer delete(result)
 	testing.expect(t, result == "a\nb\n    c")
@@ -124,6 +127,7 @@ test_resolve_nest_indent :: proc(t: ^testing.T) {
 test_resolve_soft_line_flat :: proc(t: ^testing.T) {
 	children := []format.Doc{format.doc_text("x"), format.doc_soft_line(), format.doc_text("y")}
 	d := format.doc_group(children)
+	defer format.doc_destroy(d)
 	result := format.doc_resolve(d, 0)
 	defer delete(result)
 	testing.expect(t, result == "x y")
@@ -141,6 +145,7 @@ test_resolve_group_nested_break :: proc(t: ^testing.T) {
 		format.doc_text("d"),
 	}
 	d := format.doc_group(outer_children)
+	defer format.doc_destroy(d)
 	result := format.doc_resolve(d, 0)
 	defer delete(result)
 	testing.expect(t, result == "a\nb\nc\nd")
@@ -151,6 +156,7 @@ test_resolve_nest_no_line :: proc(t: ^testing.T) {
 	inner := format.doc_nest(4, format.doc_text("b"))
 	children := []format.Doc{format.doc_text("a"), format.doc_soft_line(), inner}
 	d := format.doc_group(children)
+	defer format.doc_destroy(d)
 	result := format.doc_resolve(d, 0)
 	defer delete(result)
 	testing.expect(t, result == "a b")
@@ -164,6 +170,7 @@ test_resolve_backslash_break :: proc(t: ^testing.T) {
 		format.doc_text("b"),
 	}
 	d := format.doc_group(children)
+	defer format.doc_destroy(d)
 	result := format.doc_resolve(d, 0)
 	defer delete(result)
 	testing.expect(t, result == "a\nb")
@@ -173,6 +180,7 @@ test_resolve_backslash_break :: proc(t: ^testing.T) {
 test_resolve_concat :: proc(t: ^testing.T) {
 	children := []format.Doc{format.doc_text("foo"), format.doc_text("bar")}
 	d := format.doc_concat(children)
+	defer format.doc_destroy(d)
 	result := format.doc_resolve(d, 0)
 	defer delete(result)
 	testing.expect(t, result == "foobar")
@@ -463,6 +471,7 @@ test_analyze_empty_source :: proc(t: ^testing.T) {
 test_format_type_primitive :: proc(t: ^testing.T) {
 	ctx: build.Compilation_Context
 	build.context_init(&ctx)
+	context.allocator = ctx.allocator
 	defer build.context_destroy(&ctx)
 
 	name := base.intern(&ctx.interner, "Int")
@@ -474,7 +483,9 @@ test_format_type_primitive :: proc(t: ^testing.T) {
 	type_val := frontend.Type(prim)
 
 	info := format.Format_Source_Info{}
-	result := format.doc_resolve(format.format_type(&type_val, &info, &ctx.interner), 0)
+	d := format.format_type(&type_val, &info, &ctx.interner)
+	defer format.doc_destroy(d)
+	result := format.doc_resolve(d, 0)
 	defer delete(result)
 
 	testing.expectf(t, result == "Int", "expected {}, got {}", "Int", result)
@@ -484,6 +495,7 @@ test_format_type_primitive :: proc(t: ^testing.T) {
 test_format_type_applied_single_line :: proc(t: ^testing.T) {
 	ctx: build.Compilation_Context
 	build.context_init(&ctx)
+	context.allocator = ctx.allocator
 	defer build.context_destroy(&ctx)
 
 	list_name := base.intern(&ctx.interner, "List")
@@ -502,7 +514,9 @@ test_format_type_applied_single_line :: proc(t: ^testing.T) {
 	type_val := frontend.Type(applied)
 
 	info := format.Format_Source_Info{}
-	result := format.doc_resolve(format.format_type(&type_val, &info, &ctx.interner), 0)
+	d := format.format_type(&type_val, &info, &ctx.interner)
+	defer format.doc_destroy(d)
+	result := format.doc_resolve(d, 0)
 	defer delete(result)
 
 	testing.expectf(t, result == "List(a)", "expected {}, got {}", "List(a)", result)
@@ -512,6 +526,7 @@ test_format_type_applied_single_line :: proc(t: ^testing.T) {
 test_format_type_tag_union_single_line :: proc(t: ^testing.T) {
 	ctx: build.Compilation_Context
 	build.context_init(&ctx)
+	context.allocator = ctx.allocator
 	defer build.context_destroy(&ctx)
 
 	ok_name := base.intern(&ctx.interner, "Ok")
@@ -554,7 +569,9 @@ test_format_type_tag_union_single_line :: proc(t: ^testing.T) {
 	type_val := frontend.Type(tag_union)
 
 	info := format.Format_Source_Info{}
-	result := format.doc_resolve(format.format_type(&type_val, &info, &ctx.interner), 0)
+	d := format.format_type(&type_val, &info, &ctx.interner)
+	defer format.doc_destroy(d)
+	result := format.doc_resolve(d, 0)
 	defer delete(result)
 
 	testing.expectf(
@@ -570,6 +587,7 @@ test_format_type_tag_union_single_line :: proc(t: ^testing.T) {
 test_format_type_record_single_line :: proc(t: ^testing.T) {
 	ctx: build.Compilation_Context
 	build.context_init(&ctx)
+	context.allocator = ctx.allocator
 	defer build.context_destroy(&ctx)
 
 	name_id := base.intern(&ctx.interner, "name")
@@ -608,7 +626,9 @@ test_format_type_record_single_line :: proc(t: ^testing.T) {
 	type_val := frontend.Type(rec)
 
 	info := format.Format_Source_Info{}
-	result := format.doc_resolve(format.format_type(&type_val, &info, &ctx.interner), 0)
+	d := format.format_type(&type_val, &info, &ctx.interner)
+	defer format.doc_destroy(d)
+	result := format.doc_resolve(d, 0)
 	defer delete(result)
 
 	testing.expectf(
@@ -626,6 +646,7 @@ test_format_type_record_single_line :: proc(t: ^testing.T) {
 test_format_expr_int :: proc(t: ^testing.T) {
 	ctx: build.Compilation_Context
 	build.context_init(&ctx)
+	context.allocator = ctx.allocator
 	defer build.context_destroy(&ctx)
 
 	e := new(frontend.Expr_Int)
@@ -633,7 +654,9 @@ test_format_expr_int :: proc(t: ^testing.T) {
 	e.span = base.Source_Span_ZERO
 
 	info := format.Format_Source_Info{}
-	result := format.doc_resolve(format.format_expr(frontend.Expr(e), &info, &ctx.interner), 0)
+	d := format.format_expr(frontend.Expr(e), &info, &ctx.interner)
+	defer format.doc_destroy(d)
+	result := format.doc_resolve(d, 0)
 	defer delete(result)
 
 	testing.expectf(t, result == "42", "expected {}, got {}", "42", result)
@@ -643,6 +666,7 @@ test_format_expr_int :: proc(t: ^testing.T) {
 test_format_expr_string :: proc(t: ^testing.T) {
 	ctx: build.Compilation_Context
 	build.context_init(&ctx)
+	context.allocator = ctx.allocator
 	defer build.context_destroy(&ctx)
 
 	e := new(frontend.Expr_String)
@@ -650,7 +674,9 @@ test_format_expr_string :: proc(t: ^testing.T) {
 	e.span = base.Source_Span_ZERO
 
 	info := format.Format_Source_Info{}
-	result := format.doc_resolve(format.format_expr(frontend.Expr(e), &info, &ctx.interner), 0)
+	d := format.format_expr(frontend.Expr(e), &info, &ctx.interner)
+	defer format.doc_destroy(d)
+	result := format.doc_resolve(d, 0)
 	defer delete(result)
 
 	testing.expectf(t, result == "hello", "expected {}, got {}", "hello", result)
@@ -660,6 +686,7 @@ test_format_expr_string :: proc(t: ^testing.T) {
 test_format_expr_bool :: proc(t: ^testing.T) {
 	ctx: build.Compilation_Context
 	build.context_init(&ctx)
+	context.allocator = ctx.allocator
 	defer build.context_destroy(&ctx)
 
 	e := new(frontend.Expr_Bool)
@@ -667,7 +694,9 @@ test_format_expr_bool :: proc(t: ^testing.T) {
 	e.span = base.Source_Span_ZERO
 
 	info := format.Format_Source_Info{}
-	result := format.doc_resolve(format.format_expr(frontend.Expr(e), &info, &ctx.interner), 0)
+	d := format.format_expr(frontend.Expr(e), &info, &ctx.interner)
+	defer format.doc_destroy(d)
+	result := format.doc_resolve(d, 0)
 	defer delete(result)
 
 	testing.expectf(t, result == "True", "expected {}, got {}", "True", result)
@@ -676,7 +705,9 @@ test_format_expr_bool :: proc(t: ^testing.T) {
 	e2.value = false
 	e2.span = base.Source_Span_ZERO
 
-	result2 := format.doc_resolve(format.format_expr(frontend.Expr(e2), &info, &ctx.interner), 0)
+	d2 := format.format_expr(frontend.Expr(e2), &info, &ctx.interner)
+	defer format.doc_destroy(d2)
+	result2 := format.doc_resolve(d2, 0)
 	defer delete(result2)
 
 	testing.expectf(t, result2 == "False", "expected {}, got {}", "False", result2)
@@ -686,6 +717,7 @@ test_format_expr_bool :: proc(t: ^testing.T) {
 test_format_expr_identifier :: proc(t: ^testing.T) {
 	ctx: build.Compilation_Context
 	build.context_init(&ctx)
+	context.allocator = ctx.allocator
 	defer build.context_destroy(&ctx)
 
 	name_id := base.intern(&ctx.interner, "myVar")
@@ -695,7 +727,9 @@ test_format_expr_identifier :: proc(t: ^testing.T) {
 	e.span = base.Source_Span_ZERO
 
 	info := format.Format_Source_Info{}
-	result := format.doc_resolve(format.format_expr(frontend.Expr(e), &info, &ctx.interner), 0)
+	d := format.format_expr(frontend.Expr(e), &info, &ctx.interner)
+	defer format.doc_destroy(d)
+	result := format.doc_resolve(d, 0)
 	defer delete(result)
 
 	testing.expectf(t, result == "myVar", "expected {}, got {}", "myVar", result)
@@ -705,6 +739,7 @@ test_format_expr_identifier :: proc(t: ^testing.T) {
 test_format_expr_call_single_line :: proc(t: ^testing.T) {
 	ctx: build.Compilation_Context
 	build.context_init(&ctx)
+	context.allocator = ctx.allocator
 	defer build.context_destroy(&ctx)
 
 	f_id := base.intern(&ctx.interner, "f")
@@ -731,7 +766,9 @@ test_format_expr_call_single_line :: proc(t: ^testing.T) {
 	call.span = base.Source_Span_ZERO
 
 	info := format.Format_Source_Info{}
-	result := format.doc_resolve(format.format_expr(frontend.Expr(call), &info, &ctx.interner), 0)
+	d := format.format_expr(frontend.Expr(call), &info, &ctx.interner)
+	defer format.doc_destroy(d)
+	result := format.doc_resolve(d, 0)
 	defer delete(result)
 
 	testing.expectf(t, result == "f(a, b)", "expected {}, got {}", "f(a, b)", result)
@@ -741,6 +778,7 @@ test_format_expr_call_single_line :: proc(t: ^testing.T) {
 test_format_expr_record_single_line :: proc(t: ^testing.T) {
 	ctx: build.Compilation_Context
 	build.context_init(&ctx)
+	context.allocator = ctx.allocator
 	defer build.context_destroy(&ctx)
 
 	name_id := base.intern(&ctx.interner, "name")
@@ -772,7 +810,9 @@ test_format_expr_record_single_line :: proc(t: ^testing.T) {
 	rec.span = base.Source_Span_ZERO
 
 	info := format.Format_Source_Info{}
-	result := format.doc_resolve(format.format_expr(frontend.Expr(rec), &info, &ctx.interner), 0)
+	d := format.format_expr(frontend.Expr(rec), &info, &ctx.interner)
+	defer format.doc_destroy(d)
+	result := format.doc_resolve(d, 0)
 	defer delete(result)
 
 	testing.expectf(
@@ -788,6 +828,7 @@ test_format_expr_record_single_line :: proc(t: ^testing.T) {
 test_format_expr_list_single_line :: proc(t: ^testing.T) {
 	ctx: build.Compilation_Context
 	build.context_init(&ctx)
+	context.allocator = ctx.allocator
 	defer build.context_destroy(&ctx)
 
 	one := new(frontend.Expr_Int)
@@ -810,7 +851,9 @@ test_format_expr_list_single_line :: proc(t: ^testing.T) {
 	list.span = base.Source_Span_ZERO
 
 	info := format.Format_Source_Info{}
-	result := format.doc_resolve(format.format_expr(frontend.Expr(list), &info, &ctx.interner), 0)
+	d := format.format_expr(frontend.Expr(list), &info, &ctx.interner)
+	defer format.doc_destroy(d)
+	result := format.doc_resolve(d, 0)
 	defer delete(result)
 
 	testing.expectf(t, result == "[1, 2, 3]", "expected {}, got {}", "[1, 2, 3]", result)
@@ -820,6 +863,7 @@ test_format_expr_list_single_line :: proc(t: ^testing.T) {
 test_format_expr_lambda_simple :: proc(t: ^testing.T) {
 	ctx: build.Compilation_Context
 	build.context_init(&ctx)
+	context.allocator = ctx.allocator
 	defer build.context_destroy(&ctx)
 
 	x_id := base.intern(&ctx.interner, "x")
@@ -852,7 +896,9 @@ test_format_expr_lambda_simple :: proc(t: ^testing.T) {
 	lam.span = base.Source_Span_ZERO
 
 	info := format.Format_Source_Info{}
-	result := format.doc_resolve(format.format_expr(frontend.Expr(lam), &info, &ctx.interner), 0)
+	d := format.format_expr(frontend.Expr(lam), &info, &ctx.interner)
+	defer format.doc_destroy(d)
+	result := format.doc_resolve(d, 0)
 	defer delete(result)
 
 	testing.expectf(t, result == "|x| x + 1", "expected {}, got {}", "|x| x + 1", result)
@@ -862,6 +908,7 @@ test_format_expr_lambda_simple :: proc(t: ^testing.T) {
 test_format_expr_block :: proc(t: ^testing.T) {
 	ctx: build.Compilation_Context
 	build.context_init(&ctx)
+	context.allocator = ctx.allocator
 	defer build.context_destroy(&ctx)
 
 	x_id := base.intern(&ctx.interner, "x")
@@ -918,7 +965,9 @@ test_format_expr_block :: proc(t: ^testing.T) {
 	block.span = base.Source_Span_ZERO
 
 	info := format.Format_Source_Info{}
-	result := format.doc_resolve(format.format_expr(frontend.Expr(block), &info, &ctx.interner), 0)
+	d := format.format_expr(frontend.Expr(block), &info, &ctx.interner)
+	defer format.doc_destroy(d)
+	result := format.doc_resolve(d, 0)
 	defer delete(result)
 
 	expected := "{\n    x = 1\n    y = 2\n    x + y\n}"
@@ -929,6 +978,7 @@ test_format_expr_block :: proc(t: ^testing.T) {
 test_format_expr_binop :: proc(t: ^testing.T) {
 	ctx: build.Compilation_Context
 	build.context_init(&ctx)
+	context.allocator = ctx.allocator
 	defer build.context_destroy(&ctx)
 
 	x_id := base.intern(&ctx.interner, "x")
@@ -949,7 +999,9 @@ test_format_expr_binop :: proc(t: ^testing.T) {
 	binop.span = base.Source_Span_ZERO
 
 	info := format.Format_Source_Info{}
-	result := format.doc_resolve(format.format_expr(frontend.Expr(binop), &info, &ctx.interner), 0)
+	d := format.format_expr(frontend.Expr(binop), &info, &ctx.interner)
+	defer format.doc_destroy(d)
+	result := format.doc_resolve(d, 0)
 	defer delete(result)
 
 	testing.expectf(t, result == "x + y", "expected {}, got {}", "x + y", result)
@@ -959,6 +1011,7 @@ test_format_expr_binop :: proc(t: ^testing.T) {
 test_format_expr_if_braceless :: proc(t: ^testing.T) {
 	ctx: build.Compilation_Context
 	build.context_init(&ctx)
+	context.allocator = ctx.allocator
 	defer build.context_destroy(&ctx)
 
 	x_id := base.intern(&ctx.interner, "x")
@@ -1000,10 +1053,9 @@ test_format_expr_if_braceless :: proc(t: ^testing.T) {
 	if_expr.span = base.Source_Span_ZERO
 
 	info := format.Format_Source_Info{}
-	result := format.doc_resolve(
-		format.format_expr(frontend.Expr(if_expr), &info, &ctx.interner),
-		0,
-	)
+	d := format.format_expr(frontend.Expr(if_expr), &info, &ctx.interner)
+	defer format.doc_destroy(d)
+	result := format.doc_resolve(d, 0)
 	defer delete(result)
 
 	testing.expectf(
@@ -1021,6 +1073,7 @@ test_format_expr_if_braceless :: proc(t: ^testing.T) {
 test_format_decl_const_simple :: proc(t: ^testing.T) {
 	ctx: build.Compilation_Context
 	build.context_init(&ctx)
+	context.allocator = ctx.allocator
 	defer build.context_destroy(&ctx)
 
 	name_id := base.intern(&ctx.interner, "greet")
@@ -1042,7 +1095,9 @@ test_format_decl_const_simple :: proc(t: ^testing.T) {
 	dc.span = base.Source_Span_ZERO
 
 	info := format.Format_Source_Info{}
-	result := format.doc_resolve(format.format_decl(frontend.Decl(dc), &info, &ctx.interner), 0)
+	d := format.format_decl(frontend.Decl(dc), &info, &ctx.interner)
+	defer format.doc_destroy(d)
+	result := format.doc_resolve(d, 0)
 	defer delete(result)
 
 	testing.expectf(t, result == "greet = |x| x", "expected {}, got {}", "greet = |x| x", result)
@@ -1052,6 +1107,7 @@ test_format_decl_const_simple :: proc(t: ^testing.T) {
 test_format_decl_const_with_type :: proc(t: ^testing.T) {
 	ctx: build.Compilation_Context
 	build.context_init(&ctx)
+	context.allocator = ctx.allocator
 	defer build.context_destroy(&ctx)
 
 	name_id := base.intern(&ctx.interner, "x")
@@ -1073,7 +1129,9 @@ test_format_decl_const_with_type :: proc(t: ^testing.T) {
 	dc.span = base.Source_Span_ZERO
 
 	info := format.Format_Source_Info{}
-	result := format.doc_resolve(format.format_decl(frontend.Decl(dc), &info, &ctx.interner), 0)
+	d := format.format_decl(frontend.Decl(dc), &info, &ctx.interner)
+	defer format.doc_destroy(d)
+	result := format.doc_resolve(d, 0)
 	defer delete(result)
 
 	testing.expectf(t, result == "x: Int = 42", "expected {}, got {}", "x: Int = 42", result)
@@ -1083,6 +1141,7 @@ test_format_decl_const_with_type :: proc(t: ^testing.T) {
 test_format_decl_const_effectful :: proc(t: ^testing.T) {
 	ctx: build.Compilation_Context
 	build.context_init(&ctx)
+	context.allocator = ctx.allocator
 	defer build.context_destroy(&ctx)
 
 	name_id := base.intern(&ctx.interner, "x")
@@ -1098,7 +1157,9 @@ test_format_decl_const_effectful :: proc(t: ^testing.T) {
 	dc.span = base.Source_Span_ZERO
 
 	info := format.Format_Source_Info{}
-	result := format.doc_resolve(format.format_decl(frontend.Decl(dc), &info, &ctx.interner), 0)
+	d := format.format_decl(frontend.Decl(dc), &info, &ctx.interner)
+	defer format.doc_destroy(d)
+	result := format.doc_resolve(d, 0)
 	defer delete(result)
 
 	testing.expectf(t, result == "x! = 42", "expected {}, got {}", "x! = 42", result)
@@ -1108,6 +1169,7 @@ test_format_decl_const_effectful :: proc(t: ^testing.T) {
 test_format_decl_const_pub :: proc(t: ^testing.T) {
 	ctx: build.Compilation_Context
 	build.context_init(&ctx)
+	context.allocator = ctx.allocator
 	defer build.context_destroy(&ctx)
 
 	name_id := base.intern(&ctx.interner, "greet")
@@ -1130,7 +1192,9 @@ test_format_decl_const_pub :: proc(t: ^testing.T) {
 	dc.span = base.Source_Span_ZERO
 
 	info := format.Format_Source_Info{}
-	result := format.doc_resolve(format.format_decl(frontend.Decl(dc), &info, &ctx.interner), 0)
+	d := format.format_decl(frontend.Decl(dc), &info, &ctx.interner)
+	defer format.doc_destroy(d)
+	result := format.doc_resolve(d, 0)
 	defer delete(result)
 
 	testing.expectf(
@@ -1146,6 +1210,7 @@ test_format_decl_const_pub :: proc(t: ^testing.T) {
 test_format_decl_effect_empty :: proc(t: ^testing.T) {
 	ctx: build.Compilation_Context
 	build.context_init(&ctx)
+	context.allocator = ctx.allocator
 	defer build.context_destroy(&ctx)
 
 	name_id := base.intern(&ctx.interner, "Empty")
@@ -1156,7 +1221,9 @@ test_format_decl_effect_empty :: proc(t: ^testing.T) {
 	de.span = base.Source_Span_ZERO
 
 	info := format.Format_Source_Info{}
-	result := format.doc_resolve(format.format_decl(frontend.Decl(de), &info, &ctx.interner), 0)
+	d := format.format_decl(frontend.Decl(de), &info, &ctx.interner)
+	defer format.doc_destroy(d)
+	result := format.doc_resolve(d, 0)
 	defer delete(result)
 
 	testing.expectf(t, result == "Empty! : {}", "expected {}, got {}", "Empty! : {}", result)
@@ -1166,6 +1233,7 @@ test_format_decl_effect_empty :: proc(t: ^testing.T) {
 test_format_decl_effect_with_ops :: proc(t: ^testing.T) {
 	ctx: build.Compilation_Context
 	build.context_init(&ctx)
+	context.allocator = ctx.allocator
 	defer build.context_destroy(&ctx)
 
 	io_id := base.intern(&ctx.interner, "IO")
@@ -1191,7 +1259,9 @@ test_format_decl_effect_with_ops :: proc(t: ^testing.T) {
 	de.span = base.Source_Span_ZERO
 
 	info := format.Format_Source_Info{}
-	result := format.doc_resolve(format.format_decl(frontend.Decl(de), &info, &ctx.interner), 0)
+	d := format.format_decl(frontend.Decl(de), &info, &ctx.interner)
+	defer format.doc_destroy(d)
+	result := format.doc_resolve(d, 0)
 	defer delete(result)
 
 	expected := "IO! : {\n    println!\n    readln!\n}"
@@ -1202,6 +1272,7 @@ test_format_decl_effect_with_ops :: proc(t: ^testing.T) {
 test_format_decl_import_simple :: proc(t: ^testing.T) {
 	ctx: build.Compilation_Context
 	build.context_init(&ctx)
+	context.allocator = ctx.allocator
 	defer build.context_destroy(&ctx)
 
 	di := new(frontend.Decl_Import)
@@ -1209,7 +1280,9 @@ test_format_decl_import_simple :: proc(t: ^testing.T) {
 	di.span = base.Source_Span_ZERO
 
 	info := format.Format_Source_Info{}
-	result := format.doc_resolve(format.format_decl(frontend.Decl(di), &info, &ctx.interner), 0)
+	d := format.format_decl(frontend.Decl(di), &info, &ctx.interner)
+	defer format.doc_destroy(d)
+	result := format.doc_resolve(d, 0)
 	defer delete(result)
 
 	testing.expectf(t, result == "import List", "expected {}, got {}", "import List", result)
@@ -1219,6 +1292,7 @@ test_format_decl_import_simple :: proc(t: ^testing.T) {
 test_format_decl_import_exposing :: proc(t: ^testing.T) {
 	ctx: build.Compilation_Context
 	build.context_init(&ctx)
+	context.allocator = ctx.allocator
 	defer build.context_destroy(&ctx)
 
 	map_id := base.intern(&ctx.interner, "map")
@@ -1232,7 +1306,9 @@ test_format_decl_import_exposing :: proc(t: ^testing.T) {
 	di.span = base.Source_Span_ZERO
 
 	info := format.Format_Source_Info{}
-	result := format.doc_resolve(format.format_decl(frontend.Decl(di), &info, &ctx.interner), 0)
+	d := format.format_decl(frontend.Decl(di), &info, &ctx.interner)
+	defer format.doc_destroy(d)
+	result := format.doc_resolve(d, 0)
 	defer delete(result)
 
 	testing.expectf(
@@ -1248,6 +1324,7 @@ test_format_decl_import_exposing :: proc(t: ^testing.T) {
 test_format_decl_alias :: proc(t: ^testing.T) {
 	ctx: build.Compilation_Context
 	build.context_init(&ctx)
+	context.allocator = ctx.allocator
 	defer build.context_destroy(&ctx)
 
 	myint_id := base.intern(&ctx.interner, "MyInt")
@@ -1264,7 +1341,9 @@ test_format_decl_alias :: proc(t: ^testing.T) {
 	da.span = base.Source_Span_ZERO
 
 	info := format.Format_Source_Info{}
-	result := format.doc_resolve(format.format_decl(frontend.Decl(da), &info, &ctx.interner), 0)
+	d := format.format_decl(frontend.Decl(da), &info, &ctx.interner)
+	defer format.doc_destroy(d)
+	result := format.doc_resolve(d, 0)
 	defer delete(result)
 
 	testing.expectf(t, result == "MyInt : Int", "expected {}, got {}", "MyInt : Int", result)
@@ -1274,6 +1353,7 @@ test_format_decl_alias :: proc(t: ^testing.T) {
 test_format_decl_test :: proc(t: ^testing.T) {
 	ctx: build.Compilation_Context
 	build.context_init(&ctx)
+	context.allocator = ctx.allocator
 	defer build.context_destroy(&ctx)
 
 	body_val := new(frontend.Expr_Int)
@@ -1285,7 +1365,9 @@ test_format_decl_test :: proc(t: ^testing.T) {
 	dt.span = base.Source_Span_ZERO
 
 	info := format.Format_Source_Info{}
-	result := format.doc_resolve(format.format_decl(frontend.Decl(dt), &info, &ctx.interner), 0)
+	d := format.format_decl(frontend.Decl(dt), &info, &ctx.interner)
+	defer format.doc_destroy(d)
+	result := format.doc_resolve(d, 0)
 	defer delete(result)
 
 	testing.expectf(
@@ -1301,6 +1383,7 @@ test_format_decl_test :: proc(t: ^testing.T) {
 test_format_decl_expect :: proc(t: ^testing.T) {
 	ctx: build.Compilation_Context
 	build.context_init(&ctx)
+	context.allocator = ctx.allocator
 	defer build.context_destroy(&ctx)
 
 	x_id := base.intern(&ctx.interner, "x")
@@ -1325,7 +1408,9 @@ test_format_decl_expect :: proc(t: ^testing.T) {
 	de.span = base.Source_Span_ZERO
 
 	info := format.Format_Source_Info{}
-	result := format.doc_resolve(format.format_decl(frontend.Decl(de), &info, &ctx.interner), 0)
+	d := format.format_decl(frontend.Decl(de), &info, &ctx.interner)
+	defer format.doc_destroy(d)
+	result := format.doc_resolve(d, 0)
 	defer delete(result)
 
 	testing.expectf(t, result == "expect x == 1", "expected {}, got {}", "expect x == 1", result)
@@ -1335,6 +1420,7 @@ test_format_decl_expect :: proc(t: ^testing.T) {
 test_format_file_empty :: proc(t: ^testing.T) {
 	ctx: build.Compilation_Context
 	build.context_init(&ctx)
+	context.allocator = ctx.allocator
 	defer build.context_destroy(&ctx)
 
 	file := frontend.File {
@@ -1344,7 +1430,9 @@ test_format_file_empty :: proc(t: ^testing.T) {
 	}
 
 	info := format.Format_Source_Info{}
-	result := format.doc_resolve(format.format_file(file, &info, &ctx.interner), 0)
+	d := format.format_file(file, &info, &ctx.interner)
+	defer format.doc_destroy(d)
+	result := format.doc_resolve(d, 0)
 	defer delete(result)
 
 	testing.expectf(t, result == "", "expected empty string, got {}", result)
@@ -1354,6 +1442,7 @@ test_format_file_empty :: proc(t: ^testing.T) {
 test_format_file_with_blank_line :: proc(t: ^testing.T) {
 	ctx: build.Compilation_Context
 	build.context_init(&ctx)
+	context.allocator = ctx.allocator
 	defer build.context_destroy(&ctx)
 
 	a_id := base.intern(&ctx.interner, "a")
@@ -1390,7 +1479,9 @@ test_format_file_with_blank_line :: proc(t: ^testing.T) {
 	}
 	info.blank_line_after[d1.span.start] = true
 
-	result := format.doc_resolve(format.format_file(file, &info, &ctx.interner), 0)
+	d := format.format_file(file, &info, &ctx.interner)
+	defer format.doc_destroy(d)
+	result := format.doc_resolve(d, 0)
 	defer delete(result)
 
 	testing.expectf(t, result == "a = 1\n\nb = 2", "expected {}, got {}", "a = 1\n\nb = 2", result)
@@ -1400,6 +1491,7 @@ test_format_file_with_blank_line :: proc(t: ^testing.T) {
 test_format_file_no_blank_line :: proc(t: ^testing.T) {
 	ctx: build.Compilation_Context
 	build.context_init(&ctx)
+	context.allocator = ctx.allocator
 	defer build.context_destroy(&ctx)
 
 	a_id := base.intern(&ctx.interner, "a")
@@ -1432,7 +1524,9 @@ test_format_file_no_blank_line :: proc(t: ^testing.T) {
 	append(&file.decls, frontend.Decl(d2))
 
 	info := format.Format_Source_Info{}
-	result := format.doc_resolve(format.format_file(file, &info, &ctx.interner), 0)
+	d := format.format_file(file, &info, &ctx.interner)
+	defer format.doc_destroy(d)
+	result := format.doc_resolve(d, 0)
 	defer delete(result)
 
 	testing.expectf(t, result == "a = 1\nb = 2", "expected {}, got {}", "a = 1\nb = 2", result)

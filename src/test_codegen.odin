@@ -8,8 +8,7 @@ import "camp:ir"
 import "camp:semantics"
 import "core:testing"
 
-compile_source :: proc(source: string) -> ([]u8, ^build.Compilation_Context) {
-	ctx: ^build.Compilation_Context = new(build.Compilation_Context)
+compile_source :: proc(ctx: ^build.Compilation_Context, source: string) -> [dynamic]u8 {
 	alloc := build.context_init(ctx)
 	context.allocator = alloc
 
@@ -44,19 +43,19 @@ compile_source :: proc(source: string) -> ([]u8, ^build.Compilation_Context) {
 	wasm_bytes := codegen.wasm_serialize(wasm_mod)
 
 	semantics.type_store_destroy(&store)
-	return wasm_bytes, ctx
+	return wasm_bytes
 }
 
 teardown_codegen :: proc(ctx: ^build.Compilation_Context) {
 	build.context_destroy(ctx)
-	free(ctx)
 }
 
 @(test)
 test_codegen_simple :: proc(t: ^testing.T) {
-	wasm_bytes, ctx := compile_source("main! = || -> I64 { 42 }")
+	ctx: build.Compilation_Context
+	wasm_bytes := compile_source(&ctx, "main! = || -> I64 { 42 }")
 	defer delete(wasm_bytes)
-	defer teardown_codegen(ctx)
+	defer teardown_codegen(&ctx)
 
 	testing.expect(t, len(wasm_bytes) >= 8)
 	testing.expect(t, wasm_bytes[0] == 0x00)
@@ -71,9 +70,10 @@ test_codegen_simple :: proc(t: ^testing.T) {
 
 @(test)
 test_codegen_has_type_section :: proc(t: ^testing.T) {
-	wasm_bytes, ctx := compile_source("main! = || -> I64 { 42 }")
+	ctx: build.Compilation_Context
+	wasm_bytes := compile_source(&ctx, "main! = || -> I64 { 42 }")
 	defer delete(wasm_bytes)
-	defer teardown_codegen(ctx)
+	defer teardown_codegen(&ctx)
 
 	testing.expect(t, len(wasm_bytes) > 9)
 	found_type := false
@@ -88,9 +88,10 @@ test_codegen_has_type_section :: proc(t: ^testing.T) {
 
 @(test)
 test_codegen_has_export_section :: proc(t: ^testing.T) {
-	wasm_bytes, ctx := compile_source("main! = || -> I64 { 42 }")
+	ctx: build.Compilation_Context
+	wasm_bytes := compile_source(&ctx, "main! = || -> I64 { 42 }")
 	defer delete(wasm_bytes)
-	defer teardown_codegen(ctx)
+	defer teardown_codegen(&ctx)
 
 	found_export := false
 	for i in 8 ..< len(wasm_bytes) - 1 {
@@ -171,9 +172,10 @@ test_codegen_emit_instructions :: proc(t: ^testing.T) {
 @(test)
 test_codegen_drop_produces_valid_wasm :: proc(t: ^testing.T) {
 	// Full pipeline including RC drop emission should produce valid WASM
-	wasm_bytes, ctx := compile_source("main! = || -> I64 { 42 }")
+	ctx: build.Compilation_Context
+	wasm_bytes := compile_source(&ctx, "main! = || -> I64 { 42 }")
 	defer delete(wasm_bytes)
-	defer teardown_codegen(ctx)
+	defer teardown_codegen(&ctx)
 
 	// Valid WASM magic number
 	testing.expect(t, len(wasm_bytes) >= 8)
@@ -251,9 +253,10 @@ test_codegen_runtime_dup_body :: proc(t: ^testing.T) {
 @(test)
 test_codegen_pipeline_with_string :: proc(t: ^testing.T) {
 	// Strings are heap-allocated — full pipeline should handle drops correctly
-	wasm_bytes, ctx := compile_source("main! = || -> I64 { x = \"hello\"; 42 }")
+	ctx: build.Compilation_Context
+	wasm_bytes := compile_source(&ctx, "main! = || -> I64 { x = \"hello\"; 42 }")
 	defer delete(wasm_bytes)
-	defer teardown_codegen(ctx)
+	defer teardown_codegen(&ctx)
 
 	testing.expect(t, len(wasm_bytes) >= 8)
 	testing.expect(t, wasm_bytes[0] == 0x00)
@@ -263,9 +266,10 @@ test_codegen_pipeline_with_string :: proc(t: ^testing.T) {
 @(test)
 test_codegen_pipeline_with_if :: proc(t: ^testing.T) {
 	// If expressions with heap bindings should compile correctly
-	wasm_bytes, ctx := compile_source("main! = || -> I64 { if True { 1 } else { 2 } }")
+	ctx: build.Compilation_Context
+	wasm_bytes := compile_source(&ctx, "main! = || -> I64 { if True { 1 } else { 2 } }")
 	defer delete(wasm_bytes)
-	defer teardown_codegen(ctx)
+	defer teardown_codegen(&ctx)
 
 	testing.expect(t, len(wasm_bytes) >= 8)
 }

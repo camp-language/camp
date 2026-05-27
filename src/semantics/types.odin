@@ -589,7 +589,7 @@ find_trait_impl_by_method :: proc(
 collect_all_traits :: proc(
 	trait_name: base.Intern_ID,
 	registry: map[base.Intern_ID]Trait_Info,
-) -> []base.Intern_ID {
+) -> [dynamic]base.Intern_ID {
 	visited := make(map[base.Intern_ID]bool)
 	result := make([dynamic]base.Intern_ID, 0, 8)
 	worklist := make([dynamic]base.Intern_ID, 0, 8)
@@ -607,6 +607,6 @@ collect_all_traits :: proc(
 	}
 	delete(visited)
 	delete(worklist)
-	return result[:]
+	return result
 }
 

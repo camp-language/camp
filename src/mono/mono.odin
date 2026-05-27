@@ -3,6 +3,7 @@ package mono
 import "camp:base"
 import "camp:semantics"
 import "core:fmt"
+import "core:strings"
 
 Mono_Env :: struct {
 	store:           ^semantics.Type_Store,
@@ -47,6 +48,8 @@ mono :: proc(
 		item := pop(&env.worklist)
 		key := specialization_key(item, store, env.interner)
 		if _, exists := env.specializations[key]; exists {
+			delete(item.type_args)
+			delete(key)
 			continue
 		}
 
@@ -63,6 +66,7 @@ mono :: proc(
 				append(&env.output_decls, semantics.TDecl(specialized_newtype))
 			}
 		}
+		delete(item.type_args)
 	}
 
 	for decl in tfile.decls {
@@ -94,34 +98,36 @@ specialization_key :: proc(
 	store: ^semantics.Type_Store,
 	interner: ^base.Intern_Table,
 ) -> string {
+	b: strings.Builder
+	strings.builder_init_len_cap(&b, 0, 64)
+	defer strings.builder_destroy(&b)
+
 	name_str := base.intern_get(interner, item.original.name)
-	base_str: string
 	if item.original.module != base.NO_NAME {
 		module_str := base.intern_get(interner, item.original.module)
-		base_str = fmt.tprintf("{}.{}", module_str, name_str)
+		strings.write_string(&b, module_str)
+		strings.write_string(&b, ".")
+		strings.write_string(&b, name_str)
 	} else {
-		base_str = name_str
+		strings.write_string(&b, name_str)
 	}
 
-	if len(item.type_args) == 0 {
-		return base_str
+	if len(item.type_args) > 0 {
+		type_parts: [dynamic]string
+		for _, type_var in item.type_args {
+			resolved := semantics.resolve_var(store, type_var)
+			v := &store.vars[int(resolved)]
+			type_str := format_type_var_for_key(store, v, interner)
+			append(&type_parts, type_str)
+		}
+		for tp in type_parts {
+			strings.write_string(&b, "$")
+			strings.write_string(&b, tp)
+		}
+		delete(type_parts)
 	}
 
-	type_parts: [dynamic]string
-	for _, type_var in item.type_args {
-		resolved := semantics.resolve_var(store, type_var)
-		v := &store.vars[int(resolved)]
-		type_str := format_type_var_for_key(store, v, interner)
-		append(&type_parts, type_str)
-	}
-
-	key := base_str
-	for tp in type_parts {
-		key = fmt.tprintf("{}${}", key, tp)
-	}
-
-	delete(type_parts)
-	return key
+	return strings.clone(strings.to_string(b))
 }
 
 format_type_var_for_key :: proc(
@@ -410,9 +416,13 @@ mangle :: proc(
 	store: ^semantics.Type_Store,
 ) -> base.Canonical_Name {
 	name_str := base.intern_get(interner, name.name)
-	base_str := name_str
+	base_str: string = name_str
 
 	if len(type_args) > 0 {
+		b: strings.Builder
+		strings.builder_init_len_cap(&b, 0, 64)
+		strings.write_string(&b, name_str)
+
 		parts: [dynamic]string
 		for _, type_var in type_args {
 			resolved := semantics.resolve_var(store, type_var)
@@ -421,12 +431,17 @@ mangle :: proc(
 			append(&parts, type_str)
 		}
 		for tp in parts {
-			base_str = fmt.tprintf("{}${}", base_str, tp)
+			strings.write_string(&b, "$")
+			strings.write_string(&b, tp)
 		}
 		delete(parts)
+
+		base_str = strings.clone(strings.to_string(b))
+		strings.builder_destroy(&b)
 	}
 
 	mangled_name := base.intern(interner, base_str)
+	delete(base_str)
 	return base.Canonical_Name{module = name.module, name = mangled_name, is_local = name.is_local}
 }
 
