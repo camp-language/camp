@@ -1276,7 +1276,7 @@ test_newtype_wrapping_builtin_type :: proc(t: ^testing.T) {
 
 @(test)
 test_result_with_inline_tag_union_error :: proc(t: ^testing.T) {
-	source := "@Result(a, e) : pub [Ok(a) | Err(e)]\nget_age : Result(I64, [Absent])\n"
+	source := "get_age : Result(I64, [Absent]) = Result.Ok(42)\n"
 	store, ctx, _ := setup_for_typecheck(source, {with_prelude = true})
 	defer free(ctx)
 	defer free(store)
@@ -1307,7 +1307,7 @@ test_record_with_result_fields :: proc(t: ^testing.T) {
 @(test)
 test_effect_declaration_with_effect_row :: proc(t: ^testing.T) {
 	store, ctx, _ := setup_for_typecheck(
-		"effect Random! : { bytes! : I64 -> -[Random!]-> Bytes }",
+		"Random! : { bytes! : |I64| -[Random!]-> Bytes }",
 		{with_prelude = true},
 	)
 	defer free(ctx)
@@ -1320,7 +1320,7 @@ test_effect_declaration_with_effect_row :: proc(t: ^testing.T) {
 
 @(test)
 test_crash_intrinsic_body :: proc(t: ^testing.T) {
-	source := "@JsonValue : pub [Null]\n@JsonErr : pub [UnexpectedEnd]\n@Result(a, e) : pub [Ok(a) | Err(e)]\npub decode : Str -> Result(JsonValue, JsonErr)\npub decode = |_s| crash \"intrinsic: Json.decode\"\n"
+	source := "@JsonValue : pub [Null]\n@JsonErr : pub [UnexpectedEnd]\n@Result(a, e) : pub [Ok(a) | Err(e)]\npub decode : |Str| -> Result(JsonValue, JsonErr) = |_s| crash \"intrinsic: Json.decode\"\n"
 	store, ctx, _ := setup_for_typecheck(source, {with_prelude = true})
 	defer free(ctx)
 	defer free(store)
