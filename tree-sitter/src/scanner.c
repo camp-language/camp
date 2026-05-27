@@ -25,13 +25,12 @@
  * Token type IDs — order matches the `externals` array in grammar.js
  * ------------------------------------------------------------------------- */
 enum TokenType {
-  STRING_START,        // opening `"`
-  STRING_START_R,      // opening `r"`
-  STRING_START_TRIPLE, // opening `"""`
-  STRING_CONTENT,      // literal text between interpolation holes
-  INTERPOLATION_START, // `${`
-  INTERPOLATION_END,   // `}` closing an interpolation
-  STRING_END,          // closing `"` or `"""`
+  STRING_START,          // 0 = _string_start
+  STRING_START_BSLASH,   // 1 = _string_start_bslash
+  STRING_CONTENT,        // 2 = _string_content
+  INTERPOLATION_START,   // 3 = _interpolation_start
+  INTERPOLATION_END,     // 4 = _interpolation_end
+  STRING_END,            // 5 = _string_end
 };
 
 /* ---------------------------------------------------------------------------
@@ -133,7 +132,7 @@ static bool scan_start_r(Scanner *s, TSLexer *lexer) {
     s->is_raw = true;
     s->is_triple = false;
     s->depth = 0;
-    lexer->result_symbol = STRING_START_R;
+    lexer->result_symbol = STRING_START_BSLASH;
     return true;
   }
   // Not r" — parser only asks for this when it expects it,
@@ -156,7 +155,7 @@ static bool scan_start_triple(Scanner *s, TSLexer *lexer) {
   s->is_raw = false;
   s->is_triple = true;
   s->depth = 0;
-  lexer->result_symbol = STRING_START_TRIPLE;
+  lexer->result_symbol = STRING_START_BSLASH;
   return true;
 }
 
@@ -399,10 +398,10 @@ bool tree_sitter_camp_external_scanner_scan(void *payload, TSLexer *lexer, const
 
   /* ---- String start (only valid when NOT inside a string) ---- */
   if (!s->in_string) {
-    if (valid_symbols[STRING_START_R]) {
+    if (valid_symbols[STRING_START_BSLASH]) {
       if (scan_start_r(s, lexer)) return true;
     }
-    if (valid_symbols[STRING_START_TRIPLE]) {
+    if (valid_symbols[STRING_START_BSLASH]) {
       if (scan_start_triple(s, lexer)) return true;
     }
     if (valid_symbols[STRING_START]) {

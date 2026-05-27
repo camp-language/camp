@@ -3,6 +3,7 @@ Integer literal
 ========
 x = 42
 ---
+
 (source_file
   (const_declaration
     (identifier)
@@ -13,6 +14,7 @@ Float literal
 ========
 x = 3.14
 ---
+
 (source_file
   (const_declaration
     (identifier)
@@ -23,6 +25,7 @@ String literal
 ========
 x = "hello world"
 ---
+
 (source_file
   (const_declaration
     (identifier)
@@ -33,6 +36,7 @@ Char literal
 ========
 x = 'a'
 ---
+
 (source_file
   (const_declaration
     (identifier)
@@ -43,6 +47,7 @@ Boolean literal
 ========
 x = true
 ---
+
 (source_file
   (const_declaration
     (identifier)
@@ -53,6 +58,7 @@ Identifier
 ========
 x = y
 ---
+
 (source_file
   (const_declaration
     (identifier)
@@ -63,6 +69,7 @@ Dollar identifier
 ========
 x = $x
 ---
+
 (source_file
   (const_declaration
     (identifier)
@@ -74,20 +81,23 @@ Type identifier
 ========
 x = Ok
 ---
+
 (source_file
   (const_declaration
     (identifier)
-    (type_identifier)))
+    (tag_expression
+      (type_identifier))))
 
 ========
 Tag expression with arguments
 ========
 x = Ok(42)
 ---
+
 (source_file
   (const_declaration
     (identifier)
-    (tag_expression
+    (tag_expression_with_args
       (type_identifier)
       (arguments
         (integer)))))
@@ -97,6 +107,7 @@ Tag expression without arguments
 ========
 x = None
 ---
+
 (source_file
   (const_declaration
     (identifier)
@@ -108,6 +119,7 @@ List expression empty
 ========
 x = []
 ---
+
 (source_file
   (const_declaration
     (identifier)
@@ -118,6 +130,7 @@ List expression
 ========
 x = [1, 2, 3]
 ---
+
 (source_file
   (const_declaration
     (identifier)

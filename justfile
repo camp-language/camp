@@ -28,10 +28,10 @@ test-e2e: build build-e2e
     CAMP_BIN="$(pwd)/camp" ./camp-e2e
 
 tree-sitter-generate:
-    -cd tree-sitter && tree-sitter generate
+    cd tree-sitter && tree-sitter generate
 
 tree-sitter-test: tree-sitter-generate
-    -cd tree-sitter && tree-sitter test
+    cd tree-sitter && tree-sitter test
 
 tree-sitter-validate: tree-sitter-generate
     #!/usr/bin/env sh
