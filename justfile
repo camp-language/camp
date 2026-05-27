@@ -50,8 +50,7 @@ check: format-check build build-e2e test
 update-snapshots: build build-e2e
     CAMP_BIN="$(pwd)/camp" ./camp-e2e --update
 
-test-filter pattern: build build-e2e
-    CAMP_BIN="$(pwd)/camp" ./camp-e2e --filter {{pattern}}
+
 
 clean:
     git clean -fdX tests/e2e/
