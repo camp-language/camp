@@ -483,9 +483,6 @@ lower_texpr :: proc(expr: semantics.TExpr, env: ^Lower_Env) -> IR_Expr {
 		return IR_Expr(block)
 	}
 
-	// Unreachable — total switch should handle all TExpr variants.
-	// If reached, it's a compiler bug.
-	fmt.println("WARNING: lower_texpr fell through switch — unhandled TExpr variant")
 	return make_ir_lit_int(
 		0,
 		base.IR_Type{wasm_type = .I64, type_id = base.Type_Var_ID(-1)},
