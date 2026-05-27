@@ -422,6 +422,8 @@ IR_BinOp_Kind :: enum {
 	Ge,
 	And,
 	Or,
+	Shl,
+	Shr,
 }
 
 IR_BinOp :: struct {

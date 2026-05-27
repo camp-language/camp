@@ -198,6 +198,7 @@ canonicalize_decl :: proc(
 			is_pub      = d.is_pub,
 			target      = ctarget,
 			doc_comment = d.doc_comment,
+			type_params  = d.type_params,
 			span        = d.span,
 		}
 		return cdecl

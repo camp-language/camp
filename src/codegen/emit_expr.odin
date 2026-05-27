@@ -2442,6 +2442,18 @@ emit_binop :: proc(op: ir.IR_BinOp_Kind, operand_type: base.IR_Wasm_Type, buf: ^
 		} else {
 			emit_instruction(Wasm_I32_Or{}, buf)
 		}
+	case .Shl:
+		if operand_type == .I32 {
+			emit_instruction(Wasm_I32_Shl{}, buf)
+		} else {
+			emit_instruction(Wasm_I64_Shl{}, buf)
+		}
+	case .Shr:
+		if operand_type == .I32 {
+			emit_instruction(Wasm_I32_Shr_S{}, buf)
+		} else {
+			emit_instruction(Wasm_I64_Shr_S{}, buf)
+		}
 	}
 }
 

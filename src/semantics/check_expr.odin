@@ -223,7 +223,7 @@ typecheck_binop :: proc(e: ^CExpr_BinOp, env: ^Type_Env, store: ^Type_Store) -> 
 		bool_var := make_primitive_type(store, bool_name, e.span)
 		result_var = bool_var
 
-	case .Plus, .Minus, .Star, .Slash, .Percent, .Caret:
+	case .Plus, .Minus, .Star, .Slash, .Percent, .Caret, .Lt_Lt, .Gt_Gt:
 		unify(store, left_result.var_id, right_result.var_id)
 		result_var = left_result.var_id
 

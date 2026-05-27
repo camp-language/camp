@@ -70,6 +70,7 @@ Decl_Alias :: struct {
 	is_pub:      bool,
 	target:      ^Type,
 	doc_comment: string,
+	type_params:    [dynamic]Type_Param,
 	span:        base.Source_Span,
 }
 

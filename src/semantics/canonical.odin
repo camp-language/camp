@@ -66,6 +66,7 @@ CDecl_Alias :: struct {
 	is_pub:      bool,
 	target:      ^CType,
 	doc_comment: string,
+	type_params: [dynamic]frontend.Type_Param,
 	span:        base.Source_Span,
 }
 

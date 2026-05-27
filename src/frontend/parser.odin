@@ -22,6 +22,8 @@ INFIX_BP: map[base.Token_Kind][2]Binding_Power = {
 	.Gt      = {5, 6},
 	.Lt_Eq   = {5, 6},
 	.Gt_Eq   = {5, 6},
+	.Lt_Lt   = {7, 8},
+	.Gt_Gt   = {7, 8},
 	.Plus    = {9, 10},
 	.Minus   = {9, 10},
 	.Star    = {11, 12},
@@ -476,6 +478,7 @@ parser_parse_const_decl :: proc(p: ^Parser, is_pub: bool) -> Decl {
 			name = name_id,
 			is_pub = is_pub,
 			target = type_ann,
+			type_params = type_params,
 			span = base.Source_Span {
 				file_id = start_span.file_id,
 				start = start_span.start,
@@ -1349,6 +1352,34 @@ parser_parse_lambda :: proc(p: ^Parser) -> Expr {
 	}
 
 	body := parser_parse_expr(p)
+	where_clauses := make([dynamic]Where_Clause, 0, 4)
+	if p.current.kind == .Kw_Where {
+		parser_advance(p)
+		for {
+			type_param_tok := parser_expect(p, .Identifier)
+			type_param_id := base.intern(p.intern, type_param_tok.text)
+			parser_expect(p, .Kw_Is)
+			trait_tok := parser_expect(p, .Upper_Id)
+			trait_id := base.intern(p.intern, trait_tok.text)
+			append(
+				&where_clauses,
+				Where_Clause {
+					type_param = type_param_id,
+					trait_name = trait_id,
+					span = base.Source_Span {
+						file_id = start.file_id,
+						start = type_param_tok.span.start,
+						end = trait_tok.span.end,
+					},
+				},
+			)
+			if p.current.kind == .Comma {
+				parser_advance(p)
+			} else {
+				break
+			}
+		}
+	}
 
 	e := new(Expr_Lambda)
 	e^ = Expr_Lambda {
@@ -1358,6 +1389,7 @@ parser_parse_lambda :: proc(p: ^Parser) -> Expr {
 		effects     = effects,
 		body        = body,
 		span        = start,
+		where_clauses = where_clauses,
 	}
 	return e
 }
@@ -2276,13 +2308,21 @@ parser_parse_type :: proc(p: ^Parser) -> ^Type {
 
 	case .Identifier:
 		name_tok := parser_advance(p)
-		name_id := base.intern(p.intern, name_tok.text)
-		v := new(Type_Variable)
-		v^ = Type_Variable {
-			name = name_id,
-			span = name_tok.span,
+		if name_tok.text == "_" {
+			w := new(Type_Wildcard)
+			w^ = Type_Wildcard {
+				span = name_tok.span,
+			}
+			t = w
+		} else {
+			name_id := base.intern(p.intern, name_tok.text)
+			v := new(Type_Variable)
+			v^ = Type_Variable {
+				name = name_id,
+				span = name_tok.span,
+			}
+			t = v
 		}
-		t = v
 
 	case .LBrace:
 		t = parser_parse_record_type(p)
@@ -2396,6 +2436,8 @@ parser_parse_type :: proc(p: ^Parser) -> ^Type {
 	     .Gt,
 	     .Lt_Eq,
 	     .Gt_Eq,
+	     .Lt_Lt,
+	     .Gt_Gt,
 	     .Eq_Eq,
 	     .Bang_Eq,
 	     .Plus,

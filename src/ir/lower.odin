@@ -1333,6 +1333,10 @@ lower_binop_kind :: proc(op: base.Token_Kind) -> IR_BinOp_Kind {
 		return .And
 	case .Kw_Or:
 		return .Or
+	case .Lt_Lt:
+		return .Shl
+	case .Gt_Gt:
+		return .Shr
 	}
 	return .Add
 }
