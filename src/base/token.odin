@@ -32,6 +32,7 @@ Token_Kind :: enum {
 	Kw_Return,
 	Kw_Crash,
 	Kw_Todo,
+	Kw_Deps,
 	Pipe,
 	Arrow,
 	Fat_Arrow,
