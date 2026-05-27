@@ -404,7 +404,7 @@ typecheck_synth :: proc(expr: CExpr, env: ^Type_Env, store: ^Type_Store) -> Synt
 			type_str := base.intern_get(store.interner, e.type_name.name)
 			diagnostics.collector_add_diag(
 				store.collector,
-			diagnostics.diag_undefined_type(type_str, {"newtype"}, e.span),
+				diagnostics.diag_undefined_type(type_str, {"newtype"}, e.span),
 			)
 		}
 		t := new(TExpr_Nominal_Construct)
@@ -923,7 +923,13 @@ typecheck_synth :: proc(expr: CExpr, env: ^Type_Env, store: ^Type_Store) -> Synt
 		}
 		return Synth_Result{var_id = unit_var, effects = eff, texpr = TExpr(tfor)}
 	}
-	diagnostics.collector_add_diag(store.collector, diagnostics.diag_internal("unhandled CExpr variant in typecheck_synth", base.Source_Span_ZERO))
+	diagnostics.collector_add_diag(
+		store.collector,
+		diagnostics.diag_internal(
+			"unhandled CExpr variant in typecheck_synth",
+			base.Source_Span_ZERO,
+		),
+	)
 	var_id, eff := fresh_with_effects(store, base.Source_Span_ZERO)
 	t := new(TExpr_Int)
 	type_ir, eff_ir := type_eff_pair(store, var_id, eff)

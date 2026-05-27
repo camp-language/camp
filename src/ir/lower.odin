@@ -486,7 +486,11 @@ lower_texpr :: proc(expr: semantics.TExpr, env: ^Lower_Env) -> IR_Expr {
 	// Unreachable — total switch should handle all TExpr variants.
 	// If reached, it's a compiler bug.
 	fmt.println("WARNING: lower_texpr fell through switch — unhandled TExpr variant")
-	return make_ir_lit_int(0, base.IR_Type{wasm_type = .I64, type_id = base.Type_Var_ID(-1)}, base.Source_Span_ZERO)
+	return make_ir_lit_int(
+		0,
+		base.IR_Type{wasm_type = .I64, type_id = base.Type_Var_ID(-1)},
+		base.Source_Span_ZERO,
+	)
 }
 
 lower_tdecl_const :: proc(d: ^semantics.TDecl_Const, env: ^Lower_Env) -> IR_Decl {
@@ -847,10 +851,10 @@ lower_tmethod_call :: proc(e: ^semantics.TExpr_Method_Call, env: ^Lower_Env) -> 
 							}
 							call := new(IR_Call)
 							call^ = IR_Call {
-								callee = fn_name,
-								args = ir_args,
-								type = e.type_,
-								span = e.span,
+								callee           = fn_name,
+								args             = ir_args,
+								type             = e.type_,
+								span             = e.span,
 								ord_compare_func = base.Canonical_Name{},
 							}
 							return IR_Expr(call)
@@ -1232,9 +1236,9 @@ lower_tpattern :: proc(
 						env.store,
 						scrutinee_type_id,
 						prev_cons.name,
-	// Char patterns are intentionally lowered as integer patterns.
-	// WASM has no native char type; chars are represented as i64 (Unicode codepoint).
-	// Char-specific error messages are lost, but runtime behavior is correct.
+						// Char patterns are intentionally lowered as integer patterns.
+						// WASM has no native char type; chars are represented as i64 (Unicode codepoint).
+						// Char-specific error messages are lost, but runtime behavior is correct.
 					)
 					prev_cons.payload = make([dynamic]base.Intern_ID, 0)
 					append(&prev_cons.payload, elem_var.name)

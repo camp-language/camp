@@ -195,7 +195,11 @@ typecheck_pattern :: proc(
 			inner = inner_result.tpat,
 			span  = p.span,
 		}
-		return Pat_Result{var_id = inner_result.var_id, effects = inner_result.effects, tpat = TPattern(tp)}
+		return Pat_Result {
+			var_id = inner_result.var_id,
+			effects = inner_result.effects,
+			tpat = TPattern(tp),
+		}
 
 	case ^CPattern_Or:
 		alternatives := make([dynamic]TPattern, 0, len(p.alternatives))
@@ -266,7 +270,13 @@ typecheck_pattern :: proc(
 		}
 		return Pat_Result{var_id = scrutinee_var, effects = eff, tpat = TPattern(tp)}
 	}
-	diagnostics.collector_add_diag(store.collector, diagnostics.diag_internal("unhandled CPattern variant in typecheck_pattern", base.Source_Span_ZERO))
+	diagnostics.collector_add_diag(
+		store.collector,
+		diagnostics.diag_internal(
+			"unhandled CPattern variant in typecheck_pattern",
+			base.Source_Span_ZERO,
+		),
+	)
 
 	tp := new(TPattern_Wildcard)
 	tp^ = TPattern_Wildcard {

@@ -1383,12 +1383,12 @@ parser_parse_lambda :: proc(p: ^Parser) -> Expr {
 
 	e := new(Expr_Lambda)
 	e^ = Expr_Lambda {
-		type_params = type_params,
-		params      = params,
-		return_type = return_type,
-		effects     = effects,
-		body        = body,
-		span        = start,
+		type_params   = type_params,
+		params        = params,
+		return_type   = return_type,
+		effects       = effects,
+		body          = body,
+		span          = start,
 		where_clauses = where_clauses,
 	}
 	return e

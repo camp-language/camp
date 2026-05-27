@@ -231,7 +231,12 @@ unify_inferred :: proc(
 			vb_var := store.vars[int(resolve_var(store, b_id))]
 			diagnostics.collector_add_diag(
 				store.collector,
-				diagnostics.diag_arity_mismatch(a_cons.arity, b_cons.arity, va_var.span, vb_var.span),
+				diagnostics.diag_arity_mismatch(
+					a_cons.arity,
+					b_cons.arity,
+					va_var.span,
+					vb_var.span,
+				),
 			)
 			return false
 		}
