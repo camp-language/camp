@@ -219,7 +219,7 @@ inject_prelude_effects_typecheck :: proc(store: ^Type_Store) {
 				Effect_Op_Sig {
 					name = base.intern(store.interner, "all!"),
 					param_count = 1,
-					param_types = make([]base.Type_Var_ID, 1),
+					param_types = make([]base.Type_Var_ID, 1, store.allocator),
 					return_type = list_type,
 				},
 			)
@@ -229,7 +229,7 @@ inject_prelude_effects_typecheck :: proc(store: ^Type_Store) {
 				Effect_Op_Sig {
 					name = base.intern(store.interner, "any!"),
 					param_count = 1,
-					param_types = make([]base.Type_Var_ID, 1),
+					param_types = make([]base.Type_Var_ID, 1, store.allocator),
 					return_type = list_type,
 				},
 			)
@@ -244,7 +244,7 @@ inject_prelude_effects_typecheck :: proc(store: ^Type_Store) {
 				Effect_Op_Sig {
 					name = base.intern(store.interner, "spawn!"),
 					param_count = 1,
-					param_types = make([]base.Type_Var_ID, 1),
+					param_types = make([]base.Type_Var_ID, 1, store.allocator),
 					return_type = handle_type,
 				},
 			)
@@ -254,7 +254,7 @@ inject_prelude_effects_typecheck :: proc(store: ^Type_Store) {
 				Effect_Op_Sig {
 					name = base.intern(store.interner, "join!"),
 					param_count = 1,
-					param_types = make([]base.Type_Var_ID, 1),
+					param_types = make([]base.Type_Var_ID, 1, store.allocator),
 					return_type = join_return,
 				},
 			)
@@ -269,7 +269,7 @@ inject_prelude_effects_typecheck :: proc(store: ^Type_Store) {
 				Effect_Op_Sig {
 					name = base.intern(store.interner, "cancel!"),
 					param_count = 1,
-					param_types = make([]base.Type_Var_ID, 1),
+					param_types = make([]base.Type_Var_ID, 1, store.allocator),
 					return_type = unit_type,
 				},
 			)
@@ -289,7 +289,7 @@ inject_prelude_effects_typecheck :: proc(store: ^Type_Store) {
 				Effect_Op_Sig {
 					name = base.intern(store.interner, "spawn!"),
 					param_count = 1,
-					param_types = make([]base.Type_Var_ID, 1),
+					param_types = make([]base.Type_Var_ID, 1, store.allocator),
 					return_type = handle_type,
 				},
 			)
@@ -299,7 +299,7 @@ inject_prelude_effects_typecheck :: proc(store: ^Type_Store) {
 				Effect_Op_Sig {
 					name = base.intern(store.interner, "join!"),
 					param_count = 1,
-					param_types = make([]base.Type_Var_ID, 1),
+					param_types = make([]base.Type_Var_ID, 1, store.allocator),
 					return_type = join_return,
 				},
 			)
@@ -314,7 +314,7 @@ inject_prelude_effects_typecheck :: proc(store: ^Type_Store) {
 				Effect_Op_Sig {
 					name = base.intern(store.interner, "yield!"),
 					param_count = 0,
-					param_types = make([]base.Type_Var_ID, 0),
+					param_types = make([]base.Type_Var_ID, 0, store.allocator),
 					return_type = unit_type,
 				},
 			)
@@ -323,7 +323,7 @@ inject_prelude_effects_typecheck :: proc(store: ^Type_Store) {
 				Effect_Op_Sig {
 					name = base.intern(store.interner, "cancel!"),
 					param_count = 1,
-					param_types = make([]base.Type_Var_ID, 1),
+					param_types = make([]base.Type_Var_ID, 1, store.allocator),
 					return_type = unit_type,
 				},
 			)

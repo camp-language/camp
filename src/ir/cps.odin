@@ -47,7 +47,20 @@ cps_transform :: proc(mod: ^IR_Module, interner: ^base.Intern_Table) -> IR_Modul
 	result.decls = make([dynamic]IR_Decl, 0, len(mod.decls))
 	result.effect_defs = make([dynamic]IR_Effect_Def, 0, len(mod.effect_defs))
 	for eff in mod.effect_defs {
-		append(&result.effect_defs, eff)
+		new_eff := eff
+		new_eff.operations = make([dynamic]IR_Effect_Op, len(eff.operations))
+		for op, i in eff.operations {
+			new_eff.operations[i] = op
+			new_eff.operations[i].params = make([dynamic]IR_Param, len(op.params))
+			for p, j in op.params {
+				new_eff.operations[i].params[j] = p
+			}
+		}
+		new_eff.type_params = make([dynamic]base.Intern_ID, len(eff.type_params))
+		for tp, i in eff.type_params {
+			new_eff.type_params[i] = tp
+		}
+		append(&result.effect_defs, new_eff)
 	}
 	result.string_table = make([dynamic]String_Table_Entry, 0, len(mod.string_table))
 	for entry in mod.string_table {
@@ -83,12 +96,16 @@ cps_transform :: proc(mod: ^IR_Module, interner: ^base.Intern_Table) -> IR_Modul
 cps_transform_decl :: proc(decl: IR_Decl, env: ^CPS_Env) -> IR_Decl {
 	#partial switch d in decl {
 	case ^IR_Decl_Fn:
-		if !d.is_effectful {
-			return decl
-		}
-
 		new_fn := new(IR_Decl_Fn)
 		new_fn^ = d^
+		new_fn.params = make([dynamic]IR_Param, len(d.params))
+		for p, i in d.params { new_fn.params[i] = p }
+		new_fn.effects = make([dynamic]base.Canonical_Name, len(d.effects))
+		for e, i in d.effects { new_fn.effects[i] = e }
+
+		if !d.is_effectful {
+			return IR_Decl(new_fn)
+		}
 
 		k_name := base.fresh_id(&env.fresh_state, "_k")
 		append(

@@ -28,8 +28,26 @@ test-unit:
       exit 1
     fi
     leaks=$(echo "$output" | grep -c 'leak')
-    # Remaining leaks are from arena-backed allocations that are freed in bulk
-    # by context_destroy in production. Tighten this threshold as they are fixed.
+    # The compiler uses `virtual.Arena` (bump allocator) for allocation speed.
+    # Odin's arena_allocator_proc returns `Mode_Not_Implemented` for `.Free`
+    # because bump allocators cannot free individual items.
+    #
+    # When `context.allocator` is set to the arena in tests, all alloc/free
+    # bypasses Odin's test-runner tracking layer. The tracking layer wraps
+    # the arena, but arena `.Free` returns an error that `tracking_allocator_proc`
+    # propagates via `or_return` before it can record the free in its map.
+    # This means every arena-backed allocation accumulates as a "leak" in
+    # the tracking data — even though `context_destroy` bulk-frees everything.
+    #
+    # The 892-remaining-leak baseline reflects this architectural limitation.
+    # Getting to true zero requires either replacing the arena with an allocator
+    # that supports individual frees (e.g. rollback_stack), or adding explicit
+    # destroy functions for every heap-allocated node in the compilation pipeline
+    # (IR, AST, canonical, typed, WASM). Both are in-progress.
+    #
+    # This threshold catches regressions: if a change introduces new leaks
+    # that aren't offset by fixes elsewhere, CI fails. Tighten as destroy
+    # functions are integrated.
     leak_threshold=900
     if [ $leaks -gt $leak_threshold ]; then
       echo "FAIL: $leaks leak(s) detected (threshold: $leak_threshold)" >&2
