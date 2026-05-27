@@ -77,6 +77,15 @@ main :: proc() {
 	case .Lsp:
 		lsp.lsp_main()
 		return
+	case .Add:
+		run_add(remaining_args)
+		return
+	case .Update:
+		run_update(remaining_args)
+		return
+	case .Init:
+		run_init(remaining_args)
+		return
 	}
 
 	if failed, is_failed := result.(build.Build_Error); is_failed {
