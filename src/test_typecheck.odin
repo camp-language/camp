@@ -544,7 +544,8 @@ test_typecheck_function_application :: proc(t: ^testing.T) {
 @(test)
 test_effectful_naming_enforcement :: proc(t: ^testing.T) {
 	ctx: build.Compilation_Context
-	store, _ := setup_for_typecheck(&ctx,
+	store, _ := setup_for_typecheck(
+		&ctx,
 		"IO! : { println!: || -> Str }\nresult = handle IO in { IO.println(\"hi\") } with { .println!(resume) => resume({}) }",
 	)
 	defer build.context_destroy(&ctx)
@@ -556,7 +557,8 @@ test_effectful_naming_enforcement :: proc(t: ^testing.T) {
 @(test)
 test_unhandled_effect_error :: proc(t: ^testing.T) {
 	ctx: build.Compilation_Context
-	store, _ := setup_for_typecheck(&ctx,
+	store, _ := setup_for_typecheck(
+		&ctx,
 		"IO! : { println!: || -[IO!]-> {} }\nmain! = || -> I64 { IO!.println!(\"hello\") 0 }",
 	)
 	defer build.context_destroy(&ctx)
@@ -568,7 +570,8 @@ test_unhandled_effect_error :: proc(t: ^testing.T) {
 @(test)
 test_handled_effect_ok :: proc(t: ^testing.T) {
 	ctx: build.Compilation_Context
-	store, _ := setup_for_typecheck(&ctx,
+	store, _ := setup_for_typecheck(
+		&ctx,
 		"IO! : { println!: || -> Str }\nmain! = handle IO in { IO.println(\"hello\") } with { .println!(resume) => resume({}) }",
 	)
 	defer build.context_destroy(&ctx)
@@ -827,7 +830,8 @@ test_newtype_opaque_inner_cross_module :: proc(t: ^testing.T) {
 @(test)
 test_trait_method_signature_mismatch :: proc(t: ^testing.T) {
 	ctx: build.Compilation_Context
-	store, _ := setup_for_typecheck(&ctx,
+	store, _ := setup_for_typecheck(
+		&ctx,
 		"Eq : { eq: (Self) -> Bool }\n@UserId is Eq : U64\nUserId_eq = |x| 42",
 		{with_prelude = true},
 	)
@@ -840,7 +844,8 @@ test_trait_method_signature_mismatch :: proc(t: ^testing.T) {
 @(test)
 test_trait_method_param_mismatch :: proc(t: ^testing.T) {
 	ctx: build.Compilation_Context
-	store, _ := setup_for_typecheck(&ctx,
+	store, _ := setup_for_typecheck(
+		&ctx,
 		"Eq : { eq: (Self, Self) -> Bool }\n@UserId is Eq : U64\nUserId_eq = |x| True",
 		{with_prelude = true},
 	)
@@ -874,7 +879,8 @@ test_trait_orphan_rule :: proc(t: ^testing.T) {
 @(test)
 test_trait_overlapping_instance :: proc(t: ^testing.T) {
 	ctx: build.Compilation_Context
-	store, _ := setup_for_typecheck(&ctx,
+	store, _ := setup_for_typecheck(
+		&ctx,
 		"Eq : { eq: (Self) -> Bool }\n@UserId is Eq : U64\nUserId_eq = |x| True\n@UserId is Eq : U64\nUserId_eq2 = |x| True",
 		{with_prelude = true},
 	)
@@ -887,7 +893,8 @@ test_trait_overlapping_instance :: proc(t: ^testing.T) {
 @(test)
 test_trait_missing_method :: proc(t: ^testing.T) {
 	ctx: build.Compilation_Context
-	store, _ := setup_for_typecheck(&ctx,
+	store, _ := setup_for_typecheck(
+		&ctx,
 		"Eq : { eq: (Self) -> Bool }\n@UserId is Eq : U64",
 		{with_prelude = true},
 	)
@@ -1276,7 +1283,8 @@ test_record_with_result_fields :: proc(t: ^testing.T) {
 @(test)
 test_effect_declaration_with_effect_row :: proc(t: ^testing.T) {
 	ctx: build.Compilation_Context
-	store, _ := setup_for_typecheck(&ctx,
+	store, _ := setup_for_typecheck(
+		&ctx,
 		"Random! : { bytes! : |I64| -[Random!]-> Bytes }",
 		{with_prelude = true},
 	)
@@ -1306,7 +1314,8 @@ test_crash_intrinsic_body :: proc(t: ^testing.T) {
 @(test)
 test_tag_union_with_multiple_payloads :: proc(t: ^testing.T) {
 	ctx: build.Compilation_Context
-	store, _ := setup_for_typecheck(&ctx,
+	store, _ := setup_for_typecheck(
+		&ctx,
 		"@JsonNumber : pub [PosInt(U64) | NegInt(I64) | Float(F64)]",
 		{with_prelude = true},
 	)

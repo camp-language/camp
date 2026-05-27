@@ -1646,16 +1646,16 @@ emit_expr :: proc(expr: ir.IR_Expr, buf: ^[dynamic]u8, env: ^Codegen_Env, runtim
 	case ^ir.IR_Handle:
 		is_sched := false
 		for eff in e.effects {
-		if ir.is_scheduler_effect_by_ids(
-			eff.name,
-			env.async_id,
-			env.spawn_id,
-			env.parallel_id,
-			env.file_id,
-			env.console_id,
-			env.time_id,
-			env.interner,
-		) {
+			if ir.is_scheduler_effect_by_ids(
+				eff.name,
+				env.async_id,
+				env.spawn_id,
+				env.parallel_id,
+				env.file_id,
+				env.console_id,
+				env.time_id,
+				env.interner,
+			) {
 				is_sched = true
 				break
 			}
@@ -1841,8 +1841,10 @@ emit_expr :: proc(expr: ir.IR_Expr, buf: ^[dynamic]u8, env: ^Codegen_Env, runtim
 				} else {
 					emit_instruction(Wasm_Unreachable{}, buf)
 				}
-			} else if effect_str == "File!" || effect_str == "Console!" ||
-			   effect_str == "File" || effect_str == "Console" {
+			} else if effect_str == "File!" ||
+			   effect_str == "Console!" ||
+			   effect_str == "File" ||
+			   effect_str == "Console" {
 				// I/O effects use camp_sched_block_io for suspension
 				if op_str == "read!" || op_str == "readln!" {
 					// Simplified: call block_io with placeholder pollable
@@ -1884,7 +1886,10 @@ emit_expr :: proc(expr: ir.IR_Expr, buf: ^[dynamic]u8, env: ^Codegen_Env, runtim
 					}
 					// Build iovs at scratch 4096: [data_ptr, data_len]
 					// str_ptr is on the stack; save to temp local
-					emit_instruction(Wasm_Local_Set{index = u32(env.tmp_local_base + env.tmp_count)}, buf)
+					emit_instruction(
+						Wasm_Local_Set{index = u32(env.tmp_local_base + env.tmp_count)},
+						buf,
+					)
 					env.tmp_count += 1
 					str_local := env.tmp_local_base + env.tmp_count - 1
 
@@ -2704,7 +2709,13 @@ emit_console_println_handler_fn :: proc(env: ^Codegen_Env, cont_fn_idx: int) -> 
 SCAN_BUF_BASE :: 4200
 SCAN_BUF_SIZE :: 1024
 
-emit_console_readln_handler_fn :: proc(env: ^Codegen_Env, runtime_indices: []int) -> (int, Wasm_Code) {
+emit_console_readln_handler_fn :: proc(
+	env: ^Codegen_Env,
+	runtime_indices: []int,
+) -> (
+	int,
+	Wasm_Code,
+) {
 	// Handler type: (i32=env, i32=resume, i32=ev) -> i32 (Str)
 	handler_type_idx := get_or_create_type(
 		env,
@@ -2745,10 +2756,7 @@ emit_console_readln_handler_fn :: proc(env: ^Codegen_Env, runtime_indices: []int
 	emit_instruction(Wasm_Local_Tee{index = 3}, &buf) // save nread for later copy
 	emit_instruction(Wasm_I32_Const{value = 4}, &buf)
 	emit_instruction(Wasm_I32_Add{}, &buf) // size = nread + 4
-	emit_instruction(
-		Wasm_Call{index = u32(runtime_indices[Runtime_Func.Alloc])},
-		&buf,
-	)
+	emit_instruction(Wasm_Call{index = u32(runtime_indices[Runtime_Func.Alloc])}, &buf)
 	emit_instruction(Wasm_Local_Set{index = 4}, &buf) // str_ptr = alloc(nread + 4)
 
 	// Store len at [str_ptr]
@@ -2769,8 +2777,14 @@ emit_console_readln_handler_fn :: proc(env: ^Codegen_Env, runtime_indices: []int
 	emit_instruction(Wasm_End{}, &buf)
 
 	locals := make([]Wasm_Local_Decl, 2)
-	locals[0] = Wasm_Local_Decl{count = 1, type = .I32} // local 3: nread
-	locals[1] = Wasm_Local_Decl{count = 1, type = .I32} // local 4: str_ptr
+	locals[0] = Wasm_Local_Decl {
+		count = 1,
+		type  = .I32,
+	} 	// local 3: nread
+	locals[1] = Wasm_Local_Decl {
+		count = 1,
+		type  = .I32,
+	} 	// local 4: str_ptr
 	code := Wasm_Code {
 		locals = locals,
 		body   = copy_dynamic_bytes(buf),
