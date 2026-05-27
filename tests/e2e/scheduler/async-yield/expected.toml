@@ -12,6 +12,6 @@ Error: failed to compile: wasm[0]::function[66]
 
 Caused by:
     0: WebAssembly translation error
-    1: Invalid input WebAssembly code at offset 5892: type mismatch: expected a type but nothing on stack
+    1: Invalid input WebAssembly code at offset 5927: type mismatch: expected a type but nothing on stack
 
 """

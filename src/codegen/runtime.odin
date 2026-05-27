@@ -1721,6 +1721,24 @@ emit_camp_sched_join_body :: proc(shared: bool) -> Wasm_Code {
 	emit_instruction(Wasm_I32_Add{}, &buf)
 	emit_instruction(Wasm_Local_Set{index = 1}, &buf) // entry_ptr
 
+	// One-shot enforcement: check if handle is already consumed (JOINED or CANCELLED)
+	// If status == JOINED or CANCELLED, trap — double-use of a handle is a runtime error
+	emit_instruction(Wasm_Local_Get{index = 1}, &buf)
+	emit_instruction(Wasm_I32_Load{align = 2, offset = 0}, &buf) // status
+	emit_instruction(Wasm_I32_Const{value = HANDLE_STATUS_JOINED}, &buf)
+	emit_instruction(Wasm_I32_Eq{}, &buf)
+	emit_instruction(Wasm_If{block_type = .Void}, &buf)
+	emit_instruction(Wasm_Unreachable{}, &buf) // trap: double-join
+	emit_instruction(Wasm_End{}, &buf)
+
+	emit_instruction(Wasm_Local_Get{index = 1}, &buf)
+	emit_instruction(Wasm_I32_Load{align = 2, offset = 0}, &buf) // status
+	emit_instruction(Wasm_I32_Const{value = HANDLE_STATUS_CANCELLED}, &buf)
+	emit_instruction(Wasm_I32_Eq{}, &buf)
+	emit_instruction(Wasm_If{block_type = .Void}, &buf)
+	emit_instruction(Wasm_Unreachable{}, &buf) // trap: join on cancelled handle
+	emit_instruction(Wasm_End{}, &buf)
+
 	// Block for early exit with result
 	emit_instruction(Wasm_Block{block_type = .I32}, &buf) // block 2: exit with i32 result
 	emit_instruction(Wasm_Loop{block_type = .Void}, &buf) // loop 1: recheck
@@ -1739,16 +1757,6 @@ emit_camp_sched_join_body :: proc(shared: bool) -> Wasm_Code {
 	emit_instruction(Wasm_Local_Get{index = 1}, &buf)
 	emit_instruction(Wasm_I32_Load{align = 2, offset = 8}, &buf) // result_value
 	emit_instruction(Wasm_Br{label = 2}, &buf) // branch out of block with result
-	emit_instruction(Wasm_End{}, &buf)
-
-	// Check CANCELLED: if status == CANCELLED, return 0
-	emit_instruction(Wasm_Local_Get{index = 1}, &buf)
-	emit_instruction(Wasm_I32_Load{align = 2, offset = 0}, &buf) // status
-	emit_instruction(Wasm_I32_Const{value = HANDLE_STATUS_CANCELLED}, &buf)
-	emit_instruction(Wasm_I32_Eq{}, &buf)
-	emit_instruction(Wasm_If{block_type = .Void}, &buf)
-	emit_instruction(Wasm_I32_Const{value = 0}, &buf)
-	emit_instruction(Wasm_Br{label = 2}, &buf) // branch out of block with 0
 	emit_instruction(Wasm_End{}, &buf)
 
 	// PENDING: register in join_map, then re-enqueue current task and yield
@@ -1926,16 +1934,38 @@ emit_camp_sched_cancel_body :: proc(shared: bool) -> Wasm_Code {
 	emit_instruction(Wasm_I32_Mul{}, &buf)
 	emit_instruction(Wasm_I32_Add{}, &buf)
 	emit_instruction(Wasm_Local_Set{index = 1}, &buf)
+	// One-shot enforcement: check if handle is already consumed (JOINED or CANCELLED)
+	// If status == JOINED or CANCELLED, trap — double-use of a handle is a runtime error
+	emit_instruction(Wasm_Local_Get{index = 1}, &buf)
+	emit_instruction(Wasm_I32_Load{align = 2, offset = 0}, &buf) // status
+	emit_instruction(Wasm_I32_Const{value = HANDLE_STATUS_JOINED}, &buf)
+	emit_instruction(Wasm_I32_Eq{}, &buf)
+	emit_instruction(Wasm_If{block_type = .Void}, &buf)
+	emit_instruction(Wasm_Unreachable{}, &buf) // trap: cancel on joined handle
+	emit_instruction(Wasm_End{}, &buf)
+
+	emit_instruction(Wasm_Local_Get{index = 1}, &buf)
+	emit_instruction(Wasm_I32_Load{align = 2, offset = 0}, &buf) // status
+	emit_instruction(Wasm_I32_Const{value = HANDLE_STATUS_CANCELLED}, &buf)
+	emit_instruction(Wasm_I32_Eq{}, &buf)
+	emit_instruction(Wasm_If{block_type = .Void}, &buf)
+	emit_instruction(Wasm_Unreachable{}, &buf) // trap: double-cancel
+	emit_instruction(Wasm_End{}, &buf)
+
 	emit_instruction(Wasm_Local_Get{index = 1}, &buf)
 	emit_instruction(Wasm_I32_Const{value = HANDLE_STATUS_CANCELLED}, &buf)
 	emit_instruction(Wasm_I32_Store{align = 2, offset = 0}, &buf)
 	notification_base := SCHED_BASE + SCHED_WORKER_COUNT_SIZE + SCHED_SPINNING_SIZE
 	emit_instruction(Wasm_End{}, &buf)
-	locals := make([]Wasm_Local_Decl, 1)
+	locals := make([]Wasm_Local_Decl, 2)
 	locals[0] = Wasm_Local_Decl {
 		count = 1,
 		type  = .I32,
 	}
+	locals[1] = Wasm_Local_Decl {
+		count = 1,
+		type  = .I32,
+	} // entry_ptr
 	body := make([]u8, len(buf))
 	for b, i in buf {body[i] = b}
 	delete(buf)

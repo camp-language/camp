@@ -2780,11 +2780,11 @@ emit_console_readln_handler_fn :: proc(
 	locals[0] = Wasm_Local_Decl {
 		count = 1,
 		type  = .I32,
-	} 	// local 3: nread
+	} // local 3: nread
 	locals[1] = Wasm_Local_Decl {
 		count = 1,
 		type  = .I32,
-	} 	// local 4: str_ptr
+	} // local 4: str_ptr
 	code := Wasm_Code {
 		locals = locals,
 		body   = copy_dynamic_bytes(buf),
