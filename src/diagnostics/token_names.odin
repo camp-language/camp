@@ -70,7 +70,8 @@ token_kind_display :: proc(kind: base.Token_Kind) -> string {
 		return "return"
 	case .Kw_Crash:
 		return "crash"
-	case .Kw_Deps:         return "deps"
+	case .Kw_Deps:
+		return "deps"
 
 	case .Kw_Todo:
 		return "todo"

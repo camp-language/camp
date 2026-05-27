@@ -16,9 +16,15 @@ main :: proc() {
 	raw_args := os.args
 	args := make([dynamic]string, 0, len(raw_args))
 	defer delete(args)
+	locked := false
+	frozen := false
 	for a in raw_args {
 		if a == "--json" {
 			diagnostics.set_json_mode(true)
+		} else if a == "--locked" {
+			locked = true
+		} else if a == "--frozen" {
+			frozen = true
 		} else {
 			append(&args, a)
 		}
@@ -27,8 +33,8 @@ main :: proc() {
 	if len(args) < 2 {
 		fmt.printfln("Camp compiler v{}", VERSION)
 		fmt.println("Usage: camp <command> [options] <file>")
-		fmt.println("Commands: build, test, fmt, check, doc, lsp")
-		fmt.println("Global flags: --json (machine-readable diagnostics on stdout)")
+		fmt.println("Commands: build, test, fmt, check, doc, lsp, add, update, init")
+		fmt.println("Global flags: --json, --locked, --frozen")
 		os.exit(1)
 	}
 

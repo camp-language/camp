@@ -1,8 +1,8 @@
 package camp
 
 import "camp:camp_toml"
-import "core:testing"
 import "core:strings"
+import "core:testing"
 
 @(test)
 test_camp_toml_minimal :: proc(t: ^testing.T) {
@@ -109,3 +109,4 @@ test_camp_toml_snake_case_invalid :: proc(t: ^testing.T) {
 		testing.expect(t, !camp_toml._is_snake_case(inp), inp)
 	}
 }
+

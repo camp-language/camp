@@ -22,9 +22,12 @@ semver_parse :: proc(s: string) -> (Semver, bool) {
 			num = num * 10 + int(r - '0')
 		}
 		switch i {
-		case 0: v.major = num
-		case 1: v.minor = num
-		case 2: v.patch = num
+		case 0:
+			v.major = num
+		case 1:
+			v.minor = num
+		case 2:
+			v.patch = num
 		}
 	}
 	return v, true
@@ -75,7 +78,10 @@ resolve_mvs :: proc(
 	deps: []Dependency_Info,
 	tags_for_source: proc(source: string) -> []string,
 	allocator: mem.Allocator,
-) -> ([]Resolved_Dep, []string) {
+) -> (
+	[]Resolved_Dep,
+	[]string,
+) {
 	resolved := make([dynamic]Resolved_Dep, 0, len(deps), allocator)
 	missing := make([dynamic]string, 0, 4, allocator)
 
@@ -105,13 +111,12 @@ resolve_mvs :: proc(
 			continue
 		}
 
-		append(&resolved, Resolved_Dep{
-			alias = dep.alias,
-			source = source,
-			tag = best,
-			version = ver_str,
-		})
+		append(
+			&resolved,
+			Resolved_Dep{alias = dep.alias, source = source, tag = best, version = ver_str},
+		)
 	}
 
 	return resolved[:], missing[:]
 }
+

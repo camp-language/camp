@@ -195,8 +195,8 @@ parser_parse_file :: proc(p: ^Parser) -> File {
 
 
 parser_parse_deps_block :: proc(p: ^Parser, file: ^File) {
-	parser_expect(p, .Kw_Deps)       // consume 'deps'
-	parser_expect(p, .LBrace)        // consume '{'
+	parser_expect(p, .Kw_Deps) // consume 'deps'
+	parser_expect(p, .LBrace) // consume '{'
 
 	for p.current.kind != .RBrace && p.current.kind != .Eof {
 		if p.current.kind != .Identifier {
@@ -217,7 +217,8 @@ parser_parse_deps_block :: proc(p: ^Parser, file: ^File) {
 		if p.current.kind == .String_Literal || p.current.kind == .Interpolated_String_Literal {
 			uri_tok = parser_advance(p)
 		} else {
-			diagnostics.collector_add_diag(p.collector,
+			diagnostics.collector_add_diag(
+				p.collector,
 				diagnostics.diag_expected_token(.String_Literal, p.current, p.current.span),
 			)
 			parser_advance(p)
@@ -227,7 +228,7 @@ parser_parse_deps_block :: proc(p: ^Parser, file: ^File) {
 		append(&file.deps, Deps_Entry{alias = alias, uri = uri_tok.text})
 	}
 
-	parser_expect(p, .RBrace)        // consume '}'
+	parser_expect(p, .RBrace) // consume '}'
 }
 
 parser_collect_doc_comments :: proc(p: ^Parser) -> (doc: string, orphaned: bool) {

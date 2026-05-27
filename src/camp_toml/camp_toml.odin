@@ -41,7 +41,7 @@ parse :: proc(input: string, allocator: mem.Allocator) -> Camp_Toml {
 		fmt.eprintln("camp.toml:", err.line, ":", err.msg)
 	}
 
-	return Camp_Toml{
+	return Camp_Toml {
 		pkg = pr.pkg,
 		dependencies = pr.dependencies,
 		dev_dependencies = pr.dev_dependencies,
@@ -54,7 +54,12 @@ _parse :: proc(input: string, allocator: mem.Allocator) -> _Parsed {
 	result.dev_dependencies = make([dynamic]Dep_Entry, 0, 4, allocator)
 	result.errors = make([dynamic]Parse_Error, 0, 4, allocator)
 
-	current_section: enum {None, Package, Dependencies, Dev_Dependencies} = .None
+	current_section: enum {
+		None,
+		Package,
+		Dependencies,
+		Dev_Dependencies,
+	} = .None
 	lines := strings.split_lines(input, allocator)
 
 	for line_str, line_idx in lines {
@@ -74,7 +79,13 @@ _parse :: proc(input: string, allocator: mem.Allocator) -> _Parsed {
 			case "dev-dependencies":
 				current_section = .Dev_Dependencies
 			case:
-				append(&result.errors, Parse_Error{line = line_idx + 1, msg = fmt.tprintf("unknown section [{}]", section_name)})
+				append(
+					&result.errors,
+					Parse_Error {
+						line = line_idx + 1,
+						msg = fmt.tprintf("unknown section [{}]", section_name),
+					},
+				)
 				current_section = .None
 			}
 			continue
@@ -101,14 +112,18 @@ _parse :: proc(input: string, allocator: mem.Allocator) -> _Parsed {
 		}
 
 		// Dependency entry
-		if (current_section == .Dependencies || current_section == .Dev_Dependencies) && strings.contains(trimmed, "=") {
+		if (current_section == .Dependencies || current_section == .Dev_Dependencies) &&
+		   strings.contains(trimmed, "=") {
 			eq := strings.index(trimmed, "=")
 			if eq == -1 {continue}
 			alias := strings.trim_space(trimmed[:eq])
 			uri := strings.trim_space(trimmed[eq + 1:])
 			uri = _unquote(uri, allocator)
 
-			entry := Dep_Entry{alias = alias, uri = uri}
+			entry := Dep_Entry {
+				alias = alias,
+				uri   = uri,
+			}
 			if current_section == .Dependencies {
 				append(&result.dependencies, entry)
 			} else {
@@ -163,26 +178,36 @@ validate :: proc(t: Camp_Toml, allocator: mem.Allocator) -> [dynamic]Validation_
 
 	for dep in t.dependencies {
 		if !_is_snake_case(dep.alias) {
-			append(&errors, Validation_Error{
-				msg = fmt.tprintf("dependency alias '{}' must be snake_case", dep.alias),
-			})
+			append(
+				&errors,
+				Validation_Error {
+					msg = fmt.tprintf("dependency alias '{}' must be snake_case", dep.alias),
+				},
+			)
 		}
 		if len(dep.uri) == 0 {
-			append(&errors, Validation_Error{
-				msg = fmt.tprintf("dependency '{}' has empty URI", dep.alias),
-			})
+			append(
+				&errors,
+				Validation_Error{msg = fmt.tprintf("dependency '{}' has empty URI", dep.alias)},
+			)
 		}
 	}
 	for dep in t.dev_dependencies {
 		if !_is_snake_case(dep.alias) {
-			append(&errors, Validation_Error{
-				msg = fmt.tprintf("dev-dependency alias '{}' must be snake_case", dep.alias),
-			})
+			append(
+				&errors,
+				Validation_Error {
+					msg = fmt.tprintf("dev-dependency alias '{}' must be snake_case", dep.alias),
+				},
+			)
 		}
 		if len(dep.uri) == 0 {
-			append(&errors, Validation_Error{
-				msg = fmt.tprintf("dev-dependency '{}' has empty URI", dep.alias),
-			})
+			append(
+				&errors,
+				Validation_Error {
+					msg = fmt.tprintf("dev-dependency '{}' has empty URI", dep.alias),
+				},
+			)
 		}
 	}
 
@@ -199,3 +224,4 @@ _is_snake_case :: proc(s: string) -> bool {
 	if s[0] == '_' || s[len(s) - 1] == '_' {return false}
 	return true
 }
+
