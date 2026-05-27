@@ -191,6 +191,7 @@ intern :: proc(table: ^Intern_Table, s: string) -> Intern_ID {
 }
 
 intern_get :: proc(table: ^Intern_Table, id: Intern_ID) -> string {
+	if int(id) == int(NO_NAME) do return ""
 	offset := table.string_offsets[int(id)]
 	length := table.string_lengths[int(id)]
 	return string(table.string_buffer[offset:offset + length])

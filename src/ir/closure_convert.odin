@@ -574,10 +574,11 @@ cc_convert_expr :: proc(expr: IR_Expr, env: ^Closure_Convert_Env) -> IR_Expr {
 		}
 		new_call := new(IR_Call)
 		new_call^ = IR_Call {
-			callee = e.callee,
-			args   = new_args,
-			type   = e.type,
-			span   = e.span,
+			callee           = e.callee,
+			args             = new_args,
+			type             = e.type,
+			span             = e.span,
+			ord_compare_func = e.ord_compare_func,
 		}
 		return IR_Expr(new_call)
 
@@ -884,10 +885,11 @@ rewrite_free_var_access :: proc(expr: IR_Expr, env_map: ^map[base.Intern_ID]IR_E
 		}
 		new_call := new(IR_Call)
 		new_call^ = IR_Call {
-			callee = e.callee,
-			args   = new_args,
-			type   = e.type,
-			span   = e.span,
+			callee           = e.callee,
+			args             = new_args,
+			type             = e.type,
+			span             = e.span,
+			ord_compare_func = e.ord_compare_func,
 		}
 		return IR_Expr(new_call)
 	case ^IR_Closure_Call:

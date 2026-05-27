@@ -263,10 +263,11 @@ cps_transform_expr :: proc(expr: IR_Expr, k_name: base.Intern_ID, env: ^CPS_Env)
 		}
 		new_call := new(IR_Call)
 		new_call^ = IR_Call {
-			callee = e.callee,
-			args   = new_args,
-			type   = e.type,
-			span   = e.span,
+			callee           = e.callee,
+			args             = new_args,
+			type             = e.type,
+			span             = e.span,
+			ord_compare_func = e.ord_compare_func,
 		}
 		return IR_Expr(new_call)
 

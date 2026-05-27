@@ -3724,3 +3724,905 @@ emit_camp_bool_to_str_body :: proc(alloc_func_idx: int) -> Wasm_Code {
 	return Wasm_Code{locals = locals, body = body}
 }
 
+// ============================================================
+// Map runtime functions
+// ============================================================
+
+emit_map_new_body :: proc(alloc_func_idx: int) -> Wasm_Code {
+	// () -> i32: allocate empty Map header, return pointer
+	// Locals: 0=tmp
+	buf: [dynamic]u8
+	buf = make([dynamic]u8, 0, CODE_BUF_DEFAULT)
+
+	// Allocate MAP_HEADER_SIZE bytes
+	emit_instruction(Wasm_I32_Const{value = MAP_HEADER_SIZE}, &buf)
+	emit_instruction(Wasm_Call{index = u32(alloc_func_idx)}, &buf)
+	emit_instruction(Wasm_Local_Set{index = 0}, &buf)
+
+	// Set tag = MAP_HEADER_TAG
+	emit_instruction(Wasm_Local_Get{index = 0}, &buf)
+	emit_instruction(Wasm_I32_Const{value = MAP_HEADER_TAG}, &buf)
+	emit_instruction(Wasm_I32_Store8{align = 0, offset = CAMP_TAG_TAG_OFFSET}, &buf)
+
+	// Set scan_size = 2 (root + size)
+	emit_instruction(Wasm_Local_Get{index = 0}, &buf)
+	emit_instruction(Wasm_I32_Const{value = 2}, &buf)
+	emit_instruction(Wasm_I32_Store8{align = 0, offset = CAMP_TAG_SCAN_SIZE_OFFSET}, &buf)
+
+	// Set root = 0
+	emit_instruction(Wasm_Local_Get{index = 0}, &buf)
+	emit_instruction(Wasm_I32_Const{value = 0}, &buf)
+	emit_instruction(Wasm_I32_Store{align = 2, offset = MAP_HEADER_ROOT_OFFSET}, &buf)
+
+	// Set size = 0
+	emit_instruction(Wasm_Local_Get{index = 0}, &buf)
+	emit_instruction(Wasm_I32_Const{value = 0}, &buf)
+	emit_instruction(Wasm_I32_Store{align = 2, offset = MAP_HEADER_SIZE_FIELD_OFFSET}, &buf)
+
+	// Return map pointer
+	emit_instruction(Wasm_Local_Get{index = 0}, &buf)
+	emit_instruction(Wasm_End{}, &buf)
+
+	locals := make([]Wasm_Local_Decl, 1)
+	locals[0] = Wasm_Local_Decl {
+		count = 1,
+		type  = .I32,
+	}
+	body := make([]u8, len(buf))
+	for b, i in buf {body[i] = b}
+	delete(buf)
+	return Wasm_Code{locals = locals, body = body}
+}
+
+emit_map_insert_body :: proc(
+	alloc_func_idx: int,
+	compare_type_idx: int,
+	table_idx: int,
+) -> Wasm_Code {
+	// (cmp_fn: i32, key: i32, value: i32, map: i32) -> i32
+	// Imperative insert into sorted linked list. Returns map pointer.
+	// Locals: 0=cmp_fn, 1=key, 2=value, 3=map, 4=current, 5=prev, 6=cmp_result, 7=new_node
+	buf: [dynamic]u8
+	buf = make([dynamic]u8, 0, CODE_BUF_XXL)
+
+	// current = map.root
+	emit_instruction(Wasm_Local_Get{index = 3}, &buf)
+	emit_instruction(Wasm_I32_Load{align = 2, offset = MAP_HEADER_ROOT_OFFSET}, &buf)
+	emit_instruction(Wasm_Local_Set{index = 4}, &buf)
+
+	// prev = 0
+	emit_instruction(Wasm_I32_Const{value = 0}, &buf)
+	emit_instruction(Wasm_Local_Set{index = 5}, &buf)
+
+	// block $break
+	emit_instruction(Wasm_Block{block_type = .Void}, &buf)
+	// loop $walk
+	emit_instruction(Wasm_Loop{block_type = .Void}, &buf)
+
+	// if current == 0, break (end of list or empty)
+	emit_instruction(Wasm_Local_Get{index = 4}, &buf)
+	emit_instruction(Wasm_I32_Eqz{}, &buf)
+	emit_instruction(Wasm_Br_If{label = 1}, &buf) // break
+
+	// cmp_result = compare(key, current.key) via call_indirect
+	emit_instruction(Wasm_Local_Get{index = 1}, &buf) // key
+	emit_instruction(Wasm_Local_Get{index = 4}, &buf) // current
+	emit_instruction(Wasm_I32_Load{align = 2, offset = MAP_NODE_KEY_OFFSET}, &buf) // current.key
+	emit_instruction(Wasm_Local_Get{index = 0}, &buf) // cmp_fn table index
+	emit_instruction(
+		Wasm_Call_Indirect{type_idx = u32(compare_type_idx), table_idx = u32(table_idx)},
+		&buf,
+	)
+	emit_instruction(Wasm_Local_Set{index = 6}, &buf)
+
+	// if cmp_result == 0: key found, update value in place
+	emit_instruction(Wasm_Local_Get{index = 6}, &buf)
+	emit_instruction(Wasm_I32_Const{value = 0}, &buf)
+	emit_instruction(Wasm_I32_Eq{}, &buf)
+	emit_instruction(Wasm_If{block_type = .Void}, &buf)
+	// current.value = value
+	emit_instruction(Wasm_Local_Get{index = 4}, &buf)
+	emit_instruction(Wasm_Local_Get{index = 2}, &buf)
+	emit_instruction(Wasm_I32_Store{align = 2, offset = MAP_NODE_VALUE_OFFSET}, &buf)
+	// return map
+	emit_instruction(Wasm_Local_Get{index = 3}, &buf)
+	emit_instruction(Wasm_Return{}, &buf)
+	emit_instruction(Wasm_End{}, &buf) // end if
+
+	// if cmp_result < 0: key < current, insert before current
+	emit_instruction(Wasm_Local_Get{index = 6}, &buf)
+	emit_instruction(Wasm_I32_Const{value = 0}, &buf)
+	emit_instruction(Wasm_I32_Lt_S{}, &buf)
+	emit_instruction(Wasm_Br_If{label = 1}, &buf) // break to insert
+
+	// key > current: advance
+	// prev = current
+	emit_instruction(Wasm_Local_Get{index = 4}, &buf)
+	emit_instruction(Wasm_Local_Set{index = 5}, &buf)
+	// current = current.next
+	emit_instruction(Wasm_Local_Get{index = 4}, &buf)
+	emit_instruction(Wasm_I32_Load{align = 2, offset = MAP_NODE_NEXT_OFFSET}, &buf)
+	emit_instruction(Wasm_Local_Set{index = 4}, &buf)
+	emit_instruction(Wasm_Br{label = 0}, &buf) // continue loop
+
+	emit_instruction(Wasm_End{}, &buf) // end loop
+	emit_instruction(Wasm_End{}, &buf) // end block
+
+	// Insert new node: allocate, set fields, link into list
+	emit_instruction(Wasm_I32_Const{value = MAP_NODE_SIZE}, &buf)
+	emit_instruction(Wasm_Call{index = u32(alloc_func_idx)}, &buf)
+	emit_instruction(Wasm_Local_Set{index = 7}, &buf)
+
+	// Set refcount = 1
+	emit_instruction(Wasm_Local_Get{index = 7}, &buf)
+	emit_instruction(Wasm_I32_Const{value = 1}, &buf)
+	emit_instruction(Wasm_I32_Store{align = 2, offset = CAMP_TAG_REFCOUNT_OFFSET}, &buf)
+
+	// Set tag = MAP_NODE_TAG
+	emit_instruction(Wasm_Local_Get{index = 7}, &buf)
+	emit_instruction(Wasm_I32_Const{value = MAP_NODE_TAG}, &buf)
+	emit_instruction(Wasm_I32_Store8{align = 0, offset = CAMP_TAG_TAG_OFFSET}, &buf)
+
+	// Set scan_size = 3 (key, value, next)
+	emit_instruction(Wasm_Local_Get{index = 7}, &buf)
+	emit_instruction(Wasm_I32_Const{value = 3}, &buf)
+	emit_instruction(Wasm_I32_Store8{align = 0, offset = CAMP_TAG_SCAN_SIZE_OFFSET}, &buf)
+
+	// node.key = key
+	emit_instruction(Wasm_Local_Get{index = 7}, &buf)
+	emit_instruction(Wasm_Local_Get{index = 1}, &buf)
+	emit_instruction(Wasm_I32_Store{align = 2, offset = MAP_NODE_KEY_OFFSET}, &buf)
+
+	// node.value = value
+	emit_instruction(Wasm_Local_Get{index = 7}, &buf)
+	emit_instruction(Wasm_Local_Get{index = 2}, &buf)
+	emit_instruction(Wasm_I32_Store{align = 2, offset = MAP_NODE_VALUE_OFFSET}, &buf)
+
+	// node.next = current (0 if appending at end)
+	emit_instruction(Wasm_Local_Get{index = 7}, &buf)
+	emit_instruction(Wasm_Local_Get{index = 4}, &buf)
+	emit_instruction(Wasm_I32_Store{align = 2, offset = MAP_NODE_NEXT_OFFSET}, &buf)
+
+	// Link: if prev == 0, new node is root; else prev.next = new_node
+	emit_instruction(Wasm_Local_Get{index = 5}, &buf)
+	emit_instruction(Wasm_I32_Eqz{}, &buf)
+	emit_instruction(Wasm_If{block_type = .Void}, &buf)
+	// map.root = new_node
+	emit_instruction(Wasm_Local_Get{index = 3}, &buf)
+	emit_instruction(Wasm_Local_Get{index = 7}, &buf)
+	emit_instruction(Wasm_I32_Store{align = 2, offset = MAP_HEADER_ROOT_OFFSET}, &buf)
+	emit_instruction(Wasm_Else{}, &buf)
+	// prev.next = new_node
+	emit_instruction(Wasm_Local_Get{index = 5}, &buf)
+	emit_instruction(Wasm_Local_Get{index = 7}, &buf)
+	emit_instruction(Wasm_I32_Store{align = 2, offset = MAP_NODE_NEXT_OFFSET}, &buf)
+	emit_instruction(Wasm_End{}, &buf)
+
+	// map.size += 1
+	emit_instruction(Wasm_Local_Get{index = 3}, &buf)
+	emit_instruction(Wasm_Local_Get{index = 3}, &buf)
+	emit_instruction(Wasm_I32_Load{align = 2, offset = MAP_HEADER_SIZE_FIELD_OFFSET}, &buf)
+	emit_instruction(Wasm_I32_Const{value = 1}, &buf)
+	emit_instruction(Wasm_I32_Add{}, &buf)
+	emit_instruction(Wasm_I32_Store{align = 2, offset = MAP_HEADER_SIZE_FIELD_OFFSET}, &buf)
+
+	// Return map pointer
+	emit_instruction(Wasm_Local_Get{index = 3}, &buf)
+	emit_instruction(Wasm_End{}, &buf)
+
+	locals := make([]Wasm_Local_Decl, 1)
+	locals[0] = Wasm_Local_Decl {
+		count = 4,
+		type  = .I32,
+	} // locals 4-7: current, prev, cmp_result, new_node
+	body := make([]u8, len(buf))
+	for b, i in buf {body[i] = b}
+	delete(buf)
+	return Wasm_Code{locals = locals, body = body}
+}
+
+emit_map_get_body :: proc(
+	alloc_func_idx: int,
+	compare_type_idx: int,
+	table_idx: int,
+) -> Wasm_Code {
+	// (cmp_fn: i32, key: i32, map: i32) -> i32
+	// Returns Result: Ok(value) or Err(KeyNotFound)
+	// Result layout on Camp heap:
+	//   tag byte at offset 4: 0=Ok, 1=Err
+	//   Ok: value at offset 8
+	//   Err: no payload
+	// Locals: 0=cmp_fn, 1=key, 2=map, 3=current, 4=cmp_result, 5=result
+	buf: [dynamic]u8
+	buf = make([dynamic]u8, 0, CODE_BUF_XXL)
+
+	// current = map.root
+	emit_instruction(Wasm_Local_Get{index = 2}, &buf)
+	emit_instruction(Wasm_I32_Load{align = 2, offset = MAP_HEADER_ROOT_OFFSET}, &buf)
+	emit_instruction(Wasm_Local_Set{index = 3}, &buf)
+
+	// block $break
+	emit_instruction(Wasm_Block{block_type = .Void}, &buf)
+	// loop $walk
+	emit_instruction(Wasm_Loop{block_type = .Void}, &buf)
+
+	// if current == 0, break (not found)
+	emit_instruction(Wasm_Local_Get{index = 3}, &buf)
+	emit_instruction(Wasm_I32_Eqz{}, &buf)
+	emit_instruction(Wasm_Br_If{label = 1}, &buf)
+
+	// cmp_result = compare(key, current.key)
+	emit_instruction(Wasm_Local_Get{index = 1}, &buf)
+	emit_instruction(Wasm_Local_Get{index = 3}, &buf)
+	emit_instruction(Wasm_I32_Load{align = 2, offset = MAP_NODE_KEY_OFFSET}, &buf)
+	emit_instruction(Wasm_Local_Get{index = 0}, &buf)
+	emit_instruction(
+		Wasm_Call_Indirect{type_idx = u32(compare_type_idx), table_idx = u32(table_idx)},
+		&buf,
+	)
+	emit_instruction(Wasm_Local_Set{index = 4}, &buf)
+
+	// if cmp_result == 0: found, return Ok(current.value)
+	emit_instruction(Wasm_I32_Const{value = 0}, &buf)
+	emit_instruction(Wasm_Local_Get{index = 4}, &buf)
+	emit_instruction(Wasm_I32_Eq{}, &buf)
+	emit_instruction(Wasm_If{block_type = .Void}, &buf)
+
+	// Allocate Result: header(8) + 1 field(8) = 16
+	emit_instruction(Wasm_I32_Const{value = 16}, &buf)
+	emit_instruction(Wasm_Call{index = u32(alloc_func_idx)}, &buf)
+	emit_instruction(Wasm_Local_Set{index = 5}, &buf)
+
+	// refcount = 1
+	emit_instruction(Wasm_Local_Get{index = 5}, &buf)
+	emit_instruction(Wasm_I32_Const{value = 1}, &buf)
+	emit_instruction(Wasm_I32_Store{align = 2, offset = CAMP_TAG_REFCOUNT_OFFSET}, &buf)
+
+	// tag = 0 (Ok)
+	emit_instruction(Wasm_Local_Get{index = 5}, &buf)
+	emit_instruction(Wasm_I32_Const{value = 0}, &buf)
+	emit_instruction(Wasm_I32_Store8{align = 0, offset = CAMP_TAG_TAG_OFFSET}, &buf)
+
+	// scan_size = 1
+	emit_instruction(Wasm_Local_Get{index = 5}, &buf)
+	emit_instruction(Wasm_I32_Const{value = 1}, &buf)
+	emit_instruction(Wasm_I32_Store8{align = 0, offset = CAMP_TAG_SCAN_SIZE_OFFSET}, &buf)
+
+	// payload[0] = current.value
+	emit_instruction(Wasm_Local_Get{index = 5}, &buf)
+	emit_instruction(Wasm_Local_Get{index = 3}, &buf)
+	emit_instruction(Wasm_I32_Load{align = 2, offset = MAP_NODE_VALUE_OFFSET}, &buf)
+	emit_instruction(Wasm_I32_Store{align = 2, offset = CAMP_TAG_FIELDS_OFFSET}, &buf)
+
+	// return result
+	emit_instruction(Wasm_Local_Get{index = 5}, &buf)
+	emit_instruction(Wasm_Return{}, &buf)
+	emit_instruction(Wasm_End{}, &buf) // end if
+
+	// if cmp_result < 0: key < current, not in list
+	emit_instruction(Wasm_Local_Get{index = 4}, &buf)
+	emit_instruction(Wasm_I32_Const{value = 0}, &buf)
+	emit_instruction(Wasm_I32_Lt_S{}, &buf)
+	emit_instruction(Wasm_Br_If{label = 1}, &buf) // break (not found)
+
+	// key > current: advance
+	emit_instruction(Wasm_Local_Get{index = 3}, &buf)
+	emit_instruction(Wasm_I32_Load{align = 2, offset = MAP_NODE_NEXT_OFFSET}, &buf)
+	emit_instruction(Wasm_Local_Set{index = 3}, &buf)
+	emit_instruction(Wasm_Br{label = 0}, &buf) // continue loop
+
+	emit_instruction(Wasm_End{}, &buf) // end loop
+	emit_instruction(Wasm_End{}, &buf) // end block
+
+	// Not found: return Err
+	// Allocate Result: header(8) only, no payload
+	emit_instruction(Wasm_I32_Const{value = 8}, &buf)
+	emit_instruction(Wasm_Call{index = u32(alloc_func_idx)}, &buf)
+	emit_instruction(Wasm_Local_Set{index = 5}, &buf)
+
+	// refcount = 1
+	emit_instruction(Wasm_Local_Get{index = 5}, &buf)
+	emit_instruction(Wasm_I32_Const{value = 1}, &buf)
+	emit_instruction(Wasm_I32_Store{align = 2, offset = CAMP_TAG_REFCOUNT_OFFSET}, &buf)
+
+	// tag = 1 (Err)
+	emit_instruction(Wasm_Local_Get{index = 5}, &buf)
+	emit_instruction(Wasm_I32_Const{value = 1}, &buf)
+	emit_instruction(Wasm_I32_Store8{align = 0, offset = CAMP_TAG_TAG_OFFSET}, &buf)
+
+	// scan_size = 0
+	emit_instruction(Wasm_Local_Get{index = 5}, &buf)
+	emit_instruction(Wasm_I32_Const{value = 0}, &buf)
+	emit_instruction(Wasm_I32_Store8{align = 0, offset = CAMP_TAG_SCAN_SIZE_OFFSET}, &buf)
+
+	// return result
+	emit_instruction(Wasm_Local_Get{index = 5}, &buf)
+	emit_instruction(Wasm_End{}, &buf)
+
+	locals := make([]Wasm_Local_Decl, 1)
+	locals[0] = Wasm_Local_Decl {
+		count = 3,
+		type  = .I32,
+	} // locals 3-5: current, cmp_result, result
+	body := make([]u8, len(buf))
+	for b, i in buf {body[i] = b}
+	delete(buf)
+	return Wasm_Code{locals = locals, body = body}
+}
+
+emit_map_contains_body :: proc(compare_type_idx: int, table_idx: int) -> Wasm_Code {
+	// (cmp_fn: i32, key: i32, map: i32) -> i32
+	// Returns 1 if key found, 0 otherwise
+	// Locals: 0=cmp_fn, 1=key, 2=map, 3=current, 4=cmp_result
+	buf: [dynamic]u8
+	buf = make([dynamic]u8, 0, CODE_BUF_XL)
+
+	// current = map.root
+	emit_instruction(Wasm_Local_Get{index = 2}, &buf)
+	emit_instruction(Wasm_I32_Load{align = 2, offset = MAP_HEADER_ROOT_OFFSET}, &buf)
+	emit_instruction(Wasm_Local_Set{index = 3}, &buf)
+
+	// block $break
+	emit_instruction(Wasm_Block{block_type = .Void}, &buf)
+	// loop $walk
+	emit_instruction(Wasm_Loop{block_type = .Void}, &buf)
+
+	// if current == 0, break (not found)
+	emit_instruction(Wasm_Local_Get{index = 3}, &buf)
+	emit_instruction(Wasm_I32_Eqz{}, &buf)
+	emit_instruction(Wasm_Br_If{label = 1}, &buf)
+
+	// cmp_result = compare(key, current.key)
+	emit_instruction(Wasm_Local_Get{index = 1}, &buf)
+	emit_instruction(Wasm_Local_Get{index = 3}, &buf)
+	emit_instruction(Wasm_I32_Load{align = 2, offset = MAP_NODE_KEY_OFFSET}, &buf)
+	emit_instruction(Wasm_Local_Get{index = 0}, &buf)
+	emit_instruction(
+		Wasm_Call_Indirect{type_idx = u32(compare_type_idx), table_idx = u32(table_idx)},
+		&buf,
+	)
+	emit_instruction(Wasm_Local_Set{index = 4}, &buf)
+
+	// if cmp_result == 0: return 1
+	emit_instruction(Wasm_I32_Const{value = 0}, &buf)
+	emit_instruction(Wasm_Local_Get{index = 4}, &buf)
+	emit_instruction(Wasm_I32_Eq{}, &buf)
+	emit_instruction(Wasm_If{block_type = .Void}, &buf)
+	emit_instruction(Wasm_I32_Const{value = 1}, &buf)
+	emit_instruction(Wasm_Return{}, &buf)
+	emit_instruction(Wasm_End{}, &buf)
+
+	// if cmp_result < 0: not in list, break
+	emit_instruction(Wasm_Local_Get{index = 4}, &buf)
+	emit_instruction(Wasm_I32_Const{value = 0}, &buf)
+	emit_instruction(Wasm_I32_Lt_S{}, &buf)
+	emit_instruction(Wasm_Br_If{label = 1}, &buf)
+
+	// advance
+	emit_instruction(Wasm_Local_Get{index = 3}, &buf)
+	emit_instruction(Wasm_I32_Load{align = 2, offset = MAP_NODE_NEXT_OFFSET}, &buf)
+	emit_instruction(Wasm_Local_Set{index = 3}, &buf)
+	emit_instruction(Wasm_Br{label = 0}, &buf)
+
+	emit_instruction(Wasm_End{}, &buf) // end loop
+	emit_instruction(Wasm_End{}, &buf) // end block
+
+	// Not found: return 0
+	emit_instruction(Wasm_I32_Const{value = 0}, &buf)
+	emit_instruction(Wasm_End{}, &buf)
+
+	locals := make([]Wasm_Local_Decl, 1)
+	locals[0] = Wasm_Local_Decl {
+		count = 2,
+		type  = .I32,
+	} // locals 3-4: current, cmp_result
+	body := make([]u8, len(buf))
+	for b, i in buf {body[i] = b}
+	delete(buf)
+	return Wasm_Code{locals = locals, body = body}
+}
+
+emit_map_remove_body :: proc(compare_type_idx: int, table_idx: int) -> Wasm_Code {
+	// (cmp_fn: i32, key: i32, map: i32) -> i32
+	// Remove key from map. Returns map pointer.
+	// Locals: 0=cmp_fn, 1=key, 2=map, 3=current, 4=prev, 5=cmp_result
+	buf: [dynamic]u8
+	buf = make([dynamic]u8, 0, CODE_BUF_XXL)
+
+	// current = map.root
+	emit_instruction(Wasm_Local_Get{index = 2}, &buf)
+	emit_instruction(Wasm_I32_Load{align = 2, offset = MAP_HEADER_ROOT_OFFSET}, &buf)
+	emit_instruction(Wasm_Local_Set{index = 3}, &buf)
+
+	// prev = 0
+	emit_instruction(Wasm_I32_Const{value = 0}, &buf)
+	emit_instruction(Wasm_Local_Set{index = 4}, &buf)
+
+	// block $break
+	emit_instruction(Wasm_Block{block_type = .Void}, &buf)
+	// loop $walk
+	emit_instruction(Wasm_Loop{block_type = .Void}, &buf)
+
+	// if current == 0, break (not found)
+	emit_instruction(Wasm_Local_Get{index = 3}, &buf)
+	emit_instruction(Wasm_I32_Eqz{}, &buf)
+	emit_instruction(Wasm_Br_If{label = 1}, &buf)
+
+	// cmp_result = compare(key, current.key)
+	emit_instruction(Wasm_Local_Get{index = 1}, &buf)
+	emit_instruction(Wasm_Local_Get{index = 3}, &buf)
+	emit_instruction(Wasm_I32_Load{align = 2, offset = MAP_NODE_KEY_OFFSET}, &buf)
+	emit_instruction(Wasm_Local_Get{index = 0}, &buf)
+	emit_instruction(
+		Wasm_Call_Indirect{type_idx = u32(compare_type_idx), table_idx = u32(table_idx)},
+		&buf,
+	)
+	emit_instruction(Wasm_Local_Set{index = 5}, &buf)
+
+	// if cmp_result == 0: found, unlink
+	emit_instruction(Wasm_I32_Const{value = 0}, &buf)
+	emit_instruction(Wasm_Local_Get{index = 5}, &buf)
+	emit_instruction(Wasm_I32_Eq{}, &buf)
+	emit_instruction(Wasm_If{block_type = .Void}, &buf)
+
+	// Unlink: if prev == 0, root = current.next; else prev.next = current.next
+	emit_instruction(Wasm_Local_Get{index = 4}, &buf)
+	emit_instruction(Wasm_I32_Eqz{}, &buf)
+	emit_instruction(Wasm_If{block_type = .Void}, &buf)
+	// map.root = current.next
+	emit_instruction(Wasm_Local_Get{index = 2}, &buf)
+	emit_instruction(Wasm_Local_Get{index = 3}, &buf)
+	emit_instruction(Wasm_I32_Load{align = 2, offset = MAP_NODE_NEXT_OFFSET}, &buf)
+	emit_instruction(Wasm_I32_Store{align = 2, offset = MAP_HEADER_ROOT_OFFSET}, &buf)
+	emit_instruction(Wasm_Else{}, &buf)
+	// prev.next = current.next
+	emit_instruction(Wasm_Local_Get{index = 4}, &buf)
+	emit_instruction(Wasm_Local_Get{index = 3}, &buf)
+	emit_instruction(Wasm_I32_Load{align = 2, offset = MAP_NODE_NEXT_OFFSET}, &buf)
+	emit_instruction(Wasm_I32_Store{align = 2, offset = MAP_NODE_NEXT_OFFSET}, &buf)
+	emit_instruction(Wasm_End{}, &buf)
+
+	// map.size -= 1
+	emit_instruction(Wasm_Local_Get{index = 2}, &buf)
+	emit_instruction(Wasm_Local_Get{index = 2}, &buf)
+	emit_instruction(Wasm_I32_Load{align = 2, offset = MAP_HEADER_SIZE_FIELD_OFFSET}, &buf)
+	emit_instruction(Wasm_I32_Const{value = 1}, &buf)
+	emit_instruction(Wasm_I32_Sub{}, &buf)
+	emit_instruction(Wasm_I32_Store{align = 2, offset = MAP_HEADER_SIZE_FIELD_OFFSET}, &buf)
+
+	// return map
+	emit_instruction(Wasm_Local_Get{index = 2}, &buf)
+	emit_instruction(Wasm_Return{}, &buf)
+	emit_instruction(Wasm_End{}, &buf) // end if
+
+	// if cmp_result < 0: not in list, break
+	emit_instruction(Wasm_Local_Get{index = 5}, &buf)
+	emit_instruction(Wasm_I32_Const{value = 0}, &buf)
+	emit_instruction(Wasm_I32_Lt_S{}, &buf)
+	emit_instruction(Wasm_Br_If{label = 1}, &buf)
+
+	// advance
+	emit_instruction(Wasm_Local_Get{index = 3}, &buf)
+	emit_instruction(Wasm_Local_Set{index = 4}, &buf)
+	emit_instruction(Wasm_Local_Get{index = 4}, &buf)
+	emit_instruction(Wasm_I32_Load{align = 2, offset = MAP_NODE_NEXT_OFFSET}, &buf)
+	emit_instruction(Wasm_Local_Set{index = 3}, &buf)
+	emit_instruction(Wasm_Br{label = 0}, &buf)
+
+	emit_instruction(Wasm_End{}, &buf) // end loop
+	emit_instruction(Wasm_End{}, &buf) // end block
+
+	// Not found, return map unchanged
+	emit_instruction(Wasm_Local_Get{index = 2}, &buf)
+	emit_instruction(Wasm_End{}, &buf)
+
+	locals := make([]Wasm_Local_Decl, 1)
+	locals[0] = Wasm_Local_Decl {
+		count = 3,
+		type  = .I32,
+	} // locals 3-5: current, prev, cmp_result
+	body := make([]u8, len(buf))
+	for b, i in buf {body[i] = b}
+	delete(buf)
+	return Wasm_Code{locals = locals, body = body}
+}
+
+emit_map_size_body :: proc() -> Wasm_Code {
+	// (map: i32) -> i32
+	buf: [dynamic]u8
+	buf = make([dynamic]u8, 0, CODE_BUF_TINY)
+
+	emit_instruction(Wasm_Local_Get{index = 0}, &buf)
+	emit_instruction(Wasm_I32_Load{align = 2, offset = MAP_HEADER_SIZE_FIELD_OFFSET}, &buf)
+	emit_instruction(Wasm_End{}, &buf)
+
+	locals := make([]Wasm_Local_Decl, 0)
+	body := make([]u8, len(buf))
+	for b, i in buf {body[i] = b}
+	delete(buf)
+	return Wasm_Code{locals = locals, body = body}
+}
+
+emit_map_singleton_body :: proc(
+	alloc_func_idx: int,
+	compare_type_idx: int,
+	table_idx: int,
+) -> Wasm_Code {
+	// (cmp_fn: i32, key: i32, value: i32) -> i32
+	// Create map with one entry: allocate header + node
+	// Locals: 0=cmp_fn, 1=key, 2=value, 3=map, 4=node
+	buf: [dynamic]u8
+	buf = make([dynamic]u8, 0, CODE_BUF_XL)
+
+	// Allocate map header
+	emit_instruction(Wasm_I32_Const{value = MAP_HEADER_SIZE}, &buf)
+	emit_instruction(Wasm_Call{index = u32(alloc_func_idx)}, &buf)
+	emit_instruction(Wasm_Local_Set{index = 3}, &buf)
+
+	// Set tag
+	emit_instruction(Wasm_Local_Get{index = 3}, &buf)
+	emit_instruction(Wasm_I32_Const{value = MAP_HEADER_TAG}, &buf)
+	emit_instruction(Wasm_I32_Store8{align = 0, offset = CAMP_TAG_TAG_OFFSET}, &buf)
+
+	// Set scan_size = 2
+	emit_instruction(Wasm_Local_Get{index = 3}, &buf)
+	emit_instruction(Wasm_I32_Const{value = 2}, &buf)
+	emit_instruction(Wasm_I32_Store8{align = 0, offset = CAMP_TAG_SCAN_SIZE_OFFSET}, &buf)
+
+	// Allocate node
+	emit_instruction(Wasm_I32_Const{value = MAP_NODE_SIZE}, &buf)
+	emit_instruction(Wasm_Call{index = u32(alloc_func_idx)}, &buf)
+	emit_instruction(Wasm_Local_Set{index = 4}, &buf)
+
+	// Node: refcount = 1
+	emit_instruction(Wasm_Local_Get{index = 4}, &buf)
+	emit_instruction(Wasm_I32_Const{value = 1}, &buf)
+	emit_instruction(Wasm_I32_Store{align = 2, offset = CAMP_TAG_REFCOUNT_OFFSET}, &buf)
+
+	// Node: tag = MAP_NODE_TAG
+	emit_instruction(Wasm_Local_Get{index = 4}, &buf)
+	emit_instruction(Wasm_I32_Const{value = MAP_NODE_TAG}, &buf)
+	emit_instruction(Wasm_I32_Store8{align = 0, offset = CAMP_TAG_TAG_OFFSET}, &buf)
+
+	// Node: scan_size = 3
+	emit_instruction(Wasm_Local_Get{index = 4}, &buf)
+	emit_instruction(Wasm_I32_Const{value = 3}, &buf)
+	emit_instruction(Wasm_I32_Store8{align = 0, offset = CAMP_TAG_SCAN_SIZE_OFFSET}, &buf)
+
+	// Node: key
+	emit_instruction(Wasm_Local_Get{index = 4}, &buf)
+	emit_instruction(Wasm_Local_Get{index = 1}, &buf)
+	emit_instruction(Wasm_I32_Store{align = 2, offset = MAP_NODE_KEY_OFFSET}, &buf)
+
+	// Node: value
+	emit_instruction(Wasm_Local_Get{index = 4}, &buf)
+	emit_instruction(Wasm_Local_Get{index = 2}, &buf)
+	emit_instruction(Wasm_I32_Store{align = 2, offset = MAP_NODE_VALUE_OFFSET}, &buf)
+
+	// Node: next = 0
+	emit_instruction(Wasm_Local_Get{index = 4}, &buf)
+	emit_instruction(Wasm_I32_Const{value = 0}, &buf)
+	emit_instruction(Wasm_I32_Store{align = 2, offset = MAP_NODE_NEXT_OFFSET}, &buf)
+
+	// Map: root = node
+	emit_instruction(Wasm_Local_Get{index = 3}, &buf)
+	emit_instruction(Wasm_Local_Get{index = 4}, &buf)
+	emit_instruction(Wasm_I32_Store{align = 2, offset = MAP_HEADER_ROOT_OFFSET}, &buf)
+
+	// Map: size = 1
+	emit_instruction(Wasm_Local_Get{index = 3}, &buf)
+	emit_instruction(Wasm_I32_Const{value = 1}, &buf)
+	emit_instruction(Wasm_I32_Store{align = 2, offset = MAP_HEADER_SIZE_FIELD_OFFSET}, &buf)
+
+	// Return map
+	emit_instruction(Wasm_Local_Get{index = 3}, &buf)
+	emit_instruction(Wasm_End{}, &buf)
+
+	locals := make([]Wasm_Local_Decl, 1)
+	locals[0] = Wasm_Local_Decl {
+		count = 2,
+		type  = .I32,
+	} // locals 3-4: map, node
+	body := make([]u8, len(buf))
+	for b, i in buf {body[i] = b}
+	delete(buf)
+	return Wasm_Code{locals = locals, body = body}
+}
+
+emit_map_keys_body :: proc(
+	alloc_func_idx: int,
+	list_alloc_func_idx: int,
+	list_push_func_idx: int,
+) -> Wasm_Code {
+	// (map: i32) -> i32
+	// Returns List of keys (in reverse sorted order for MVP).
+	// Walk map linked list, push each key to a Camp List.
+	// Locals: 0=map, 1=current, 2=list
+	buf: [dynamic]u8
+	buf = make([dynamic]u8, 0, CODE_BUF_XL)
+
+	// Allocate a Camp List
+	emit_instruction(Wasm_Call{index = u32(list_alloc_func_idx)}, &buf)
+	emit_instruction(Wasm_Local_Set{index = 2}, &buf)
+
+	// current = map.root
+	emit_instruction(Wasm_Local_Get{index = 0}, &buf)
+	emit_instruction(Wasm_I32_Load{align = 2, offset = MAP_HEADER_ROOT_OFFSET}, &buf)
+	emit_instruction(Wasm_Local_Set{index = 1}, &buf)
+
+	// block $break
+	emit_instruction(Wasm_Block{block_type = .Void}, &buf)
+	// loop $walk
+	emit_instruction(Wasm_Loop{block_type = .Void}, &buf)
+
+	// if current == 0, break
+	emit_instruction(Wasm_Local_Get{index = 1}, &buf)
+	emit_instruction(Wasm_I32_Eqz{}, &buf)
+	emit_instruction(Wasm_Br_If{label = 1}, &buf)
+
+	// Push current.key onto list
+	// list_push(list, key) returns list
+	emit_instruction(Wasm_Local_Get{index = 2}, &buf)
+	emit_instruction(Wasm_Local_Get{index = 1}, &buf)
+	emit_instruction(Wasm_I32_Load{align = 2, offset = MAP_NODE_KEY_OFFSET}, &buf)
+	emit_instruction(Wasm_Call{index = u32(list_push_func_idx)}, &buf)
+	emit_instruction(Wasm_Local_Set{index = 2}, &buf)
+
+	// current = current.next
+	emit_instruction(Wasm_Local_Get{index = 1}, &buf)
+	emit_instruction(Wasm_I32_Load{align = 2, offset = MAP_NODE_NEXT_OFFSET}, &buf)
+	emit_instruction(Wasm_Local_Set{index = 1}, &buf)
+	emit_instruction(Wasm_Br{label = 0}, &buf)
+
+	emit_instruction(Wasm_End{}, &buf) // end loop
+	emit_instruction(Wasm_End{}, &buf) // end block
+
+	// Return list
+	emit_instruction(Wasm_Local_Get{index = 2}, &buf)
+	emit_instruction(Wasm_End{}, &buf)
+
+	locals := make([]Wasm_Local_Decl, 1)
+	locals[0] = Wasm_Local_Decl {
+		count = 2,
+		type  = .I32,
+	} // locals 1-2: current, list
+	body := make([]u8, len(buf))
+	for b, i in buf {body[i] = b}
+	delete(buf)
+	return Wasm_Code{locals = locals, body = body}
+}
+
+emit_map_values_body :: proc(
+	alloc_func_idx: int,
+	list_alloc_func_idx: int,
+	list_push_func_idx: int,
+) -> Wasm_Code {
+	// (map: i32) -> i32
+	// Returns List of values (in reverse sorted-by-key order for MVP).
+	// Locals: 0=map, 1=current, 2=list
+	buf: [dynamic]u8
+	buf = make([dynamic]u8, 0, CODE_BUF_XL)
+
+	// Allocate a Camp List
+	emit_instruction(Wasm_Call{index = u32(list_alloc_func_idx)}, &buf)
+	emit_instruction(Wasm_Local_Set{index = 2}, &buf)
+
+	// current = map.root
+	emit_instruction(Wasm_Local_Get{index = 0}, &buf)
+	emit_instruction(Wasm_I32_Load{align = 2, offset = MAP_HEADER_ROOT_OFFSET}, &buf)
+	emit_instruction(Wasm_Local_Set{index = 1}, &buf)
+
+	// block $break
+	emit_instruction(Wasm_Block{block_type = .Void}, &buf)
+	// loop $walk
+	emit_instruction(Wasm_Loop{block_type = .Void}, &buf)
+
+	// if current == 0, break
+	emit_instruction(Wasm_Local_Get{index = 1}, &buf)
+	emit_instruction(Wasm_I32_Eqz{}, &buf)
+	emit_instruction(Wasm_Br_If{label = 1}, &buf)
+
+	// Push current.value onto list
+	emit_instruction(Wasm_Local_Get{index = 2}, &buf)
+	emit_instruction(Wasm_Local_Get{index = 1}, &buf)
+	emit_instruction(Wasm_I32_Load{align = 2, offset = MAP_NODE_VALUE_OFFSET}, &buf)
+	emit_instruction(Wasm_Call{index = u32(list_push_func_idx)}, &buf)
+	emit_instruction(Wasm_Local_Set{index = 2}, &buf)
+
+	// current = current.next
+	emit_instruction(Wasm_Local_Get{index = 1}, &buf)
+	emit_instruction(Wasm_I32_Load{align = 2, offset = MAP_NODE_NEXT_OFFSET}, &buf)
+	emit_instruction(Wasm_Local_Set{index = 1}, &buf)
+	emit_instruction(Wasm_Br{label = 0}, &buf)
+
+	emit_instruction(Wasm_End{}, &buf) // end loop
+	emit_instruction(Wasm_End{}, &buf) // end block
+
+	// Return list
+	emit_instruction(Wasm_Local_Get{index = 2}, &buf)
+	emit_instruction(Wasm_End{}, &buf)
+
+	locals := make([]Wasm_Local_Decl, 1)
+	locals[0] = Wasm_Local_Decl {
+		count = 2,
+		type  = .I32,
+	} // locals 1-2: current, list
+	body := make([]u8, len(buf))
+	for b, i in buf {body[i] = b}
+	delete(buf)
+	return Wasm_Code{locals = locals, body = body}
+}
+
+emit_map_min_body :: proc(alloc_func_idx: int) -> Wasm_Code {
+	// (map: i32) -> i32
+	// Returns Result((key, value), EmptyMap). Min = first node.
+	// Result layout: tag 0=Ok with 2 fields (key, value), tag 1=Err with 0 fields
+	// Locals: 0=map, 1=root, 2=result
+	buf: [dynamic]u8
+	buf = make([dynamic]u8, 0, CODE_BUF_XL)
+
+	// root = map.root
+	emit_instruction(Wasm_Local_Get{index = 0}, &buf)
+	emit_instruction(Wasm_I32_Load{align = 2, offset = MAP_HEADER_ROOT_OFFSET}, &buf)
+	emit_instruction(Wasm_Local_Set{index = 1}, &buf)
+
+	emit_instruction(Wasm_Local_Get{index = 1}, &buf)
+	// if root == 0, return Err
+	emit_instruction(Wasm_I32_Eqz{}, &buf)
+	emit_instruction(Wasm_If{block_type = .I32}, &buf)
+
+	// Err: allocate result with header only
+	emit_instruction(Wasm_I32_Const{value = 8}, &buf)
+	emit_instruction(Wasm_Call{index = u32(alloc_func_idx)}, &buf)
+	emit_instruction(Wasm_Local_Set{index = 2}, &buf)
+	emit_instruction(Wasm_Local_Get{index = 2}, &buf)
+	emit_instruction(Wasm_I32_Const{value = 1}, &buf)
+	emit_instruction(Wasm_I32_Store{align = 2, offset = CAMP_TAG_REFCOUNT_OFFSET}, &buf)
+	emit_instruction(Wasm_Local_Get{index = 2}, &buf)
+	emit_instruction(Wasm_I32_Const{value = 1}, &buf)
+	emit_instruction(Wasm_I32_Store8{align = 0, offset = CAMP_TAG_TAG_OFFSET}, &buf)
+	emit_instruction(Wasm_Local_Get{index = 2}, &buf)
+	emit_instruction(Wasm_I32_Const{value = 0}, &buf)
+	emit_instruction(Wasm_I32_Store8{align = 0, offset = CAMP_TAG_SCAN_SIZE_OFFSET}, &buf)
+	emit_instruction(Wasm_Local_Get{index = 2}, &buf)
+	emit_instruction(Wasm_Return{}, &buf)
+
+	emit_instruction(Wasm_Else{}, &buf)
+
+	// Ok: allocate result with header + 2 fields = 24
+	emit_instruction(Wasm_I32_Const{value = 24}, &buf)
+	emit_instruction(Wasm_Call{index = u32(alloc_func_idx)}, &buf)
+	emit_instruction(Wasm_Local_Set{index = 2}, &buf)
+	emit_instruction(Wasm_Local_Get{index = 2}, &buf)
+	emit_instruction(Wasm_I32_Const{value = 1}, &buf)
+	emit_instruction(Wasm_I32_Store{align = 2, offset = CAMP_TAG_REFCOUNT_OFFSET}, &buf)
+	emit_instruction(Wasm_Local_Get{index = 2}, &buf)
+	emit_instruction(Wasm_I32_Const{value = 0}, &buf)
+	emit_instruction(Wasm_I32_Store8{align = 0, offset = CAMP_TAG_TAG_OFFSET}, &buf)
+	emit_instruction(Wasm_Local_Get{index = 2}, &buf)
+	emit_instruction(Wasm_I32_Const{value = 2}, &buf)
+	emit_instruction(Wasm_I32_Store8{align = 0, offset = CAMP_TAG_SCAN_SIZE_OFFSET}, &buf)
+
+	// field[0] = root.key
+	emit_instruction(Wasm_Local_Get{index = 2}, &buf)
+	emit_instruction(Wasm_Local_Get{index = 1}, &buf)
+	emit_instruction(Wasm_I32_Load{align = 2, offset = MAP_NODE_KEY_OFFSET}, &buf)
+	emit_instruction(Wasm_I32_Store{align = 2, offset = CAMP_TAG_FIELDS_OFFSET}, &buf)
+
+	// field[1] = root.value
+	emit_instruction(Wasm_Local_Get{index = 2}, &buf)
+	emit_instruction(Wasm_Local_Get{index = 1}, &buf)
+	emit_instruction(Wasm_I32_Load{align = 2, offset = MAP_NODE_VALUE_OFFSET}, &buf)
+	emit_instruction(Wasm_I32_Store{align = 2, offset = CAMP_TAG_FIELDS_OFFSET + 8}, &buf)
+
+	emit_instruction(Wasm_Local_Get{index = 2}, &buf)
+	emit_instruction(Wasm_End{}, &buf) // end if/else
+	emit_instruction(Wasm_End{}, &buf) // end function
+
+	locals := make([]Wasm_Local_Decl, 1)
+	locals[0] = Wasm_Local_Decl {
+		count = 2,
+		type  = .I32,
+	} // locals 1-2: root, result
+	body := make([]u8, len(buf))
+	for b, i in buf {body[i] = b}
+	delete(buf)
+	return Wasm_Code{locals = locals, body = body}
+}
+
+emit_map_max_body :: proc(alloc_func_idx: int) -> Wasm_Code {
+	// (map: i32) -> i32
+	// Returns Result((key, value), EmptyMap). Max = last node.
+	// Walk to last node, then same Result construction as min.
+	// Locals: 0=map, 1=current, 2=result
+	buf: [dynamic]u8
+	buf = make([dynamic]u8, 0, CODE_BUF_XL)
+
+	// current = map.root
+	emit_instruction(Wasm_Local_Get{index = 0}, &buf)
+	emit_instruction(Wasm_I32_Load{align = 2, offset = MAP_HEADER_ROOT_OFFSET}, &buf)
+	emit_instruction(Wasm_Local_Set{index = 1}, &buf)
+
+	// if current == 0, return Err
+	emit_instruction(Wasm_Local_Get{index = 1}, &buf)
+	emit_instruction(Wasm_I32_Eqz{}, &buf)
+	emit_instruction(Wasm_If{block_type = .I32}, &buf)
+
+	// Err
+	emit_instruction(Wasm_I32_Const{value = 8}, &buf)
+	emit_instruction(Wasm_Call{index = u32(alloc_func_idx)}, &buf)
+	emit_instruction(Wasm_Local_Set{index = 2}, &buf)
+	emit_instruction(Wasm_Local_Get{index = 2}, &buf)
+	emit_instruction(Wasm_I32_Const{value = 1}, &buf)
+	emit_instruction(Wasm_I32_Store{align = 2, offset = CAMP_TAG_REFCOUNT_OFFSET}, &buf)
+	emit_instruction(Wasm_Local_Get{index = 2}, &buf)
+	emit_instruction(Wasm_I32_Const{value = 1}, &buf)
+	emit_instruction(Wasm_I32_Store8{align = 0, offset = CAMP_TAG_TAG_OFFSET}, &buf)
+	emit_instruction(Wasm_Local_Get{index = 2}, &buf)
+	emit_instruction(Wasm_I32_Const{value = 0}, &buf)
+	emit_instruction(Wasm_I32_Store8{align = 0, offset = CAMP_TAG_SCAN_SIZE_OFFSET}, &buf)
+	emit_instruction(Wasm_Local_Get{index = 2}, &buf)
+	emit_instruction(Wasm_Return{}, &buf)
+
+	emit_instruction(Wasm_Else{}, &buf)
+
+	// Walk to last node: while current.next != 0, advance
+	emit_instruction(Wasm_Block{block_type = .Void}, &buf)
+	emit_instruction(Wasm_Loop{block_type = .Void}, &buf)
+
+	// if current.next == 0, break
+	emit_instruction(Wasm_Local_Get{index = 1}, &buf)
+	emit_instruction(Wasm_I32_Load{align = 2, offset = MAP_NODE_NEXT_OFFSET}, &buf)
+	emit_instruction(Wasm_I32_Eqz{}, &buf)
+	emit_instruction(Wasm_Br_If{label = 1}, &buf)
+
+	// current = current.next
+	emit_instruction(Wasm_Local_Get{index = 1}, &buf)
+	emit_instruction(Wasm_I32_Load{align = 2, offset = MAP_NODE_NEXT_OFFSET}, &buf)
+	emit_instruction(Wasm_Local_Set{index = 1}, &buf)
+	emit_instruction(Wasm_Br{label = 0}, &buf)
+
+	emit_instruction(Wasm_End{}, &buf) // end loop
+	emit_instruction(Wasm_End{}, &buf) // end block
+
+	// Ok: current is last node
+	emit_instruction(Wasm_I32_Const{value = 24}, &buf)
+	emit_instruction(Wasm_Call{index = u32(alloc_func_idx)}, &buf)
+	emit_instruction(Wasm_Local_Set{index = 2}, &buf)
+	emit_instruction(Wasm_Local_Get{index = 2}, &buf)
+	emit_instruction(Wasm_I32_Const{value = 1}, &buf)
+	emit_instruction(Wasm_I32_Store{align = 2, offset = CAMP_TAG_REFCOUNT_OFFSET}, &buf)
+	emit_instruction(Wasm_Local_Get{index = 2}, &buf)
+	emit_instruction(Wasm_I32_Const{value = 0}, &buf)
+	emit_instruction(Wasm_I32_Store8{align = 0, offset = CAMP_TAG_TAG_OFFSET}, &buf)
+	emit_instruction(Wasm_Local_Get{index = 2}, &buf)
+	emit_instruction(Wasm_I32_Const{value = 2}, &buf)
+	emit_instruction(Wasm_I32_Store8{align = 0, offset = CAMP_TAG_SCAN_SIZE_OFFSET}, &buf)
+
+	// field[0] = current.key
+	emit_instruction(Wasm_Local_Get{index = 2}, &buf)
+	emit_instruction(Wasm_Local_Get{index = 1}, &buf)
+	emit_instruction(Wasm_I32_Load{align = 2, offset = MAP_NODE_KEY_OFFSET}, &buf)
+	emit_instruction(Wasm_I32_Store{align = 2, offset = CAMP_TAG_FIELDS_OFFSET}, &buf)
+
+	// field[1] = current.value
+	emit_instruction(Wasm_Local_Get{index = 2}, &buf)
+	emit_instruction(Wasm_Local_Get{index = 1}, &buf)
+	emit_instruction(Wasm_I32_Load{align = 2, offset = MAP_NODE_VALUE_OFFSET}, &buf)
+	emit_instruction(Wasm_I32_Store{align = 2, offset = CAMP_TAG_FIELDS_OFFSET + 8}, &buf)
+
+	emit_instruction(Wasm_Local_Get{index = 2}, &buf)
+	emit_instruction(Wasm_End{}, &buf) // end if/else
+	emit_instruction(Wasm_End{}, &buf) // end function
+
+	locals := make([]Wasm_Local_Decl, 1)
+	locals[0] = Wasm_Local_Decl {
+		count = 2,
+		type  = .I32,
+	} // locals 1-2: current, result
+	body := make([]u8, len(buf))
+	for b, i in buf {body[i] = b}
+	delete(buf)
+	return Wasm_Code{locals = locals, body = body}
+}
+
