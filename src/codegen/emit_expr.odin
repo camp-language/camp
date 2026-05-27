@@ -232,6 +232,8 @@ Runtime_Func :: enum {
 	Map_Values,
 	Map_Min,
 	Map_Max,
+	Set_Min,
+	Set_Max,
 }
 
 RUNTIME_FUNC_COUNT :: int(len(Runtime_Func))
@@ -691,6 +693,22 @@ emit_expr :: proc(expr: ir.IR_Expr, buf: ^[dynamic]u8, env: ^Codegen_Env, runtim
 						buf,
 					)
 					emit_instruction(Wasm_I64_Extend_I32_S{}, buf)
+					break
+				}
+				if name_str == "min" && len(e.args) == 1 {
+					emit_expr(e.args[0], buf, env, runtime_indices)
+					emit_instruction(
+						Wasm_Call{index = u32(runtime_indices[Runtime_Func.Set_Min])},
+						buf,
+					)
+					break
+				}
+				if name_str == "max" && len(e.args) == 1 {
+					emit_expr(e.args[0], buf, env, runtime_indices)
+					emit_instruction(
+						Wasm_Call{index = u32(runtime_indices[Runtime_Func.Set_Max])},
+						buf,
+					)
 					break
 				}
 			}

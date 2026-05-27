@@ -636,6 +636,10 @@ codegen :: proc(
 	runtime_func_indices[Runtime_Func.Map_Min] = map_min_func_idx
 	map_max_func_idx := add_function(&env, map_max_type_idx)
 	runtime_func_indices[Runtime_Func.Map_Max] = map_max_func_idx
+	set_min_func_idx := add_function(&env, map_min_type_idx)
+	runtime_func_indices[Runtime_Func.Set_Min] = set_min_func_idx
+	set_max_func_idx := add_function(&env, map_min_type_idx)
+	runtime_func_indices[Runtime_Func.Set_Max] = set_max_func_idx
 
 	camp_alloc_code := emit_camp_alloc_body(heap_ptr_global_idx)
 	append(&mod.codes, camp_alloc_code)
@@ -745,6 +749,8 @@ codegen :: proc(
 	)
 	append(&mod.codes, emit_map_min_body(alloc_func_idx))
 	append(&mod.codes, emit_map_max_body(alloc_func_idx))
+	append(&mod.codes, emit_set_min_body(alloc_func_idx))
+	append(&mod.codes, emit_set_max_body(alloc_func_idx))
 
 	camp_alloc_name := base.intern(interner, "camp_alloc")
 	env.func_map[u64(camp_alloc_name)] = alloc_func_idx
