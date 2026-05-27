@@ -191,18 +191,6 @@ typecheck_file :: proc(
 		store.bindings[name_id] = var_id
 	}
 
-	for decl in file.decls {
-		#partial switch d in decl {
-		case ^CDecl_Newtype:
-		case ^CDecl_Const,
-		     ^CDecl_Effect,
-		     ^CDecl_Trait,
-		     ^CDecl_Alias,
-		     ^CDecl_Import,
-		     ^CDecl_Test,
-		     ^CDecl_Expect:
-		}
-	}
 
 	return TFile{path = file.path, decls = tdecls, imports = imports, span = file.span}
 }
@@ -402,6 +390,22 @@ typecheck_synth :: proc(expr: CExpr, env: ^Type_Env, store: ^Type_Store) -> Synt
 			p_result := typecheck_synth(p, env, store)
 			unify(store, eff, p_result.effects)
 			payload[i] = p_result.texpr
+		}
+		resolved_var, found := env_lookup(env, e.type_name.name)
+		if !found {
+			if var, ok := store.bindings[e.type_name.name]; ok {
+				resolved_var = var
+				found = true
+			}
+		}
+		if found {
+			unify(store, type_var, resolved_var)
+		} else {
+			type_str := base.intern_get(store.interner, e.type_name.name)
+			diagnostics.collector_add_diag(
+				store.collector,
+			diagnostics.diag_undefined_type(type_str, {"newtype"}, e.span),
+			)
 		}
 		t := new(TExpr_Nominal_Construct)
 		t^ = TExpr_Nominal_Construct {
@@ -757,10 +761,47 @@ typecheck_synth :: proc(expr: CExpr, env: ^Type_Env, store: ^Type_Store) -> Synt
 	case ^CExpr_Perform:
 		var_id, effects := fresh_with_effects(store, e.span)
 		args_t := make([dynamic]TExpr, len(e.args))
-		for arg, i in e.args {
-			arg_result := typecheck_synth(arg, env, store)
-			_ = arg_result
-			args_t[i] = arg_result.texpr
+		effect_key := canonical_effect_name(store, e.effect.name)
+		op_sigs, has_sigs := store.effect_ops[effect_key]
+		found_sig: Effect_Op_Sig
+		sig_found := false
+		if has_sigs {
+			for sig in op_sigs {
+				if sig.name == e.op {
+					found_sig = sig
+					sig_found = true
+					break
+				}
+			}
+		}
+		if sig_found {
+			if len(e.args) != len(found_sig.param_types) {
+				diagnostics.collector_add_diag(
+					store.collector,
+					diagnostics.diag_arity_mismatch(
+						len(found_sig.param_types),
+						len(e.args),
+						e.span,
+						e.span,
+					),
+				)
+			}
+			for arg, i in e.args {
+				arg_result := typecheck_synth(arg, env, store)
+				unify(store, effects, arg_result.effects)
+				if i < len(found_sig.param_types) {
+					unify(store, arg_result.var_id, found_sig.param_types[i])
+				}
+				args_t[i] = arg_result.texpr
+			}
+			inst_return := instantiate(store, found_sig.return_type)
+			unify(store, var_id, inst_return)
+		} else {
+			for arg, i in e.args {
+				arg_result := typecheck_synth(arg, env, store)
+				unify(store, effects, arg_result.effects)
+				args_t[i] = arg_result.texpr
+			}
 		}
 		t := new(TExpr_Perform)
 		type_ir, eff_ir := type_eff_pair(store, var_id, effects)
@@ -882,6 +923,7 @@ typecheck_synth :: proc(expr: CExpr, env: ^Type_Env, store: ^Type_Store) -> Synt
 		}
 		return Synth_Result{var_id = unit_var, effects = eff, texpr = TExpr(tfor)}
 	}
+	diagnostics.collector_add_diag(store.collector, diagnostics.diag_internal("unhandled CExpr variant in typecheck_synth", base.Source_Span_ZERO))
 	var_id, eff := fresh_with_effects(store, base.Source_Span_ZERO)
 	t := new(TExpr_Int)
 	type_ir, eff_ir := type_eff_pair(store, var_id, eff)
@@ -1546,7 +1588,6 @@ check_effect_safety :: proc(tfile: TFile, store: ^Type_Store) {
 					store.collector,
 					diagnostics.diag_unhandled_effect_entry(effect_str, effects_str, td.span),
 				)
-				return // One error is enough
 			}
 		}
 

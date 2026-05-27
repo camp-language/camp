@@ -291,6 +291,7 @@ canonicalize_decl :: proc(
 		}
 		return cdecl
 	}
+	diagnostics.collector_add_diag(collector, diagnostics.diag_internal("unhandled Decl variant in canonicalize_decl", base.Source_Span_ZERO))
 	cdecl := new(CDecl_Const)
 	cdecl^ = CDecl_Const {
 		span = base.Source_Span_ZERO,
@@ -1133,6 +1134,7 @@ canonicalize_expr :: proc(
 		}
 		return cl
 	}
+	diagnostics.collector_add_diag(collector, diagnostics.diag_internal("unhandled Expr variant in canonicalize_expr", base.Source_Span_ZERO))
 	c := new(CExpr_Int)
 	c^ = CExpr_Int {
 		span = base.Source_Span_ZERO,
@@ -1280,6 +1282,7 @@ canonicalize_pattern :: proc(
 		}
 		return c
 	}
+	diagnostics.collector_add_diag(collector, diagnostics.diag_internal("unhandled Pattern variant in canonicalize_pattern", base.Source_Span_ZERO))
 	c := new(CPattern_Wildcard)
 	c^ = CPattern_Wildcard {
 		span = base.Source_Span_ZERO,
@@ -1502,7 +1505,14 @@ generate_derive_stubs :: proc(
 					make_derive_method_decl(d, "eq", 2, false, scope, interner, collector),
 				)
 			}
-		case: // unknown derive target — skip
+	case:
+		diagnostics.collector_add_diag(
+			collector,
+			diagnostics.diag_internal(
+				fmt.tprintf("unrecognized derive: `{}`", derive_name_str),
+				d.span,
+			),
+		)
 		}
 	}
 

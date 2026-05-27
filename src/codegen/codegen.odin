@@ -767,6 +767,7 @@ codegen :: proc(
 		init_buf: [dynamic]u8
 		init_buf = make([dynamic]u8, 0, 8)
 		valtype: Wasm_Value_Type = .I32
+		is_mutable: bool = false
 
 		#partial switch v in c.value {
 		case ^ir.IR_Literal_Int:
@@ -784,14 +785,17 @@ codegen :: proc(
 			emit_instruction(Wasm_F64_Const{value = v.value}, &init_buf)
 			valtype = .F64
 		case:
-			delete(init_buf)
-			continue
+			// Non-literal const: emit as mutable global with zero initializer
+			// Actual value will be computed at _start time (future work)
+			emit_instruction(Wasm_I64_Const{value = 0}, &init_buf)
+			valtype = .I64
+			is_mutable = true
 		}
 
 		gidx := u32(len(mod.globals))
 		append(
 			&mod.globals,
-			Wasm_Global{type = valtype, mutable = false, init = copy_dynamic_bytes(init_buf)},
+			Wasm_Global{type = valtype, mutable = is_mutable, init = copy_dynamic_bytes(init_buf)},
 		)
 		delete(init_buf)
 

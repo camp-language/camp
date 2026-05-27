@@ -255,6 +255,7 @@ typecheck_pattern :: proc(
 		}
 		return Pat_Result{var_id = scrutinee_var, effects = eff, tpat = TPattern(tp)}
 	}
+	diagnostics.collector_add_diag(store.collector, diagnostics.diag_internal("unhandled CPattern variant in typecheck_pattern", base.Source_Span_ZERO))
 
 	tp := new(TPattern_Wildcard)
 	tp^ = TPattern_Wildcard {
@@ -302,7 +303,21 @@ collect_pattern_coverage :: proc(pattern: CPattern, cov: ^Match_Coverage) {
 		for alt in p.alternatives {
 			collect_pattern_coverage(alt, cov)
 		}
-	case ^CPattern_Record, ^CPattern_List, ^CPattern_Destructure, ^CPattern_Tuple:
+	case ^CPattern_Record:
+		if !p.is_open {
+			cov.saturated = true
+		}
+	case ^CPattern_List:
+		for el in p.elements {
+			collect_pattern_coverage(el, cov)
+		}
+	case ^CPattern_Destructure:
+		collect_pattern_coverage(p.inner, cov)
+	case ^CPattern_Tuple:
+		cov.saturated = true
+		for el in p.elements {
+			collect_pattern_coverage(el, cov)
+		}
 	}
 }
 
