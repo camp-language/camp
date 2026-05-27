@@ -123,7 +123,14 @@ run_build_single :: proc(file_path: string, thread_count: int = 1) -> Build_Resu
 	ctx.type_store = &store
 	ir_mod := ir.lower_tfile(mono_tfile, &store)
 	ir_mod = ir.effect_lower(&ir_mod, &ctx.interner, &ctx.collector, &store)
-	ir_mod = ir.closure_convert(&ir_mod, &ctx.interner)
+	errors_before_cc := ctx.collector.error_count
+	ir_mod = ir.closure_convert(&ir_mod, &ctx.interner, &ctx.collector)
+
+	if ctx.collector.error_count > errors_before_cc {
+		diagnostics.render_all(&ctx.collector, file_path, source)
+		return Build_Error{message = "closure conversion errors", code = 1}
+	}
+
 	ir_mod = ir.cps_transform(&ir_mod, &ctx.interner)
 	ir.rc_insert(&ir_mod, &ctx.interner)
 	ir.reuse_analyze(&ir_mod)
@@ -623,7 +630,13 @@ compile_test_canon :: proc(
 	ir_mod := ir.lower_tfile(mono_tfile, &store)
 
 	ir_mod = ir.effect_lower(&ir_mod, interner, &collector, &store)
-	ir_mod = ir.closure_convert(&ir_mod, interner)
+	errors_before_cc := collector.error_count
+	ir_mod = ir.closure_convert(&ir_mod, interner, &collector)
+
+	if collector.error_count > errors_before_cc {
+		return false
+	}
+
 	ir_mod = ir.cps_transform(&ir_mod, interner)
 	ir.rc_insert(&ir_mod, interner)
 	ir.reuse_analyze(&ir_mod)

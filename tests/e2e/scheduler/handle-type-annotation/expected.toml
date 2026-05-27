@@ -7,7 +7,22 @@ canonicalized /tmp/camp-e2e/scheduler/handle-type-annotation/src/Main.camp: 1 de
                                ^^^^^^
    3 |     $h: Handle = Spawn!.spawn!(|| -> I64 { 42 })
                ~~~~~~ this has type `Handle`
-compilation failed with 1 error(s)
+
+-- C0200: UNDEFINED NAME --- /tmp/camp-e2e/scheduler/handle-type-annotation/src/Main.camp
+
+I cannot find `h`.
+   4 |     Spawn!.join!(h)
+                        ^
+  Did you mean `$h`?
+
+-- C0905: UNJOINED SPAWN --- /tmp/camp-e2e/scheduler/handle-type-annotation/src/Main.camp
+
+This spawned handle is not joined on all exit paths. Unjoined handles are
+cancelled when the handler exits, which may silently discard results.
+   3 |     $h: Handle = Spawn!.spawn!(|| -> I64 { 42 })
+                               ^^^^^^
+  Use `join!` to await the result, or explicitly `cancel!` to discard it.
+compilation failed with 2 error(s)
 """
 stderr = ""
 exit = 1

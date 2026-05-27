@@ -14,7 +14,7 @@ I cannot find `matches`.
 
 -- C0201: SHADOWING --- /tmp/camp-e2e/unused-analysis/var-loop-pure-unused/src/Main.camp
 
-`count` shadows a binding from an enclosing scope. All shadowing is forbidden.
+`$count` shadows a binding from an enclosing scope. All shadowing is forbidden.
    5 |       $count = $count + 1
              ^
   Use a different name for this binding.

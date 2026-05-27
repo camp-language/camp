@@ -3,6 +3,7 @@ package frontend
 
 import "camp:base"
 import "camp:diagnostics"
+import "core:fmt"
 import "core:strings"
 
 Binding_Power :: int
@@ -653,9 +654,10 @@ parser_parse_prefix :: proc(p: ^Parser) -> Expr {
 	case .Dollar:
 		parser_advance(p)
 		name := parser_expect(p, .Identifier)
+		dollar_name := fmt.tprintf("${}", name.text)
 		e := new(Expr_Dollar_Identifier)
 		e^ = Expr_Dollar_Identifier {
-			name = base.intern(p.intern, name.text),
+			name = base.intern(p.intern, dollar_name),
 			span = tok.span,
 		}
 		return e
@@ -1463,7 +1465,7 @@ parser_parse_expr_or_decl :: proc(p: ^Parser) -> Expr {
 		start := p.current.span
 		parser_advance(p)
 		name_tok := parser_expect(p, .Identifier)
-		name_id := base.intern(p.intern, name_tok.text)
+		name_id := base.intern(p.intern, fmt.tprintf("${}", name_tok.text))
 
 		// $name = value (declaration/assignment) vs $name (expression)
 		if p.current.kind == .Eq || p.current.kind == .Colon {
