@@ -290,7 +290,7 @@ The number of threads SHALL be configurable via `--threads=N` CLI flag (highest 
 
 ### Requirement: No Shared Mutable State Enforced
 
-The typechecker SHALL enforce that functions passed to `Parallel!` operations cannot capture `$`-prefixed mutable bindings from enclosing scopes. This SHALL fall out from Camp's existing stack-local mutation rules — no new enforcement needed.
+The typechecker SHALL enforce that functions passed to `Parallel!` operations cannot capture `$`-prefixed mutable bindings from enclosing scopes. This is enforced during closure conversion — any closure that captures a `$`-prefixed variable produces error C1002 (MUTABLE CAPTURE).
 
 #### Scenario: Mutable capture across parallel boundary
 

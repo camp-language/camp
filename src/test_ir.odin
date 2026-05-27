@@ -1012,7 +1012,7 @@ test_closure_convert_closure :: proc(t: ^testing.T) {
 	mod, store := lower_source(&ctx, "f = |x| |y| x")
 	defer teardown_lower(&ctx, &store)
 
-	result := ir.closure_convert(&mod, &ctx.interner)
+	result := ir.closure_convert(&mod, &ctx.interner, &ctx.collector)
 
 	found_record := false
 	for decl in result.decls {
@@ -1034,7 +1034,7 @@ test_closure_convert_creates_closed_fn :: proc(t: ^testing.T) {
 	defer teardown_lower(&ctx, &store)
 
 	original_count := len(mod.decls)
-	result := ir.closure_convert(&mod, &ctx.interner)
+	result := ir.closure_convert(&mod, &ctx.interner, &ctx.collector)
 
 	testing.expect(t, len(result.decls) > original_count)
 }
@@ -1178,7 +1178,7 @@ test_closure_capture_free_var :: proc(t: ^testing.T) {
 	mod, store := lower_source(&ctx, "f = |x| |y| x")
 	defer teardown_lower(&ctx, &store)
 
-	result := ir.closure_convert(&mod, &ctx.interner)
+	result := ir.closure_convert(&mod, &ctx.interner, &ctx.collector)
 
 	has_env_access := false
 	for decl in result.decls {
@@ -1199,7 +1199,7 @@ test_closure_closed_fn_has_params :: proc(t: ^testing.T) {
 	mod, store := lower_source(&ctx, "f = |x| |y| x")
 	defer teardown_lower(&ctx, &store)
 
-	result := ir.closure_convert(&mod, &ctx.interner)
+	result := ir.closure_convert(&mod, &ctx.interner, &ctx.collector)
 
 	found := false
 	for decl in result.decls {
@@ -1461,7 +1461,7 @@ closure_convert_source :: proc(
 ) {
 	mod, store := lower_source(ctx, source)
 	mod = ir.effect_lower(&mod, &ctx.interner, &ctx.collector, &store)
-	result := ir.closure_convert(&mod, &ctx.interner)
+	result := ir.closure_convert(&mod, &ctx.interner, &ctx.collector)
 	return result, store
 }
 
@@ -1474,7 +1474,7 @@ cps_source :: proc(
 ) {
 	mod, store := lower_source(ctx, source)
 	mod = ir.effect_lower(&mod, &ctx.interner, &ctx.collector, &store)
-	mod = ir.closure_convert(&mod, &ctx.interner)
+	mod = ir.closure_convert(&mod, &ctx.interner, &ctx.collector)
 	result := ir.cps_transform(&mod, &ctx.interner)
 	return result, store
 }
@@ -1598,7 +1598,7 @@ test_closure_convert_no_free_vars :: proc(t: ^testing.T) {
 	mod, store := lower_source(&ctx, "f = |x| x + 1")
 	defer teardown_lower(&ctx, &store)
 
-	result := ir.closure_convert(&mod, &ctx.interner)
+	result := ir.closure_convert(&mod, &ctx.interner, &ctx.collector)
 
 	found_cenv := false
 	for decl in result.decls {
@@ -1620,7 +1620,7 @@ test_closure_convert_multi_free_var :: proc(t: ^testing.T) {
 	mod, store := lower_source(&ctx, "f = |x| |y| |z| x + y + z")
 	defer teardown_lower(&ctx, &store)
 
-	result := ir.closure_convert(&mod, &ctx.interner)
+	result := ir.closure_convert(&mod, &ctx.interner, &ctx.collector)
 
 	field_access_count := 0
 	for decl in result.decls {
@@ -1641,7 +1641,7 @@ test_closure_convert_produces_record :: proc(t: ^testing.T) {
 	mod, store := lower_source(&ctx, "f = |x| |y| x")
 	defer teardown_lower(&ctx, &store)
 
-	result := ir.closure_convert(&mod, &ctx.interner)
+	result := ir.closure_convert(&mod, &ctx.interner, &ctx.collector)
 
 	found_record := false
 	for decl in result.decls {
@@ -1662,7 +1662,7 @@ test_closure_convert_env_param_name :: proc(t: ^testing.T) {
 	mod, store := lower_source(&ctx, "f = |x| |y| x")
 	defer teardown_lower(&ctx, &store)
 
-	result := ir.closure_convert(&mod, &ctx.interner)
+	result := ir.closure_convert(&mod, &ctx.interner, &ctx.collector)
 
 	found := false
 	for decl in result.decls {

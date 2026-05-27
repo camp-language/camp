@@ -8,7 +8,7 @@ I cannot find `items`.
 
 -- C0201: SHADOWING --- /tmp/camp-e2e/unused-analysis/var-loop-exempt/src/Main.camp
 
-`count` shadows a binding from an enclosing scope. All shadowing is forbidden.
+`$count` shadows a binding from an enclosing scope. All shadowing is forbidden.
    4 |     $count = $count + 1
            ^
   Use a different name for this binding.
