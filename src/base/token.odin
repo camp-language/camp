@@ -65,6 +65,7 @@ Token_Kind :: enum {
 	RBrack,
 	LBrace,
 	RBrace,
+	Hidden_Line,
 	Doc_Comment,
 	Newline,
 	Eof,

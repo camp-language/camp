@@ -43,6 +43,7 @@ canonicalize :: proc(
 
 	cfile: CFile
 	cfile.path = surface.path
+	cfile.module_doc = surface.module_doc
 	cfile.decls = make([dynamic]CDecl, 0, len(surface.decls))
 	cfile.imports = make([dynamic]base.Deferred_Import, 0, 8)
 
@@ -134,6 +135,7 @@ canonicalize_decl :: proc(
 			body           = cbody,
 			derive_targets = make([dynamic]base.Intern_ID, 0, 4),
 			where_clauses  = where_clauses,
+			doc_comment    = d.doc_comment,
 			span           = d.span,
 		}
 		return cdecl
@@ -165,6 +167,7 @@ canonicalize_decl :: proc(
 			is_pub      = d.is_pub,
 			operations  = ops,
 			type_params = type_params,
+			doc_comment = d.doc_comment,
 			span        = d.span,
 		}
 		return cdecl
@@ -177,11 +180,12 @@ canonicalize_decl :: proc(
 		}
 		cdecl := new(CDecl_Trait)
 		cdecl^ = CDecl_Trait {
-			name    = name,
-			is_pub  = d.is_pub,
-			parent  = d.parent,
-			methods = methods,
-			span    = d.span,
+			name        = name,
+			is_pub      = d.is_pub,
+			parent      = d.parent,
+			methods     = methods,
+			doc_comment = d.doc_comment,
+			span        = d.span,
 		}
 		return cdecl
 
@@ -190,10 +194,11 @@ canonicalize_decl :: proc(
 		ctarget := canonicalize_type(d.target^, scope, interner, collector)
 		cdecl := new(CDecl_Alias)
 		cdecl^ = CDecl_Alias {
-			name   = name,
-			is_pub = d.is_pub,
-			target = ctarget,
-			span   = d.span,
+			name        = name,
+			is_pub      = d.is_pub,
+			target      = ctarget,
+			doc_comment = d.doc_comment,
+			span        = d.span,
 		}
 		return cdecl
 
@@ -216,6 +221,7 @@ canonicalize_decl :: proc(
 			type_params    = type_params,
 			inner_type     = cinner_type,
 			derive_targets = derive_targets,
+			doc_comment    = d.doc_comment,
 			span           = d.span,
 		}
 		return cdecl
@@ -240,8 +246,9 @@ canonicalize_decl :: proc(
 		append(imports, di)
 		cdecl := new(CDecl_Import)
 		cdecl^ = CDecl_Import {
-			deferred = di,
-			span     = d.span,
+			deferred    = di,
+			doc_comment = d.doc_comment,
+			span        = d.span,
 		}
 		return cdecl
 
@@ -249,9 +256,10 @@ canonicalize_decl :: proc(
 		cbody := canonicalize_expr(d.body, scope, interner, collector)
 		cdecl := new(CDecl_Test)
 		cdecl^ = CDecl_Test {
-			name = d.name,
-			body = cbody,
-			span = d.span,
+			name        = d.name,
+			body        = cbody,
+			doc_comment = d.doc_comment,
+			span        = d.span,
 		}
 		return cdecl
 
@@ -265,10 +273,11 @@ canonicalize_decl :: proc(
 		}
 		cdecl := new(CDecl_Is_Impl)
 		cdecl^ = CDecl_Is_Impl {
-			type_name  = type_name,
-			trait_name = trait_name,
-			methods    = methods,
-			span       = d.span,
+			type_name   = type_name,
+			trait_name  = trait_name,
+			methods     = methods,
+			doc_comment = d.doc_comment,
+			span        = d.span,
 		}
 		return cdecl
 
@@ -276,8 +285,9 @@ canonicalize_decl :: proc(
 		ccond := canonicalize_expr(d.condition, scope, interner, collector)
 		cdecl := new(CDecl_Expect)
 		cdecl^ = CDecl_Expect {
-			condition = ccond,
-			span      = d.span,
+			condition   = ccond,
+			doc_comment = d.doc_comment,
+			span        = d.span,
 		}
 		return cdecl
 	}
