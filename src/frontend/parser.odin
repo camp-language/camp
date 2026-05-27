@@ -2192,11 +2192,16 @@ parser_parse_record_pattern :: proc(p: ^Parser) -> Pattern {
 
 	fields := make([dynamic]Pattern_Field, 0, 8)
 	is_open := false
+	rest_name: base.Intern_ID
 
 	for p.current.kind != .RBrace && p.current.kind != .Eof {
 		if p.current.kind == .Dot_Dot {
 			is_open = true
 			parser_advance(p)
+			if p.current.kind == .Identifier {
+				rest_tok := parser_advance(p)
+				rest_name = base.intern(p.intern, rest_tok.text)
+			}
 			if p.current.kind == .Comma {
 				parser_advance(p)
 			}
@@ -2225,6 +2230,7 @@ parser_parse_record_pattern :: proc(p: ^Parser) -> Pattern {
 	pat^ = Pattern_Record {
 		fields  = fields,
 		is_open = is_open,
+		rest    = rest_name,
 		span    = start,
 	}
 	return pat

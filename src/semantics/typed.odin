@@ -219,6 +219,7 @@ TPattern_Record :: struct {
 	fields:  [dynamic]TPattern_Field,
 	is_open: bool,
 	span:    base.Source_Span,
+	rest:    base.Intern_ID,
 }
 TPattern_Tuple :: struct {
 	elements: [dynamic]TPattern,

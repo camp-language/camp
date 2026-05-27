@@ -1178,6 +1178,7 @@ canonicalize_pattern :: proc(
 		c^ = CPattern_Record {
 			fields  = fields,
 			is_open = p.is_open,
+			rest    = p.rest,
 			span    = p.span,
 		}
 		return c

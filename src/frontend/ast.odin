@@ -329,6 +329,7 @@ Pattern_Record :: struct {
 	fields:  [dynamic]Pattern_Field,
 	is_open: bool,
 	span:    base.Source_Span,
+	rest:    base.Intern_ID,
 }
 Pattern_Tuple :: struct {
 	elements: [dynamic]Pattern,

@@ -399,6 +399,7 @@ CPattern_Record :: struct {
 	fields:  [dynamic]CPattern_Field,
 	is_open: bool,
 	span:    base.Source_Span,
+	rest:    base.Intern_ID,
 }
 CPattern_Tuple :: struct {
 	elements: [dynamic]CPattern,
