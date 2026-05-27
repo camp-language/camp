@@ -118,10 +118,11 @@ reuse_analyze_expr :: proc(expr: IR_Expr) -> IR_Expr {
 		}
 		new_call := new(IR_Call)
 		new_call^ = IR_Call {
-			callee = e.callee,
-			args   = new_args,
-			type   = e.type,
-			span   = e.span,
+			callee           = e.callee,
+			args             = new_args,
+			type             = e.type,
+			span             = e.span,
+			ord_compare_func = e.ord_compare_func,
 		}
 		return IR_Expr(new_call)
 

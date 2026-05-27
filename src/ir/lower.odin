@@ -671,10 +671,11 @@ lower_tcall :: proc(e: ^semantics.TExpr_Call, env: ^Lower_Env) -> IR_Expr {
 		}
 		call := new(IR_Call)
 		call^ = IR_Call {
-			callee = callee_name,
-			args   = ir_args,
-			type   = e.type_,
-			span   = e.span,
+			callee           = callee_name,
+			args             = ir_args,
+			type             = e.type_,
+			span             = e.span,
+			ord_compare_func = resolve_ord_compare(callee_name, e.args, env),
 		}
 		return IR_Expr(call)
 
@@ -853,6 +854,7 @@ lower_tmethod_call :: proc(e: ^semantics.TExpr_Method_Call, env: ^Lower_Env) -> 
 							args = args,
 							type = e.type_,
 							span = e.span,
+							ord_compare_func = base.Canonical_Name{},
 						}
 						return IR_Expr(call)
 					}
@@ -870,10 +872,11 @@ lower_tmethod_call :: proc(e: ^semantics.TExpr_Method_Call, env: ^Lower_Env) -> 
 	if e.resolved_.name != 0 {
 		meth_call := new(IR_Call)
 		meth_call^ = IR_Call {
-			callee = e.resolved_,
-			args   = ir_args,
-			type   = e.type_,
-			span   = e.span,
+			callee           = e.resolved_,
+			args             = ir_args,
+			type             = e.type_,
+			span             = e.span,
+			ord_compare_func = base.Canonical_Name{},
 		}
 		return IR_Expr(meth_call)
 	}
@@ -1356,6 +1359,7 @@ lower_tbinop :: proc(e: ^semantics.TExpr_BinOp, env: ^Lower_Env) -> IR_Expr {
 						args = args,
 						type = e.type_,
 						span = e.span,
+						ord_compare_func = base.Canonical_Name{},
 					}
 					return IR_Expr(call)
 				}
@@ -1707,10 +1711,11 @@ lower_tinterpolated_string :: proc(
 				append(&args, inner)
 				call := new(IR_Call)
 				call^ = IR_Call {
-					callee = p.display_impl,
-					args   = args,
-					type   = str_type,
-					span   = span,
+					callee           = p.display_impl,
+					args             = args,
+					type             = str_type,
+					span             = span,
+					ord_compare_func = base.Canonical_Name{},
 				}
 				return IR_Expr(call)
 			}
@@ -1735,6 +1740,7 @@ lower_tinterpolated_string :: proc(
 			args = args,
 			type = e.type_,
 			span = e.span,
+			ord_compare_func = base.Canonical_Name{},
 		}
 		result = IR_Expr(call)
 	}
@@ -1801,5 +1807,251 @@ lower_tlist :: proc(e: ^semantics.TExpr_List, env: ^Lower_Env) -> IR_Expr {
 		result = IR_Expr(cons_tag)
 	}
 	return result
+}
+// --- Generic trait dispatch resolution ---
+//
+// These helpers resolve trait method implementations at IR lowering time,
+// when full type info from the typechecker is still available.
+// They are generic over trait name and method name, so they can serve
+// Ord (Map/Set keys), Hash (future HashMap), Eq, or any other trait
+// whose method needs to be passed as a runtime callback.
+
+// resolve_type_name returns the Intern_ID for the "spine" name of a type
+// (e.g. "I64", "Str", "MyNewtype"). Returns (name, true) on success.
+resolve_type_name :: proc(
+	store: ^semantics.Type_Store,
+	interner: ^base.Intern_Table,
+	type_id: base.Type_Var_ID,
+) -> (
+	base.Intern_ID,
+	bool,
+) {
+	resolved := semantics.resolve_var(store, type_id)
+	inf, is_inf := store.vars[int(resolved)].link.(semantics.Inferred_Type)
+	if !is_inf {
+		return base.Intern_ID(0), false
+	}
+
+	#partial switch f in inf {
+	case semantics.Inferred_Primitive:
+		return f.primitive_name, true
+	case semantics.Inferred_Newtype:
+		return f.primitive_name, true
+	case semantics.Inferred_Constructor:
+		return f.primitive_name, true
+	case:
+		return base.Intern_ID(0), false
+	}
+}
+
+// resolve_trait_method looks up a trait implementation for a given type and
+// returns the Canonical_Name of the resolved method. Returns (name, true) on success.
+resolve_trait_method :: proc(
+	store: ^semantics.Type_Store,
+	interner: ^base.Intern_Table,
+	type_id: base.Type_Var_ID,
+	trait_name: string,
+	method_name: string,
+) -> (
+	base.Canonical_Name,
+	bool,
+) {
+	type_name, ok := resolve_type_name(store, interner, type_id)
+	if !ok {
+		return base.Canonical_Name{}, false
+	}
+
+	trait_id := base.intern(interner, trait_name)
+	impl, found := semantics.find_trait_impl(store, trait_id, type_name)
+	if !found {
+		return base.Canonical_Name{}, false
+	}
+
+	method_id := base.intern(interner, method_name)
+	func_name, has_method := impl.methods[method_id]
+	if !has_method {
+		return base.Canonical_Name{}, false
+	}
+
+	return func_name, true
+}
+
+// extract_container_element_type walks the type of a typed expression
+// looking for a parameterized container (Map, Set, List) and returns
+// the type var for the element at param_index (0 = first type param).
+// For List, this is the element type. For Map, 0=key, 1=value.
+// For Set, 0=element.
+extract_container_element_type :: proc(
+	store: ^semantics.Type_Store,
+	interner: ^base.Intern_Table,
+	arg: semantics.TExpr,
+	container_name: string,
+	param_index: int,
+) -> (
+	base.Type_Var_ID,
+	bool,
+) {
+	arg_type_id := texpr_type_id(arg)
+	resolved := semantics.resolve_var(store, arg_type_id)
+	inf, is_inf := store.vars[int(resolved)].link.(semantics.Inferred_Type)
+	if !is_inf {
+		return base.Type_Var_ID(0), false
+	}
+
+	nt, nt_ok := inf.(semantics.Inferred_Newtype)
+	if !nt_ok {
+		return base.Type_Var_ID(0), false
+	}
+
+	nt_name := base.intern_get(interner, nt.primitive_name)
+	if nt_name != container_name {
+		return base.Type_Var_ID(0), false
+	}
+
+	if param_index >= len(nt.param_ids) {
+		return base.Type_Var_ID(0), false
+	}
+
+	return nt.param_ids[param_index], true
+}
+
+// extract_tuple_element_type resolves a type var to an Inferred_Tuple
+// and returns the type var for the element at the given index.
+extract_tuple_element_type :: proc(
+	store: ^semantics.Type_Store,
+	type_id: base.Type_Var_ID,
+	element_index: int,
+) -> (
+	base.Type_Var_ID,
+	bool,
+) {
+	resolved := semantics.resolve_var(store, type_id)
+	inf, is_inf := store.vars[int(resolved)].link.(semantics.Inferred_Type)
+	if !is_inf {
+		return base.Type_Var_ID(0), false
+	}
+
+	tup, tup_ok := inf.(semantics.Inferred_Tuple)
+	if !tup_ok {
+		return base.Type_Var_ID(0), false
+	}
+
+	if element_index >= len(tup.element_types) {
+		return base.Type_Var_ID(0), false
+	}
+
+	return tup.element_types[element_index], true
+}
+
+// intrinsic_needs_trait returns true if a Map/Set intrinsic call requires
+// a trait dispatch (currently Ord for ordered tree operations).
+intrinsic_needs_trait :: proc(callee: base.Canonical_Name, interner: ^base.Intern_Table) -> bool {
+	module_str := base.intern_get(interner, callee.module)
+	if module_str != "Map" && module_str != "Set" {
+		return false
+	}
+
+	name_str := base.intern_get(interner, callee.name)
+
+	// Functions that don't need Ord (pure structural / traversal)
+	switch name_str {
+	case "new", "size", "is_empty", "min", "max", "fold", "to_iter", "keys", "values", "to_list":
+		return false
+	}
+
+	return true
+}
+
+// resolve_ord_compare resolves the Ord.compare method for the key type
+// of a Map/Set intrinsic call. Returns a zero-value Canonical_Name if
+// resolution fails (no Ord impl, or call doesn't need one).
+resolve_ord_compare :: proc(
+	callee: base.Canonical_Name,
+	args: [dynamic]semantics.TExpr,
+	env: ^Lower_Env,
+) -> base.Canonical_Name {
+	if !intrinsic_needs_trait(callee, env.interner) {
+		return base.Canonical_Name{}
+	}
+
+	module_str := base.intern_get(env.interner, callee.module)
+	name_str := base.intern_get(env.interner, callee.name)
+
+	key_type_id: base.Type_Var_ID
+
+	if name_str == "from_list" {
+		// from_list(list) — List element type carries the key.
+		// Set.from_list: List(k) → k is the key directly.
+		// Map.from_list: List((k, v)) → k is the first tuple element.
+		if len(args) == 0 {
+			return base.Canonical_Name{}
+		}
+		elem_type, ok := extract_container_element_type(
+			env.store,
+			env.interner,
+			args[0],
+			"List",
+			0,
+		)
+		if !ok {
+			return base.Canonical_Name{}
+		}
+		if module_str == "Set" {
+			key_type_id = elem_type
+		} else {
+			key, ok := extract_tuple_element_type(env.store, elem_type, 0)
+			if !ok {
+				return base.Canonical_Name{}
+			}
+			key_type_id = key
+		}
+	} else {
+		// For all other Map/Set functions, find the container argument
+		// and extract the key type from its first type parameter.
+		container_name_primary: string
+		container_name_secondary: string
+		if module_str == "Map" {
+			container_name_primary = "Map"
+			container_name_secondary = "Set"
+		} else {
+			container_name_primary = "Set"
+			container_name_secondary = "Map"
+		}
+		for i in 0 ..< len(args) {
+			elem, ok := extract_container_element_type(
+				env.store,
+				env.interner,
+				args[i],
+				container_name_primary,
+				0,
+			)
+			if ok {
+				key_type_id = elem
+				break
+			}
+			elem, ok = extract_container_element_type(
+				env.store,
+				env.interner,
+				args[i],
+				container_name_secondary,
+				0,
+			)
+			if ok {
+				key_type_id = elem
+				break
+			}
+		}
+	}
+
+	if key_type_id == base.Type_Var_ID(0) {
+		return base.Canonical_Name{}
+	}
+
+	func_name, ok := resolve_trait_method(env.store, env.interner, key_type_id, "Ord", "compare")
+	if !ok {
+		return base.Canonical_Name{}
+	}
+
+	return func_name
 }
 

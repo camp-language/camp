@@ -221,6 +221,17 @@ Runtime_Func :: enum {
 	F64_To_Str,
 	Bool_To_Str,
 	Report_Drop_Overflow,
+	Map_New,
+	Map_Insert,
+	Map_Get,
+	Map_Contains,
+	Map_Remove,
+	Map_Size,
+	Map_Singleton,
+	Map_Keys,
+	Map_Values,
+	Map_Min,
+	Map_Max,
 }
 
 RUNTIME_FUNC_COUNT :: int(len(Runtime_Func))
@@ -477,6 +488,209 @@ emit_expr :: proc(expr: ir.IR_Expr, buf: ^[dynamic]u8, env: ^Codegen_Env, runtim
 						Wasm_Call{index = u32(runtime_indices[Runtime_Func.List_Alloc])},
 						buf,
 					)
+					break
+				}
+			}
+
+			if module_str == "Map" {
+				// Map intrinsics: the compare function index is passed as the first arg.
+				// It comes from the ord_compare_func resolved during lowering.
+				// Look up the compare function in func_map.
+				cmp_fn_idx := 0
+				if e.ord_compare_func.module != base.NO_NAME && e.ord_compare_func.name != 0 {
+					mangled := base.mangle_name(
+						e.ord_compare_func.module,
+						e.ord_compare_func.name,
+						env.interner,
+					)
+					if idx, ok := env.func_map[base.hash_string(mangled)]; ok {
+						cmp_fn_idx = idx
+					}
+				} else if e.ord_compare_func.name != 0 {
+					if idx, ok := env.func_map[u64(e.ord_compare_func.name)]; ok {
+						cmp_fn_idx = idx
+					}
+				}
+
+				if name_str == "new" && len(e.args) == 0 {
+					emit_instruction(
+						Wasm_Call{index = u32(runtime_indices[Runtime_Func.Map_New])},
+						buf,
+					)
+					break
+				}
+				if name_str == "singleton" && len(e.args) == 2 {
+					emit_instruction(Wasm_I32_Const{value = i32(cmp_fn_idx)}, buf)
+					emit_expr(e.args[0], buf, env, runtime_indices)
+					emit_expr(e.args[1], buf, env, runtime_indices)
+					emit_instruction(
+						Wasm_Call{index = u32(runtime_indices[Runtime_Func.Map_Singleton])},
+						buf,
+					)
+					break
+				}
+				if name_str == "insert" && len(e.args) == 3 {
+					emit_instruction(Wasm_I32_Const{value = i32(cmp_fn_idx)}, buf)
+					emit_expr(e.args[0], buf, env, runtime_indices)
+					emit_expr(e.args[1], buf, env, runtime_indices)
+					emit_expr(e.args[2], buf, env, runtime_indices)
+					emit_instruction(
+						Wasm_Call{index = u32(runtime_indices[Runtime_Func.Map_Insert])},
+						buf,
+					)
+					break
+				}
+				if name_str == "get" && len(e.args) == 2 {
+					emit_instruction(Wasm_I32_Const{value = i32(cmp_fn_idx)}, buf)
+					emit_expr(e.args[0], buf, env, runtime_indices)
+					emit_expr(e.args[1], buf, env, runtime_indices)
+					emit_instruction(
+						Wasm_Call{index = u32(runtime_indices[Runtime_Func.Map_Get])},
+						buf,
+					)
+					break
+				}
+				if name_str == "contains" && len(e.args) == 2 {
+					emit_instruction(Wasm_I32_Const{value = i32(cmp_fn_idx)}, buf)
+					emit_expr(e.args[0], buf, env, runtime_indices)
+					emit_expr(e.args[1], buf, env, runtime_indices)
+					emit_instruction(
+						Wasm_Call{index = u32(runtime_indices[Runtime_Func.Map_Contains])},
+						buf,
+					)
+					break
+				}
+				if name_str == "remove" && len(e.args) == 2 {
+					emit_instruction(Wasm_I32_Const{value = i32(cmp_fn_idx)}, buf)
+					emit_expr(e.args[0], buf, env, runtime_indices)
+					emit_expr(e.args[1], buf, env, runtime_indices)
+					emit_instruction(
+						Wasm_Call{index = u32(runtime_indices[Runtime_Func.Map_Remove])},
+						buf,
+					)
+					break
+				}
+				if name_str == "size" && len(e.args) == 1 {
+					emit_expr(e.args[0], buf, env, runtime_indices)
+					emit_instruction(
+						Wasm_Call{index = u32(runtime_indices[Runtime_Func.Map_Size])},
+						buf,
+					)
+					emit_instruction(Wasm_I64_Extend_I32_S{}, buf)
+					break
+				}
+				if name_str == "keys" && len(e.args) == 1 {
+					emit_expr(e.args[0], buf, env, runtime_indices)
+					emit_instruction(
+						Wasm_Call{index = u32(runtime_indices[Runtime_Func.Map_Keys])},
+						buf,
+					)
+					break
+				}
+				if name_str == "values" && len(e.args) == 1 {
+					emit_expr(e.args[0], buf, env, runtime_indices)
+					emit_instruction(
+						Wasm_Call{index = u32(runtime_indices[Runtime_Func.Map_Values])},
+						buf,
+					)
+					break
+				}
+				if name_str == "min" && len(e.args) == 1 {
+					emit_expr(e.args[0], buf, env, runtime_indices)
+					emit_instruction(
+						Wasm_Call{index = u32(runtime_indices[Runtime_Func.Map_Min])},
+						buf,
+					)
+					break
+				}
+				if name_str == "max" && len(e.args) == 1 {
+					emit_expr(e.args[0], buf, env, runtime_indices)
+					emit_instruction(
+						Wasm_Call{index = u32(runtime_indices[Runtime_Func.Map_Max])},
+						buf,
+					)
+					break
+				}
+			}
+
+			if module_str == "Set" {
+				// Set intrinsics: delegate to Map with unit value as the value arg.
+				// The compare function index is resolved the same way as Map.
+				cmp_fn_idx := 0
+				if e.ord_compare_func.module != base.NO_NAME && e.ord_compare_func.name != 0 {
+					mangled := base.mangle_name(
+						e.ord_compare_func.module,
+						e.ord_compare_func.name,
+						env.interner,
+					)
+					if idx, ok := env.func_map[base.hash_string(mangled)]; ok {
+						cmp_fn_idx = idx
+					}
+				} else if e.ord_compare_func.name != 0 {
+					if idx, ok := env.func_map[u64(e.ord_compare_func.name)]; ok {
+						cmp_fn_idx = idx
+					}
+				}
+
+				// UNIT_VALUE: pointer to a zero-field record (tag=0, scan_size=0, no fields)
+				// Allocated as a global constant in static memory.
+				unit_value_ptr := env.unit_value_offset
+
+				if name_str == "new" && len(e.args) == 0 {
+					emit_instruction(
+						Wasm_Call{index = u32(runtime_indices[Runtime_Func.Map_New])},
+						buf,
+					)
+					break
+				}
+				if name_str == "singleton" && len(e.args) == 1 {
+					emit_instruction(Wasm_I32_Const{value = i32(cmp_fn_idx)}, buf)
+					emit_expr(e.args[0], buf, env, runtime_indices)
+					emit_instruction(Wasm_I32_Const{value = i32(unit_value_ptr)}, buf)
+					emit_instruction(
+						Wasm_Call{index = u32(runtime_indices[Runtime_Func.Map_Singleton])},
+						buf,
+					)
+					break
+				}
+				if name_str == "insert" && len(e.args) == 2 {
+					emit_instruction(Wasm_I32_Const{value = i32(cmp_fn_idx)}, buf)
+					emit_expr(e.args[0], buf, env, runtime_indices)
+					emit_instruction(Wasm_I32_Const{value = i32(unit_value_ptr)}, buf)
+					emit_expr(e.args[1], buf, env, runtime_indices)
+					emit_instruction(
+						Wasm_Call{index = u32(runtime_indices[Runtime_Func.Map_Insert])},
+						buf,
+					)
+					break
+				}
+				if name_str == "contains" && len(e.args) == 2 {
+					emit_instruction(Wasm_I32_Const{value = i32(cmp_fn_idx)}, buf)
+					emit_expr(e.args[0], buf, env, runtime_indices)
+					emit_expr(e.args[1], buf, env, runtime_indices)
+					emit_instruction(
+						Wasm_Call{index = u32(runtime_indices[Runtime_Func.Map_Contains])},
+						buf,
+					)
+					break
+				}
+				if name_str == "remove" && len(e.args) == 2 {
+					emit_instruction(Wasm_I32_Const{value = i32(cmp_fn_idx)}, buf)
+					emit_expr(e.args[0], buf, env, runtime_indices)
+					emit_expr(e.args[1], buf, env, runtime_indices)
+					emit_instruction(
+						Wasm_Call{index = u32(runtime_indices[Runtime_Func.Map_Remove])},
+						buf,
+					)
+					break
+				}
+				if name_str == "size" && len(e.args) == 1 {
+					emit_expr(e.args[0], buf, env, runtime_indices)
+					emit_instruction(
+						Wasm_Call{index = u32(runtime_indices[Runtime_Func.Map_Size])},
+						buf,
+					)
+					emit_instruction(Wasm_I64_Extend_I32_S{}, buf)
 					break
 				}
 			}

@@ -214,10 +214,11 @@ IR_Loop :: struct {
 }
 
 IR_Call :: struct {
-	callee: ba.Canonical_Name,
-	args:   [dynamic]IR_Expr,
-	type:   ba.IR_Type,
-	span:   ba.Source_Span,
+	callee:           ba.Canonical_Name,
+	args:             [dynamic]IR_Expr,
+	type:             ba.IR_Type,
+	span:             ba.Source_Span,
+	ord_compare_func: ba.Canonical_Name,
 }
 
 IR_Tail_Call :: struct {

@@ -10,6 +10,15 @@ CAMP_TAG_REFCOUNT_OFFSET :: 0
 CAMP_TAG_TAG_OFFSET :: 4
 CAMP_TAG_SCAN_SIZE_OFFSET :: 5
 CAMP_TAG_FIELDS_OFFSET :: 8
+MAP_HEADER_TAG :: 0x10
+MAP_NODE_TAG :: 0x11
+MAP_HEADER_SIZE :: 16
+MAP_NODE_SIZE :: 24
+MAP_HEADER_ROOT_OFFSET :: 8
+MAP_HEADER_SIZE_FIELD_OFFSET :: 12
+MAP_NODE_KEY_OFFSET :: 8
+MAP_NODE_VALUE_OFFSET :: 12
+MAP_NODE_NEXT_OFFSET :: 16
 
 CAMP_EXIT_MASK :: 127
 
@@ -94,6 +103,7 @@ Codegen_Env :: struct {
 	string_offsets:          map[base.Intern_ID]u32,
 	throw_err_msg_offset:    u32,
 	throw_err_suffix_offset: u32,
+	unit_value_offset:       u32,
 }
 
 
@@ -307,6 +317,10 @@ codegen :: proc(
 	throw_err_suffix_offset := env.data_offset
 	env.data_offset += u32(len(throw_err_suffix))
 	env.throw_err_suffix_offset = throw_err_suffix_offset
+
+	unit_value_offset := env.data_offset
+	env.data_offset += 8
+	env.unit_value_offset = unit_value_offset
 
 	heap_ptr_global_idx := len(mod.globals)
 	heap_ptr_init: [dynamic]u8
@@ -570,6 +584,59 @@ codegen :: proc(
 	parallel_for_each_func_idx := add_function(&env, parallel_for_each_type_idx)
 	runtime_func_indices[Runtime_Func.Parallel_For_Each] = parallel_for_each_func_idx
 
+	// Map runtime function types
+	map_new_type_idx := get_or_create_type(&env, []Wasm_Value_Type{}, []Wasm_Value_Type{.I32})
+	map_insert_type_idx := get_or_create_type(
+		&env,
+		[]Wasm_Value_Type{.I32, .I32, .I32, .I32},
+		[]Wasm_Value_Type{.I32},
+	)
+	map_get_type_idx := get_or_create_type(
+		&env,
+		[]Wasm_Value_Type{.I32, .I32, .I32},
+		[]Wasm_Value_Type{.I32},
+	)
+	map_contains_type_idx := map_get_type_idx
+	map_remove_type_idx := map_get_type_idx
+	map_size_type_idx := get_or_create_type(&env, []Wasm_Value_Type{.I32}, []Wasm_Value_Type{.I32})
+	map_singleton_type_idx := get_or_create_type(
+		&env,
+		[]Wasm_Value_Type{.I32, .I32, .I32},
+		[]Wasm_Value_Type{.I32},
+	)
+	map_keys_type_idx := map_size_type_idx
+	map_values_type_idx := map_size_type_idx
+	map_min_type_idx := map_size_type_idx
+	map_max_type_idx := map_size_type_idx
+	compare_type_idx := get_or_create_type(
+		&env,
+		[]Wasm_Value_Type{.I32, .I32},
+		[]Wasm_Value_Type{.I32},
+	)
+
+	map_new_func_idx := add_function(&env, map_new_type_idx)
+	runtime_func_indices[Runtime_Func.Map_New] = map_new_func_idx
+	map_insert_func_idx := add_function(&env, map_insert_type_idx)
+	runtime_func_indices[Runtime_Func.Map_Insert] = map_insert_func_idx
+	map_get_func_idx := add_function(&env, map_get_type_idx)
+	runtime_func_indices[Runtime_Func.Map_Get] = map_get_func_idx
+	map_contains_func_idx := add_function(&env, map_contains_type_idx)
+	runtime_func_indices[Runtime_Func.Map_Contains] = map_contains_func_idx
+	map_remove_func_idx := add_function(&env, map_remove_type_idx)
+	runtime_func_indices[Runtime_Func.Map_Remove] = map_remove_func_idx
+	map_size_func_idx := add_function(&env, map_size_type_idx)
+	runtime_func_indices[Runtime_Func.Map_Size] = map_size_func_idx
+	map_singleton_func_idx := add_function(&env, map_singleton_type_idx)
+	runtime_func_indices[Runtime_Func.Map_Singleton] = map_singleton_func_idx
+	map_keys_func_idx := add_function(&env, map_keys_type_idx)
+	runtime_func_indices[Runtime_Func.Map_Keys] = map_keys_func_idx
+	map_values_func_idx := add_function(&env, map_values_type_idx)
+	runtime_func_indices[Runtime_Func.Map_Values] = map_values_func_idx
+	map_min_func_idx := add_function(&env, map_min_type_idx)
+	runtime_func_indices[Runtime_Func.Map_Min] = map_min_func_idx
+	map_max_func_idx := add_function(&env, map_max_type_idx)
+	runtime_func_indices[Runtime_Func.Map_Max] = map_max_func_idx
+
 	camp_alloc_code := emit_camp_alloc_body(heap_ptr_global_idx)
 	append(&mod.codes, camp_alloc_code)
 
@@ -662,6 +729,22 @@ codegen :: proc(
 	append(&mod.codes, emit_camp_parallel_all_body(runtime_func_indices))
 	append(&mod.codes, emit_camp_parallel_filter_body(runtime_func_indices))
 	append(&mod.codes, emit_camp_parallel_for_each_body(runtime_func_indices))
+
+	// Map runtime function bodies
+	append(&mod.codes, emit_map_new_body(alloc_func_idx))
+	append(&mod.codes, emit_map_insert_body(alloc_func_idx, compare_type_idx, env.table_idx))
+	append(&mod.codes, emit_map_get_body(alloc_func_idx, compare_type_idx, env.table_idx))
+	append(&mod.codes, emit_map_contains_body(compare_type_idx, env.table_idx))
+	append(&mod.codes, emit_map_remove_body(compare_type_idx, env.table_idx))
+	append(&mod.codes, emit_map_size_body())
+	append(&mod.codes, emit_map_singleton_body(alloc_func_idx, compare_type_idx, env.table_idx))
+	append(&mod.codes, emit_map_keys_body(alloc_func_idx, list_alloc_func_idx, list_push_func_idx))
+	append(
+		&mod.codes,
+		emit_map_values_body(alloc_func_idx, list_alloc_func_idx, list_push_func_idx),
+	)
+	append(&mod.codes, emit_map_min_body(alloc_func_idx))
+	append(&mod.codes, emit_map_max_body(alloc_func_idx))
 
 	camp_alloc_name := base.intern(interner, "camp_alloc")
 	env.func_map[u64(camp_alloc_name)] = alloc_func_idx

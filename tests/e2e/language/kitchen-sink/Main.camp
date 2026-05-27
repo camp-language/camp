@@ -724,6 +724,34 @@ logic_demo = || -> I64 {
 // Base64Format: [Standard | UrlSafe | Base32 | Hex]
 
 // ============================================================
+// SECTION: P3 Standard Library — Map & Set
+// Demonstrates: Map(k, v) ordered tree map, Set(a) ordered set,
+//   Ord trait dispatch for key comparison
+// ============================================================
+
+// import Map { new, insert, get, contains, remove, size, keys, values }
+// import Set { new, insert, contains, remove, size, union, intersection }
+//
+// Map usage:
+// m = Map.new
+// m2 = Map.insert("hello", 1, m)
+// Map.contains("hello", m2)    -- True
+// Map.get("hello", m2)         -- Ok(1)
+// Map.size(m2)                 -- 1
+// m3 = Map.remove("hello", m2)
+// Map.size(m3)                 -- 0
+//
+// Set usage:
+// s = Set.new
+// s2 = Set.insert(42, s)
+// Set.contains(42, s2)         -- True
+// Set.size(s2)                 -- 1
+// s3 = Set.remove(42, s2)
+// Set.size(s3)                 -- 0
+//
+// Keys must implement Ord trait (derived with `derives Ord`)
+
+// ============================================================
 // SECTION: main! Entry Point
 // Demonstrates: pub, effect row as handler declaration,
 //   Termination trait for return type
