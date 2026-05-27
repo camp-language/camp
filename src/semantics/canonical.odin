@@ -387,6 +387,7 @@ CPattern :: union {
 	^CPattern_Wildcard,
 	^CPattern_Destructure,
 	^CPattern_Or,
+	^CPattern_As,
 }
 
 CPattern_Tag :: struct {
@@ -456,6 +457,12 @@ CPattern_Destructure :: struct {
 CPattern_Or :: struct {
 	alternatives: [dynamic]CPattern,
 	span:         base.Source_Span,
+}
+
+CPattern_As :: struct {
+	name:  base.Intern_ID,
+	inner: CPattern,
+	span:  base.Source_Span,
 }
 
 CType :: union {

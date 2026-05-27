@@ -316,6 +316,7 @@ Pattern :: union {
 	^Pattern_Wildcard,
 	^Pattern_Destructure,
 	^Pattern_Or,
+	^Pattern_As,
 }
 
 
@@ -386,6 +387,12 @@ Pattern_Destructure :: struct {
 Pattern_Or :: struct {
 	alternatives: [dynamic]Pattern,
 	span:         base.Source_Span,
+}
+
+Pattern_As :: struct {
+	name:  base.Intern_ID,
+	inner: Pattern,
+	span:  base.Source_Span,
 }
 
 Expr_BinOp :: struct {

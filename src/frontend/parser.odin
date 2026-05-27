@@ -1956,6 +1956,17 @@ parser_parse_pattern :: proc(p: ^Parser) -> Pattern {
 	case .Identifier:
 		name_tok := parser_advance(p)
 		name_id := base.intern(p.intern, name_tok.text)
+		if p.current.kind == .At {
+			parser_advance(p)
+			inner := parser_parse_pattern(p)
+			pat := new(Pattern_As)
+			pat^ = Pattern_As {
+				name  = name_id,
+				inner = inner,
+				span  = name_tok.span,
+			}
+			return pat
+		}
 		pat := new(Pattern_Identifier)
 		pat^ = Pattern_Identifier {
 			name = name_id,

@@ -1272,6 +1272,16 @@ canonicalize_pattern :: proc(
 		}
 		return c
 
+	case ^frontend.Pattern_As:
+		c_name := p.name
+		c_inner := canonicalize_pattern(p.inner, scope, interner, collector)
+		c := new(CPattern_As)
+		c^ = CPattern_As {
+			name  = c_name,
+			inner = c_inner,
+			span  = p.span,
+		}
+		return c
 	case ^frontend.Pattern_Or:
 		alternatives := make([dynamic]CPattern, 0, len(p.alternatives))
 		for alt in p.alternatives {

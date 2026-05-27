@@ -185,6 +185,17 @@ typecheck_pattern :: proc(
 			span     = p.span,
 		}
 		return Pat_Result{var_id = tuple_var, effects = eff, tpat = TPattern(tp)}
+	case ^CPattern_As:
+		check_shadow(env, p.name, store, p.span)
+		env.bindings[p.name] = scrutinee_var
+		inner_result := typecheck_pattern(p.inner, scrutinee_var, env, store)
+		tp := new(TPattern_As)
+		tp^ = TPattern_As {
+			name  = p.name,
+			inner = inner_result.tpat,
+			span  = p.span,
+		}
+		return Pat_Result{var_id = inner_result.var_id, effects = inner_result.effects, tpat = TPattern(tp)}
 
 	case ^CPattern_Or:
 		alternatives := make([dynamic]TPattern, 0, len(p.alternatives))
@@ -299,6 +310,8 @@ collect_pattern_coverage :: proc(pattern: CPattern, cov: ^Match_Coverage) {
 		cov.int_values[p.value] = true
 	case ^CPattern_String:
 		cov.string_values[p.value] = true
+	case ^CPattern_As:
+		collect_pattern_coverage(p.inner, cov)
 	case ^CPattern_Or:
 		for alt in p.alternatives {
 			collect_pattern_coverage(alt, cov)

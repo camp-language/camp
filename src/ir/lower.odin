@@ -1299,6 +1299,8 @@ lower_tpattern :: proc(
 			return lower_tpattern(p.alternatives[0], env)
 		}
 		return IR_Pattern(nil)
+	case ^semantics.TPattern_As:
+		return lower_tpattern(p.inner, env)
 	}
 	return IR_Pattern(nil)
 }
