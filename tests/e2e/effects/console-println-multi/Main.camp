@@ -1,0 +1,5 @@
+pub main! = || -[Console! | Throw!([..])]-> I64 {
+    Console.println!(1)
+    Console.println!(2)
+    0
+}

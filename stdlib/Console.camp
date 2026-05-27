@@ -4,5 +4,5 @@
 effect Console! : {
   println! : Str -> -[Console!]-> (),
   print!   : Str -> -[Console!]-> (),
-  readline! : -[Console!]-> Str,
+  readln! : -[Console!]-> Str,
 }

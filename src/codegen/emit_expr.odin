@@ -1628,15 +1628,16 @@ emit_expr :: proc(expr: ir.IR_Expr, buf: ^[dynamic]u8, env: ^Codegen_Env, runtim
 	case ^ir.IR_Handle:
 		is_sched := false
 		for eff in e.effects {
-			if ir.is_scheduler_effect_by_ids(
-				eff.name,
-				env.async_id,
-				env.spawn_id,
-				env.parallel_id,
-				env.file_id,
-				env.console_id,
-				env.time_id,
-			) {
+		if ir.is_scheduler_effect_by_ids(
+			eff.name,
+			env.async_id,
+			env.spawn_id,
+			env.parallel_id,
+			env.file_id,
+			env.console_id,
+			env.time_id,
+			env.interner,
+		) {
 				is_sched = true
 				break
 			}
@@ -1726,6 +1727,7 @@ emit_expr :: proc(expr: ir.IR_Expr, buf: ^[dynamic]u8, env: ^Codegen_Env, runtim
 			env.file_id,
 			env.console_id,
 			env.time_id,
+			env.interner,
 		) {
 			effect_str := base.intern_get(env.interner, e.effect.name)
 			op_str := base.intern_get(env.interner, e.op)
@@ -1821,9 +1823,9 @@ emit_expr :: proc(expr: ir.IR_Expr, buf: ^[dynamic]u8, env: ^Codegen_Env, runtim
 				} else {
 					emit_instruction(Wasm_Unreachable{}, buf)
 				}
-			} else if effect_str == "File!" || effect_str == "Console!" {
+			} else if effect_str == "File!" || effect_str == "Console!" ||
+			   effect_str == "File" || effect_str == "Console" {
 				// I/O effects use camp_sched_block_io for suspension
-				// Full implementation deferred to I/O bridge (Group 6)
 				if op_str == "read!" || op_str == "readln!" {
 					// Simplified: call block_io with placeholder pollable
 					if len(e.args) >= 1 {
@@ -1839,6 +1841,38 @@ emit_expr :: proc(expr: ir.IR_Expr, buf: ^[dynamic]u8, env: ^Codegen_Env, runtim
 						Wasm_Call{index = u32(runtime_indices[Runtime_Func.Sched_Block_IO])},
 						buf,
 					)
+				} else if op_str == "println!" || op_str == "print!" {
+					// println!/print! take a Str arg and write to stdout via fd_write
+					if len(e.args) >= 1 {
+						emit_expr(e.args[0], buf, env, runtime_indices)
+					} else {
+						emit_instruction(Wasm_I32_Const{value = 0}, buf)
+					}
+					// Build iovs at scratch 4096: [data_ptr, data_len]
+					// str_ptr is on the stack; save to temp local
+					emit_instruction(Wasm_Local_Set{index = u32(env.tmp_local_base + env.tmp_count)}, buf)
+					env.tmp_count += 1
+					str_local := env.tmp_local_base + env.tmp_count - 1
+
+					emit_instruction(Wasm_I32_Const{value = 4096}, buf)
+					emit_instruction(Wasm_Local_Get{index = str_local}, buf)
+					emit_instruction(Wasm_I32_Const{value = 4}, buf)
+					emit_instruction(Wasm_I32_Add{}, buf)
+					emit_instruction(Wasm_I32_Store{align = 2, offset = 0}, buf)
+
+					emit_instruction(Wasm_I32_Const{value = 4100}, buf)
+					emit_instruction(Wasm_Local_Get{index = str_local}, buf)
+					emit_instruction(Wasm_I32_Load{align = 2, offset = 0}, buf)
+					emit_instruction(Wasm_I32_Store{align = 2, offset = 0}, buf)
+
+					emit_instruction(Wasm_I32_Const{value = 1}, buf)
+					emit_instruction(Wasm_I32_Const{value = 4096}, buf)
+					emit_instruction(Wasm_I32_Const{value = 1}, buf)
+					emit_instruction(Wasm_I32_Const{value = 0}, buf)
+					emit_instruction(Wasm_Call{index = u32(1)}, buf) // fd_write import
+					emit_instruction(Wasm_Drop{}, buf)
+					// Push Unit return value so the enclosing Let can consume it
+					emit_instruction(Wasm_I32_Const{value = 0}, buf)
 				} else if op_str == "write!" {
 					if len(e.args) >= 2 {
 						emit_expr(e.args[0], buf, env, runtime_indices)
@@ -1854,7 +1888,6 @@ emit_expr :: proc(expr: ir.IR_Expr, buf: ^[dynamic]u8, env: ^Codegen_Env, runtim
 					emit_instruction(Wasm_Unreachable{}, buf)
 				}
 			} else if effect_str == "Parallel!" {
-				// Parallel! operations delegate to runtime functions
 				if op_str == "map!" && len(e.args) >= 2 {
 					// map!(fn, items) -> camp_parallel_map(fn_idx, fn_env, items_ptr, items_len, chunk_size)
 					fn_local := env.tmp_local_base + env.tmp_count; env.tmp_count += 1
@@ -2595,7 +2628,29 @@ emit_console_println_handler_fn :: proc(env: ^Codegen_Env, cont_fn_idx: int) -> 
 	buf: [dynamic]u8
 	buf = make([dynamic]u8, 0, CODE_BUF_MINOR)
 
-	// Ignore the string arg for now — call continuation with Unit
+	// Write string to stdout via fd_write(fd=1, ...)
+	// str_arg (local 1) points to [len: i32][data: bytes]
+	// Build iovs at scratch 4096: [data_ptr, data_len]
+	emit_instruction(Wasm_I32_Const{value = 4096}, &buf)
+	emit_instruction(Wasm_Local_Get{index = 1}, &buf) // str_arg
+	emit_instruction(Wasm_I32_Const{value = 4}, &buf)
+	emit_instruction(Wasm_I32_Add{}, &buf) // data_ptr = str_arg + 4
+	emit_instruction(Wasm_I32_Store{align = 2, offset = 0}, &buf)
+
+	emit_instruction(Wasm_I32_Const{value = 4100}, &buf)
+	emit_instruction(Wasm_Local_Get{index = 1}, &buf) // str_arg
+	emit_instruction(Wasm_I32_Load{align = 2, offset = 0}, &buf) // len
+	emit_instruction(Wasm_I32_Store{align = 2, offset = 0}, &buf)
+
+	// fd_write(fd=1, iovs=4096, iovs_len=1, nwritten=0)
+	emit_instruction(Wasm_I32_Const{value = 1}, &buf)
+	emit_instruction(Wasm_I32_Const{value = 4096}, &buf)
+	emit_instruction(Wasm_I32_Const{value = 1}, &buf)
+	emit_instruction(Wasm_I32_Const{value = 0}, &buf)
+	emit_instruction(Wasm_Call{index = 1}, &buf) // fd_write import index 1
+	emit_instruction(Wasm_Drop{}, &buf) // ignore errno
+
+	// Call continuation with Unit
 	emit_instruction(Wasm_I32_Const{value = 0}, &buf) // env = null
 	emit_instruction(Wasm_I64_Const{value = 0}, &buf) // result = Unit
 	emit_instruction(Wasm_Call{index = u32(cont_fn_idx)}, &buf)
@@ -2612,7 +2667,10 @@ emit_console_println_handler_fn :: proc(env: ^Codegen_Env, cont_fn_idx: int) -> 
 	return handler_fn_idx, code
 }
 
-emit_console_readln_handler_fn :: proc(env: ^Codegen_Env) -> (int, Wasm_Code) {
+SCAN_BUF_BASE :: 4200
+SCAN_BUF_SIZE :: 1024
+
+emit_console_readln_handler_fn :: proc(env: ^Codegen_Env, runtime_indices: []int) -> (int, Wasm_Code) {
 	// Handler type: (i32=env, i32=resume, i32=ev) -> i32 (Str)
 	handler_type_idx := get_or_create_type(
 		env,
@@ -2627,13 +2685,58 @@ emit_console_readln_handler_fn :: proc(env: ^Codegen_Env) -> (int, Wasm_Code) {
 	env.func_type_indices[handler_fn_idx] = u32(handler_type_idx)
 
 	buf: [dynamic]u8
-	buf = make([dynamic]u8, 0, CODE_BUF_SMALL)
+	buf = make([dynamic]u8, 0, CODE_BUF_MODERATE)
 
-	// readln! not supported — unreachable
-	emit_instruction(Wasm_Unreachable{}, &buf)
+	// Read from stdin via fd_read(fd=0, ...)
+	// Build iovs at scratch 4096: [buffer_ptr, buffer_len]
+	emit_instruction(Wasm_I32_Const{value = 4096}, &buf)
+	emit_instruction(Wasm_I32_Const{value = SCAN_BUF_BASE}, &buf)
+	emit_instruction(Wasm_I32_Store{align = 2, offset = 0}, &buf)
+
+	emit_instruction(Wasm_I32_Const{value = 4100}, &buf)
+	emit_instruction(Wasm_I32_Const{value = SCAN_BUF_SIZE}, &buf)
+	emit_instruction(Wasm_I32_Store{align = 2, offset = 0}, &buf)
+
+	// fd_read(fd=0, iovs=4096, iovs_len=1, nread=4108)
+	emit_instruction(Wasm_I32_Const{value = 0}, &buf) // fd=0 (stdin)
+	emit_instruction(Wasm_I32_Const{value = 4096}, &buf) // iovs
+	emit_instruction(Wasm_I32_Const{value = 1}, &buf) // iovs_len
+	emit_instruction(Wasm_I32_Const{value = 4108}, &buf) // nread ptr
+	emit_instruction(Wasm_Call{index = WASI_IMPORT_FD_READ}, &buf)
+	emit_instruction(Wasm_Drop{}, &buf) // ignore errno
+
+	// Allocate Camp string: alloc(nread + 4)
+	emit_instruction(Wasm_I32_Const{value = 4108}, &buf)
+	emit_instruction(Wasm_I32_Load{align = 2, offset = 0}, &buf) // nread
+	emit_instruction(Wasm_Local_Tee{index = 3}, &buf) // save nread for later copy
+	emit_instruction(Wasm_I32_Const{value = 4}, &buf)
+	emit_instruction(Wasm_I32_Add{}, &buf) // size = nread + 4
+	emit_instruction(
+		Wasm_Call{index = u32(runtime_indices[Runtime_Func.Alloc])},
+		&buf,
+	)
+	emit_instruction(Wasm_Local_Set{index = 4}, &buf) // str_ptr = alloc(nread + 4)
+
+	// Store len at [str_ptr]
+	emit_instruction(Wasm_Local_Get{index = 4}, &buf)
+	emit_instruction(Wasm_Local_Get{index = 3}, &buf) // nread
+	emit_instruction(Wasm_I32_Store{align = 2, offset = 0}, &buf)
+
+	// Memory copy data from SCAN_BUF to str_ptr + 4
+	emit_instruction(Wasm_Local_Get{index = 4}, &buf)
+	emit_instruction(Wasm_I32_Const{value = 4}, &buf)
+	emit_instruction(Wasm_I32_Add{}, &buf) // dest = str_ptr + 4
+	emit_instruction(Wasm_I32_Const{value = SCAN_BUF_BASE}, &buf) // src = SCAN_BUF
+	emit_instruction(Wasm_Local_Get{index = 3}, &buf) // size = nread
+	emit_instruction(Wasm_Memory_Copy{}, &buf)
+
+	// Return str_ptr
+	emit_instruction(Wasm_Local_Get{index = 4}, &buf)
 	emit_instruction(Wasm_End{}, &buf)
 
-	locals := make([]Wasm_Local_Decl, 0)
+	locals := make([]Wasm_Local_Decl, 2)
+	locals[0] = Wasm_Local_Decl{count = 1, type = .I32} // local 3: nread
+	locals[1] = Wasm_Local_Decl{count = 1, type = .I32} // local 4: str_ptr
 	code := Wasm_Code {
 		locals = locals,
 		body   = copy_dynamic_bytes(buf),

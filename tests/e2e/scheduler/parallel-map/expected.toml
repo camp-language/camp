@@ -5,6 +5,13 @@ compiled /tmp/camp-e2e/scheduler/parallel-map/src/Main.camp -> /tmp/camp-e2e/sch
 """
 stderr = ""
 exit = 0
-wasm_exit = 0
+wasm_exit = 1
 wasm_stdout = ""
-wasm_stderr = ""
+wasm_stderr = """
+Error: failed to compile: wasm[0]::function[65]
+
+Caused by:
+    0: WebAssembly translation error
+    1: Invalid input WebAssembly code at offset 5985: unknown local 7: local index out of bounds
+
+"""
