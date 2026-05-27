@@ -21,6 +21,7 @@ Decl_Const :: struct {
 	body:          Expr,
 	type_ann:      ^Type,
 	where_clauses: [dynamic]Where_Clause,
+	doc_comment:   string,
 	span:          base.Source_Span,
 }
 
@@ -35,6 +36,7 @@ Decl_Effect :: struct {
 	is_pub:      bool,
 	operations:  [dynamic]Effect_Op,
 	type_params: [dynamic]Type_Param,
+	doc_comment: string,
 	span:        base.Source_Span,
 }
 
@@ -48,11 +50,12 @@ Effect_Op :: struct {
 }
 
 Decl_Trait :: struct {
-	name:    base.Intern_ID,
-	is_pub:  bool,
-	parent:  base.Intern_ID,
-	methods: [dynamic]Trait_Method,
-	span:    base.Source_Span,
+	name:        base.Intern_ID,
+	is_pub:      bool,
+	parent:      base.Intern_ID,
+	methods:     [dynamic]Trait_Method,
+	doc_comment: string,
+	span:        base.Source_Span,
 }
 
 Trait_Method :: struct {
@@ -63,10 +66,11 @@ Trait_Method :: struct {
 }
 
 Decl_Alias :: struct {
-	name:   base.Intern_ID,
-	is_pub: bool,
-	target: ^Type,
-	span:   base.Source_Span,
+	name:        base.Intern_ID,
+	is_pub:      bool,
+	target:      ^Type,
+	doc_comment: string,
+	span:        base.Source_Span,
 }
 
 Decl_Newtype :: struct {
@@ -76,6 +80,7 @@ Decl_Newtype :: struct {
 	type_params:    [dynamic]base.Intern_ID,
 	inner_type:     ^Type,
 	derive_targets: [dynamic]base.Intern_ID,
+	doc_comment:    string,
 	span:           base.Source_Span,
 }
 
@@ -90,28 +95,32 @@ Import_Variant_Group :: struct {
 }
 
 Decl_Import :: struct {
-	module: string,
-	names:  [dynamic]Import_Item,
-	alias:  base.Intern_ID,
-	span:   base.Source_Span,
+	module:      string,
+	names:       [dynamic]Import_Item,
+	alias:       base.Intern_ID,
+	doc_comment: string,
+	span:        base.Source_Span,
 }
 
 Decl_Test :: struct {
-	name: string,
-	body: Expr,
-	span: base.Source_Span,
+	name:        string,
+	body:        Expr,
+	doc_comment: string,
+	span:        base.Source_Span,
 }
 
 Decl_Expect :: struct {
-	condition: Expr,
-	span:      base.Source_Span,
+	condition:   Expr,
+	doc_comment: string,
+	span:        base.Source_Span,
 }
 
 Decl_Is_Impl :: struct {
-	type_name:  base.Intern_ID,
-	trait_name: base.Intern_ID,
-	methods:    [dynamic]Is_Method,
-	span:       base.Source_Span,
+	type_name:   base.Intern_ID,
+	trait_name:  base.Intern_ID,
+	methods:     [dynamic]Is_Method,
+	doc_comment: string,
+	span:        base.Source_Span,
 }
 
 Is_Method :: struct {
@@ -563,8 +572,9 @@ Type_Self :: struct {
 }
 
 File :: struct {
-	path:  string,
-	decls: [dynamic]Decl,
-	span:  base.Source_Span,
+	path:       string,
+	decls:      [dynamic]Decl,
+	module_doc: string,
+	span:       base.Source_Span,
 }
 

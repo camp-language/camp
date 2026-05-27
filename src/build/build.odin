@@ -4,6 +4,7 @@ import "camp:analysis"
 import "camp:base"
 import "camp:codegen"
 import "camp:diagnostics"
+import "camp:doc"
 import "camp:frontend"
 import "camp:ir"
 import "camp:mono"
@@ -246,6 +247,95 @@ run_check :: proc(args: []string) -> Build_Result {
 	if has_errors {
 		return Build_Error{message = "typecheck errors", code = 1}
 	}
+	return Build_Output{wasm_path = "", has_errors = false}
+}
+
+run_doc :: proc(args: []string) -> Build_Result {
+	file_path: string
+	if len(args) > 0 {
+		file_path = args[0]
+	}
+
+	if file_path == "" {
+		fmt.eprintln("usage: camp doc <file.camp>")
+		return Build_Error{message = "usage: camp doc <file.camp>", code = 1}
+	}
+
+	ctx: Compilation_Context
+	context_init(&ctx)
+	ctx.thread_count = 1
+	defer context_destroy(&ctx)
+
+	if filepath.ext(file_path) != ".camp" {
+		ext := filepath.ext(file_path)
+		diagnostics.collector_add_diag(
+			&ctx.collector,
+			diagnostics.diag_invalid_extension(file_path, ext),
+		)
+		diagnostics.render_all(&ctx.collector, file_path, "")
+		return Build_Error{message = fmt.tprintf("invalid file extension: {}", ext), code = 1}
+	}
+
+	data, err := os.read_entire_file(file_path, ctx.allocator)
+	if err != nil {
+		diagnostics.collector_add_diag(
+			&ctx.collector,
+			diagnostics.diag_file_not_found(file_path, fmt.tprintf("{}", err)),
+		)
+		diagnostics.render_all(&ctx.collector, file_path, "")
+		return Build_Error{message = fmt.tprintf("file not found: {}", file_path), code = 1}
+	}
+	source := string(data)
+
+	file_rec := base.Source_File {
+		path     = file_path,
+		contents = source,
+		id       = 0,
+	}
+
+	lexer: frontend.Lexer
+	frontend.lexer_init(&lexer, file_rec, &ctx.collector, &ctx.interner)
+
+	old_allocator := context.allocator
+	context.allocator = ctx.allocator
+	parser: frontend.Parser
+	frontend.parser_init(&parser, &lexer, &ctx.collector, &ctx.interner)
+	ast_file := frontend.parser_parse_file(&parser)
+	context.allocator = old_allocator
+
+	if diagnostics.diag_collector_has_errors(&ctx.collector) {
+		diagnostics.render_all(&ctx.collector, file_path, source)
+		return Build_Error{message = "parse errors", code = 1}
+	}
+
+	context.allocator = ctx.allocator
+	canon := semantics.canonicalize(ast_file, &ctx.interner, &ctx.collector)
+	context.allocator = old_allocator
+
+	if diagnostics.diag_collector_has_errors(&ctx.collector) {
+		diagnostics.render_all(&ctx.collector, file_path, source)
+		return Build_Error{message = "canonicalize errors", code = 1}
+	}
+
+	context.allocator = ctx.allocator
+	store: semantics.Type_Store
+	semantics.type_store_init(&store, &ctx.interner, &ctx.collector)
+	semantics.inject_prelude(&store)
+	semantics.typecheck_file(canon, &store)
+	context.allocator = old_allocator
+	defer semantics.type_store_destroy(&store)
+
+	has_errors := diagnostics.diag_collector_has_errors(&ctx.collector)
+
+	if has_errors {
+		diagnostics.render_all(&ctx.collector, file_path, source)
+		return Build_Error{message = "typecheck errors", code = 1}
+	}
+
+	context.allocator = ctx.allocator
+	doc.generate(canon, &store, &ctx.interner)
+	context.allocator = old_allocator
+
 	return Build_Output{wasm_path = "", has_errors = false}
 }
 

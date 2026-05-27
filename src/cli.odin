@@ -8,6 +8,7 @@ CLI_Command :: enum {
 	Test,
 	Fmt,
 	Check,
+	Doc,
 	Lsp,
 }
 
@@ -21,6 +22,8 @@ parse_command :: proc(cmd: string) -> (CLI_Command, bool) {
 		return .Fmt, true
 	case "check":
 		return .Check, true
+	case "doc":
+		return .Doc, true
 	case "lsp":
 		return .Lsp, true
 	case:
@@ -39,6 +42,13 @@ run_build :: proc(args: []string) {
 
 run_test :: proc(args: []string) {
 	result := build.run_test(args)
+	if failed, is_failed := result.(build.Build_Error); is_failed {
+		os.exit(failed.code)
+	}
+}
+
+run_doc :: proc(args: []string) {
+	result := build.run_doc(args)
 	if failed, is_failed := result.(build.Build_Error); is_failed {
 		os.exit(failed.code)
 	}

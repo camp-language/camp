@@ -1,3 +1,21 @@
-stdout = ""
-stderr = "process timed out after 10s"
-exit = -1
+stdout = """
+canonicalized /tmp/camp-e2e/language/kitchen-sink/src/Main.camp: 5 declaration(s), 0 import(s)
+-- C0301: TYPE MISMATCH --- /tmp/camp-e2e/language/kitchen-sink/src/Main.camp
+
+`I64` does not match `Char`.
+  36 |   char_val: Char = 'a'
+                          ^^^
+  36 |   char_val: Char = 'a'
+                   ~~~~ this has type `Char`
+
+-- C0300: TYPE MISMATCH --- /tmp/camp-e2e/language/kitchen-sink/src/Main.camp
+
+`Unit` does not match `record`.
+  37 |   unit_val: {} = {}
+                        ^
+  37 |   unit_val: {} = {}
+                   ~ this has type `record`
+compilation failed with 2 error(s)
+"""
+stderr = ""
+exit = 1

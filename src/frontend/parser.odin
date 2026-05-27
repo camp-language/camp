@@ -32,10 +32,11 @@ INFIX_BP: map[base.Token_Kind][2]Binding_Power = {
 DOT_RECEIVER_SENTINEL :: "__dot_receiver__"
 
 Parser :: struct {
-	lexer:     ^Lexer,
-	current:   base.Token,
-	collector: ^diagnostics.Diagnostic_Collector,
-	intern:    ^base.Intern_Table,
+	lexer:          ^Lexer,
+	current:        base.Token,
+	collector:      ^diagnostics.Diagnostic_Collector,
+	intern:         ^base.Intern_Table,
+	had_blank_line: bool,
 }
 
 parser_init :: proc(
@@ -48,11 +49,13 @@ parser_init :: proc(
 	p.collector = collector
 	p.intern = table
 	p.current = lexer_next(lexer)
+	p.had_blank_line = lexer_had_blank_line(lexer)
 }
 
 parser_advance :: proc(p: ^Parser) -> base.Token {
 	prev := p.current
 	p.current = lexer_next(p.lexer)
+	p.had_blank_line = lexer_had_blank_line(p.lexer)
 	return prev
 }
 
@@ -153,13 +156,83 @@ parser_parse_file :: proc(p: ^Parser) -> File {
 	file: File
 	file.path = ""
 	file.decls = make([dynamic]Decl, 0, 32)
+	module_doc_set := false
 
 	for p.current.kind != .Eof {
+		doc, orphaned := parser_collect_doc_comments(p)
+
+		if p.current.kind == .Eof {
+			if doc != "" && !module_doc_set {
+				file.module_doc = doc
+				module_doc_set = true
+			}
+			break
+		}
+
 		decl := parser_parse_decl(p)
+
+		if orphaned && !module_doc_set {
+			file.module_doc = doc
+			module_doc_set = true
+		} else if doc != "" {
+			set_decl_doc_comment(decl, doc)
+		}
+
 		append(&file.decls, decl)
 	}
 
 	return file
+}
+
+parser_collect_doc_comments :: proc(p: ^Parser) -> (doc: string, orphaned: bool) {
+	builder: strings.Builder
+	strings.builder_init(&builder, context.allocator)
+	defer strings.builder_destroy(&builder)
+	first := true
+
+	for p.current.kind == .Doc_Comment || p.current.kind == .Hidden_Line {
+		if !first && p.had_blank_line {
+			break
+		}
+		first = false
+		if strings.builder_len(builder) > 0 {
+			strings.write_byte(&builder, '\n')
+		}
+		if p.current.kind == .Doc_Comment {
+			strings.write_string(&builder, p.current.text)
+		} else {
+			strings.write_string(&builder, "//#")
+			strings.write_string(&builder, p.current.text)
+		}
+		parser_advance(p)
+	}
+
+	doc = strings.to_string(builder)
+	orphaned = doc != "" && p.had_blank_line
+	return
+}
+
+set_decl_doc_comment :: proc(decl: Decl, doc: string) {
+	#partial switch d in decl {
+	case ^Decl_Const:
+		d.doc_comment = doc
+	case ^Decl_Effect:
+		d.doc_comment = doc
+	case ^Decl_Trait:
+		d.doc_comment = doc
+	case ^Decl_Alias:
+		d.doc_comment = doc
+	case ^Decl_Newtype:
+		d.doc_comment = doc
+	case ^Decl_Import:
+		d.doc_comment = doc
+	case ^Decl_Test:
+		d.doc_comment = doc
+	case ^Decl_Expect:
+		d.doc_comment = doc
+	case ^Decl_Is_Impl:
+		d.doc_comment = doc
+	}
 }
 
 parser_parse_decl :: proc(p: ^Parser) -> Decl {
@@ -2283,6 +2356,7 @@ parser_parse_type :: proc(p: ^Parser) -> ^Type {
 	     .Char_Literal,
 	     .Perline_String_Literal,
 	     .Doc_Comment,
+	     .Hidden_Line,
 	     .Kw_If,
 	     .Kw_Else,
 	     .Kw_Match,
