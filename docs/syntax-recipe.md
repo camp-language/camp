@@ -636,6 +636,6 @@ Both mechanisms:
 | Higher-kinded types | Decided: no | Ship without, observe, add associated types later if needed |
 | Multi-shot continuations | Decided: no | One-shot only; backtracking as library effect |
 | Prelude opt-out | TBD | Need mechanism to disable compiler-injected prelude |
-| Shebang dependency syntax | TBD | How single-file scripts declare dependencies |
-| `camp.toml` format | TBD | Project manifest structure |
-| `camp build` / `camp test` CLI | TBD | Build system and test runner interface |
+ Shebang dependency syntax | Decided: `deps` block | `deps { alias: "uri" }` before imports; script-only; see openspec/specs/packages |
+ `camp.toml` format | Decided: TOML | `[package]`, `[dependencies]`, `[dev-dependencies]`; bare URI deps; see openspec/specs/packages |
+ `camp build` / `camp test` CLI | TBD | Build system and test runner interface |
