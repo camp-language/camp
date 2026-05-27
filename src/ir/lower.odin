@@ -759,7 +759,9 @@ lower_tmethod_call :: proc(e: ^semantics.TExpr_Method_Call, env: ^Lower_Env) -> 
 	     ^semantics.TExpr_Handle,
 	     ^semantics.TExpr_Perform,
 	     ^semantics.TExpr_For,
-	     ^semantics.TExpr_Par:
+	     ^semantics.TExpr_Par,
+	     ^semantics.TExpr_Tuple,
+	     ^semantics.TExpr_Field_Index:
 	}
 
 	if receiver_effect_name != base.NO_NAME &&
@@ -799,41 +801,7 @@ lower_tmethod_call :: proc(e: ^semantics.TExpr_Method_Call, env: ^Lower_Env) -> 
 	// Check for string method intrinsics: .len() and .slice()
 	// We check the receiver type to see if it's a Str
 	method_str := base.intern_get(env.interner, e.method.name)
-	receiver_type_var: base.Type_Var_ID = 0
-	#partial switch r in e.receiver {
-	case ^semantics.TExpr_Name:
-		receiver_type_var = r.type_.type_id
-	case ^semantics.TExpr_String:
-		receiver_type_var = r.type_.type_id
-	case ^semantics.TExpr_Method_Call:
-		receiver_type_var = r.type_.type_id
-	case ^semantics.TExpr_Field_Access:
-		receiver_type_var = r.type_.type_id
-	case ^semantics.TExpr_Call:
-		receiver_type_var = r.type_.type_id
-	case ^semantics.TExpr_Int,
-	     ^semantics.TExpr_Float,
-	     ^semantics.TExpr_Bool,
-	     ^semantics.TExpr_Tag,
-	     ^semantics.TExpr_Nominal_Construct,
-	     ^semantics.TExpr_Record,
-	     ^semantics.TExpr_List,
-	     ^semantics.TExpr_Lambda,
-	     ^semantics.TExpr_Block,
-	     ^semantics.TExpr_If,
-	     ^semantics.TExpr_Match,
-	     ^semantics.TExpr_BinOp,
-	     ^semantics.TExpr_PrefixOp,
-	     ^semantics.TExpr_Record_Update,
-	     ^semantics.TExpr_Assign,
-	     ^semantics.TExpr_Return,
-	     ^semantics.TExpr_Crash,
-	     ^semantics.TExpr_Interpolated_String,
-	     ^semantics.TExpr_Handle,
-	     ^semantics.TExpr_Perform,
-	     ^semantics.TExpr_For,
-	     ^semantics.TExpr_Par:
-	}
+	receiver_type_var := texpr_type_id(e.receiver)
 
 	if receiver_type_var != 0 {
 		resolved_type := semantics.resolve_var(env.store, receiver_type_var)
@@ -863,6 +831,36 @@ lower_tmethod_call :: proc(e: ^semantics.TExpr_Method_Call, env: ^Lower_Env) -> 
 		}
 	}
 
+
+	// Try resolving via trait implementations for newtypes
+	if receiver_type_var != 0 {
+		resolved_type := semantics.resolve_var(env.store, receiver_type_var)
+		v := &env.store.vars[int(resolved_type)]
+		if inf, ok := v.link.(semantics.Inferred_Type); ok {
+			if nt, ok2 := inf.(semantics.Inferred_Newtype); ok2 {
+				for impl in env.store.trait_impls {
+					if impl.type_name == nt.primitive_name {
+						if fn_name, has := impl.methods[e.method.name]; has {
+							ir_args := make([dynamic]IR_Expr, 0, len(e.args) + 1)
+							append(&ir_args, receiver_ir)
+							for arg in e.args {
+								append(&ir_args, lower_texpr(arg, env))
+							}
+							call := new(IR_Call)
+							call^ = IR_Call {
+								callee           = fn_name,
+								args             = ir_args,
+								type             = e.type_,
+								span             = e.span,
+								ord_compare_func = base.Canonical_Name{},
+							}
+							return IR_Expr(call)
+						}
+					}
+				}
+			}
+		}
+	}
 	ir_args := make([dynamic]IR_Expr, 0, len(e.args) + 1)
 	append(&ir_args, receiver_ir)
 	for arg in e.args {
@@ -1235,6 +1233,9 @@ lower_tpattern :: proc(
 						env.store,
 						scrutinee_type_id,
 						prev_cons.name,
+						// Char patterns are intentionally lowered as integer patterns.
+						// WASM has no native char type; chars are represented as i64 (Unicode codepoint).
+						// Char-specific error messages are lost, but runtime behavior is correct.
 					)
 					prev_cons.payload = make([dynamic]base.Intern_ID, 0)
 					append(&prev_cons.payload, elem_var.name)
@@ -1264,6 +1265,9 @@ lower_tpattern :: proc(
 		result.string_id = string_id
 		return IR_Pattern(result)
 
+	// Char patterns are intentionally lowered as integer patterns.
+	// WASM has no native char type; chars are represented as i64 (Unicode codepoint).
+	// Char-specific error messages are lost, but runtime behavior is correct.
 	case ^semantics.TPattern_Char:
 		result := new(IR_Pat_Int)
 		result.value = i64(p.value)
@@ -1287,9 +1291,7 @@ lower_tpattern :: proc(
 		return IR_Pattern(result)
 
 	case ^semantics.TPattern_Destructure:
-		result := new(IR_Pat_Var)
-		result.name = base.Intern_ID(0)
-		return IR_Pattern(result)
+		return lower_tpattern(p.inner, env, scrutinee_type_id)
 
 	case ^semantics.TPattern_Or:
 		// Or-patterns are desugared in lower_tmatch before this function is called.
@@ -1298,6 +1300,8 @@ lower_tpattern :: proc(
 			return lower_tpattern(p.alternatives[0], env)
 		}
 		return IR_Pattern(nil)
+	case ^semantics.TPattern_As:
+		return lower_tpattern(p.inner, env)
 	}
 	return IR_Pattern(nil)
 }
@@ -1332,6 +1336,10 @@ lower_binop_kind :: proc(op: base.Token_Kind) -> IR_BinOp_Kind {
 		return .And
 	case .Kw_Or:
 		return .Or
+	case .Lt_Lt:
+		return .Shl
+	case .Gt_Gt:
+		return .Shr
 	}
 	return .Add
 }

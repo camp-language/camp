@@ -66,6 +66,7 @@ CDecl_Alias :: struct {
 	is_pub:      bool,
 	target:      ^CType,
 	doc_comment: string,
+	type_params: [dynamic]frontend.Type_Param,
 	span:        base.Source_Span,
 }
 
@@ -386,6 +387,7 @@ CPattern :: union {
 	^CPattern_Wildcard,
 	^CPattern_Destructure,
 	^CPattern_Or,
+	^CPattern_As,
 }
 
 CPattern_Tag :: struct {
@@ -398,6 +400,7 @@ CPattern_Record :: struct {
 	fields:  [dynamic]CPattern_Field,
 	is_open: bool,
 	span:    base.Source_Span,
+	rest:    base.Intern_ID,
 }
 CPattern_Tuple :: struct {
 	elements: [dynamic]CPattern,
@@ -454,6 +457,12 @@ CPattern_Destructure :: struct {
 CPattern_Or :: struct {
 	alternatives: [dynamic]CPattern,
 	span:         base.Source_Span,
+}
+
+CPattern_As :: struct {
+	name:  base.Intern_ID,
+	inner: CPattern,
+	span:  base.Source_Span,
 }
 
 CType :: union {

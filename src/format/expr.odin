@@ -37,6 +37,10 @@ operator_string :: proc(kind: base.Token_Kind) -> string {
 		return "<="
 	case .Gt_Eq:
 		return ">="
+	case .Lt_Lt:
+		return "<<"
+	case .Gt_Gt:
+		return ">>"
 	case .Pipe:
 		return "|"
 	case .Dot_Dot:

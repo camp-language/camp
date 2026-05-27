@@ -207,6 +207,7 @@ TPattern :: union {
 	^TPattern_Wildcard,
 	^TPattern_Destructure,
 	^TPattern_Or,
+	^TPattern_As,
 }
 
 TPattern_Tag :: struct {
@@ -219,6 +220,7 @@ TPattern_Record :: struct {
 	fields:  [dynamic]TPattern_Field,
 	is_open: bool,
 	span:    base.Source_Span,
+	rest:    base.Intern_ID,
 }
 TPattern_Tuple :: struct {
 	elements: [dynamic]TPattern,
@@ -275,6 +277,12 @@ TPattern_Destructure :: struct {
 TPattern_Or :: struct {
 	alternatives: [dynamic]TPattern,
 	span:         base.Source_Span,
+}
+
+TPattern_As :: struct {
+	name:  base.Intern_ID,
+	inner: TPattern,
+	span:  base.Source_Span,
 }
 
 TExpr_BinOp :: struct {
@@ -758,6 +766,9 @@ tpattern_destroy :: proc(p: TPattern) {
 	case ^TPattern_Or:
 		for elem in v.alternatives do tpattern_destroy(elem)
 		delete(v.alternatives)
+		free(v)
+	case ^TPattern_As:
+		tpattern_destroy(v.inner)
 		free(v)
 	}
 }

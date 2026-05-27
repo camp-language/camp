@@ -70,6 +70,7 @@ Decl_Alias :: struct {
 	is_pub:      bool,
 	target:      ^Type,
 	doc_comment: string,
+	type_params: [dynamic]Type_Param,
 	span:        base.Source_Span,
 }
 
@@ -315,6 +316,7 @@ Pattern :: union {
 	^Pattern_Wildcard,
 	^Pattern_Destructure,
 	^Pattern_Or,
+	^Pattern_As,
 }
 
 
@@ -328,6 +330,7 @@ Pattern_Record :: struct {
 	fields:  [dynamic]Pattern_Field,
 	is_open: bool,
 	span:    base.Source_Span,
+	rest:    base.Intern_ID,
 }
 Pattern_Tuple :: struct {
 	elements: [dynamic]Pattern,
@@ -384,6 +387,12 @@ Pattern_Destructure :: struct {
 Pattern_Or :: struct {
 	alternatives: [dynamic]Pattern,
 	span:         base.Source_Span,
+}
+
+Pattern_As :: struct {
+	name:  base.Intern_ID,
+	inner: Pattern,
+	span:  base.Source_Span,
 }
 
 Expr_BinOp :: struct {

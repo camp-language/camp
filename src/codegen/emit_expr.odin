@@ -102,6 +102,7 @@ collect_locals :: proc(expr: ir.IR_Expr, locals: ^map[base.Intern_ID]base.IR_Typ
 	case ^ir.IR_Wait:
 		collect_locals(e.base, locals)
 		collect_locals(e.expected, locals)
+		collect_locals(e.timeout, locals)
 	case ^ir.IR_Notify:
 		collect_locals(e.base, locals)
 		collect_locals(e.count, locals)
@@ -2328,6 +2329,13 @@ emit_expr :: proc(expr: ir.IR_Expr, buf: ^[dynamic]u8, env: ^Codegen_Env, runtim
 			buf,
 		)
 	case ^ir.IR_Expr_Nominal_Construct:
+		// Newtypes are erased at runtime — emit the payload value directly.
+		// Simple wrap (variant == 0, single payload): just emit the payload.
+		// Qualified variant or multi-payload: emit unreachable (not yet implemented).
+		if e.variant == 0 && len(e.payload) == 1 {
+			emit_expr(e.payload[0], buf, env, runtime_indices)
+			return
+		}
 		emit_instruction(Wasm_Unreachable{}, buf)
 	}
 }
@@ -2337,54 +2345,88 @@ emit_binop :: proc(op: ir.IR_BinOp_Kind, operand_type: base.IR_Wasm_Type, buf: ^
 	case .Add:
 		if operand_type == .I32 {
 			emit_instruction(Wasm_I32_Add{}, buf)
+		} else if operand_type == .F64 {
+			emit_instruction(Wasm_F64_Add{}, buf)
 		} else {
 			emit_instruction(Wasm_I64_Add{}, buf)
 		}
 	case .Sub:
 		if operand_type == .I32 {
 			emit_instruction(Wasm_I32_Sub{}, buf)
+		} else if operand_type == .F64 {
+			emit_instruction(Wasm_F64_Sub{}, buf)
 		} else {
 			emit_instruction(Wasm_I64_Sub{}, buf)
 		}
 	case .Mul:
 		if operand_type == .I32 {
 			emit_instruction(Wasm_I32_Mul{}, buf)
+		} else if operand_type == .F64 {
+			emit_instruction(Wasm_F64_Mul{}, buf)
 		} else {
 			emit_instruction(Wasm_I64_Mul{}, buf)
 		}
+	case .Div:
+		if operand_type == .I32 {
+			emit_instruction(Wasm_I32_Div_S{}, buf)
+		} else if operand_type == .F64 {
+			emit_instruction(Wasm_F64_Div{}, buf)
+		} else {
+			emit_instruction(Wasm_I64_Div_S{}, buf)
+		}
+	case .Mod:
+		if operand_type == .I32 {
+			emit_instruction(Wasm_I32_Rem_S{}, buf)
+		} else {
+			emit_instruction(Wasm_I64_Rem_S{}, buf)
+		}
+	case .Exp:
+		emit_instruction(Wasm_Unreachable{}, buf)
 	case .Eq:
 		if operand_type == .I64 {
 			emit_instruction(Wasm_I64_Eq{}, buf)
+		} else if operand_type == .F64 {
+			emit_instruction(Wasm_F64_Eq{}, buf)
 		} else {
 			emit_instruction(Wasm_I32_Eq{}, buf)
 		}
 	case .Ne:
 		if operand_type == .I64 {
 			emit_instruction(Wasm_I64_Ne{}, buf)
+		} else if operand_type == .F64 {
+			emit_instruction(Wasm_F64_Ne{}, buf)
 		} else {
 			emit_instruction(Wasm_I32_Ne{}, buf)
 		}
 	case .Lt:
 		if operand_type == .I64 {
 			emit_instruction(Wasm_I64_Lt_S{}, buf)
+		} else if operand_type == .F64 {
+			emit_instruction(Wasm_F64_Lt{}, buf)
 		} else {
 			emit_instruction(Wasm_I32_Lt_S{}, buf)
 		}
 	case .Gt:
 		if operand_type == .I64 {
 			emit_instruction(Wasm_I64_Gt_S{}, buf)
+		} else if operand_type == .F64 {
+			emit_instruction(Wasm_F64_Gt{}, buf)
 		} else {
 			emit_instruction(Wasm_I32_Gt_S{}, buf)
 		}
 	case .Le:
 		if operand_type == .I64 {
 			emit_instruction(Wasm_I64_Le_S{}, buf)
+		} else if operand_type == .F64 {
+			emit_instruction(Wasm_F64_Le{}, buf)
 		} else {
 			emit_instruction(Wasm_I32_Le_S{}, buf)
 		}
 	case .Ge:
 		if operand_type == .I64 {
 			emit_instruction(Wasm_I64_Ge_S{}, buf)
+		} else if operand_type == .F64 {
+			emit_instruction(Wasm_F64_Ge{}, buf)
 		} else {
 			emit_instruction(Wasm_I32_Ge_S{}, buf)
 		}
@@ -2400,8 +2442,18 @@ emit_binop :: proc(op: ir.IR_BinOp_Kind, operand_type: base.IR_Wasm_Type, buf: ^
 		} else {
 			emit_instruction(Wasm_I32_Or{}, buf)
 		}
-	case .Div, .Mod, .Exp:
-		emit_instruction(Wasm_I64_Add{}, buf)
+	case .Shl:
+		if operand_type == .I32 {
+			emit_instruction(Wasm_I32_Shl{}, buf)
+		} else {
+			emit_instruction(Wasm_I64_Shl{}, buf)
+		}
+	case .Shr:
+		if operand_type == .I32 {
+			emit_instruction(Wasm_I32_Shr_S{}, buf)
+		} else {
+			emit_instruction(Wasm_I64_Shr_S{}, buf)
+		}
 	}
 }
 

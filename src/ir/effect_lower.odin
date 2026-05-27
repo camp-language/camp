@@ -466,6 +466,19 @@ el_replace_resume :: proc(
 			span       = e.span,
 		}
 		return IR_Expr(new_tag)
+	case ^IR_Expr_Nominal_Construct:
+		new_payload := make([dynamic]IR_Expr, 0, len(e.payload))
+		for p in e.payload {
+			append(&new_payload, el_replace_resume(p, resume_id, resume_param, ev_param, env))
+		}
+		new_cons := new(IR_Expr_Nominal_Construct)
+		new_cons^ = IR_Expr_Nominal_Construct {
+			type_name = e.type_name,
+			variant   = e.variant,
+			payload   = new_payload,
+			span      = e.span,
+		}
+		return IR_Expr(new_cons)
 
 	case ^IR_Construct_Record:
 		new_fields := make([dynamic]IR_Record_Field, 0, len(e.fields))
@@ -487,6 +500,19 @@ el_replace_resume :: proc(
 			span       = e.span,
 		}
 		return IR_Expr(new_rec)
+	case ^IR_Construct_Tuple:
+		new_elements := make([dynamic]IR_Expr, 0, len(e.elements))
+		for el in e.elements {
+			append(&new_elements, el_replace_resume(el, resume_id, resume_param, ev_param, env))
+		}
+		new_tuple := new(IR_Construct_Tuple)
+		new_tuple^ = IR_Construct_Tuple {
+			elements   = new_elements,
+			reuse_addr = e.reuse_addr,
+			type       = e.type,
+			span       = e.span,
+		}
+		return IR_Expr(new_tuple)
 
 	case ^IR_Field_Access:
 		new_fa := new(IR_Field_Access)
@@ -1243,6 +1269,7 @@ el_lower_expr :: proc(expr: IR_Expr, env: ^Effect_Lower_Env) -> IR_Expr {
 		     ^IR_Construct_Tag,
 		     ^IR_Expr_Nominal_Construct,
 		     ^IR_Construct_Record,
+		     ^IR_Construct_Tuple,
 		     ^IR_Field_Access,
 		     ^IR_Method_Call,
 		     ^IR_Handle,
@@ -1540,6 +1567,19 @@ el_lower_expr :: proc(expr: IR_Expr, env: ^Effect_Lower_Env) -> IR_Expr {
 			span       = e.span,
 		}
 		return IR_Expr(new_tag)
+	case ^IR_Expr_Nominal_Construct:
+		new_payload := make([dynamic]IR_Expr, 0, len(e.payload))
+		for p in e.payload {
+			append(&new_payload, el_lower_expr(p, env))
+		}
+		new_cons := new(IR_Expr_Nominal_Construct)
+		new_cons^ = IR_Expr_Nominal_Construct {
+			type_name = e.type_name,
+			variant   = e.variant,
+			payload   = new_payload,
+			span      = e.span,
+		}
+		return IR_Expr(new_cons)
 
 	case ^IR_Construct_Record:
 		new_fields := make([dynamic]IR_Record_Field, 0, len(e.fields))
@@ -1558,6 +1598,20 @@ el_lower_expr :: proc(expr: IR_Expr, env: ^Effect_Lower_Env) -> IR_Expr {
 			span       = e.span,
 		}
 		return IR_Expr(new_rec)
+	case ^IR_Construct_Tuple:
+		new_elements := make([dynamic]IR_Expr, 0, len(e.elements))
+		for el in e.elements {
+			append(&new_elements, el_lower_expr(el, env))
+		}
+		new_tuple := new(IR_Construct_Tuple)
+		new_tuple^ = IR_Construct_Tuple {
+			elements   = new_elements,
+			reuse_addr = e.reuse_addr,
+			type       = e.type,
+			span       = e.span,
+		}
+		return IR_Expr(new_tuple)
+
 
 	case ^IR_Field_Access:
 		new_fa := new(IR_Field_Access)
