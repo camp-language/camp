@@ -48,6 +48,8 @@ emit_start_function :: proc(
 	ir_mod: ir.IR_Module,
 	thread_count: int,
 	deferred_handler_codes: ^[dynamic]Wasm_Code,
+	main_entry_wrapper_fn_idx: int,
+	main_entry_wrapper_code: ^Wasm_Code,
 ) {
 	if start_func_idx >= 0 && main_decl != nil {
 		env.next_local = 4
@@ -59,7 +61,7 @@ emit_start_function :: proc(
 
 		// `!` suffix sets is_effectful even with no inferred effects; cont_func_idx tracks the stronger condition.
 		if main_decl.is_effectful && cont_func_idx >= 0 {
-			// Effectful main: _start allocates evidence records, calls main!, exits
+			// Effectful main: _start inits scheduler, spawns main!, runs loop, exits
 
 			// Emit top-level continuation function body for CPS-transformed main!
 			// The continuation takes (env: i32, result: i64) and calls camp_exit(result & 127)
@@ -83,7 +85,19 @@ emit_start_function :: proc(
 			)
 			delete(cont_body_buf)
 
+			// Append main entry wrapper code at correct position (after continuation)
+			if main_entry_wrapper_code != nil {
+				append(&env.mod.codes, main_entry_wrapper_code^)
+			}
+
 			ev_param_count := len(main_decl.effects)
+
+			// Initialize scheduler before setting up evidence
+			emit_instruction(Wasm_I32_Const{value = 0}, &code_buf) // worker_id = 0
+			emit_instruction(
+				Wasm_Call{index = u32(runtime_func_indices[Runtime_Func.Sched_Init])},
+				&code_buf,
+			)
 
 			ev_local_indices := make([dynamic]int, 0, ev_param_count)
 
@@ -221,23 +235,6 @@ emit_start_function :: proc(
 				}
 			}
 
-			// Push evidence pointers for the call to main!
-			for ev_idx in ev_local_indices {
-				emit_instruction(Wasm_Local_Get{index = u32(ev_idx)}, &code_buf)
-			}
-			delete(ev_local_indices)
-
-			// Call main! with evidence pointers as arguments
-			main_fn_idx, ok := env.func_map[u64(main_decl.name.name)]
-			if !ok {
-				mangled := base.mangle_name(
-					main_decl.name.module,
-					main_decl.name.name,
-					env.interner,
-				)
-				main_fn_idx = env.func_map[base.hash_string(mangled)]
-			}
-
 			// Allocate closure record for top-level continuation
 			closure_local := env.next_local
 			env.next_local += 1
@@ -280,12 +277,59 @@ emit_start_function :: proc(
 			emit_instruction(Wasm_I32_Const{value = 0}, &code_buf)
 			emit_instruction(Wasm_I32_Store{align = 2, offset = 0}, &code_buf)
 
-			// Push closure pointer as continuation argument
+			// Allocate env record for main entry wrapper:
+			// layout: [ev0, ev1, ..., evN, continuation_closure]
+			// each slot is 4 bytes (i32), total = (ev_param_count + 1) * 4
+			env_record_local := env.next_local
+			env.next_local += 1
+			env_record_size := (ev_param_count + 1) * 4
+			emit_instruction(Wasm_I32_Const{value = i32(env_record_size)}, &code_buf)
+			emit_instruction(
+				Wasm_Call{index = u32(runtime_func_indices[Runtime_Func.Alloc])},
+				&code_buf,
+			)
+			emit_instruction(Wasm_Local_Set{index = env_record_local}, &code_buf)
+
+			// Store evidence pointers into env record
+			for i in 0 ..< ev_param_count {
+				emit_instruction(Wasm_Local_Get{index = env_record_local}, &code_buf)
+				emit_instruction(Wasm_I32_Const{value = i32(i * 4)}, &code_buf)
+				emit_instruction(Wasm_I32_Add{}, &code_buf)
+				emit_instruction(Wasm_Local_Get{index = u32(ev_local_indices[i])}, &code_buf)
+				emit_instruction(Wasm_I32_Store{align = 2, offset = 0}, &code_buf)
+			}
+			delete(ev_local_indices)
+
+			// Store continuation closure pointer into env record
+			emit_instruction(Wasm_Local_Get{index = env_record_local}, &code_buf)
+			emit_instruction(Wasm_I32_Const{value = i32(ev_param_count * 4)}, &code_buf)
+			emit_instruction(Wasm_I32_Add{}, &code_buf)
 			emit_instruction(Wasm_Local_Get{index = closure_local}, &code_buf)
+			emit_instruction(Wasm_I32_Store{align = 2, offset = 0}, &code_buf)
 
-			emit_instruction(Wasm_Call{index = u32(main_fn_idx)}, &code_buf)
+			// Spawn main! via scheduler:
+			// sched_spawn(fn_index=main_entry_wrapper_fn_idx, env_ptr=env_record, scope_id=0)
+			emit_instruction(Wasm_I32_Const{value = i32(main_entry_wrapper_fn_idx)}, &code_buf)
+			emit_instruction(Wasm_Local_Get{index = env_record_local}, &code_buf)
+			emit_instruction(Wasm_I32_Const{value = 0}, &code_buf) // scope_id = 0
+			emit_instruction(
+				Wasm_Call{index = u32(runtime_func_indices[Runtime_Func.Sched_Spawn])},
+				&code_buf,
+			)
+			emit_instruction(Wasm_Drop{}, &code_buf) // discard handle_id
 
-			// CPS-transformed main! tail-calls the continuation — it never returns here
+			// Enter scheduler loop
+			emit_instruction(
+				Wasm_Call{index = u32(runtime_func_indices[Runtime_Func.Sched_Run_Single])},
+				&code_buf,
+			)
+
+			// After scheduler exits, call camp_exit(0)
+			emit_instruction(Wasm_I32_Const{value = 0}, &code_buf)
+			emit_instruction(
+				Wasm_Call{index = u32(runtime_func_indices[Runtime_Func.Exit])},
+				&code_buf,
+			)
 			emit_instruction(Wasm_Unreachable{}, &code_buf)
 			emit_instruction(Wasm_End{}, &code_buf)
 
@@ -294,7 +338,7 @@ emit_start_function :: proc(
 			if ev_param_count > 0 {
 				append(&start_locals, Wasm_Local_Decl{count = u32(ev_param_count), type = .I32})
 			}
-			append(&start_locals, Wasm_Local_Decl{count = 1, type = .I32})
+			append(&start_locals, Wasm_Local_Decl{count = 2, type = .I32})
 			append(
 				&env.mod.codes,
 				Wasm_Code{locals = start_locals[:], body = copy_dynamic_bytes(code_buf)},

@@ -191,10 +191,6 @@ Runtime_Func :: enum {
 	List_Grow,
 	Str_Len,
 	Str_Eq,
-	Async_Init,
-	Async_Enqueue,
-	Async_Dequeue,
-	Async_Run,
 	Sched_Init,
 	Sched_Spawn,
 	Sched_Join,
@@ -207,6 +203,11 @@ Runtime_Func :: enum {
 	Sched_Notify,
 	Sched_Park,
 	Sched_Worker_Loop,
+	Sched_Current_Task,
+	Sched_Run_Single,
+	Sched_Poll_And_Dispatch,
+	Sched_Timer_Tick,
+	Sched_Timer_Process_Expired,
 	Parallel_Map,
 	Parallel_Reduce,
 	Parallel_Any,
@@ -1595,8 +1596,10 @@ emit_expr :: proc(expr: ir.IR_Expr, buf: ^[dynamic]u8, env: ^Codegen_Env, runtim
 					} else {
 						emit_instruction(Wasm_I32_Const{value = 0}, buf)
 					}
-					// task_ptr placeholder (would need current task context)
-					emit_instruction(Wasm_I32_Const{value = 0}, buf)
+					emit_instruction(
+						Wasm_Call{index = u32(runtime_indices[Runtime_Func.Sched_Current_Task])},
+						buf,
+					)
 					emit_instruction(
 						Wasm_Call{index = u32(runtime_indices[Runtime_Func.Sched_Timer_Insert])},
 						buf,
@@ -1614,7 +1617,10 @@ emit_expr :: proc(expr: ir.IR_Expr, buf: ^[dynamic]u8, env: ^Codegen_Env, runtim
 					} else {
 						emit_instruction(Wasm_I32_Const{value = 0}, buf)
 					}
-					emit_instruction(Wasm_I32_Const{value = 0}, buf) // task_ptr placeholder
+					emit_instruction(
+						Wasm_Call{index = u32(runtime_indices[Runtime_Func.Sched_Current_Task])},
+						buf,
+					)
 					emit_instruction(
 						Wasm_Call{index = u32(runtime_indices[Runtime_Func.Sched_Block_IO])},
 						buf,

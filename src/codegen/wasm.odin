@@ -235,6 +235,8 @@ Wasm_F64_Load :: struct {
 	align:  u32,
 	offset: u32,
 }
+Wasm_F64_Lt :: struct {}
+Wasm_F64_Gt :: struct {}
 Wasm_Memory_Size :: struct {}
 Wasm_Memory_Grow :: struct {}
 Wasm_Block :: struct {
@@ -413,6 +415,8 @@ Wasm_Instruction :: union {
 	Wasm_I64_Store,
 	Wasm_F64_Store,
 	Wasm_F64_Load,
+	Wasm_F64_Lt,
+	Wasm_F64_Gt,
 	Wasm_Memory_Size,
 	Wasm_Memory_Grow,
 	Wasm_Memory_Copy,
@@ -623,6 +627,10 @@ emit_instruction :: proc(instr: Wasm_Instruction, buf: ^[dynamic]u8) {
 		append(buf, 0x2B)
 		encode_u32_leb128(i.align, buf)
 		encode_u32_leb128(i.offset, buf)
+	case Wasm_F64_Lt:
+		append(buf, 0x63)
+	case Wasm_F64_Gt:
+		append(buf, 0x64)
 	case Wasm_Memory_Size:
 		append(buf, 0x3F)
 		append(buf, 0x00)
