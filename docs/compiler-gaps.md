@@ -716,3 +716,1579 @@ For each dispatch function that processes a union type:
 
 This ensures that adding a new AST/IR variant immediately triggers a compiler
 developer-visible error rather than silently producing wrong code.
+
+
+---
+
+# Part II: Detailed Fix Plans
+
+Below is a concrete, file-and-line-level implementation plan for every gap
+identified in Part I. Each plan specifies: the exact code change, any new
+diagnostics needed, test strategy, and dependencies on other fixes.
+
+---
+
+## 12. GAP-1: `verify_trait_conformance` never called
+
+**Files:** `src/semantics/check_decl.odin`
+**Dependencies:** None
+
+### Step 1: Call `verify_trait_conformance` from the `CDecl_Is_Impl` handler
+
+In `typecheck_decl` at the `case ^CDecl_Is_Impl:` branch (line 261), after
+typechecking all method bodies and constructing the `TDecl_Is_Impl`, add:
+
+```odin
+// After constructing methods, verify conformance
+type_module := d.type_name.module
+if type_module == base.NO_NAME {
+    type_module = env.current_module
+}
+ok := verify_trait_conformance(d.type_name.name, type_module, d.trait_name.name, d.span, store, env)
+if !ok {
+    // Conformance check already emitted diagnostics.
+    // Continue with the impl so downstream passes don't crash on nil.
+}
+```
+
+### Step 2: Populate method params from trait declaration
+
+Replace `params = make([dynamic]TFunc_Param, 0)` with actual parameter info
+from the trait. After verifying the trait exists in `store.trait_registry`,
+look up each method's param types and populate them:
+
+```odin
+trait_info, trait_found := store.trait_registry[d.trait_name.name]
+for m, i in d.methods {
+    body_result := typecheck_synth(m.body, env, store)
+    params := make([dynamic]TFunc_Param, 0)
+    if trait_found {
+        for tmethod in trait_info.methods {
+            if tmethod.name == m.name {
+                for j, pid in tmethod.param_types {
+                    append(&params, TFunc_Param{
+                        name = /* generate param name from index */,
+                        type_ = lower_type(store, pid),
+                        span = m.span,
+                    })
+                }
+                break
+            }
+        }
+    }
+    methods[i] = TIs_Method {
+        name   = m.name,
+        params = params,
+        body   = body_result.texpr,
+        type_  = lower_type(store, body_result.var_id),
+        eff_   = lower_effect_type(store, body_result.effects),
+        is_pub = false,
+        span   = m.span,
+    }
+}
+```
+
+### Step 3: Remove the dead second-pass or activate it
+
+In `typecheck_file` (line 194-205), either:
+- **Option A (recommended):** Delete the dead second-pass loop entirely. The
+  conformance check now happens inline during `typecheck_decl`.
+- **Option B:** Add `case ^CDecl_Is_Impl:` to the second pass and call
+  `verify_trait_conformance` there for post-hoc validation.
+
+### New diagnostics needed
+
+None -- `verify_trait_conformance` already uses `diag_orphan_rule_violation`,
+`diag_overlapping_instance`, `diag_missing_trait_method`, and
+`diag_trait_method_signature_mismatch`.
+
+### Test strategy
+
+1. **Negative test:** `is Eq for NonexistentType { ... }` should error
+2. **Negative test:** `is Eq for MyType { eq = ... }` where `eq` has wrong
+   signature should error with signature mismatch
+3. **Negative test:** Orphan impl in different module should error
+4. **Positive test:** Valid `is` impl with correct method signatures compiles
+5. **Duplicate test:** Two `is` impls for same type+trait produces overlapping error
+
+---
+
+## 13. GAP-2: `CExpr_Perform` args never unified against effect signature
+
+**Files:** `src/semantics/typecheck.odin`
+**Dependencies:** None
+
+### Step 1: Add effect operation signature table to Type_Store
+
+In `src/semantics/types.odin`, add to `Type_Store`:
+
+```odin
+effect_op_signatures: map[base.Intern_ID]Effect_Op_Signature
+```
+
+where:
+
+```odin
+Effect_Op_Signature :: struct {
+    param_types: []base.Type_Var_ID,
+    return_type: base.Type_Var_ID,
+}
+```
+
+### Step 2: Populate the table during `CDecl_Effect` typechecking
+
+In `typecheck_decl`'s `case ^CDecl_Effect:` branch, after typechecking each
+operation, store its signature indexed by the operation's intern ID.
+
+### Step 3: Unify perform args against the signature
+
+At `case ^CExpr_Perform:` (line 757), replace the `_ = arg_result` pattern:
+
+```odin
+op_sig, op_found := store.effect_op_signatures[e.op]
+if op_found {
+    if len(e.args) != len(op_sig.param_types) {
+        diagnostics.collector_add_diag(
+            store.collector,
+            diagnostics.diag_arity_mismatch(
+                /*expected=*/len(op_sig.param_types),
+                /*actual=*/len(e.args),
+                e.span,
+            ),
+        )
+    }
+    for arg, i in e.args {
+        arg_result := typecheck_synth(arg, env, store)
+        if i < len(op_sig.param_types) {
+            unify(store, arg_result.var_id, op_sig.param_types[i])
+        }
+        args_t[i] = arg_result.texpr
+    }
+    // Unify the perform result with the declared return type
+    instantiate_return := instantiate(store, op_sig.return_type)
+    unify(store, var_id, instantiate_return)
+} else {
+    // Effect not found -- still typecheck args for cascading errors
+    for arg, i in e.args {
+        arg_result := typecheck_synth(arg, env, store)
+        args_t[i] = arg_result.texpr
+    }
+}
+```
+
+### Step 4: Add effect to the effect row
+
+Also add the performed effect to the `effects` row. Currently `var_id, effects`
+is a fresh variable pair -- the effect should be recorded:
+
+```odin
+// Add the effect to the inferred effect row
+effect_row_var := resolve_var(store, effects)
+rv := store.vars[int(effect_row_var)]
+if inf, ok := rv.link.(Inferred_Type); ok {
+    if er, ok2 := inf.(Inferred_Effect_Row); ok2 {
+        append(&er.effects, Effect_Row_Entry{name = e.effect.name, type_args = {}})
+        rv.link = Inferred_Type(er)
+    }
+}
+```
+
+### New diagnostics needed
+
+- `diag_undefined_effect` already exists (constructors.odin:1227)
+- Arity mismatch: `diag_arity_mismatch` already exists
+- Type mismatch from unification: already emitted by `unify`
+
+### Test strategy
+
+1. `perform Console.println!(42)` where `println!` expects `Str` -> type error
+2. `perform Console.println!()` with wrong arity -> arity error
+3. `perform UnknownEffect.op!()` -> undefined effect error
+4. Valid perform with correct args -> compiles, effect appears in type
+
+---
+
+## 14. GAP-3: `CExpr_Nominal_Construct` never resolves `type_name`
+
+**Files:** `src/semantics/typecheck.odin`, `src/semantics/check_expr.odin`
+**Dependencies:** None
+
+### Step 1: Resolve `type_name` against bindings
+
+In both `typecheck_synth` (line 398) and `typecheck_nominal_construct`
+(check_expr.odin:374), after creating the fresh type var, resolve the type name:
+
+```odin
+// Resolve the type name
+resolved_var, found := env_lookup(env, e.type_name.name)
+if !found {
+    found = (e.type_name.name in store.bindings)
+    if found {
+        resolved_var = store.bindings[e.type_name.name]
+    }
+}
+if found {
+    unify(store, type_var, resolved_var)
+} else {
+    type_str := base.intern_get(store.interner, e.type_name.name)
+    diagnostics.collector_add_diag(
+        store.collector,
+        diagnostics.diag_undefined_type(type_str, "newtype", e.span),
+    )
+}
+```
+
+### Step 2: Apply same fix to `typecheck_nominal_construct` helper
+
+The same fix must be applied to the standalone `typecheck_nominal_construct`
+function in `check_expr.odin` (line 374-396), which has the identical bug.
+
+### New diagnostics needed
+
+`diag_undefined_type` already exists (constructors.odin:1209).
+
+### Test strategy
+
+1. `@Nonexistent.Foo(42)` -> "undefined type" error
+2. `@KnownType.Variant(value)` where `KnownType` exists -> compiles, type resolved
+3. `@KnownType.WrongVariant(value)` where variant doesn't exist -> should error
+   (this is a separate gap -- variant validation not yet implemented)
+
+---
+
+## 15. GAP-4 & GAP-5: Binop/Prefixop default cases accept all operators
+
+**Files:** `src/semantics/check_expr.odin`
+**Dependencies:** None
+
+### Step 1: Emit diagnostic in `typecheck_binop` default case
+
+At `check_expr.odin:230-232`:
+
+```odin
+case:
+    // Unknown operator -- should never happen if the parser is correct.
+    op_str := fmt.tprintf("{}", e.op)
+    diagnostics.collector_add_diag(
+        store.collector,
+        diagnostics.diag_internal(
+            fmt.tprintf("unhandled binary operator in typechecker: {}", op_str),
+            e.span,
+        ),
+    )
+    result_var = left_result.var_id
+```
+
+### Step 2: Same for `typecheck_prefixop` default case
+
+At `check_expr.odin:266-269`:
+
+```odin
+case:
+    op_str := fmt.tprintf("{}", e.op)
+    diagnostics.collector_add_diag(
+        store.collector,
+        diagnostics.diag_internal(
+            fmt.tprintf("unhandled prefix operator in typechecker: {}", op_str),
+            e.span,
+        ),
+    )
+    result_var = operand_result.var_id
+    result_eff = operand_result.effects
+```
+
+### New diagnostics needed
+
+`diag_internal` already exists. Alternatively, add a more specific
+`diag_unknown_operator` for user-facing clarity if this path can be reached
+from user code (it shouldn't be, but defensive programming).
+
+### Test strategy
+
+1. This is a compiler-internal safety net. No user-level test can reach this
+   path currently since the parser only produces known operators.
+2. Add a unit test that constructs a `CExpr_BinOp` with an invalid op and
+   verifies the internal diagnostic is emitted.
+
+---
+
+## 16. GAP-6: `typecheck_synth` fallthrough returns `TExpr_Int{span=ZERO}`
+
+**Files:** `src/semantics/typecheck.odin`
+**Dependencies:** None
+
+### Step 1: Add error-emitting default at the end of `typecheck_synth`
+
+Replace lines 884-893:
+
+```odin
+// Unhandled CExpr variant -- compiler bug
+var_id, eff := fresh_with_effects(store, base.Source_Span_ZERO)
+diagnostics.collector_add_diag(
+    store.collector,
+    diagnostics.diag_internal(
+        "unhandled CExpr variant in typecheck_synth",
+        base.Source_Span_ZERO,
+    ),
+)
+// Return a fresh error type so downstream doesn't crash
+return Synth_Result{var_id = var_id, effects = eff, texpr = nil}
+```
+
+Note: returning `nil` for `texpr` requires verifying that all callers of
+`typecheck_synth` handle nil. Alternatively, return a `TExpr_Crash` node that
+will trap at runtime, ensuring the bug is visible rather than silent.
+
+### Step 2: Convert to total switch (recommended)
+
+Replace `#partial switch` with total `switch` on `CExpr`. This will cause a
+compile-time error in Odin when a new variant is added, forcing the developer
+to update the typechecker.
+
+### New diagnostics needed
+
+`diag_internal` already exists.
+
+### Test strategy
+
+Unit test: construct a CExpr union with only an unhandled variant tag and
+verify the internal diagnostic fires.
+
+---
+
+## 17. GAP-7: `typecheck_file` second-pass switch is all no-ops
+
+**Files:** `src/semantics/typecheck.odin`
+**Dependencies:** GAP-1
+
+### Step 1: Remove the dead second-pass loop
+
+Delete lines 194-205. The conformance check is now done inline during
+`typecheck_decl` (GAP-1 fix). This loop serves no purpose and is confusing.
+
+### Alternative: Keep and activate
+
+If post-hoc validation is desired (e.g., forward references), keep the loop
+but add actual checks:
+- `CDecl_Newtype`: verify all referenced types exist
+- `CDecl_Is_Impl`: call `verify_trait_conformance`
+- `CDecl_Trait`: verify parent traits exist
+
+**Recommendation:** Remove. Post-hoc checks should be added to `typecheck_decl`
+directly, not in a separate loop.
+
+### Test strategy
+
+Existing tests should pass unchanged (this is dead code removal).
+
+---
+
+## 18. GAP-8: `check_effect_safety` only checks `main!`, stops at first
+
+**Files:** `src/semantics/typecheck.odin`
+**Dependencies:** None
+
+### Step 1: Collect all unhandled effects before reporting
+
+Replace the early `return` at line 1549:
+
+```odin
+unhandled: [dynamic]string
+for entry in it_effect.effects {
+    if !is_prelude_effect_by_entry(entry.name, store.interner) {
+        effect_str := base.intern_get(store.interner, entry.name)
+        append(&unhandled, effect_str)
+    }
+}
+if len(unhandled) > 0 {
+    effects_str := format_effect_row(store, effect_var)
+    for effect_str in unhandled {
+        diagnostics.collector_add_diag(
+            store.collector,
+            diagnostics.diag_unhandled_effect_entry(effect_str, effects_str, td.span),
+        )
+    }
+}
+```
+
+### Step 2: Extend to check all entrypoints
+
+Currently only `main!` is checked. Extend to check any `pub` const with
+effectful type (or any function marked as an entrypoint). Replace:
+
+```odin
+if td.name.name != main_name {
+    continue
+}
+```
+
+with a check for all entrypoint candidates. For now, this means all `pub`
+top-level `main!` declarations. Future: configurable entrypoint names.
+
+### Test strategy
+
+1. `main!` with 3 unhandled effects -> should see 3 diagnostics, not 1
+2. Multiple entrypoints with unhandled effects -> each checked
+
+---
+
+## 19. GAP-9: `Inferred_Constructor` unification ignores `primitive_name`/`arity`
+
+**Files:** `src/semantics/unify.odin`
+**Dependencies:** None
+
+### Step 1: Compare fields after type check
+
+At `unify.odin:204-216`, replace:
+
+```odin
+case Inferred_Constructor:
+    b_cons, ok := b.(Inferred_Constructor)
+    if !ok {
+        // ... existing type_mismatch diagnostic ...
+        return false
+    }
+    a_cons := a.(Inferred_Constructor)
+    if a_cons.primitive_name != b_cons.primitive_name {
+        type_a_str := format_inferred_type(store, a_id)
+        type_b_str := format_inferred_type(store, b_id)
+        va_var := store.vars[int(resolve_var(store, a_id))]
+        vb_var := store.vars[int(resolve_var(store, b_id))]
+        diagnostics.collector_add_diag(
+            store.collector,
+            diagnostics.diag_type_mismatch(type_a_str, type_b_str, va_var.span, vb_var.span),
+        )
+        return false
+    }
+    if a_cons.arity != b_cons.arity {
+        va_var := store.vars[int(resolve_var(store, a_id))]
+        diagnostics.collector_add_diag(
+            store.collector,
+            diagnostics.diag_arity_mismatch(a_cons.arity, b_cons.arity, va_var.span),
+        )
+        return false
+    }
+```
+
+### Step 2: Unify type arguments
+
+After name+arity match, if both constructors have type parameters (tracked
+via the constructor's linked type vars), those should also be unified. This
+requires access to the type parameters, which are stored in the
+`Inferred_Newtype` for newtypes or in `store.newtype_decls`.
+
+For now, the name+arity check prevents `List I32` unifying with `Map Str Str`.
+Full param unification can be a follow-up.
+
+### New diagnostics needed
+
+`diag_type_mismatch` and `diag_arity_mismatch` already exist.
+
+### Test strategy
+
+1. Unify `List I32` with `Map Str Str` -> type mismatch error
+2. Unify `List I32` with `List Str` -> should work (same constructor, different
+   param -- this requires further work but at least names match)
+3. Unify `List I32` with `List I32` -> succeeds
+
+---
+
+## 20. GAP-10: `Inferred_Effect_Row` occurs check skips `effects[].type_args`
+
+**Files:** `src/semantics/unify.odin`
+**Dependencies:** None
+
+### Step 1: Traverse effect type arguments in occurs check
+
+At `unify.odin:837-840`:
+
+```odin
+case Inferred_Effect_Row:
+    if occurs_check_impl(store, target, v.rest_id, visited) {
+        return true
+    }
+    // Also check type arguments of each effect entry
+    for entry in v.effects {
+        for type_arg in entry.type_args {
+            if occurs_check_impl(store, target, type_arg, visited) {
+                return true
+            }
+        }
+    }
+```
+
+This requires checking what `Effect_Row_Entry` looks like:
+
+```odin
+Effect_Row_Entry :: struct {
+    name:      base.Intern_ID,
+    type_args: []base.Type_Var_ID,  // <- these need traversal
+}
+```
+
+If `type_args` is a `[]base.Type_Var_ID`, each element should be traversed.
+If it's empty for non-parameterized effects, the loop is a no-op, so this
+is safe to add unconditionally.
+
+### New diagnostics needed
+
+None -- the occurs check failure is already reported by the caller.
+
+### Test strategy
+
+1. Define a parameterized effect `Effect![T]` and attempt to unify `T` with
+   an effect row containing `Effect![T]` -> should report infinite type
+2. Normal effect row unification without cycles -> works as before
+
+---
+
+## 21. GAP-11: `canonicalize_decl` fallthrough returns empty `CDecl_Const`
+
+**Files:** `src/semantics/canonicalize.odin`
+**Dependencies:** None
+
+### Step 1: Emit diagnostic in fallthrough
+
+At `canonicalize.odin:293-298`:
+
+```odin
+// Unhandled Decl variant
+diagnostics.collector_add_diag(
+    collector,
+    diagnostics.diag_internal("unhandled Decl variant in canonicalize_decl", base.Source_Span_ZERO),
+)
+cdecl := new(CDecl_Const)
+cdecl^ = CDecl_Const {
+    span = base.Source_Span_ZERO,
+}
+return cdecl
+```
+
+### Step 2: Convert to total switch
+
+Replace `#partial switch` with total `switch`. Odin will enforce exhaustiveness
+at compile time, so adding a new Decl variant will require updating this
+function.
+
+### Test strategy
+
+Compile-time guarantee via total switch. No runtime test needed.
+
+---
+
+## 22. GAP-12: `canonicalize_expr` fallthrough returns `CExpr_Int{span=ZERO}`
+
+**Files:** `src/semantics/canonicalize.odin`
+**Dependencies:** None
+
+### Step 1: Same fix as GAP-11
+
+At `canonicalize.odin:1135-1140`, add diagnostic emission before the sentinel:
+
+```odin
+diagnostics.collector_add_diag(
+    collector,
+    diagnostics.diag_internal("unhandled Expr variant in canonicalize_expr", base.Source_Span_ZERO),
+)
+```
+
+### Step 2: Convert to total switch
+
+### Test strategy
+
+Same as GAP-11.
+
+---
+
+## 23. GAP-13: `canonicalize_pattern` fallthrough returns `CPattern_Wildcard`
+
+**Files:** `src/semantics/canonicalize.odin`
+**Dependencies:** None
+
+### Step 1: Same fix pattern
+
+At `canonicalize.odin:1282-1287`, add diagnostic and convert to total switch.
+
+### Test strategy
+
+Same as GAP-11.
+
+---
+
+## 24. GAP-14: `generate_derive_stubs` silently skips unknown derive names
+
+**Files:** `src/semantics/canonicalize.odin`
+**Dependencies:** None
+
+### Step 1: Emit diagnostic in default case
+
+At `canonicalize.odin:1505`:
+
+```odin
+case:
+    // Unknown derive target
+    diagnostics.collector_add_diag(
+        collector,
+        diagnostics.diag_internal(
+            fmt.tprintf("unrecognized derive: `{}`", derive_name_str),
+            d.span,
+        ),
+    )
+```
+
+Better: create a user-facing `diag_unrecognized_derive`:
+
+```odin
+diag_unrecognized_derive :: proc(name: string, span: base.Source_Span) -> Diagnostic {
+    d := Diagnostic{
+        category = .Error,
+        message = fmt.tprintf("unrecognized derive: `{}`", name),
+        labels = make([dynamic]Label, 1),
+        hints = make([dynamic]string, 1),
+        span = span,
+    }
+    append(&d.hints, "available derives: Eq, Clone, Hash, Ord")
+    return d
+}
+```
+
+### Test strategy
+
+1. `derives [Eqq]` -> "unrecognized derive: Eqq" error with hint
+2. `derives [Eq]` -> works as before
+
+---
+
+## 25. GAP-15: `collect_pattern_coverage` ignores Record/List/Destructure/Tuple
+
+**Files:** `src/semantics/check_control.odin`
+**Dependencies:** None
+
+### Step 1: Implement coverage for each pattern type
+
+At `check_control.odin:305-306`:
+
+**Record patterns:**
+```odin
+case ^CPattern_Record:
+    // A closed record pattern (no rest) covers all fields.
+    // Mark as saturated only if the record type is known to be closed.
+    if p.rest == nil {
+        cov.saturated = true
+    }
+    for f in p.fields {
+        collect_pattern_coverage(f.pattern, cov)
+    }
+```
+
+**List patterns:**
+```odin
+case ^CPattern_List:
+    // List patterns are never exhaustive (infinite type).
+    // Recurse for redundancy detection.
+    for el in p.elements {
+        collect_pattern_coverage(el, cov)
+    }
+```
+
+**Destructure patterns:**
+```odin
+case ^CPattern_Destructure:
+    // Destructure is exhaustive if the inner pattern is exhaustive.
+    collect_pattern_coverage(p.inner, cov)
+```
+
+**Tuple patterns:**
+```odin
+case ^CPattern_Tuple:
+    // Tuple patterns are exhaustive (structurally complete).
+    cov.saturated = true
+    for el in p.elements {
+        collect_pattern_coverage(el, cov)
+    }
+```
+
+### Step 2: Add `rest` field to `CPattern_Record` if missing
+
+Check if `CPattern_Record` has a `rest` field. If not, add one:
+```odin
+rest: CPattern,  // nil if no `..rest` in the pattern
+```
+This is needed to distinguish `{| x, y |}` (exhaustive) from `{| x, ..rest |}` (not exhaustive).
+
+### Test strategy
+
+1. Match on a record type with all fields present -> no non-exhaustive warning
+2. Match on a record type with `..rest` -> non-exhaustive warning
+3. Match on a tuple -> no non-exhaustive warning
+4. Match on a list -> non-exhaustive (lists are infinite)
+
+---
+
+## 26. GAP-16: `typecheck_pattern` fallthrough returns `TPattern_Wildcard{span=ZERO}`
+
+**Files:** `src/semantics/check_control.odin`
+**Dependencies:** None
+
+### Step 1: Emit diagnostic in default case
+
+Same pattern as GAP-6/11/12. Add `diag_internal` at the fallthrough point.
+Convert to total switch if possible.
+
+### Test strategy
+
+Same as GAP-11.
+
+---
+
+## 27. GAP-17: `emit_binop` -- Div/Mod/Exp emit wrong opcode
+
+**Files:** `src/codegen/emit_expr.odin`
+**Dependencies:** None
+
+### Step 1: Add correct Div/Mod opcodes
+
+At `emit_expr.odin:2331-2332`:
+
+```odin
+case .Div:
+    if operand_type == .I32 {
+        emit_instruction(Wasm_I32_Div_S{}, buf)
+    } else {
+        emit_instruction(Wasm_I64_Div_S{}, buf)
+    }
+case .Mod:
+    if operand_type == .I32 {
+        emit_instruction(Wasm_I32_Rem_S{}, buf)
+    } else {
+        emit_instruction(Wasm_I64_Rem_S{}, buf)
+    }
+case .Exp:
+    // WASM has no native integer exponentiation.
+    // Emit a runtime call to camp_int_exp.
+    // TODO: implement camp_int_exp runtime function
+```
+
+### Step 2: Implement `camp_int_exp` runtime function
+
+Add to `src/codegen/runtime.odin`:
+
+```odin
+emit_camp_int_exp :: proc(buf: ^[dynamic]u8, operand_type: base.IR_Wasm_Type) {
+    // Simple exponentiation by squaring loop.
+    // Pseudocode: result = 1; base = arg0; exp = arg1;
+    //   while exp > 0: if exp & 1: result *= base; base *= base; exp >>= 1
+    // ... emit wasm bytecode for this loop ...
+}
+```
+
+Alternatively, use the existing runtime function infrastructure (like
+`camp_list_len`) to emit a call to an imported function.
+
+### Test strategy
+
+1. `10 / 3` -> emits `i64.div_s`, runtime result = 3
+2. `10 % 3` -> emits `i64.rem_s`, runtime result = 1
+3. `2 ^ 10` -> runtime result = 1024 (once exp runtime is implemented)
+4. Existing e2e tests that use division should now produce correct results
+
+---
+
+## 28. GAP-18: `emit_binop` -- no F64 arithmetic paths
+
+**Files:** `src/codegen/emit_expr.odin`
+**Dependencies:** None
+
+### Step 1: Add F64 branches to all arithmetic operators
+
+For each operator in `emit_binop`, add an F64 path. Example for `.Add`:
+
+```odin
+case .Add:
+    switch operand_type {
+    case .I32: emit_instruction(Wasm_I32_Add{}, buf)
+    case .I64: emit_instruction(Wasm_I64_Add{}, buf)
+    case .F64: emit_instruction(Wasm_F64_Add{}, buf)
+    }
+```
+
+Complete list of needed F64 opcodes:
+
+| Operator | I32 | I64 | F64 |
+|----------|-----|-----|-----|
+| Add | `Wasm_I32_Add` | `Wasm_I64_Add` | `Wasm_F64_Add` |
+| Sub | `Wasm_I32_Sub` | `Wasm_I64_Sub` | `Wasm_F64_Sub` |
+| Mul | `Wasm_I32_Mul` | `Wasm_I64_Mul` | `Wasm_F64_Mul` |
+| Div | `Wasm_I32_Div_S` | `Wasm_I64_Div_S` | `Wasm_F64_Div` |
+| Mod | `Wasm_I32_Rem_S` | `Wasm_I64_Rem_S` | N/A (F64 has no rem) |
+| Exp | runtime call | runtime call | `Wasm_F64_Mul` loop or runtime |
+| Eq | `Wasm_I32_Eq` | `Wasm_I64_Eq` | `Wasm_F64_Eq` |
+| Ne | `Wasm_I32_Ne` | `Wasm_I64_Ne` | `Wasm_F64_Ne` |
+| Lt | `Wasm_I32_Lt_S` | `Wasm_I64_Lt_S` | `Wasm_F64_Lt` |
+| Gt | `Wasm_I32_Gt_S` | `Wasm_I64_Gt_S` | `Wasm_F64_Gt` |
+| Le | `Wasm_I32_Le_S` | `Wasm_I64_Le_S` | `Wasm_F64_Le` |
+| Ge | `Wasm_I32_Ge_S` | `Wasm_I64_Ge_S` | `Wasm_F64_Ge` |
+| And | `Wasm_I32_And` | `Wasm_I64_And` | N/A |
+| Or | `Wasm_I32_Or` | `Wasm_I64_Or` | N/A |
+
+Note: F64 has no `Rem` (modulo) -- `Mod` on F64 should emit a runtime call to
+`fmod` or similar. F64 `And`/`Or` are bitwise and don't apply to floats.
+
+### Step 2: Also add F32 if needed
+
+Check if the compiler targets F32. If so, add those paths too.
+
+### Test strategy
+
+1. `3.14 + 1.0` -> emits `f64.add`, runtime result approx 4.14
+2. `3.14 < 1.0` -> emits `f64.lt`, runtime result = 0 (false)
+3. `10.0 / 3.0` -> emits `f64.div`, runtime result approx 3.333...
+4. `3.14 % 1.0` -> runtime call, result approx 0.14
+
+---
+
+## 29. GAP-19: `IR_Expr_Nominal_Construct` emits `Wasm_Unreachable`
+
+**Files:** `src/codegen/emit_expr.odin`
+**Dependencies:** Understanding of newtype runtime representation
+
+### Step 1: Emit payload code instead of unreachable
+
+Nominal types (newtypes) in Camp are **erased at runtime** -- they have the
+same representation as their inner type. The nominal construct should just
+emit the payload value:
+
+```odin
+case ^ir.IR_Expr_Nominal_Construct:
+    // Newtypes are identity wrappers at runtime.
+    // If variant == 0, it's a simple wrap: emit the single payload value.
+    // If variant != 0, it's a qualified variant: emit as a tag construct.
+    if e.variant == 0 && len(e.payload) == 1 {
+        return emit_expr(e.payload[0], ctx)
+    }
+    // Qualified variant: emit as tag construct
+    // ... (reuse existing tag construct emission)
+```
+
+### Step 2: Handle multi-payload nominal constructs
+
+If the newtype has multiple payload fields (e.g., a newtype wrapping a record),
+emit a record/tuple construct instead:
+
+```odin
+if e.variant == 0 && len(e.payload) > 1 {
+    // Emit as a heap-allocated tuple/record
+    // ... reuse existing record emission code
+}
+```
+
+### Design decision needed
+
+The exact emission depends on how newtypes are represented in the WASM module:
+- **Option A:** Complete erasure -- `@MyInt(42)` is just `42` on the stack
+- **Option B:** Tagged representation -- `@MyInt(42)` is a 2-word struct (tag + value)
+
+**Recommendation:** Option A (complete erasure). This matches the syntax recipe's
+design of newtypes as zero-cost abstractions. The `@` syntax is only for
+construction/destruction at the type level; at runtime, the value is the inner
+type.
+
+### Test strategy
+
+1. `const x: MyInt = @MyInt(42)` -> compiles and runs, `x` holds 42
+2. `@MyPair(1, 2)` wrapping a tuple -> compiles and runs
+3. Existing newtype tests should pass
+
+---
+
+## 30. GAP-20: `IR_Method_Call` emits `exit(1)` + `Wasm_Unreachable`
+
+**Files:** `src/codegen/emit_expr.odin`, `src/ir/lower.odin`
+**Dependencies:** None
+
+### Step 1: Method calls should not reach codegen
+
+Method calls (UFCS dispatch) should be resolved to direct function calls
+during monomorphization or IR lowering. If they reach codegen, it's a
+compiler bug.
+
+### Step 2: Replace exit+unreachable with diagnostic
+
+At `emit_expr.odin:~1498`:
+
+```odin
+case ^ir.IR_Method_Call:
+    // Method calls should be resolved before codegen.
+    // If we get here, it's a compiler bug.
+    emit_instruction(Wasm_Unreachable{}, ctx.output)
+```
+
+### Step 3: Fix the root cause -- resolve methods during IR lowering
+
+The real fix is in `src/ir/lower.odin` (`lower_tmethod_call`). Currently,
+intrinsic methods (`.len()`, `.slice()`) are resolved, but non-intrinsic
+methods fall through without resolution. Add resolution for trait methods:
+
+```odin
+// In lower_tmethod_call, after intrinsic method resolution fails:
+method_name := e.method.name
+resolved_fn := resolve_trait_method(env.store, receiver_type_var, method_name)
+if resolved_fn != base.NO_NAME {
+    // Lower as a direct call
+    ir_args := make([dynamic]IR_Expr, 0, len(e.args) + 1)
+    append(&ir_args, receiver_ir)
+    for arg in e.args {
+        append(&ir_args, lower_texpr(arg, env))
+    }
+    call := new(IR_Call)
+    call^ = IR_Call {
+        callee = base.Canonical_Name{module = base.NO_NAME, name = resolved_fn, is_local = true},
+        args = ir_args,
+        type = e.type_,
+        span = e.span,
+    }
+    return IR_Expr(call)
+}
+```
+
+### Test strategy
+
+1. `myStr.len()` -> resolved to intrinsic, works
+2. `myList.map(f)` -> resolved to trait method call, works
+3. `myCustomType.myMethod()` -> resolved to impl function, works
+4. Method call reaching codegen -> unreachable trap (compiler bug visible)
+
+---
+
+## 31. GAP-21: `IR_Decl_Const` non-literal initializers silently dropped
+
+**Files:** `src/codegen/codegen.odin`
+**Dependencies:** None
+
+### Step 1: Emit non-literal consts as `_start`-time initialization
+
+Replace the `case:` default at `codegen.odin:780-782`:
+
+```odin
+case:
+    // Non-literal const: emit as a mutable global initialized in _start
+    valtype = .I64  // default
+    emit_instruction(Wasm_I64_Const{value = 0}, &init_buf)
+    // Schedule init code for _start:
+    append(&ctx.pending_const_inits, Const_Init{
+        name = c.name,
+        value_expr = c.value,
+    })
+```
+
+This requires:
+1. Adding a `pending_const_inits` field to the codegen context
+2. Emitting the initialization code in the `_start` function
+3. Making the global mutable so it can be written at startup
+
+### Step 2: Alternative -- lower non-literal consts to `let` bindings
+
+If the `_start`-time initialization approach is too complex, an alternative
+is to lower non-literal consts to `let` bindings inside `_start` during the
+IR lowering phase. This avoids the codegen complexity entirely.
+
+In `src/ir/lower.odin`, during `lower_tdecl_const`, if the const value is not
+a literal, emit an `IR_Let` binding in the `_start` function body instead of
+an `IR_Decl_Const`.
+
+### Design decision needed
+
+- **Option A:** Mutable global + `_start` init -- preserves const semantics
+  (global scope, addressable)
+- **Option B:** Lower to `let` in `_start` -- simpler, but loses global
+  addressability (can't take a reference to the const)
+
+**Recommendation:** Option A for correctness. Camp constants should be
+addressable (e.g., `&MY_CONST`), which requires global scope.
+
+### Test strategy
+
+1. `const x = 42` -> emitted as immutable global (existing behavior)
+2. `const x = someCall()` -> emitted as mutable global initialized in `_start`
+3. `const x = anotherConst + 1` where `anotherConst` is a non-literal ->
+   proper initialization ordering in `_start`
+
+---
+
+## 32. GAP-22: `collect_locals` misses `IR_Wait.timeout`
+
+**Files:** `src/codegen/emit_expr.odin`
+**Dependencies:** None
+
+### Step 1: Add timeout traversal
+
+At `emit_expr.odin:102-104`:
+
+```odin
+case ^ir.IR_Wait:
+    collect_locals(e.base, locals)
+    collect_locals(e.expected, locals)
+    collect_locals(e.timeout, locals)    // <- ADD THIS LINE
+```
+
+This is a one-line fix. `IR_Wait.timeout` is an `IR_Expr` field (defined at
+`ir.odin:114`).
+
+### Test strategy
+
+1. Write a program using `AtomicWait` with a timeout expression that
+   references a local variable
+2. Before fix: local in timeout is not allocated a stack slot ->
+   stack corruption or trap
+3. After fix: local is allocated, program runs correctly
+4. Add a unit test to `test_codegen.odin` that verifies `collect_locals`
+   traverses all sub-expressions of `IR_Wait`
+
+---
+
+## 33. GAP-23: `TPattern_Destructure` loses all nested bindings
+
+**Files:** `src/ir/lower.odin`
+**Dependencies:** None
+
+### Step 1: Lower destructure to nested field accesses + let bindings
+
+At `lower.odin:1289-1292`, replace the wildcard lowering with proper
+destructure lowering. First, verify the `TPattern_Destructure` structure
+in `src/semantics/typed.odin` -- it likely has a list of sub-patterns that
+correspond to the fields of the destructured type.
+
+**If `TPattern_Destructure` has named sub-patterns:**
+
+```odin
+case ^semantics.TPattern_Destructure:
+    result := new(IR_Pat_Record)
+    result.fields = make([dynamic]IR_Pat_Field, 0, len(p.fields))
+    for field_pat in p.fields {
+        append(&result.fields, IR_Pat_Field{
+            name    = field_pat.name,
+            pattern = lower_tpattern(field_pat.pattern, env),
+        })
+    }
+    result.rest = nil
+    return IR_Pattern(result)
+```
+
+**If `TPattern_Destructure` has positional sub-patterns:**
+
+```odin
+case ^semantics.TPattern_Destructure:
+    result := new(IR_Pat_Tuple)
+    result.elements = make([dynamic]IR_Pat_Tuple_Element, 0, len(p.sub_patterns))
+    for sub_pat in p.sub_patterns {
+        append(&result.elements, IR_Pat_Tuple_Element{
+            pattern = lower_tpattern(sub_pat, env),
+        })
+    }
+    return IR_Pattern(result)
+```
+
+### Step 2: Verify the TPattern_Destructure structure
+
+Read `src/semantics/typed.odin` to determine the exact fields before
+implementing. The correct lowering depends on whether destructuring is
+named or positional.
+
+### Test strategy
+
+1. `let Point(x, y) = point` -> `x` and `y` are properly bound
+2. Nested destructure: `let Point(Point(a, b), c) = deep_point` -> all three
+   bindings work
+3. Destructure in match arm: `case Point(x, y) => x + y` -> correct
+
+---
+
+## 34. GAP-24: `TPattern_Char` lowered to `IR_Pat_Int`
+
+**Files:** `src/ir/lower.odin`
+**Dependencies:** None
+
+### Step 1: Document as intentional erasure
+
+At `lower.odin:1267-1270`, add a comment:
+
+```odin
+case ^semantics.TPattern_Char:
+    // Char patterns are lowered as integer patterns.
+    // WASM has no native char type; chars are represented as i64 (Unicode codepoint).
+    // This is an intentional erasure -- char-specific error messages are lost,
+    // but runtime behavior is correct since char comparison is integer comparison.
+    result := new(IR_Pat_Int)
+    result.value = i64(p.value)
+    return IR_Pattern(result)
+```
+
+No code change needed -- this is intentional. The char-to-int erasure is
+correct for WASM's type system.
+
+### Test strategy
+
+1. Match on `'a'` -> matches codepoint 97 -- correct
+2. Match on emoji multi-byte char -> matches correct codepoint -- correct
+
+---
+
+## 35. GAP-25: `lower_texpr` fallthrough returns `make_ir_lit_int(0, ...)`
+
+**Files:** `src/ir/lower.odin`
+**Dependencies:** None
+
+### Step 1: Emit diagnostic in fallthrough
+
+At the end of `lower_texpr` (after the total `switch` block):
+
+```odin
+// Unreachable -- total switch should handle all variants.
+// This is a safety net for compiler bugs.
+fmt.println("WARNING: lower_texpr fell through switch -- unhandled TExpr variant")
+return make_ir_lit_int(...)
+```
+
+Since the switch is total, this code should be unreachable. Consider replacing
+with `unreachable()` for a harder failure during development, or keep the
+soft fallback for production builds.
+
+### Test strategy
+
+No user-level test -- this is a compiler safety net.
+
+---
+
+## 36. GAP-26: `lower_tmethod_call` receiver fallthrough
+
+**Files:** `src/ir/lower.odin`
+**Dependencies:** None
+
+### Step 1: Consolidate all TExpr variants into extraction group
+
+At `lower.odin:803-836`, the receiver switch extracts `receiver_type_var`
+from `r.type_.type_id`. All TExpr variants have a `type_` field. The
+fallthrough group (lines 814-835) should also extract the type var.
+
+**Simplest fix:** Move all variants from the fallthrough group into the
+extraction group, since they all have `type_`:
+
+```odin
+#partial switch r in e.receiver {
+case ^semantics.TExpr_Name,
+     ^semantics.TExpr_String,
+     ^semantics.TExpr_Method_Call,
+     ^semantics.TExpr_Field_Access,
+     ^semantics.TExpr_Call,
+     ^semantics.TExpr_Int,
+     ^semantics.TExpr_Float,
+     ^semantics.TExpr_Bool,
+     ^semantics.TExpr_Tag,
+     ^semantics.TExpr_Nominal_Construct,
+     ^semantics.TExpr_Record,
+     ^semantics.TExpr_List,
+     ^semantics.TExpr_Lambda,
+     ^semantics.TExpr_Block,
+     ^semantics.TExpr_If,
+     ^semantics.TExpr_Match,
+     ^semantics.TExpr_BinOp,
+     ^semantics.TExpr_PrefixOp,
+     ^semantics.TExpr_Record_Update,
+     ^semantics.TExpr_Assign,
+     ^semantics.TExpr_Return,
+     ^semantics.TExpr_Crash,
+     ^semantics.TExpr_Interpolated_String,
+     ^semantics.TExpr_Handle,
+     ^semantics.TExpr_Perform,
+     ^semantics.TExpr_For,
+     ^semantics.TExpr_Par,
+     ^semantics.TExpr_Tuple,
+     ^semantics.TExpr_Field_Index:
+    receiver_type_var = r.type_.type_id
+}
+```
+
+### Step 2: Apply same fix to the second receiver switch
+
+There's a second `#partial switch` on the receiver around line 730 (the
+qualified-tag-construct path). Apply the same consolidation.
+
+### Test strategy
+
+1. `myTuple.len()` -> receiver type extracted, intrinsic resolved if applicable
+2. `(complexExpr).someMethod()` -> receiver type extracted
+3. All existing method call tests pass
+
+---
+
+## 37. GAP-27: `IR_Construct_Tuple` not handled in effect lowering
+
+**Files:** `src/ir/effect_lower.odin`
+**Dependencies:** None
+
+### Step 1: Add `IR_Construct_Tuple` case to `el_lower_expr`
+
+In `el_lower_expr` (line 838+), add after the `IR_Construct_Record` case:
+
+```odin
+case ^IR_Construct_Tuple:
+    new_elements := make([dynamic]IR_Expr, 0, len(e.elements))
+    for el in e.elements {
+        append(&new_elements, el_lower_expr(el, env))
+    }
+    new_tuple := new(IR_Construct_Tuple)
+    new_tuple^ = IR_Construct_Tuple {
+        elements   = new_elements,
+        reuse_addr = e.reuse_addr,
+        type       = e.type,
+        span       = e.span,
+    }
+    return IR_Expr(new_tuple)
+```
+
+### Step 2: Add `IR_Construct_Tuple` case to `el_replace_resume`
+
+In `el_replace_resume` (line 276+), add:
+
+```odin
+case ^IR_Construct_Tuple:
+    new_elements := make([dynamic]IR_Expr, 0, len(e.elements))
+    for el in e.elements {
+        append(&new_elements, el_replace_resume(el, resume_id, resume_param, ev_param, env))
+    }
+    new_tuple := new(IR_Construct_Tuple)
+    new_tuple^ = IR_Construct_Tuple {
+        elements   = new_elements,
+        reuse_addr = e.reuse_addr,
+        type       = e.type,
+        span       = e.span,
+    }
+    return IR_Expr(new_tuple)
+```
+
+### Step 3: Add `IR_Construct_Tuple` to the `IR_Let` value fall-through list
+
+At `effect_lower.odin:1194-1228`, add `^IR_Construct_Tuple` to the list of
+non-perform IR_Let values that get the default body-lowering treatment.
+
+### Test strategy
+
+1. `perform` inside a tuple element -> evidence passing works correctly
+2. `resume` inside a tuple element -> gets rewritten to pass evidence
+3. Tuple with no effects inside -> works as before (identity transform)
+4. Existing effect handling tests should pass
+
+---
+
+## 38. GAP-28: `IR_Expr_Nominal_Construct` not handled in effect lowering
+
+**Files:** `src/ir/effect_lower.odin`
+**Dependencies:** None
+
+### Step 1: Add explicit case in `el_lower_expr`
+
+After the `IR_Construct_Tag` case in `el_lower_expr`:
+
+```odin
+case ^IR_Expr_Nominal_Construct:
+    new_payload := make([dynamic]IR_Expr, 0, len(e.payload))
+    for p in e.payload {
+        append(&new_payload, el_lower_expr(p, env))
+    }
+    new_cons := new(IR_Expr_Nominal_Construct)
+    new_cons^ = IR_Expr_Nominal_Construct {
+        type_name = e.type_name,
+        variant   = e.variant,
+        payload   = new_payload,
+        span      = e.span,
+    }
+    return IR_Expr(new_cons)
+```
+
+### Step 2: Add to `el_replace_resume`
+
+```odin
+case ^IR_Expr_Nominal_Construct:
+    new_payload := make([dynamic]IR_Expr, 0, len(e.payload))
+    for p in e.payload {
+        append(&new_payload, el_replace_resume(p, resume_id, resume_param, ev_param, env))
+    }
+    new_cons := new(IR_Expr_Nominal_Construct)
+    new_cons^ = IR_Expr_Nominal_Construct {
+        type_name = e.type_name,
+        variant   = e.variant,
+        payload   = new_payload,
+        span      = e.span,
+    }
+    return IR_Expr(new_cons)
+```
+
+### Test strategy
+
+1. `perform` inside a nominal construct payload -> evidence passing works
+2. `resume` inside a nominal construct payload -> gets rewritten
+3. Nominal construct with no effects -> identity transform
+
+---
+
+## 39. GAP-29 through GAP-36: Parser -- Syntax Recipe Features Not Yet Parsed
+
+These are all P3 (not yet parsed). Implementation requires parser changes.
+Each is described with the specific parser modifications needed.
+
+### GAP-29: As-patterns (`x @ Tag(y)`)
+
+**Files:** `src/frontend/parser.odin`, `src/frontend/ast.odin`
+
+**Parser change:** In `parse_pattern()`, when the current token is an
+identifier and the next token is `@`, consume the `@` and parse the right-hand
+pattern, then produce `Pattern_As{name = left_id, inner = right_pattern}`.
+
+**AST change:** Add to `ast.odin`:
+```odin
+Pattern_As :: struct {
+    name:  base.Intern_ID,
+    inner: Pattern,
+    span:  base.Source_Span,
+}
+```
+Add `Pattern_As` to the `Pattern` union.
+
+**Downstream:** Update canonicalize, typecheck, and lower to handle
+`Pattern_As` -- bind the name, then recursively process the inner pattern.
+
+### GAP-30: String pattern interpolation
+
+**Files:** `src/frontend/parser.odin`, `src/frontend/ast.odin`
+
+**Parser change:** In `parse_pattern()`, when parsing a string literal in
+pattern position, scan for `${...}` interpolation and produce
+`Pattern_Interpolated_String{parts = ...}`.
+
+**AST change:** Reuse `String_Part` from `Expr_Interpolated_String`:
+```odin
+Pattern_String :: struct {
+    parts:  []String_Part,  // mix of String_Segment and Pattern
+    span:   base.Source_Span,
+}
+```
+
+**Downstream:** Typecheck each interpolated pattern part. Unify with `Str`.
+
+### GAP-31: Lambda where-clauses
+
+**Files:** `src/frontend/parser.odin`
+
+**Parser change:** After parsing the lambda body, if `where` keyword follows,
+parse where-clauses. Add them to the lambda AST node's `where_clauses` field.
+
+**No AST change needed** -- `Expr_Lambda` already has `where_clauses` field
+(check `ast.odin`). The parser just doesn't populate it.
+
+### GAP-32: Effect aliases
+
+**Files:** `src/frontend/parser.odin`, `src/frontend/ast.odin`
+
+**Parser change:** In `parse_decl()`, after `effect`, check for `alias`
+keyword. If present, parse as effect alias declaration.
+
+**AST change:** Add `Decl_Effect_Alias`:
+```odin
+Decl_Effect_Alias :: struct {
+    name:   base.Intern_ID,
+    target: Type,
+    is_pub: bool,
+    span:   base.Source_Span,
+}
+```
+
+**Downstream:** Typechecker resolves the alias. During effect row
+substitution, expand aliases to their target row.
+
+### GAP-33: Newtype where-clauses & method blocks
+
+**Files:** `src/frontend/parser.odin`, `src/frontend/ast.odin`
+
+**Parser change:** After parsing newtype type params, check for `where`
+keyword and parse where-clauses. After the inner type, check for `{` and
+parse method declarations.
+
+**AST change:** Add `where_clauses` and `methods` fields to `Decl_Newtype`:
+```odin
+Decl_Newtype :: struct {
+    // ... existing fields ...
+    where_clauses: []Where_Clause,
+    methods:      []Newtype_Method,
+    // ...
+}
+```
+
+### GAP-34: Type alias type params
+
+**Files:** `src/frontend/parser.odin`, `src/frontend/ast.odin`
+
+**Parser change:** In `parse_decl()` for type aliases, parse `[T]` type
+params after the alias name.
+
+**AST change:** Add `type_params` field to `Decl_Alias`:
+```odin
+Decl_Alias :: struct {
+    name:        Canonical_Name,
+    is_pub:      bool,
+    target:      Type,
+    type_params: []Intern_ID,  // <- ADD
+    doc_comment: string,
+    span:        Source_Span,
+}
+```
+
+**Downstream:** Typechecker creates type params as fresh type variables.
+Canonicalizer propagates them. Lower skips alias decls (already the case).
+
+### GAP-35: Bitwise shift operators (`<<`, `>>`)
+
+**Files:** `src/frontend/lexer.odin`, `src/frontend/parser.odin`,
+`src/semantics/check_expr.odin`, `src/codegen/emit_expr.odin`
+
+**Lexer change:** Add `<<` and `>>` as double-token operators.
+
+**Parser change:** Add to operator precedence table (between comparison and
+additive, following standard precedence).
+
+**Typechecker change:** Add `case .Lt_Lt, .Gt_Gt:` to `typecheck_binop` --
+constrain operands to integer types, result is left operand type.
+
+**Codegen change:** Add `Shl`/`Shr` to `IR_BinOp_Kind`. Emit `Wasm_I32_Shl`/
+`Wasm_I64_Shl`/`Wasm_I32_Shr_S`/`Wasm_I64_Shr_S`.
+
+### GAP-36: Type wildcard `_` in type position
+
+**Files:** `src/frontend/parser.odin`
+
+**Parser change:** In `parse_type()`, when the token is `_`, produce
+`Type_Wildcard`. The AST node already exists (`ast.odin:566`).
+
+**Downstream:** Typechecker: `Type_Wildcard` becomes a fresh type variable
+(`fresh_value_var`). This is the same as an omitted type annotation --
+it requests inference.
+
+---
+
+## 40. GAP-37 through GAP-39: Dead AST Nodes
+
+### GAP-37: `Expr_Record_Update` -- defined but never produced
+
+**Files:** `src/frontend/parser.odin`, `src/frontend/ast.odin`
+
+**Option A: Implement record update syntax**
+
+In the parser, after parsing a record literal `{ field: value, ... }`, check
+if it begins with an expression (e.g., `{ expr | field: value, ... }`).
+If so, parse as `Expr_Record_Update{record = expr, updates = [...]}`.
+
+The syntax recipe Section 4 (Record Literal) specifies record update as
+`{ record | field = value }`.
+
+**Option B: Remove the dead node**
+
+If record update is not a priority, remove `Expr_Record_Update` from the AST
+union, the typechecker handler (`typecheck_record_update`), and all
+downstream code. Re-add when needed.
+
+**Recommendation:** Implement (Option A). Record update is in the syntax
+recipe and the typechecker already handles it.
+
+### GAP-38: `Type_Wildcard` -- defined but never produced
+
+**Files:** Same as GAP-36. Fix is the same -- implement `_` in type position.
+
+### GAP-39: `Pattern_Record` missing `..rest` field
+
+**Files:** `src/frontend/ast.odin`, `src/frontend/parser.odin`
+
+**AST change:** Add `rest_name` field to `Pattern_Record`:
+```odin
+Pattern_Record :: struct {
+    fields:   [dynamic]Pattern_Record_Field,
+    rest:     base.Intern_ID,  // 0 if no `..rest`, otherwise the rest binding name
+    span:     base.Source_Span,
+}
+```
+
+**Parser change:** When parsing a record pattern, after all fields, check for
+`..` followed by an identifier. If present, set `rest` to that identifier.
+
+**Downstream:** In canonicalize/typecheck, the rest binding captures all
+unmatched fields as a sub-record. In lower, generate a record construction
+from the unmatched fields.
+
+---
+
+## 41. Structural Fix: Convert All `#partial switch` Fallthroughs
+
+This is the single highest-leverage change. It prevents future gaps from being
+introduced silently.
+
+### Target functions (in priority order)
+
+| # | File | Function | Current Behavior | Fix |
+|---|------|----------|-------------------|-----|
+| 1 | `typecheck.odin` | `typecheck_synth` | `#partial switch` returns `TExpr_Int{0}` | Convert to total `switch`, add error case |
+| 2 | `typecheck.odin` | `typecheck_decl` | `#partial switch` to `unreachable()` | Verify exhaustiveness |
+| 3 | `check_expr.odin` | `typecheck_binop` | `#partial switch` passes left type | Add error-emitting `case:` |
+| 4 | `check_expr.odin` | `typecheck_prefixop` | `#partial switch` passes operand type | Add error-emitting `case:` |
+| 5 | `canonicalize.odin` | `canonicalize_decl` | `#partial switch` returns empty `CDecl_Const` | Convert to total `switch` |
+| 6 | `canonicalize.odin` | `canonicalize_expr` | `#partial switch` returns `CExpr_Int{0}` | Convert to total `switch` |
+| 7 | `canonicalize.odin` | `canonicalize_pattern` | `#partial switch` returns `CPattern_Wildcard` | Convert to total `switch` |
+| 8 | `check_control.odin` | `typecheck_pattern` | `#partial switch` returns `TPattern_Wildcard{0}` | Convert to total `switch` |
+| 9 | `check_control.odin` | `collect_pattern_coverage` | `#partial switch` empty body | Add missing cases |
+| 10 | `lower.odin` | `lower_texpr` | total `switch` returns `make_ir_lit_int(0, ...)` | Add `unreachable()` or assert |
+| 11 | `lower.odin` | `lower_tmethod_call` (x2) | `#partial switch` sets `receiver_type_var = 0` | Consolidate all variants |
+| 12 | `effect_lower.odin` | `el_lower_expr` | `#partial switch` returns `return expr` | Add all missing cases |
+| 13 | `effect_lower.odin` | `el_replace_resume` | `#partial switch` returns `return expr` | Add all missing cases |
+| 14 | `emit_expr.odin` | `emit_expr` | `#partial switch` emits no code | Add error-emitting default |
+| 15 | `emit_expr.odin` | `collect_locals` | `#partial switch` skips sub-exprs | Add all missing cases |
+| 16 | `codegen.odin` | decl dispatch loop | `#partial switch` skips consts/effects | Add all missing cases |
+
+### Implementation strategy
+
+**Phase 1: Add diagnostic-emitting defaults to all `#partial switch` functions**
+
+For each function, add a `case:` at the end that:
+1. Emits `diag_internal` with the function name and "unhandled variant"
+2. Returns a sentinel value that won't silently corrupt downstream passes
+
+**Phase 2: Convert to total `switch` where safe**
+
+Where the union type is fully known (AST, IR, TExpr unions), convert to
+total `switch`. Odin enforces exhaustiveness at compile time.
+
+**Phase 3: Add compile-time coverage tests**
+
+For each dispatch function, add a test that verifies every union variant is
+handled. This can be done by constructing each variant and ensuring no
+internal diagnostic is emitted.
+
+---
+
+## 42. Implementation Order
+
+Ordered by impact and dependency:
+
+| Phase | GAPs | Description |
+|-------|------|-------------|
+| **1** | 17, 18, 22 | Codegen P0 bugs: wrong opcodes + stack corruption. One-liner and mechanical fixes. |
+| **2** | 27, 28 | Effect lowering P0: add tuple/nominal cases. Mechanical recursive lowering. |
+| **3** | 9, 10 | Unification P1: constructor name/arity check + effect row occurs check. |
+| **4** | 6, 11, 12, 13, 16, 25 | All fallthrough defaults: add diagnostic emission. Structural safety net. |
+| **5** | 1 | Trait conformance: call `verify_trait_conformance`. Largest semantic fix. |
+| **6** | 23 | Destructure patterns: implement proper lowering. Requires reading TPattern_Destructure. |
+| **7** | 2 | Perform arg unification. Requires effect signature table. |
+| **8** | 3 | Nominal construct type resolution. Requires env_lookup. |
+| **9** | 4, 5, 14 | Binop/prefixop/derive defaults: add diagnostics. Small targeted fixes. |
+| **10** | 15 | Pattern exhaustiveness: implement coverage for Record/List/Destructure/Tuple. |
+| **11** | 7, 8 | Dead second-pass removal + effect safety improvements. |
+| **12** | 19, 20, 21 | Codegen P0 remaining: nominal construct, method calls, non-literal consts. Requires design decisions. |
+| **13** | 24, 26 | Semantic holes: char erasure (document), receiver fallthrough. |
+| **14** | 29-39 | Parser P3: implement syntax recipe features. Can be parallelized. |
+| **15** | Structural | Convert all `#partial switch` to total `switch` + add coverage tests. |
