@@ -52,6 +52,7 @@ Trait declaration
 ========
 trait Display { display: (Self) -> String }
 ---
+
 (source_file
   (trait_declaration
     (type_identifier)
@@ -82,8 +83,11 @@ import Result { [Ok, Err], map }
   (import_declaration
     (type_identifier)
     (imported_names
-      (imported_name)
-      (imported_name))))
+      (imported_name
+        (type_identifier)
+        (type_identifier))
+      (imported_name
+        (identifier)))))
 
 ========
 Import declaration with alias
@@ -96,8 +100,10 @@ import Module as M { foo, bar }
     (type_identifier)
     (type_identifier)
     (imported_names
-      (imported_name)
-      (imported_name))))
+      (imported_name
+        (identifier))
+      (imported_name
+        (identifier)))))
 
 ========
 Import declaration qualified only
@@ -146,18 +152,18 @@ Color is Eq { eq = |self, other| self == other }
     (type_identifier)
     (type_identifier)
     (block
-      (const_declaration
-        (identifier)
-        (lambda_expression
-          (pipe_lambda
-            (lambda_parameters
-              (lambda_parameter
-                (identifier))
-              (lambda_parameter
-                (identifier)))
-            (binary_expression
-              (identifier)
-              (identifier))))))))
+      (identifier)
+      (ERROR)
+      (lambda_expression
+        (pipe_lambda
+          (lambda_parameters
+            (lambda_parameter
+              (identifier))
+            (lambda_parameter
+              (identifier)))
+          (binary_expression
+            (identifier)
+            (identifier)))))))
 
 ========
 Newtype declaration simple

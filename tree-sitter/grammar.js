@@ -31,6 +31,8 @@ export default grammar({
     [$.anonymous_method_expression, $.method_call_expression],
     [$.record_pattern_fields],
     [$.function_type],
+    [$.anonymous_structural_field],
+    [$.structural_field_access, $.anonymous_structural_field],
   ],
 
   rules: {
@@ -131,7 +133,7 @@ export default grammar({
 
     imported_name: ($) => choice(
       $.identifier,
-      seq("[", $.identifier, repeat(seq(",", $.identifier)), optional(","), "]"),
+      seq("[", choice($.identifier, $.type_identifier), repeat(seq(",", choice($.identifier, $.type_identifier))), optional(","), "]"),
     ),
 
     // test "name" { body }
@@ -155,6 +157,8 @@ export default grammar({
     ),
 
     _expression: ($) => choice(
+      prec(10, $.tag_expression_with_args),
+      $.tag_expression,
       $.binary_expression,
       $.unary_expression,
       $.call_expression,
@@ -231,8 +235,6 @@ export default grammar({
       $.boolean,
       $.dollar_identifier,
       $.identifier,
-      $.type_identifier,
-      $.tag_expression,
       $.list_expression,
       $.parenthesized_expression,
       $.lambda_expression,
@@ -245,6 +247,7 @@ export default grammar({
       $.anonymous_structural_field,
       $.return_expression,
       $.crash_expression,
+      prec(10, $.todo_expression_with_msg),
       $.todo_expression,
       $.par_expression,
     ),
@@ -302,11 +305,16 @@ export default grammar({
     dollar_identifier: ($) => seq("$", $.identifier),
 
     // --- Expressions ---
-    tag_expression: ($) => prec(9, seq(
+    tag_expression_with_args: ($) => prec(10, seq(
       optional("@"),
       field("name", $.type_identifier),
-      optional(field("arguments", $.arguments)),
+      field("arguments", $.arguments),
     )),
+
+    tag_expression: ($) => seq(
+      optional("@"),
+      field("name", $.type_identifier),
+    ),
 
     arguments: ($) => seq(
       "(",
@@ -480,7 +488,9 @@ export default grammar({
 
     crash_expression: ($) => seq("crash", $._expression),
 
-    todo_expression: ($) => seq("todo", optional($._expression)),
+    todo_expression_with_msg: ($) => prec(10, seq("todo", $._expression)),
+
+    todo_expression: ($) => "todo",
 
     anonymous_method_expression: ($) => prec(9, seq(
       ".",
