@@ -1,11 +1,14 @@
 package ir
 
 import "camp:base"
+import "camp:diagnostics"
 import "core:fmt"
+import "core:strings"
 
 Closure_Convert_Env :: struct {
 	module:      ^IR_Module,
 	interner:    ^base.Intern_Table,
+	collector:   ^diagnostics.Diagnostic_Collector,
 	fresh_state: base.Fresh_State,
 	// Names of synthesized closed_fn decls — references to these are
 	// function pointers, not free variables to capture.
@@ -294,7 +297,11 @@ cc_bind_pattern_vars :: proc(pat: IR_Pattern, bound: ^map[base.Intern_ID]bool) {
 	}
 }
 
-closure_convert :: proc(mod: ^IR_Module, interner: ^base.Intern_Table) -> IR_Module {
+closure_convert :: proc(
+	mod: ^IR_Module,
+	interner: ^base.Intern_Table,
+	collector: ^diagnostics.Diagnostic_Collector,
+) -> IR_Module {
 	result: IR_Module
 	result.decls = make([dynamic]IR_Decl, 0, len(mod.decls) + 16)
 	result.effect_defs = make([dynamic]IR_Effect_Def, 0, len(mod.effect_defs))
@@ -322,6 +329,7 @@ closure_convert :: proc(mod: ^IR_Module, interner: ^base.Intern_Table) -> IR_Mod
 	env: Closure_Convert_Env
 	env.module = &result
 	env.interner = interner
+	env.collector = collector
 	env.fresh_state = base.Fresh_State {
 		counter  = 0,
 		interner = interner,
@@ -420,6 +428,43 @@ cc_convert_expr :: proc(expr: IR_Expr, env: ^Closure_Convert_Env) -> IR_Expr {
 			}
 		}
 		delete(raw_free)
+
+		// Mutable ($-prefixed) variables are stack-local and cannot escape
+		// into a closure. Emit an error for each and remove from capture list.
+		mutable_free: [dynamic]base.Intern_ID
+		mutable_free = make([dynamic]base.Intern_ID, 0, len(free))
+		for fv in free {
+			fv_str := base.intern_get(env.interner, fv)
+			if strings.has_prefix(fv_str, "$") {
+				append(&mutable_free, fv)
+			}
+		}
+		for fv in mutable_free {
+			fv_str := base.intern_get(env.interner, fv)
+			diagnostics.collector_add_diag(
+				env.collector,
+				diagnostics.diag_mutable_capture(fv_str, e.span),
+			)
+		}
+		if len(mutable_free) > 0 {
+			filtered: [dynamic]base.Intern_ID
+			filtered = make([dynamic]base.Intern_ID, 0, len(free) - len(mutable_free))
+			mutable_set: map[base.Intern_ID]bool
+			mutable_set = make(map[base.Intern_ID]bool, len(mutable_free))
+			for fv in mutable_free {
+				mutable_set[fv] = true
+			}
+			for fv in free {
+				if _, is_mut := mutable_set[fv]; !is_mut {
+					append(&filtered, fv)
+				}
+			}
+			delete(mutable_set)
+			delete(free)
+			free = filtered
+		} else {
+			delete(mutable_free)
+		}
 
 		// Collect types for free vars so capture stores and env loads use
 		// the right wasm width (a captured I64 must round-trip as I64).

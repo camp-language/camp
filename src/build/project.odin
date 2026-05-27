@@ -219,7 +219,14 @@ run_build_project :: proc(thread_count: int = 1) -> Build_Result {
 	ctx.type_store = &ctx.module_stores[project.entry_point]
 	combined_ir := combine_module_irs(sorted[:], &project, &ctx)
 	combined_ir = ir.effect_lower(&combined_ir, &ctx.interner, &ctx.collector, ctx.type_store)
-	combined_ir = ir.closure_convert(&combined_ir, &ctx.interner)
+	errors_before_cc := ctx.collector.error_count
+	combined_ir = ir.closure_convert(&combined_ir, &ctx.interner, &ctx.collector)
+
+	if ctx.collector.error_count > errors_before_cc {
+		diagnostics.render_all(&ctx.collector, "", "")
+		return Build_Result(Build_Error{message = "closure conversion errors", code = 1})
+	}
+
 	combined_ir = ir.cps_transform(&combined_ir, &ctx.interner)
 	ir.rc_insert(&combined_ir, &ctx.interner)
 	ir.reuse_analyze(&combined_ir)

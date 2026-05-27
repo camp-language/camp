@@ -2,7 +2,7 @@ stdout = """
 canonicalized /tmp/camp-e2e/unused-analysis/var-overwrite-before-read/src/Main.camp: 1 declaration(s), 0 import(s)
 -- C0201: SHADOWING --- /tmp/camp-e2e/unused-analysis/var-overwrite-before-read/src/Main.camp
 
-`x` shadows a binding from an enclosing scope. All shadowing is forbidden.
+`$x` shadows a binding from an enclosing scope. All shadowing is forbidden.
    3 |   $x = 2
          ^
   Use a different name for this binding.

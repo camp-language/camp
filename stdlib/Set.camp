@@ -1,6 +1,9 @@
 -- Set.camp
 -- @Set(a) -- opaque, Map(a, {}) internally
 
+import Iter { empty, singleton, chain, from_list }
+import List { append }
+
 -- Construction
 
 pub new : Set(a)
@@ -34,44 +37,67 @@ pub insert = |x, s| crash "intrinsic: Set.insert"
 pub remove : a, Set(a) -> Set(a)
 pub remove = |x, s| crash "intrinsic: Set.remove"
 
--- Set operations
-
-pub union : Set(a), Set(a) -> Set(a)
-pub union = |s1, s2| crash "intrinsic: Set.union"
-
-pub intersection : Set(a), Set(a) -> Set(a)
-pub intersection = |s1, s2| crash "intrinsic: Set.intersection"
-
-pub difference : Set(a), Set(a) -> Set(a)
-pub difference = |s1, s2| crash "intrinsic: Set.difference"
-
-pub symmetric_difference : Set(a), Set(a) -> Set(a)
-pub symmetric_difference = |s1, s2| crash "intrinsic: Set.symmetric_difference"
-
-pub is_subset : Set(a), Set(a) -> Bool
-pub is_subset = |s1, s2| crash "intrinsic: Set.is_subset"
-
-pub is_disjoint : Set(a), Set(a) -> Bool
-pub is_disjoint = |s1, s2| crash "intrinsic: Set.is_disjoint"
-
 -- Transformation
 
+pub fold : Set(a), b, (b, a) -> b -> b
+pub fold = |s, init, f|
+  match min(s) {
+    Ok(x) => fold(remove(x, s), f(init, x), f)
+    Err(_) => init
+  }
+
 pub map : Set(a), (a) -> b -> Set(b)
-pub map = |s, f| crash "intrinsic: Set.map"
+pub map = |s, f|
+  fold(s, new, |acc, x| insert(f(x), acc))
 
 pub filter : Set(a), (a) -> Bool -> Set(a)
-pub filter = |s, pred| crash "intrinsic: Set.filter"
-
-pub fold : Set(a), b, (b, a) -> b -> b
-pub fold = |s, init, f| crash "intrinsic: Set.fold"
+pub filter = |s, pred|
+  fold(s, new, |acc, x|
+    if pred(x) { insert(x, acc) } else { acc }
+  )
 
 -- Conversion
 
 pub to_iter : Set(a) -> Iter(a)
-pub to_iter = |s| crash "intrinsic: Set.to_iter"
+pub to_iter = |s|
+  fold(s, Iter.empty, |acc, x| acc->chain(Iter.singleton(x)))
 
 pub from_list : List(a) -> Set(a)
-pub from_list = |xs| crash "intrinsic: Set.from_list"
+pub from_list = |xs|
+  Iter.from_list(xs)->fold(new, |s, x| insert(x, s))
 
 pub to_list : Set(a) -> List(a)
-pub to_list = |s| crash "intrinsic: Set.to_list"
+pub to_list = |s|
+  fold(s, [], |acc, x| List.append(acc, [x]))
+
+-- Set operations
+
+pub union : Set(a), Set(a) -> Set(a)
+pub union = |s1, s2|
+  fold(s2, s1, |acc, x| insert(x, acc))
+
+pub intersection : Set(a), Set(a) -> Set(a)
+pub intersection = |s1, s2|
+  fold(s1, new, |acc, x|
+    if contains(x, s2) { insert(x, acc) } else { acc }
+  )
+
+pub difference : Set(a), Set(a) -> Set(a)
+pub difference = |s1, s2|
+  fold(s2, s1, |acc, x| remove(x, acc))
+
+pub symmetric_difference : Set(a), Set(a) -> Set(a)
+pub symmetric_difference = |s1, s2|
+  difference(union(s1, s2), intersection(s1, s2))
+
+pub is_subset : Set(a), Set(a) -> Bool
+pub is_subset = |s1, s2|
+  fold(s1, True, |acc, x|
+    if acc { contains(x, s2) } else { False }
+  )
+
+pub is_disjoint : Set(a), Set(a) -> Bool
+pub is_disjoint = |s1, s2|
+  fold(s1, True, |acc, x|
+    if acc { if contains(x, s2) { False } else { True } } else { False }
+  )
