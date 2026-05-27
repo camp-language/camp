@@ -1,13 +1,10 @@
 stdout = """
 canonicalized /tmp/camp-e2e/scheduler/parallel-map/src/Main.camp: 1 declaration(s), 0 import(s)
--- C9000: INTERNAL ERROR --- /tmp/camp-e2e/scheduler/parallel-map/src/Main.camp
-
-Something went wrong inside the compiler: operation `map!` not found in effects
-`Parallel!`
-   5 |     .map!(resume, _f, _xs) => resume(0)
-            ^^^^
-  This is a bug in Camp. Please report it at https://github.com/smores56/camp/issues
-compilation failed with 1 error(s)
+typecheck passed for /tmp/camp-e2e/scheduler/parallel-map/src/Main.camp
+compiled /tmp/camp-e2e/scheduler/parallel-map/src/Main.camp -> /tmp/camp-e2e/scheduler/parallel-map/src/Main.wasm
 """
 stderr = ""
-exit = 1
+exit = 0
+wasm_exit = 0
+wasm_stdout = ""
+wasm_stderr = ""
