@@ -1,0 +1,3 @@
+IO! : { println!: || -[IO!]-> {} }
+helper! = || -[IO!]-> I64 { IO!.println!("hi") 0 }
+main! = || -> I64 { helper!() }

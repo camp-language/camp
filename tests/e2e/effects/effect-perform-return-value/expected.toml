@@ -5,6 +5,17 @@ compiled /tmp/camp-e2e/effects/effect-perform-return-value/src/Main.camp -> /tmp
 """
 stderr = ""
 exit = 0
-wasm_exit = 0
+wasm_exit = 134
 wasm_stdout = ""
-wasm_stderr = ""
+wasm_stderr = """
+Error: failed to run main module `/tmp/camp-e2e/effects/effect-perform-return-value/src/Main.wasm`
+
+Caused by:
+    0: failed to invoke command default
+    1: error while executing at wasm backtrace:
+    0:   0x16c2 - <unknown>!<wasm function 67>
+    1:   0x177a - <unknown>!<wasm function 68>
+    2: memory fault at wasm address 0x706d6162 in linear memory of size 0x140000
+    3: wasm trap: out of bounds memory access
+
+"""

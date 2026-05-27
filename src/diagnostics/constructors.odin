@@ -206,6 +206,26 @@ diag_unhandled_effect :: proc(effect_name: string, span: base.Source_Span) -> Di
 	return d
 }
 
+diag_unhandled_effect_entry :: proc(
+	effect_name: string,
+	effects_str: string,
+	span: base.Source_Span,
+) -> Diagnostic {
+	d := diag_init(
+		.Error,
+		"C0401",
+		"UNHANDLED EFFECT",
+		span,
+		fmt.tprintf(
+			"Entry point `main!` has unhandled effect `{}` in its effect row {}.",
+			effect_name,
+			effects_str,
+		),
+	)
+	append(&d.hints, "Try wrapping the effectful code with a `handle` block, or add a handler.")
+	return d
+}
+
 diag_type_mismatch :: proc(
 	type_a: string,
 	type_b: string,

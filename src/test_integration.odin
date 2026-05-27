@@ -125,7 +125,8 @@ test_integration_typecheck_simple :: proc(t: ^testing.T) {
 	semantics.type_store_init(&store, &ctx.interner, &ctx.collector)
 	defer semantics.type_store_destroy(&store)
 
-	semantics.typecheck_file(canon, &store)
+	tfile := semantics.typecheck_file(canon, &store)
+	semantics.check_effect_safety(tfile, &store)
 	testing.expect(t, !diagnostics.diag_collector_has_errors(&ctx.collector))
 }
 
@@ -155,7 +156,8 @@ test_integration_typecheck_effectful :: proc(t: ^testing.T) {
 	semantics.type_store_init(&store, &ctx.interner, &ctx.collector)
 	defer semantics.type_store_destroy(&store)
 
-	semantics.typecheck_file(canon, &store)
+	tfile := semantics.typecheck_file(canon, &store)
+	semantics.check_effect_safety(tfile, &store)
 	testing.expect(t, !diagnostics.diag_collector_has_errors(&ctx.collector))
 }
 
@@ -186,6 +188,7 @@ test_integration_typecheck_import :: proc(t: ^testing.T) {
 	semantics.type_store_init(&store, &ctx.interner, &ctx.collector)
 	defer semantics.type_store_destroy(&store)
 
-	semantics.typecheck_file(canon, &store)
+	tfile := semantics.typecheck_file(canon, &store)
+	semantics.check_effect_safety(tfile, &store)
 }
 

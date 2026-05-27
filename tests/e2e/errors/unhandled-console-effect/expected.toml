@@ -2,10 +2,10 @@ stdout = """
 canonicalized /tmp/camp-e2e/errors/unhandled-console-effect/src/Main.camp: 2 declaration(s), 0 import(s)
 -- C0401: UNHANDLED EFFECT --- /tmp/camp-e2e/errors/unhandled-console-effect/src/Main.camp
 
-This expression performs effect `IO!`, but there is no `handle` block around it.
+Entry point `main!` has unhandled effect `IO!` in its effect row [IO!].
    2 | main! = || -[IO!]-> I64 { IO!.println!("hello") 0 }
-                                     ^^^^^^^^
-  Try wrapping it with a `handle` block.
+       ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  Try wrapping the effectful code with a `handle` block, or add a handler.
 compilation failed with 1 error(s)
 """
 stderr = ""

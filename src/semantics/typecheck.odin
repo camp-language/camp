@@ -1484,6 +1484,76 @@ is_effect_handled :: proc(env: ^Type_Env, effect_id: base.Intern_ID) -> bool {
 	return false
 }
 
+is_prelude_effect_by_entry :: proc(
+	entry_name: base.Intern_ID,
+	interner: ^base.Intern_Table,
+) -> bool {
+	// Effect row entries store names with '!' suffix (e.g. "Console!"),
+	// but is_prelude_effect checks against bare names (e.g. "Console").
+	if is_prelude_effect(entry_name, interner) {
+		return true
+	}
+	name_str := base.intern_get(interner, entry_name)
+	if strings.has_suffix(name_str, "!") {
+		bare_name := name_str[:len(name_str) - 1]
+		bare_id := base.intern(interner, bare_name)
+		return is_prelude_effect(bare_id, interner)
+	}
+	return false
+}
+
+check_effect_safety :: proc(tfile: TFile, store: ^Type_Store) {
+	main_name := base.intern(store.interner, "main!")
+
+	for decl in tfile.decls {
+		td, is_const := decl.(^TDecl_Const)
+		if !is_const {
+			continue
+		}
+		if td.name.name != main_name {
+			continue
+		}
+
+		// Find main!'s type var from store bindings
+		var_id, has_var := store.bindings[main_name]
+		if !has_var {
+			continue
+		}
+
+		resolved := resolve_var(store, var_id)
+		v := store.vars[int(resolved)]
+		inf, is_inf := v.link.(Inferred_Type)
+		inf_fn, is_fn := inf.(Inferred_Function)
+		if !is_inf || !is_fn {
+			continue
+		}
+
+		// Check if effect row has non-prelude effects
+		effect_var := inf_fn.effect_id
+		rid := resolve_var(store, effect_var)
+		rv := store.vars[int(rid)]
+		it, is_inferred := rv.link.(Inferred_Type)
+		it_effect, is_effect := it.(Inferred_Effect_Row)
+		if !is_inferred || !is_effect {
+			return
+		}
+
+		for entry in it_effect.effects {
+			if !is_prelude_effect_by_entry(entry.name, store.interner) {
+				effect_str := base.intern_get(store.interner, entry.name)
+				effects_str := format_effect_row(store, effect_var)
+				diagnostics.collector_add_diag(
+					store.collector,
+					diagnostics.diag_unhandled_effect_entry(effect_str, effects_str, td.span),
+				)
+				return // One error is enough
+			}
+		}
+
+		return // Found main!, done
+	}
+}
+
 typecheck_newtype_construct :: proc(
 	e: ^CExpr_Tag,
 	env: ^Type_Env,
