@@ -143,6 +143,8 @@ token_kind_display :: proc(kind: base.Token_Kind) -> string {
 		return "newline"
 	case .Doc_Comment:
 		return "///"
+	case .Hidden_Line:
+		return "//#"
 	case:
 		return "unknown token"
 	}

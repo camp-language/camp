@@ -23,6 +23,7 @@ CDecl_Const :: struct {
 	body:           CExpr,
 	derive_targets: [dynamic]base.Intern_ID,
 	where_clauses:  [dynamic]frontend.Where_Clause,
+	doc_comment:    string,
 	span:           base.Source_Span,
 }
 
@@ -31,6 +32,7 @@ CDecl_Effect :: struct {
 	is_pub:      bool,
 	operations:  [dynamic]CEffect_Op,
 	type_params: [dynamic]frontend.Type_Param,
+	doc_comment: string,
 	span:        base.Source_Span,
 }
 
@@ -44,11 +46,12 @@ CEffect_Op :: struct {
 }
 
 CDecl_Trait :: struct {
-	name:    base.Canonical_Name,
-	is_pub:  bool,
-	parent:  base.Intern_ID,
-	methods: [dynamic]CTrait_Method,
-	span:    base.Source_Span,
+	name:        base.Canonical_Name,
+	is_pub:      bool,
+	parent:      base.Intern_ID,
+	methods:     [dynamic]CTrait_Method,
+	doc_comment: string,
+	span:        base.Source_Span,
 }
 
 CTrait_Method :: struct {
@@ -59,10 +62,11 @@ CTrait_Method :: struct {
 }
 
 CDecl_Alias :: struct {
-	name:   base.Canonical_Name,
-	is_pub: bool,
-	target: ^CType,
-	span:   base.Source_Span,
+	name:        base.Canonical_Name,
+	is_pub:      bool,
+	target:      ^CType,
+	doc_comment: string,
+	span:        base.Source_Span,
 }
 
 CDecl_Newtype :: struct {
@@ -72,30 +76,35 @@ CDecl_Newtype :: struct {
 	type_params:    [dynamic]base.Intern_ID,
 	inner_type:     ^CType,
 	derive_targets: [dynamic]base.Intern_ID,
+	doc_comment:    string,
 	span:           base.Source_Span,
 }
 
 CDecl_Import :: struct {
-	deferred: base.Deferred_Import,
-	span:     base.Source_Span,
+	deferred:    base.Deferred_Import,
+	doc_comment: string,
+	span:        base.Source_Span,
 }
 
 CDecl_Test :: struct {
-	name: string,
-	body: CExpr,
-	span: base.Source_Span,
+	name:        string,
+	body:        CExpr,
+	doc_comment: string,
+	span:        base.Source_Span,
 }
 
 CDecl_Expect :: struct {
-	condition: CExpr,
-	span:      base.Source_Span,
+	condition:   CExpr,
+	doc_comment: string,
+	span:        base.Source_Span,
 }
 
 CDecl_Is_Impl :: struct {
-	type_name:  base.Canonical_Name,
-	trait_name: base.Canonical_Name,
-	methods:    [dynamic]CIs_Method,
-	span:       base.Source_Span,
+	type_name:   base.Canonical_Name,
+	trait_name:  base.Canonical_Name,
+	methods:     [dynamic]CIs_Method,
+	doc_comment: string,
+	span:        base.Source_Span,
 }
 
 CIs_Method :: struct {
@@ -535,9 +544,10 @@ CType_Self :: struct {
 }
 
 CFile :: struct {
-	path:    string,
-	decls:   [dynamic]CDecl,
-	imports: [dynamic]base.Deferred_Import,
-	span:    base.Source_Span,
+	path:       string,
+	decls:      [dynamic]CDecl,
+	imports:    [dynamic]base.Deferred_Import,
+	module_doc: string,
+	span:       base.Source_Span,
 }
 

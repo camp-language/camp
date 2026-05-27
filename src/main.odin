@@ -27,7 +27,7 @@ main :: proc() {
 	if len(args) < 2 {
 		fmt.printfln("Camp compiler v{}", VERSION)
 		fmt.println("Usage: camp <command> [options] <file>")
-		fmt.println("Commands: build, test, fmt, check, lsp")
+		fmt.println("Commands: build, test, fmt, check, doc, lsp")
 		fmt.println("Global flags: --json (machine-readable diagnostics on stdout)")
 		os.exit(1)
 	}
@@ -72,6 +72,8 @@ main :: proc() {
 		return
 	case .Check:
 		result = build.run_check(remaining_args)
+	case .Doc:
+		result = build.run_doc(remaining_args)
 	case .Lsp:
 		lsp.lsp_main()
 		return
