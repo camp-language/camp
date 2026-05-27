@@ -379,7 +379,7 @@ Mutable bindings SHALL use a `$` prefix at declaration and at every use site, an
 #### Scenario: Mutable variable cannot escape function
 - GIVEN a mutable binding `$x` defined inside a function
 - WHEN a closure captures `$x` and escapes the function
-- THEN the compiler SHALL produce an error
+- THEN the compiler SHALL produce error C1002 (MUTABLE CAPTURE)
 
 #### Scenario: Mutable variable shadowing across scopes rejected
 - GIVEN a mutable binding `$x` in an enclosing scope
