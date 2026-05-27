@@ -973,6 +973,39 @@ wasm_serialize :: proc(mod: Wasm_Module) -> [dynamic]u8 {
 	return buf
 }
 
+wasm_module_destroy :: proc(mod: ^Wasm_Module) {
+	for ft in mod.types {
+		delete(ft.params)
+		delete(ft.results)
+	}
+	delete(mod.types)
+	delete(mod.imports)
+	delete(mod.functions)
+	delete(mod.tables)
+	delete(mod.memories)
+	for g in mod.globals {
+		delete(g.init)
+	}
+	delete(mod.globals)
+	// exports have name: string — do NOT delete strings
+	delete(mod.exports)
+	for elem in mod.elements {
+		delete(elem.offset)
+		delete(elem.func_idxs)
+	}
+	delete(mod.elements)
+	for c in mod.codes {
+		delete(c.body)
+		delete(c.locals)
+	}
+	delete(mod.codes)
+	for d in mod.datas {
+		delete(d.offset)
+		delete(d.bytes)
+	}
+	delete(mod.datas)
+}
+
 ir_wasm_type_to_value_type :: proc(t: base.IR_Wasm_Type) -> Wasm_Value_Type {
 	switch t {
 	case .I32:

@@ -1,21 +1,310 @@
 stdout = """
-canonicalized /tmp/camp-e2e/language/kitchen-sink/src/Main.camp: 5 declaration(s), 0 import(s)
--- C0301: TYPE MISMATCH --- /tmp/camp-e2e/language/kitchen-sink/src/Main.camp
+-- C0100: SYNTAX ERROR --- /tmp/camp-e2e/language/kitchen-sink/src/Main.camp
 
-`I64` does not match `Char`.
-  36 |   char_val: Char = 'a'
-                          ^^^
-  36 |   char_val: Char = 'a'
-                   ~~~~ this has type `Char`
+I expected `=` here, but I got `-` instead.
+  735 | -- Map construction and access
+         ^
 
--- C0300: TYPE MISMATCH --- /tmp/camp-e2e/language/kitchen-sink/src/Main.camp
+-- C0100: SYNTAX ERROR --- /tmp/camp-e2e/language/kitchen-sink/src/Main.camp
 
-`Unit` does not match `record`.
-  37 |   unit_val: {} = {}
-                        ^
-  37 |   unit_val: {} = {}
-                   ~ this has type `record`
-compilation failed with 2 error(s)
+I expected `=` here, but I got `and` instead.
+  735 | -- Map construction and access
+                            ^^^
+
+-- C0100: SYNTAX ERROR --- /tmp/camp-e2e/language/kitchen-sink/src/Main.camp
+
+I expected `=` here, but I got `Map` instead.
+  737 | assert_eq Map.is_empty(m), True
+                  ^^^
+
+-- C0100: SYNTAX ERROR --- /tmp/camp-e2e/language/kitchen-sink/src/Main.camp
+
+I expected `=` here, but I got `True` instead.
+  737 | assert_eq Map.is_empty(m), True
+                                   ^^^^
+
+-- C0100: SYNTAX ERROR --- /tmp/camp-e2e/language/kitchen-sink/src/Main.camp
+
+I expected `=` here, but I got `.` instead.
+  738 | assert_eq Map.size(m), 0
+                     ^
+
+-- C0100: SYNTAX ERROR --- /tmp/camp-e2e/language/kitchen-sink/src/Main.camp
+
+I expected `=` here, but I got `0` instead.
+  738 | assert_eq Map.size(m), 0
+                               ^
+
+-- C0100: SYNTAX ERROR --- /tmp/camp-e2e/language/kitchen-sink/src/Main.camp
+
+I expected `=` here, but I got `Map` instead.
+  739 | m2 = Map.insert("hello", 1, m)
+             ^^^
+
+-- C0100: SYNTAX ERROR --- /tmp/camp-e2e/language/kitchen-sink/src/Main.camp
+
+I expected `=` here, but I got `Map` instead.
+  740 | assert_eq Map.contains("hello", m2), True
+                  ^^^
+
+-- C0100: SYNTAX ERROR --- /tmp/camp-e2e/language/kitchen-sink/src/Main.camp
+
+I expected `=` here, but I got `True` instead.
+  740 | assert_eq Map.contains("hello", m2), True
+                                             ^^^^
+
+-- C0100: SYNTAX ERROR --- /tmp/camp-e2e/language/kitchen-sink/src/Main.camp
+
+I expected `=` here, but I got `.` instead.
+  741 | assert_eq Map.get("hello", m2), Ok(1)
+                     ^
+
+-- C0100: SYNTAX ERROR --- /tmp/camp-e2e/language/kitchen-sink/src/Main.camp
+
+I expected `=` here, but I got `Ok` instead.
+  741 | assert_eq Map.get("hello", m2), Ok(1)
+                                        ^^
+
+-- C0100: SYNTAX ERROR --- /tmp/camp-e2e/language/kitchen-sink/src/Main.camp
+
+I expected `=` here, but I got `Map` instead.
+  742 | assert_eq Map.size(m2), 1
+                  ^^^
+
+-- C0100: SYNTAX ERROR --- /tmp/camp-e2e/language/kitchen-sink/src/Main.camp
+
+I expected `=` here, but I got `1` instead.
+  742 | assert_eq Map.size(m2), 1
+                                ^
+
+-- C0100: SYNTAX ERROR --- /tmp/camp-e2e/language/kitchen-sink/src/Main.camp
+
+I expected `=` here, but I got `Map` instead.
+  743 | m3 = Map.remove("hello", m2)
+             ^^^
+
+-- C0100: SYNTAX ERROR --- /tmp/camp-e2e/language/kitchen-sink/src/Main.camp
+
+I expected `=` here, but I got `Map` instead.
+  744 | assert_eq Map.size(m3), 0
+                  ^^^
+
+-- C0100: SYNTAX ERROR --- /tmp/camp-e2e/language/kitchen-sink/src/Main.camp
+
+I expected `=` here, but I got `0` instead.
+  744 | assert_eq Map.size(m3), 0
+                                ^
+
+-- C0100: SYNTAX ERROR --- /tmp/camp-e2e/language/kitchen-sink/src/Main.camp
+
+I expected `=` here, but I got `m4` instead.
+  747 | m4 = Map.from_list([("a", 1), ("b", 2), ("c", 3)])
+        ^^
+
+-- C0101: SYNTAX ERROR --- /tmp/camp-e2e/language/kitchen-sink/src/Main.camp
+
+I was not expecting `=` here.
+  747 | m4 = Map.from_list([("a", 1), ("b", 2), ("c", 3)])
+           ^
+
+-- C0100: SYNTAX ERROR --- /tmp/camp-e2e/language/kitchen-sink/src/Main.camp
+
+I expected `=` here, but I got `.` instead.
+  747 | m4 = Map.from_list([("a", 1), ("b", 2), ("c", 3)])
+                ^
+
+-- C0100: SYNTAX ERROR --- /tmp/camp-e2e/language/kitchen-sink/src/Main.camp
+
+I expected `=` here, but I got `Map` instead.
+  748 | assert_eq Map.fold(m4, 0, |acc, _, v| acc + v), 6
+                  ^^^
+
+-- C0100: SYNTAX ERROR --- /tmp/camp-e2e/language/kitchen-sink/src/Main.camp
+
+I expected `=` here, but I got `6` instead.
+  748 | assert_eq Map.fold(m4, 0, |acc, _, v| acc + v), 6
+                                                        ^
+
+-- C0100: SYNTAX ERROR --- /tmp/camp-e2e/language/kitchen-sink/src/Main.camp
+
+I expected `=` here, but I got `and` instead.
+  750 | -- Set construction and access
+                            ^^^
+
+-- C0100: SYNTAX ERROR --- /tmp/camp-e2e/language/kitchen-sink/src/Main.camp
+
+I expected `=` here, but I got `Set` instead.
+  752 | assert_eq Set.is_empty(s), True
+                  ^^^
+
+-- C0100: SYNTAX ERROR --- /tmp/camp-e2e/language/kitchen-sink/src/Main.camp
+
+I expected `=` here, but I got `True` instead.
+  752 | assert_eq Set.is_empty(s), True
+                                   ^^^^
+
+-- C0100: SYNTAX ERROR --- /tmp/camp-e2e/language/kitchen-sink/src/Main.camp
+
+I expected `=` here, but I got `.` instead.
+  753 | assert_eq Set.size(s), 0
+                     ^
+
+-- C0100: SYNTAX ERROR --- /tmp/camp-e2e/language/kitchen-sink/src/Main.camp
+
+I expected `=` here, but I got `0` instead.
+  753 | assert_eq Set.size(s), 0
+                               ^
+
+-- C0100: SYNTAX ERROR --- /tmp/camp-e2e/language/kitchen-sink/src/Main.camp
+
+I expected `=` here, but I got `Set` instead.
+  754 | s2 = Set.insert(42, s)
+             ^^^
+
+-- C0100: SYNTAX ERROR --- /tmp/camp-e2e/language/kitchen-sink/src/Main.camp
+
+I expected `=` here, but I got `Set` instead.
+  755 | assert_eq Set.contains(42, s2), True
+                  ^^^
+
+-- C0100: SYNTAX ERROR --- /tmp/camp-e2e/language/kitchen-sink/src/Main.camp
+
+I expected `=` here, but I got `True` instead.
+  755 | assert_eq Set.contains(42, s2), True
+                                        ^^^^
+
+-- C0100: SYNTAX ERROR --- /tmp/camp-e2e/language/kitchen-sink/src/Main.camp
+
+I expected `=` here, but I got `.` instead.
+  756 | assert_eq Set.size(s2), 1
+                     ^
+
+-- C0100: SYNTAX ERROR --- /tmp/camp-e2e/language/kitchen-sink/src/Main.camp
+
+I expected `=` here, but I got `1` instead.
+  756 | assert_eq Set.size(s2), 1
+                                ^
+
+-- C0100: SYNTAX ERROR --- /tmp/camp-e2e/language/kitchen-sink/src/Main.camp
+
+I expected `=` here, but I got `Set` instead.
+  757 | s3 = Set.remove(42, s2)
+             ^^^
+
+-- C0100: SYNTAX ERROR --- /tmp/camp-e2e/language/kitchen-sink/src/Main.camp
+
+I expected `=` here, but I got `Set` instead.
+  758 | assert_eq Set.size(s3), 0
+                  ^^^
+
+-- C0100: SYNTAX ERROR --- /tmp/camp-e2e/language/kitchen-sink/src/Main.camp
+
+I expected `=` here, but I got `0` instead.
+  758 | assert_eq Set.size(s3), 0
+                                ^
+
+-- C0100: SYNTAX ERROR --- /tmp/camp-e2e/language/kitchen-sink/src/Main.camp
+
+I expected `=` here, but I got `s4` instead.
+  761 | s4 = Set.from_list([1, 2, 3, 4, 5])
+        ^^
+
+-- C0101: SYNTAX ERROR --- /tmp/camp-e2e/language/kitchen-sink/src/Main.camp
+
+I was not expecting `=` here.
+  761 | s4 = Set.from_list([1, 2, 3, 4, 5])
+           ^
+
+-- C0100: SYNTAX ERROR --- /tmp/camp-e2e/language/kitchen-sink/src/Main.camp
+
+I expected `=` here, but I got `.` instead.
+  761 | s4 = Set.from_list([1, 2, 3, 4, 5])
+                ^
+
+-- C0100: SYNTAX ERROR --- /tmp/camp-e2e/language/kitchen-sink/src/Main.camp
+
+I expected `=` here, but I got `Set` instead.
+  762 | assert_eq Set.fold(s4, 0, |acc, x| acc + x), 15
+                  ^^^
+
+-- C0100: SYNTAX ERROR --- /tmp/camp-e2e/language/kitchen-sink/src/Main.camp
+
+I expected `=` here, but I got `15` instead.
+  762 | assert_eq Set.fold(s4, 0, |acc, x| acc + x), 15
+                                                     ^^
+
+-- C0100: SYNTAX ERROR --- /tmp/camp-e2e/language/kitchen-sink/src/Main.camp
+
+I expected `=` here, but I got `s5` instead.
+  765 | s5 = Set.from_list([1, 2, 3])
+        ^^
+
+-- C0101: SYNTAX ERROR --- /tmp/camp-e2e/language/kitchen-sink/src/Main.camp
+
+I was not expecting `=` here.
+  765 | s5 = Set.from_list([1, 2, 3])
+           ^
+
+-- C0100: SYNTAX ERROR --- /tmp/camp-e2e/language/kitchen-sink/src/Main.camp
+
+I expected `=` here, but I got `.` instead.
+  765 | s5 = Set.from_list([1, 2, 3])
+                ^
+
+-- C0100: SYNTAX ERROR --- /tmp/camp-e2e/language/kitchen-sink/src/Main.camp
+
+I expected `=` here, but I got `Set` instead.
+  767 | assert_eq Set.size(Set.union(s5, s6)), 5
+                  ^^^
+
+-- C0100: SYNTAX ERROR --- /tmp/camp-e2e/language/kitchen-sink/src/Main.camp
+
+I expected `=` here, but I got `5` instead.
+  767 | assert_eq Set.size(Set.union(s5, s6)), 5
+                                               ^
+
+-- C0100: SYNTAX ERROR --- /tmp/camp-e2e/language/kitchen-sink/src/Main.camp
+
+I expected `=` here, but I got `.` instead.
+  768 | assert_eq Set.size(Set.intersection(s5, s6)), 1
+                     ^
+
+-- C0100: SYNTAX ERROR --- /tmp/camp-e2e/language/kitchen-sink/src/Main.camp
+
+I expected `=` here, but I got `1` instead.
+  768 | assert_eq Set.size(Set.intersection(s5, s6)), 1
+                                                      ^
+
+-- C0100: SYNTAX ERROR --- /tmp/camp-e2e/language/kitchen-sink/src/Main.camp
+
+I expected `=` here, but I got `.` instead.
+  769 | assert_eq Set.is_disjoint(Set.from_list([1, 2]), Set.from_list([3, 4])), True
+                     ^
+
+-- C0100: SYNTAX ERROR --- /tmp/camp-e2e/language/kitchen-sink/src/Main.camp
+
+I expected `=` here, but I got `True` instead.
+  769 | assert_eq Set.is_disjoint(Set.from_list([1, 2]), Set.from_list([3, 4])), True
+                                                                                 ^^^^
+
+-- C0100: SYNTAX ERROR --- /tmp/camp-e2e/language/kitchen-sink/src/Main.camp
+
+I expected `=` here, but I got `.` instead.
+  770 | assert_eq Set.is_subset(Set.from_list([1, 2]), Set.from_list([1, 2, 3])), True
+                     ^
+
+-- C0100: SYNTAX ERROR --- /tmp/camp-e2e/language/kitchen-sink/src/Main.camp
+
+I expected `=` here, but I got `True` instead.
+  770 | assert_eq Set.is_subset(Set.from_list([1, 2]), Set.from_list([1, 2, 3])), True
+                                                                                  ^^^^
+
+-- C0101: SYNTAX ERROR --- /tmp/camp-e2e/language/kitchen-sink/src/Main.camp
+
+I was not expecting `pub` here.
+  778 | pub main! = || -[Console! | Throw!([..])]-> I64 {
+        ^^^
+compilation failed with 51 error(s)
 """
 stderr = ""
 exit = 1

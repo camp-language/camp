@@ -729,27 +729,45 @@ logic_demo = || -> I64 {
 //   Ord trait dispatch for key comparison
 // ============================================================
 
-// import Map { new, insert, get, contains, remove, size, keys, values }
-// import Set { new, insert, contains, remove, size, union, intersection }
-//
-// Map usage:
-// m = Map.new
-// m2 = Map.insert("hello", 1, m)
-// Map.contains("hello", m2)    -- True
-// Map.get("hello", m2)         -- Ok(1)
-// Map.size(m2)                 -- 1
-// m3 = Map.remove("hello", m2)
-// Map.size(m3)                 -- 0
-//
-// Set usage:
-// s = Set.new
-// s2 = Set.insert(42, s)
-// Set.contains(42, s2)         -- True
-// Set.size(s2)                 -- 1
-// s3 = Set.remove(42, s2)
-// Set.size(s3)                 -- 0
-//
-// Keys must implement Ord trait (derived with `derives Ord`)
+import Map { new, insert, get, contains, remove, size, is_empty, keys, values, fold, from_list, to_list, union, intersection, difference }
+import Set { new, insert, contains, remove, size, is_empty, union, intersection, difference, symmetric_difference, is_subset, is_disjoint, fold, from_list, to_list }
+
+-- Map construction and access
+m = Map.new
+assert_eq Map.is_empty(m), True
+assert_eq Map.size(m), 0
+m2 = Map.insert("hello", 1, m)
+assert_eq Map.contains("hello", m2), True
+assert_eq Map.get("hello", m2), Ok(1)
+assert_eq Map.size(m2), 1
+m3 = Map.remove("hello", m2)
+assert_eq Map.size(m3), 0
+
+-- Map fold
+m4 = Map.from_list([("a", 1), ("b", 2), ("c", 3)])
+assert_eq Map.fold(m4, 0, |acc, _, v| acc + v), 6
+
+-- Set construction and access
+s = Set.new
+assert_eq Set.is_empty(s), True
+assert_eq Set.size(s), 0
+s2 = Set.insert(42, s)
+assert_eq Set.contains(42, s2), True
+assert_eq Set.size(s2), 1
+s3 = Set.remove(42, s2)
+assert_eq Set.size(s3), 0
+
+-- Set fold
+s4 = Set.from_list([1, 2, 3, 4, 5])
+assert_eq Set.fold(s4, 0, |acc, x| acc + x), 15
+
+-- Set operations
+s5 = Set.from_list([1, 2, 3])
+s6 = Set.from_list([3, 4, 5])
+assert_eq Set.size(Set.union(s5, s6)), 5
+assert_eq Set.size(Set.intersection(s5, s6)), 1
+assert_eq Set.is_disjoint(Set.from_list([1, 2]), Set.from_list([3, 4])), True
+assert_eq Set.is_subset(Set.from_list([1, 2]), Set.from_list([1, 2, 3])), True
 
 // ============================================================
 // SECTION: main! Entry Point

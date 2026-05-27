@@ -34,7 +34,7 @@ compile_source :: proc(ctx: ^build.Compilation_Context, source: string) -> [dyna
 
 	ir_mod := ir.lower_tfile(tfile, &store)
 	ir_mod = ir.effect_lower(&ir_mod, &ctx.interner, &ctx.collector, &store)
-	ir_mod = ir.closure_convert(&ir_mod, &ctx.interner)
+	ir_mod = ir.closure_convert(&ir_mod, &ctx.interner, &ctx.collector)
 	ir_mod = ir.cps_transform(&ir_mod, &ctx.interner)
 	ir.rc_insert(&ir_mod, &ctx.interner)
 	ir.reuse_analyze(&ir_mod)

@@ -3,7 +3,6 @@ package ir
 import "camp:base"
 import "camp:diagnostics"
 import "camp:semantics"
-import "core:fmt"
 
 Effect_Evidence :: struct {
 	effect:      base.Canonical_Name,
@@ -33,13 +32,30 @@ Effect_Lower_Env :: struct {
 is_scheduler_effect_by_ids :: proc(
 	effect_name: base.Intern_ID,
 	async_id, spawn_id, parallel_id, file_id, console_id, time_id: base.Intern_ID,
+	interner: ^base.Intern_Table,
 ) -> bool {
-	if effect_name == async_id do return true
-	if effect_name == spawn_id do return true
-	if effect_name == parallel_id do return true
-	if effect_name == file_id do return true
-	if effect_name == console_id do return true
-	if effect_name == time_id do return true
+	ids := []base.Intern_ID{async_id, spawn_id, parallel_id, file_id, console_id, time_id}
+	for id in ids {
+		if effect_name == id {
+			return true
+		}
+	}
+	// Effect decls are stored without `!` suffix, but scheduler IDs include `!`.
+	// Accept effect names missing the `!` by probing each scheduler ID stripped.
+	name_str := base.intern_get(interner, effect_name)
+	bare_name := name_str
+	if len(name_str) > 0 && name_str[len(name_str) - 1] == '!' {
+		bare_name = name_str[:len(name_str) - 1]
+	}
+	for id in ids {
+		id_str := base.intern_get(interner, id)
+		if len(id_str) > 0 && id_str[len(id_str) - 1] == '!' {
+			bare_id_str := id_str[:len(id_str) - 1]
+			if bare_name == bare_id_str {
+				return true
+			}
+		}
+	}
 	return false
 }
 
@@ -52,6 +68,7 @@ is_scheduler_effect :: proc(effect: base.Canonical_Name, env: ^Effect_Lower_Env)
 		env.file_id,
 		env.console_id,
 		env.time_id,
+		env.interner,
 	)
 }
 
@@ -65,7 +82,20 @@ effect_lower :: proc(
 	result.decls = make([dynamic]IR_Decl, 0, len(mod.decls) + 16)
 	result.effect_defs = make([dynamic]IR_Effect_Def, 0, len(mod.effect_defs))
 	for eff in mod.effect_defs {
-		append(&result.effect_defs, eff)
+		new_eff := eff
+		new_eff.operations = make([dynamic]IR_Effect_Op, len(eff.operations))
+		for op, i in eff.operations {
+			new_eff.operations[i] = op
+			new_eff.operations[i].params = make([dynamic]IR_Param, len(op.params))
+			for p, j in op.params {
+				new_eff.operations[i].params[j] = p
+			}
+		}
+		new_eff.type_params = make([dynamic]base.Intern_ID, len(eff.type_params))
+		for tp, i in eff.type_params {
+			new_eff.type_params[i] = tp
+		}
+		append(&result.effect_defs, new_eff)
 	}
 	result.string_table = make([dynamic]String_Table_Entry, 0, len(mod.string_table))
 	for entry in mod.string_table {
@@ -123,6 +153,10 @@ el_lower_decl :: proc(
 	case ^IR_Decl_Fn:
 		new_fn := new(IR_Decl_Fn)
 		new_fn^ = d^
+		new_fn.params = make([dynamic]IR_Param, len(d.params))
+		for p, i in d.params { new_fn.params[i] = p }
+		new_fn.effects = make([dynamic]base.Canonical_Name, len(d.effects))
+		for e, i in d.effects { new_fn.effects[i] = e }
 		new_fn.body = el_lower_expr(d.body, env)
 		// Effects list is preserved for codegen's _start evidence allocation.
 		// Effect_lower handles effects internally via evidence records,
@@ -738,6 +772,11 @@ el_lower_let_perform :: proc(
 	ev_var := el_find_evidence(perform.effect, env)
 
 	if ev_var == base.NO_NAME {
+		// Scheduler-mediated effects (File!, Console!, Time!, Async!, Parallel!, Spawn!)
+		// are handled directly by the codegen rather than via CPS evidence passing.
+		if is_scheduler_effect(perform.effect, env) {
+			return IR_Expr(perform) // pass through IR_Perform to codegen
+		}
 		diagnostics.collector_add_diag(
 			env.collector,
 			diagnostics.diag_internal("perform without handler evidence", perform.span),
@@ -1242,6 +1281,10 @@ el_lower_expr :: proc(expr: IR_Expr, env: ^Effect_Lower_Env) -> IR_Expr {
 		ev_var := el_find_evidence(e.effect, env)
 
 		if ev_var == base.NO_NAME {
+			// Scheduler-mediated effects are handled directly by the codegen
+			if is_scheduler_effect(e.effect, env) {
+				return expr // pass through to codegen
+			}
 			diagnostics.collector_add_diag(
 				env.collector,
 				diagnostics.diag_internal("perform without handler evidence", e.span),

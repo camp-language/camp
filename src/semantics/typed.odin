@@ -530,3 +530,235 @@ TFile :: struct {
 	span:    base.Source_Span,
 }
 
+tfile_destroy :: proc(f: ^TFile) {
+	if f == nil do return
+	for decl in f.decls do tdecl_destroy(decl)
+	delete(f.decls)
+	// imports are shared with the canonical CFile — owned by cfile_destroy
+	// TFile is stack-allocated in tests — no free(f)
+}
+
+tdecl_destroy :: proc(d: TDecl) {
+	if d == nil do return
+	#partial switch v in d {
+	case ^TDecl_Const:
+		texpr_destroy(v.body)
+		delete(v.derive_targets)
+		free(v)
+	case ^TDecl_Effect:
+		for op in v.operations do delete(op.params)
+		delete(v.operations)
+		for tp in v.type_params do delete(tp.constraints)
+		delete(v.type_params)
+		free(v)
+	case ^TDecl_Trait:
+		for m in v.methods do delete(m.params)
+		delete(v.methods)
+		free(v)
+	case ^TDecl_Alias:
+		free(v)
+	case ^TDecl_Newtype:
+		delete(v.type_params)
+		delete(v.derive_targets)
+		free(v)
+	case ^TDecl_Import:
+		delete(v.deferred.names)
+		free(v)
+	case ^TDecl_Test:
+		texpr_destroy(v.body)
+		free(v)
+	case ^TDecl_Expect:
+		texpr_destroy(v.condition)
+		free(v)
+	case ^TDecl_Is_Impl:
+		for m in v.methods {
+			delete(m.params)
+			texpr_destroy(m.body)
+		}
+		delete(v.methods)
+		free(v)
+	}
+}
+
+texpr_destroy :: proc(e: TExpr) {
+	if e == nil do return
+	switch v in e {
+	case ^TExpr_Int:
+		free(v)
+	case ^TExpr_Float:
+		free(v)
+	case ^TExpr_String:
+		free(v)
+	case ^TExpr_Bool:
+		free(v)
+	case ^TExpr_Char:
+		free(v)
+	case ^TExpr_Todo:
+		texpr_destroy(v.message)
+		free(v)
+	case ^TExpr_Tag:
+		for arg in v.payload do texpr_destroy(arg)
+		delete(v.payload)
+		free(v)
+	case ^TExpr_Nominal_Construct:
+		for arg in v.payload do texpr_destroy(arg)
+		delete(v.payload)
+		free(v)
+	case ^TExpr_Record:
+		for field in v.fields do texpr_destroy(field.value)
+		delete(v.fields)
+		texpr_destroy(v.rest)
+		free(v)
+	case ^TExpr_Tuple:
+		for el in v.elements do texpr_destroy(el)
+		delete(v.elements)
+		free(v)
+	case ^TExpr_List:
+		for el in v.elements do texpr_destroy(el)
+		delete(v.elements)
+		texpr_destroy(v.rest)
+		free(v)
+	case ^TExpr_Name:
+		free(v)
+	case ^TExpr_Call:
+		texpr_destroy(v.callee)
+		for arg in v.args do texpr_destroy(arg)
+		delete(v.args)
+		free(v)
+	case ^TExpr_Method_Call:
+		texpr_destroy(v.receiver)
+		for arg in v.args do texpr_destroy(arg)
+		delete(v.args)
+		free(v)
+	case ^TExpr_Lambda:
+		for tp in v.type_params do delete(tp.constraints)
+		delete(v.type_params)
+		delete(v.params)
+		texpr_destroy(v.body)
+		free(v)
+	case ^TExpr_Block:
+		for stmt in v.statements do texpr_destroy(stmt)
+		delete(v.statements)
+		free(v)
+	case ^TExpr_If:
+		texpr_destroy(v.condition)
+		texpr_destroy(v.then_branch)
+		texpr_destroy(v.else_branch)
+		free(v)
+	case ^TExpr_Match:
+		texpr_destroy(v.scrutinee)
+		for arm in v.arms {
+			tpattern_destroy(arm.pattern)
+			texpr_destroy(arm.guard)
+			texpr_destroy(arm.body)
+		}
+		delete(v.arms)
+		free(v)
+	case ^TExpr_BinOp:
+		texpr_destroy(v.left)
+		texpr_destroy(v.right)
+		free(v)
+	case ^TExpr_PrefixOp:
+		texpr_destroy(v.operand)
+		free(v)
+	case ^TExpr_Field_Access:
+		texpr_destroy(v.record)
+		free(v)
+	case ^TExpr_Field_Index:
+		texpr_destroy(v.record)
+		free(v)
+	case ^TExpr_Record_Update:
+		texpr_destroy(v.rest)
+		for update in v.updates do texpr_destroy(update.value)
+		delete(v.updates)
+		free(v)
+	case ^TExpr_Assign:
+		texpr_destroy(v.target)
+		texpr_destroy(v.value)
+		free(v)
+	case ^TExpr_Return:
+		texpr_destroy(v.value)
+		free(v)
+	case ^TExpr_Crash:
+		texpr_destroy(v.message)
+		free(v)
+	case ^TExpr_Interpolated_String:
+		for part in v.parts {
+			switch p in part {
+			case ^TExpr_String_Literal:
+				free(p)
+			case ^TExpr_String_Expr:
+				texpr_destroy(p.expr)
+				free(p)
+			}
+		}
+		delete(v.parts)
+		free(v)
+	case ^TExpr_Handle:
+		delete(v.effects)
+		texpr_destroy(v.body)
+		for arm in v.arms {
+			delete(arm.params)
+			texpr_destroy(arm.body)
+		}
+		delete(v.arms)
+		free(v)
+	case ^TExpr_Perform:
+		for arg in v.args do texpr_destroy(arg)
+		delete(v.args)
+		free(v)
+	case ^TExpr_For:
+		texpr_destroy(v.iterable)
+		texpr_destroy(v.body)
+		free(v)
+	case ^TExpr_Par:
+		delete(v.names)
+		for expr in v.expressions do texpr_destroy(expr)
+		delete(v.expressions)
+		texpr_destroy(v.for_iter)
+		texpr_destroy(v.for_body)
+		free(v)
+	}
+}
+
+tpattern_destroy :: proc(p: TPattern) {
+	if p == nil do return
+	switch v in p {
+	case ^TPattern_Tag:
+		for elem in v.payload do tpattern_destroy(elem)
+		delete(v.payload)
+		free(v)
+	case ^TPattern_Record:
+		delete(v.fields)
+		free(v)
+	case ^TPattern_Tuple:
+		for elem in v.elements do tpattern_destroy(elem)
+		delete(v.elements)
+		free(v)
+	case ^TPattern_List:
+		for elem in v.elements do tpattern_destroy(elem)
+		delete(v.elements)
+		tpattern_destroy(v.rest)
+		free(v)
+	case ^TPattern_Int:
+		free(v)
+	case ^TPattern_String:
+		free(v)
+	case ^TPattern_Bool:
+		free(v)
+	case ^TPattern_Char:
+		free(v)
+	case ^TPattern_Identifier:
+		free(v)
+	case ^TPattern_Wildcard:
+		free(v)
+	case ^TPattern_Destructure:
+		tpattern_destroy(v.inner)
+		free(v)
+	case ^TPattern_Or:
+		for elem in v.alternatives do tpattern_destroy(elem)
+		delete(v.alternatives)
+		free(v)
+	}
+}
+
