@@ -39,5 +39,8 @@ jobs:
           chmod +x /usr/local/bin/odinfmt
           rm ols.zip
 
+      - name: Install wasmtime
+        uses: bytecodealliance/actions/wasmtime/setup@v1
+
       - name: Run checks
         run: just check

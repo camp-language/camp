@@ -28,7 +28,6 @@ destroy_tests :: proc(tests: [dynamic]E2E_Test, allocator: mem.Allocator) {
 Test_Result :: enum {
 	Pass,
 	Fail,
-	Skip,
 }
 
 Test_Report :: struct {
@@ -41,11 +40,7 @@ Test_Report :: struct {
 	actual_exit:   int,
 }
 
-discover_tests :: proc(
-	root: string,
-	filter: string,
-	allocator: mem.Allocator,
-) -> [dynamic]E2E_Test {
+discover_tests :: proc(root: string, allocator: mem.Allocator) -> [dynamic]E2E_Test {
 	tests: [dynamic]E2E_Test
 	tests.allocator = allocator
 
@@ -97,12 +92,6 @@ discover_tests :: proc(
 				continue // deferred delete handles cleanup
 			}
 
-			category_name := fmt.tprintf("{}/{}", category, test_name)
-			should_skip := filter != "" && !strings.contains(category_name, filter)
-
-			if should_skip {
-				continue
-			}
 
 			cat_clone, _ := strings.clone(category, allocator)
 			name_clone, _ := strings.clone(test_name, allocator)
@@ -275,7 +264,8 @@ run_test :: proc(test: E2E_Test, update: bool) -> Test_Report {
 	}
 
 	if has_wasm && !wasm_available {
-		report.result = .Skip
+		report.result = .Fail
+		report.diff = "  wasm: wasmtime not available"
 		return report
 	}
 
