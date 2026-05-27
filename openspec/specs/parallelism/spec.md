@@ -141,7 +141,8 @@ If `f` throws in `Parallel!.map!`, the entire operation SHALL short-circuit and 
 
 ### Requirement: Spawn Effect for Task Parallelism
 
-The `Spawn!` effect SHALL provide `spawn!`, `join!`, and `cancel!` operations for running independent computations on separate execution contexts (OS threads, WASM instances, WASM agents).
+The `Spawn!` effect SHALL provide `spawn!`, `join!`, and `cancel!` operations for running independent computations on separate OS threads via native WASM threading (shared-everything-threads).
+
 
 #### Scenario: Spawn and join
 
@@ -250,19 +251,9 @@ Every `Async!.spawn!` SHALL be followed by `Async!.join!` or `Async!.cancel!` be
 - When the poll-list call returns
 - Then the sleep coroutine SHALL resume after 1000ms even if I/O becomes ready earlier
 
-### Requirement: Multi-Instance Parallelism Fallback
+### Requirement: WASM Threads Parallelism
 
-When WASM threads are not available, the runtime SHALL support multi-instance parallelism (N WASM stores on N OS threads) with closure serialization across instance boundaries.
-
-#### Scenario: Parallel execution via multi-instance
-
-- Given a wasmtime runtime without WASM threads support
-- When `--threads=4` is specified
-- Then the runtime SHALL create 4 WASM stores on 4 OS threads and distribute work via a thread-safe queue
-
-### Requirement: WASM Threads Optimization
-
-When WASM threads are available, the runtime SHALL use in-process parallelism with SharedArrayBuffer and atomic operations, eliminating closure serialization overhead.
+When WASM threads are available, the runtime SHALL use in-process parallelism with shared memory and atomic operations, using a single WASM module with per-thread heap regions.
 
 #### Scenario: In-process parallel execution
 
@@ -272,11 +263,11 @@ When WASM threads are available, the runtime SHALL use in-process parallelism wi
 
 ### Requirement: Graceful Degradation
 
-The runtime SHALL detect available parallelism capabilities and fall back gracefully: WASM threads → multi-instance → sequential. The user's code SHALL remain the same regardless of strategy.
+The runtime SHALL detect shared-memory threading support and fall back gracefully: WASM threads → sequential. The user's code SHALL remain the same regardless of strategy.
 
 #### Scenario: Fallback to sequential
 
-- Given a single-threaded WASM runtime without multi-instance support
+- Given a single-threaded WASM runtime without threading support
 - When a program uses `Parallel!` or `Spawn!` effects
 - Then the sequential handler SHALL execute correctly — `Parallel!.map!` runs one element at a time, `Spawn!.spawn!` runs the thunk immediately
 
@@ -284,7 +275,8 @@ The runtime SHALL detect available parallelism capabilities and fall back gracef
 
 - Given the Camp runtime starts
 - When it attempts to create a shared `Memory` object
-- Then if successful, it SHALL use WASM threads; if not, it SHALL try multi-instance; if that fails, it SHALL use sequential
+- Then if successful, it SHALL use WASM threads; if not, it SHALL use sequential
+
 
 ### Requirement: Thread Count Configuration
 
