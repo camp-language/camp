@@ -78,7 +78,9 @@ test_doc_space :: proc(t: ^testing.T) {
 
 @(test)
 test_resolve_text :: proc(t: ^testing.T) {
-	result := format.doc_resolve(format.doc_text("hello"), 0)
+	d := format.doc_text("hello")
+	defer format.doc_destroy(d)
+	result := format.doc_resolve(d, 0)
 	defer delete(result)
 	testing.expect(t, result == "hello")
 }
