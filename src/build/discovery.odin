@@ -191,12 +191,9 @@ path_to_module_name :: proc(
 	interner: ^base.Intern_Table,
 ) -> base.Intern_ID {
 	prefix := src_dir
-	owns_prefix := false
 	if !strings.has_suffix(prefix, "/") {
 		prefix = fmt.tprintf("{}/", prefix)
-		owns_prefix = true
 	}
-	defer if owns_prefix do delete(prefix)
 
 	rel := file_path
 	if strings.has_prefix(file_path, prefix) {

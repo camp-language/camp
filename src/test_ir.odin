@@ -11,13 +11,12 @@ import "core:strings"
 import "core:testing"
 
 lower_source :: proc(
+	ctx: ^build.Compilation_Context,
 	source: string,
 ) -> (
 	ir.IR_Module,
-	^build.Compilation_Context,
 	semantics.Type_Store,
 ) {
-	ctx: ^build.Compilation_Context = new(build.Compilation_Context)
 	alloc := build.context_init(ctx)
 	context.allocator = alloc
 
@@ -42,13 +41,12 @@ lower_source :: proc(
 	semantics.check_effect_safety(tfile, &store)
 
 	mod := ir.lower_tfile(tfile, &store)
-	return mod, ctx, store
+	return mod, store
 }
 
 teardown_lower :: proc(ctx: ^build.Compilation_Context, store: ^semantics.Type_Store) {
 	semantics.type_store_destroy(store)
 	build.context_destroy(ctx)
-	free(ctx)
 }
 
 find_decl_fn :: proc(mod: ir.IR_Module, is_effectful: bool) -> ^ir.IR_Decl_Fn {
@@ -66,8 +64,9 @@ find_decl_fn :: proc(mod: ir.IR_Module, is_effectful: bool) -> ^ir.IR_Decl_Fn {
 
 @(test)
 test_lower_int_literal :: proc(t: ^testing.T) {
-	mod, ctx, store := lower_source("x = 42")
-	defer teardown_lower(ctx, &store)
+	ctx: build.Compilation_Context
+	mod, store := lower_source(&ctx, "x = 42")
+	defer teardown_lower(&ctx, &store)
 
 	testing.expect(t, len(mod.decls) == 1)
 	#partial switch decl in mod.decls[0] {
@@ -86,8 +85,9 @@ test_lower_int_literal :: proc(t: ^testing.T) {
 
 @(test)
 test_lower_bool_literal :: proc(t: ^testing.T) {
-	mod, ctx, store := lower_source("x = True")
-	defer teardown_lower(ctx, &store)
+	ctx: build.Compilation_Context
+	mod, store := lower_source(&ctx, "x = True")
+	defer teardown_lower(&ctx, &store)
 
 	testing.expect(t, len(mod.decls) == 1)
 	#partial switch decl in mod.decls[0] {
@@ -106,8 +106,9 @@ test_lower_bool_literal :: proc(t: ^testing.T) {
 
 @(test)
 test_lower_float_literal :: proc(t: ^testing.T) {
-	mod, ctx, store := lower_source("x = 3.14")
-	defer teardown_lower(ctx, &store)
+	ctx: build.Compilation_Context
+	mod, store := lower_source(&ctx, "x = 3.14")
+	defer teardown_lower(&ctx, &store)
 
 	testing.expect(t, len(mod.decls) == 1)
 	#partial switch decl in mod.decls[0] {
@@ -125,8 +126,9 @@ test_lower_float_literal :: proc(t: ^testing.T) {
 
 @(test)
 test_lower_string_literal :: proc(t: ^testing.T) {
-	mod, ctx, store := lower_source("x = \"hello\"")
-	defer teardown_lower(ctx, &store)
+	ctx: build.Compilation_Context
+	mod, store := lower_source(&ctx, "x = \"hello\"")
+	defer teardown_lower(&ctx, &store)
 
 	testing.expect(t, len(mod.decls) == 1)
 	#partial switch decl in mod.decls[0] {
@@ -144,8 +146,9 @@ test_lower_string_literal :: proc(t: ^testing.T) {
 
 @(test)
 test_lower_binop :: proc(t: ^testing.T) {
-	mod, ctx, store := lower_source("x = 1 + 2")
-	defer teardown_lower(ctx, &store)
+	ctx: build.Compilation_Context
+	mod, store := lower_source(&ctx, "x = 1 + 2")
+	defer teardown_lower(&ctx, &store)
 
 	testing.expect(t, len(mod.decls) == 1)
 	#partial switch decl in mod.decls[0] {
@@ -163,8 +166,9 @@ test_lower_binop :: proc(t: ^testing.T) {
 
 @(test)
 test_lower_if :: proc(t: ^testing.T) {
-	mod, ctx, store := lower_source("x = if True { 1 } else { 2 }")
-	defer teardown_lower(ctx, &store)
+	ctx: build.Compilation_Context
+	mod, store := lower_source(&ctx, "x = if True { 1 } else { 2 }")
+	defer teardown_lower(&ctx, &store)
 
 	testing.expect(t, len(mod.decls) == 1)
 	#partial switch decl in mod.decls[0] {
@@ -182,8 +186,9 @@ test_lower_if :: proc(t: ^testing.T) {
 
 @(test)
 test_lower_record :: proc(t: ^testing.T) {
-	mod, ctx, store := lower_source("r = { name: \"Camp\", age: 1 }")
-	defer teardown_lower(ctx, &store)
+	ctx: build.Compilation_Context
+	mod, store := lower_source(&ctx, "r = { name: \"Camp\", age: 1 }")
+	defer teardown_lower(&ctx, &store)
 
 	testing.expect(t, len(mod.decls) == 1)
 	#partial switch decl in mod.decls[0] {
@@ -201,8 +206,9 @@ test_lower_record :: proc(t: ^testing.T) {
 
 @(test)
 test_lower_effect_decl :: proc(t: ^testing.T) {
-	mod, ctx, store := lower_source("IO! : { println!: || -> Str }")
-	defer teardown_lower(ctx, &store)
+	ctx: build.Compilation_Context
+	mod, store := lower_source(&ctx, "IO! : { println!: || -> Str }")
+	defer teardown_lower(&ctx, &store)
 
 	io_found := false
 	for eff in mod.effect_defs {
@@ -217,8 +223,9 @@ test_lower_effect_decl :: proc(t: ^testing.T) {
 
 @(test)
 test_lower_effectful_const :: proc(t: ^testing.T) {
-	mod, ctx, store := lower_source(`main! = || { Console.println!("hi") }`)
-	defer teardown_lower(ctx, &store)
+	ctx: build.Compilation_Context
+	mod, store := lower_source(&ctx, `main! = || { Console.println!("hi") }`)
+	defer teardown_lower(&ctx, &store)
 
 	fn_decl := find_decl_fn(mod, true)
 	testing.expect(t, fn_decl != nil)
@@ -228,8 +235,9 @@ test_lower_effectful_const :: proc(t: ^testing.T) {
 
 @(test)
 test_lower_lambda_as_fn :: proc(t: ^testing.T) {
-	mod, ctx, store := lower_source("add = |x, y| x")
-	defer teardown_lower(ctx, &store)
+	ctx: build.Compilation_Context
+	mod, store := lower_source(&ctx, "add = |x, y| x")
+	defer teardown_lower(&ctx, &store)
 
 	testing.expect(t, len(mod.decls) >= 1)
 	#partial switch decl in mod.decls[0] {
@@ -243,10 +251,11 @@ test_lower_lambda_as_fn :: proc(t: ^testing.T) {
 
 @(test)
 test_lower_handle :: proc(t: ^testing.T) {
-	mod, ctx, store := lower_source(
+	ctx: build.Compilation_Context
+	mod, store := lower_source(&ctx,
 		"IO! : { println!: || -> Str }\nmain! = handle IO in { 42 } with { .println!(resume) => resume({}) }",
 	)
-	defer teardown_lower(ctx, &store)
+	defer teardown_lower(&ctx, &store)
 
 	found_handle := false
 	for decl in mod.decls {
@@ -266,8 +275,9 @@ test_lower_handle :: proc(t: ^testing.T) {
 
 @(test)
 test_lower_tag :: proc(t: ^testing.T) {
-	mod, ctx, store := lower_source("x = Some(42)")
-	defer teardown_lower(ctx, &store)
+	ctx: build.Compilation_Context
+	mod, store := lower_source(&ctx, "x = Some(42)")
+	defer teardown_lower(&ctx, &store)
 
 	testing.expect(t, len(mod.decls) >= 1)
 	#partial switch decl in mod.decls[0] {
@@ -285,8 +295,9 @@ test_lower_tag :: proc(t: ^testing.T) {
 
 @(test)
 test_lower_string_table :: proc(t: ^testing.T) {
-	mod, ctx, store := lower_source("x = \"hello\"")
-	defer teardown_lower(ctx, &store)
+	ctx: build.Compilation_Context
+	mod, store := lower_source(&ctx, "x = \"hello\"")
+	defer teardown_lower(&ctx, &store)
 
 	testing.expect(t, len(mod.string_table) >= 1)
 }
@@ -500,10 +511,11 @@ contains_ir_construct_record :: proc(expr: ir.IR_Expr) -> bool {
 
 @(test)
 test_effect_lower_handle :: proc(t: ^testing.T) {
-	mod, ctx, store := lower_source(
+	ctx: build.Compilation_Context
+	mod, store := lower_source(&ctx,
 		"IO! : { println!: || -> Str }\nmain! = handle IO in { 42 } with { .println!(resume) => resume({}) }",
 	)
-	defer teardown_lower(ctx, &store)
+	defer teardown_lower(&ctx, &store)
 
 	result := ir.effect_lower(&mod, &ctx.interner, &ctx.collector, &store)
 
@@ -522,10 +534,11 @@ test_effect_lower_handle :: proc(t: ^testing.T) {
 
 @(test)
 test_effect_lower_perform :: proc(t: ^testing.T) {
-	mod, ctx, store := lower_source(
+	ctx: build.Compilation_Context
+	mod, store := lower_source(&ctx,
 		"IO! : { println!: || -> Str }\nmain! = handle IO in { IO.println(\"hi\") } with { .println!(resume) => resume({}) }",
 	)
-	defer teardown_lower(ctx, &store)
+	defer teardown_lower(&ctx, &store)
 
 	result := ir.effect_lower(&mod, &ctx.interner, &ctx.collector, &store)
 
@@ -544,10 +557,11 @@ test_effect_lower_perform :: proc(t: ^testing.T) {
 
 @(test)
 test_effect_lower_handler_fns :: proc(t: ^testing.T) {
-	mod, ctx, store := lower_source(
+	ctx: build.Compilation_Context
+	mod, store := lower_source(&ctx,
 		"IO! : { println!: || -> Str }\nmain! = handle IO in { 42 } with { .println!(resume) => resume({}) }",
 	)
-	defer teardown_lower(ctx, &store)
+	defer teardown_lower(&ctx, &store)
 
 	result := ir.effect_lower(&mod, &ctx.interner, &ctx.collector, &store)
 
@@ -846,23 +860,24 @@ has_camp_dealloc_call :: proc(expr: ir.IR_Expr, dealloc_id: base.Intern_ID) -> b
 }
 
 effect_lower_source :: proc(
+	ctx: ^build.Compilation_Context,
 	source: string,
 ) -> (
 	ir.IR_Module,
-	^build.Compilation_Context,
 	semantics.Type_Store,
 ) {
-	mod, ctx, store := lower_source(source)
+	mod, store := lower_source(ctx, source)
 	result := ir.effect_lower(&mod, &ctx.interner, &ctx.collector, &store)
-	return result, ctx, store
+	return result, store
 }
 
 @(test)
 test_effect_lower_produces_handler_decls :: proc(t: ^testing.T) {
-	result, ctx, store := effect_lower_source(
+	ctx: build.Compilation_Context
+	result, store := effect_lower_source(&ctx,
 		"IO! : { println!: || -> Str }\nmain! = handle IO in { 42 } with { .println!(resume) => resume({}) }",
 	)
-	defer teardown_lower(ctx, &store)
+	defer teardown_lower(&ctx, &store)
 
 	handler_count := 0
 	cont_count := 0
@@ -885,10 +900,11 @@ test_effect_lower_produces_handler_decls :: proc(t: ^testing.T) {
 
 @(test)
 test_effect_lower_perform_dispatches_via_i32_load :: proc(t: ^testing.T) {
-	result, ctx, store := effect_lower_source(
+	ctx: build.Compilation_Context
+	result, store := effect_lower_source(&ctx,
 		"IO! : { println!: || -> Str }\nmain! = handle IO in { IO.println(\"hi\") } with { .println!(resume) => resume({}) }",
 	)
-	defer teardown_lower(ctx, &store)
+	defer teardown_lower(&ctx, &store)
 
 	found_i32_load := false
 	found_closure_call := false
@@ -908,10 +924,11 @@ test_effect_lower_perform_dispatches_via_i32_load :: proc(t: ^testing.T) {
 
 @(test)
 test_effect_lower_handle_evidence_record :: proc(t: ^testing.T) {
-	result, ctx, store := effect_lower_source(
+	ctx: build.Compilation_Context
+	result, store := effect_lower_source(&ctx,
 		"IO! : { println!: || -> Str }\nmain! = handle IO in { 42 } with { .println!(resume) => resume({}) }",
 	)
-	defer teardown_lower(ctx, &store)
+	defer teardown_lower(&ctx, &store)
 
 	alloc_id := base.intern(&ctx.interner, "camp_alloc")
 	dealloc_id := base.intern(&ctx.interner, "camp_dealloc")
@@ -936,10 +953,11 @@ test_effect_lower_handle_evidence_record :: proc(t: ^testing.T) {
 
 @(test)
 test_effect_lower_handler_fn_has_env_and_ev_params :: proc(t: ^testing.T) {
-	result, ctx, store := effect_lower_source(
+	ctx: build.Compilation_Context
+	result, store := effect_lower_source(&ctx,
 		"IO! : { println!: || -> Str }\nmain! = handle IO in { IO.println(\"hi\") } with { .println!(resume) => resume({}) }",
 	)
-	defer teardown_lower(ctx, &store)
+	defer teardown_lower(&ctx, &store)
 
 	found := false
 	for decl in result.decls {
@@ -967,10 +985,11 @@ test_effect_lower_handler_fn_has_env_and_ev_params :: proc(t: ^testing.T) {
 
 @(test)
 test_effect_lower_handler_fn_count_matches_ops :: proc(t: ^testing.T) {
-	result, ctx, store := effect_lower_source(
+	ctx: build.Compilation_Context
+	result, store := effect_lower_source(&ctx,
 		"IO! : { println!: || -> Str, readln!: || -> Str }\nmain! = handle IO in { 42 } with { .println!(resume) => resume({}), .readln!(resume) => resume({}) }",
 	)
-	defer teardown_lower(ctx, &store)
+	defer teardown_lower(&ctx, &store)
 
 	handler_count := 0
 	for decl in result.decls {
@@ -989,11 +1008,11 @@ test_effect_lower_handler_fn_count_matches_ops :: proc(t: ^testing.T) {
 
 @(test)
 test_closure_convert_closure :: proc(t: ^testing.T) {
-	mod, ctx, store := lower_source("f = |x| |y| x")
-	defer teardown_lower(ctx, &store)
+	ctx: build.Compilation_Context
+	mod, store := lower_source(&ctx, "f = |x| |y| x")
+	defer teardown_lower(&ctx, &store)
 
 	result := ir.closure_convert(&mod, &ctx.interner)
-	defer ir.ir_module_destroy(&result)
 
 	found_record := false
 	for decl in result.decls {
@@ -1010,23 +1029,23 @@ test_closure_convert_closure :: proc(t: ^testing.T) {
 
 @(test)
 test_closure_convert_creates_closed_fn :: proc(t: ^testing.T) {
-	mod, ctx, store := lower_source("f = |x| |y| x")
-	defer teardown_lower(ctx, &store)
+	ctx: build.Compilation_Context
+	mod, store := lower_source(&ctx, "f = |x| |y| x")
+	defer teardown_lower(&ctx, &store)
 
 	original_count := len(mod.decls)
 	result := ir.closure_convert(&mod, &ctx.interner)
-	defer ir.ir_module_destroy(&result)
 
 	testing.expect(t, len(result.decls) > original_count)
 }
 
 @(test)
 test_cps_transform_effectful_fn :: proc(t: ^testing.T) {
-	mod, ctx, store := lower_source(`main! = || { Console.println!("hi") }`)
-	defer teardown_lower(ctx, &store)
+	ctx: build.Compilation_Context
+	mod, store := lower_source(&ctx, `main! = || { Console.println!("hi") }`)
+	defer teardown_lower(&ctx, &store)
 
 	result := ir.cps_transform(&mod, &ctx.interner)
-	defer ir.ir_module_destroy(&result)
 
 	fn_decl := find_decl_fn(result, true)
 	testing.expect(t, fn_decl != nil)
@@ -1035,11 +1054,11 @@ test_cps_transform_effectful_fn :: proc(t: ^testing.T) {
 
 @(test)
 test_cps_transform_return_becomes_tail_call :: proc(t: ^testing.T) {
-	mod, ctx, store := lower_source(`main! = || { Console.println!("hi") }`)
-	defer teardown_lower(ctx, &store)
+	ctx: build.Compilation_Context
+	mod, store := lower_source(&ctx, `main! = || { Console.println!("hi") }`)
+	defer teardown_lower(&ctx, &store)
 
 	result := ir.cps_transform(&mod, &ctx.interner)
-	defer ir.ir_module_destroy(&result)
 
 	fn_decl := find_decl_fn(result, true)
 	testing.expect(t, fn_decl != nil)
@@ -1051,8 +1070,9 @@ test_cps_transform_return_becomes_tail_call :: proc(t: ^testing.T) {
 
 @(test)
 test_cps_transform_pure_fn_unchanged :: proc(t: ^testing.T) {
-	mod, ctx, store := lower_source("add = |x, y| x")
-	defer teardown_lower(ctx, &store)
+	ctx: build.Compilation_Context
+	mod, store := lower_source(&ctx, "add = |x, y| x")
+	defer teardown_lower(&ctx, &store)
 
 	original_param_count := 0
 	#partial switch decl in mod.decls[0] {
@@ -1062,7 +1082,6 @@ test_cps_transform_pure_fn_unchanged :: proc(t: ^testing.T) {
 	}
 
 	result := ir.cps_transform(&mod, &ctx.interner)
-	defer ir.ir_module_destroy(&result)
 
 	fn_decl := find_decl_fn(result, false)
 	testing.expect(t, fn_decl != nil)
@@ -1102,8 +1121,9 @@ has_dup_or_drop :: proc(expr: ir.IR_Expr) -> bool {
 
 @(test)
 test_rc_insert_dup_drop :: proc(t: ^testing.T) {
-	mod, ctx, store := lower_source("f = || { a = 42; a + a }")
-	defer teardown_lower(ctx, &store)
+	ctx: build.Compilation_Context
+	mod, store := lower_source(&ctx, "f = || { a = 42; a + a }")
+	defer teardown_lower(&ctx, &store)
 
 	ir.rc_insert(&mod, &ctx.interner)
 
@@ -1154,11 +1174,11 @@ contains_ir_field_access :: proc(expr: ir.IR_Expr) -> bool {
 
 @(test)
 test_closure_capture_free_var :: proc(t: ^testing.T) {
-	mod, ctx, store := lower_source("f = |x| |y| x")
-	defer teardown_lower(ctx, &store)
+	ctx: build.Compilation_Context
+	mod, store := lower_source(&ctx, "f = |x| |y| x")
+	defer teardown_lower(&ctx, &store)
 
 	result := ir.closure_convert(&mod, &ctx.interner)
-	defer ir.ir_module_destroy(&result)
 
 	has_env_access := false
 	for decl in result.decls {
@@ -1175,11 +1195,11 @@ test_closure_capture_free_var :: proc(t: ^testing.T) {
 
 @(test)
 test_closure_closed_fn_has_params :: proc(t: ^testing.T) {
-	mod, ctx, store := lower_source("f = |x| |y| x")
-	defer teardown_lower(ctx, &store)
+	ctx: build.Compilation_Context
+	mod, store := lower_source(&ctx, "f = |x| |y| x")
+	defer teardown_lower(&ctx, &store)
 
 	result := ir.closure_convert(&mod, &ctx.interner)
-	defer ir.ir_module_destroy(&result)
 
 	found := false
 	for decl in result.decls {
@@ -1281,10 +1301,11 @@ continuation_has_ev_param :: proc(mod: ir.IR_Module, interner: ^base.Intern_Tabl
 
 @(test)
 test_effect_lower_produces_ir_resume :: proc(t: ^testing.T) {
-	result, ctx, store := effect_lower_source(
+	ctx: build.Compilation_Context
+	result, store := effect_lower_source(&ctx,
 		"IO! : { println!: || -> Str }\nmain! = handle IO in { IO.println(\"hi\") } with { .println!(resume) => resume({}) }",
 	)
-	defer teardown_lower(ctx, &store)
+	defer teardown_lower(&ctx, &store)
 
 	found_resume := false
 	for decl in result.decls {
@@ -1301,10 +1322,11 @@ test_effect_lower_produces_ir_resume :: proc(t: ^testing.T) {
 
 @(test)
 test_effect_lower_resume_deep_has_ev :: proc(t: ^testing.T) {
-	result, ctx, store := effect_lower_source(
+	ctx: build.Compilation_Context
+	result, store := effect_lower_source(&ctx,
 		"IO! : { println!: || -> Str }\nmain! = handle IO in { IO.println(\"hi\") } with { .println!(resume) => resume({}) }",
 	)
-	defer teardown_lower(ctx, &store)
+	defer teardown_lower(&ctx, &store)
 
 	found := false
 	for decl in result.decls {
@@ -1321,10 +1343,11 @@ test_effect_lower_resume_deep_has_ev :: proc(t: ^testing.T) {
 
 @(test)
 test_effect_lower_deep_continuation_has_ev_param :: proc(t: ^testing.T) {
-	result, ctx, store := effect_lower_source(
+	ctx: build.Compilation_Context
+	result, store := effect_lower_source(&ctx,
 		"IO! : { println!: || -> Str }\nmain! = handle IO in { IO.println(\"hi\") } with { .println!(resume) => resume({}) }",
 	)
-	defer teardown_lower(ctx, &store)
+	defer teardown_lower(&ctx, &store)
 
 	testing.expect(t, continuation_has_ev_param(result, &ctx.interner))
 }
@@ -1430,32 +1453,30 @@ count_ir_drop :: proc(expr: ir.IR_Expr) -> int {
 // ── Pipeline helper wrappers ────────────────────────────────────────────────
 
 closure_convert_source :: proc(
+	ctx: ^build.Compilation_Context,
 	source: string,
 ) -> (
 	ir.IR_Module,
-	^build.Compilation_Context,
 	semantics.Type_Store,
 ) {
-	mod, ctx, store := lower_source(source)
+	mod, store := lower_source(ctx, source)
 	mod = ir.effect_lower(&mod, &ctx.interner, &ctx.collector, &store)
 	result := ir.closure_convert(&mod, &ctx.interner)
-	defer ir.ir_module_destroy(&result)
-	return result, ctx, store
+	return result, store
 }
 
 cps_source :: proc(
+	ctx: ^build.Compilation_Context,
 	source: string,
 ) -> (
 	ir.IR_Module,
-	^build.Compilation_Context,
 	semantics.Type_Store,
 ) {
-	mod, ctx, store := lower_source(source)
+	mod, store := lower_source(ctx, source)
 	mod = ir.effect_lower(&mod, &ctx.interner, &ctx.collector, &store)
 	mod = ir.closure_convert(&mod, &ctx.interner)
 	result := ir.cps_transform(&mod, &ctx.interner)
-	defer ir.ir_module_destroy(&result)
-	return result, ctx, store
+	return result, store
 }
 
 find_decl_fn_by_name :: proc(
@@ -1481,10 +1502,11 @@ find_decl_fn_by_name :: proc(
 
 @(test)
 test_effect_lower_nested_handlers :: proc(t: ^testing.T) {
-	result, ctx, store := effect_lower_source(
+	ctx: build.Compilation_Context
+	result, store := effect_lower_source(&ctx,
 		"IO! : { println!: || -> Str }\nState! : { get!: || -> I64 }\nmain! = handle State in { handle IO in { 42 } with { .println!(resume) => resume({}) } } with { .get!(resume) => resume(0) }",
 	)
-	defer teardown_lower(ctx, &store)
+	defer teardown_lower(&ctx, &store)
 
 	handler_count := 0
 	for decl in result.decls {
@@ -1502,10 +1524,11 @@ test_effect_lower_nested_handlers :: proc(t: ^testing.T) {
 
 @(test)
 test_effect_lower_multi_arm_perform :: proc(t: ^testing.T) {
-	result, ctx, store := effect_lower_source(
+	ctx: build.Compilation_Context
+	result, store := effect_lower_source(&ctx,
 		"IO! : { println!: || -> Str, readln!: || -> Str }\nmain! = handle IO in { IO.println(\"hi\"); IO.readln() } with { .println!(resume) => resume({}), .readln!(resume) => resume({}) }",
 	)
-	defer teardown_lower(ctx, &store)
+	defer teardown_lower(&ctx, &store)
 
 	load_count := 0
 	for decl in result.decls {
@@ -1522,8 +1545,9 @@ test_effect_lower_multi_arm_perform :: proc(t: ^testing.T) {
 
 @(test)
 test_effect_lower_scheduler_passthrough :: proc(t: ^testing.T) {
-	result, ctx, store := effect_lower_source("main! = { 42 }")
-	defer teardown_lower(ctx, &store)
+	ctx: build.Compilation_Context
+	result, store := effect_lower_source(&ctx, "main! = { 42 }")
+	defer teardown_lower(&ctx, &store)
 
 	handler_count := 0
 	for decl in result.decls {
@@ -1541,10 +1565,11 @@ test_effect_lower_scheduler_passthrough :: proc(t: ^testing.T) {
 
 @(test)
 test_effect_lower_handle_removes_ir_handle :: proc(t: ^testing.T) {
-	result, ctx, store := effect_lower_source(
+	ctx: build.Compilation_Context
+	result, store := effect_lower_source(&ctx,
 		"IO! : { println!: || -> Str }\nmain! = handle IO in { 42 } with { .println!(resume) => resume({}) }",
 	)
-	defer teardown_lower(ctx, &store)
+	defer teardown_lower(&ctx, &store)
 
 	found_handle := false
 	for decl in result.decls {
@@ -1569,11 +1594,11 @@ test_effect_lower_handle_removes_ir_handle :: proc(t: ^testing.T) {
 
 @(test)
 test_closure_convert_no_free_vars :: proc(t: ^testing.T) {
-	mod, ctx, store := lower_source("f = |x| x + 1")
-	defer teardown_lower(ctx, &store)
+	ctx: build.Compilation_Context
+	mod, store := lower_source(&ctx, "f = |x| x + 1")
+	defer teardown_lower(&ctx, &store)
 
 	result := ir.closure_convert(&mod, &ctx.interner)
-	defer ir.ir_module_destroy(&result)
 
 	found_cenv := false
 	for decl in result.decls {
@@ -1591,11 +1616,11 @@ test_closure_convert_no_free_vars :: proc(t: ^testing.T) {
 
 @(test)
 test_closure_convert_multi_free_var :: proc(t: ^testing.T) {
-	mod, ctx, store := lower_source("f = |x| |y| |z| x + y + z")
-	defer teardown_lower(ctx, &store)
+	ctx: build.Compilation_Context
+	mod, store := lower_source(&ctx, "f = |x| |y| |z| x + y + z")
+	defer teardown_lower(&ctx, &store)
 
 	result := ir.closure_convert(&mod, &ctx.interner)
-	defer ir.ir_module_destroy(&result)
 
 	field_access_count := 0
 	for decl in result.decls {
@@ -1612,11 +1637,11 @@ test_closure_convert_multi_free_var :: proc(t: ^testing.T) {
 
 @(test)
 test_closure_convert_produces_record :: proc(t: ^testing.T) {
-	mod, ctx, store := lower_source("f = |x| |y| x")
-	defer teardown_lower(ctx, &store)
+	ctx: build.Compilation_Context
+	mod, store := lower_source(&ctx, "f = |x| |y| x")
+	defer teardown_lower(&ctx, &store)
 
 	result := ir.closure_convert(&mod, &ctx.interner)
-	defer ir.ir_module_destroy(&result)
 
 	found_record := false
 	for decl in result.decls {
@@ -1633,11 +1658,11 @@ test_closure_convert_produces_record :: proc(t: ^testing.T) {
 
 @(test)
 test_closure_convert_env_param_name :: proc(t: ^testing.T) {
-	mod, ctx, store := lower_source("f = |x| |y| x")
-	defer teardown_lower(ctx, &store)
+	ctx: build.Compilation_Context
+	mod, store := lower_source(&ctx, "f = |x| |y| x")
+	defer teardown_lower(&ctx, &store)
 
 	result := ir.closure_convert(&mod, &ctx.interner)
-	defer ir.ir_module_destroy(&result)
 
 	found := false
 	for decl in result.decls {
@@ -1661,11 +1686,11 @@ test_closure_convert_env_param_name :: proc(t: ^testing.T) {
 
 @(test)
 test_cps_transform_adds_k_param :: proc(t: ^testing.T) {
-	mod, ctx, store := lower_source(`main! = || { Console.println!("hi") }`)
-	defer teardown_lower(ctx, &store)
+	ctx: build.Compilation_Context
+	mod, store := lower_source(&ctx, `main! = || { Console.println!("hi") }`)
+	defer teardown_lower(&ctx, &store)
 
 	result := ir.cps_transform(&mod, &ctx.interner)
-	defer ir.ir_module_destroy(&result)
 
 	fn_decl := find_decl_fn(result, true)
 	testing.expect(t, fn_decl != nil)
@@ -1679,8 +1704,9 @@ test_cps_transform_adds_k_param :: proc(t: ^testing.T) {
 
 @(test)
 test_cps_transform_pure_fn_no_k_param :: proc(t: ^testing.T) {
-	mod, ctx, store := lower_source("add = |x, y| x")
-	defer teardown_lower(ctx, &store)
+	ctx: build.Compilation_Context
+	mod, store := lower_source(&ctx, "add = |x, y| x")
+	defer teardown_lower(&ctx, &store)
 
 	original_param_count := 0
 	#partial switch decl in mod.decls[0] {
@@ -1690,7 +1716,6 @@ test_cps_transform_pure_fn_no_k_param :: proc(t: ^testing.T) {
 	}
 
 	result := ir.cps_transform(&mod, &ctx.interner)
-	defer ir.ir_module_destroy(&result)
 
 	fn_decl := find_decl_fn(result, false)
 	testing.expect(t, fn_decl != nil)
@@ -1699,11 +1724,11 @@ test_cps_transform_pure_fn_no_k_param :: proc(t: ^testing.T) {
 
 @(test)
 test_cps_transform_return_is_closure_call :: proc(t: ^testing.T) {
-	mod, ctx, store := lower_source(`main! = || { Console.println!("hi") }`)
-	defer teardown_lower(ctx, &store)
+	ctx: build.Compilation_Context
+	mod, store := lower_source(&ctx, `main! = || { Console.println!("hi") }`)
+	defer teardown_lower(&ctx, &store)
 
 	result := ir.cps_transform(&mod, &ctx.interner)
-	defer ir.ir_module_destroy(&result)
 
 	fn_decl := find_decl_fn(result, true)
 	testing.expect(t, fn_decl != nil)
@@ -1719,8 +1744,9 @@ test_cps_transform_return_is_closure_call :: proc(t: ^testing.T) {
 
 @(test)
 test_rc_insert_single_use_no_dup :: proc(t: ^testing.T) {
-	mod, ctx, store := lower_source("f = || { a = 42; a }")
-	defer teardown_lower(ctx, &store)
+	ctx: build.Compilation_Context
+	mod, store := lower_source(&ctx, "f = || { a = 42; a }")
+	defer teardown_lower(&ctx, &store)
 
 	ir.rc_insert(&mod, &ctx.interner)
 
@@ -1731,8 +1757,9 @@ test_rc_insert_single_use_no_dup :: proc(t: ^testing.T) {
 
 @(test)
 test_rc_insert_multi_use_has_dup :: proc(t: ^testing.T) {
-	mod, ctx, store := lower_source("f = || { a = 42; a + a }")
-	defer teardown_lower(ctx, &store)
+	ctx: build.Compilation_Context
+	mod, store := lower_source(&ctx, "f = || { a = 42; a + a }")
+	defer teardown_lower(&ctx, &store)
 
 	ir.rc_insert(&mod, &ctx.interner)
 
@@ -1743,8 +1770,9 @@ test_rc_insert_multi_use_has_dup :: proc(t: ^testing.T) {
 
 @(test)
 test_rc_insert_has_drop :: proc(t: ^testing.T) {
-	mod, ctx, store := lower_source("f = || { a = 42; a + a }")
-	defer teardown_lower(ctx, &store)
+	ctx: build.Compilation_Context
+	mod, store := lower_source(&ctx, "f = || { a = 42; a + a }")
+	defer teardown_lower(&ctx, &store)
 
 	ir.rc_insert(&mod, &ctx.interner)
 
@@ -1760,13 +1788,10 @@ test_rc_insert_has_drop :: proc(t: ^testing.T) {
 test_rc_insert_heap_drop :: proc(t: ^testing.T) {
 	// Construct IR directly: let x = construct_record(...) in 42
 	// where x is heap-typed and never used — should emit 1 drop
-	ctx: ^build.Compilation_Context = new(build.Compilation_Context)
-	alloc := build.context_init(ctx)
+	ctx: build.Compilation_Context
+	alloc := build.context_init(&ctx)
 	context.allocator = alloc
-	defer {
-		build.context_destroy(ctx)
-		free(ctx)
-	}
+	defer build.context_destroy(&ctx)
 
 	heap_type := base.IR_Type {
 		wasm_type = .I32,
@@ -1838,8 +1863,9 @@ test_rc_insert_heap_drop :: proc(t: ^testing.T) {
 
 @(test)
 test_rc_insert_branch_independent :: proc(t: ^testing.T) {
-	mod, ctx, store := lower_source("f = || { a = 42; if True { a + a } else { a + a } }")
-	defer teardown_lower(ctx, &store)
+	ctx: build.Compilation_Context
+	mod, store := lower_source(&ctx, "f = || { a = 42; if True { a + a } else { a + a } }")
+	defer teardown_lower(&ctx, &store)
 
 	ir.rc_insert(&mod, &ctx.interner)
 
@@ -1853,13 +1879,10 @@ test_rc_insert_branch_independent :: proc(t: ^testing.T) {
 test_rc_insert_branch_heap_drop :: proc(t: ^testing.T) {
 	// Construct IR: let x = record in if True then 1 else 2
 	// x is heap-typed, used in neither branch — each branch should emit a drop
-	ctx: ^build.Compilation_Context = new(build.Compilation_Context)
-	alloc := build.context_init(ctx)
+	ctx: build.Compilation_Context
+	alloc := build.context_init(&ctx)
 	context.allocator = alloc
-	defer {
-		build.context_destroy(ctx)
-		free(ctx)
-	}
+	defer build.context_destroy(&ctx)
 
 	heap_type := base.IR_Type {
 		wasm_type = .I32,
@@ -1965,8 +1988,9 @@ test_rc_insert_branch_heap_drop :: proc(t: ^testing.T) {
 @(test)
 test_is_heap_string_literal :: proc(t: ^testing.T) {
 	// String literals lower to I32 pointers with is_heap=true
-	mod, ctx, store := lower_source("x = \"hello\"")
-	defer teardown_lower(ctx, &store)
+	ctx: build.Compilation_Context
+	mod, store := lower_source(&ctx, "x = \"hello\"")
+	defer teardown_lower(&ctx, &store)
 
 	testing.expect(t, len(mod.decls) == 1)
 	#partial switch decl in mod.decls[0] {
@@ -1986,8 +2010,9 @@ test_is_heap_string_literal :: proc(t: ^testing.T) {
 @(test)
 test_is_heap_int_literal_false :: proc(t: ^testing.T) {
 	// Integer literals are I64 with is_heap=false
-	mod, ctx, store := lower_source("x = 42")
-	defer teardown_lower(ctx, &store)
+	ctx: build.Compilation_Context
+	mod, store := lower_source(&ctx, "x = 42")
+	defer teardown_lower(&ctx, &store)
 
 	testing.expect(t, len(mod.decls) == 1)
 	#partial switch decl in mod.decls[0] {
@@ -2006,8 +2031,9 @@ test_is_heap_int_literal_false :: proc(t: ^testing.T) {
 @(test)
 test_is_heap_bool_literal_false :: proc(t: ^testing.T) {
 	// Bool literals are I32 but NOT heap-allocated
-	mod, ctx, store := lower_source("x = True")
-	defer teardown_lower(ctx, &store)
+	ctx: build.Compilation_Context
+	mod, store := lower_source(&ctx, "x = True")
+	defer teardown_lower(&ctx, &store)
 
 	testing.expect(t, len(mod.decls) == 1)
 	#partial switch decl in mod.decls[0] {
@@ -2031,13 +2057,10 @@ test_is_heap_bool_literal_false :: proc(t: ^testing.T) {
 @(test)
 test_rc_drop_non_heap_no_drop :: proc(t: ^testing.T) {
 	// Non-heap let binding (I64) should NOT emit a drop even if unused
-	ctx: ^build.Compilation_Context = new(build.Compilation_Context)
-	alloc := build.context_init(ctx)
+	ctx: build.Compilation_Context
+	alloc := build.context_init(&ctx)
 	context.allocator = alloc
-	defer {
-		build.context_destroy(ctx)
-		free(ctx)
-	}
+	defer build.context_destroy(&ctx)
 
 	int_type := base.IR_Type {
 		wasm_type = .I64,
@@ -2097,13 +2120,10 @@ test_rc_drop_non_heap_no_drop :: proc(t: ^testing.T) {
 @(test)
 test_rc_drop_unused_heap_param :: proc(t: ^testing.T) {
 	// Function with an unused heap-typed parameter should emit a drop for it
-	ctx: ^build.Compilation_Context = new(build.Compilation_Context)
-	alloc := build.context_init(ctx)
+	ctx: build.Compilation_Context
+	alloc := build.context_init(&ctx)
 	context.allocator = alloc
-	defer {
-		build.context_destroy(ctx)
-		free(ctx)
-	}
+	defer build.context_destroy(&ctx)
 
 	heap_type := base.IR_Type {
 		wasm_type = .I32,
@@ -2157,13 +2177,10 @@ test_rc_drop_unused_heap_param :: proc(t: ^testing.T) {
 @(test)
 test_rc_drop_used_heap_param_no_drop :: proc(t: ^testing.T) {
 	// Function with a used heap-typed parameter should NOT emit a drop for it
-	ctx: ^build.Compilation_Context = new(build.Compilation_Context)
-	alloc := build.context_init(ctx)
+	ctx: build.Compilation_Context
+	alloc := build.context_init(&ctx)
 	context.allocator = alloc
-	defer {
-		build.context_destroy(ctx)
-		free(ctx)
-	}
+	defer build.context_destroy(&ctx)
 
 	heap_type := base.IR_Type {
 		wasm_type = .I32,
@@ -2221,13 +2238,10 @@ test_rc_drop_used_heap_param_no_drop :: proc(t: ^testing.T) {
 @(test)
 test_rc_drop_non_heap_param_no_drop :: proc(t: ^testing.T) {
 	// Function with an unused non-heap parameter should NOT emit a drop
-	ctx: ^build.Compilation_Context = new(build.Compilation_Context)
-	alloc := build.context_init(ctx)
+	ctx: build.Compilation_Context
+	alloc := build.context_init(&ctx)
 	context.allocator = alloc
-	defer {
-		build.context_destroy(ctx)
-		free(ctx)
-	}
+	defer build.context_destroy(&ctx)
 
 	int_type := base.IR_Type {
 		wasm_type = .I64,
@@ -2276,13 +2290,10 @@ test_rc_drop_non_heap_param_no_drop :: proc(t: ^testing.T) {
 @(test)
 test_rc_drop_heap_used_in_one_branch :: proc(t: ^testing.T) {
 	// Heap binding used in only one branch of an if — the other branch should drop it
-	ctx: ^build.Compilation_Context = new(build.Compilation_Context)
-	alloc := build.context_init(ctx)
+	ctx: build.Compilation_Context
+	alloc := build.context_init(&ctx)
 	context.allocator = alloc
-	defer {
-		build.context_destroy(ctx)
-		free(ctx)
-	}
+	defer build.context_destroy(&ctx)
 
 	heap_type := base.IR_Type {
 		wasm_type = .I32,
@@ -2385,13 +2396,10 @@ test_rc_drop_heap_used_in_one_branch :: proc(t: ^testing.T) {
 test_reuse_addr_default_is_no_reuse :: proc(t: ^testing.T) {
 	// Freshly constructed IR_Construct_Tag and IR_Construct_Record should have
 	// reuse_addr = NO_REUSE_ADDR by default
-	ctx: ^build.Compilation_Context = new(build.Compilation_Context)
-	alloc := build.context_init(ctx)
+	ctx: build.Compilation_Context
+	alloc := build.context_init(&ctx)
 	context.allocator = alloc
-	defer {
-		build.context_destroy(ctx)
-		free(ctx)
-	}
+	defer build.context_destroy(&ctx)
 
 	heap_type := base.IR_Type {
 		wasm_type = .I32,
@@ -2427,13 +2435,10 @@ test_reuse_addr_default_is_no_reuse :: proc(t: ^testing.T) {
 test_reuse_addr_preserved_through_rc :: proc(t: ^testing.T) {
 	// After rc_insert, construct nodes should still have reuse_addr = NO_REUSE_ADDR
 	// (reuse analysis hasn't run yet)
-	ctx: ^build.Compilation_Context = new(build.Compilation_Context)
-	alloc := build.context_init(ctx)
+	ctx: build.Compilation_Context
+	alloc := build.context_init(&ctx)
 	context.allocator = alloc
-	defer {
-		build.context_destroy(ctx)
-		free(ctx)
-	}
+	defer build.context_destroy(&ctx)
 
 	heap_type := base.IR_Type {
 		wasm_type = .I32,
@@ -2534,13 +2539,10 @@ find_construct_reuse_addr :: proc(expr: ir.IR_Expr) -> base.Intern_ID {
 test_reuse_analyze_let_drop_then_construct :: proc(t: ^testing.T) {
 	// Pattern: let x = construct in { drop y; rest }
 	// After reuse_analyze, the construct should have reuse_addr=y and the drop removed
-	ctx: ^build.Compilation_Context = new(build.Compilation_Context)
-	alloc := build.context_init(ctx)
+	ctx: build.Compilation_Context
+	alloc := build.context_init(&ctx)
 	context.allocator = alloc
-	defer {
-		build.context_destroy(ctx)
-		free(ctx)
-	}
+	defer build.context_destroy(&ctx)
 
 	heap_type := base.IR_Type {
 		wasm_type = .I32,
@@ -2633,13 +2635,10 @@ test_reuse_analyze_let_drop_then_construct :: proc(t: ^testing.T) {
 test_reuse_analyze_no_drop_no_reuse :: proc(t: ^testing.T) {
 	// Pattern: let x = construct in 42 (no drop in body)
 	// After reuse_analyze, construct should still have NO_REUSE_ADDR
-	ctx: ^build.Compilation_Context = new(build.Compilation_Context)
-	alloc := build.context_init(ctx)
+	ctx: build.Compilation_Context
+	alloc := build.context_init(&ctx)
 	context.allocator = alloc
-	defer {
-		build.context_destroy(ctx)
-		free(ctx)
-	}
+	defer build.context_destroy(&ctx)
 
 	heap_type := base.IR_Type {
 		wasm_type = .I32,
@@ -2708,13 +2707,10 @@ test_reuse_analyze_no_drop_no_reuse :: proc(t: ^testing.T) {
 @(test)
 test_reuse_analyze_record_drop_then_construct :: proc(t: ^testing.T) {
 	// Same pattern but with IR_Construct_Record instead of IR_Construct_Tag
-	ctx: ^build.Compilation_Context = new(build.Compilation_Context)
-	alloc := build.context_init(ctx)
+	ctx: build.Compilation_Context
+	alloc := build.context_init(&ctx)
 	context.allocator = alloc
-	defer {
-		build.context_destroy(ctx)
-		free(ctx)
-	}
+	defer build.context_destroy(&ctx)
 
 	heap_type := base.IR_Type {
 		wasm_type = .I32,
@@ -2802,13 +2798,10 @@ test_reuse_analyze_record_drop_then_construct :: proc(t: ^testing.T) {
 test_reuse_analyze_block_sibling_pattern :: proc(t: ^testing.T) {
 	// Pattern in a block: { drop y; let x = construct in ... }
 	// optimize_block_drops should merge these
-	ctx: ^build.Compilation_Context = new(build.Compilation_Context)
-	alloc := build.context_init(ctx)
+	ctx: build.Compilation_Context
+	alloc := build.context_init(&ctx)
 	context.allocator = alloc
-	defer {
-		build.context_destroy(ctx)
-		free(ctx)
-	}
+	defer build.context_destroy(&ctx)
 
 	heap_type := base.IR_Type {
 		wasm_type = .I32,
@@ -2898,13 +2891,10 @@ test_reuse_analyze_block_sibling_pattern :: proc(t: ^testing.T) {
 test_reuse_analyze_non_construct_no_reuse :: proc(t: ^testing.T) {
 	// Pattern: let x = non-construct in { drop y; rest }
 	// Non-construct values can't set reuse_addr — should remain unchanged
-	ctx: ^build.Compilation_Context = new(build.Compilation_Context)
-	alloc := build.context_init(ctx)
+	ctx: build.Compilation_Context
+	alloc := build.context_init(&ctx)
 	context.allocator = alloc
-	defer {
-		build.context_destroy(ctx)
-		free(ctx)
-	}
+	defer build.context_destroy(&ctx)
 
 	heap_type := base.IR_Type {
 		wasm_type = .I32,
@@ -2994,13 +2984,10 @@ test_rc_then_reuse_analyze_heap_drop_removed :: proc(t: ^testing.T) {
 	// After rc_insert emits drops, reuse_analyze should find and optimize
 	// the drop-then-construct pattern when they appear as siblings in a block.
 	// We construct the IR that RC would produce: a block with { drop y; let x = construct in ... }
-	ctx: ^build.Compilation_Context = new(build.Compilation_Context)
-	alloc := build.context_init(ctx)
+	ctx: build.Compilation_Context
+	alloc := build.context_init(&ctx)
 	context.allocator = alloc
-	defer {
-		build.context_destroy(ctx)
-		free(ctx)
-	}
+	defer build.context_destroy(&ctx)
 
 	heap_type := base.IR_Type {
 		wasm_type = .I32,

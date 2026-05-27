@@ -18,7 +18,23 @@ build-e2e:
     odin build src/e2e -collection:camp=src -out:camp-e2e
 
 test-unit:
-    odin test src -collection:camp=src
+    #!/usr/bin/env sh
+    output=$(odin test src -collection:camp=src 2>&1); rc=$?
+    echo "$output"
+    if [ $rc -ne 0 ]; then exit $rc; fi
+    badfrees=$(echo "$output" | grep -c 'bad free')
+    if [ $badfrees -gt 0 ]; then
+      echo "FAIL: $badfrees bad free(s) detected" >&2
+      exit 1
+    fi
+    leaks=$(echo "$output" | grep -c 'leak')
+    # Remaining leaks are from arena-backed allocations that are freed in bulk
+    # by context_destroy in production. Tighten this threshold as they are fixed.
+    leak_threshold=900
+    if [ $leaks -gt $leak_threshold ]; then
+      echo "FAIL: $leaks leak(s) detected (threshold: $leak_threshold)" >&2
+      exit 1
+    fi
 
 test-e2e: build build-e2e
     CAMP_BIN="$(pwd)/camp" ./camp-e2e

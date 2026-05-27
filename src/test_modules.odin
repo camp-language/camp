@@ -126,6 +126,7 @@ test_module_graph_topo_sort :: proc(t: ^testing.T) {
 	build.module_graph_add_edge(&graph, b, c)
 
 	sorted, ok := build.topological_sort(&graph, &ctx.interner, &ctx.collector)
+	defer delete(sorted)
 	testing.expect(t, ok)
 
 	if ok && len(sorted) == 3 {
@@ -161,7 +162,8 @@ test_module_graph_cycle_detection :: proc(t: ^testing.T) {
 	build.module_graph_add_edge(&graph, a, b)
 	build.module_graph_add_edge(&graph, b, a)
 
-	_, ok := build.topological_sort(&graph, &ctx.interner, &ctx.collector)
+	sorted, ok := build.topological_sort(&graph, &ctx.interner, &ctx.collector)
+	defer delete(sorted)
 	testing.expect(t, !ok)
 	testing.expect(t, diagnostics.diag_collector_has_errors(&ctx.collector))
 }
@@ -183,6 +185,7 @@ test_module_graph_independent :: proc(t: ^testing.T) {
 	build.module_graph_add_node(&graph, b)
 
 	sorted, ok := build.topological_sort(&graph, &ctx.interner, &ctx.collector)
+	defer delete(sorted)
 	testing.expect(t, ok)
 	testing.expect(t, len(sorted) == 2)
 }
@@ -314,7 +317,8 @@ test_module_graph_three_node_cycle :: proc(t: ^testing.T) {
 	build.module_graph_add_edge(&graph, b, c)
 	build.module_graph_add_edge(&graph, c, a)
 
-	_, ok := build.topological_sort(&graph, &ctx.interner, &ctx.collector)
+	sorted, ok := build.topological_sort(&graph, &ctx.interner, &ctx.collector)
+	defer delete(sorted)
 	testing.expect(t, !ok)
 	testing.expect(t, diagnostics.diag_collector_has_errors(&ctx.collector))
 }
@@ -446,6 +450,7 @@ test_cache_has_miss :: proc(t: ^testing.T) {
 test_export_table_newtype_pub :: proc(t: ^testing.T) {
 	ctx: build.Compilation_Context
 	build.context_init(&ctx)
+	context.allocator = ctx.allocator
 	defer build.context_destroy(&ctx)
 
 	store: semantics.Type_Store
@@ -477,6 +482,7 @@ test_export_table_newtype_pub :: proc(t: ^testing.T) {
 test_export_table_newtype_private :: proc(t: ^testing.T) {
 	ctx: build.Compilation_Context
 	build.context_init(&ctx)
+	context.allocator = ctx.allocator
 	defer build.context_destroy(&ctx)
 
 	store: semantics.Type_Store
@@ -505,6 +511,7 @@ test_export_table_newtype_private :: proc(t: ^testing.T) {
 test_export_table_newtype_pub_opaque :: proc(t: ^testing.T) {
 	ctx: build.Compilation_Context
 	build.context_init(&ctx)
+	context.allocator = ctx.allocator
 	defer build.context_destroy(&ctx)
 
 	store: semantics.Type_Store

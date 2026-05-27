@@ -72,7 +72,7 @@ topological_sort :: proc(
 	interner: ^base.Intern_Table,
 	collector: ^diagnostics.Diagnostic_Collector,
 ) -> (
-	[]base.Intern_ID,
+	[dynamic]base.Intern_ID,
 	bool,
 ) {
 	in_degree: map[base.Intern_ID]int
@@ -122,7 +122,7 @@ topological_sort :: proc(
 	defer delete(queue)
 
 	if len(result) == len(graph.all_nodes) {
-		return result[:], true
+		return result, true
 	}
 
 	cycle := find_cycle(graph, interner)
@@ -130,9 +130,11 @@ topological_sort :: proc(
 		collector,
 		diagnostics.diag_cyclic_dependency(cycle, base.Source_Span_ZERO),
 	)
+	delete(cycle)
 
 	delete(result)
-	return nil, false
+	result = nil
+	return result, false
 }
 
 DFS_Color :: enum int {
@@ -197,7 +199,9 @@ find_cycle :: proc(graph: ^Module_Graph, interner: ^base.Intern_Table) -> string
 								}
 								strings.write_string(&builder, base.intern_get(interner, path[i]))
 							}
-							return strings.to_string(builder)
+							result := strings.clone(strings.to_string(builder))
+							strings.builder_destroy(&builder)
+							return result
 						}
 					}
 				}

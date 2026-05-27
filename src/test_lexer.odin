@@ -5,7 +5,7 @@ import "camp:build"
 import "camp:frontend"
 import "core:testing"
 
-lex_all :: proc(source: string, ctx: ^build.Compilation_Context) -> []base.Token {
+lex_all :: proc(source: string, ctx: ^build.Compilation_Context) -> [dynamic]base.Token {
 	old_allocator := context.allocator
 	context.allocator = ctx.allocator
 	defer context.allocator = old_allocator
@@ -24,7 +24,7 @@ lex_all :: proc(source: string, ctx: ^build.Compilation_Context) -> []base.Token
 		if tok.kind == .Eof {break}
 	}
 
-	return tokens[:]
+	return tokens
 }
 
 @(test)

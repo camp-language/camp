@@ -764,7 +764,7 @@ wasm_encode_section :: proc(
 	delete(content)
 }
 
-wasm_serialize :: proc(mod: Wasm_Module) -> []u8 {
+wasm_serialize :: proc(mod: Wasm_Module) -> [dynamic]u8 {
 	buf: [dynamic]u8
 	buf = make([dynamic]u8, 0, CODE_BUF_SECTION)
 
@@ -970,9 +970,7 @@ wasm_serialize :: proc(mod: Wasm_Module) -> []u8 {
 			}, mod)
 	}
 
-	result := buf[:]
-	delete(buf)
-	return result
+	return buf
 }
 
 ir_wasm_type_to_value_type :: proc(t: base.IR_Wasm_Type) -> Wasm_Value_Type {

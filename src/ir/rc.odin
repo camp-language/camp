@@ -335,7 +335,10 @@ emit_param_drops :: proc(
 // If drops exist, wraps in IR_Block{drop1, drop2, ..., expr}.
 // The block's type is the same as the expression's type (drops don't produce values).
 wrap_with_drops :: proc(expr: IR_Expr, drops: [dynamic]IR_Expr) -> IR_Expr {
-	if len(drops) == 0 do return expr
+	if len(drops) == 0 {
+		delete(drops)
+		return expr
+	}
 
 	stmts := make([dynamic]IR_Expr, 0, 1 + len(drops))
 	for drop in drops {

@@ -446,6 +446,7 @@ verify_trait_conformance :: proc(
 	}
 
 	required_traits := collect_all_traits(trait_name, store.trait_registry)
+	defer delete(required_traits)
 
 	for req_trait_name in required_traits {
 		req_info := store.trait_registry[req_trait_name]

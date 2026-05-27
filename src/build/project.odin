@@ -217,7 +217,7 @@ run_build_project :: proc(thread_count: int = 1) -> Build_Result {
 	}
 
 	ctx.type_store = &ctx.module_stores[project.entry_point]
-	combined_ir := combine_module_irs(sorted, &project, &ctx)
+	combined_ir := combine_module_irs(sorted[:], &project, &ctx)
 	combined_ir = ir.effect_lower(&combined_ir, &ctx.interner, &ctx.collector, ctx.type_store)
 	combined_ir = ir.closure_convert(&combined_ir, &ctx.interner)
 	combined_ir = ir.cps_transform(&combined_ir, &ctx.interner)
@@ -226,9 +226,10 @@ run_build_project :: proc(thread_count: int = 1) -> Build_Result {
 
 	wasm_mod := codegen.codegen(combined_ir, &ctx.interner, ctx.thread_count)
 	wasm_bytes := codegen.wasm_serialize(wasm_mod)
+	defer delete(wasm_bytes)
 
 	output_path := "a.wasm"
-	write_err := os.write_entire_file_from_bytes(output_path, wasm_bytes)
+	write_err := os.write_entire_file_from_bytes(output_path, wasm_bytes[:])
 	if write_err != nil {
 		diagnostics.collector_add_diag(
 			&ctx.collector,

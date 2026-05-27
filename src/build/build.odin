@@ -130,12 +130,13 @@ run_build_single :: proc(file_path: string, thread_count: int = 1) -> Build_Resu
 
 	wasm_mod := codegen.codegen(ir_mod, &ctx.interner, ctx.thread_count)
 	wasm_bytes := codegen.wasm_serialize(wasm_mod)
+	defer delete(wasm_bytes)
 
 	dir := filepath.dir(file_path)
 	stem := filepath.stem(file_path)
 	output_path := fmt.tprintf("{}/{}.wasm", dir, stem)
 
-	write_err := os.write_entire_file_from_bytes(output_path, wasm_bytes)
+	write_err := os.write_entire_file_from_bytes(output_path, wasm_bytes[:])
 	if write_err != nil {
 		diagnostics.collector_add_diag(
 			&ctx.collector,
@@ -630,9 +631,10 @@ compile_test_canon :: proc(
 	// Codegen + serialize
 	wasm_mod := codegen.codegen(ir_mod, interner, 1)
 	wasm_bytes := codegen.wasm_serialize(wasm_mod)
+	defer delete(wasm_bytes)
 
 	// Write to output path
-	err := os.write_entire_file_from_bytes(output_path, wasm_bytes)
+	err := os.write_entire_file_from_bytes(output_path, wasm_bytes[:])
 	return err == nil
 }
 
