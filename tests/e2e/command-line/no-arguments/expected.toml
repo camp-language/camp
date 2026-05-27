@@ -4,5 +4,6 @@ Camp compiler v0.0.1
 Usage: camp <command> [options] <file>
 Commands: build, test, fmt, check, doc, lsp, add, update, init
 Global flags: --json, --locked, --frozen
+"""
 stderr = ""
 exit = 1
