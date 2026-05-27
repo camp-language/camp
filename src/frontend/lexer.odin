@@ -35,12 +35,13 @@ KEYWORDS: map[string]base.Token_Kind = {
 }
 
 Lexer :: struct {
-	source:        string,
-	pos:           int,
-	collector:     ^diagnostics.Diagnostic_Collector,
-	intern:        ^base.Intern_Table,
-	file_id:       int,
-	at_line_start: bool, // true when pos is at the start of a new line
+	source:         string,
+	pos:            int,
+	collector:      ^diagnostics.Diagnostic_Collector,
+	intern:         ^base.Intern_Table,
+	file_id:        int,
+	at_line_start:  bool,
+	saw_blank_line: bool,
 }
 
 lexer_init :: proc(
@@ -106,33 +107,49 @@ when simd.HAS_HARDWARE_SIMD {
 }
 
 lexer_skip_whitespace_scalar :: proc(l: ^Lexer) {
+	prev_was_newline := false
 	for l.pos < len(l.source) {
 		ch := l.source[l.pos]
 		if ch == ' ' || ch == '\t' || ch == '\r' {
 			l.pos += 1
+			prev_was_newline = false
 		} else if ch == '\n' {
+			if prev_was_newline {
+				l.saw_blank_line = true
+			}
+			prev_was_newline = true
 			l.pos += 1
 			l.at_line_start = true
 		} else if ch == '/' &&
 		   l.pos + 2 < len(l.source) &&
 		   l.source[l.pos + 1] == '/' &&
 		   l.source[l.pos + 2] == '/' {
-			// /// doc comment — stop so lexer_next can produce a Doc_Comment token
+			break
+		} else if ch == '/' &&
+		   l.pos + 2 < len(l.source) &&
+		   l.source[l.pos + 1] == '/' &&
+		   l.source[l.pos + 2] == '#' {
 			break
 		} else if ch == '/' && l.pos + 1 < len(l.source) && l.source[l.pos + 1] == '/' {
-			// // regular comment — skip
 			l.pos += 2
+			prev_was_newline = false
 			for l.pos < len(l.source) && l.source[l.pos] != '\n' {
 				l.pos += 1
 			}
 		} else if ch == '\\' && l.at_line_start {
-			// \ at line start = per-line string — stop so lexer_next can handle it
 			break
 		} else {
 			l.at_line_start = false
+			prev_was_newline = false
 			break
 		}
 	}
+}
+
+lexer_had_blank_line :: proc(l: ^Lexer) -> bool {
+	result := l.saw_blank_line
+	l.saw_blank_line = false
+	return result
 }
 
 lexer_make_span :: proc(l: ^Lexer, start: int) -> base.Source_Span {
@@ -164,7 +181,6 @@ lexer_next :: proc(l: ^Lexer) -> base.Token {
 	   l.source[l.pos + 1] == '/' &&
 	   l.source[l.pos + 2] == '/' {
 		l.pos += 3
-		// Skip optional space after ///
 		if l.pos < len(l.source) && l.source[l.pos] == ' ' {
 			l.pos += 1
 		}
@@ -173,6 +189,22 @@ lexer_next :: proc(l: ^Lexer) -> base.Token {
 			l.pos += 1
 		}
 		return lexer_make_token(l, .Doc_Comment, start, l.source[content_start:l.pos])
+	}
+
+	// //# hidden line in doc code block
+	if ch == '/' &&
+	   l.pos + 2 < len(l.source) &&
+	   l.source[l.pos + 1] == '/' &&
+	   l.source[l.pos + 2] == '#' {
+		l.pos += 3
+		if l.pos < len(l.source) && l.source[l.pos] == ' ' {
+			l.pos += 1
+		}
+		content_start := l.pos
+		for l.pos < len(l.source) && l.source[l.pos] != '\n' {
+			l.pos += 1
+		}
+		return lexer_make_token(l, .Hidden_Line, start, l.source[content_start:l.pos])
 	}
 
 	// \ per-line string prefix (only at line start, and only if followed by content)

@@ -685,14 +685,6 @@ typecheck_method_call :: proc(
 	args_t := make([dynamic]TExpr, 0, len(e.args))
 
 	if is_effect_op {
-		is_prelude := is_prelude_effect(effect_name, store.interner)
-		if !is_prelude && !is_effect_handled(env, effect_name) {
-			effect_str := base.intern_get(store.interner, effect_name)
-			diagnostics.collector_add_diag(
-				store.collector,
-				diagnostics.diag_unhandled_effect(effect_str, e.span),
-			)
-		}
 
 		effect_entries := store_alloc(store, Effect_Row_Entry, 1)
 		effect_entries[0] = Effect_Row_Entry {

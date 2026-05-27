@@ -148,6 +148,7 @@ setup_for_typecheck :: proc(
 		semantics.inject_prelude(store)
 	}
 	tfile = semantics.typecheck_file(canon, store)
+	semantics.check_effect_safety(tfile, store)
 	return store, ctx, tfile
 }
 
@@ -170,7 +171,9 @@ typecheck_into_store :: proc(
 	surface := frontend.parser_parse_file(&parser)
 
 	canon := semantics.canonicalize(surface, &ctx.interner, &ctx.collector)
-	return semantics.typecheck_file(canon, store, module_id)
+	tfile := semantics.typecheck_file(canon, store, module_id)
+	semantics.check_effect_safety(tfile, store)
+	return tfile
 }
 
 @(test)
@@ -566,7 +569,7 @@ test_effectful_naming_enforcement :: proc(t: ^testing.T) {
 @(test)
 test_unhandled_effect_error :: proc(t: ^testing.T) {
 	store, ctx, _ := setup_for_typecheck(
-		"IO! : { println!: || -> Str }\nval = IO.println(\"hello\")",
+		"IO! : { println!: || -[IO!]-> {} }\nmain! = || -> I64 { IO!.println!(\"hello\") 0 }",
 	)
 	defer free(ctx)
 	defer free(store)
@@ -957,6 +960,7 @@ mono_source :: proc(
 	semantics.type_store_init(&store, &ctx.interner, &ctx.collector)
 	semantics.inject_prelude(&store)
 	tfile := semantics.typecheck_file(canon, &store)
+	semantics.check_effect_safety(tfile, &store)
 
 	mono_tfile := mono.mono(tfile, &store, &ctx.interner)
 

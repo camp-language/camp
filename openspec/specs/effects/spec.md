@@ -197,12 +197,22 @@ Each handled effect parameter SHALL receive a 4-byte evidence slot on the WASM c
 
 ### Requirement: Effect Safety — Unhandled Effects Are Compile-Time Errors
 
-A function's effect row SHALL be a subset of the effects handled by its caller's context. If a function performs an effect that no enclosing handler covers, the typechecker SHALL emit a compile-time error.
+A function's effect row SHALL be a subset of the effects handled by its caller's context. If a function performs an effect that no enclosing handler covers, the typechecker SHALL emit a compile-time error. The effect safety check SHALL run as a post-typecheck pass that inspects the `main!` entry point's resolved effect row for non-prelude effects. Prelude effects (Console!, Throw!, Parallel!, Spawn!, Async!, File!, Env!, Time!, Random!, Log!, CryptoRandom!) are exempt because they are handled by the WASM runtime.
 
 #### Scenario: Unhandled effect at compile time
 
-- **WHEN** `main!` declares `|| -> I64` and calls `Console.println!("oops")`
-- **THEN** the typechecker SHALL emit an error for unhandled effect `Console!`
+- **WHEN** `main!` declares `|| -> I64` and calls a non-prelude effect operation like `IO!.println!("oops")`
+- **THEN** the typechecker SHALL emit error C0401 for unhandled effect `IO!` at the `main!` declaration
+
+#### Scenario: Transitive unhandled effect
+
+- **WHEN** `main!` calls `helper!` which performs a non-prelude effect `IO!`, and `main!` has no handler for `IO!`
+- **THEN** the typechecker SHALL emit error C0401 for unhandled effect `IO!` at the `main!` declaration
+
+#### Scenario: Prelude effects are exempt
+
+- **WHEN** `main!` declares `|| -[Console! | Throw!]-> I64`
+- **THEN** the typechecker SHALL NOT emit an error — prelude effects are handled by the runtime
 
 ### Requirement: Handler Arm Parameters Include Resume and Operation Args
 

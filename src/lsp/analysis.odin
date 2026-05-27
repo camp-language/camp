@@ -76,7 +76,8 @@ analyze_document :: proc(
 	semantics.type_store_init(&store, &itable, &collector)
 	defer semantics.type_store_destroy(&store)
 	semantics.inject_prelude(&store)
-	semantics.typecheck_file(canon, &store)
+	tfile := semantics.typecheck_file(canon, &store)
+	semantics.check_effect_safety(tfile, &store)
 	context.allocator = old_allocator
 
 	for d in collector.diagnostics {
