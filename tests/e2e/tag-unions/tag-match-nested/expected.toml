@@ -12,6 +12,6 @@ Error: failed to compile: wasm[0]::function[64]
 
 Caused by:
     0: WebAssembly translation error
-    1: Invalid input WebAssembly code at offset 5792: type mismatch: expected i64, found i32
+    1: Invalid input WebAssembly code at offset 5827: type mismatch: expected i64, found i32
 
 """
