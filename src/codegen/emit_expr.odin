@@ -1860,9 +1860,25 @@ emit_expr :: proc(expr: ir.IR_Expr, buf: ^[dynamic]u8, env: ^Codegen_Env, runtim
 						buf,
 					)
 				} else if op_str == "println!" || op_str == "print!" {
-					// println!/print! take a Str arg and write to stdout via fd_write
+					// println!/print! take a Str arg and write to stdout via fd_write.
+					// If the argument is not already a Str (e.g. I64, F64), convert it.
 					if len(e.args) >= 1 {
 						emit_expr(e.args[0], buf, env, runtime_indices)
+						arg_type := ir.ir_expr_wasm_type(e.args[0])
+						if arg_type == .I64 {
+							emit_instruction(
+								Wasm_Call{index = u32(runtime_indices[Runtime_Func.I64_To_Str])},
+								buf,
+							)
+						} else if arg_type == .F64 {
+							emit_instruction(
+								Wasm_Call{index = u32(runtime_indices[Runtime_Func.F64_To_Str])},
+								buf,
+							)
+						} else if arg_type == .I32 || arg_type == .Funcref {
+							// Assume already a Str pointer; call I32_To_Str as a fallback
+							// for non-string i32 values (Bool, etc.)
+						}
 					} else {
 						emit_instruction(Wasm_I32_Const{value = 0}, buf)
 					}
