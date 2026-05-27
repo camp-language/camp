@@ -780,87 +780,104 @@ occurs_check :: proc(
 	target: base.Type_Var_ID,
 	in_var: base.Type_Var_ID,
 ) -> bool {
+	visited := make(map[base.Type_Var_ID]bool, 16)
+	defer delete(visited)
+	return occurs_check_impl(store, target, in_var, &visited)
+}
+
+occurs_check_impl :: proc(
+	store: ^Type_Store,
+	target: base.Type_Var_ID,
+	in_var: base.Type_Var_ID,
+	visited: ^map[base.Type_Var_ID]bool,
+) -> bool {
 	rv := resolve_var(store, in_var)
 	if rv == target {
 		return !store.rec_vars[target]
 	}
 
+	if _, seen := visited[rv]; seen {
+		return false
+	}
+	visited[rv] = true
+
 	v := store.vars[int(rv)]
 
 	inf, is_inf := v.link.(Inferred_Type)
 	if is_inf {
-		return occurs_check_inferred(store, target, inf)
+		return occurs_check_inferred_impl(store, target, inf, visited)
 	}
 
 	linked_id, is_id := v.link.(base.Type_Var_ID)
 	if is_id {
-		return occurs_check(store, target, linked_id)
+		return occurs_check_impl(store, target, linked_id, visited)
 	}
 	return false
 }
 
-occurs_check_inferred :: proc(
+occurs_check_inferred_impl :: proc(
 	store: ^Type_Store,
 	target: base.Type_Var_ID,
 	inf: Inferred_Type,
+	visited: ^map[base.Type_Var_ID]bool,
 ) -> bool {
 	switch v in inf {
 	case Inferred_Function:
 		for pid in v.param_ids {
-			if occurs_check(store, target, pid) {
+			if occurs_check_impl(store, target, pid, visited) {
 				return true
 			}
 		}
-		if occurs_check(store, target, v.return_id) {
+		if occurs_check_impl(store, target, v.return_id, visited) {
 			return true
 		}
-		if occurs_check(store, target, v.effect_id) {
+		if occurs_check_impl(store, target, v.effect_id, visited) {
 			return true
 		}
 	case Inferred_Effect_Row:
-		if occurs_check(store, target, v.rest_id) {
+		if occurs_check_impl(store, target, v.rest_id, visited) {
 			return true
 		}
 	case Inferred_Record_Row:
 		for f in v.record_fields {
-			if occurs_check(store, target, f.var) {
+			if occurs_check_impl(store, target, f.var, visited) {
 				return true
 			}
 		}
-		if occurs_check(store, target, v.record_rest) {
+		if occurs_check_impl(store, target, v.record_rest, visited) {
 			return true
 		}
 	case Inferred_Tag_Union_Row:
 		for te in v.tag_entries {
 			for pid in te.payload {
-				if occurs_check(store, target, pid) {
+				if occurs_check_impl(store, target, pid, visited) {
 					return true
 				}
 			}
 		}
-		if occurs_check(store, target, v.tag_rest) {
+		if occurs_check_impl(store, target, v.tag_rest, visited) {
 			return true
 		}
 	case Inferred_Newtype:
 		for pid in v.param_ids {
-			if occurs_check(store, target, pid) {
+			if occurs_check_impl(store, target, pid, visited) {
 				return true
 			}
 		}
-		if occurs_check(store, target, v.inner_id) {
+		if occurs_check_impl(store, target, v.inner_id, visited) {
 			return true
 		}
 	case Inferred_Handle:
-		if occurs_check(store, target, v.inner_id) {
+		if occurs_check_impl(store, target, v.inner_id, visited) {
 			return true
 		}
-		if occurs_check(store, target, v.effect_id) {
+		if occurs_check_impl(store, target, v.effect_id, visited) {
 			return true
 		}
 
 	case Inferred_Tuple:
 		for eid in v.element_types {
-			if occurs_check(store, target, eid) {
+			if occurs_check_impl(store, target, eid, visited) {
 				return true
 			}
 		}

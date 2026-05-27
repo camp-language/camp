@@ -1089,14 +1089,19 @@ walk_expr_for_call_sites :: proc(expr: semantics.TExpr, env: ^Mono_Env) {
 					if len(body.type_params) > 0 {
 						type_args := extract_type_args(callee, body, env)
 						if len(type_args) > 0 {
-							append(
-								&env.worklist,
-								Mono_Item {
-									original = callee.name,
-									type_args = type_args,
-									span = e.span,
-								},
-							)
+							item := Mono_Item {
+								original = callee.name,
+								type_args = type_args,
+								span = e.span,
+							}
+							// Dedup check: skip if this specialization already exists,
+							// preventing infinite worklist growth for recursive generics
+							key := specialization_key(item, env.store, env.interner)
+							if _, exists := env.specializations[key]; !exists {
+								append(&env.worklist, item)
+							} else {
+								delete(type_args)
+							}
 						} else {
 							delete(type_args)
 						}
