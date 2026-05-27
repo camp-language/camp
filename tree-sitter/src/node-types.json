@@ -86,6 +86,32 @@
     }
   },
   {
+    "type": "anonymous_structural_field",
+    "named": true,
+    "fields": {
+      "arguments": {
+        "multiple": false,
+        "required": false,
+        "types": [
+          {
+            "type": "arguments",
+            "named": true
+          }
+        ]
+      },
+      "field": {
+        "multiple": false,
+        "required": true,
+        "types": [
+          {
+            "type": "identifier",
+            "named": true
+          }
+        ]
+      }
+    }
+  },
+  {
     "type": "applied_type",
     "named": true,
     "fields": {
@@ -124,6 +150,10 @@
           "named": true
         },
         {
+          "type": "anonymous_structural_field",
+          "named": true
+        },
+        {
           "type": "binary_expression",
           "named": true
         },
@@ -137,6 +167,10 @@
         },
         {
           "type": "call_expression",
+          "named": true
+        },
+        {
+          "type": "char",
           "named": true
         },
         {
@@ -200,6 +234,10 @@
           "named": true
         },
         {
+          "type": "per_line_string",
+          "named": true
+        },
+        {
           "type": "record_expression",
           "named": true
         },
@@ -212,11 +250,27 @@
           "named": true
         },
         {
+          "type": "structural_field_access",
+          "named": true
+        },
+        {
           "type": "tag_expression",
           "named": true
         },
         {
-          "type": "type_identifier",
+          "type": "tag_expression_with_args",
+          "named": true
+        },
+        {
+          "type": "todo_expression",
+          "named": true
+        },
+        {
+          "type": "todo_expression_with_msg",
+          "named": true
+        },
+        {
+          "type": "ufcs_call_expression",
           "named": true
         },
         {
@@ -239,6 +293,10 @@
             "named": true
           },
           {
+            "type": "anonymous_structural_field",
+            "named": true
+          },
+          {
             "type": "binary_expression",
             "named": true
           },
@@ -252,6 +310,10 @@
           },
           {
             "type": "call_expression",
+            "named": true
+          },
+          {
+            "type": "char",
             "named": true
           },
           {
@@ -315,6 +377,10 @@
             "named": true
           },
           {
+            "type": "per_line_string",
+            "named": true
+          },
+          {
             "type": "record_expression",
             "named": true
           },
@@ -327,11 +393,27 @@
             "named": true
           },
           {
+            "type": "structural_field_access",
+            "named": true
+          },
+          {
             "type": "tag_expression",
             "named": true
           },
           {
-            "type": "type_identifier",
+            "type": "tag_expression_with_args",
+            "named": true
+          },
+          {
+            "type": "todo_expression",
+            "named": true
+          },
+          {
+            "type": "todo_expression_with_msg",
+            "named": true
+          },
+          {
+            "type": "ufcs_call_expression",
             "named": true
           },
           {
@@ -407,6 +489,10 @@
             "named": true
           },
           {
+            "type": "anonymous_structural_field",
+            "named": true
+          },
+          {
             "type": "binary_expression",
             "named": true
           },
@@ -420,6 +506,10 @@
           },
           {
             "type": "call_expression",
+            "named": true
+          },
+          {
+            "type": "char",
             "named": true
           },
           {
@@ -483,6 +573,10 @@
             "named": true
           },
           {
+            "type": "per_line_string",
+            "named": true
+          },
+          {
             "type": "record_expression",
             "named": true
           },
@@ -495,11 +589,27 @@
             "named": true
           },
           {
+            "type": "structural_field_access",
+            "named": true
+          },
+          {
             "type": "tag_expression",
             "named": true
           },
           {
-            "type": "type_identifier",
+            "type": "tag_expression_with_args",
+            "named": true
+          },
+          {
+            "type": "todo_expression",
+            "named": true
+          },
+          {
+            "type": "todo_expression_with_msg",
+            "named": true
+          },
+          {
+            "type": "ufcs_call_expression",
             "named": true
           },
           {
@@ -523,6 +633,10 @@
           "named": true
         },
         {
+          "type": "anonymous_structural_field",
+          "named": true
+        },
+        {
           "type": "binary_expression",
           "named": true
         },
@@ -536,6 +650,10 @@
         },
         {
           "type": "call_expression",
+          "named": true
+        },
+        {
+          "type": "char",
           "named": true
         },
         {
@@ -599,6 +717,10 @@
           "named": true
         },
         {
+          "type": "per_line_string",
+          "named": true
+        },
+        {
           "type": "record_expression",
           "named": true
         },
@@ -611,11 +733,27 @@
           "named": true
         },
         {
+          "type": "structural_field_access",
+          "named": true
+        },
+        {
           "type": "tag_expression",
           "named": true
         },
         {
-          "type": "type_identifier",
+          "type": "tag_expression_with_args",
+          "named": true
+        },
+        {
+          "type": "todo_expression",
+          "named": true
+        },
+        {
+          "type": "todo_expression_with_msg",
+          "named": true
+        },
+        {
+          "type": "ufcs_call_expression",
           "named": true
         },
         {
@@ -653,6 +791,10 @@
             "named": true
           },
           {
+            "type": "anonymous_structural_field",
+            "named": true
+          },
+          {
             "type": "binary_expression",
             "named": true
           },
@@ -666,6 +808,10 @@
           },
           {
             "type": "call_expression",
+            "named": true
+          },
+          {
+            "type": "char",
             "named": true
           },
           {
@@ -729,6 +875,10 @@
             "named": true
           },
           {
+            "type": "per_line_string",
+            "named": true
+          },
+          {
             "type": "record_expression",
             "named": true
           },
@@ -741,11 +891,27 @@
             "named": true
           },
           {
+            "type": "structural_field_access",
+            "named": true
+          },
+          {
             "type": "tag_expression",
             "named": true
           },
           {
-            "type": "type_identifier",
+            "type": "tag_expression_with_args",
+            "named": true
+          },
+          {
+            "type": "todo_expression",
+            "named": true
+          },
+          {
+            "type": "todo_expression_with_msg",
+            "named": true
+          },
+          {
+            "type": "ufcs_call_expression",
             "named": true
           },
           {
@@ -769,6 +935,10 @@
             "named": true
           },
           {
+            "type": "anonymous_structural_field",
+            "named": true
+          },
+          {
             "type": "binary_expression",
             "named": true
           },
@@ -782,6 +952,10 @@
           },
           {
             "type": "call_expression",
+            "named": true
+          },
+          {
+            "type": "char",
             "named": true
           },
           {
@@ -845,6 +1019,10 @@
             "named": true
           },
           {
+            "type": "per_line_string",
+            "named": true
+          },
+          {
             "type": "record_expression",
             "named": true
           },
@@ -857,11 +1035,27 @@
             "named": true
           },
           {
+            "type": "structural_field_access",
+            "named": true
+          },
+          {
             "type": "tag_expression",
             "named": true
           },
           {
-            "type": "type_identifier",
+            "type": "tag_expression_with_args",
+            "named": true
+          },
+          {
+            "type": "todo_expression",
+            "named": true
+          },
+          {
+            "type": "todo_expression_with_msg",
+            "named": true
+          },
+          {
+            "type": "ufcs_call_expression",
             "named": true
           },
           {
@@ -915,6 +1109,10 @@
           "named": true
         },
         {
+          "type": "anonymous_structural_field",
+          "named": true
+        },
+        {
           "type": "binary_expression",
           "named": true
         },
@@ -928,6 +1126,10 @@
         },
         {
           "type": "call_expression",
+          "named": true
+        },
+        {
+          "type": "char",
           "named": true
         },
         {
@@ -991,6 +1193,10 @@
           "named": true
         },
         {
+          "type": "per_line_string",
+          "named": true
+        },
+        {
           "type": "record_expression",
           "named": true
         },
@@ -1003,11 +1209,27 @@
           "named": true
         },
         {
+          "type": "structural_field_access",
+          "named": true
+        },
+        {
           "type": "tag_expression",
           "named": true
         },
         {
-          "type": "type_identifier",
+          "type": "tag_expression_with_args",
+          "named": true
+        },
+        {
+          "type": "todo_expression",
+          "named": true
+        },
+        {
+          "type": "todo_expression_with_msg",
+          "named": true
+        },
+        {
+          "type": "ufcs_call_expression",
           "named": true
         },
         {
@@ -1226,6 +1448,10 @@
             "named": true
           },
           {
+            "type": "anonymous_structural_field",
+            "named": true
+          },
+          {
             "type": "binary_expression",
             "named": true
           },
@@ -1239,6 +1465,10 @@
           },
           {
             "type": "call_expression",
+            "named": true
+          },
+          {
+            "type": "char",
             "named": true
           },
           {
@@ -1302,6 +1532,10 @@
             "named": true
           },
           {
+            "type": "per_line_string",
+            "named": true
+          },
+          {
             "type": "record_expression",
             "named": true
           },
@@ -1314,11 +1548,27 @@
             "named": true
           },
           {
+            "type": "structural_field_access",
+            "named": true
+          },
+          {
             "type": "tag_expression",
             "named": true
           },
           {
-            "type": "type_identifier",
+            "type": "tag_expression_with_args",
+            "named": true
+          },
+          {
+            "type": "todo_expression",
+            "named": true
+          },
+          {
+            "type": "todo_expression_with_msg",
+            "named": true
+          },
+          {
+            "type": "ufcs_call_expression",
             "named": true
           },
           {
@@ -1327,21 +1577,6 @@
           }
         ]
       }
-    }
-  },
-  {
-    "type": "exposed_names",
-    "named": true,
-    "fields": {},
-    "children": {
-      "multiple": true,
-      "required": false,
-      "types": [
-        {
-          "type": "identifier",
-          "named": true
-        }
-      ]
     }
   },
   {
@@ -1367,6 +1602,10 @@
             "named": true
           },
           {
+            "type": "anonymous_structural_field",
+            "named": true
+          },
+          {
             "type": "binary_expression",
             "named": true
           },
@@ -1380,6 +1619,10 @@
           },
           {
             "type": "call_expression",
+            "named": true
+          },
+          {
+            "type": "char",
             "named": true
           },
           {
@@ -1443,6 +1686,10 @@
             "named": true
           },
           {
+            "type": "per_line_string",
+            "named": true
+          },
+          {
             "type": "record_expression",
             "named": true
           },
@@ -1455,11 +1702,27 @@
             "named": true
           },
           {
+            "type": "structural_field_access",
+            "named": true
+          },
+          {
             "type": "tag_expression",
             "named": true
           },
           {
-            "type": "type_identifier",
+            "type": "tag_expression_with_args",
+            "named": true
+          },
+          {
+            "type": "todo_expression",
+            "named": true
+          },
+          {
+            "type": "todo_expression_with_msg",
+            "named": true
+          },
+          {
+            "type": "ufcs_call_expression",
             "named": true
           },
           {
@@ -1514,6 +1777,21 @@
     }
   },
   {
+    "type": "handle_effects",
+    "named": true,
+    "fields": {},
+    "children": {
+      "multiple": true,
+      "required": true,
+      "types": [
+        {
+          "type": "type_identifier",
+          "named": true
+        }
+      ]
+    }
+  },
+  {
     "type": "handle_expression",
     "named": true,
     "fields": {
@@ -1536,6 +1814,10 @@
             "named": true
           },
           {
+            "type": "anonymous_structural_field",
+            "named": true
+          },
+          {
             "type": "binary_expression",
             "named": true
           },
@@ -1549,6 +1831,10 @@
           },
           {
             "type": "call_expression",
+            "named": true
+          },
+          {
+            "type": "char",
             "named": true
           },
           {
@@ -1612,6 +1898,10 @@
             "named": true
           },
           {
+            "type": "per_line_string",
+            "named": true
+          },
+          {
             "type": "record_expression",
             "named": true
           },
@@ -1624,11 +1914,27 @@
             "named": true
           },
           {
+            "type": "structural_field_access",
+            "named": true
+          },
+          {
             "type": "tag_expression",
             "named": true
           },
           {
-            "type": "type_identifier",
+            "type": "tag_expression_with_args",
+            "named": true
+          },
+          {
+            "type": "todo_expression",
+            "named": true
+          },
+          {
+            "type": "todo_expression_with_msg",
+            "named": true
+          },
+          {
+            "type": "ufcs_call_expression",
             "named": true
           },
           {
@@ -1637,12 +1943,12 @@
           }
         ]
       },
-      "effect": {
+      "effects": {
         "multiple": false,
         "required": true,
         "types": [
           {
-            "type": "type_identifier",
+            "type": "handle_effects",
             "named": true
           }
         ]
@@ -1662,6 +1968,10 @@
             "named": true
           },
           {
+            "type": "anonymous_structural_field",
+            "named": true
+          },
+          {
             "type": "binary_expression",
             "named": true
           },
@@ -1675,6 +1985,10 @@
           },
           {
             "type": "call_expression",
+            "named": true
+          },
+          {
+            "type": "char",
             "named": true
           },
           {
@@ -1738,6 +2052,10 @@
             "named": true
           },
           {
+            "type": "per_line_string",
+            "named": true
+          },
+          {
             "type": "record_expression",
             "named": true
           },
@@ -1750,11 +2068,27 @@
             "named": true
           },
           {
+            "type": "structural_field_access",
+            "named": true
+          },
+          {
             "type": "tag_expression",
             "named": true
           },
           {
-            "type": "type_identifier",
+            "type": "tag_expression_with_args",
+            "named": true
+          },
+          {
+            "type": "todo_expression",
+            "named": true
+          },
+          {
+            "type": "todo_expression_with_msg",
+            "named": true
+          },
+          {
+            "type": "ufcs_call_expression",
             "named": true
           },
           {
@@ -1838,6 +2172,10 @@
             "named": true
           },
           {
+            "type": "anonymous_structural_field",
+            "named": true
+          },
+          {
             "type": "binary_expression",
             "named": true
           },
@@ -1851,6 +2189,10 @@
           },
           {
             "type": "call_expression",
+            "named": true
+          },
+          {
+            "type": "char",
             "named": true
           },
           {
@@ -1914,6 +2256,10 @@
             "named": true
           },
           {
+            "type": "per_line_string",
+            "named": true
+          },
+          {
             "type": "record_expression",
             "named": true
           },
@@ -1926,11 +2272,27 @@
             "named": true
           },
           {
+            "type": "structural_field_access",
+            "named": true
+          },
+          {
             "type": "tag_expression",
             "named": true
           },
           {
-            "type": "type_identifier",
+            "type": "tag_expression_with_args",
+            "named": true
+          },
+          {
+            "type": "todo_expression",
+            "named": true
+          },
+          {
+            "type": "todo_expression_with_msg",
+            "named": true
+          },
+          {
+            "type": "ufcs_call_expression",
             "named": true
           },
           {
@@ -1948,6 +2310,10 @@
             "named": true
           },
           {
+            "type": "anonymous_structural_field",
+            "named": true
+          },
+          {
             "type": "binary_expression",
             "named": true
           },
@@ -1961,6 +2327,10 @@
           },
           {
             "type": "call_expression",
+            "named": true
+          },
+          {
+            "type": "char",
             "named": true
           },
           {
@@ -2024,6 +2394,10 @@
             "named": true
           },
           {
+            "type": "per_line_string",
+            "named": true
+          },
+          {
             "type": "record_expression",
             "named": true
           },
@@ -2036,11 +2410,27 @@
             "named": true
           },
           {
+            "type": "structural_field_access",
+            "named": true
+          },
+          {
             "type": "tag_expression",
             "named": true
           },
           {
-            "type": "type_identifier",
+            "type": "tag_expression_with_args",
+            "named": true
+          },
+          {
+            "type": "todo_expression",
+            "named": true
+          },
+          {
+            "type": "todo_expression_with_msg",
+            "named": true
+          },
+          {
+            "type": "ufcs_call_expression",
             "named": true
           },
           {
@@ -2058,6 +2448,10 @@
             "named": true
           },
           {
+            "type": "anonymous_structural_field",
+            "named": true
+          },
+          {
             "type": "binary_expression",
             "named": true
           },
@@ -2071,6 +2465,10 @@
           },
           {
             "type": "call_expression",
+            "named": true
+          },
+          {
+            "type": "char",
             "named": true
           },
           {
@@ -2134,6 +2532,10 @@
             "named": true
           },
           {
+            "type": "per_line_string",
+            "named": true
+          },
+          {
             "type": "record_expression",
             "named": true
           },
@@ -2146,11 +2548,27 @@
             "named": true
           },
           {
+            "type": "structural_field_access",
+            "named": true
+          },
+          {
             "type": "tag_expression",
             "named": true
           },
           {
-            "type": "type_identifier",
+            "type": "tag_expression_with_args",
+            "named": true
+          },
+          {
+            "type": "todo_expression",
+            "named": true
+          },
+          {
+            "type": "todo_expression_with_msg",
+            "named": true
+          },
+          {
+            "type": "ufcs_call_expression",
             "named": true
           },
           {
@@ -2175,12 +2593,12 @@
           }
         ]
       },
-      "exposed": {
+      "imported": {
         "multiple": false,
         "required": false,
         "types": [
           {
-            "type": "exposed_names",
+            "type": "imported_names",
             "named": true
           }
         ]
@@ -2195,6 +2613,40 @@
           }
         ]
       }
+    }
+  },
+  {
+    "type": "imported_name",
+    "named": true,
+    "fields": {},
+    "children": {
+      "multiple": true,
+      "required": true,
+      "types": [
+        {
+          "type": "identifier",
+          "named": true
+        },
+        {
+          "type": "type_identifier",
+          "named": true
+        }
+      ]
+    }
+  },
+  {
+    "type": "imported_names",
+    "named": true,
+    "fields": {},
+    "children": {
+      "multiple": true,
+      "required": true,
+      "types": [
+        {
+          "type": "imported_name",
+          "named": true
+        }
+      ]
     }
   },
   {
@@ -2220,6 +2672,10 @@
             "named": true
           },
           {
+            "type": "anonymous_structural_field",
+            "named": true
+          },
+          {
             "type": "binary_expression",
             "named": true
           },
@@ -2233,6 +2689,10 @@
           },
           {
             "type": "call_expression",
+            "named": true
+          },
+          {
+            "type": "char",
             "named": true
           },
           {
@@ -2296,6 +2756,10 @@
             "named": true
           },
           {
+            "type": "per_line_string",
+            "named": true
+          },
+          {
             "type": "record_expression",
             "named": true
           },
@@ -2308,11 +2772,27 @@
             "named": true
           },
           {
+            "type": "structural_field_access",
+            "named": true
+          },
+          {
             "type": "tag_expression",
             "named": true
           },
           {
-            "type": "type_identifier",
+            "type": "tag_expression_with_args",
+            "named": true
+          },
+          {
+            "type": "todo_expression",
+            "named": true
+          },
+          {
+            "type": "todo_expression_with_msg",
+            "named": true
+          },
+          {
+            "type": "ufcs_call_expression",
             "named": true
           },
           {
@@ -2328,14 +2808,6 @@
           {
             "type": "\"",
             "named": false
-          },
-          {
-            "type": "\"\"\"",
-            "named": false
-          },
-          {
-            "type": "r\"",
-            "named": false
           }
         ]
       }
@@ -2349,6 +2821,42 @@
           "named": true
         }
       ]
+    }
+  },
+  {
+    "type": "is_block_declaration",
+    "named": true,
+    "fields": {
+      "body": {
+        "multiple": false,
+        "required": true,
+        "types": [
+          {
+            "type": "block",
+            "named": true
+          }
+        ]
+      },
+      "trait_name": {
+        "multiple": false,
+        "required": true,
+        "types": [
+          {
+            "type": "type_identifier",
+            "named": true
+          }
+        ]
+      },
+      "type_name": {
+        "multiple": false,
+        "required": true,
+        "types": [
+          {
+            "type": "type_identifier",
+            "named": true
+          }
+        ]
+      }
     }
   },
   {
@@ -2448,6 +2956,10 @@
           "named": true
         },
         {
+          "type": "anonymous_structural_field",
+          "named": true
+        },
+        {
           "type": "binary_expression",
           "named": true
         },
@@ -2461,6 +2973,10 @@
         },
         {
           "type": "call_expression",
+          "named": true
+        },
+        {
+          "type": "char",
           "named": true
         },
         {
@@ -2524,6 +3040,10 @@
           "named": true
         },
         {
+          "type": "per_line_string",
+          "named": true
+        },
+        {
           "type": "record_expression",
           "named": true
         },
@@ -2536,11 +3056,27 @@
           "named": true
         },
         {
+          "type": "structural_field_access",
+          "named": true
+        },
+        {
           "type": "tag_expression",
           "named": true
         },
         {
-          "type": "type_identifier",
+          "type": "tag_expression_with_args",
+          "named": true
+        },
+        {
+          "type": "todo_expression",
+          "named": true
+        },
+        {
+          "type": "todo_expression_with_msg",
+          "named": true
+        },
+        {
+          "type": "ufcs_call_expression",
           "named": true
         },
         {
@@ -2560,6 +3096,10 @@
       "types": [
         {
           "type": "boolean",
+          "named": true
+        },
+        {
+          "type": "char",
           "named": true
         },
         {
@@ -2614,6 +3154,10 @@
             "named": true
           },
           {
+            "type": "anonymous_structural_field",
+            "named": true
+          },
+          {
             "type": "binary_expression",
             "named": true
           },
@@ -2627,6 +3171,10 @@
           },
           {
             "type": "call_expression",
+            "named": true
+          },
+          {
+            "type": "char",
             "named": true
           },
           {
@@ -2690,6 +3238,10 @@
             "named": true
           },
           {
+            "type": "per_line_string",
+            "named": true
+          },
+          {
             "type": "record_expression",
             "named": true
           },
@@ -2702,11 +3254,27 @@
             "named": true
           },
           {
+            "type": "structural_field_access",
+            "named": true
+          },
+          {
             "type": "tag_expression",
             "named": true
           },
           {
-            "type": "type_identifier",
+            "type": "tag_expression_with_args",
+            "named": true
+          },
+          {
+            "type": "todo_expression",
+            "named": true
+          },
+          {
+            "type": "todo_expression_with_msg",
+            "named": true
+          },
+          {
+            "type": "ufcs_call_expression",
             "named": true
           },
           {
@@ -2724,6 +3292,10 @@
             "named": true
           },
           {
+            "type": "anonymous_structural_field",
+            "named": true
+          },
+          {
             "type": "binary_expression",
             "named": true
           },
@@ -2737,6 +3309,10 @@
           },
           {
             "type": "call_expression",
+            "named": true
+          },
+          {
+            "type": "char",
             "named": true
           },
           {
@@ -2800,6 +3376,10 @@
             "named": true
           },
           {
+            "type": "per_line_string",
+            "named": true
+          },
+          {
             "type": "record_expression",
             "named": true
           },
@@ -2812,11 +3392,27 @@
             "named": true
           },
           {
+            "type": "structural_field_access",
+            "named": true
+          },
+          {
             "type": "tag_expression",
             "named": true
           },
           {
-            "type": "type_identifier",
+            "type": "tag_expression_with_args",
+            "named": true
+          },
+          {
+            "type": "todo_expression",
+            "named": true
+          },
+          {
+            "type": "todo_expression_with_msg",
+            "named": true
+          },
+          {
+            "type": "ufcs_call_expression",
             "named": true
           },
           {
@@ -2831,6 +3427,10 @@
         "types": [
           {
             "type": "boolean",
+            "named": true
+          },
+          {
+            "type": "char",
             "named": true
           },
           {
@@ -2911,6 +3511,10 @@
             "named": true
           },
           {
+            "type": "anonymous_structural_field",
+            "named": true
+          },
+          {
             "type": "binary_expression",
             "named": true
           },
@@ -2924,6 +3528,10 @@
           },
           {
             "type": "call_expression",
+            "named": true
+          },
+          {
+            "type": "char",
             "named": true
           },
           {
@@ -2987,6 +3595,10 @@
             "named": true
           },
           {
+            "type": "per_line_string",
+            "named": true
+          },
+          {
             "type": "record_expression",
             "named": true
           },
@@ -2999,11 +3611,27 @@
             "named": true
           },
           {
+            "type": "structural_field_access",
+            "named": true
+          },
+          {
             "type": "tag_expression",
             "named": true
           },
           {
-            "type": "type_identifier",
+            "type": "tag_expression_with_args",
+            "named": true
+          },
+          {
+            "type": "todo_expression",
+            "named": true
+          },
+          {
+            "type": "todo_expression_with_msg",
+            "named": true
+          },
+          {
+            "type": "ufcs_call_expression",
             "named": true
           },
           {
@@ -3047,6 +3675,10 @@
             "named": true
           },
           {
+            "type": "anonymous_structural_field",
+            "named": true
+          },
+          {
             "type": "binary_expression",
             "named": true
           },
@@ -3060,6 +3692,10 @@
           },
           {
             "type": "call_expression",
+            "named": true
+          },
+          {
+            "type": "char",
             "named": true
           },
           {
@@ -3123,6 +3759,10 @@
             "named": true
           },
           {
+            "type": "per_line_string",
+            "named": true
+          },
+          {
             "type": "record_expression",
             "named": true
           },
@@ -3135,11 +3775,27 @@
             "named": true
           },
           {
+            "type": "structural_field_access",
+            "named": true
+          },
+          {
             "type": "tag_expression",
             "named": true
           },
           {
-            "type": "type_identifier",
+            "type": "tag_expression_with_args",
+            "named": true
+          },
+          {
+            "type": "todo_expression",
+            "named": true
+          },
+          {
+            "type": "todo_expression_with_msg",
+            "named": true
+          },
+          {
+            "type": "ufcs_call_expression",
             "named": true
           },
           {
@@ -3231,6 +3887,10 @@
             "named": true
           },
           {
+            "type": "char",
+            "named": true
+          },
+          {
             "type": "identifier",
             "named": true
           },
@@ -3274,6 +3934,10 @@
         "types": [
           {
             "type": "boolean",
+            "named": true
+          },
+          {
+            "type": "char",
             "named": true
           },
           {
@@ -3329,6 +3993,10 @@
           "named": true
         },
         {
+          "type": "anonymous_structural_field",
+          "named": true
+        },
+        {
           "type": "binary_expression",
           "named": true
         },
@@ -3342,6 +4010,10 @@
         },
         {
           "type": "call_expression",
+          "named": true
+        },
+        {
+          "type": "char",
           "named": true
         },
         {
@@ -3405,6 +4077,10 @@
           "named": true
         },
         {
+          "type": "per_line_string",
+          "named": true
+        },
+        {
           "type": "record_expression",
           "named": true
         },
@@ -3417,11 +4093,27 @@
           "named": true
         },
         {
+          "type": "structural_field_access",
+          "named": true
+        },
+        {
           "type": "tag_expression",
           "named": true
         },
         {
-          "type": "type_identifier",
+          "type": "tag_expression_with_args",
+          "named": true
+        },
+        {
+          "type": "todo_expression",
+          "named": true
+        },
+        {
+          "type": "todo_expression_with_msg",
+          "named": true
+        },
+        {
+          "type": "ufcs_call_expression",
           "named": true
         },
         {
@@ -3464,6 +4156,10 @@
             "named": true
           },
           {
+            "type": "anonymous_structural_field",
+            "named": true
+          },
+          {
             "type": "binary_expression",
             "named": true
           },
@@ -3477,6 +4173,10 @@
           },
           {
             "type": "call_expression",
+            "named": true
+          },
+          {
+            "type": "char",
             "named": true
           },
           {
@@ -3540,6 +4240,10 @@
             "named": true
           },
           {
+            "type": "per_line_string",
+            "named": true
+          },
+          {
             "type": "record_expression",
             "named": true
           },
@@ -3552,11 +4256,27 @@
             "named": true
           },
           {
+            "type": "structural_field_access",
+            "named": true
+          },
+          {
             "type": "tag_expression",
             "named": true
           },
           {
-            "type": "type_identifier",
+            "type": "tag_expression_with_args",
+            "named": true
+          },
+          {
+            "type": "todo_expression",
+            "named": true
+          },
+          {
+            "type": "todo_expression_with_msg",
+            "named": true
+          },
+          {
+            "type": "ufcs_call_expression",
             "named": true
           },
           {
@@ -3590,6 +4310,10 @@
             "named": true
           },
           {
+            "type": "anonymous_structural_field",
+            "named": true
+          },
+          {
             "type": "binary_expression",
             "named": true
           },
@@ -3603,6 +4327,10 @@
           },
           {
             "type": "call_expression",
+            "named": true
+          },
+          {
+            "type": "char",
             "named": true
           },
           {
@@ -3666,6 +4394,10 @@
             "named": true
           },
           {
+            "type": "per_line_string",
+            "named": true
+          },
+          {
             "type": "record_expression",
             "named": true
           },
@@ -3678,11 +4410,27 @@
             "named": true
           },
           {
+            "type": "structural_field_access",
+            "named": true
+          },
+          {
             "type": "tag_expression",
             "named": true
           },
           {
-            "type": "type_identifier",
+            "type": "tag_expression_with_args",
+            "named": true
+          },
+          {
+            "type": "todo_expression",
+            "named": true
+          },
+          {
+            "type": "todo_expression_with_msg",
+            "named": true
+          },
+          {
+            "type": "ufcs_call_expression",
             "named": true
           },
           {
@@ -3760,6 +4508,10 @@
           "named": true
         },
         {
+          "type": "anonymous_structural_field",
+          "named": true
+        },
+        {
           "type": "binary_expression",
           "named": true
         },
@@ -3773,6 +4525,10 @@
         },
         {
           "type": "call_expression",
+          "named": true
+        },
+        {
+          "type": "char",
           "named": true
         },
         {
@@ -3836,6 +4592,10 @@
           "named": true
         },
         {
+          "type": "per_line_string",
+          "named": true
+        },
+        {
           "type": "record_expression",
           "named": true
         },
@@ -3848,11 +4608,27 @@
           "named": true
         },
         {
+          "type": "structural_field_access",
+          "named": true
+        },
+        {
           "type": "tag_expression",
           "named": true
         },
         {
-          "type": "type_identifier",
+          "type": "tag_expression_with_args",
+          "named": true
+        },
+        {
+          "type": "todo_expression",
+          "named": true
+        },
+        {
+          "type": "todo_expression_with_msg",
+          "named": true
+        },
+        {
+          "type": "ufcs_call_expression",
           "named": true
         },
         {
@@ -3872,6 +4648,10 @@
       "types": [
         {
           "type": "boolean",
+          "named": true
+        },
+        {
+          "type": "char",
           "named": true
         },
         {
@@ -3914,15 +4694,19 @@
     }
   },
   {
-    "type": "pipe_lambda",
+    "type": "per_line_string",
     "named": true,
     "fields": {
-      "body": {
-        "multiple": false,
-        "required": true,
+      "expression": {
+        "multiple": true,
+        "required": false,
         "types": [
           {
             "type": "anonymous_method_expression",
+            "named": true
+          },
+          {
+            "type": "anonymous_structural_field",
             "named": true
           },
           {
@@ -3939,6 +4723,10 @@
           },
           {
             "type": "call_expression",
+            "named": true
+          },
+          {
+            "type": "char",
             "named": true
           },
           {
@@ -4002,6 +4790,10 @@
             "named": true
           },
           {
+            "type": "per_line_string",
+            "named": true
+          },
+          {
             "type": "record_expression",
             "named": true
           },
@@ -4014,11 +4806,191 @@
             "named": true
           },
           {
+            "type": "structural_field_access",
+            "named": true
+          },
+          {
             "type": "tag_expression",
             "named": true
           },
           {
-            "type": "type_identifier",
+            "type": "tag_expression_with_args",
+            "named": true
+          },
+          {
+            "type": "todo_expression",
+            "named": true
+          },
+          {
+            "type": "todo_expression_with_msg",
+            "named": true
+          },
+          {
+            "type": "ufcs_call_expression",
+            "named": true
+          },
+          {
+            "type": "unary_expression",
+            "named": true
+          }
+        ]
+      },
+      "open": {
+        "multiple": false,
+        "required": true,
+        "types": [
+          {
+            "type": "\\",
+            "named": false
+          }
+        ]
+      }
+    },
+    "children": {
+      "multiple": true,
+      "required": false,
+      "types": [
+        {
+          "type": "string_content",
+          "named": true
+        }
+      ]
+    }
+  },
+  {
+    "type": "pipe_lambda",
+    "named": true,
+    "fields": {
+      "body": {
+        "multiple": false,
+        "required": true,
+        "types": [
+          {
+            "type": "anonymous_method_expression",
+            "named": true
+          },
+          {
+            "type": "anonymous_structural_field",
+            "named": true
+          },
+          {
+            "type": "binary_expression",
+            "named": true
+          },
+          {
+            "type": "block",
+            "named": true
+          },
+          {
+            "type": "boolean",
+            "named": true
+          },
+          {
+            "type": "call_expression",
+            "named": true
+          },
+          {
+            "type": "char",
+            "named": true
+          },
+          {
+            "type": "crash_expression",
+            "named": true
+          },
+          {
+            "type": "dollar_identifier",
+            "named": true
+          },
+          {
+            "type": "field_access_expression",
+            "named": true
+          },
+          {
+            "type": "float",
+            "named": true
+          },
+          {
+            "type": "handle_expression",
+            "named": true
+          },
+          {
+            "type": "identifier",
+            "named": true
+          },
+          {
+            "type": "if_expression",
+            "named": true
+          },
+          {
+            "type": "integer",
+            "named": true
+          },
+          {
+            "type": "interpolated_string",
+            "named": true
+          },
+          {
+            "type": "lambda_expression",
+            "named": true
+          },
+          {
+            "type": "list_expression",
+            "named": true
+          },
+          {
+            "type": "match_expression",
+            "named": true
+          },
+          {
+            "type": "method_call_expression",
+            "named": true
+          },
+          {
+            "type": "par_expression",
+            "named": true
+          },
+          {
+            "type": "parenthesized_expression",
+            "named": true
+          },
+          {
+            "type": "per_line_string",
+            "named": true
+          },
+          {
+            "type": "record_expression",
+            "named": true
+          },
+          {
+            "type": "return_expression",
+            "named": true
+          },
+          {
+            "type": "string",
+            "named": true
+          },
+          {
+            "type": "structural_field_access",
+            "named": true
+          },
+          {
+            "type": "tag_expression",
+            "named": true
+          },
+          {
+            "type": "tag_expression_with_args",
+            "named": true
+          },
+          {
+            "type": "todo_expression",
+            "named": true
+          },
+          {
+            "type": "todo_expression_with_msg",
+            "named": true
+          },
+          {
+            "type": "ufcs_call_expression",
             "named": true
           },
           {
@@ -4110,6 +5082,10 @@
             "named": true
           },
           {
+            "type": "anonymous_structural_field",
+            "named": true
+          },
+          {
             "type": "binary_expression",
             "named": true
           },
@@ -4123,6 +5099,10 @@
           },
           {
             "type": "call_expression",
+            "named": true
+          },
+          {
+            "type": "char",
             "named": true
           },
           {
@@ -4186,6 +5166,10 @@
             "named": true
           },
           {
+            "type": "per_line_string",
+            "named": true
+          },
+          {
             "type": "record_expression",
             "named": true
           },
@@ -4198,11 +5182,27 @@
             "named": true
           },
           {
+            "type": "structural_field_access",
+            "named": true
+          },
+          {
             "type": "tag_expression",
             "named": true
           },
           {
-            "type": "type_identifier",
+            "type": "tag_expression_with_args",
+            "named": true
+          },
+          {
+            "type": "todo_expression",
+            "named": true
+          },
+          {
+            "type": "todo_expression_with_msg",
+            "named": true
+          },
+          {
+            "type": "ufcs_call_expression",
             "named": true
           },
           {
@@ -4236,6 +5236,10 @@
             "named": true
           },
           {
+            "type": "anonymous_structural_field",
+            "named": true
+          },
+          {
             "type": "binary_expression",
             "named": true
           },
@@ -4249,6 +5253,10 @@
           },
           {
             "type": "call_expression",
+            "named": true
+          },
+          {
+            "type": "char",
             "named": true
           },
           {
@@ -4312,6 +5320,10 @@
             "named": true
           },
           {
+            "type": "per_line_string",
+            "named": true
+          },
+          {
             "type": "record_expression",
             "named": true
           },
@@ -4324,11 +5336,27 @@
             "named": true
           },
           {
+            "type": "structural_field_access",
+            "named": true
+          },
+          {
             "type": "tag_expression",
             "named": true
           },
           {
-            "type": "type_identifier",
+            "type": "tag_expression_with_args",
+            "named": true
+          },
+          {
+            "type": "todo_expression",
+            "named": true
+          },
+          {
+            "type": "todo_expression_with_msg",
+            "named": true
+          },
+          {
+            "type": "ufcs_call_expression",
             "named": true
           },
           {
@@ -4400,6 +5428,10 @@
         "types": [
           {
             "type": "boolean",
+            "named": true
+          },
+          {
+            "type": "char",
             "named": true
           },
           {
@@ -4546,6 +5578,10 @@
           "named": true
         },
         {
+          "type": "anonymous_structural_field",
+          "named": true
+        },
+        {
           "type": "binary_expression",
           "named": true
         },
@@ -4559,6 +5595,10 @@
         },
         {
           "type": "call_expression",
+          "named": true
+        },
+        {
+          "type": "char",
           "named": true
         },
         {
@@ -4622,6 +5662,10 @@
           "named": true
         },
         {
+          "type": "per_line_string",
+          "named": true
+        },
+        {
           "type": "record_expression",
           "named": true
         },
@@ -4634,11 +5678,27 @@
           "named": true
         },
         {
+          "type": "structural_field_access",
+          "named": true
+        },
+        {
           "type": "tag_expression",
           "named": true
         },
         {
-          "type": "type_identifier",
+          "type": "tag_expression_with_args",
+          "named": true
+        },
+        {
+          "type": "todo_expression",
+          "named": true
+        },
+        {
+          "type": "todo_expression_with_msg",
+          "named": true
+        },
+        {
+          "type": "ufcs_call_expression",
           "named": true
         },
         {
@@ -4678,6 +5738,10 @@
           "named": true
         },
         {
+          "type": "is_block_declaration",
+          "named": true
+        },
+        {
           "type": "newtype_declaration",
           "named": true
         },
@@ -4708,7 +5772,177 @@
     }
   },
   {
+    "type": "structural_field_access",
+    "named": true,
+    "fields": {
+      "field": {
+        "multiple": false,
+        "required": true,
+        "types": [
+          {
+            "type": "identifier",
+            "named": true
+          }
+        ]
+      },
+      "object": {
+        "multiple": false,
+        "required": true,
+        "types": [
+          {
+            "type": "anonymous_method_expression",
+            "named": true
+          },
+          {
+            "type": "anonymous_structural_field",
+            "named": true
+          },
+          {
+            "type": "binary_expression",
+            "named": true
+          },
+          {
+            "type": "block",
+            "named": true
+          },
+          {
+            "type": "boolean",
+            "named": true
+          },
+          {
+            "type": "call_expression",
+            "named": true
+          },
+          {
+            "type": "char",
+            "named": true
+          },
+          {
+            "type": "crash_expression",
+            "named": true
+          },
+          {
+            "type": "dollar_identifier",
+            "named": true
+          },
+          {
+            "type": "field_access_expression",
+            "named": true
+          },
+          {
+            "type": "float",
+            "named": true
+          },
+          {
+            "type": "handle_expression",
+            "named": true
+          },
+          {
+            "type": "identifier",
+            "named": true
+          },
+          {
+            "type": "if_expression",
+            "named": true
+          },
+          {
+            "type": "integer",
+            "named": true
+          },
+          {
+            "type": "interpolated_string",
+            "named": true
+          },
+          {
+            "type": "lambda_expression",
+            "named": true
+          },
+          {
+            "type": "list_expression",
+            "named": true
+          },
+          {
+            "type": "match_expression",
+            "named": true
+          },
+          {
+            "type": "method_call_expression",
+            "named": true
+          },
+          {
+            "type": "par_expression",
+            "named": true
+          },
+          {
+            "type": "parenthesized_expression",
+            "named": true
+          },
+          {
+            "type": "per_line_string",
+            "named": true
+          },
+          {
+            "type": "record_expression",
+            "named": true
+          },
+          {
+            "type": "return_expression",
+            "named": true
+          },
+          {
+            "type": "string",
+            "named": true
+          },
+          {
+            "type": "structural_field_access",
+            "named": true
+          },
+          {
+            "type": "tag_expression",
+            "named": true
+          },
+          {
+            "type": "tag_expression_with_args",
+            "named": true
+          },
+          {
+            "type": "todo_expression",
+            "named": true
+          },
+          {
+            "type": "todo_expression_with_msg",
+            "named": true
+          },
+          {
+            "type": "ufcs_call_expression",
+            "named": true
+          },
+          {
+            "type": "unary_expression",
+            "named": true
+          }
+        ]
+      }
+    }
+  },
+  {
     "type": "tag_expression",
+    "named": true,
+    "fields": {
+      "name": {
+        "multiple": false,
+        "required": true,
+        "types": [
+          {
+            "type": "type_identifier",
+            "named": true
+          }
+        ]
+      }
+    }
+  },
+  {
+    "type": "tag_expression_with_args",
     "named": true,
     "fields": {
       "arguments": {
@@ -4824,107 +6058,7 @@
         "required": true,
         "types": [
           {
-            "type": "anonymous_method_expression",
-            "named": true
-          },
-          {
-            "type": "binary_expression",
-            "named": true
-          },
-          {
             "type": "block",
-            "named": true
-          },
-          {
-            "type": "boolean",
-            "named": true
-          },
-          {
-            "type": "call_expression",
-            "named": true
-          },
-          {
-            "type": "crash_expression",
-            "named": true
-          },
-          {
-            "type": "dollar_identifier",
-            "named": true
-          },
-          {
-            "type": "field_access_expression",
-            "named": true
-          },
-          {
-            "type": "float",
-            "named": true
-          },
-          {
-            "type": "handle_expression",
-            "named": true
-          },
-          {
-            "type": "identifier",
-            "named": true
-          },
-          {
-            "type": "if_expression",
-            "named": true
-          },
-          {
-            "type": "integer",
-            "named": true
-          },
-          {
-            "type": "interpolated_string",
-            "named": true
-          },
-          {
-            "type": "lambda_expression",
-            "named": true
-          },
-          {
-            "type": "list_expression",
-            "named": true
-          },
-          {
-            "type": "match_expression",
-            "named": true
-          },
-          {
-            "type": "method_call_expression",
-            "named": true
-          },
-          {
-            "type": "par_expression",
-            "named": true
-          },
-          {
-            "type": "parenthesized_expression",
-            "named": true
-          },
-          {
-            "type": "record_expression",
-            "named": true
-          },
-          {
-            "type": "return_expression",
-            "named": true
-          },
-          {
-            "type": "string",
-            "named": true
-          },
-          {
-            "type": "tag_expression",
-            "named": true
-          },
-          {
-            "type": "type_identifier",
-            "named": true
-          },
-          {
-            "type": "unary_expression",
             "named": true
           }
         ]
@@ -4939,6 +6073,154 @@
           }
         ]
       }
+    }
+  },
+  {
+    "type": "todo_expression",
+    "named": true,
+    "fields": {}
+  },
+  {
+    "type": "todo_expression_with_msg",
+    "named": true,
+    "fields": {},
+    "children": {
+      "multiple": false,
+      "required": true,
+      "types": [
+        {
+          "type": "anonymous_method_expression",
+          "named": true
+        },
+        {
+          "type": "anonymous_structural_field",
+          "named": true
+        },
+        {
+          "type": "binary_expression",
+          "named": true
+        },
+        {
+          "type": "block",
+          "named": true
+        },
+        {
+          "type": "boolean",
+          "named": true
+        },
+        {
+          "type": "call_expression",
+          "named": true
+        },
+        {
+          "type": "char",
+          "named": true
+        },
+        {
+          "type": "crash_expression",
+          "named": true
+        },
+        {
+          "type": "dollar_identifier",
+          "named": true
+        },
+        {
+          "type": "field_access_expression",
+          "named": true
+        },
+        {
+          "type": "float",
+          "named": true
+        },
+        {
+          "type": "handle_expression",
+          "named": true
+        },
+        {
+          "type": "identifier",
+          "named": true
+        },
+        {
+          "type": "if_expression",
+          "named": true
+        },
+        {
+          "type": "integer",
+          "named": true
+        },
+        {
+          "type": "interpolated_string",
+          "named": true
+        },
+        {
+          "type": "lambda_expression",
+          "named": true
+        },
+        {
+          "type": "list_expression",
+          "named": true
+        },
+        {
+          "type": "match_expression",
+          "named": true
+        },
+        {
+          "type": "method_call_expression",
+          "named": true
+        },
+        {
+          "type": "par_expression",
+          "named": true
+        },
+        {
+          "type": "parenthesized_expression",
+          "named": true
+        },
+        {
+          "type": "per_line_string",
+          "named": true
+        },
+        {
+          "type": "record_expression",
+          "named": true
+        },
+        {
+          "type": "return_expression",
+          "named": true
+        },
+        {
+          "type": "string",
+          "named": true
+        },
+        {
+          "type": "structural_field_access",
+          "named": true
+        },
+        {
+          "type": "tag_expression",
+          "named": true
+        },
+        {
+          "type": "tag_expression_with_args",
+          "named": true
+        },
+        {
+          "type": "todo_expression",
+          "named": true
+        },
+        {
+          "type": "todo_expression_with_msg",
+          "named": true
+        },
+        {
+          "type": "ufcs_call_expression",
+          "named": true
+        },
+        {
+          "type": "unary_expression",
+          "named": true
+        }
+      ]
     }
   },
   {
@@ -5126,15 +6408,39 @@
     "fields": {}
   },
   {
-    "type": "unary_expression",
+    "type": "ufcs_call_expression",
     "named": true,
     "fields": {
-      "argument": {
+      "arguments": {
+        "multiple": false,
+        "required": true,
+        "types": [
+          {
+            "type": "arguments",
+            "named": true
+          }
+        ]
+      },
+      "method": {
+        "multiple": false,
+        "required": true,
+        "types": [
+          {
+            "type": "identifier",
+            "named": true
+          }
+        ]
+      },
+      "receiver": {
         "multiple": false,
         "required": true,
         "types": [
           {
             "type": "anonymous_method_expression",
+            "named": true
+          },
+          {
+            "type": "anonymous_structural_field",
             "named": true
           },
           {
@@ -5151,6 +6457,10 @@
           },
           {
             "type": "call_expression",
+            "named": true
+          },
+          {
+            "type": "char",
             "named": true
           },
           {
@@ -5214,6 +6524,10 @@
             "named": true
           },
           {
+            "type": "per_line_string",
+            "named": true
+          },
+          {
             "type": "record_expression",
             "named": true
           },
@@ -5226,11 +6540,171 @@
             "named": true
           },
           {
+            "type": "structural_field_access",
+            "named": true
+          },
+          {
             "type": "tag_expression",
             "named": true
           },
           {
-            "type": "type_identifier",
+            "type": "tag_expression_with_args",
+            "named": true
+          },
+          {
+            "type": "todo_expression",
+            "named": true
+          },
+          {
+            "type": "todo_expression_with_msg",
+            "named": true
+          },
+          {
+            "type": "ufcs_call_expression",
+            "named": true
+          },
+          {
+            "type": "unary_expression",
+            "named": true
+          }
+        ]
+      }
+    }
+  },
+  {
+    "type": "unary_expression",
+    "named": true,
+    "fields": {
+      "argument": {
+        "multiple": false,
+        "required": true,
+        "types": [
+          {
+            "type": "anonymous_method_expression",
+            "named": true
+          },
+          {
+            "type": "anonymous_structural_field",
+            "named": true
+          },
+          {
+            "type": "binary_expression",
+            "named": true
+          },
+          {
+            "type": "block",
+            "named": true
+          },
+          {
+            "type": "boolean",
+            "named": true
+          },
+          {
+            "type": "call_expression",
+            "named": true
+          },
+          {
+            "type": "char",
+            "named": true
+          },
+          {
+            "type": "crash_expression",
+            "named": true
+          },
+          {
+            "type": "dollar_identifier",
+            "named": true
+          },
+          {
+            "type": "field_access_expression",
+            "named": true
+          },
+          {
+            "type": "float",
+            "named": true
+          },
+          {
+            "type": "handle_expression",
+            "named": true
+          },
+          {
+            "type": "identifier",
+            "named": true
+          },
+          {
+            "type": "if_expression",
+            "named": true
+          },
+          {
+            "type": "integer",
+            "named": true
+          },
+          {
+            "type": "interpolated_string",
+            "named": true
+          },
+          {
+            "type": "lambda_expression",
+            "named": true
+          },
+          {
+            "type": "list_expression",
+            "named": true
+          },
+          {
+            "type": "match_expression",
+            "named": true
+          },
+          {
+            "type": "method_call_expression",
+            "named": true
+          },
+          {
+            "type": "par_expression",
+            "named": true
+          },
+          {
+            "type": "parenthesized_expression",
+            "named": true
+          },
+          {
+            "type": "per_line_string",
+            "named": true
+          },
+          {
+            "type": "record_expression",
+            "named": true
+          },
+          {
+            "type": "return_expression",
+            "named": true
+          },
+          {
+            "type": "string",
+            "named": true
+          },
+          {
+            "type": "structural_field_access",
+            "named": true
+          },
+          {
+            "type": "tag_expression",
+            "named": true
+          },
+          {
+            "type": "tag_expression_with_args",
+            "named": true
+          },
+          {
+            "type": "todo_expression",
+            "named": true
+          },
+          {
+            "type": "todo_expression_with_msg",
+            "named": true
+          },
+          {
+            "type": "ufcs_call_expression",
             "named": true
           },
           {
@@ -5316,10 +6790,6 @@
   },
   {
     "type": "\"",
-    "named": false
-  },
-  {
-    "type": "\"\"\"",
     "named": false
   },
   {
@@ -5419,6 +6889,10 @@
     "named": false
   },
   {
+    "type": "\\",
+    "named": false
+  },
+  {
     "type": "]",
     "named": false
   },
@@ -5441,6 +6915,10 @@
   {
     "type": "as",
     "named": false
+  },
+  {
+    "type": "char",
+    "named": true
   },
   {
     "type": "comment",
@@ -5469,10 +6947,6 @@
   },
   {
     "type": "expect",
-    "named": false
-  },
-  {
-    "type": "exposing",
     "named": false
   },
   {
@@ -5512,10 +6986,6 @@
     "named": true
   },
   {
-    "type": "intercept",
-    "named": false
-  },
-  {
     "type": "is",
     "named": false
   },
@@ -5540,10 +7010,6 @@
     "named": false
   },
   {
-    "type": "r\"",
-    "named": false
-  },
-  {
     "type": "return",
     "named": false
   },
@@ -5553,6 +7019,10 @@
   },
   {
     "type": "test",
+    "named": false
+  },
+  {
+    "type": "todo",
     "named": false
   },
   {
@@ -5569,10 +7039,6 @@
   },
   {
     "type": "type_variable",
-    "named": false
-  },
-  {
-    "type": "unsafe",
     "named": false
   },
   {

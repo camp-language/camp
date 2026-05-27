@@ -5,6 +5,7 @@ x = match y {
   _ => 0
 }
 ---
+
 (source_file
   (const_declaration
     (identifier)
@@ -22,6 +23,7 @@ x = match y {
   1 | 2 => 0
 }
 ---
+
 (source_file
   (const_declaration
     (identifier)
@@ -41,6 +43,7 @@ x = match y {
   Ok(v) => v
 }
 ---
+
 (source_file
   (const_declaration
     (identifier)
@@ -61,6 +64,7 @@ x = match y {
   None => 0
 }
 ---
+
 (source_file
   (const_declaration
     (identifier)
@@ -68,8 +72,7 @@ x = match y {
       (identifier)
       (match_arms
         (match_arm
-          (tag_pattern
-            (type_identifier))
+          (type_identifier)
           (integer))))))
 
 ========
@@ -79,6 +82,7 @@ x = match y {
   { x: 1 } => 0
 }
 ---
+
 (source_file
   (const_declaration
     (identifier)
@@ -100,6 +104,7 @@ x = match y {
   [1, 2] => 0
 }
 ---
+
 (source_file
   (const_declaration
     (identifier)
