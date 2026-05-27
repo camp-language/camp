@@ -49,6 +49,8 @@ Token_Kind :: enum {
 	Gt,
 	Lt_Eq,
 	Gt_Eq,
+	Lt_Lt,
+	Gt_Gt,
 	Eq_Eq,
 	Bang_Eq,
 	Plus,

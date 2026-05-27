@@ -198,6 +198,7 @@ canonicalize_decl :: proc(
 			is_pub      = d.is_pub,
 			target      = ctarget,
 			doc_comment = d.doc_comment,
+			type_params = d.type_params,
 			span        = d.span,
 		}
 		return cdecl
@@ -1175,6 +1176,7 @@ canonicalize_pattern :: proc(
 		c^ = CPattern_Record {
 			fields  = fields,
 			is_open = p.is_open,
+			rest    = p.rest,
 			span    = p.span,
 		}
 		return c
@@ -1268,6 +1270,16 @@ canonicalize_pattern :: proc(
 		}
 		return c
 
+	case ^frontend.Pattern_As:
+		c_name := p.name
+		c_inner := canonicalize_pattern(p.inner, scope, interner, collector)
+		c := new(CPattern_As)
+		c^ = CPattern_As {
+			name  = c_name,
+			inner = c_inner,
+			span  = p.span,
+		}
+		return c
 	case ^frontend.Pattern_Or:
 		alternatives := make([dynamic]CPattern, 0, len(p.alternatives))
 		for alt in p.alternatives {
@@ -1502,7 +1514,14 @@ generate_derive_stubs :: proc(
 					make_derive_method_decl(d, "eq", 2, false, scope, interner, collector),
 				)
 			}
-		case: // unknown derive target — skip
+		case:
+			diagnostics.collector_add_diag(
+				collector,
+				diagnostics.diag_internal(
+					fmt.tprintf("unrecognized derive: `{}`", derive_name_str),
+					d.span,
+				),
+			)
 		}
 	}
 

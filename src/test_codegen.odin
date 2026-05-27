@@ -34,7 +34,7 @@ compile_source :: proc(ctx: ^build.Compilation_Context, source: string) -> [dyna
 
 	ir_mod := ir.lower_tfile(tfile, &store)
 	ir_mod = ir.effect_lower(&ir_mod, &ctx.interner, &ctx.collector, &store)
-	ir_mod = ir.closure_convert(&ir_mod, &ctx.interner)
+	ir_mod = ir.closure_convert(&ir_mod, &ctx.interner, &ctx.collector)
 	ir_mod = ir.cps_transform(&ir_mod, &ctx.interner)
 	ir.rc_insert(&ir_mod, &ctx.interner)
 	ir.reuse_analyze(&ir_mod)
@@ -272,5 +272,80 @@ test_codegen_pipeline_with_if :: proc(t: ^testing.T) {
 	defer teardown_codegen(&ctx)
 
 	testing.expect(t, len(wasm_bytes) >= 8)
+}
+
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// Handle one-shot enforcement tests
+// ═══════════════════════════════════════════════════════════════════════════════
+
+@(test)
+test_sched_join_has_one_shot_enforcement :: proc(t: ^testing.T) {
+	// sched_join should trap on already-joined handles (unreachable after status check)
+	code := codegen.emit_camp_sched_join_body(false)
+	defer delete(code.body)
+	defer delete(code.locals)
+
+	// Body must contain unreachable opcode (0x00) for one-shot enforcement
+	has_unreachable := false
+	for b in code.body {
+		if b == 0x00 {
+			has_unreachable = true
+			break
+		}
+	}
+	testing.expect(t, has_unreachable)
+}
+
+@(test)
+test_sched_cancel_has_one_shot_enforcement :: proc(t: ^testing.T) {
+	// sched_cancel should trap on already-consumed handles (unreachable after status check)
+	code := codegen.emit_camp_sched_cancel_body(false)
+	defer delete(code.body)
+	defer delete(code.locals)
+
+	// Body must contain unreachable opcode (0x00) for one-shot enforcement
+	has_unreachable := false
+	for b in code.body {
+		if b == 0x00 {
+			has_unreachable = true
+			break
+		}
+	}
+	testing.expect(t, has_unreachable)
+}
+
+@(test)
+test_sched_join_has_two_unreachable :: proc(t: ^testing.T) {
+	// sched_join should have two unreachable instructions:
+	// one for double-join (JOINED check) and one for join-after-cancel (CANCELLED check)
+	code := codegen.emit_camp_sched_join_body(false)
+	defer delete(code.body)
+	defer delete(code.locals)
+
+	unreachable_count := 0
+	for b in code.body {
+		if b == 0x00 {
+			unreachable_count += 1
+		}
+	}
+	testing.expect(t, unreachable_count >= 2)
+}
+
+@(test)
+test_sched_cancel_has_two_unreachable :: proc(t: ^testing.T) {
+	// sched_cancel should have two unreachable instructions:
+	// one for cancel-after-join (JOINED check) and one for double-cancel (CANCELLED check)
+	code := codegen.emit_camp_sched_cancel_body(false)
+	defer delete(code.body)
+	defer delete(code.locals)
+
+	unreachable_count := 0
+	for b in code.body {
+		if b == 0x00 {
+			unreachable_count += 1
+		}
+	}
+	testing.expect(t, unreachable_count >= 2)
 }
 

@@ -237,6 +237,14 @@ Wasm_F64_Load :: struct {
 }
 Wasm_F64_Lt :: struct {}
 Wasm_F64_Gt :: struct {}
+Wasm_F64_Add :: struct {}
+Wasm_F64_Sub :: struct {}
+Wasm_F64_Mul :: struct {}
+Wasm_F64_Div :: struct {}
+Wasm_F64_Eq :: struct {}
+Wasm_F64_Ne :: struct {}
+Wasm_F64_Le :: struct {}
+Wasm_F64_Ge :: struct {}
 Wasm_Memory_Size :: struct {}
 Wasm_Memory_Grow :: struct {}
 Wasm_Block :: struct {
@@ -417,6 +425,14 @@ Wasm_Instruction :: union {
 	Wasm_F64_Load,
 	Wasm_F64_Lt,
 	Wasm_F64_Gt,
+	Wasm_F64_Add,
+	Wasm_F64_Sub,
+	Wasm_F64_Mul,
+	Wasm_F64_Div,
+	Wasm_F64_Eq,
+	Wasm_F64_Ne,
+	Wasm_F64_Le,
+	Wasm_F64_Ge,
 	Wasm_Memory_Size,
 	Wasm_Memory_Grow,
 	Wasm_Memory_Copy,
@@ -631,6 +647,22 @@ emit_instruction :: proc(instr: Wasm_Instruction, buf: ^[dynamic]u8) {
 		append(buf, 0x63)
 	case Wasm_F64_Gt:
 		append(buf, 0x64)
+	case Wasm_F64_Add:
+		append(buf, 0xA0)
+	case Wasm_F64_Sub:
+		append(buf, 0xA1)
+	case Wasm_F64_Mul:
+		append(buf, 0xA2)
+	case Wasm_F64_Div:
+		append(buf, 0xA3)
+	case Wasm_F64_Eq:
+		append(buf, 0x61)
+	case Wasm_F64_Ne:
+		append(buf, 0x62)
+	case Wasm_F64_Le:
+		append(buf, 0x65)
+	case Wasm_F64_Ge:
+		append(buf, 0x66)
 	case Wasm_Memory_Size:
 		append(buf, 0x3F)
 		append(buf, 0x00)
@@ -971,6 +1003,39 @@ wasm_serialize :: proc(mod: Wasm_Module) -> [dynamic]u8 {
 	}
 
 	return buf
+}
+
+wasm_module_destroy :: proc(mod: ^Wasm_Module) {
+	for ft in mod.types {
+		delete(ft.params)
+		delete(ft.results)
+	}
+	delete(mod.types)
+	delete(mod.imports)
+	delete(mod.functions)
+	delete(mod.tables)
+	delete(mod.memories)
+	for g in mod.globals {
+		delete(g.init)
+	}
+	delete(mod.globals)
+	// exports have name: string — do NOT delete strings
+	delete(mod.exports)
+	for elem in mod.elements {
+		delete(elem.offset)
+		delete(elem.func_idxs)
+	}
+	delete(mod.elements)
+	for c in mod.codes {
+		delete(c.body)
+		delete(c.locals)
+	}
+	delete(mod.codes)
+	for d in mod.datas {
+		delete(d.offset)
+		delete(d.bytes)
+	}
+	delete(mod.datas)
 }
 
 ir_wasm_type_to_value_type :: proc(t: base.IR_Wasm_Type) -> Wasm_Value_Type {

@@ -26,7 +26,7 @@ doc_empty :: proc() -> Doc {
 }
 
 doc_text :: proc(text: string) -> Doc {
-	return Doc{kind = .Text, text = text}
+	return Doc{kind = .Text, text = strings.clone(text)}
 }
 
 doc_line :: proc() -> Doc {
@@ -68,6 +68,9 @@ doc_space :: proc() -> Doc {
 }
 
 doc_destroy :: proc(d: Doc) {
+	if d.kind == .Text {
+		delete(d.text)
+	}
 	if len(d.children) > 0 {
 		for child in d.children {
 			doc_destroy(child)

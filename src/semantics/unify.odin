@@ -202,7 +202,8 @@ unify_inferred :: proc(
 		}
 
 	case Inferred_Constructor:
-		_, ok := b.(Inferred_Constructor)
+		a_cons := a.(Inferred_Constructor)
+		b_cons, ok := b.(Inferred_Constructor)
 		if !ok {
 			type_a_str := format_inferred_type(store, a)
 			type_b_str := format_inferred_type(store, b)
@@ -211,6 +212,31 @@ unify_inferred :: proc(
 			diagnostics.collector_add_diag(
 				store.collector,
 				diagnostics.diag_type_mismatch(type_a_str, type_b_str, va_var.span, vb_var.span),
+			)
+			return false
+		}
+		if a_cons.primitive_name != b_cons.primitive_name {
+			type_a_str := format_inferred_type(store, a)
+			type_b_str := format_inferred_type(store, b)
+			va_var := store.vars[int(resolve_var(store, a_id))]
+			vb_var := store.vars[int(resolve_var(store, b_id))]
+			diagnostics.collector_add_diag(
+				store.collector,
+				diagnostics.diag_type_mismatch(type_a_str, type_b_str, va_var.span, vb_var.span),
+			)
+			return false
+		}
+		if a_cons.arity != b_cons.arity {
+			va_var := store.vars[int(resolve_var(store, a_id))]
+			vb_var := store.vars[int(resolve_var(store, b_id))]
+			diagnostics.collector_add_diag(
+				store.collector,
+				diagnostics.diag_arity_mismatch(
+					a_cons.arity,
+					b_cons.arity,
+					va_var.span,
+					vb_var.span,
+				),
 			)
 			return false
 		}
@@ -837,6 +863,13 @@ occurs_check_inferred_impl :: proc(
 	case Inferred_Effect_Row:
 		if occurs_check_impl(store, target, v.rest_id, visited) {
 			return true
+		}
+		for entry in v.effects {
+			for type_arg in entry.type_args {
+				if occurs_check_impl(store, target, type_arg, visited) {
+					return true
+				}
+			}
 		}
 	case Inferred_Record_Row:
 		for f in v.record_fields {

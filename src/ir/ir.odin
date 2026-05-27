@@ -422,6 +422,8 @@ IR_BinOp_Kind :: enum {
 	Ge,
 	And,
 	Or,
+	Shl,
+	Shr,
 }
 
 IR_BinOp :: struct {
@@ -457,16 +459,338 @@ IR_I32_Store :: struct {
 	value:  IR_Expr,
 	span:   ba.Source_Span,
 }
-ir_module_destroy :: proc(mod: ^IR_Module) {
+ir_expr_destroy :: proc(e: IR_Expr, freed: ^map[rawptr]bool) {
+	if e == nil do return
+	#partial switch v in e {
+	case ^IR_Literal_Int:
+		ptr := rawptr(v)
+		if ptr in freed do return
+		freed[ptr] = true
+		free(v)
+	case ^IR_Literal_Float:
+		ptr := rawptr(v)
+		if ptr in freed do return
+		freed[ptr] = true
+		free(v)
+	case ^IR_Literal_String:
+		ptr := rawptr(v)
+		if ptr in freed do return
+		freed[ptr] = true
+		free(v)
+	case ^IR_Literal_Bool:
+		ptr := rawptr(v)
+		if ptr in freed do return
+		freed[ptr] = true
+		free(v)
+	case ^IR_Var:
+		ptr := rawptr(v)
+		if ptr in freed do return
+		freed[ptr] = true
+		free(v)
+	case ^IR_Let:
+		ptr := rawptr(v)
+		if ptr in freed do return
+		freed[ptr] = true
+		ir_expr_destroy(v.value, freed)
+		ir_expr_destroy(v.body, freed)
+		free(v)
+	case ^IR_Call:
+		ptr := rawptr(v)
+		if ptr in freed do return
+		freed[ptr] = true
+		for arg in v.args do ir_expr_destroy(arg, freed)
+		delete(v.args)
+		free(v)
+	case ^IR_Tail_Call:
+		ptr := rawptr(v)
+		if ptr in freed do return
+		freed[ptr] = true
+		for arg in v.args do ir_expr_destroy(arg, freed)
+		delete(v.args)
+		free(v)
+	case ^IR_If:
+		ptr := rawptr(v)
+		if ptr in freed do return
+		freed[ptr] = true
+		ir_expr_destroy(v.condition, freed)
+		ir_expr_destroy(v.then_branch, freed)
+		ir_expr_destroy(v.else_branch, freed)
+		free(v)
+	case ^IR_Match:
+		ptr := rawptr(v)
+		if ptr in freed do return
+		freed[ptr] = true
+		ir_expr_destroy(v.scrutinee, freed)
+		for arm in v.arms {
+			ir_pattern_destroy(arm.pattern, freed)
+			ir_expr_destroy(arm.guard, freed)
+			ir_expr_destroy(arm.body, freed)
+		}
+		delete(v.arms)
+		free(v)
+	case ^IR_Construct_Tag:
+		ptr := rawptr(v)
+		if ptr in freed do return
+		freed[ptr] = true
+		for arg in v.payload do ir_expr_destroy(arg, freed)
+		delete(v.payload)
+		free(v)
+	case ^IR_Expr_Nominal_Construct:
+		ptr := rawptr(v)
+		if ptr in freed do return
+		freed[ptr] = true
+		for arg in v.payload do ir_expr_destroy(arg, freed)
+		delete(v.payload)
+		free(v)
+	case ^IR_Construct_Record:
+		ptr := rawptr(v)
+		if ptr in freed do return
+		freed[ptr] = true
+		for f in v.fields do ir_expr_destroy(f.value, freed)
+		delete(v.fields)
+		ir_expr_destroy(v.rest, freed)
+		free(v)
+	case ^IR_Construct_Tuple:
+		ptr := rawptr(v)
+		if ptr in freed do return
+		freed[ptr] = true
+		for el in v.elements do ir_expr_destroy(el, freed)
+		delete(v.elements)
+		free(v)
+	case ^IR_Field_Access:
+		ptr := rawptr(v)
+		if ptr in freed do return
+		freed[ptr] = true
+		ir_expr_destroy(v.record, freed)
+		free(v)
+	case ^IR_Method_Call:
+		ptr := rawptr(v)
+		if ptr in freed do return
+		freed[ptr] = true
+		ir_expr_destroy(v.receiver, freed)
+		for arg in v.args do ir_expr_destroy(arg, freed)
+		delete(v.args)
+		free(v)
+	case ^IR_Handle:
+		ptr := rawptr(v)
+		if ptr in freed do return
+		freed[ptr] = true
+		ir_expr_destroy(v.body, freed)
+		delete(v.effects)
+		for arm in v.arms {
+			delete(arm.params)
+			ir_expr_destroy(arm.body, freed)
+		}
+		delete(v.arms)
+		free(v)
+	case ^IR_Perform:
+		ptr := rawptr(v)
+		if ptr in freed do return
+		freed[ptr] = true
+		for arg in v.args do ir_expr_destroy(arg, freed)
+		delete(v.args)
+		free(v)
+	case ^IR_Resume:
+		ptr := rawptr(v)
+		if ptr in freed do return
+		freed[ptr] = true
+		ir_expr_destroy(v.value, freed)
+		ir_expr_destroy(v.ev, freed)
+		free(v)
+	case ^IR_Closure:
+		ptr := rawptr(v)
+		if ptr in freed do return
+		freed[ptr] = true
+		ir_expr_destroy(v.env, freed)
+		ir_expr_destroy(v.body, freed)
+		delete(v.params)
+		free(v)
+	case ^IR_Closure_Call:
+		ptr := rawptr(v)
+		if ptr in freed do return
+		freed[ptr] = true
+		ir_expr_destroy(v.callee, freed)
+		for arg in v.args do ir_expr_destroy(arg, freed)
+		delete(v.args)
+		free(v)
+	case ^IR_Return:
+		ptr := rawptr(v)
+		if ptr in freed do return
+		freed[ptr] = true
+		ir_expr_destroy(v.value, freed)
+		free(v)
+	case ^IR_Block:
+		ptr := rawptr(v)
+		if ptr in freed do return
+		freed[ptr] = true
+		for stmt in v.statements do ir_expr_destroy(stmt, freed)
+		delete(v.statements)
+		free(v)
+	case ^IR_BinOp:
+		ptr := rawptr(v)
+		if ptr in freed do return
+		freed[ptr] = true
+		ir_expr_destroy(v.left, freed)
+		ir_expr_destroy(v.right, freed)
+		free(v)
+	case ^IR_Dup:
+		ptr := rawptr(v)
+		if ptr in freed do return
+		freed[ptr] = true
+		free(v)
+	case ^IR_Drop:
+		ptr := rawptr(v)
+		if ptr in freed do return
+		freed[ptr] = true
+		free(v)
+	case ^IR_Crash:
+		ptr := rawptr(v)
+		if ptr in freed do return
+		freed[ptr] = true
+		ir_expr_destroy(v.message, freed)
+		free(v)
+	case ^IR_I32_Load:
+		ptr := rawptr(v)
+		if ptr in freed do return
+		freed[ptr] = true
+		ir_expr_destroy(v.base, freed)
+		free(v)
+	case ^IR_I32_Store:
+		ptr := rawptr(v)
+		if ptr in freed do return
+		freed[ptr] = true
+		ir_expr_destroy(v.base, freed)
+		ir_expr_destroy(v.value, freed)
+		free(v)
+	case ^IR_Atomic_Load:
+		ptr := rawptr(v)
+		if ptr in freed do return
+		freed[ptr] = true
+		ir_expr_destroy(v.base, freed)
+		free(v)
+	case ^IR_Atomic_Store:
+		ptr := rawptr(v)
+		if ptr in freed do return
+		freed[ptr] = true
+		ir_expr_destroy(v.base, freed)
+		ir_expr_destroy(v.value, freed)
+		free(v)
+	case ^IR_Atomic_RMW:
+		ptr := rawptr(v)
+		if ptr in freed do return
+		freed[ptr] = true
+		ir_expr_destroy(v.base, freed)
+		ir_expr_destroy(v.value, freed)
+		free(v)
+	case ^IR_Atomic_Fence:
+		ptr := rawptr(v)
+		if ptr in freed do return
+		freed[ptr] = true
+		free(v)
+	case ^IR_Wait:
+		ptr := rawptr(v)
+		if ptr in freed do return
+		freed[ptr] = true
+		ir_expr_destroy(v.base, freed)
+		ir_expr_destroy(v.expected, freed)
+		ir_expr_destroy(v.timeout, freed)
+		free(v)
+	case ^IR_Notify:
+		ptr := rawptr(v)
+		if ptr in freed do return
+		freed[ptr] = true
+		ir_expr_destroy(v.base, freed)
+		ir_expr_destroy(v.count, freed)
+		free(v)
+	case ^IR_Assign:
+		ptr := rawptr(v)
+		if ptr in freed do return
+		freed[ptr] = true
+		ir_expr_destroy(v.value, freed)
+		free(v)
+	case ^IR_Loop:
+		ptr := rawptr(v)
+		if ptr in freed do return
+		freed[ptr] = true
+		ir_expr_destroy(v.iterable, freed)
+		ir_expr_destroy(v.body, freed)
+		free(v)
+	}
+}
+
+ir_pattern_destroy :: proc(p: IR_Pattern, freed: ^map[rawptr]bool) {
+	if p == nil do return
+	#partial switch v in p {
+	case ^IR_Pat_Tag:
+		ptr := rawptr(v)
+		if ptr in freed do return
+		freed[ptr] = true
+		delete(v.payload)
+		free(v)
+	case ^IR_Pat_Record:
+		ptr := rawptr(v)
+		if ptr in freed do return
+		freed[ptr] = true
+		delete(v.fields)
+		free(v)
+	case ^IR_Pat_Var:
+		ptr := rawptr(v)
+		if ptr in freed do return
+		freed[ptr] = true
+		free(v)
+	case ^IR_Pat_Wildcard:
+		ptr := rawptr(v)
+		if ptr in freed do return
+		freed[ptr] = true
+		free(v)
+	case ^IR_Pat_Bool:
+		ptr := rawptr(v)
+		if ptr in freed do return
+		freed[ptr] = true
+		free(v)
+	case ^IR_Pat_Int:
+		ptr := rawptr(v)
+		if ptr in freed do return
+		freed[ptr] = true
+		free(v)
+	case ^IR_Pat_String:
+		ptr := rawptr(v)
+		if ptr in freed do return
+		freed[ptr] = true
+		free(v)
+	case ^IR_Pat_Tuple:
+		ptr := rawptr(v)
+		if ptr in freed do return
+		freed[ptr] = true
+		delete(v.elements)
+		free(v)
+	}
+}
+
+ir_module_destroy :: proc(mod: ^IR_Module, freed: ^map[rawptr]bool) {
 	for decl in mod.decls {
 		#partial switch d in decl {
 		case ^IR_Decl_Fn:
+			ptr := rawptr(d)
+			if ptr in freed do continue
+			freed[ptr] = true
+			ir_expr_destroy(d.body, freed)
 			delete(d.params)
 			delete(d.effects)
+			free(d)
 		case ^IR_Decl_Effect:
+			ptr := rawptr(d)
+			if ptr in freed do continue
+			freed[ptr] = true
 			for op in d.operations do delete(op.params)
 			delete(d.operations)
+			free(d)
 		case ^IR_Decl_Const:
+			ptr := rawptr(d)
+			if ptr in freed do continue
+			freed[ptr] = true
+			ir_expr_destroy(d.value, freed)
+			free(d)
 		}
 	}
 	delete(mod.decls)

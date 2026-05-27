@@ -223,12 +223,19 @@ typecheck_binop :: proc(e: ^CExpr_BinOp, env: ^Type_Env, store: ^Type_Store) -> 
 		bool_var := make_primitive_type(store, bool_name, e.span)
 		result_var = bool_var
 
-	case .Plus, .Minus, .Star, .Slash, .Percent, .Caret:
+	case .Plus, .Minus, .Star, .Slash, .Percent, .Caret, .Lt_Lt, .Gt_Gt:
 		unify(store, left_result.var_id, right_result.var_id)
 		result_var = left_result.var_id
 
 	case:
-		// all other operators: pass through operand type
+		op_str := fmt.tprintf("{}", e.op)
+		diagnostics.collector_add_diag(
+			store.collector,
+			diagnostics.diag_internal(
+				fmt.tprintf("unhandled binary operator in typechecker: {}", op_str),
+				e.span,
+			),
+		)
 		result_var = left_result.var_id
 	}
 
@@ -264,7 +271,14 @@ typecheck_prefixop :: proc(
 		result_var = operand_result.var_id
 		result_eff = operand_result.effects
 	case:
-		// all other prefix operators: pass through operand type
+		op_str := fmt.tprintf("{}", e.op)
+		diagnostics.collector_add_diag(
+			store.collector,
+			diagnostics.diag_internal(
+				fmt.tprintf("unhandled prefix operator in typechecker: {}", op_str),
+				e.span,
+			),
+		)
 		result_var = operand_result.var_id
 		result_eff = operand_result.effects
 	}
@@ -384,6 +398,22 @@ typecheck_nominal_construct :: proc(
 		payload_t[i] = p_result.texpr
 	}
 	resolved_type := fresh_value_var(store, e.span)
+	resolved_var, found := env_lookup(env, e.type_name.name)
+	if !found {
+		if var, ok := store.bindings[e.type_name.name]; ok {
+			resolved_var = var
+			found = true
+		}
+	}
+	if found {
+		unify(store, resolved_type, resolved_var)
+	} else {
+		type_str := base.intern_get(store.interner, e.type_name.name)
+		diagnostics.collector_add_diag(
+			store.collector,
+			diagnostics.diag_undefined_type(type_str, []string{"newtype"}, e.span),
+		)
+	}
 	t := new(TExpr_Nominal_Construct)
 	t^ = TExpr_Nominal_Construct {
 		type_name     = e.type_name,

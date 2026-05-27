@@ -307,11 +307,19 @@ lexer_next :: proc(l: ^Lexer) -> base.Token {
 			l.pos += 1
 			return lexer_make_token(l, .Lt_Eq, start, l.source[start:l.pos])
 		}
+		if l.pos < len(l.source) && l.source[l.pos] == '<' {
+			l.pos += 1
+			return lexer_make_token(l, .Lt_Lt, start, l.source[start:l.pos])
+		}
 		return lexer_make_token(l, .Lt, start, l.source[start:l.pos])
 	}
 
 	if ch == '>' {
 		l.pos += 1
+		if l.pos < len(l.source) && l.source[l.pos] == '>' {
+			l.pos += 1
+			return lexer_make_token(l, .Gt_Gt, start, l.source[start:l.pos])
+		}
 		if l.pos < len(l.source) && l.source[l.pos] == '=' {
 			l.pos += 1
 			return lexer_make_token(l, .Gt_Eq, start, l.source[start:l.pos])

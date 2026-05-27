@@ -3,7 +3,6 @@ package format
 import "camp:base"
 import "camp:frontend"
 import "core:strconv"
-import "core:strings"
 
 f64_format :: 'g'
 float_bit_size :: 64
@@ -38,6 +37,10 @@ operator_string :: proc(kind: base.Token_Kind) -> string {
 		return "<="
 	case .Gt_Eq:
 		return ">="
+	case .Lt_Lt:
+		return "<<"
+	case .Gt_Gt:
+		return ">>"
 	case .Pipe:
 		return "|"
 	case .Dot_Dot:
@@ -54,16 +57,12 @@ operator_string :: proc(kind: base.Token_Kind) -> string {
 	return "?"
 }
 
-int_to_string :: proc(value: i64) -> string {
-	buf: [64]u8
-	s := strconv.write_int(buf[:], value, 10)
-	return strings.clone(s)
+int_to_string :: proc(value: i64, buf: []u8) -> string {
+	return strconv.write_int(buf, value, 10)
 }
 
-float_to_string :: proc(value: f64) -> string {
-	buf: [128]u8
-	s := strconv.write_float(buf[:], value, f64_format, -1, float_bit_size)
-	return strings.clone(s)
+float_to_string :: proc(value: f64, buf: []u8) -> string {
+	return strconv.write_float(buf, value, f64_format, -1, float_bit_size)
 }
 
 format_expr :: proc(
@@ -73,9 +72,11 @@ format_expr :: proc(
 ) -> Doc {
 	#partial switch v in e {
 	case ^frontend.Expr_Int:
-		return doc_text(int_to_string(v.value))
+		buf: [64]u8
+		return doc_text(int_to_string(v.value, buf[:]))
 	case ^frontend.Expr_Float:
-		return doc_text(float_to_string(v.value))
+		buf: [128]u8
+		return doc_text(float_to_string(v.value, buf[:]))
 	case ^frontend.Expr_String:
 		return doc_text(v.value)
 	case ^frontend.Expr_Char:
@@ -549,7 +550,8 @@ format_pattern :: proc(
 	case ^frontend.Pattern_List:
 		return format_pattern_list(v, info, interner)
 	case ^frontend.Pattern_Int:
-		return doc_text(int_to_string(v.value))
+		buf: [64]u8
+		return doc_text(int_to_string(v.value, buf[:]))
 	case ^frontend.Pattern_String:
 		return doc_text(v.value)
 	case ^frontend.Pattern_Char:

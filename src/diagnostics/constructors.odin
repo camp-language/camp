@@ -942,6 +942,21 @@ diag_noop_assignment :: proc(name: string, span: base.Source_Span) -> Diagnostic
 	return d
 }
 
+diag_mutable_capture :: proc(name: string, span: base.Source_Span) -> Diagnostic {
+	d := diag_init(
+		.Error,
+		"C1002",
+		"MUTABLE CAPTURE",
+		span,
+		fmt.tprintf(
+			"Mutable variable `{}` cannot be captured by a closure — it is stack-local and cannot escape.",
+			name,
+		),
+	)
+	append(&d.hints, "Pass the value as a parameter instead, or use an immutable binding.")
+	return d
+}
+
 diag_unused_assignment :: proc(
 	name: string,
 	assign_no: int,

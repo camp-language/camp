@@ -174,13 +174,33 @@ The `Spawn!` effect SHALL provide `spawn!`, `join!`, and `cancel!` operations fo
 
 ### Requirement: Handle Is One-Shot and Opaque
 
-A `Handle(a)` SHALL be consumed by exactly one `join!` or `cancel!`. Double-join SHALL be a runtime error. The handle SHALL be opaque — users cannot inspect its internals.
+A `Handle(a)` SHALL be consumed by exactly one `join!` or `cancel!`. After consumption, the handle enters a terminal state (`JOINED` or `CANCELLED`) and any subsequent `join!` or `cancel!` SHALL trap (WASM `unreachable`). The handle SHALL be opaque — users cannot inspect its internals.
+
+At the type level, `Handle(a)` is already a distinct type (`Inferred_Handle`) that does not unify with primitives or other constructors. At the runtime level, the handle table tracks state transitions: `PENDING → COMPLETED → JOINED` (via `join!`), `PENDING → CANCELLED` (via `cancel!`). Terminal states (`JOINED`, `CANCELLED`) cause a trap on any further `join!` or `cancel!`.
 
 #### Scenario: Double join is an error
 
 - Given `h = Spawn!.spawn!(|| 42)` followed by `Spawn!.join!(h)` then `Spawn!.join!(h)`
 - When the second `join!` is called
-- Then it SHALL produce a runtime error
+- Then it SHALL produce a WASM trap (unreachable)
+
+#### Scenario: Join on cancelled handle is an error
+
+- Given `h = Spawn!.spawn!(|| 42)` followed by `Spawn!.cancel!(h)` then `Spawn!.join!(h)`
+- When `join!` is called on the cancelled handle
+- Then it SHALL produce a WASM trap (unreachable)
+
+#### Scenario: Double cancel is an error
+
+- Given `h = Spawn!.spawn!(|| 42)` followed by `Spawn!.cancel!(h)` then `Spawn!.cancel!(h)`
+- When the second `cancel!` is called
+- Then it SHALL produce a WASM trap (unreachable)
+
+#### Scenario: Cancel on joined handle is an error
+
+- Given `h = Spawn!.spawn!(|| 42)` followed by `Spawn!.join!(h)` then `Spawn!.cancel!(h)`
+- When `cancel!` is called on the joined handle
+- Then it SHALL produce a WASM trap (unreachable)
 
 ### Requirement: Structured Concurrency for Spawn
 
@@ -290,7 +310,7 @@ The number of threads SHALL be configurable via `--threads=N` CLI flag (highest 
 
 ### Requirement: No Shared Mutable State Enforced
 
-The typechecker SHALL enforce that functions passed to `Parallel!` operations cannot capture `$`-prefixed mutable bindings from enclosing scopes. This SHALL fall out from Camp's existing stack-local mutation rules — no new enforcement needed.
+The typechecker SHALL enforce that functions passed to `Parallel!` operations cannot capture `$`-prefixed mutable bindings from enclosing scopes. This is enforced during closure conversion — any closure that captures a `$`-prefixed variable produces error C1002 (MUTABLE CAPTURE).
 
 #### Scenario: Mutable capture across parallel boundary
 

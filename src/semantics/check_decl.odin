@@ -279,6 +279,22 @@ typecheck_decl :: proc(decl: CDecl, env: ^Type_Env, store: ^Type_Store) -> TDecl
 			methods    = methods,
 			span       = d.span,
 		}
+		type_module := d.type_name.module
+		if type_module == base.NO_NAME {
+			type_module = env.current_module
+		}
+		ok := verify_trait_conformance(
+			d.type_name.name,
+			type_module,
+			d.trait_name.name,
+			d.span,
+			store,
+			env,
+		)
+		if !ok {
+			// Conformance check already emitted diagnostics.
+			// Continue with the impl so downstream passes don't crash on nil.
+		}
 		return TDecl(td)
 	}
 	unreachable()

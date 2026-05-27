@@ -107,6 +107,10 @@ token_kind_display :: proc(kind: base.Token_Kind) -> string {
 		return "<="
 	case .Gt_Eq:
 		return ">="
+	case .Lt_Lt:
+		return "<<"
+	case .Gt_Gt:
+		return ">>"
 	case .Eq_Eq:
 		return "=="
 	case .Bang_Eq:
