@@ -6,13 +6,9 @@ format:
 
 format-check:
     #!/usr/bin/env sh
-    for f in $(find src -name '*.odin'); do
-      odinfmt "$f" > "$f.tmp"
-      if ! diff "$f" "$f.tmp" > /dev/null; then
-        echo "FAIL: $f is not formatted" && rm "$f.tmp" && exit 1
-      fi
-      rm "$f.tmp"
-    done
+    find src -name '*.odin' -print0 | xargs -0 -P$(nproc) -I{} sh -c '
+      odinfmt "$1" | diff "$1" - > /dev/null || { echo "FAIL: $1 is not formatted"; exit 1; }
+    ' _ {}
     echo "All .odin files properly formatted"
 
 build:

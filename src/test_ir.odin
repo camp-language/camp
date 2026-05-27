@@ -992,6 +992,7 @@ test_closure_convert_closure :: proc(t: ^testing.T) {
 	defer teardown_lower(ctx, &store)
 
 	result := ir.closure_convert(&mod, &ctx.interner)
+	defer ir.ir_module_destroy(&result)
 
 	found_record := false
 	for decl in result.decls {
@@ -1013,6 +1014,7 @@ test_closure_convert_creates_closed_fn :: proc(t: ^testing.T) {
 
 	original_count := len(mod.decls)
 	result := ir.closure_convert(&mod, &ctx.interner)
+	defer ir.ir_module_destroy(&result)
 
 	testing.expect(t, len(result.decls) > original_count)
 }
@@ -1023,6 +1025,7 @@ test_cps_transform_effectful_fn :: proc(t: ^testing.T) {
 	defer teardown_lower(ctx, &store)
 
 	result := ir.cps_transform(&mod, &ctx.interner)
+	defer ir.ir_module_destroy(&result)
 
 	fn_decl := find_decl_fn(result, true)
 	testing.expect(t, fn_decl != nil)
@@ -1035,6 +1038,7 @@ test_cps_transform_return_becomes_tail_call :: proc(t: ^testing.T) {
 	defer teardown_lower(ctx, &store)
 
 	result := ir.cps_transform(&mod, &ctx.interner)
+	defer ir.ir_module_destroy(&result)
 
 	fn_decl := find_decl_fn(result, true)
 	testing.expect(t, fn_decl != nil)
@@ -1057,6 +1061,7 @@ test_cps_transform_pure_fn_unchanged :: proc(t: ^testing.T) {
 	}
 
 	result := ir.cps_transform(&mod, &ctx.interner)
+	defer ir.ir_module_destroy(&result)
 
 	fn_decl := find_decl_fn(result, false)
 	testing.expect(t, fn_decl != nil)
@@ -1152,6 +1157,7 @@ test_closure_capture_free_var :: proc(t: ^testing.T) {
 	defer teardown_lower(ctx, &store)
 
 	result := ir.closure_convert(&mod, &ctx.interner)
+	defer ir.ir_module_destroy(&result)
 
 	has_env_access := false
 	for decl in result.decls {
@@ -1172,6 +1178,7 @@ test_closure_closed_fn_has_params :: proc(t: ^testing.T) {
 	defer teardown_lower(ctx, &store)
 
 	result := ir.closure_convert(&mod, &ctx.interner)
+	defer ir.ir_module_destroy(&result)
 
 	found := false
 	for decl in result.decls {
@@ -1431,6 +1438,7 @@ closure_convert_source :: proc(
 	mod, ctx, store := lower_source(source)
 	mod = ir.effect_lower(&mod, &ctx.interner, &ctx.collector, &store)
 	result := ir.closure_convert(&mod, &ctx.interner)
+	defer ir.ir_module_destroy(&result)
 	return result, ctx, store
 }
 
@@ -1445,6 +1453,7 @@ cps_source :: proc(
 	mod = ir.effect_lower(&mod, &ctx.interner, &ctx.collector, &store)
 	mod = ir.closure_convert(&mod, &ctx.interner)
 	result := ir.cps_transform(&mod, &ctx.interner)
+	defer ir.ir_module_destroy(&result)
 	return result, ctx, store
 }
 
@@ -1563,6 +1572,7 @@ test_closure_convert_no_free_vars :: proc(t: ^testing.T) {
 	defer teardown_lower(ctx, &store)
 
 	result := ir.closure_convert(&mod, &ctx.interner)
+	defer ir.ir_module_destroy(&result)
 
 	found_cenv := false
 	for decl in result.decls {
@@ -1584,6 +1594,7 @@ test_closure_convert_multi_free_var :: proc(t: ^testing.T) {
 	defer teardown_lower(ctx, &store)
 
 	result := ir.closure_convert(&mod, &ctx.interner)
+	defer ir.ir_module_destroy(&result)
 
 	field_access_count := 0
 	for decl in result.decls {
@@ -1604,6 +1615,7 @@ test_closure_convert_produces_record :: proc(t: ^testing.T) {
 	defer teardown_lower(ctx, &store)
 
 	result := ir.closure_convert(&mod, &ctx.interner)
+	defer ir.ir_module_destroy(&result)
 
 	found_record := false
 	for decl in result.decls {
@@ -1624,6 +1636,7 @@ test_closure_convert_env_param_name :: proc(t: ^testing.T) {
 	defer teardown_lower(ctx, &store)
 
 	result := ir.closure_convert(&mod, &ctx.interner)
+	defer ir.ir_module_destroy(&result)
 
 	found := false
 	for decl in result.decls {
@@ -1651,6 +1664,7 @@ test_cps_transform_adds_k_param :: proc(t: ^testing.T) {
 	defer teardown_lower(ctx, &store)
 
 	result := ir.cps_transform(&mod, &ctx.interner)
+	defer ir.ir_module_destroy(&result)
 
 	fn_decl := find_decl_fn(result, true)
 	testing.expect(t, fn_decl != nil)
@@ -1675,6 +1689,7 @@ test_cps_transform_pure_fn_no_k_param :: proc(t: ^testing.T) {
 	}
 
 	result := ir.cps_transform(&mod, &ctx.interner)
+	defer ir.ir_module_destroy(&result)
 
 	fn_decl := find_decl_fn(result, false)
 	testing.expect(t, fn_decl != nil)
@@ -1687,6 +1702,7 @@ test_cps_transform_return_is_closure_call :: proc(t: ^testing.T) {
 	defer teardown_lower(ctx, &store)
 
 	result := ir.cps_transform(&mod, &ctx.interner)
+	defer ir.ir_module_destroy(&result)
 
 	fn_decl := find_decl_fn(result, true)
 	testing.expect(t, fn_decl != nil)

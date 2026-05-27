@@ -457,4 +457,25 @@ IR_I32_Store :: struct {
 	value:  IR_Expr,
 	span:   ba.Source_Span,
 }
+ir_module_destroy :: proc(mod: ^IR_Module) {
+	for decl in mod.decls {
+		#partial switch d in decl {
+		case ^IR_Decl_Fn:
+			delete(d.params)
+			delete(d.effects)
+		case ^IR_Decl_Effect:
+			for op in d.operations do delete(op.params)
+			delete(d.operations)
+		case ^IR_Decl_Const:
+		}
+	}
+	delete(mod.decls)
+	for eff in mod.effect_defs {
+		for op in eff.operations do delete(op.params)
+		delete(eff.operations)
+		delete(eff.type_params)
+	}
+	delete(mod.effect_defs)
+	delete(mod.string_table)
+}
 

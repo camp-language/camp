@@ -227,6 +227,9 @@ type_store_destroy :: proc(store: ^Type_Store) {
 		if len(info.owned_tags) > 0 do delete(info.owned_tags, store.allocator)
 	}
 	for _, info in store.trait_registry {
+		for method in info.methods {
+			if len(method.param_types) > 0 do delete(method.param_types, store.allocator)
+		}
 		if len(info.methods) > 0 do delete(info.methods, store.allocator)
 	}
 	delete(store.vars)
@@ -234,6 +237,9 @@ type_store_destroy :: proc(store: ^Type_Store) {
 	delete(store.bindings)
 	delete(store.newtype_decls)
 	delete(store.trait_registry)
+	for impl in store.trait_impls {
+		delete(impl.methods)
+	}
 	delete(store.trait_impls)
 	delete(store.type_constraints)
 	delete(store.rec_vars)

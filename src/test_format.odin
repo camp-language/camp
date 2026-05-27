@@ -37,6 +37,7 @@ test_doc_soft_line :: proc(t: ^testing.T) {
 test_doc_concat :: proc(t: ^testing.T) {
 	children := []format.Doc{format.doc_text("a"), format.doc_text("b")}
 	d := format.doc_concat(children)
+	defer format.doc_destroy(d)
 	testing.expect(t, d.kind == .Concat)
 	testing.expect(t, len(d.children) == 2)
 	testing.expect(t, d.children[0].text == "a")
@@ -47,6 +48,7 @@ test_doc_concat :: proc(t: ^testing.T) {
 test_doc_group :: proc(t: ^testing.T) {
 	children := []format.Doc{format.doc_text("hello"), format.doc_text("world")}
 	d := format.doc_group(children)
+	defer format.doc_destroy(d)
 	testing.expect(t, d.kind == .Group)
 	testing.expect(t, len(d.children) == 2)
 }
@@ -55,6 +57,7 @@ test_doc_group :: proc(t: ^testing.T) {
 test_doc_nest :: proc(t: ^testing.T) {
 	inner := format.doc_text("body")
 	d := format.doc_nest(4, inner)
+	defer format.doc_destroy(d)
 	testing.expect(t, d.kind == .Nest)
 	testing.expect(t, d.indent == 4)
 	testing.expect(t, len(d.children) == 1)
