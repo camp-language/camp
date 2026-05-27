@@ -6,6 +6,11 @@ import "core:fmt"
 
 EXPECTED_GOT_FMT :: "expected {}, got {}"
 
+diag_destroy :: proc(d: ^Diagnostic) {
+	delete(d.labels)
+	delete(d.hints)
+}
+
 diag_init :: proc(
 	category: Diagnostic_Category,
 	code: string,

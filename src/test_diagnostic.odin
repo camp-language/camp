@@ -7,6 +7,7 @@ import "core:testing"
 @(test)
 test_diag_unexpected_char :: proc(t: ^testing.T) {
 	d := diagnostics.diag_unexpected_char('@', base.Source_Span{file_id = 0, start = 4, end = 5})
+	defer diagnostics.diag_destroy(&d)
 	testing.expect(t, d.category == .Error)
 	testing.expect(t, d.title == "UNEXPECTED CHARACTER")
 	testing.expect(t, len(d.hints) == 0)
@@ -21,6 +22,7 @@ test_diag_unterminated_string :: proc(t: ^testing.T) {
 		end     = 5,
 	}
 	d := diagnostics.diag_unterminated_string(span)
+	defer diagnostics.diag_destroy(&d)
 	testing.expect(t, d.category == .Error)
 	testing.expect(t, d.title == "UNTERMINATED STRING")
 }
@@ -33,6 +35,7 @@ test_diag_undefined_name_with_hint :: proc(t: ^testing.T) {
 		end     = 3,
 	}
 	d := diagnostics.diag_undefined_name("foo", []string{"bar"}, span)
+	defer diagnostics.diag_destroy(&d)
 	testing.expect(t, d.title == "UNDEFINED NAME")
 	testing.expect(t, len(d.hints) == 1)
 }
@@ -45,6 +48,7 @@ test_diag_undefined_name_no_hint :: proc(t: ^testing.T) {
 		end     = 3,
 	}
 	d := diagnostics.diag_undefined_name("foo", nil, span)
+	defer diagnostics.diag_destroy(&d)
 	testing.expect(t, len(d.hints) == 0)
 }
 
@@ -61,6 +65,7 @@ test_diag_type_mismatch_multi_span :: proc(t: ^testing.T) {
 		end     = 13,
 	}
 	d := diagnostics.diag_type_mismatch("I64", "String", span_a, span_b)
+	defer diagnostics.diag_destroy(&d)
 	testing.expect(t, d.title == "TYPE MISMATCH")
 	testing.expect(t, len(d.labels) == 1)
 	testing.expect(t, d.labels[0].span == span_b)
@@ -74,6 +79,7 @@ test_diag_type_mismatch_no_secondary :: proc(t: ^testing.T) {
 		end     = 3,
 	}
 	d := diagnostics.diag_type_mismatch("I64", "String", span_a, base.Source_Span_ZERO)
+	defer diagnostics.diag_destroy(&d)
 	testing.expect(t, len(d.labels) == 0)
 }
 
@@ -85,6 +91,7 @@ test_diag_effectful_naming :: proc(t: ^testing.T) {
 		end     = 5,
 	}
 	d := diagnostics.diag_effectful_naming("main", "{IO}", span)
+	defer diagnostics.diag_destroy(&d)
 	testing.expect(t, d.title == "EFFECTFUL FUNCTION NAMING")
 	testing.expect(t, len(d.hints) == 1)
 }
@@ -98,6 +105,7 @@ test_diag_warning :: proc(t: ^testing.T) {
 		base.Source_Span_ZERO,
 		"x is unused",
 	)
+	defer diagnostics.diag_destroy(&d)
 	testing.expect(t, d.category == .Warning)
 	testing.expect(t, d.title == "UNUSED VARIABLE")
 }
@@ -110,6 +118,7 @@ test_diag_internal :: proc(t: ^testing.T) {
 		end     = 1,
 	}
 	d := diagnostics.diag_internal("impossible type", span)
+	defer diagnostics.diag_destroy(&d)
 	testing.expect(t, d.category == .Internal)
 	testing.expect(t, len(d.hints) == 1)
 }
@@ -180,6 +189,7 @@ test_diag_arity_mismatch :: proc(t: ^testing.T) {
 		end     = 13,
 	}
 	d := diagnostics.diag_arity_mismatch(2, 1, span_a, span_b)
+	defer diagnostics.diag_destroy(&d)
 	testing.expect(t, d.title == "ARITY MISMATCH")
 	testing.expect(t, len(d.labels) == 1)
 }
@@ -187,6 +197,7 @@ test_diag_arity_mismatch :: proc(t: ^testing.T) {
 @(test)
 test_diag_unknown_command :: proc(t: ^testing.T) {
 	d := diagnostics.diag_unknown_command("foo")
+	defer diagnostics.diag_destroy(&d)
 	testing.expect(t, d.title == "UNKNOWN COMMAND")
 	testing.expect(t, len(d.hints) == 1)
 }
@@ -194,6 +205,7 @@ test_diag_unknown_command :: proc(t: ^testing.T) {
 @(test)
 test_diag_invalid_extension :: proc(t: ^testing.T) {
 	d := diagnostics.diag_invalid_extension("test.txt", ".txt")
+	defer diagnostics.diag_destroy(&d)
 	testing.expect(t, d.title == "INVALID FILE EXTENSION")
 	testing.expect(t, d.span == base.Source_Span_ZERO)
 }
@@ -201,6 +213,7 @@ test_diag_invalid_extension :: proc(t: ^testing.T) {
 @(test)
 test_diag_file_not_found :: proc(t: ^testing.T) {
 	d := diagnostics.diag_file_not_found("/no.camp", "No such file")
+	defer diagnostics.diag_destroy(&d)
 	testing.expect(t, d.title == "FILE NOT FOUND")
 	testing.expect(t, d.span == base.Source_Span_ZERO)
 }
