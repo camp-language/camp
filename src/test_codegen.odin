@@ -31,6 +31,7 @@ compile_source :: proc(source: string) -> ([]u8, ^build.Compilation_Context) {
 	semantics.type_store_init(&store, &ctx.interner, &ctx.collector)
 	semantics.inject_prelude(&store)
 	tfile := semantics.typecheck_file(canon, &store)
+	semantics.check_effect_safety(tfile, &store)
 
 	ir_mod := ir.lower_tfile(tfile, &store)
 	ir_mod = ir.effect_lower(&ir_mod, &ctx.interner, &ctx.collector, &store)

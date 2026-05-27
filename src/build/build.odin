@@ -99,6 +99,7 @@ run_build_single :: proc(file_path: string, thread_count: int = 1) -> Build_Resu
 	defer semantics.type_store_destroy(&store)
 	semantics.inject_prelude(&store)
 	tfile := semantics.typecheck_file(canon, &store)
+	semantics.check_effect_safety(tfile, &store)
 
 	if diagnostics.diag_collector_has_errors(&ctx.collector) {
 		diagnostics.render_all(&ctx.collector, file_path, source)

@@ -180,7 +180,7 @@ The diagnostic system SHALL define constructors for all error variants. The comp
 #### Scenario: Typecheck errors
 
 - Given effectful naming, undefined names, or unhandled effects
-- Then `diag_effectful_naming` (C0400), `diag_undefined_name` (C0200), and `diag_unhandled_effect` (C0401) SHALL produce diagnostics with appropriate messages and hints
+- Then `diag_effectful_naming` (C0400), `diag_undefined_name` (C0200), `diag_unhandled_effect` (C0401), and `diag_unhandled_effect_entry` (C0401) SHALL produce diagnostics with appropriate messages and hints
 
 #### Scenario: Unification errors
 

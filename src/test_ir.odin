@@ -39,6 +39,7 @@ lower_source :: proc(
 	semantics.type_store_init(&store, &ctx.interner, &ctx.collector)
 	semantics.inject_prelude(&store)
 	tfile := semantics.typecheck_file(canon, &store)
+	semantics.check_effect_safety(tfile, &store)
 
 	mod := ir.lower_tfile(tfile, &store)
 	return mod, ctx, store
