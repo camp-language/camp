@@ -349,9 +349,9 @@ cc_convert_decl :: proc(decl: IR_Decl, env: ^Closure_Convert_Env) -> IR_Decl {
 		new_fn := new(IR_Decl_Fn)
 		new_fn^ = d^
 		new_fn.params = make([dynamic]IR_Param, len(d.params))
-		for p, i in d.params { new_fn.params[i] = p }
+		for p, i in d.params {new_fn.params[i] = p}
 		new_fn.effects = make([dynamic]base.Canonical_Name, len(d.effects))
-		for e, i in d.effects { new_fn.effects[i] = e }
+		for e, i in d.effects {new_fn.effects[i] = e}
 		new_fn.body = cc_convert_expr(d.body, env)
 		return IR_Decl(new_fn)
 	case ^IR_Decl_Const:
