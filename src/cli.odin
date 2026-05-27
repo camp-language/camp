@@ -17,16 +17,26 @@ CLI_Command :: enum {
 
 parse_command :: proc(cmd: string) -> (CLI_Command, bool) {
 	switch cmd {
-	case "build":   return .Build, true
-	case "test":    return .Test, true
-	case "fmt":     return .Fmt, true
-	case "check":   return .Check, true
-	case "doc":     return .Doc, true
-	case "lsp":     return .Lsp, true
-	case "add":     return .Add, true
-	case "update":  return .Update, true
-	case "init":    return .Init, true
-	case:           return .Build, false
+	case "build":
+		return .Build, true
+	case "test":
+		return .Test, true
+	case "fmt":
+		return .Fmt, true
+	case "check":
+		return .Check, true
+	case "doc":
+		return .Doc, true
+	case "lsp":
+		return .Lsp, true
+	case "add":
+		return .Add, true
+	case "update":
+		return .Update, true
+	case "init":
+		return .Init, true
+	case:
+		return .Build, false
 	}
 }
 
@@ -64,3 +74,4 @@ run_update :: proc(args: []string) {
 run_init :: proc(args: []string) {
 	build.run_init(args)
 }
+

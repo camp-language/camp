@@ -69,12 +69,19 @@ lock_parse :: proc(input: string, allocator: mem.Allocator) -> Camp_Lock {
 		key := strings.trim_space(trimmed[:eq])
 		val := _lock_unquote(strings.trim_space(trimmed[eq + 1:]))
 		switch key {
-		case "name": current.name = val
-		case "source": current.source = val
-		case "version": current.version = val
-		case "rev": current.rev = val
+		case "name":
+			current.name = val
+		case "source":
+			current.source = val
+		case "version":
+			current.version = val
+		case "rev":
+			current.rev = val
 		case "hash":
-			if strings.has_prefix(val, "sha256:") {current.hash = val[7:]} else {current.hash = val}
+			if strings.has_prefix(
+				val,
+				"sha256:",
+			) {current.hash = val[7:]} else {current.hash = val}
 		}
 	}
 	if in_package {append(&lock.packages, current)}
@@ -102,3 +109,4 @@ _lock_unquote :: proc(s: string) -> string {
 	if len(t) >= 2 && t[0] == '"' && t[len(t) - 1] == '"' {return t[1:len(t) - 1]}
 	return t
 }
+

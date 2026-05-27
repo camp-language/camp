@@ -36,14 +36,14 @@ KEYWORDS: map[string]base.Token_Kind = {
 }
 
 Lexer :: struct {
-	source:         string,
-	pos:            int,
-	collector:      ^diagnostics.Diagnostic_Collector,
-	intern:         ^base.Intern_Table,
-	file_id:        int,
-	at_line_start:  bool,
+	source:          string,
+	pos:             int,
+	collector:       ^diagnostics.Diagnostic_Collector,
+	intern:          ^base.Intern_Table,
+	file_id:         int,
+	at_line_start:   bool,
 	shebang_skipped: bool,
-	saw_blank_line: bool,
+	saw_blank_line:  bool,
 }
 
 lexer_init :: proc(
@@ -180,7 +180,7 @@ lexer_next :: proc(l: ^Lexer) -> base.Token {
 		l.shebang_skipped = true
 		if l.pos + 1 < len(l.source) && l.source[0] == '#' && l.source[1] == '!' {
 			for l.pos < len(l.source) && l.source[l.pos] != '\n' {l.pos += 1}
-			if l.pos < len(l.source) {l.pos += 1} // skip newline
+			if l.pos < len(l.source) {l.pos += 1} 	// skip newline
 			l.at_line_start = true
 			return lexer_next(l)
 		}

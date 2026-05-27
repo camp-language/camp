@@ -52,8 +52,7 @@ _source_to_git_url :: proc(source: string) -> string {
 _looks_semver :: proc(s: string) -> bool {
 	dots := 0
 	for r in s {
-		if r == '.' {dots += 1}
-		else if r < '0' || r > '9' {return false}
+		if r == '.' {dots += 1} else if r < '0' || r > '9' {return false}
 	}
 	return dots == 2
 }
@@ -76,3 +75,4 @@ _split_whitespace :: proc(s: string) -> []string {
 	}
 	return result[:]
 }
+

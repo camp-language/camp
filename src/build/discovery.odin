@@ -34,11 +34,11 @@ Project_Discovery :: struct {
 }
 
 Dependency_Info :: struct {
-	alias:     string,
-	uri:       string,
-	source:    string,
-	version:   string,
-	is_dev:    bool,
+	alias:   string,
+	uri:     string,
+	source:  string,
+	version: string,
+	is_dev:  bool,
 }
 
 discover_project :: proc(
@@ -72,17 +72,29 @@ discover_project :: proc(
 			delete(data, allocator)
 			for dep in project.manifest.dependencies {
 				source, ver := parse_dep_uri(dep.uri)
-				append(&project.dependencies, Dependency_Info{
-					alias = dep.alias, uri = dep.uri,
-					source = source, version = ver, is_dev = false,
-				})
+				append(
+					&project.dependencies,
+					Dependency_Info {
+						alias = dep.alias,
+						uri = dep.uri,
+						source = source,
+						version = ver,
+						is_dev = false,
+					},
+				)
 			}
 			for dep in project.manifest.dev_dependencies {
 				source, ver := parse_dep_uri(dep.uri)
-				append(&project.dev_deps, Dependency_Info{
-					alias = dep.alias, uri = dep.uri,
-					source = source, version = ver, is_dev = true,
-				})
+				append(
+					&project.dev_deps,
+					Dependency_Info {
+						alias = dep.alias,
+						uri = dep.uri,
+						source = source,
+						version = ver,
+						is_dev = true,
+					},
+				)
 			}
 		}
 	}
@@ -115,7 +127,8 @@ parse_dep_uri :: proc(uri: string) -> (source: string, version: string) {
 	if q < 0 {return uri, ""}
 	source = uri[:q]
 	tail := uri[q + 1:]
-	if len(tail) >= 2 && (tail[:2] == "v=" || tail[:4] == "tag=" || tail[:7] == "branch=" || tail[:4] == "rev=") {
+	if len(tail) >= 2 &&
+	   (tail[:2] == "v=" || tail[:4] == "tag=" || tail[:7] == "branch=" || tail[:4] == "rev=") {
 		version = tail
 	}
 	return
@@ -221,7 +234,15 @@ walk_dir_recursive :: proc(
 
 		if fi.type == .Directory && fi.name != "." && fi.name != ".." {
 			sub_path, _ := filepath.join({current_dir, fi.name}, allocator)
-			walk_dir_recursive(sub_path, src_dir, interner, collector, allocator, modules, module_names)
+			walk_dir_recursive(
+				sub_path,
+				src_dir,
+				interner,
+				collector,
+				allocator,
+				modules,
+				module_names,
+			)
 			delete(sub_path, allocator)
 		}
 	}
@@ -289,3 +310,4 @@ project_discovery_destroy :: proc(project: ^Project_Discovery) {
 	delete(project.dependencies)
 	delete(project.dev_deps)
 }
+

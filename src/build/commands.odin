@@ -144,9 +144,12 @@ run_update :: proc(args: []string) {
 					if best != "" {
 						rev, rev_ok := resolve_tag_to_rev(source, best)
 						if rev_ok {
-							entry := Lock_Entry{
-								name = dep.alias, source = source,
-								version = best, rev = rev, hash = rev,
+							entry := Lock_Entry {
+								name    = dep.alias,
+								source  = source,
+								version = best,
+								rev     = rev,
+								hash    = rev,
 							}
 							found := false
 							for i in 0 ..< len(lock.packages) {
@@ -182,3 +185,4 @@ _alias_from_uri :: proc(uri: string) -> string {
 	if last_slash >= 0 {return source[last_slash + 1:]}
 	return source
 }
+
