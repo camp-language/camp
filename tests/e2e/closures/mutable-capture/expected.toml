@@ -1,0 +1,14 @@
+stdout = """
+canonicalized /tmp/camp-e2e/closures/mutable-capture/src/Main.camp: 1 declaration(s), 0 import(s)
+typecheck passed for /tmp/camp-e2e/closures/mutable-capture/src/Main.camp
+-- C1002: MUTABLE CAPTURE --- /tmp/camp-e2e/closures/mutable-capture/src/Main.camp
+
+Mutable variable `$x` cannot be captured by a closure — it is stack-local and
+cannot escape.
+   3 |   f = || -> I64 { $x }
+             ^
+  Pass the value as a parameter instead, or use an immutable binding.
+compilation failed with 1 error(s)
+"""
+stderr = ""
+exit = 1

@@ -2,6 +2,9 @@
 -- @Map(k, v) -- opaque ordered tree map, provided by runtime
 -- Keys require Eq and Ord for ordered tree operations.
 
+import Iter { empty, singleton, chain, from_list }
+import List { append }
+
 -- Construction
 
 pub new : Map(k, v)
@@ -40,46 +43,66 @@ pub insert = |k, v, m| crash "intrinsic: Map.insert"
 pub remove : k, Map(k, v) -> Map(k, v)
 pub remove = |k, m| crash "intrinsic: Map.remove"
 
--- Update: callback receives Err(KeyNotFound) if absent, Ok(v) if present.
--- Return Err(KeyNotFound) to remove, Ok(new_v) to insert/update.
-pub update : k, (Result(v, [KeyNotFound]) -> Result(v, [KeyNotFound])) -> Map(k, v) -> Map(k, v)
-pub update = |k, f, m| crash "intrinsic: Map.update"
+pub update : k, (Result(v, [KeyNotFound]) -> Result(v, [KeyNotFound])), Map(k, v) -> Map(k, v)
+pub update = |k, f, m|
+  match f(get(k, m)) {
+    Ok(v) => insert(k, v, m)
+    Err(KeyNotFound) => remove(k, m)
+  }
 
 -- Transformation
 
+pub fold : Map(k, v), b, (b, k, v) -> b -> b
+pub fold = |m, init, f|
+  match min(m) {
+    Ok((k, v)) => fold(remove(k, m), f(init, k, v), f)
+    Err(_) => init
+  }
+
 pub map : Map(k, v), (v) -> w -> Map(k, w)
-pub map = |m, f| crash "intrinsic: Map.map"
+pub map = |m, f|
+  fold(m, new, |acc, k, v| insert(k, f(v), acc))
 
 pub filter : Map(k, v), (k, v) -> Bool -> Map(k, v)
-pub filter = |m, pred| crash "intrinsic: Map.filter"
-
-pub fold : Map(k, v), b, (b, k, v) -> b -> b
-pub fold = |m, init, f| crash "intrinsic: Map.fold"
+pub filter = |m, pred|
+  fold(m, new, |acc, k, v|
+    if pred(k, v) { insert(k, v, acc) } else { acc }
+  )
 
 -- Conversion
 
 pub to_iter : Map(k, v) -> Iter((k, v))
-pub to_iter = |m| crash "intrinsic: Map.to_iter"
+pub to_iter = |m|
+  fold(m, Iter.empty, |acc, k, v| acc->chain(Iter.singleton((k, v))))
 
 pub keys : Map(k, v) -> Iter(k)
-pub keys = |m| crash "intrinsic: Map.keys"
+pub keys = |m|
+  fold(m, Iter.empty, |acc, k, _| acc->chain(Iter.singleton(k)))
 
 pub values : Map(k, v) -> Iter(v)
-pub values = |m| crash "intrinsic: Map.values"
+pub values = |m|
+  fold(m, Iter.empty, |acc, _, v| acc->chain(Iter.singleton(v)))
 
 pub from_list : List((k, v)) -> Map(k, v)
-pub from_list = |entries| crash "intrinsic: Map.from_list"
+pub from_list = |entries|
+  Iter.from_list(entries)->fold(new, |m, (k, v)| insert(k, v, m))
 
 pub to_list : Map(k, v) -> List((k, v))
-pub to_list = |m| crash "intrinsic: Map.to_list"
+pub to_list = |m|
+  fold(m, [], |acc, k, v| List.append(acc, [(k, v)]))
 
--- Set-like operations (efficient on ordered trees)
+-- Set-like operations
 
 pub union : Map(k, v), Map(k, v) -> Map(k, v)
-pub union = |m1, m2| crash "intrinsic: Map.union"
+pub union = |m1, m2|
+  fold(m1, m2, |acc, k, v| insert(k, v, acc))
 
 pub intersection : Map(k, v), Map(k, v) -> Map(k, v)
-pub intersection = |m1, m2| crash "intrinsic: Map.intersection"
+pub intersection = |m1, m2|
+  fold(m1, new, |acc, k, v|
+    if contains(k, m2) { insert(k, v, acc) } else { acc }
+  )
 
 pub difference : Map(k, v), Map(k, v) -> Map(k, v)
-pub difference = |m1, m2| crash "intrinsic: Map.difference"
+pub difference = |m1, m2|
+  fold(m2, m1, |acc, k, _| remove(k, acc))

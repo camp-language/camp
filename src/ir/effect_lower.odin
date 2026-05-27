@@ -3,7 +3,6 @@ package ir
 import "camp:base"
 import "camp:diagnostics"
 import "camp:semantics"
-import "core:fmt"
 
 Effect_Evidence :: struct {
 	effect:      base.Canonical_Name,
