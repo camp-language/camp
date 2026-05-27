@@ -22,16 +22,7 @@ build-e2e:
     odin build src/e2e -collection:camp=src -out:camp-e2e
 
 test-unit:
-    -odin test src -collection:camp=src
-    odin test src/base -collection:camp=src
-    odin test src/diagnostics -collection:camp=src
-    odin test src/frontend -collection:camp=src
-    odin test src/semantics -collection:camp=src
-    odin test src/mono -collection:camp=src
-    odin test src/ir -collection:camp=src
-    odin test src/codegen -collection:camp=src
-    -odin test src/build -collection:camp=src
-    odin test src/format -collection:camp=src
+    odin test src -collection:camp=src
 
 test-e2e: build build-e2e
     CAMP_BIN="$(pwd)/camp" ./camp-e2e
