@@ -3146,10 +3146,9 @@ parser_parse_test_decl :: proc(p: ^Parser) -> Decl {
 	name_tok := parser_expect(p, .String_Literal)
 	parser_expect(p, .LBrace)
 
-	// Test block body is a simple block — immediately parse it
+	// Test block body is a simple block — immediately parse it.
+	// NOTE: parser_parse_block already consumes the closing RBrace.
 	body := parser_parse_block(p, start)
-
-	parser_expect(p, .RBrace)
 
 	decl := new(Decl_Test)
 	decl^ = Decl_Test {

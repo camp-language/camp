@@ -1,10 +1,7 @@
 stdout = """
--- C0100: SYNTAX ERROR --- /tmp/camp-e2e/language/test-block-syntax/src/Main.camp
-
-I expected `}` here, but I got `` instead.
-   8 | 
-       ^
-compilation failed with 1 error(s)
+canonicalized /tmp/camp-e2e/language/test-block-syntax/src/Main.camp: 2 declaration(s), 0 import(s)
+typecheck passed for /tmp/camp-e2e/language/test-block-syntax/src/Main.camp
+compiled /tmp/camp-e2e/language/test-block-syntax/src/Main.camp -> /tmp/camp-e2e/language/test-block-syntax/src/Main.wasm
 """
 stderr = ""
-exit = 1
+exit = 0
