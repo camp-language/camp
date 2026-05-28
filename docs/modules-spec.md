@@ -5,22 +5,27 @@
 Define the behavioral requirements for Camp's module system: project discovery, multi-file compilation, import resolution, visibility enforcement, prelude injection, and incremental compilation with content-hash caching.
 
 ## Requirements
-
 ### Requirement: Project Discovery
 
-The compiler SHALL discover the project root by walking up from the current working directory looking for a `src/` directory containing `.camp` files. All `.camp` files under `src/` SHALL be compiled as part of the project.
+The compiler SHALL discover the project root by walking up from the current working directory. If `camp.toml` is found, that directory SHALL be the project root. If no `camp.toml` is found but a `src/` directory containing `.camp` files is found, the project SHALL be treated as having an implicit empty manifest (legacy compatibility). All `.camp` files under `src/` SHALL be compiled as part of the project.
 
-#### Scenario: Standard project structure
+#### Scenario: Standard project with camp.toml
 
-- GIVEN a directory structure with `src/Main.camp`, `src/List.camp`, `src/Http/Server.camp`
+- GIVEN a directory with `camp.toml` at the root and `src/Main.camp`, `src/List.camp`, `src/Http/Server.camp`
+- WHEN the compiler is invoked from any subdirectory
+- THEN all three files SHALL be discovered and compiled using the `camp.toml` manifest
+
+#### Scenario: Legacy project without camp.toml
+
+- GIVEN a directory structure with `src/Main.camp` but NO `camp.toml`
 - WHEN the compiler is invoked from the project root
-- THEN all three files SHALL be discovered and compiled
+- THEN the project SHALL compile with an implicit empty manifest (no dependencies)
 
-#### Scenario: No src directory
+#### Scenario: Neither camp.toml nor src/ found
 
-- GIVEN a directory with no `src/` subdirectory containing `.camp` files
+- GIVEN a directory with no `camp.toml` and no `src/` subdirectory containing `.camp` files
 - WHEN the compiler is invoked
-- THEN it SHALL produce an error: "no Camp source files found — expected a src/ directory"
+- THEN it SHALL produce an error: "no Camp project found — expected camp.toml or src/ directory with .camp files"
 
 ### Requirement: File-to-Module Mapping
 

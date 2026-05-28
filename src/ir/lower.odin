@@ -23,7 +23,8 @@ lower_tfile :: proc(tfile: semantics.TFile, store: ^semantics.Type_Store) -> IR_
 		case ^semantics.TDecl_Effect:
 			eff_def := lower_teffect_def(&d^, &env)
 			append(&mod.effect_defs, eff_def)
-		case ^semantics.TDecl_Const,
+		case ^semantics.TDecl_Effect_Alias,
+		     ^semantics.TDecl_Const,
 		     ^semantics.TDecl_Trait,
 		     ^semantics.TDecl_Alias,
 		     ^semantics.TDecl_Newtype,
@@ -44,6 +45,7 @@ lower_tfile :: proc(tfile: semantics.TFile, store: ^semantics.Type_Store) -> IR_
 		case ^semantics.TDecl_Effect:
 			ir_decl := lower_tdecl_effect(&d^, &env)
 			append(&mod.decls, ir_decl)
+		case ^semantics.TDecl_Effect_Alias:
 		case ^semantics.TDecl_Trait:
 		case ^semantics.TDecl_Alias:
 		case ^semantics.TDecl_Newtype:
@@ -1302,6 +1304,9 @@ lower_tpattern :: proc(
 		return IR_Pattern(nil)
 	case ^semantics.TPattern_As:
 		return lower_tpattern(p.inner, env)
+	case ^semantics.TPattern_Interpolated_String:
+		result := new(IR_Pat_Wildcard)
+		return IR_Pattern(result)
 	}
 	return IR_Pattern(nil)
 }
@@ -1699,7 +1704,7 @@ lower_tinterpolated_string :: proc(
 		str_type: base.IR_Type,
 		span: base.Source_Span,
 	) -> IR_Expr {
-		switch p in part {
+		#partial switch p in part {
 		case ^semantics.TExpr_String_Literal:
 			lit := new(IR_Literal_String)
 			lit^ = IR_Literal_String {

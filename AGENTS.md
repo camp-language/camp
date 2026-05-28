@@ -69,5 +69,5 @@ You are an AI assistant helping develop the Camp programming language - a strict
 
 - When adding a language feature, update the kitchen-sink test to exercise it
 - When changing syntax, update the kitchen-sink test to match
-- The test currently expects compiler errors (spec syntax not yet fully implemented); as the compiler catches up, update `expected.toml` via `just update-snapshots`
+The test currently expects compiler errors for some features; as the compiler catches up, update `expected.toml` via `just update-snapshots`
 - The test covers: primitives, tag unions, records, nominal types, type aliases, functions, generics, traits, UFCS, effects, handlers, Throw!, pattern matching, mutable variables, logic operators, dot lambdas, strings, inline annotations, visibility, raw identifiers, par blocks, prelude effects, and main!

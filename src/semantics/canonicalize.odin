@@ -992,6 +992,7 @@ canonicalize_expr :: proc(
 			case frontend.Expr:
 				cexpr := canonicalize_expr(p, scope, interner, collector)
 				append(&cparts, CExpr_String_Part(cexpr))
+			case frontend.Pattern:
 			}
 		}
 		c := new(CExpr_Interpolated_String)
@@ -1256,6 +1257,29 @@ canonicalize_pattern :: proc(
 		}
 		return c
 
+	case ^frontend.Pattern_Interpolated_String:
+		cparts := make([dynamic]CExpr_String_Part, 0, len(p.parts))
+		for part in p.parts {
+			switch pp in part {
+			case ^frontend.String_Segment:
+				clit := new(CExpr_String_Literal)
+				clit^ = CExpr_String_Literal {
+					value = pp.text,
+					span  = pp.span,
+				}
+				append(&cparts, CExpr_String_Part(clit))
+			case frontend.Pattern:
+				cpat := canonicalize_pattern(pp, scope, interner, collector)
+				append(&cparts, CExpr_String_Part(cpat))
+			case frontend.Expr:
+			}
+		}
+		c2 := new(CPattern_Interpolated_String)
+		c2^ = CPattern_Interpolated_String {
+			parts = cparts,
+			span  = p.span,
+		}
+		return c2
 	case ^frontend.Pattern_Destructure:
 		name := base.Canonical_Name {
 			module   = base.NO_NAME,

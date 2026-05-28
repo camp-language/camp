@@ -415,6 +415,7 @@ resolve_expr_names :: proc(
 			case ^semantics.CExpr_String_Literal:
 			case semantics.CExpr:
 				resolve_expr_names(p, scope, export_tables, interner, collector)
+			case semantics.CPattern:
 			}
 		}
 

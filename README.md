@@ -54,44 +54,18 @@ just update-snapshots     # Regenerate e2e snapshots after intentional output ch
 
 ```
 src/                  Compiler (Odin)
-tests/e2e/            E2E snapshot tests (<category>/<name>/Main.camp + expected.toml)
+tests/e2e/            E2E snapshot tests
 tree-sitter/          Tree-sitter grammar
-openspec/specs/       Design specifications
-docs/                 Syntax recipe, diagnostics catalog, stdlib design notes
+docs/                 Syntax recipe, diagnostics catalog, design notes
 justfile              Build and test commands
 ```
 
-## Specs
+## Docs
 
-Specifications are organized using [OpenSpec](https://github.com/Fission-AI/OpenSpec) in the `openspec/` directory:
-
-| Domain | Spec |
-|--------|------|
-| Language | [spec](openspec/specs/language/spec.md) |
-| Effects | [spec](openspec/specs/effects/spec.md) |
-| Compiler | [spec](openspec/specs/compiler/spec.md) |
-| Generics & Traits | [spec](openspec/specs/generics-traits/spec.md) |
-| LSP | [spec](openspec/specs/lsp/spec.md) |
-| Diagnostics | [spec](openspec/specs/diagnostics/spec.md) |
-| Testing | [spec](openspec/specs/testing/spec.md) |
-| Testing Language | [spec](openspec/specs/testing-language/spec.md) |
-| Formatter | [spec](openspec/specs/formatter/spec.md) |
-| Tree-sitter | [spec](openspec/specs/tree-sitter/spec.md) |
-| Packages | [spec](openspec/specs/packages/spec.md) |
-| Standard Library | [spec](openspec/specs/stdlib/spec.md) |
-| Parallelism | [spec](openspec/specs/parallelism/spec.md) |
-| Doc Comments | [spec](openspec/specs/doc-comments/spec.md) |
-| Modules | [spec](openspec/specs/modules/spec.md) |
-| String Interpolation | [spec](openspec/specs/string-interpolation/spec.md) |
-| Unused Analysis | [spec](openspec/specs/unused-analysis/spec.md) |
-
-## AI Development
-
-This project uses [OpenSpec](https://github.com/Fission-AI/OpenSpec) for spec-driven development.
-
-**OpenCode integration** (both available):
-
-- **[opencode-plugin-openspec](https://github.com/Octane0411/opencode-plugin-openspec)** — adds the `openspec-plan` agent mode (read-only code, write access to spec files)
-- **OpenSpec CLI** — install with `npm install -g @fission-ai/openspec@latest`, then run `openspec init --tools opencode` to get slash commands (`/opsx:propose`, `/opsx:apply`, `/opsx:archive`, etc.)
+| Doc | Purpose |
+|-----|---------|
+| [syntax-recipe.md](docs/syntax-recipe.md) | Authoritative syntax reference |
+| [diagnostics-catalog.md](docs/diagnostics-catalog.md) | Compiler error codes and messages |
+| [stdlib-design-notes.md](docs/stdlib-design-notes.md) | Stdlib API design rationale |
 
 See [AGENTS.md](AGENTS.md) for AI assistant guidelines.

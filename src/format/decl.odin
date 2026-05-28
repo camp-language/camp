@@ -14,6 +14,8 @@ format_decl :: proc(
 		return format_decl_const(v, info, interner)
 	case ^frontend.Decl_Effect:
 		return format_decl_effect(v, info, interner)
+	case ^frontend.Decl_Effect_Alias:
+		return format_decl_effect_alias(v, info, interner)
 	case ^frontend.Decl_Trait:
 		return format_decl_trait(v, info, interner)
 	case ^frontend.Decl_Alias:
@@ -96,6 +98,19 @@ format_decl_effect :: proc(
 	append(&parts, doc_nest(4, format_effect_ops(v.operations[:], info, interner)))
 	append(&parts, doc_line())
 	append(&parts, doc_text("}"))
+	return doc_concat(parts[:])
+}
+
+format_decl_effect_alias :: proc(
+	v: ^frontend.Decl_Effect_Alias,
+	info: ^Format_Source_Info,
+	interner: ^base.Intern_Table,
+) -> Doc {
+	parts: [dynamic]Doc
+	defer delete(parts)
+	append(&parts, doc_text(base.intern_get(interner, v.name)))
+	append(&parts, doc_text(" = "))
+	append(&parts, format_type(v.target, info, interner))
 	return doc_concat(parts[:])
 }
 
@@ -435,6 +450,8 @@ decl_span_start :: proc(d: frontend.Decl) -> int {
 	case ^frontend.Decl_Const:
 		return v.span.start
 	case ^frontend.Decl_Effect:
+		return v.span.start
+	case ^frontend.Decl_Effect_Alias:
 		return v.span.start
 	case ^frontend.Decl_Trait:
 		return v.span.start
