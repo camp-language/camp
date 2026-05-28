@@ -3,7 +3,7 @@
 
 // Construction
 
-pub empty = crash "intrinsic: Iter.empty"
+pub empty: Iter(a) = crash "intrinsic: Iter.empty"
 
 pub singleton = |x| { crash "intrinsic: Iter.singleton" }
 

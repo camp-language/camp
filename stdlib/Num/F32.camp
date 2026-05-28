@@ -26,14 +26,10 @@ pub is_infinite = |n: F32| -> Bool { crash "intrinsic: Num.F32.is_infinite" }
 pub is_finite = |n: F32| -> Bool { crash "intrinsic: Num.F32.is_finite" }
 
 pub pi = 3.14159265
-
 pub e = 2.71828182
-
-pub nan = crash "intrinsic: Num.F32.nan"
-
-pub infinity = crash "intrinsic: Num.F32.infinity"
-
-pub neg_infinity = crash "intrinsic: Num.F32.neg_infinity"
+pub nan: F32 = crash "intrinsic: Num.F32.nan"
+pub infinity: F32 = crash "intrinsic: Num.F32.infinity"
+pub neg_infinity: F32 = crash "intrinsic: Num.F32.neg_infinity"
 
 pub sin = |n: F32| -> F32 { crash "intrinsic: Num.F32.sin" }
 
