@@ -466,6 +466,10 @@ run_test :: proc(args: []string) -> Build_Result {
 		}
 	}
 
+	// Collect doc tests
+	doc_test_codes := doc.extract_all_doc_tests(&ast_file, &ctx.interner, source, file_path)
+
+	// Run regular tests
 	for test in test_decls {
 		cbody, has_body := test_body_map[test.name]
 		if !has_body {
@@ -522,6 +526,67 @@ run_test :: proc(args: []string) -> Build_Result {
 		} else {
 			fail_count += 1
 			fmt.printfln("  FAIL  {} (exit code: {})", test.name, exit_code)
+			if len(wasm_stdout) > 0 {
+				fmt.printfln("    stdout: {}", wasm_stdout)
+			}
+			if len(wasm_stderr) > 0 {
+				fmt.printfln("    stderr: {}", wasm_stderr)
+			}
+		}
+	}
+
+	// Run doc tests
+	for dt in doc_test_codes {
+		safe_name := sanitize_test_name(fmt.tprintf("%s-%s", dt.decl_name, dt.name))
+		tmp_dir := fmt.tprintf("/tmp/camp-test-{}-{}", pid, safe_name)
+		os.make_directory_all(tmp_dir)
+		defer os.remove_all(tmp_dir)
+		tmp_wasm_path := fmt.tprintf("{}/main.wasm", tmp_dir)
+
+		sub_arena: virtual.Arena
+		arena_err := virtual.arena_init_growing(&sub_arena)
+		if arena_err != nil {
+			fmt.printfln("  FAIL  [doc] {} (could not init arena)", dt.name)
+			fail_count += 1
+			continue
+		}
+
+		// Parse the doc test code as an expression
+		dt_expr := parse_doc_test_expr(dt.code, &ctx.collector, &ctx.interner)
+		if dt_expr == nil {
+			fmt.printfln("  FAIL  [doc] {} (parse error in doc test code)", dt.name)
+			virtual.arena_destroy(&sub_arena)
+			fail_count += 1
+			continue
+		}
+
+		compile_ok := compile_doc_test_canon(canon, dt_expr, tmp_wasm_path, &ctx.interner, &sub_arena)
+		virtual.arena_destroy(&sub_arena)
+
+		if !compile_ok {
+			fmt.printfln("  FAIL  [doc] {} (compilation failed)", dt.name)
+			fail_count += 1
+			continue
+		}
+
+		wasm_stdout, wasm_stderr, exit_code := run_wasmtime_proc(tmp_wasm_path)
+
+		if exit_code == 0 {
+			pass_count += 1
+			if verbose {
+				fmt.printfln("  PASS  [doc] {}: {}", dt.decl_name, dt.name)
+				if len(wasm_stdout) > 0 {
+					fmt.printfln("    stdout: {}", wasm_stdout)
+				}
+				if len(wasm_stderr) > 0 {
+					fmt.printfln("    stderr: {}", wasm_stderr)
+				}
+			} else {
+				fmt.printfln("  PASS  [doc] {}: {}", dt.decl_name, dt.name)
+			}
+		} else {
+			fail_count += 1
+			fmt.printfln("  FAIL  [doc] {}: {} (exit code: {})", dt.decl_name, dt.name, exit_code)
 			if len(wasm_stdout) > 0 {
 				fmt.printfln("    stdout: {}", wasm_stdout)
 			}
@@ -732,5 +797,126 @@ sanitize_test_name :: proc(name: string) -> string {
 		}
 	}
 	return string(b)
+}
+
+parse_doc_test_expr :: proc(code: string, collector: ^diagnostics.Diagnostic_Collector, interner: ^base.Intern_Table) -> frontend.Expr {
+	file := base.Source_File {
+		path     = "<doctest>",
+		contents = code,
+		id       = 0,
+	}
+	lexer: frontend.Lexer
+	frontend.lexer_init(&lexer, file, collector, interner)
+
+	parser: frontend.Parser
+	frontend.parser_init(&parser, &lexer, collector, interner)
+
+	return frontend.parser_parse_expr(&parser)
+}
+
+compile_doc_test_canon :: proc(
+	orig_canon: semantics.CFile,
+	test_body: frontend.Expr,
+	output_path: string,
+	interner: ^base.Intern_Table,
+	arena: ^virtual.Arena,
+) -> bool {
+	alloc := virtual.arena_allocator(arena)
+
+	collector: diagnostics.Diagnostic_Collector
+	diagnostics.diag_collector_init(&collector)
+	defer diagnostics.diag_collector_destroy(&collector)
+
+	old_alloc := context.allocator
+	defer context.allocator = old_alloc
+	context.allocator = alloc
+
+	// Init DOT_RECEIVER_INTERN_ID for canonicalization
+	semantics.DOT_RECEIVER_INTERN_ID = base.intern(interner, semantics.DOT_RECEIVER_NAME)
+
+	// Create scope for canonicalization
+	scope: semantics.Canonicalize_Scope
+	scope.local_names = make(map[base.Intern_ID]base.Canonical_Name, 16)
+	scope.local_kinds = make(map[base.Intern_ID]semantics.Decl_Kind, 16)
+	defer delete(scope.local_names)
+	defer delete(scope.local_kinds)
+
+	cbody := semantics.canonicalize_expr(test_body, &scope, interner, &collector)
+
+	// Build a new CFile: copy all declarations + add main! = cbody
+	main_name_id := base.intern(interner, "main!")
+	main_cn := base.Canonical_Name {
+		module   = base.NO_NAME,
+		name     = main_name_id,
+		is_local = false,
+	}
+
+	main_decl := new(semantics.CDecl_Const)
+	main_decl^ = semantics.CDecl_Const {
+		name           = main_cn,
+		is_pub         = false,
+		is_effectful   = true,
+		body           = cbody,
+		where_clauses  = make([dynamic]frontend.Where_Clause, 0),
+		derive_targets = make([dynamic]base.Intern_ID, 0),
+		span           = base.Source_Span_ZERO,
+	}
+
+	new_decls := make([dynamic]semantics.CDecl, 0, len(orig_canon.decls) + 1)
+	for decl in orig_canon.decls {
+		#partial switch d in decl {
+		case ^semantics.CDecl_Test, ^semantics.CDecl_Expect:
+		case ^semantics.CDecl_Const,
+		     ^semantics.CDecl_Effect,
+		     ^semantics.CDecl_Trait,
+		     ^semantics.CDecl_Alias,
+		     ^semantics.CDecl_Newtype,
+		     ^semantics.CDecl_Import:
+			append(&new_decls, decl)
+		}
+	}
+	append(&new_decls, semantics.CDecl(main_decl))
+
+	cf := semantics.CFile {
+		path    = orig_canon.path,
+		decls   = new_decls,
+		imports = orig_canon.imports,
+		span    = orig_canon.span,
+	}
+
+	store: semantics.Type_Store
+	semantics.type_store_init(&store, interner, &collector)
+	defer semantics.type_store_destroy(&store)
+	semantics.inject_prelude(&store)
+	tfile := semantics.typecheck_file(cf, &store)
+
+	if diagnostics.diag_collector_has_errors(&collector) {
+		return false
+	}
+
+	analysis.run_unused_analysis(cf, interner, &collector)
+	if diagnostics.diag_collector_has_errors(&collector) {
+		return false
+	}
+
+	mono_tfile := mono.mono(tfile, &store, interner)
+	ir_mod := ir.lower_tfile(mono_tfile, &store)
+	ir_mod = ir.effect_lower(&ir_mod, interner, &collector, &store)
+	errors_before_cc := collector.error_count
+	ir_mod = ir.closure_convert(&ir_mod, interner, &collector)
+	if collector.error_count > errors_before_cc {
+		return false
+	}
+
+	ir_mod = ir.cps_transform(&ir_mod, interner)
+	ir.rc_insert(&ir_mod, interner)
+	ir.reuse_analyze(&ir_mod)
+
+	wasm_mod := codegen.codegen(ir_mod, interner, 1)
+	wasm_bytes := codegen.wasm_serialize(wasm_mod)
+	defer delete(wasm_bytes)
+
+	err := os.write_entire_file_from_bytes(output_path, wasm_bytes[:])
+	return err == nil
 }
 
