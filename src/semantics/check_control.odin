@@ -140,6 +140,9 @@ typecheck_pattern :: proc(
 			}
 		}
 		rest_var := fresh_record_row(store, p.span)
+		if p.rest != 0 {
+			env.bindings[p.rest] = rest_var
+		}
 		rec_var := fresh_value_var(store, p.span)
 		link_var(
 			store,
@@ -156,6 +159,7 @@ typecheck_pattern :: proc(
 			fields  = fields_t,
 			is_open = p.is_open,
 			span    = p.span,
+			rest    = p.rest,
 		}
 		return Pat_Result{var_id = rec_var, effects = eff, tpat = TPattern(tp)}
 
