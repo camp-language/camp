@@ -1,68 +1,46 @@
--- Num/I8.camp
--- Operations on I8.
+// Num/I8.camp
+// Operations on I8.
 
-pub abs : I8 -> I8
 pub abs = |n| if n < 0 { 0 - n } else { n }
 
-pub clamp : I8, I8, I8 -> I8
 pub clamp = |lo, hi, n| if n < lo { lo } else if n > hi { hi } else { n }
 
-pub max : I8, I8 -> I8
 pub max = |a, b| if a > b { a } else { b }
 
-pub min : I8, I8 -> I8
 pub min = |a, b| if a < b { a } else { b }
 
-pub neg : I8 -> I8
 pub neg = |n| 0 - n
 
-pub checked_add : I8, I8 -> Result(I8, [Overflow])
 pub checked_add = |a, b| crash "intrinsic: Num.I8.checked_add"
 
-pub checked_sub : I8, I8 -> Result(I8, [Overflow])
 pub checked_sub = |a, b| crash "intrinsic: Num.I8.checked_sub"
 
-pub checked_mul : I8, I8 -> Result(I8, [Overflow])
 pub checked_mul = |a, b| crash "intrinsic: Num.I8.checked_mul"
 
-pub wrapping_add : I8, I8 -> I8
 pub wrapping_add = |a, b| crash "intrinsic: Num.I8.wrapping_add"
 
-pub saturating_add : I8, I8 -> I8
 pub saturating_add = |a, b| crash "intrinsic: Num.I8.saturating_add"
 
-pub saturating_sub : I8, I8 -> I8
 pub saturating_sub = |a, b| crash "intrinsic: Num.I8.saturating_sub"
 
-pub to_str : I8 -> Str
 pub to_str = |n| crash "intrinsic: Num.I8.to_str"
 
-pub from_str : Str -> Result(I8, [InvalidFormat])
 pub from_str = |s| crash "intrinsic: Num.I8.from_str"
 
-pub bitwise_and : I8, I8 -> I8
-pub bitwise_and = |a, b| a & b
+pub bitwise_and = |a, b| crash "intrinsic: Num.I8.bitwise_and"
 
-pub bitwise_or : I8, I8 -> I8
-pub bitwise_or = |a, b| a | b
+pub bitwise_or = |a, b| crash "intrinsic: Num.I8.bitwise_or"
 
-pub bitwise_xor : I8, I8 -> I8
-pub bitwise_xor = |a, b| a ^ b
+pub bitwise_xor = |a, b| crash "intrinsic: Num.I8.bitwise_xor"
 
-pub bitwise_not : I8 -> I8
-pub bitwise_not = |a| ~a
+pub bitwise_not = |a| crash "intrinsic: Num.I8.bitwise_not"
 
-pub shift_left : I8, I8 -> I8
-pub shift_left = |a, n| a << n
+pub shift_left = |a, n| crash "intrinsic: Num.I8.shift_left"
 
-pub shift_right : I8, I8 -> I8
-pub shift_right = |a, n| a >> n
+pub shift_right = |a, n| crash "intrinsic: Num.I8.shift_right"
 
-pub count_ones : I8 -> I8
 pub count_ones = |n| crash "intrinsic: Num.I8.count_ones"
 
-pub leading_zeros : I8 -> I8
 pub leading_zeros = |n| crash "intrinsic: Num.I8.leading_zeros"
 
-pub trailing_zeros : I8 -> I8
 pub trailing_zeros = |n| crash "intrinsic: Num.I8.trailing_zeros"

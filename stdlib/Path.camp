@@ -1,56 +1,41 @@
--- @Path — opaque filesystem path, normalized on construction
--- Per D25: Opaque type, auto-normalized. No I/O on Path — that's in File!.
+// Path.camp
 
-@Path : -- opaque, provided by runtime
+@Path : {}
 
--- Construction
+// Construction
 
-pub new : Str -> Path
-pub new = |s| crash "intrinsic: Path.new"
+pub new = |s| { crash "intrinsic: Path.new" }
 
-pub join : Path, Path -> Path
-pub join = |a, b| crash "intrinsic: Path.join"
+pub join = |a, b| { crash "intrinsic: Path.join" }
 
-pub from_list : List(Str) -> Path
-pub from_list = |parts| crash "intrinsic: Path.from_list"
+pub from_list = |parts| { crash "intrinsic: Path.from_list" }
 
--- Decomposition
+// Decomposition
 
-pub parent : Path -> Result(Path, [HasNoParent])
-pub parent = |p| crash "intrinsic: Path.parent"
+pub parent = |p| { crash "intrinsic: Path.parent" }
 
-pub filename : Path -> Str
-pub filename = |p| crash "intrinsic: Path.filename"
+pub filename = |p| { crash "intrinsic: Path.filename" }
 
-pub stem : Path -> Str
-pub stem = |p| crash "intrinsic: Path.stem"
+pub stem = |p| { crash "intrinsic: Path.stem" }
 
-pub extension : Path -> Str
-pub extension = |p| crash "intrinsic: Path.extension"
+pub extension = |p| { crash "intrinsic: Path.extension" }
 
--- Manipulation
+// Manipulation
 
-pub with_extension : Path, Str -> Path
-pub with_extension = |p, ext| crash "intrinsic: Path.with_extension"
+pub with_extension = |p, ext| { crash "intrinsic: Path.with_extension" }
 
-pub with_filename : Path, Str -> Path
-pub with_filename = |p, name| crash "intrinsic: Path.with_filename"
+pub with_filename = |p, name| { crash "intrinsic: Path.with_filename" }
 
-pub with_parent : Path, Path -> Path
-pub with_parent = |p, parent| crash "intrinsic: Path.with_parent"
+pub with_parent = |p, parent_path| { crash "intrinsic: Path.with_parent" }
 
--- Queries
+// Queries
 
-pub is_absolute : Path -> Bool
-pub is_absolute = |p| crash "intrinsic: Path.is_absolute"
+pub is_absolute = |p| { crash "intrinsic: Path.is_absolute" }
 
-pub is_relative : Path -> Bool
-pub is_relative = |p| crash "intrinsic: Path.is_relative"
+pub is_relative = |p| { crash "intrinsic: Path.is_relative" }
 
--- Conversion
+// Conversion
 
-pub to_str : Path -> Str
-pub to_str = |p| crash "intrinsic: Path.to_str"
+pub to_str = |p| { crash "intrinsic: Path.to_str" }
 
-pub to_iter : Path -> Iter(Str)
-pub to_iter = |p| crash "intrinsic: Path.to_iter"
+pub to_iter = |p| { crash "intrinsic: Path.to_iter" }

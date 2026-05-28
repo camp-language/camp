@@ -1,5 +1,5 @@
--- FromIter trait — construct a collection from an iterator
+// FromIter trait — construct a collection from an iterator
 
-FromIter(c, a) : {
-  from_iter : Iter(a) -> c,
+FromIter : {
+  from_iter : |Iter(a)| -> Self,
 }

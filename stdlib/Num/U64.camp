@@ -1,65 +1,44 @@
--- Num/U64.camp
--- Operations on U64. Unsigned — no abs or neg.
+// Num/U64.camp
+// Operations on U64. Unsigned — no abs or neg.
 
-pub clamp : U64, U64, U64 -> U64
 pub clamp = |lo, hi, n| if n < lo { lo } else if n > hi { hi } else { n }
 
-pub max : U64, U64 -> U64
 pub max = |a, b| if a > b { a } else { b }
 
-pub min : U64, U64 -> U64
 pub min = |a, b| if a < b { a } else { b }
 
-pub checked_add : U64, U64 -> Result(U64, [Overflow])
 pub checked_add = |a, b| crash "intrinsic: Num.U64.checked_add"
 
-pub checked_sub : U64, U64 -> Result(U64, [Overflow])
 pub checked_sub = |a, b| crash "intrinsic: Num.U64.checked_sub"
 
-pub checked_mul : U64, U64 -> Result(U64, [Overflow])
 pub checked_mul = |a, b| crash "intrinsic: Num.U64.checked_mul"
 
-pub wrapping_add : U64, U64 -> U64
 pub wrapping_add = |a, b| crash "intrinsic: Num.U64.wrapping_add"
 
-pub saturating_add : U64, U64 -> U64
 pub saturating_add = |a, b| crash "intrinsic: Num.U64.saturating_add"
 
-pub saturating_sub : U64, U64 -> U64
 pub saturating_sub = |a, b| crash "intrinsic: Num.U64.saturating_sub"
 
-pub to_str : U64 -> Str
 pub to_str = |n| crash "intrinsic: Num.U64.to_str"
 
-pub from_str : Str -> Result(U64, [InvalidFormat])
 pub from_str = |s| crash "intrinsic: Num.U64.from_str"
 
-pub range : U64, U64 -> Iter(U64)
 pub range = |start, end| crash "intrinsic: Num.U64.range"
 
-pub bitwise_and : U64, U64 -> U64
-pub bitwise_and = |a, b| a & b
+pub bitwise_and = |a, b| crash "intrinsic: Num.U64.bitwise_and"
 
-pub bitwise_or : U64, U64 -> U64
-pub bitwise_or = |a, b| a | b
+pub bitwise_or = |a, b| crash "intrinsic: Num.U64.bitwise_or"
 
-pub bitwise_xor : U64, U64 -> U64
-pub bitwise_xor = |a, b| a ^ b
+pub bitwise_xor = |a, b| crash "intrinsic: Num.U64.bitwise_xor"
 
-pub bitwise_not : U64 -> U64
-pub bitwise_not = |a| ~a
+pub bitwise_not = |a| crash "intrinsic: Num.U64.bitwise_not"
 
-pub shift_left : U64, U64 -> U64
-pub shift_left = |a, n| a << n
+pub shift_left = |a, n| crash "intrinsic: Num.U64.shift_left"
 
-pub shift_right : U64, U64 -> U64
-pub shift_right = |a, n| a >> n
+pub shift_right = |a, n| crash "intrinsic: Num.U64.shift_right"
 
-pub count_ones : U64 -> U64
 pub count_ones = |n| crash "intrinsic: Num.U64.count_ones"
 
-pub leading_zeros : U64 -> U64
 pub leading_zeros = |n| crash "intrinsic: Num.U64.leading_zeros"
 
-pub trailing_zeros : U64 -> U64
 pub trailing_zeros = |n| crash "intrinsic: Num.U64.trailing_zeros"

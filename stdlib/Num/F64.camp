@@ -1,120 +1,86 @@
--- Num/F64.camp
--- Operations on F64.
+// Num/F64.camp
+// Operations on F64.
 
--- Basic operations (abs is intrinsic due to sign bit handling)
+// Basic operations (abs is intrinsic due to sign bit handling)
 
-pub abs : F64 -> F64
 pub abs = |n| crash "intrinsic: Num.F64.abs"
 
-pub clamp : F64, F64, F64 -> F64
 pub clamp = |lo, hi, n| if n < lo { lo } else if n > hi { hi } else { n }
 
-pub max : F64, F64 -> F64
 pub max = |a, b| crash "intrinsic: Num.F64.max"
 
-pub min : F64, F64 -> F64
 pub min = |a, b| crash "intrinsic: Num.F64.min"
 
-pub neg : F64 -> F64
 pub neg = |n| 0.0 - n
 
--- Rounding (intrinsic — needs libm)
+// Rounding (intrinsic — needs libm)
 
-pub ceiling : F64 -> F64
 pub ceiling = |n| crash "intrinsic: Num.F64.ceiling"
 
-pub floor : F64 -> F64
 pub floor = |n| crash "intrinsic: Num.F64.floor"
 
-pub round : F64 -> F64
 pub round = |n| crash "intrinsic: Num.F64.round"
 
-pub truncate : F64 -> F64
 pub truncate = |n| crash "intrinsic: Num.F64.truncate"
 
--- Classification (intrinsic — IEEE 754 bit inspection)
+// Classification (intrinsic — IEEE 754 bit inspection)
 
-pub is_nan : F64 -> Bool
 pub is_nan = |n| crash "intrinsic: Num.F64.is_nan"
 
-pub is_infinite : F64 -> Bool
 pub is_infinite = |n| crash "intrinsic: Num.F64.is_infinite"
 
-pub is_finite : F64 -> Bool
 pub is_finite = |n| crash "intrinsic: Num.F64.is_finite"
 
--- Constants
+// Constants
 
-pub pi : F64
 pub pi = 3.14159265358979323846
 
-pub e : F64
 pub e = 2.71828182845904523536
 
-pub nan : F64
 pub nan = crash "intrinsic: Num.F64.nan"
 
-pub infinity : F64
 pub infinity = crash "intrinsic: Num.F64.infinity"
 
-pub neg_infinity : F64
 pub neg_infinity = crash "intrinsic: Num.F64.neg_infinity"
 
--- Trigonometry (intrinsic — needs libm)
+// Trigonometry (intrinsic — needs libm)
 
-pub sin : F64 -> F64
 pub sin = |n| crash "intrinsic: Num.F64.sin"
 
-pub cos : F64 -> F64
 pub cos = |n| crash "intrinsic: Num.F64.cos"
 
-pub tan : F64 -> F64
 pub tan = |n| crash "intrinsic: Num.F64.tan"
 
-pub asin : F64 -> F64
 pub asin = |n| crash "intrinsic: Num.F64.asin"
 
-pub acos : F64 -> F64
 pub acos = |n| crash "intrinsic: Num.F64.acos"
 
-pub atan : F64 -> F64
 pub atan = |n| crash "intrinsic: Num.F64.atan"
 
-pub atan2 : F64, F64 -> F64
 pub atan2 = |y, x| crash "intrinsic: Num.F64.atan2"
 
--- Exponential/Logarithmic (intrinsic — needs libm)
+// Exponential/Logarithmic (intrinsic — needs libm)
 
-pub exp : F64 -> F64
 pub exp = |n| crash "intrinsic: Num.F64.exp"
 
-pub log : F64 -> F64
 pub log = |n| crash "intrinsic: Num.F64.log"
 
-pub log2 : F64 -> F64
 pub log2 = |n| crash "intrinsic: Num.F64.log2"
 
-pub log10 : F64 -> F64
 pub log10 = |n| crash "intrinsic: Num.F64.log10"
 
--- Power (intrinsic — needs libm)
+// Power (intrinsic — needs libm)
 
-pub pow : F64, F64 -> F64
-pub pow = |base, exp| crash "intrinsic: Num.F64.pow"
+pub pow = |base, exp_val| crash "intrinsic: Num.F64.pow"
 
-pub sqrt : F64 -> F64
 pub sqrt = |n| crash "intrinsic: Num.F64.sqrt"
 
--- Conversion
+// Conversion
 
-pub to_str : F64 -> Str
 pub to_str = |n| crash "intrinsic: Num.F64.to_str"
 
-pub from_str : Str -> Result(F64, [InvalidFormat])
 pub from_str = |s| crash "intrinsic: Num.F64.from_str"
 
-pub to_i64 : F64 -> I64
 pub to_i64 = |n| crash "intrinsic: Num.F64.to_i64"
 
-pub from_i64 : I64 -> F64
 pub from_i64 = |n| crash "intrinsic: Num.F64.from_i64"

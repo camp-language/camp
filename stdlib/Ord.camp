@@ -1,8 +1,6 @@
--- Ord trait — total ordering
--- Per D16: Order is structural tag union [Less | Equal | Greater]
+// Ord trait — total ordering
+// Per D16: Order is structural tag union [Less | Equal | Greater]
 
 @Order : pub [Less | Equal | Greater]
 
-Ord(a) : is Eq(a) {
-  compare : (a, a) -> Order,
-}
+Ord : { compare : |Self, Self| -> Order }

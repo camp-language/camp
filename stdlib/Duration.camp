@@ -1,72 +1,53 @@
--- @Duration — time duration (Rust-style signed struct)
--- Per D24: { secs: I64, nanos: I64 } internally. Signed, ~584B yr range.
--- DateTime is a separate package, not stdlib.
+// @Duration — time duration (Rust-style signed struct)
+// Per D24: { secs: I64, nanos: I64 } internally. Signed, ~584B yr range.
+// DateTime is a separate package, not stdlib.
 
-@Duration : -- opaque, internally { secs: I64, nanos: I64 }
+@Duration : {}
 
--- Constructors
+// Constructors
 
-pub from_seconds : F64 -> Duration
-pub from_seconds = |s| crash "intrinsic: Duration.from_seconds"
+pub from_seconds = |s| { crash "intrinsic: Duration.from_seconds" }
 
-pub from_millis : I64 -> Duration
-pub from_millis = |ms| crash "intrinsic: Duration.from_millis"
+pub from_millis = |ms| { crash "intrinsic: Duration.from_millis" }
 
-pub from_micros : I64 -> Duration
-pub from_micros = |us| crash "intrinsic: Duration.from_micros"
+pub from_micros = |us| { crash "intrinsic: Duration.from_micros" }
 
-pub from_nanos : I64 -> Duration
-pub from_nanos = |ns| crash "intrinsic: Duration.from_nanos"
+pub from_nanos = |ns| { crash "intrinsic: Duration.from_nanos" }
 
--- Accessors
+// Accessors
 
-pub as_seconds : Duration -> F64
-pub as_seconds = |d| crash "intrinsic: Duration.as_seconds"
+pub as_seconds = |d| { crash "intrinsic: Duration.as_seconds" }
 
-pub as_millis : Duration -> I64
-pub as_millis = |d| crash "intrinsic: Duration.as_millis"
+pub as_millis = |d| { crash "intrinsic: Duration.as_millis" }
 
-pub as_micros : Duration -> I64
-pub as_micros = |d| crash "intrinsic: Duration.as_micros"
+pub as_micros = |d| { crash "intrinsic: Duration.as_micros" }
 
-pub as_nanos : Duration -> I64
-pub as_nanos = |d| crash "intrinsic: Duration.as_nanos"
+pub as_nanos = |d| { crash "intrinsic: Duration.as_nanos" }
 
--- Arithmetic
+// Arithmetic
 
-pub add : Duration, Duration -> Duration
-pub add = |a, b| crash "intrinsic: Duration.add"
+pub add = |a, b| { crash "intrinsic: Duration.add" }
 
-pub sub : Duration, Duration -> Duration
-pub sub = |a, b| crash "intrinsic: Duration.sub"
+pub sub = |a, b| { crash "intrinsic: Duration.sub" }
 
-pub mul : Duration, I64 -> Duration
-pub mul = |d, n| crash "intrinsic: Duration.mul"
+pub mul = |d, n| { crash "intrinsic: Duration.mul" }
 
-pub neg : Duration -> Duration
-pub neg = |d| crash "intrinsic: Duration.neg"
+pub neg = |d| { crash "intrinsic: Duration.neg" }
 
-pub abs : Duration -> Duration
-pub abs = |d| crash "intrinsic: Duration.abs"
+pub abs = |d| { crash "intrinsic: Duration.abs" }
 
--- Comparison (via Ord)
+// Comparison (via Ord)
 
-pub is_zero : Duration -> Bool
-pub is_zero = |d| crash "intrinsic: Duration.is_zero"
+pub is_zero = |d| { crash "intrinsic: Duration.is_zero" }
 
--- Constants
+// Constants
 
-pub zero : Duration
 pub zero = crash "intrinsic: Duration.zero"
 
-pub second : Duration
 pub second = crash "intrinsic: Duration.second"
 
-pub millisecond : Duration
 pub millisecond = crash "intrinsic: Duration.millisecond"
 
-pub microsecond : Duration
 pub microsecond = crash "intrinsic: Duration.microsecond"
 
-pub nanosecond : Duration
 pub nanosecond = crash "intrinsic: Duration.nanosecond"
