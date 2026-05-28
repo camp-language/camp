@@ -2,8 +2,8 @@
 // Per D31: one effect, two handlers. Handler choice determines security guarantees.
 
 Random! : {
-  int!   : |I64, I64| -> -[Random!]-> I64,
-  float! : |F64, F64| -> -[Random!]-> F64,
-  bytes! : |I64| -> -[Random!]-> Bytes,
+  int!   : |I64, I64| -[Random!]-> I64,
+  float! : |F64, F64| -[Random!]-> F64,
+  bytes! : |I64| -[Random!]-> Bytes,
   bool!  : || -[Random!]-> Bool,
 }

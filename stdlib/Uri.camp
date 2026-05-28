@@ -26,30 +26,30 @@
 
 // Parsing and formatting — pure Camp
 
-pub parse = |_s| { crash "intrinsic: Uri.parse" }
+pub parse = |_s: Str| -> Result(Uri, UriErr) { crash "intrinsic: Uri.parse" }
 
-pub to_str = |_u| { crash "intrinsic: Uri.to_str" }
+pub to_str = |_u: Uri| -> Str { crash "intrinsic: Uri.to_str" }
 
 // Component-level percent encoding — pure Camp
 
-pub encode_component = |_s| { crash "intrinsic: Uri.encode_component" }
+pub encode_component = |_s: Str| -> Str { crash "intrinsic: Uri.encode_component" }
 
-pub decode_component = |_s| { crash "intrinsic: Uri.decode_component" }
+pub decode_component = |_s: Str| -> Str { crash "intrinsic: Uri.decode_component" }
 
 // Query string parsing (convenience) — pure Camp
 
-pub parse_query = |_s| { crash "intrinsic: Uri.parse_query" }
+pub parse_query = |_s: Str| -> List((Str, Str)) { crash "intrinsic: Uri.parse_query" }
 
-pub format_query = |_pairs| { crash "intrinsic: Uri.format_query" }
+pub format_query = |_pairs: List((Str, Str))| -> Str { crash "intrinsic: Uri.format_query" }
 
 // Functional construction helpers — pure Camp
 
-pub with_scheme = |_s, _u| { crash "intrinsic: Uri.with_scheme" }
+pub with_scheme = |_s: Str, _u: Uri| -> Uri { crash "intrinsic: Uri.with_scheme" }
 
-pub with_authority = |_a, _u| { crash "intrinsic: Uri.with_authority" }
+pub with_authority = |_a: UriAuthority, _u: Uri| -> Uri { crash "intrinsic: Uri.with_authority" }
 
-pub with_path = |_p, _u| { crash "intrinsic: Uri.with_path" }
+pub with_path = |_p: Str, _u: Uri| -> Uri { crash "intrinsic: Uri.with_path" }
 
-pub with_query = |_q, _u| { crash "intrinsic: Uri.with_query" }
+pub with_query = |_q: Str, _u: Uri| -> Uri { crash "intrinsic: Uri.with_query" }
 
-pub with_fragment = |_f, _u| { crash "intrinsic: Uri.with_fragment" }
+pub with_fragment = |_f: Str, _u: Uri| -> Uri { crash "intrinsic: Uri.with_fragment" }

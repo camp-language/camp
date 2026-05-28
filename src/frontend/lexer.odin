@@ -103,6 +103,19 @@ when simd.HAS_HARDWARE_SIMD {
 			prefix_mask := u16(1 << u16(first_non_ws)) - 1
 			if (nl_bits & prefix_mask) != 0 {l.at_line_start = true}
 			l.pos += first_non_ws
+			// Check for // or //# comments (but not /// doc comments) - if found, skip to end of line and continue
+			if l.source[l.pos] == '/' && l.pos + 1 < source_len && (l.source[l.pos + 1] == '/' || l.source[l.pos + 1] == '#') {
+				// Don't skip /// doc comments (they're handled in lexer_next)
+				is_doc_comment := l.pos + 2 < source_len && l.source[l.pos + 1] == '/' && l.source[l.pos + 2] == '/'
+				if !is_doc_comment {
+					for l.pos < source_len && l.source[l.pos] != '\n' {
+						l.pos += 1
+					}
+					l.at_line_start = true
+					continue
+				}
+			}
+
 			return
 		}
 	}

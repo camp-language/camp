@@ -1,42 +1,42 @@
 // Num/U8.camp
 // Operations on U8. Unsigned — no abs or neg.
 
-pub clamp = |lo, hi, n| if n < lo { lo } else if n > hi { hi } else { n }
+pub clamp = |lo: U8, hi: U8, n: U8| -> U8 { if n < lo { lo } else if n > hi { hi } else { n } }
 
-pub max = |a, b| if a > b { a } else { b }
+pub max = |a: U8, b: U8| -> U8 { if a > b { a } else { b } }
 
-pub min = |a, b| if a < b { a } else { b }
+pub min = |a: U8, b: U8| -> U8 { if a < b { a } else { b } }
 
-pub checked_add = |a, b| crash "intrinsic: Num.U8.checked_add"
+pub checked_add = |a: U8, b: U8| -> U8 { crash "intrinsic: Num.U8.checked_add" }
 
-pub checked_sub = |a, b| crash "intrinsic: Num.U8.checked_sub"
+pub checked_sub = |a: U8, b: U8| -> U8 { crash "intrinsic: Num.U8.checked_sub" }
 
-pub checked_mul = |a, b| crash "intrinsic: Num.U8.checked_mul"
+pub checked_mul = |a: U8, b: U8| -> U8 { crash "intrinsic: Num.U8.checked_mul" }
 
-pub wrapping_add = |a, b| crash "intrinsic: Num.U8.wrapping_add"
+pub wrapping_add = |a: U8, b: U8| -> U8 { crash "intrinsic: Num.U8.wrapping_add" }
 
-pub saturating_add = |a, b| crash "intrinsic: Num.U8.saturating_add"
+pub saturating_add = |a: U8, b: U8| -> U8 { crash "intrinsic: Num.U8.saturating_add" }
 
-pub saturating_sub = |a, b| crash "intrinsic: Num.U8.saturating_sub"
+pub saturating_sub = |a: U8, b: U8| -> U8 { crash "intrinsic: Num.U8.saturating_sub" }
 
-pub to_str = |n| crash "intrinsic: Num.U8.to_str"
+pub to_str = |n: U8| -> Str { crash "intrinsic: Num.U8.to_str" }
 
-pub from_str = |s| crash "intrinsic: Num.U8.from_str"
+pub from_str = |s: Str| -> U8 { crash "intrinsic: Num.U8.from_str" }
 
-pub bitwise_and = |a, b| crash "intrinsic: Num.U8.bitwise_and"
+pub bitwise_and = |a: U8, b: U8| -> U8 { crash "intrinsic: Num.U8.bitwise_and" }
 
-pub bitwise_or = |a, b| crash "intrinsic: Num.U8.bitwise_or"
+pub bitwise_or = |a: U8, b: U8| -> U8 { crash "intrinsic: Num.U8.bitwise_or" }
 
-pub bitwise_xor = |a, b| crash "intrinsic: Num.U8.bitwise_xor"
+pub bitwise_xor = |a: U8, b: U8| -> U8 { crash "intrinsic: Num.U8.bitwise_xor" }
 
-pub bitwise_not = |a| crash "intrinsic: Num.U8.bitwise_not"
+pub bitwise_not = |a: U8| -> U8 { crash "intrinsic: Num.U8.bitwise_not" }
 
-pub shift_left = |a, n| crash "intrinsic: Num.U8.shift_left"
+pub shift_left = |a: U8, n: U8| -> U8 { crash "intrinsic: Num.U8.shift_left" }
 
-pub shift_right = |a, n| crash "intrinsic: Num.U8.shift_right"
+pub shift_right = |a: U8, n: U8| -> U8 { crash "intrinsic: Num.U8.shift_right" }
 
-pub count_ones = |n| crash "intrinsic: Num.U8.count_ones"
+pub count_ones = |n: U8| -> U8 { crash "intrinsic: Num.U8.count_ones" }
 
-pub leading_zeros = |n| crash "intrinsic: Num.U8.leading_zeros"
+pub leading_zeros = |n: U8| -> U8 { crash "intrinsic: Num.U8.leading_zeros" }
 
-pub trailing_zeros = |n| crash "intrinsic: Num.U8.trailing_zeros"
+pub trailing_zeros = |n: U8| -> U8 { crash "intrinsic: Num.U8.trailing_zeros" }

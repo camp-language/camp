@@ -1,29 +1,29 @@
 // Num/F32.camp
 // Operations on F32.
 
-pub abs = |n| crash "intrinsic: Num.F32.abs"
+pub abs = |n: F32| -> F32 { crash "intrinsic: Num.F32.abs" }
 
-pub clamp = |lo, hi, n| if n < lo { lo } else if n > hi { hi } else { n }
+pub clamp = |lo: F32, hi: F32, n: F32| -> F32 { if n < lo { lo } else if n > hi { hi } else { n } }
 
-pub max = |a, b| crash "intrinsic: Num.F32.max"
+pub max = |a: F32, b: F32| -> F32 { crash "intrinsic: Num.F32.max" }
 
-pub min = |a, b| crash "intrinsic: Num.F32.min"
+pub min = |a: F32, b: F32| -> F32 { crash "intrinsic: Num.F32.min" }
 
-pub neg = |n| 0.0 - n
+pub neg = |n: F32| -> F32 { 0.0 - n }
 
-pub ceiling = |n| crash "intrinsic: Num.F32.ceiling"
+pub ceiling = |n: F32| -> F32 { crash "intrinsic: Num.F32.ceiling" }
 
-pub floor = |n| crash "intrinsic: Num.F32.floor"
+pub floor = |n: F32| -> F32 { crash "intrinsic: Num.F32.floor" }
 
-pub round = |n| crash "intrinsic: Num.F32.round"
+pub round = |n: F32| -> F32 { crash "intrinsic: Num.F32.round" }
 
-pub truncate = |n| crash "intrinsic: Num.F32.truncate"
+pub truncate = |n: F32| -> F32 { crash "intrinsic: Num.F32.truncate" }
 
-pub is_nan = |n| crash "intrinsic: Num.F32.is_nan"
+pub is_nan = |n: F32| -> Bool { crash "intrinsic: Num.F32.is_nan" }
 
-pub is_infinite = |n| crash "intrinsic: Num.F32.is_infinite"
+pub is_infinite = |n: F32| -> Bool { crash "intrinsic: Num.F32.is_infinite" }
 
-pub is_finite = |n| crash "intrinsic: Num.F32.is_finite"
+pub is_finite = |n: F32| -> Bool { crash "intrinsic: Num.F32.is_finite" }
 
 pub pi = 3.14159265
 
@@ -35,36 +35,36 @@ pub infinity = crash "intrinsic: Num.F32.infinity"
 
 pub neg_infinity = crash "intrinsic: Num.F32.neg_infinity"
 
-pub sin = |n| crash "intrinsic: Num.F32.sin"
+pub sin = |n: F32| -> F32 { crash "intrinsic: Num.F32.sin" }
 
-pub cos = |n| crash "intrinsic: Num.F32.cos"
+pub cos = |n: F32| -> F32 { crash "intrinsic: Num.F32.cos" }
 
-pub tan = |n| crash "intrinsic: Num.F32.tan"
+pub tan = |n: F32| -> F32 { crash "intrinsic: Num.F32.tan" }
 
-pub asin = |n| crash "intrinsic: Num.F32.asin"
+pub asin = |n: F32| -> F32 { crash "intrinsic: Num.F32.asin" }
 
-pub acos = |n| crash "intrinsic: Num.F32.acos"
+pub acos = |n: F32| -> F32 { crash "intrinsic: Num.F32.acos" }
 
-pub atan = |n| crash "intrinsic: Num.F32.atan"
+pub atan = |n: F32| -> F32 { crash "intrinsic: Num.F32.atan" }
 
-pub atan2 = |y, x| crash "intrinsic: Num.F32.atan2"
+pub atan2 = |y: F32, x: F32| -> F32 { crash "intrinsic: Num.F32.atan2" }
 
-pub exp = |n| crash "intrinsic: Num.F32.exp"
+pub exp = |n: F32| -> F32 { crash "intrinsic: Num.F32.exp" }
 
-pub log = |n| crash "intrinsic: Num.F32.log"
+pub log = |n: F32| -> F32 { crash "intrinsic: Num.F32.log" }
 
-pub log2 = |n| crash "intrinsic: Num.F32.log2"
+pub log2 = |n: F32| -> F32 { crash "intrinsic: Num.F32.log2" }
 
-pub log10 = |n| crash "intrinsic: Num.F32.log10"
+pub log10 = |n: F32| -> F32 { crash "intrinsic: Num.F32.log10" }
 
-pub pow = |base, exp_val| crash "intrinsic: Num.F32.pow"
+pub pow = |base: F32, exp_val: F32| -> F32 { crash "intrinsic: Num.F32.pow" }
 
-pub sqrt = |n| crash "intrinsic: Num.F32.sqrt"
+pub sqrt = |n: F32| -> F32 { crash "intrinsic: Num.F32.sqrt" }
 
-pub to_str = |n| crash "intrinsic: Num.F32.to_str"
+pub to_str = |n: F32| -> Str { crash "intrinsic: Num.F32.to_str" }
 
-pub from_str = |s| crash "intrinsic: Num.F32.from_str"
+pub from_str = |s: Str| -> F32 { crash "intrinsic: Num.F32.from_str" }
 
-pub to_i64 = |n| crash "intrinsic: Num.F32.to_i64"
+pub to_i64 = |n: F32| -> I64 { crash "intrinsic: Num.F32.to_i64" }
 
-pub from_i64 = |n| crash "intrinsic: Num.F32.from_i64"
+pub from_i64 = |n: I64| -> F32 { crash "intrinsic: Num.F32.from_i64" }

@@ -1,48 +1,48 @@
 // Num/I32.camp
 // Operations on I32.
 
-pub abs = |n| if n < 0 { 0 - n } else { n }
+pub abs = |n: I32| -> I32 { if n < 0 { 0 - n } else { n } }
 
-pub clamp = |lo, hi, n| if n < lo { lo } else if n > hi { hi } else { n }
+pub clamp = |lo: I32, hi: I32, n: I32| -> I32 { if n < lo { lo } else if n > hi { hi } else { n } }
 
-pub max = |a, b| if a > b { a } else { b }
+pub max = |a: I32, b: I32| -> I32 { if a > b { a } else { b } }
 
-pub min = |a, b| if a < b { a } else { b }
+pub min = |a: I32, b: I32| -> I32 { if a < b { a } else { b } }
 
-pub neg = |n| 0 - n
+pub neg = |n: I32| -> I32 { 0 - n }
 
-pub checked_add = |a, b| crash "intrinsic: Num.I32.checked_add"
+pub checked_add = |a: I32, b: I32| -> I32 { crash "intrinsic: Num.I32.checked_add" }
 
-pub checked_sub = |a, b| crash "intrinsic: Num.I32.checked_sub"
+pub checked_sub = |a: I32, b: I32| -> I32 { crash "intrinsic: Num.I32.checked_sub" }
 
-pub checked_mul = |a, b| crash "intrinsic: Num.I32.checked_mul"
+pub checked_mul = |a: I32, b: I32| -> I32 { crash "intrinsic: Num.I32.checked_mul" }
 
-pub wrapping_add = |a, b| crash "intrinsic: Num.I32.wrapping_add"
+pub wrapping_add = |a: I32, b: I32| -> I32 { crash "intrinsic: Num.I32.wrapping_add" }
 
-pub saturating_add = |a, b| crash "intrinsic: Num.I32.saturating_add"
+pub saturating_add = |a: I32, b: I32| -> I32 { crash "intrinsic: Num.I32.saturating_add" }
 
-pub saturating_sub = |a, b| crash "intrinsic: Num.I32.saturating_sub"
+pub saturating_sub = |a: I32, b: I32| -> I32 { crash "intrinsic: Num.I32.saturating_sub" }
 
-pub to_str = |n| crash "intrinsic: Num.I32.to_str"
+pub to_str = |n: I32| -> Str { crash "intrinsic: Num.I32.to_str" }
 
-pub from_str = |s| crash "intrinsic: Num.I32.from_str"
+pub from_str = |s: Str| -> I32 { crash "intrinsic: Num.I32.from_str" }
 
-pub range = |start, end| crash "intrinsic: Num.I32.range"
+pub range = |start: I32, end: I32| { crash "intrinsic: Num.I32.range" }
 
-pub bitwise_and = |a, b| crash "intrinsic: Num.I32.bitwise_and"
+pub bitwise_and = |a: I32, b: I32| -> I32 { crash "intrinsic: Num.I32.bitwise_and" }
 
-pub bitwise_or = |a, b| crash "intrinsic: Num.I32.bitwise_or"
+pub bitwise_or = |a: I32, b: I32| -> I32 { crash "intrinsic: Num.I32.bitwise_or" }
 
-pub bitwise_xor = |a, b| crash "intrinsic: Num.I32.bitwise_xor"
+pub bitwise_xor = |a: I32, b: I32| -> I32 { crash "intrinsic: Num.I32.bitwise_xor" }
 
-pub bitwise_not = |a| crash "intrinsic: Num.I32.bitwise_not"
+pub bitwise_not = |a: I32| -> I32 { crash "intrinsic: Num.I32.bitwise_not" }
 
-pub shift_left = |a, n| crash "intrinsic: Num.I32.shift_left"
+pub shift_left = |a: I32, n: I32| -> I32 { crash "intrinsic: Num.I32.shift_left" }
 
-pub shift_right = |a, n| crash "intrinsic: Num.I32.shift_right"
+pub shift_right = |a: I32, n: I32| -> I32 { crash "intrinsic: Num.I32.shift_right" }
 
-pub count_ones = |n| crash "intrinsic: Num.I32.count_ones"
+pub count_ones = |n: I32| -> I32 { crash "intrinsic: Num.I32.count_ones" }
 
-pub leading_zeros = |n| crash "intrinsic: Num.I32.leading_zeros"
+pub leading_zeros = |n: I32| -> I32 { crash "intrinsic: Num.I32.leading_zeros" }
 
-pub trailing_zeros = |n| crash "intrinsic: Num.I32.trailing_zeros"
+pub trailing_zeros = |n: I32| -> I32 { crash "intrinsic: Num.I32.trailing_zeros" }

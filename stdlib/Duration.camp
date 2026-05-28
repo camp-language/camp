@@ -6,39 +6,39 @@
 
 // Constructors
 
-pub from_seconds = |s| { crash "intrinsic: Duration.from_seconds" }
+pub from_seconds = |s: I64| -> Duration { crash "intrinsic: Duration.from_seconds" }
 
-pub from_millis = |ms| { crash "intrinsic: Duration.from_millis" }
+pub from_millis = |ms: I64| -> Duration { crash "intrinsic: Duration.from_millis" }
 
-pub from_micros = |us| { crash "intrinsic: Duration.from_micros" }
+pub from_micros = |us: I64| -> Duration { crash "intrinsic: Duration.from_micros" }
 
-pub from_nanos = |ns| { crash "intrinsic: Duration.from_nanos" }
+pub from_nanos = |ns: I64| -> Duration { crash "intrinsic: Duration.from_nanos" }
 
 // Accessors
 
-pub as_seconds = |d| { crash "intrinsic: Duration.as_seconds" }
+pub as_seconds = |d: Duration| -> I64 { crash "intrinsic: Duration.as_seconds" }
 
-pub as_millis = |d| { crash "intrinsic: Duration.as_millis" }
+pub as_millis = |d: Duration| -> I64 { crash "intrinsic: Duration.as_millis" }
 
-pub as_micros = |d| { crash "intrinsic: Duration.as_micros" }
+pub as_micros = |d: Duration| -> I64 { crash "intrinsic: Duration.as_micros" }
 
-pub as_nanos = |d| { crash "intrinsic: Duration.as_nanos" }
+pub as_nanos = |d: Duration| -> I64 { crash "intrinsic: Duration.as_nanos" }
 
 // Arithmetic
 
-pub add = |a, b| { crash "intrinsic: Duration.add" }
+pub add = |a: Duration, b: Duration| -> Duration { crash "intrinsic: Duration.add" }
 
-pub sub = |a, b| { crash "intrinsic: Duration.sub" }
+pub sub = |a: Duration, b: Duration| -> Duration { crash "intrinsic: Duration.sub" }
 
-pub mul = |d, n| { crash "intrinsic: Duration.mul" }
+pub mul = |d: Duration, n: I64| -> Duration { crash "intrinsic: Duration.mul" }
 
-pub neg = |d| { crash "intrinsic: Duration.neg" }
+pub neg = |d: Duration| -> Duration { crash "intrinsic: Duration.neg" }
 
-pub abs = |d| { crash "intrinsic: Duration.abs" }
+pub abs = |d: Duration| -> Duration { crash "intrinsic: Duration.abs" }
 
 // Comparison (via Ord)
 
-pub is_zero = |d| { crash "intrinsic: Duration.is_zero" }
+pub is_zero = |d: Duration| -> Bool { crash "intrinsic: Duration.is_zero" }
 
 // Constants
 
