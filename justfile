@@ -71,6 +71,7 @@ tree-sitter-validate: tree-sitter-generate
       fi
     done
     echo "All .camp files parse successfully"
+
 lint-tree-sitter: tree-sitter-test tree-sitter-validate
 
 test: test-unit test-e2e lint-tree-sitter
@@ -79,8 +80,6 @@ check: format-check build build-e2e test
 
 update-snapshots: build build-e2e
     CAMP_BIN="$(pwd)/camp" ./camp-e2e --update
-
-
 
 clean:
     git clean -fdX tests/e2e/
