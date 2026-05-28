@@ -5,12 +5,3 @@ build
 tree-sitter/node_modules/
 tree-sitter/build/
 *.wasm
-
-# OpenSpec
-.openspec/
-
-
-# Beads / Dolt files (added by bd init)
-.dolt/
-*.db
-.beads-credential-key

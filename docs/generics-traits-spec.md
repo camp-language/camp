@@ -36,7 +36,7 @@ Functions and nominal types SHALL support type parameters inferred from lowercas
 
 ### Requirement: Monomorphization Guarantee
 
-After monomorphization, no generic type variables SHALL remain in the program. Each unique (function, type-args) pair SHALL be specialized exactly once. For the monomorphization algorithm (worklist-driven BFS, specialization naming, typed IR), see `openspec/specs/compiler/spec.md`.
+After monomorphization, no generic type variables SHALL remain in the program. Each unique (function, type-args) pair SHALL be specialized exactly once. For the monomorphization algorithm (worklist-driven BFS, specialization naming, typed IR), see `docs/compiler-spec.md`.
 
 #### Scenario: No generic code in output
 

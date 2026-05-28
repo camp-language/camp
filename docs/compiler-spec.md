@@ -4,7 +4,7 @@
 
 Define the behavioral requirements for the Camp compiler: a source-to-WASM/WASI pipeline that enforces type and effect safety, preserves deterministic memory semantics via Perceus reference counting, and never crashes unexpectedly.
 
-For string interpolation compilation (AST nodes, typechecking, desugaring, lexer tokens, parsing), see `openspec/specs/string-interpolation/spec.md`. For unused binding analysis rules, see `openspec/specs/unused-analysis/spec.md`.
+For string interpolation compilation (AST nodes, typechecking, desugaring, lexer tokens, parsing), see `docs/syntax-recipe.md`. For unused binding analysis rules, see `docs/syntax-recipe.md`.
 
 ## Requirements
 
@@ -181,7 +181,7 @@ The compiler SHALL produce deterministic output for identical inputs. Given the 
 
 ### Requirement: Monomorphization
 
-The compiler SHALL specialize all generic functions at each concrete type instantiation before lowering. The monomorphization pass SHALL operate after typechecking on a typed IR representation. It SHALL use a worklist-driven BFS algorithm: each call site with concrete type arguments seeds a specialization; specialization of bodies may discover further generic calls, which are added to the worklist. After monomorphization, no generic type variables SHALL remain in the program. For the monomorphization guarantee (no generic code in output, each unique (function, type-args) pair specialized exactly once), see `openspec/specs/generics-traits/spec.md`.
+The compiler SHALL specialize all generic functions at each concrete type instantiation before lowering. The monomorphization pass SHALL operate after typechecking on a typed IR representation. It SHALL use a worklist-driven BFS algorithm: each call site with concrete type arguments seeds a specialization; specialization of bodies may discover further generic calls, which are added to the worklist. After monomorphization, no generic type variables SHALL remain in the program. For the monomorphization guarantee (no generic code in output, each unique (function, type-args) pair specialized exactly once), see `docs/generics-traits-spec.md`.
 
 #### Scenario: Generic function specialized at concrete type
 
@@ -209,7 +209,7 @@ The compiler SHALL produce a typed IR (TFile) after typechecking, before monomor
 
 ### Requirement: Unused Binding Analysis Pass
 
-The compiler SHALL run an unused binding analysis pass after typechecking and before lowering. The pass SHALL detect unused bindings, unused record fields, unused imports, pointless evaluations, contradictory prefixes, no-op assignments, and unused assignments. The pass SHALL emit appropriate diagnostics for each detected issue. For the full unused analysis rules, see `openspec/specs/unused-analysis/spec.md`.
+The compiler SHALL run an unused binding analysis pass after typechecking and before lowering. The pass SHALL detect unused bindings, unused record fields, unused imports, pointless evaluations, contradictory prefixes, no-op assignments, and unused assignments. The pass SHALL emit appropriate diagnostics for each detected issue. For the full unused analysis rules, see `docs/syntax-recipe.md`.
 
 #### Scenario: Unused binding analysis in pipeline
 

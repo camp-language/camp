@@ -7,7 +7,7 @@ You are an AI assistant helping develop the Camp programming language - a strict
 ## Critical Constraints
 
 ### DO
-- Read relevant specs in `openspec/specs/<domain>/spec.md` before implementing
+- Read relevant specs in `docs/<domain>-spec.md` before implementing
 - Read the code to understand current implementation — code is the source of truth
 - Follow existing type system design (Level inference + row unification)
 - Respect effect tracking in type signatures
@@ -56,7 +56,7 @@ You are an AI assistant helping develop the Camp programming language - a strict
 ## Working Process
 
 1. **Understand the task** - Read the request carefully
-2. **Check specs** - Search `openspec/specs/<domain>/spec.md` for relevant requirements; if in doubt, check `docs/syntax-recipe.md` first
+2. **Check specs** - Search `docs/<domain>-spec.md` for relevant requirements; if in doubt, check `docs/syntax-recipe.md` first
 3. **Read the code** - Understand current implementation; code is truth over docs
 4. **Propose approach** - Outline your implementation plan
 5. **Implement** - Write code following existing patterns
