@@ -639,3 +639,28 @@ Both mechanisms:
  Shebang dependency syntax | Decided: `deps` block | `deps { alias: "uri" }` before imports; script-only; see openspec/specs/packages |
  `camp.toml` format | Decided: TOML | `[package]`, `[dependencies]`, `[dev-dependencies]`; bare URI deps; see openspec/specs/packages |
  `camp build` / `camp test` CLI | TBD | Build system and test runner interface |
+
+---
+
+## 15. Remaining Compiler Gaps
+
+> 32 of 39 gaps from the compiler audit closed in PRs #48 and #52.
+
+### Lambda where-clauses
+
+`Expr_Lambda` has `where_clauses` field in AST but parser never populates it.
+Fix: parse `where` after lambda body in `src/frontend/parser.odin`.
+
+### Pattern_Record `..rest`
+
+`Pattern_Record` missing `rest` field for `..rest` binding.
+Fix: add `rest: base.Intern_ID` to AST, parse `..identifier` in record patterns,
+plumb through canonicalize/typecheck/lower.
+
+### `#partial switch` fallthroughs
+
+16 dispatch functions use `#partial switch` with silent fallthroughs.
+Convert to total `switch` with diagnostic-emitting defaults to prevent
+future silent gaps. Target files: `typecheck.odin`, `check_expr.odin`,
+`check_control.odin`, `canonicalize.odin`, `lower.odin`, `effect_lower.odin`,
+`emit_expr.odin`, `codegen.odin`.
