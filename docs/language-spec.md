@@ -11,12 +11,12 @@ This spec covers core language semantics unique to Camp. Requirements that are
 shared with or elaborated by other specs are referenced here and defined in
 full in their authoritative spec:
 
-- **Effects** (effect rows, handlers, effect safety, prelude effects): `openspec/specs/effects/spec.md`
-- **Generics & Traits** (trait definitions, conformance, UFCS, type parameters, inheritance): `openspec/specs/generics-traits/spec.md`
-- **String Interpolation** (Display trait, string literal kinds, interpolation escape): `openspec/specs/string-interpolation/spec.md`
-- **Unused Analysis** (underscore/dollar prefix rules, discard semantics, contradictory prefix, top-level unused): `openspec/specs/unused-analysis/spec.md`
-- **Parallelism** (par block syntax, Parallel!/Spawn!/Async! effects): `openspec/specs/parallelism/spec.md`
-- **Modules** (visibility, unified namespace, import conflicts): `openspec/specs/modules/spec.md`
+- **Effects** (effect rows, handlers, effect safety, prelude effects): `docs/effects-spec.md`
+- **Generics & Traits** (trait definitions, conformance, UFCS, type parameters, inheritance): `docs/generics-traits-spec.md`
+- **String Interpolation** (Display trait, string literal kinds, interpolation escape): `docs/syntax-recipe.md`
+- **Unused Analysis** (underscore/dollar prefix rules, discard semantics, contradictory prefix, top-level unused): `docs/syntax-recipe.md`
+- **Parallelism** (par block syntax, Parallel!/Spawn!/Async! effects): `docs/syntax-recipe.md`
+- **Modules** (visibility, unified namespace, import conflicts): `docs/modules-spec.md`
 
 For the complete syntax reference (declarations, expressions, patterns, imports, effects, entry point), see `docs/syntax-recipe.md`.
 
@@ -346,7 +346,7 @@ The program entry point SHALL be a `pub` function named `main!` returning a valu
 - THEN the runtime SHALL call `Termination.report` on the returned value
 
 ### Requirement: Naming Conventions
-Types and tags SHALL use UpperCamelCase; functions and variables SHALL use lowercase identifiers; type and effect variables SHALL use lowercase. For underscore and dollar prefix rules (unused markers, discard semantics, contradictory prefixes, top-level unused rules), see `openspec/specs/unused-analysis/spec.md`.
+Types and tags SHALL use UpperCamelCase; functions and variables SHALL use lowercase identifiers; type and effect variables SHALL use lowercase. For underscore and dollar prefix rules (unused markers, discard semantics, contradictory prefixes, top-level unused rules), see `docs/syntax-recipe.md`.
 
 #### Scenario: Type name casing
 - GIVEN a type definition `UserId`
@@ -479,7 +479,7 @@ All shadowing SHALL be forbidden — a binding name SHALL NOT be reused in the s
 - THEN it SHALL produce an error
 
 ### Requirement: Unified Namespace
-Each module SHALL have one namespace for functions, values, types, traits, effects, and aliases. For visibility rules and import conflict detection, see `openspec/specs/modules/spec.md`.
+Each module SHALL have one namespace for functions, values, types, traits, effects, and aliases. For visibility rules and import conflict detection, see `docs/modules-spec.md`.
 
 #### Scenario: Type and function name conflict
 - GIVEN a module that defines both a type `Result` and a function `Result`
@@ -492,7 +492,7 @@ Each module SHALL have one namespace for functions, values, types, traits, effec
 - THEN it SHALL be resolved as a function call because the function and the field share one namespace
 
 ### Requirement: Visibility
-The `pub` keyword SHALL mark module exports; all other definitions SHALL be private to the module. For full visibility enforcement rules, see `openspec/specs/modules/spec.md`.
+The `pub` keyword SHALL mark module exports; all other definitions SHALL be private to the module. For full visibility enforcement rules, see `docs/modules-spec.md`.
 
 #### Scenario: Public export
 - GIVEN a definition `pub greet = |name| "Hello, ${name}!"`
@@ -559,7 +559,7 @@ Pattern matching SHALL require exhaustive coverage; the wildcard `_` SHALL match
 - THEN the match SHALL be accepted
 
 ### Requirement: Dual Error Model
-The language SHALL provide two error mechanisms: the `Throw!` effect for exceptional errors and tag union returns for structural absence; there SHALL be no `?` operator. For full effect semantics, handler behavior, and prelude effect definitions, see `openspec/specs/effects/spec.md`.
+The language SHALL provide two error mechanisms: the `Throw!` effect for exceptional errors and tag union returns for structural absence; there SHALL be no `?` operator. For full effect semantics, handler behavior, and prelude effect definitions, see `docs/effects-spec.md`.
 
 #### Scenario: Throw! effect for exceptional errors
 - GIVEN a function that calls `Throw!.raise!("error")`
@@ -600,16 +600,16 @@ The `..` operator SHALL mean "and possibly more" consistently across type annota
 - THEN it SHALL extract `name` and ignore any additional fields
 
 ### Requirement: Effects, Handlers, and Prelude Effects
-Effect row syntax, effect safety, effect polymorphism, parameterized effects with variant widening, one-shot continuations, deep handlers only (handler reinstalls on continuation), effect composition via aliases, and prelude effect definitions (Console!, Throw!, Parallel!, Spawn!, Async!, File!, Env!, Time!, Random!, Log!, Crypto.Random!) are defined in `openspec/specs/effects/spec.md`.
+Effect row syntax, effect safety, effect polymorphism, parameterized effects with variant widening, one-shot continuations, deep handlers only (handler reinstalls on continuation), effect composition via aliases, and prelude effect definitions (Console!, Throw!, Parallel!, Spawn!, Async!, File!, Env!, Time!, Random!, Log!, Crypto.Random!) are defined in `docs/effects-spec.md`.
 
 ### Requirement: Traits, Generics, and UFCS
-Trait definitions, nominal type trait conformance (`is`/`derives`), trait structural verification, the strict orphan rule (type must be local), UFCS dispatch, generic type parameters with `where` clause constraints, trait inheritance (`is` on trait definitions), and the prohibition on higher-kinded types are defined in `openspec/specs/generics-traits/spec.md`.
+Trait definitions, nominal type trait conformance (`is`/`derives`), trait structural verification, the strict orphan rule (type must be local), UFCS dispatch, generic type parameters with `where` clause constraints, trait inheritance (`is` on trait definitions), and the prohibition on higher-kinded types are defined in `docs/generics-traits-spec.md`.
 
 ### Requirement: String Interpolation and Display
-The Display trait, interpolated string literal kinds (plain, interpolated, raw, multiline), string interpolation escape (`\$`), and the Display constraint on interpolation holes are defined in `openspec/specs/string-interpolation/spec.md`.
+The Display trait, interpolated string literal kinds (plain, interpolated, raw, multiline), string interpolation escape (`\$`), and the Display constraint on interpolation holes are defined in `docs/syntax-recipe.md`.
 
 ### Requirement: Parallelism and par Blocks
-The `par` block syntax (`par { e1, e2 }` and `par for x in xs { body }`), Parallel!/Spawn!/Async! effect operations, and parallel method sugar are defined in `openspec/specs/parallelism/spec.md`.
+The `par` block syntax (`par { e1, e2 }` and `par for x in xs { body }`), Parallel!/Spawn!/Async! effect operations, and parallel method sugar are defined in `docs/syntax-recipe.md`.
 
 ### Requirement: Unused Binding Analysis
-Underscore prefix rules for unused markers, underscore discard semantics, contradictory underscore-dollar prefix restriction, and top-level binding unused rules are defined in `openspec/specs/unused-analysis/spec.md`.
+Underscore prefix rules for unused markers, underscore discard semantics, contradictory underscore-dollar prefix restriction, and top-level binding unused rules are defined in `docs/syntax-recipe.md`.
