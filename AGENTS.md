@@ -69,5 +69,24 @@ You are an AI assistant helping develop the Camp programming language - a strict
 
 - When adding a language feature, update the kitchen-sink test to exercise it
 - When changing syntax, update the kitchen-sink test to match
-The test currently expects compiler errors for some features; as the compiler catches up, update `expected.toml` via `just update-snapshots`
+- The test currently expects compiler errors for some features; as the compiler catches up, update `expected.toml` via `just update-snapshots`
 - The test covers: primitives, tag unions, records, nominal types, type aliases, functions, generics, traits, UFCS, effects, handlers, Throw!, pattern matching, mutable variables, logic operators, dot lambdas, strings, inline annotations, visibility, raw identifiers, par blocks, prelude effects, and main!
+
+## Issue Tracking
+
+Use **beans** (`.beans/`) for tracking all tasks — not TODO comments in docs, never GitHub Issues.
+
+### When to create a bean
+- Parser/compiler implementation gaps (syntax-recipe.md §13)
+- Open design items needing decisions (syntax-recipe.md §14)
+- Known bugs or diagnostics to wire
+- Any non-trivial multi-step task
+- **All** issues — never GitHub Issues
+
+### When NOT to create a bean
+- Trivial one-liners → just fix it
+
+### Workflow
+1. Create bean with `beans create "<title>" [--priority <level>]`
+2. Work the bean; close it when done
+3. No need to keep docs in sync for closed beans
