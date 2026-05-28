@@ -1,59 +1,172 @@
+/// Result represents a value or an error.
+///
+/// ```
+/// Ok(42)
+/// ```
+///
+/// ```
+/// Err("not found")
+/// ```
 @Result(a, e): pub [Ok(a) | Err(e)]
 
--- Core combinators
+// Core combinators
 
+/// Transforms the Ok variant, passing Err through unchanged.
+///
+/// ```
+/// Result.map(Ok(5), |x| x * 2)
+/// ```
+///
+/// ```
+/// Result.map(Err("oops"), |x| x * 2)
+/// ```
 pub map : Result(a, e), (a) -> b -> Result(b, e)
 pub map = |r, f|
   match r { Ok(v) => Ok(f(v)) | Err(e) => Err(e) }
 
+/// Transforms the Err variant, passing Ok through unchanged.
+///
+/// ```
+/// Result.map_err(Ok(42), |e| "error: " ++ e)
+/// ```
+///
+/// ```
+/// Result.map_err(Err("oops"), |e| "handled: " ++ e)
+/// ```
 pub map_err : Result(a, e), (e) -> f -> Result(a, f)
 pub map_err = |r, f|
   match r { Ok(v) => Ok(v) | Err(e) => Err(f(e)) }
 
+/// Chains a fallible operation, short-circuiting on Err.
+///
+/// ```
+/// Result.and_then(Ok(5), |x| Ok(x * 2))
+/// ```
+///
+/// ```
+/// Result.and_then(Err("fail"), |x| Ok(x * 2))
+/// ```
 pub and_then : Result(a, e), (a) -> Result(b, e) -> Result(b, e)
 pub and_then = |r, f|
   match r { Ok(v) => f(v) | Err(e) => Err(e) }
 
+/// Recovers from Err by computing an alternative Result.
+///
+/// ```
+/// Result.or_else(Ok(42), || Ok(0))
+/// ```
+///
+/// ```
+/// Result.or_else(Err("fail"), || Ok(0))
+/// ```
 pub or_else : Result(a, e), || -> Result(a, f) -> Result(a, e | f)
 pub or_else = |r, f|
   match r { Ok(v) => Ok(v) | Err(_) => f() }
 
--- Predicates
+// Predicates
 
+/// Returns True if Result is Ok.
+///
+/// ```
+/// Result.is_ok(Ok(42))
+/// ```
+///
+/// ```
+/// Result.is_ok(Err("oops"))
+/// ```
 pub is_ok : Result(a, e) -> Bool
 pub is_ok = |r|
   match r { Ok(_) => True | Err(_) => False }
 
+/// Returns True if Result is Err.
+///
+/// ```
+/// Result.is_err(Err("oops"))
+/// ```
+///
+/// ```
+/// Result.is_err(Ok(42))
+/// ```
 pub is_err : Result(a, e) -> Bool
 pub is_err = |r|
   match r { Ok(_) => False | Err(_) => True }
 
--- Unwrapping
+// Unwrapping
 
+/// Extracts the Ok value, crashes if Err.
+///
+/// ```
+/// Result.unwrap(Ok(42))
+/// ```
 pub unwrap : Result(a, e) -> a
 pub unwrap = |r|
   match r { Ok(v) => v | Err(_) => crash "Result.unwrap: called on Err" }
 
+/// Extracts the Ok value or returns a default.
+///
+/// ```
+/// Result.unwrap_or(Ok(42), 0)
+/// ```
+///
+/// ```
+/// Result.unwrap_or(Err("oops"), 0)
+/// ```
 pub unwrap_or : Result(a, e), a -> a
 pub unwrap_or = |r, default|
   match r { Ok(v) => v | Err(_) => default }
 
+/// Extracts the Ok value or computes from the Err.
+///
+/// ```
+/// Result.unwrap_or_else(Err("err"), |e| 42)
+/// ```
+///
+/// ```
+/// Result.unwrap_or_else(Ok(5), |e| 42)
+/// ```
 pub unwrap_or_else : Result(a, e), (e) -> a -> a
 pub unwrap_or_else = |r, f|
   match r { Ok(v) => v | Err(e) => f(e) }
 
+/// Extracts the Ok value or returns Default.default.
+///
+/// ```
+/// Result.unwrap_or_default(Ok(42))
+/// ```
 pub unwrap_or_default : Result(a, e) -> a
 pub unwrap_or_default = |r|
   match r { Ok(v) => v | Err(_) => Default.default }
 
--- Boolean composition
+// Boolean composition
 
+/// Returns r1 if Ok, otherwise returns r2.
+///
+/// ```
+/// Result.or(Ok(1), Ok(2))
+/// ```
+///
+/// ```
+/// Result.or(Err("first"), Ok(2))
+/// ```
 pub or : Result(a, e), Result(a, e) -> Result(a, e)
 pub or = |r1, r2|
   match r1 { Ok(v) => Ok(v) | Err(_) => r2 }
 
--- Filtering
+// Filtering
 
+/// Converts Ok to Err if the predicate returns False.
+///
+/// ```
+/// Result.filter(Ok(5), |x| x > 0, "not positive")
+/// ```
+///
+/// ```
+/// Result.filter(Ok(-1), |x| x > 0, "not positive")
+/// ```
+///
+/// ```
+/// Result.filter(Err("oops"), |x| x > 0, "not positive")
+/// ```
 pub filter : Result(a, e), (a) -> Bool, e -> Result(a, e)
 pub filter = |r, pred, err|
   match r {
@@ -61,18 +174,49 @@ pub filter = |r, pred, err|
     Err(e) => Err(e)
   }
 
--- Flattening
+// Flattening
 
+/// Collapses a nested Result.
+///
+/// ```
+/// Result.flatten(Ok(Ok(42)))
+/// ```
+///
+/// ```
+/// Result.flatten(Ok(Err("inner")))
+/// ```
+///
+/// ```
+/// Result.flatten(Err("outer"))
+/// ```
 pub flatten : Result(Result(a, e), e) -> Result(a, e)
 pub flatten = |r|
   match r { Ok(inner) => inner | Err(e) => Err(e) }
 
--- Conversion
+// Conversion
 
+/// Converts to a List: Ok yields singleton, Err yields empty.
+///
+/// ```
+/// Result.to_list(Ok(42))
+/// ```
+///
+/// ```
+/// Result.to_list(Err("oops"))
+/// ```
 pub to_list : Result(a, e) -> List(a)
 pub to_list = |r|
   match r { Ok(v) => [v] | Err(_) => [] }
 
+/// Extracts head of List, Err on empty.
+///
+/// ```
+/// Result.from_list([1, 2, 3])
+/// ```
+///
+/// ```
+/// Result.from_list([])
+/// ```
 pub from_list : List(a) -> Result(a, [EmptyList])
 pub from_list = |xs|
   match xs {
@@ -80,12 +224,22 @@ pub from_list = |xs|
     Nil => Err(EmptyList)
   }
 
--- Effect bridging
+// Effect bridging
 
+/// Extracts Ok or raises Throw! with the error.
+///
+/// ```
+/// Result.unwrap!(Ok(42))
+/// ```
 pub unwrap! : Result(a, e) -> -[Throw!(e)]-> a
 pub unwrap! = |r|
   match r { Ok(v) => v | Err(e) => Throw.raise!(e) }
 
+/// Catches a Throw! and converts to Result.
+///
+/// ```
+/// Result.catch(|| 42)
+/// ```
 pub catch : || -[Throw!(e)]-> a -> Result(a, e)
 pub catch = |action|
   handle Throw! in { Ok(action()) } with {

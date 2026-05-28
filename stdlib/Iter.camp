@@ -6,15 +6,30 @@
 -- Construction
 -- ========================
 
+/// Creates an iterator that yields no elements.
+ ///
+ /// ```
+ /// count(empty) == 0
+ /// ```
 pub empty : Iter(a, e)
 pub empty = @Iter({ next = || Done })
 
+/// Creates an iterator that yields a single element.
+ ///
+ /// ```
+ /// from_list([1, 2])->chain(singleton(3))->to_list == [1, 2, 3]
+ /// ```
 pub singleton : a -> Iter(a, e)
 pub singleton = |x| {
   $consumed = False
   @Iter({ next = || if $consumed { Done } else { $consumed = True; Yield(x) } })
 }
 
+/// Converts a list into an iterator.
+ ///
+ /// ```
+ /// from_list([1, 2, 3])->count == 3
+ /// ```
 pub from_list : List(a) -> Iter(a, e)
 pub from_list = |$list| {
   @Iter({
@@ -30,6 +45,11 @@ pub from_list = |$list| {
 -- Core transformations
 -- ========================
 
+/// Transforms each element using the given function.
+ ///
+ /// ```
+ /// from_list([1, 2, 3])->map(|x| x * 2)->to_list == [2, 4, 6]
+ /// ```
 pub map : Iter(a, e), (a) -> b -> Iter(b, e)
 pub map = |iter, f| @Iter({
   next = || match iter.next() {
@@ -38,6 +58,11 @@ pub map = |iter, f| @Iter({
   }
 })
 
+/// Keeps only elements that satisfy the predicate.
+ ///
+ /// ```
+ /// from_list([1, 2, 3, 4])->filter(|x| x % 2 == 0)->to_list == [2, 4]
+ /// ```
 pub filter : Iter(a, e), (a) -> Bool -> Iter(a, e)
 pub filter = |iter, pred| {
   go = || match iter.next() {
@@ -47,6 +72,11 @@ pub filter = |iter, pred| {
   @Iter({ next = go })
 }
 
+/// Maps then flattens each result into a new iterator.
+ ///
+ /// ```
+ /// from_list([Ok(1), Err(), Ok(3)])->flat_map(|x| match x { Ok(v) => singleton(v) | Err() => empty })->to_list == [1, 3]
+ /// ```
 pub flat_map : Iter(a, e), (a) -> Iter(b, e) -> Iter(b, e)
 pub flat_map = |iter, f| {
   $inner = empty
@@ -60,6 +90,11 @@ pub flat_map = |iter, f| {
   @Iter({ next = advance })
 }
 
+/// Maps and filters in one pass.
+ ///
+ /// ```
+ /// from_list(["1", "two", "3"])->filter_map(|s| Str.to_i64(s))->to_list == [1, 3]
+ /// ```
 pub filter_map : Iter(a, e), (a) -> Result(b, err) -> Iter(b, e)
 pub filter_map = |iter, f|
   flat_map(iter, |x| match f(x) {
@@ -71,6 +106,11 @@ pub filter_map = |iter, f|
 -- Consumption
 -- ========================
 
+/// Reduces iterator to a single value by applying a binary function.
+ ///
+ /// ```
+ /// from_list([1, 2, 3])->fold(0, |acc, x| acc + x) == 6
+ /// ```
 pub fold : Iter(a, e), b, (b, a) -> b -> b
 pub fold = |iter, init, f| {
   go = |acc| match iter.next() {
@@ -80,6 +120,11 @@ pub fold = |iter, init, f| {
   go(init)
 }
 
+/// Applies a function to each element, discarding results.
+ ///
+ /// ```
+ /// from_list([1, 2, 3])->for_each(|x| Console.println!(Str.from_i64(x)))
+ /// ```
 pub for_each : Iter(a, e), (a) -> () -> ()
 pub for_each = |iter, f| {
   go = || match iter.next() {
@@ -89,6 +134,11 @@ pub for_each = |iter, f| {
   go()
 }
 
+/// Counts the number of elements.
+ ///
+ /// ```
+ /// from_list([1, 2, 3])->count == 3
+ /// ```
 pub count : Iter(a, e) -> I64
 pub count = |iter| fold(iter, 0, |n, _| n + 1)
 
@@ -96,6 +146,12 @@ pub count = |iter| fold(iter, 0, |n, _| n + 1)
 -- Search
 -- ========================
 
+/// Finds the first element satisfying the predicate.
+ ///
+ /// ```
+ /// from_list([1, 2, 3])->find(|x| x > 1) == Ok(2)
+ /// from_list([1, 2, 3])->find(|x| x > 10) == Err(NotFound)
+ /// ```
 pub find : Iter(a, e), (a) -> Bool -> Result(a, [NotFound])
 pub find = |iter, pred| {
   go = || match iter.next() {
@@ -105,6 +161,12 @@ pub find = |iter, pred| {
   go()
 }
 
+/// Returns true if any element satisfies the predicate.
+ ///
+ /// ```
+ /// from_list([1, 2, 3])->any(|x| x > 2) == True
+ /// from_list([1, 2, 3])->any(|x| x > 10) == False
+ /// ```
 pub any : Iter(a, e), (a) -> Bool -> Bool
 pub any = |iter, pred| {
   go = || match iter.next() {
@@ -114,6 +176,12 @@ pub any = |iter, pred| {
   go()
 }
 
+/// Returns true if all elements satisfy the predicate.
+ ///
+ /// ```
+ /// from_list([1, 2, 3])->all(|x| x > 0) == True
+ /// from_list([1, 2, 3])->all(|x| x > 1) == False
+ /// ```
 pub all : Iter(a, e), (a) -> Bool -> Bool
 pub all = |iter, pred| {
   go = || match iter.next() {
@@ -123,6 +191,12 @@ pub all = |iter, pred| {
   go()
 }
 
+/// Returns true if the iterator contains the given element.
+ ///
+ /// ```
+ /// from_list([1, 2, 3])->contains(2) == True
+ /// from_list([1, 2, 3])->contains(10) == False
+ /// ```
 pub contains : Iter(a, e), a -> Bool
 pub contains = |iter, target| any(iter, |x| Eq.eq(x, target))
 
@@ -130,6 +204,11 @@ pub contains = |iter, target| any(iter, |x| Eq.eq(x, target))
 -- Slicing
 -- ========================
 
+/// Takes the first n elements.
+ ///
+ /// ```
+ /// from_list([1, 2, 3, 4])->take(2)->to_list == [1, 2]
+ /// ```
 pub take : Iter(a, e), I64 -> Iter(a, e)
 pub take = |iter, n| {
   $remaining = n
@@ -141,6 +220,11 @@ pub take = |iter, n| {
   })
 }
 
+/// Skips the first n elements.
+ ///
+ /// ```
+ /// from_list([1, 2, 3, 4])->skip(2)->to_list == [3, 4]
+ /// ```
 pub skip : Iter(a, e), I64 -> Iter(a, e)
 pub skip = |iter, n| {
   $remaining = n
@@ -158,6 +242,11 @@ pub skip = |iter, n| {
   @Iter({ next = go })
 }
 
+/// Takes elements while the predicate returns true.
+ ///
+ /// ```
+ /// from_list([1, 2, 3, 4])->take_while(|x| x < 3)->to_list == [1, 2]
+ /// ```
 pub take_while : Iter(a, e), (a) -> Bool -> Iter(a, e)
 pub take_while = |iter, pred| {
   $done = False
@@ -173,6 +262,11 @@ pub take_while = |iter, pred| {
   })
 }
 
+/// Skips elements while the predicate returns true.
+ ///
+ /// ```
+ /// from_list([1, 2, 3, 4])->skip_while(|x| x < 3)->to_list == [3, 4]
+ /// ```
 pub skip_while : Iter(a, e), (a) -> Bool -> Iter(a, e)
 pub skip_while = |iter, pred| {
   $skipping = True
@@ -193,6 +287,11 @@ pub skip_while = |iter, pred| {
 -- Composition
 -- ========================
 
+/// Chains two iterators together.
+ ///
+ /// ```
+ /// from_list([1, 2])->chain(from_list([3, 4]))->to_list == [1, 2, 3, 4]
+ /// ```
 pub chain : Iter(a, e), Iter(a, e) -> Iter(a, e)
 pub chain = |first, second| @Iter({
   next = || match first.next() {
@@ -201,6 +300,11 @@ pub chain = |first, second| @Iter({
   }
 })
 
+/// Combines two iterators element by element into pairs.
+ ///
+ /// ```
+ /// from_list([1, 2])->zip(from_list([a, b]))->map(|p| fst(p) + snd(p))->to_list == [1 + a, 2 + b]
+ /// ```
 pub zip : Iter(a, e), Iter(b, e) -> Iter((a, b), e)
 pub zip = |left, right| @Iter({
   next = ||
@@ -213,6 +317,12 @@ pub zip = |left, right| @Iter({
     }
 })
 
+/// Pairs each element with its index.
+ ///
+ /// ```
+ /// from_list(["a", "b", "c"])->map(|p| snd(p))->to_list == ["a", "b", "c"]
+ /// from_list([10, 20, 30])->enumerate->find(|p| fst(p) == 1) == Ok((1, 20))
+ /// ```
 pub enumerate : Iter(a, e) -> Iter((I64, a), e)
 pub enumerate = |iter| {
   $index = 0

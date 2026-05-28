@@ -7,42 +7,105 @@ import List { append }
 
 -- Construction
 
+/// Creates an empty map.
+ ///
+ /// ```
+ /// new()
+ /// ```
 pub new : Map(k, v)
 pub new = crash "intrinsic: Map.new"
 
+/// Creates a map with a single key-value pair.
+ ///
+ /// ```
+ /// singleton("a", 1)
+ /// ```
 pub singleton : k, v -> Map(k, v)
 pub singleton = |k, v| crash "intrinsic: Map.singleton"
 
 -- Lookup
 
+/// Retrieves the value associated with a key, or KeyNotFound if absent.
+ ///
+ /// ```
+ /// get("a", singleton("a", 1)) -- Ok(1)
+ /// get("b", singleton("a", 1)) -- Err(KeyNotFound)
+ /// ```
 pub get : k, Map(k, v) -> Result(v, [KeyNotFound])
 pub get = |k, m| crash "intrinsic: Map.get"
 
+/// Returns true if the key exists in the map.
+ ///
+ /// ```
+ /// contains("a", singleton("a", 1)) -- true
+ /// contains("b", singleton("a", 1)) -- false
+ /// ```
 pub contains : k, Map(k, v) -> Bool
 pub contains = |k, m| crash "intrinsic: Map.contains"
 
+/// Returns the number of entries in the map.
+ ///
+ /// ```
+ /// size(singleton("a", 1)) -- 1
+ /// size(new()) -- 0
+ /// ```
 pub size : Map(k, v) -> I64
 pub size = |m| crash "intrinsic: Map.size"
 
+/// Returns true if the map has no entries.
+ ///
+ /// ```
+ /// is_empty(new()) -- true
+ /// is_empty(singleton("a", 1)) -- false
+ /// ```
 pub is_empty : Map(k, v) -> Bool
 pub is_empty = |m| size(m) == 0
 
 -- Min/Max (O(log n) on ordered tree)
 
+/// Returns the smallest key-value pair, or EmptyMap if the map is empty.
+ ///
+ /// ```
+ /// min(singleton("a", 1)) -- Ok(("a", 1))
+ /// min(new()) -- Err(EmptyMap)
+ /// ```
 pub min : Map(k, v) -> Result((k, v), [EmptyMap])
 pub min = |m| crash "intrinsic: Map.min"
 
+/// Returns the largest key-value pair, or EmptyMap if the map is empty.
+ ///
+ /// ```
+ /// max(singleton("a", 1)) -- Ok(("a", 1))
+ /// max(new()) -- Err(EmptyMap)
+ /// ```
 pub max : Map(k, v) -> Result((k, v), [EmptyMap])
 pub max = |m| crash "intrinsic: Map.max"
 
 -- Modification
 
+/// Inserts a key-value pair, replacing any existing value for that key.
+ ///
+ /// ```
+ /// insert("a", 1, new())
+ /// ```
 pub insert : k, v, Map(k, v) -> Map(k, v)
 pub insert = |k, v, m| crash "intrinsic: Map.insert"
 
+/// Removes the entry for a key, returning the map without it.
+ ///
+ /// ```
+ /// remove("a", singleton("a", 1)) -- new()
+ /// ```
 pub remove : k, Map(k, v) -> Map(k, v)
 pub remove = |k, m| crash "intrinsic: Map.remove"
 
+/// Applies a function to the result of looking up a key, then inserts or removes based on the outcome.
+ ///
+ /// ```
+ /// update("a", |_| Ok(2), singleton("a", 1)) -- singleton("a", 2)
+ /// update("b", |_| Ok(2), singleton("a", 1)) -- new()
+ /// update("a", |_| Err(KeyNotFound), singleton("a", 1)) -- new()
+ /// ```
 pub update : k, (Result(v, [KeyNotFound]) -> Result(v, [KeyNotFound])), Map(k, v) -> Map(k, v)
 pub update = |k, f, m|
   match f(get(k, m)) {
@@ -52,6 +115,12 @@ pub update = |k, f, m|
 
 -- Transformation
 
+/// Accumulates values by applying a function to each key-value pair.
+ ///
+ /// ```
+ /// fold(singleton("a", 1), 0, |acc, k, v| acc + v) -- 1
+ /// fold(new(), [], |acc, k, v| [v, ...acc]) -- []
+ /// ```
 pub fold : Map(k, v), b, (b, k, v) -> b -> b
 pub fold = |m, init, f|
   match min(m) {
@@ -59,10 +128,21 @@ pub fold = |m, init, f|
     Err(_) => init
   }
 
+/// Transforms all values using a function, preserving keys.
+ ///
+ /// ```
+ /// map(singleton("a", 1), |x| x + 1) -- singleton("a", 2)
+ /// ```
 pub map : Map(k, v), (v) -> w -> Map(k, w)
 pub map = |m, f|
   fold(m, new, |acc, k, v| insert(k, f(v), acc))
 
+/// Keeps only entries where the predicate returns true.
+ ///
+ /// ```
+ /// filter(singleton("a", 1), |k, v| v > 0) -- singleton("a", 1)
+ /// filter(singleton("a", 1), |k, v| v > 10) -- new()
+ /// ```
 pub filter : Map(k, v), (k, v) -> Bool -> Map(k, v)
 pub filter = |m, pred|
   fold(m, new, |acc, k, v|
@@ -71,38 +151,81 @@ pub filter = |m, pred|
 
 -- Conversion
 
+/// Converts the map to an iterator of key-value pairs.
+ ///
+ /// ```
+ /// to_iter(singleton("a", 1))
+ /// ```
 pub to_iter : Map(k, v) -> Iter((k, v))
 pub to_iter = |m|
   fold(m, Iter.empty, |acc, k, v| acc->chain(Iter.singleton((k, v))))
 
+/// Extracts an iterator over all keys.
+ ///
+ /// ```
+ /// keys(singleton("a", 1))
+ /// ```
 pub keys : Map(k, v) -> Iter(k)
 pub keys = |m|
   fold(m, Iter.empty, |acc, k, _| acc->chain(Iter.singleton(k)))
 
+/// Extracts an iterator over all values.
+ ///
+ /// ```
+ /// values(singleton("a", 1))
+ /// ```
 pub values : Map(k, v) -> Iter(v)
 pub values = |m|
   fold(m, Iter.empty, |acc, _, v| acc->chain(Iter.singleton(v)))
 
+/// Constructs a map from a list of key-value pairs.
+ ///
+ /// ```
+ /// from_list([("a", 1), ("b", 2)])
+ /// ```
 pub from_list : List((k, v)) -> Map(k, v)
 pub from_list = |entries|
   Iter.from_list(entries)->fold(new, |m, (k, v)| insert(k, v, m))
 
+/// Converts the map to a list of key-value pairs.
+ ///
+ /// ```
+ /// to_list(singleton("a", 1)) -- [("a", 1)]
+ /// ```
 pub to_list : Map(k, v) -> List((k, v))
 pub to_list = |m|
   fold(m, [], |acc, k, v| List.append(acc, [(k, v)]))
 
 -- Set-like operations
 
+/// Merges two maps, with entries from the second map taking precedence.
+ ///
+ /// ```
+ /// union(singleton("a", 1), singleton("b", 2))
+ /// union(singleton("a", 1), singleton("a", 2)) -- singleton("a", 2)
+ /// ```
 pub union : Map(k, v), Map(k, v) -> Map(k, v)
 pub union = |m1, m2|
   fold(m1, m2, |acc, k, v| insert(k, v, acc))
 
+/// Returns entries that exist in both maps.
+ ///
+ /// ```
+ /// intersection(singleton("a", 1), singleton("a", 2)) -- singleton("a", 1)
+ /// intersection(singleton("a", 1), singleton("b", 2)) -- new()
+ /// ```
 pub intersection : Map(k, v), Map(k, v) -> Map(k, v)
 pub intersection = |m1, m2|
   fold(m1, new, |acc, k, v|
     if contains(k, m2) { insert(k, v, acc) } else { acc }
   )
 
+/// Returns entries from the first map whose keys are not in the second map.
+ ///
+ /// ```
+ /// difference(singleton("a", 1), singleton("b", 2)) -- singleton("a", 1)
+ /// difference(singleton("a", 1), singleton("a", 2)) -- new()
+ /// ```
 pub difference : Map(k, v), Map(k, v) -> Map(k, v)
 pub difference = |m1, m2|
   fold(m2, m1, |acc, k, _| remove(k, acc))

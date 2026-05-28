@@ -3,103 +3,277 @@
 -- All functions are intrinsic (require runtime UTF-8/Unicode support).
 
 -- Queries
+
+/// Count of Unicode grapheme clusters in the string.
+///
+/// ```
+/// Str.length("hello") == 5
+/// Str.length("world!") == 6
+/// ```
 pub length : Str -> I64
 pub length = |s| crash "intrinsic: Str.length"
 
+/// Byte size of the UTF-8 encoded string.
+///
+/// ```
+/// Str.byte_size("hello") == 5
+/// Str.byte_size("日本語") == 9
+/// ```
 pub byte_size : Str -> I64
 pub byte_size = |s| crash "intrinsic: Str.byte_size"
 
+/// Check if the string contains no grapheme clusters.
+///
+/// ```
+/// Str.is_empty("") == true
+/// Str.is_empty(" ") == false
+/// ```
 pub is_empty : Str -> Bool
 pub is_empty = |s| byte_size(s) == 0
 
 -- Comparison
+
+/// Check if the string starts with the given prefix.
+///
+/// ```
+/// Str.starts_with("hello", "he") == true
+/// Str.starts_with("hello", "lo") == false
+/// ```
 pub starts_with : Str, Str -> Bool
 pub starts_with = |s, prefix| crash "intrinsic: Str.starts_with"
 
+/// Check if the string ends with the given suffix.
+///
+/// ```
+/// Str.ends_with("hello", "lo") == true
+/// Str.ends_with("hello", "he") == false
+/// ```
 pub ends_with : Str, Str -> Bool
 pub ends_with = |s, suffix| crash "intrinsic: Str.ends_with"
 
+/// Check if the string contains the given substring.
+///
+/// ```
+/// Str.contains("hello", "ell") == true
+/// Str.contains("hello", "world") == false
+/// ```
 pub contains : Str, Str -> Bool
 pub contains = |s, substr| crash "intrinsic: Str.contains"
 
 -- Slicing (grapheme-safe)
+
+/// Take the first n grapheme clusters from the string.
+///
+/// ```
+/// Str.take("hello", 3) == "hel"
+/// ```
 pub take : Str, I64 -> Str
 pub take = |s, n| crash "intrinsic: Str.take"
 
+/// Drop the first n grapheme clusters from the string.
+///
+/// ```
+/// Str.drop("hello", 2) == "llo"
+/// ```
 pub drop : Str, I64 -> Str
 pub drop = |s, n| crash "intrinsic: Str.drop"
 
+/// Extract a substring starting at offset with the given length.
+///
+/// ```
+/// Str.slice("hello", 1, 3) == "ell"
+/// ```
 pub slice : Str, I64, I64 -> Str
 pub slice = |s, start, len| crash "intrinsic: Str.slice"
 
 -- Splitting
+
+/// Split the string by the given separator, returning all parts.
+///
+/// ```
+/// Str.split("a,b,c", ",") == ["a", "b", "c"]
+/// ```
 pub split : Str, Str -> List(Str)
 pub split = |s, sep| crash "intrinsic: Str.split"
 
+/// Split on the first occurrence of the separator.
+///
+/// ```
+/// Str.split_first("a,b,c", ",") == #[Ok(("a", "b,c"))]
+/// Str.split_first("abc", ",") == #[NotFound]
+/// ```
 pub split_first : Str, Str -> Result((Str, Str), [NotFound])
 pub split_first = |s, sep| crash "intrinsic: Str.split_first"
 
+/// Split on the last occurrence of the separator.
+///
+/// ```
+/// Str.split_last("a,b,c", ",") == #[Ok(("a,b", "c"))]
+/// Str.split_last("abc", ",") == #[NotFound]
+/// ```
 pub split_last : Str, Str -> Result((Str, Str), [NotFound])
 pub split_last = |s, sep| crash "intrinsic: Str.split_last"
 
 -- Trimming (Unicode whitespace)
+
+/// Remove leading and trailing Unicode whitespace.
+///
+/// ```
+/// Str.trim("  hello  ") == "hello"
+/// ```
 pub trim : Str -> Str
 pub trim = |s| crash "intrinsic: Str.trim"
 
+/// Remove leading Unicode whitespace.
+///
+/// ```
+/// Str.trim_start("  hello") == "hello"
+/// ```
 pub trim_start : Str -> Str
 pub trim_start = |s| crash "intrinsic: Str.trim_start"
 
+/// Remove trailing Unicode whitespace.
+///
+/// ```
+/// Str.trim_end("hello  ") == "hello"
+/// ```
 pub trim_end : Str -> Str
 pub trim_end = |s| crash "intrinsic: Str.trim_end"
 
 -- Case (Unicode)
+
+/// Convert the string to lowercase Unicode.
+///
+/// ```
+/// Str.to_lower("HELLO") == "hello"
+/// ```
 pub to_lower : Str -> Str
 pub to_lower = |s| crash "intrinsic: Str.to_lower"
 
+/// Convert the string to uppercase Unicode.
+///
+/// ```
+/// Str.to_upper("hello") == "HELLO"
+/// ```
 pub to_upper : Str -> Str
 pub to_upper = |s| crash "intrinsic: Str.to_upper"
 
 -- Concatenation
+
+/// Concatenate two strings.
+///
+/// ```
+/// Str.concat("hello", " world") == "hello world"
+/// ```
 pub concat : Str, Str -> Str
 pub concat = |a, b| crash "intrinsic: Str.concat"
 
+/// Join a list of strings with the given separator.
+///
+/// ```
+/// Str.join(["a", "b", "c"], ",") == "a,b,c"
+/// ```
 pub join : List(Str), Str -> Str
 pub join = |parts, sep| crash "intrinsic: Str.join"
 
+/// Repeat the string n times.
+///
+/// ```
+/// Str.repeat("ab", 3) == "ababab"
+/// ```
 pub repeat : Str, I64 -> Str
 pub repeat = |s, n| crash "intrinsic: Str.repeat"
 
 -- Replacement
+
+/// Replace all occurrences of a pattern with the replacement.
+///
+/// ```
+/// Str.replace("hello", "l", "x") == "hexxo"
+/// ```
 pub replace : Str, Str, Str -> Str
 pub replace = |s, pattern, replacement| crash "intrinsic: Str.replace"
 
+/// Replace the first occurrence of a pattern with the replacement.
+///
+/// ```
+/// Str.replace_first("hello", "l", "x") == "hexlo"
+/// ```
 pub replace_first : Str, Str, Str -> Str
 pub replace_first = |s, pattern, replacement| crash "intrinsic: Str.replace_first"
 
 -- Prefix/Suffix manipulation
+
+/// Remove the prefix if present, otherwise return the string unchanged.
+///
+/// ```
+/// Str.drop_prefix("hello", "he") == "llo"
+/// Str.drop_prefix("hello", "lo") == "hello"
+/// ```
 pub drop_prefix : Str, Str -> Str
 pub drop_prefix = |s, prefix| crash "intrinsic: Str.drop_prefix"
 
+/// Remove the suffix if present, otherwise return the string unchanged.
+///
+/// ```
+/// Str.drop_suffix("hello", "lo") == "hel"
+/// Str.drop_suffix("hello", "he") == "hello"
+/// ```
 pub drop_suffix : Str, Str -> Str
 pub drop_suffix = |s, suffix| crash "intrinsic: Str.drop_suffix"
 
 -- Conversion
+
+/// Encode the string as UTF-8 bytes.
+///
+/// ```
+/// Str.to_bytes("hello") == Bytes[0x68, 0x65, 0x6C, 0x6C, 0x6F]
+/// ```
 pub to_bytes : Str -> Bytes
 pub to_bytes = |s| crash "intrinsic: Str.to_bytes"
 
+/// Decode UTF-8 bytes to a string, failing on invalid encoding.
+///
+/// ```
+/// Str.from_bytes(Bytes[0x68, 0x65]) == #[Ok("he")]
+/// ```
 pub from_bytes : Bytes -> Result(Str, [InvalidUtf8])
 pub from_bytes = |b| crash "intrinsic: Str.from_bytes"
 
+/// Decode UTF-8 bytes to a string, replacing invalid sequences with the replacement character.
+///
+/// ```
+/// Str.from_bytes_lossy(Bytes[0x80]) == "�"
+/// ```
 pub from_bytes_lossy : Bytes -> Str
 pub from_bytes_lossy = |b| crash "intrinsic: Str.from_bytes_lossy"
 
 -- Parsing (numeric)
+
+/// Parse the string as a 64-bit integer.
+///
+/// ```
+/// Str.to_i64("42") == #[Ok(42)]
+/// Str.to_i64("hello") == #[InvalidFormat]
+/// ```
 pub to_i64 : Str -> Result(I64, [InvalidFormat])
 pub to_i64 = |s| crash "intrinsic: Str.to_i64"
 
+/// Parse the string as a 64-bit float.
+///
+/// ```
+/// Str.to_f64("3.14") == #[Ok(3.14)]
+/// Str.to_f64("hello") == #[InvalidFormat]
+/// ```
 pub to_f64 : Str -> Result(F64, [InvalidFormat])
 pub to_f64 = |s| crash "intrinsic: Str.to_f64"
 
 -- Iteration (grapheme-by-grapheme)
+
+/// Iterate over the string grapheme cluster by grapheme cluster.
+///
+/// ```
+/// Str.to_iter("hi")->collect == ["h", "i"]
+/// ```
 pub to_iter : Str -> Iter(Str)
 pub to_iter = |s| crash "intrinsic: Str.to_iter"

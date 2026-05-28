@@ -2,12 +2,29 @@
 -- Per D34: Obj uses Map(Str, JsonValue) for O(log n) lookup.
 -- Per D35: JsonNumber preserves integer/float distinction.
 
+/// Represents a JSON number, preserving the integer/float distinction.
+///
+/// ```
+/// PosInt(42)    -- positive integer
+/// NegInt(-17)   -- negative integer
+/// Float(3.14)   -- floating-point number (never NaN or Inf)
+/// ```
 @JsonNumber : pub [
     PosInt(U64)                                -- non-negative integer
   | NegInt(I64)                                -- negative integer
   | Float(F64)                                 -- finite float (never NaN/Inf)
 ]
 
+/// Represents an arbitrary JSON value — null, bool, number, string, array, or object.
+///
+/// ```
+/// Null
+/// Bool(True)
+/// Num(PosInt(42))
+/// Str("hello")
+/// Arr([Num(PosInt(1)), Num(PosInt(2))])
+/// Obj(Map.empty())
+/// ```
 @JsonValue : pub [
     Null
   | Bool(Bool)
@@ -17,6 +34,14 @@
   | Obj(Map(Str, JsonValue))                   -- D34: Map for O(log n) lookup
 ]
 
+/// Error type for JSON parsing and encoding operations.
+///
+/// ```
+/// UnexpectedChar(0, "expected digit")  -- position + description
+/// InvalidNumber(5, "out of range")
+/// UnexpectedEnd
+/// TrailingContent(10)
+/// ```
 @JsonErr : pub [
     UnexpectedChar(U64, Str)                  -- position + description
   | InvalidNumber(U64, Str)
@@ -26,17 +51,46 @@
 
 -- Core DOM API — intrinsic
 
+/// Parse a JSON string into a JsonValue DOM tree.
+///
+/// ```
+/// decode("null")           -> Ok(Null)
+/// decode("true")           -> Ok(Bool(True))
+/// decode("{\"a\": 1}")     -> Ok(Obj(...))
+/// decode("[1, 2, 3]")      -> Ok(Arr(...))
+/// decode("{invalid}")      -> Err(UnexpectedChar(...))
+/// ```
 pub decode : Str -> Result(JsonValue, JsonErr)
 pub decode = |_s| crash "intrinsic: Json.decode"
 
+/// Encode a JsonValue DOM tree to a compact JSON string.
+///
+/// ```
+/// encode(Null)                           -> "null"
+/// encode(Bool(True))                     -> "true"
+/// encode(Obj(Map.empty()))               -> "{}"
+/// encode(Arr([Str("a"), Str("b")]))      -> "[\"a\",\"b\"]"
+/// ```
 pub encode : JsonValue -> Str
 pub encode = |_v| crash "intrinsic: Json.encode"
 
-pub encode_pretty : JsonValue -> Str            -- 2-space indent
+/// Encode a JsonValue DOM tree to a prettily formatted JSON string with 2-space indentation.
+///
+/// ```
+/// encode_pretty(Obj(Map.empty()))        -> "{\\n  \\n}"
+/// ```
+pub encode_pretty : JsonValue -> Str
 pub encode_pretty = |_v| crash "intrinsic: Json.encode_pretty"
 
 -- JsonNumber accessors — pure Camp
 
+/// Returns True if the JsonNumber is an integer (PosInt or NegInt).
+///
+/// ```
+/// is_int(PosInt(42))  -> True
+/// is_int(NegInt(-1))  -> True
+/// is_int(Float(3.14)) -> False
+/// ```
 pub is_int : JsonNumber -> Bool
 pub is_int = |n| match n {
   PosInt(_) -> True
@@ -44,6 +98,13 @@ pub is_int = |n| match n {
   Float(_)  -> False
 }
 
+/// Returns True if the JsonNumber is a floating-point value.
+///
+/// ```
+/// is_float(Float(3.14)) -> True
+/// is_float(PosInt(42))  -> False
+/// is_float(NegInt(-1))   -> False
+/// ```
 pub is_float : JsonNumber -> Bool
 pub is_float = |n| match n {
   Float(_)  -> True
@@ -51,6 +112,13 @@ pub is_float = |n| match n {
   NegInt(_) -> False
 }
 
+/// Attempt to convert a JsonNumber to an I64 integer.
+///
+/// ```
+/// as_i64(NegInt(-17))  -> Ok(-17)
+/// as_i64(PosInt(42))   -> Err(Absent)  -- overflow check needed
+/// as_i64(Float(3.14))  -> Err(Absent)
+/// ```
 pub as_i64 : JsonNumber -> Result(I64, [Absent])
 pub as_i64 = |n| match n {
   NegInt(i) -> Ok(i)
