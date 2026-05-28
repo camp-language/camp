@@ -268,6 +268,7 @@ IR_Pat_Tag :: struct {
 IR_Pat_Record :: struct {
 	fields:  [dynamic]IR_Pat_Field,
 	is_open: bool,
+	rest:    ba.Intern_ID,
 }
 IR_Pat_Field :: struct {
 	name:        ba.Intern_ID,

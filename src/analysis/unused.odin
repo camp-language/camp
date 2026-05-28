@@ -566,6 +566,9 @@ collect_uses_pattern :: proc(analysis: ^Unused_Analysis, pattern: semantics.CPat
 				)
 			}
 		}
+		if p.rest != 0 {
+			register_binding(analysis, p.rest, p.span, is_top_level = false, is_pub = false)
+		}
 	case ^semantics.CPattern_List:
 		for &elem in p.elements {
 			collect_uses_pattern(analysis, elem)
