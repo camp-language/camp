@@ -293,6 +293,9 @@ cc_bind_pattern_vars :: proc(pat: IR_Pattern, bound: ^map[base.Intern_ID]bool) {
 		for f in p.fields {
 			bound^[f.binding] = true
 		}
+		if p.rest != 0 {
+			bound^[p.rest] = true
+		}
 	case ^IR_Pat_Wildcard, ^IR_Pat_Bool, ^IR_Pat_Int, ^IR_Pat_String:
 	}
 }

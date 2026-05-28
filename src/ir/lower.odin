@@ -1167,6 +1167,7 @@ lower_tpattern :: proc(
 		result := new(IR_Pat_Record)
 		result.fields = fields_ir
 		result.is_open = p.is_open
+		result.rest = p.rest
 		return IR_Pattern(result)
 	case ^semantics.TPattern_Tuple:
 		elements_ir := make([dynamic]IR_Pat_Tuple_Element, len(p.elements))

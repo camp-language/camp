@@ -1,0 +1,7 @@
+main! = || -> I64 {
+    // Record pattern with ..rest - using open record type
+    r: { x: I64, .. } = { x: 42, y: 100 }
+    match r {
+    | { x, ..rest } => x
+    }
+}

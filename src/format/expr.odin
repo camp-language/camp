@@ -626,6 +626,9 @@ format_pattern_record :: proc(
 			append(&parts, doc_text(", "))
 		}
 		append(&parts, doc_text(".."))
+		if p.rest != 0 {
+			append(&parts, doc_text(base.intern_get(interner, p.rest)))
+		}
 	}
 	append(&parts, doc_text(" }"))
 	return doc_concat(parts[:])
