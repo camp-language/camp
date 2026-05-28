@@ -33,15 +33,15 @@ pub is_finite = |n: F64| -> Bool { crash "intrinsic: Num.F64.is_finite" }
 
 // Constants
 
-pub pi = 3.14159265358979323846
+pub pi: F64 = 3.14159265358979323846
 
-pub e = 2.71828182845904523536
+pub e: F64 = 2.71828182845904523536
 
-pub nan = crash "intrinsic: Num.F64.nan"
+pub nan: F64 = crash "intrinsic: Num.F64.nan"
 
-pub infinity = crash "intrinsic: Num.F64.infinity"
+pub infinity: F64 = crash "intrinsic: Num.F64.infinity"
 
-pub neg_infinity = crash "intrinsic: Num.F64.neg_infinity"
+pub neg_infinity: F64 = crash "intrinsic: Num.F64.neg_infinity"
 
 // Trigonometry (intrinsic — needs libm)
 

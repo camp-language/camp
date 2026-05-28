@@ -42,12 +42,12 @@ pub is_zero = |d: Duration| -> Bool { crash "intrinsic: Duration.is_zero" }
 
 // Constants
 
-pub zero = crash "intrinsic: Duration.zero"
+pub zero: Duration = crash "intrinsic: Duration.zero"
 
-pub second = crash "intrinsic: Duration.second"
+pub second: Duration = crash "intrinsic: Duration.second"
 
-pub millisecond = crash "intrinsic: Duration.millisecond"
+pub millisecond: Duration = crash "intrinsic: Duration.millisecond"
 
-pub microsecond = crash "intrinsic: Duration.microsecond"
+pub microsecond: Duration = crash "intrinsic: Duration.microsecond"
 
-pub nanosecond = crash "intrinsic: Duration.nanosecond"
+pub nanosecond: Duration = crash "intrinsic: Duration.nanosecond"
