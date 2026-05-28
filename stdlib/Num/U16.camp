@@ -1,5 +1,5 @@
--- Num/U16.camp
--- Operations on U16. Unsigned — no abs or neg.
+// Num/U16.camp
+// Operations on U16. Unsigned — no abs or neg.
 
 pub clamp : U16, U16, U16 -> U16
 pub clamp = |lo, hi, n| if n < lo { lo } else if n > hi { hi } else { n }

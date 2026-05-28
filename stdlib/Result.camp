@@ -1,11 +1,11 @@
 /// Result represents a value or an error.
 ///
 /// ```
-/// assert Ok(42) == Ok(42)
+/// expect Ok(42) == Ok(42)
 /// ```
 ///
 /// ```
-/// assert Err("not found") == Err("not found")
+/// expect Err("not found") == Err("not found")
 /// ```
 @Result(a, e): pub [Ok(a) | Err(e)]
 
@@ -14,12 +14,12 @@
 /// Transforms the Ok variant, passing Err through unchanged.
 ///
 /// ```
-/// assert Result.map(Ok(5), |x| x * 2) == Ok(10)
+/// expect Result.map(Ok(5), |x| x * 2) == Ok(10)
 /// ```
 ///
 /// Err is passed through unchanged:
 /// ```
-/// assert Result.map(Err("oops"), |x| x * 2) == Err("oops")
+/// expect Result.map(Err("oops"), |x| x * 2) == Err("oops")
 /// ```
 pub map : Result(a, e), (a) -> b -> Result(b, e)
 pub map = |r, f|
@@ -28,11 +28,11 @@ pub map = |r, f|
 /// Transforms the Err variant, passing Ok through unchanged.
 ///
 /// ```
-/// assert Result.map_err(Ok(42), |e| "error: " ++ e) == Ok(42)
+/// expect Result.map_err(Ok(42), |e| "error: " ++ e) == Ok(42)
 /// ```
 ///
 /// ```
-/// assert Result.map_err(Err("oops"), |e| "handled: " ++ e) == Err("handled: oops")
+/// expect Result.map_err(Err("oops"), |e| "handled: " ++ e) == Err("handled: oops")
 /// ```
 pub map_err : Result(a, e), (e) -> f -> Result(a, f)
 pub map_err = |r, f|
@@ -41,11 +41,11 @@ pub map_err = |r, f|
 /// Chains a fallible operation, short-circuiting on Err.
 ///
 /// ```
-/// assert Result.and_then(Ok(5), |x| Ok(x * 2)) == Ok(10)
+/// expect Result.and_then(Ok(5), |x| Ok(x * 2)) == Ok(10)
 /// ```
 ///
 /// ```
-/// assert Result.and_then(Err("fail"), |x| Ok(x * 2)) == Err("fail")
+/// expect Result.and_then(Err("fail"), |x| Ok(x * 2)) == Err("fail")
 /// ```
 pub and_then : Result(a, e), (a) -> Result(b, e) -> Result(b, e)
 pub and_then = |r, f|
@@ -54,11 +54,11 @@ pub and_then = |r, f|
 /// Recovers from Err by computing an alternative Result.
 ///
 /// ```
-/// assert Result.or_else(Ok(42), || Ok(0)) == Ok(42)
+/// expect Result.or_else(Ok(42), || Ok(0)) == Ok(42)
 /// ```
 ///
 /// ```
-/// assert Result.or_else(Err("fail"), || Ok(0)) == Ok(0)
+/// expect Result.or_else(Err("fail"), || Ok(0)) == Ok(0)
 /// ```
 pub or_else : Result(a, e), || -> Result(a, f) -> Result(a, e | f)
 pub or_else = |r, f|
@@ -69,11 +69,11 @@ pub or_else = |r, f|
 /// Returns True if Result is Ok.
 ///
 /// ```
-/// assert Result.is_ok(Ok(42)) == True
+/// expect Result.is_ok(Ok(42)) == True
 /// ```
 ///
 /// ```
-/// assert Result.is_ok(Err("oops")) == False
+/// expect Result.is_ok(Err("oops")) == False
 /// ```
 pub is_ok : Result(a, e) -> Bool
 pub is_ok = |r|
@@ -82,11 +82,11 @@ pub is_ok = |r|
 /// Returns True if Result is Err.
 ///
 /// ```
-/// assert Result.is_err(Err("oops")) == True
+/// expect Result.is_err(Err("oops")) == True
 /// ```
 ///
 /// ```
-/// assert Result.is_err(Ok(42)) == False
+/// expect Result.is_err(Ok(42)) == False
 /// ```
 pub is_err : Result(a, e) -> Bool
 pub is_err = |r|
@@ -97,7 +97,7 @@ pub is_err = |r|
 /// Extracts the Ok value, crashes if Err.
 ///
 /// ```
-/// assert Result.unwrap(Ok(42)) == 42
+/// expect Result.unwrap(Ok(42)) == 42
 /// ```
 pub unwrap : Result(a, e) -> a
 pub unwrap = |r|
@@ -106,11 +106,11 @@ pub unwrap = |r|
 /// Extracts the Ok value or returns a default.
 ///
 /// ```
-/// assert Result.unwrap_or(Ok(42), 0) == 42
+/// expect Result.unwrap_or(Ok(42), 0) == 42
 /// ```
 ///
 /// ```
-/// assert Result.unwrap_or(Err("oops"), 0) == 0
+/// expect Result.unwrap_or(Err("oops"), 0) == 0
 /// ```
 pub unwrap_or : Result(a, e), a -> a
 pub unwrap_or = |r, default|
@@ -119,11 +119,11 @@ pub unwrap_or = |r, default|
 /// Extracts the Ok value or computes from the Err.
 ///
 /// ```
-/// assert Result.unwrap_or_else(Err("err"), |e| 42) == 42
+/// expect Result.unwrap_or_else(Err("err"), |e| 42) == 42
 /// ```
 ///
 /// ```
-/// assert Result.unwrap_or_else(Ok(5), |e| 42) == 5
+/// expect Result.unwrap_or_else(Ok(5), |e| 42) == 5
 /// ```
 pub unwrap_or_else : Result(a, e), (e) -> a -> a
 pub unwrap_or_else = |r, f|
@@ -132,7 +132,7 @@ pub unwrap_or_else = |r, f|
 /// Extracts the Ok value or returns Default.default.
 ///
 /// ```
-/// assert Result.unwrap_or_default(Ok(42)) == 42
+/// expect Result.unwrap_or_default(Ok(42)) == 42
 /// ```
 pub unwrap_or_default : Result(a, e) -> a
 pub unwrap_or_default = |r|
@@ -143,11 +143,11 @@ pub unwrap_or_default = |r|
 /// Returns r1 if Ok, otherwise returns r2.
 ///
 /// ```
-/// assert Result.or(Ok(1), Ok(2)) == Ok(1)
+/// expect Result.or(Ok(1), Ok(2)) == Ok(1)
 /// ```
 ///
 /// ```
-/// assert Result.or(Err("first"), Ok(2)) == Ok(2)
+/// expect Result.or(Err("first"), Ok(2)) == Ok(2)
 /// ```
 pub or : Result(a, e), Result(a, e) -> Result(a, e)
 pub or = |r1, r2|
@@ -158,15 +158,15 @@ pub or = |r1, r2|
 /// Converts Ok to Err if the predicate returns False.
 ///
 /// ```
-/// assert Result.filter(Ok(5), |x| x > 0, "not positive") == Ok(5)
+/// expect Result.filter(Ok(5), |x| x > 0, "not positive") == Ok(5)
 /// ```
 ///
 /// ```
-/// assert Result.filter(Ok(-1), |x| x > 0, "not positive") == Err("not positive")
+/// expect Result.filter(Ok(-1), |x| x > 0, "not positive") == Err("not positive")
 /// ```
 ///
 /// ```
-/// assert Result.filter(Err("oops"), |x| x > 0, "not positive") == Err("oops")
+/// expect Result.filter(Err("oops"), |x| x > 0, "not positive") == Err("oops")
 /// ```
 pub filter : Result(a, e), (a) -> Bool, e -> Result(a, e)
 pub filter = |r, pred, err|
@@ -180,15 +180,15 @@ pub filter = |r, pred, err|
 /// Collapses a nested Result.
 ///
 /// ```
-/// assert Result.flatten(Ok(Ok(42))) == Ok(42)
+/// expect Result.flatten(Ok(Ok(42))) == Ok(42)
 /// ```
 ///
 /// ```
-/// assert Result.flatten(Ok(Err("inner"))) == Err("inner")
+/// expect Result.flatten(Ok(Err("inner"))) == Err("inner")
 /// ```
 ///
 /// ```
-/// assert Result.flatten(Err("outer")) == Err("outer")
+/// expect Result.flatten(Err("outer")) == Err("outer")
 /// ```
 pub flatten : Result(Result(a, e), e) -> Result(a, e)
 pub flatten = |r|
@@ -199,11 +199,11 @@ pub flatten = |r|
 /// Converts to a List: Ok yields singleton, Err yields empty.
 ///
 /// ```
-/// assert Result.to_list(Ok(42)) == [42]
+/// expect Result.to_list(Ok(42)) == [42]
 /// ```
 ///
 /// ```
-/// assert Result.to_list(Err("oops")) == []
+/// expect Result.to_list(Err("oops")) == []
 /// ```
 pub to_list : Result(a, e) -> List(a)
 pub to_list = |r|
@@ -212,11 +212,11 @@ pub to_list = |r|
 /// Extracts head of List, Err on empty.
 ///
 /// ```
-/// assert Result.from_list([1, 2, 3]) == Ok(1)
+/// expect Result.from_list([1, 2, 3]) == Ok(1)
 /// ```
 ///
 /// ```
-/// assert Result.from_list([]) == Err(EmptyList)
+/// expect Result.from_list([]) == Err(EmptyList)
 /// ```
 pub from_list : List(a) -> Result(a, [EmptyList])
 pub from_list = |xs|
@@ -230,7 +230,7 @@ pub from_list = |xs|
 /// Extracts Ok or raises Throw! with the error.
 ///
 /// ```
-/// assert Result.unwrap!(Ok(42)) == 42
+/// expect Result.unwrap!(Ok(42)) == 42
 /// ```
 pub unwrap! : Result(a, e) -> -[Throw!(e)]-> a
 pub unwrap! = |r|
@@ -239,7 +239,7 @@ pub unwrap! = |r|
 /// Catches a Throw! and converts to Result.
 ///
 /// ```
-/// assert Result.catch(|| 42) == Ok(42)
+/// expect Result.catch(|| 42) == Ok(42)
 /// ```
 pub catch : || -[Throw!(e)]-> a -> Result(a, e)
 pub catch = |action|

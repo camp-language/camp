@@ -49,8 +49,8 @@
 /// Parse a URI string into a Uri record.
 ///
 /// ```
-/// assert parse("https://example.com:8080/path?query=1#frag")->Result.is_ok == True
-/// assert parse("://missing-scheme") == Err(MissingScheme)
+/// expect parse("https://example.com:8080/path?query=1#frag")->Result.is_ok == True
+/// expect parse("://missing-scheme") == Err(MissingScheme)
 /// ```
 pub parse : Str -> Result(Uri, UriErr)
 pub parse = |_s| crash "intrinsic: Uri.parse"  -- TODO: pure Camp implementation
@@ -58,7 +58,7 @@ pub parse = |_s| crash "intrinsic: Uri.parse"  -- TODO: pure Camp implementation
 /// Render a Uri back to a string.
 ///
 /// ```
-/// assert to_str({ scheme: "https", authority: Err(Absent), path: "/foo", query: Err(Absent), fragment: Err(Absent) }) == "https:///foo"
+/// expect to_str({ scheme: "https", authority: Err(Absent), path: "/foo", query: Err(Absent), fragment: Err(Absent) }) == "https:///foo"
 /// ```
 pub to_str : Uri -> Str
 pub to_str = |_u| crash "intrinsic: Uri.to_str"  -- TODO: pure Camp implementation
@@ -68,9 +68,9 @@ pub to_str = |_u| crash "intrinsic: Uri.to_str"  -- TODO: pure Camp implementati
 /// Percent-encode a string for safe use in a URI component.
 ///
 /// ```
-/// assert encode_component("a b") == "a%20b"
-/// assert encode_component("foo=bar") == "foo%3Dbar"
-/// assert encode_component("hello") == "hello"
+/// expect encode_component("a b") == "a%20b"
+/// expect encode_component("foo=bar") == "foo%3Dbar"
+/// expect encode_component("hello") == "hello"
 /// ```
 pub encode_component : Str -> Str
 pub encode_component = |_s| crash "intrinsic: Uri.encode_component"  -- TODO: pure Camp implementation
@@ -78,8 +78,8 @@ pub encode_component = |_s| crash "intrinsic: Uri.encode_component"  -- TODO: pu
 /// Decode a percent-encoded URI component string.
 ///
 /// ```
-/// assert decode_component("a%20b") == Ok("a b")
-/// assert decode_component("foo%3Dbar") == Ok("foo=bar")
+/// expect decode_component("a%20b") == Ok("a b")
+/// expect decode_component("foo%3Dbar") == Ok("foo=bar")
 /// ```
 pub decode_component : Str -> Result(Str, UriErr)
 pub decode_component = |_s| crash "intrinsic: Uri.decode_component"  -- TODO: pure Camp implementation
@@ -89,9 +89,9 @@ pub decode_component = |_s| crash "intrinsic: Uri.decode_component"  -- TODO: pu
 /// Parse a query string into a list of key-value pairs.
 ///
 /// ```
-/// assert parse_query("a=1&b=2") == [("a", "1"), ("b", "2")]
-/// assert parse_query("a=1&a=2") == [("a", "1"), ("a", "2")]
-/// assert parse_query("") == []
+/// expect parse_query("a=1&b=2") == [("a", "1"), ("b", "2")]
+/// expect parse_query("a=1&a=2") == [("a", "1"), ("a", "2")]
+/// expect parse_query("") == []
 /// ```
 pub parse_query : Str -> List((Str, Str))
 pub parse_query = |_s| crash "intrinsic: Uri.parse_query"  -- TODO: pure Camp implementation
@@ -99,8 +99,8 @@ pub parse_query = |_s| crash "intrinsic: Uri.parse_query"  -- TODO: pure Camp im
 /// Format a list of key-value pairs into a query string.
 ///
 /// ```
-/// assert format_query([("a", "1"), ("b", "2")]) == "a=1&b=2"
-/// assert format_query([]) == ""
+/// expect format_query([("a", "1"), ("b", "2")]) == "a=1&b=2"
+/// expect format_query([]) == ""
 /// ```
 pub format_query : List((Str, Str)) -> Str
 pub format_query = |_pairs| crash "intrinsic: Uri.format_query"  -- TODO: pure Camp implementation

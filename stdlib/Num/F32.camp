@@ -1,5 +1,5 @@
--- Num/F32.camp
--- Operations on F32.
+// Num/F32.camp
+// Operations on F32.
 
 pub abs : F32 -> F32
 pub abs = |n| crash "intrinsic: Num.F32.abs"

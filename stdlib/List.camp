@@ -6,7 +6,7 @@
 /// The empty list. Represents a list with zero elements.
 ///
 /// ```
-/// assert empty == Nil
+/// expect empty == Nil
 /// ```
 pub empty : List(a)
 pub empty = Nil
@@ -14,7 +14,7 @@ pub empty = Nil
 /// Create a single-element list containing x.
 ///
 /// ```
-/// assert singleton(42) == Cons(42, Nil)
+/// expect singleton(42) == Cons(42, Nil)
 /// ```
 pub singleton : a -> List(a)
 pub singleton = |x| Cons(x, Nil)
@@ -22,7 +22,7 @@ pub singleton = |x| Cons(x, Nil)
 /// Concatenate two lists. All elements of xs come before all elements of ys.
 ///
 /// ```
-/// assert append(singleton(1), singleton(2)) == Cons(1, Cons(2, Nil))
+/// expect append(singleton(1), singleton(2)) == Cons(1, Cons(2, Nil))
 /// ```
 pub append : List(a), List(a) -> List(a)
 pub append = |xs, ys|
@@ -36,8 +36,8 @@ pub append = |xs, ys|
 /// Get the number of elements in a list.
 ///
 /// ```
-/// assert length(Nil) == 0
-/// assert length(Cons(1, Cons(2, Cons(3, Nil)))) == 3
+/// expect length(Nil) == 0
+/// expect length(Cons(1, Cons(2, Cons(3, Nil)))) == 3
 /// ```
 pub length : List(a) -> I64
 pub length = |xs|
@@ -49,8 +49,8 @@ pub length = |xs|
 /// Check whether a list has no elements.
 ///
 /// ```
-/// assert is_empty(Nil) == True
-/// assert is_empty(singleton(1)) == False
+/// expect is_empty(Nil) == True
+/// expect is_empty(singleton(1)) == False
 /// ```
 pub is_empty : List(a) -> Bool
 pub is_empty = |xs|
@@ -61,8 +61,8 @@ pub is_empty = |xs|
 /// Get the first element of a list. Returns ListWasEmpty if the list is empty.
 ///
 /// ```
-/// assert first(Cons(1, Cons(2, Nil))) == Ok(1)
-/// assert first(Nil) == Err(ListWasEmpty)
+/// expect first(Cons(1, Cons(2, Nil))) == Ok(1)
+/// expect first(Nil) == Err(ListWasEmpty)
 /// ```
 pub first : List(a) -> Result(a, [ListWasEmpty])
 pub first = |xs|
@@ -74,9 +74,9 @@ pub first = |xs|
 /// Get the last element of a list. Returns ListWasEmpty if the list is empty.
 ///
 /// ```
-/// assert last(Cons(1, Cons(2, Nil))) == Ok(2)
-/// assert last(singleton(42)) == Ok(42)
-/// assert last(Nil) == Err(ListWasEmpty)
+/// expect last(Cons(1, Cons(2, Nil))) == Ok(2)
+/// expect last(singleton(42)) == Ok(42)
+/// expect last(Nil) == Err(ListWasEmpty)
 /// ```
 pub last : List(a) -> Result(a, [ListWasEmpty])
 pub last = |xs|
@@ -89,8 +89,8 @@ pub last = |xs|
 /// Get all elements after the first. Returns ListWasEmpty if the list is empty.
 ///
 /// ```
-/// assert rest(Cons(1, Cons(2, Nil))) == Ok(Cons(2, Nil))
-/// assert rest(Nil) == Err(ListWasEmpty)
+/// expect rest(Cons(1, Cons(2, Nil))) == Ok(Cons(2, Nil))
+/// expect rest(Nil) == Err(ListWasEmpty)
 /// ```
 pub rest : List(a) -> Result(List(a), [ListWasEmpty])
 pub rest = |xs|
@@ -105,7 +105,7 @@ pub rest = |xs|
 /// Requires list elements to implement the Ord trait.
 ///
 /// ```
-/// assert sort(Cons(3, Cons(1, Cons(2, Nil)))) == Cons(1, Cons(2, Cons(3, Nil)))
+/// expect sort(Cons(3, Cons(1, Cons(2, Nil)))) == Cons(1, Cons(2, Cons(3, Nil)))
 /// ```
 pub sort : List(a) -> List(a)
 pub sort = |xs| crash "intrinsic: List.sort"
@@ -113,7 +113,7 @@ pub sort = |xs| crash "intrinsic: List.sort"
 /// Sort a list using a custom comparison function.
 ///
 /// ```
-/// assert sort_by(Cons(3, Cons(1, Cons(2, Nil))), (|x, y| x > y)) == Cons(3, Cons(2, Cons(1, Nil)))
+/// expect sort_by(Cons(3, Cons(1, Cons(2, Nil))), (|x, y| x > y)) == Cons(3, Cons(2, Cons(1, Nil)))
 /// ```
 pub sort_by : List(a), (a, a) -> Order -> List(a)
 pub sort_by = |xs, cmp| crash "intrinsic: List.sort_by"
@@ -123,7 +123,7 @@ pub sort_by = |xs, cmp| crash "intrinsic: List.sort_by"
 /// Convert a list to an iterator for lazy traversal.
 ///
 /// ```
-/// assert to_iter(Cons(1, Cons(2, Nil)))->Iter.count == 2
+/// expect to_iter(Cons(1, Cons(2, Nil)))->Iter.count == 2
 /// ```
 pub to_iter : List(a) -> Iter(a)
 pub to_iter = |xs| crash "intrinsic: List.to_iter"
@@ -131,7 +131,7 @@ pub to_iter = |xs| crash "intrinsic: List.to_iter"
 /// Collect an iterator into a list eagerly evaluating all elements.
 ///
 /// ```
-/// assert from_iter(Iter.from_list([1, 2, 3])) == Cons(1, Cons(2, Cons(3, Nil)))
+/// expect from_iter(Iter.from_list([1, 2, 3])) == Cons(1, Cons(2, Cons(3, Nil)))
 /// ```
 pub from_iter : Iter(a) -> List(a)
 pub from_iter = |iter| crash "intrinsic: List.from_iter"

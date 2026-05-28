@@ -1,5 +1,5 @@
--- Num/I8.camp
--- Operations on I8.
+// Num/I8.camp
+// Operations on I8.
 
 pub abs : I8 -> I8
 pub abs = |n| if n < 0 { 0 - n } else { n }

@@ -1,5 +1,5 @@
--- Num/I32.camp
--- Operations on I32.
+// Num/I32.camp
+// Operations on I32.
 
 pub abs : I32 -> I32
 pub abs = |n| if n < 0 { 0 - n } else { n }

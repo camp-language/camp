@@ -54,11 +54,11 @@
 /// Parse a JSON string into a JsonValue DOM tree.
 ///
 /// ```
-/// assert decode("null") == Ok(Null)
-/// assert decode("true") == Ok(Bool(True))
-/// assert decode("{\"a\": 1}")->Result.is_ok == True
-/// assert decode("[1, 2, 3]")->Result.is_ok == True
-/// assert decode("{invalid}")->Result.is_err == True
+/// expect decode("null") == Ok(Null)
+/// expect decode("true") == Ok(Bool(True))
+/// expect decode("{\"a\": 1}")->Result.is_ok == True
+/// expect decode("[1, 2, 3]")->Result.is_ok == True
+/// expect decode("{invalid}")->Result.is_err == True
 /// ```
 pub decode : Str -> Result(JsonValue, JsonErr)
 pub decode = |_s| crash "intrinsic: Json.decode"
@@ -66,10 +66,10 @@ pub decode = |_s| crash "intrinsic: Json.decode"
 /// Encode a JsonValue DOM tree to a compact JSON string.
 ///
 /// ```
-/// assert encode(Null) == "null"
-/// assert encode(Bool(True)) == "true"
-/// assert encode(Obj(Map.new())) == "{}"
-/// assert encode(Arr([Str("a"), Str("b")])) == "[\"a\",\"b\"]"
+/// expect encode(Null) == "null"
+/// expect encode(Bool(True)) == "true"
+/// expect encode(Obj(Map.new())) == "{}"
+/// expect encode(Arr([Str("a"), Str("b")])) == "[\"a\",\"b\"]"
 /// ```
 pub encode : JsonValue -> Str
 pub encode = |_v| crash "intrinsic: Json.encode"
@@ -77,7 +77,7 @@ pub encode = |_v| crash "intrinsic: Json.encode"
 /// Encode a JsonValue DOM tree to a prettily formatted JSON string with 2-space indentation.
 ///
 /// ```
-/// assert encode_pretty(Obj(Map.new())) == "{\\n  \\n}"
+/// expect encode_pretty(Obj(Map.new())) == "{\\n  \\n}"
 /// ```
 pub encode_pretty : JsonValue -> Str
 pub encode_pretty = |_v| crash "intrinsic: Json.encode_pretty"
@@ -87,9 +87,9 @@ pub encode_pretty = |_v| crash "intrinsic: Json.encode_pretty"
 /// Returns True if the JsonNumber is an integer (PosInt or NegInt).
 ///
 /// ```
-/// assert is_int(PosInt(42)) == True
-/// assert is_int(NegInt(-1)) == True
-/// assert is_int(Float(3.14)) == False
+/// expect is_int(PosInt(42)) == True
+/// expect is_int(NegInt(-1)) == True
+/// expect is_int(Float(3.14)) == False
 /// ```
 pub is_int : JsonNumber -> Bool
 pub is_int = |n| match n {
@@ -101,9 +101,9 @@ pub is_int = |n| match n {
 /// Returns True if the JsonNumber is a floating-point value.
 ///
 /// ```
-/// assert is_float(Float(3.14)) == True
-/// assert is_float(PosInt(42)) == False
-/// assert is_float(NegInt(-1)) == False
+/// expect is_float(Float(3.14)) == True
+/// expect is_float(PosInt(42)) == False
+/// expect is_float(NegInt(-1)) == False
 /// ```
 pub is_float : JsonNumber -> Bool
 pub is_float = |n| match n {
@@ -115,9 +115,9 @@ pub is_float = |n| match n {
 /// Attempt to convert a JsonNumber to an I64 integer.
 ///
 /// ```
-/// assert as_i64(NegInt(-17)) == Ok(-17)
-/// assert as_i64(PosInt(42)) == Err(Absent)
-/// assert as_i64(Float(3.14)) == Err(Absent)
+/// expect as_i64(NegInt(-17)) == Ok(-17)
+/// expect as_i64(PosInt(42)) == Err(Absent)
+/// expect as_i64(Float(3.14)) == Err(Absent)
 /// ```
 pub as_i64 : JsonNumber -> Result(I64, [Absent])
 pub as_i64 = |n| match n {
