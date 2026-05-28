@@ -10,7 +10,7 @@ import List { append }
 /// Creates an empty map.
  ///
  /// ```
- /// new()
+ /// assert new()->Map.size == 0
  /// ```
 pub new : Map(k, v)
 pub new = crash "intrinsic: Map.new"
@@ -18,7 +18,7 @@ pub new = crash "intrinsic: Map.new"
 /// Creates a map with a single key-value pair.
  ///
  /// ```
- /// singleton("a", 1)
+ /// assert singleton("a", 1)->Map.size == 1
  /// ```
 pub singleton : k, v -> Map(k, v)
 pub singleton = |k, v| crash "intrinsic: Map.singleton"
@@ -28,8 +28,8 @@ pub singleton = |k, v| crash "intrinsic: Map.singleton"
 /// Retrieves the value associated with a key, or KeyNotFound if absent.
  ///
  /// ```
- /// get("a", singleton("a", 1)) -- Ok(1)
- /// get("b", singleton("a", 1)) -- Err(KeyNotFound)
+ /// assert get("a", singleton("a", 1)) == Ok(1)
+ /// assert get("b", singleton("a", 1)) == Err(KeyNotFound)
  /// ```
 pub get : k, Map(k, v) -> Result(v, [KeyNotFound])
 pub get = |k, m| crash "intrinsic: Map.get"
@@ -37,8 +37,8 @@ pub get = |k, m| crash "intrinsic: Map.get"
 /// Returns true if the key exists in the map.
  ///
  /// ```
- /// contains("a", singleton("a", 1)) -- true
- /// contains("b", singleton("a", 1)) -- false
+ /// assert contains("a", singleton("a", 1)) == True
+ /// assert contains("b", singleton("a", 1)) == False
  /// ```
 pub contains : k, Map(k, v) -> Bool
 pub contains = |k, m| crash "intrinsic: Map.contains"
@@ -46,8 +46,8 @@ pub contains = |k, m| crash "intrinsic: Map.contains"
 /// Returns the number of entries in the map.
  ///
  /// ```
- /// size(singleton("a", 1)) -- 1
- /// size(new()) -- 0
+ /// assert size(singleton("a", 1)) == 1
+ /// assert size(new()) == 0
  /// ```
 pub size : Map(k, v) -> I64
 pub size = |m| crash "intrinsic: Map.size"
@@ -55,8 +55,8 @@ pub size = |m| crash "intrinsic: Map.size"
 /// Returns true if the map has no entries.
  ///
  /// ```
- /// is_empty(new()) -- true
- /// is_empty(singleton("a", 1)) -- false
+ /// assert is_empty(new()) == True
+ /// assert is_empty(singleton("a", 1)) == False
  /// ```
 pub is_empty : Map(k, v) -> Bool
 pub is_empty = |m| size(m) == 0
@@ -66,8 +66,8 @@ pub is_empty = |m| size(m) == 0
 /// Returns the smallest key-value pair, or EmptyMap if the map is empty.
  ///
  /// ```
- /// min(singleton("a", 1)) -- Ok(("a", 1))
- /// min(new()) -- Err(EmptyMap)
+ /// assert min(singleton("a", 1)) == Ok(("a", 1))
+ /// assert min(new()) == Err(EmptyMap)
  /// ```
 pub min : Map(k, v) -> Result((k, v), [EmptyMap])
 pub min = |m| crash "intrinsic: Map.min"
@@ -75,8 +75,8 @@ pub min = |m| crash "intrinsic: Map.min"
 /// Returns the largest key-value pair, or EmptyMap if the map is empty.
  ///
  /// ```
- /// max(singleton("a", 1)) -- Ok(("a", 1))
- /// max(new()) -- Err(EmptyMap)
+ /// assert max(singleton("a", 1)) == Ok(("a", 1))
+ /// assert max(new()) == Err(EmptyMap)
  /// ```
 pub max : Map(k, v) -> Result((k, v), [EmptyMap])
 pub max = |m| crash "intrinsic: Map.max"
@@ -86,7 +86,7 @@ pub max = |m| crash "intrinsic: Map.max"
 /// Inserts a key-value pair, replacing any existing value for that key.
  ///
  /// ```
- /// insert("a", 1, new())
+ /// assert insert("a", 1, new())->contains("a",) == True
  /// ```
 pub insert : k, v, Map(k, v) -> Map(k, v)
 pub insert = |k, v, m| crash "intrinsic: Map.insert"
@@ -94,7 +94,7 @@ pub insert = |k, v, m| crash "intrinsic: Map.insert"
 /// Removes the entry for a key, returning the map without it.
  ///
  /// ```
- /// remove("a", singleton("a", 1)) -- new()
+ /// assert remove("a", singleton("a", 1))->is_empty == True
  /// ```
 pub remove : k, Map(k, v) -> Map(k, v)
 pub remove = |k, m| crash "intrinsic: Map.remove"
@@ -102,9 +102,9 @@ pub remove = |k, m| crash "intrinsic: Map.remove"
 /// Applies a function to the result of looking up a key, then inserts or removes based on the outcome.
  ///
  /// ```
- /// update("a", |_| Ok(2), singleton("a", 1)) -- singleton("a", 2)
- /// update("b", |_| Ok(2), singleton("a", 1)) -- new()
- /// update("a", |_| Err(KeyNotFound), singleton("a", 1)) -- new()
+ /// assert update("a", |_| Ok(2), singleton("a", 1))->get("a",) == Ok(2)
+ /// assert update("b", |_| Ok(2), singleton("a", 1))->is_empty == True
+ /// assert update("a", |_| Err(KeyNotFound), singleton("a", 1))->is_empty == True
  /// ```
 pub update : k, (Result(v, [KeyNotFound]) -> Result(v, [KeyNotFound])), Map(k, v) -> Map(k, v)
 pub update = |k, f, m|
@@ -118,8 +118,8 @@ pub update = |k, f, m|
 /// Accumulates values by applying a function to each key-value pair.
  ///
  /// ```
- /// fold(singleton("a", 1), 0, |acc, k, v| acc + v) -- 1
- /// fold(new(), [], |acc, k, v| [v, ...acc]) -- []
+ /// assert fold(singleton("a", 1), 0, |acc, k, v| acc + v) == 1
+ /// assert fold(new(), [], |acc, k, v| [v, ...acc]) == []
  /// ```
 pub fold : Map(k, v), b, (b, k, v) -> b -> b
 pub fold = |m, init, f|
@@ -131,7 +131,7 @@ pub fold = |m, init, f|
 /// Transforms all values using a function, preserving keys.
  ///
  /// ```
- /// map(singleton("a", 1), |x| x + 1) -- singleton("a", 2)
+ /// assert map(singleton("a", 1), |x| x + 1)->get("a",) == Ok(2)
  /// ```
 pub map : Map(k, v), (v) -> w -> Map(k, w)
 pub map = |m, f|
@@ -140,8 +140,8 @@ pub map = |m, f|
 /// Keeps only entries where the predicate returns true.
  ///
  /// ```
- /// filter(singleton("a", 1), |k, v| v > 0) -- singleton("a", 1)
- /// filter(singleton("a", 1), |k, v| v > 10) -- new()
+ /// assert filter(singleton("a", 1), |k, v| v > 0)->get("a",) == Ok(1)
+ /// assert filter(singleton("a", 1), |k, v| v > 10)->is_empty == True
  /// ```
 pub filter : Map(k, v), (k, v) -> Bool -> Map(k, v)
 pub filter = |m, pred|
@@ -154,7 +154,7 @@ pub filter = |m, pred|
 /// Converts the map to an iterator of key-value pairs.
  ///
  /// ```
- /// to_iter(singleton("a", 1))
+ /// assert to_iter(singleton("a", 1))->Iter.count == 1
  /// ```
 pub to_iter : Map(k, v) -> Iter((k, v))
 pub to_iter = |m|
@@ -163,7 +163,7 @@ pub to_iter = |m|
 /// Extracts an iterator over all keys.
  ///
  /// ```
- /// keys(singleton("a", 1))
+ /// assert keys(singleton("a", 1))->Iter.count == 1
  /// ```
 pub keys : Map(k, v) -> Iter(k)
 pub keys = |m|
@@ -172,7 +172,7 @@ pub keys = |m|
 /// Extracts an iterator over all values.
  ///
  /// ```
- /// values(singleton("a", 1))
+ /// assert values(singleton("a", 1))->Iter.count == 1
  /// ```
 pub values : Map(k, v) -> Iter(v)
 pub values = |m|
@@ -181,7 +181,7 @@ pub values = |m|
 /// Constructs a map from a list of key-value pairs.
  ///
  /// ```
- /// from_list([("a", 1), ("b", 2)])
+ /// assert from_list([("a", 1), ("b", 2)])->size == 2
  /// ```
 pub from_list : List((k, v)) -> Map(k, v)
 pub from_list = |entries|
@@ -190,7 +190,7 @@ pub from_list = |entries|
 /// Converts the map to a list of key-value pairs.
  ///
  /// ```
- /// to_list(singleton("a", 1)) -- [("a", 1)]
+ /// assert to_list(singleton("a", 1)) == [("a", 1)]
  /// ```
 pub to_list : Map(k, v) -> List((k, v))
 pub to_list = |m|
@@ -201,8 +201,8 @@ pub to_list = |m|
 /// Merges two maps, with entries from the second map taking precedence.
  ///
  /// ```
- /// union(singleton("a", 1), singleton("b", 2))
- /// union(singleton("a", 1), singleton("a", 2)) -- singleton("a", 2)
+ /// assert union(singleton("a", 1), singleton("b", 2))->size == 2
+ /// assert union(singleton("a", 1), singleton("a", 2))->get("a",) == Ok(2)
  /// ```
 pub union : Map(k, v), Map(k, v) -> Map(k, v)
 pub union = |m1, m2|
@@ -211,8 +211,8 @@ pub union = |m1, m2|
 /// Returns entries that exist in both maps.
  ///
  /// ```
- /// intersection(singleton("a", 1), singleton("a", 2)) -- singleton("a", 1)
- /// intersection(singleton("a", 1), singleton("b", 2)) -- new()
+ /// assert intersection(singleton("a", 1), singleton("a", 2))->get("a",) == Ok(1)
+ /// assert intersection(singleton("a", 1), singleton("b", 2))->is_empty == True
  /// ```
 pub intersection : Map(k, v), Map(k, v) -> Map(k, v)
 pub intersection = |m1, m2|
@@ -223,8 +223,8 @@ pub intersection = |m1, m2|
 /// Returns entries from the first map whose keys are not in the second map.
  ///
  /// ```
- /// difference(singleton("a", 1), singleton("b", 2)) -- singleton("a", 1)
- /// difference(singleton("a", 1), singleton("a", 2)) -- new()
+ /// assert difference(singleton("a", 1), singleton("b", 2))->get("a",) == Ok(1)
+ /// assert difference(singleton("a", 1), singleton("a", 2))->is_empty == True
  /// ```
 pub difference : Map(k, v), Map(k, v) -> Map(k, v)
 pub difference = |m1, m2|

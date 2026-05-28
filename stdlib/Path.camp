@@ -8,9 +8,9 @@
 /// Create a Path from a string, normalizing the path on construction.
 ///
 /// ```
-/// new("foo/bar")       -> Path("foo/bar")
-/// new("foo//bar")      -> Path("foo/bar")       -- collapses duplicate slashes
-/// new("foo/./bar")     -> Path("foo/bar")       -- removes dot segments
+/// assert new("foo/bar")->Path.to_str == "foo/bar"
+/// assert new("foo//bar")->Path.to_str == "foo/bar"
+/// assert new("foo/./bar")->Path.to_str == "foo/bar"
 /// ```
 pub new : Str -> Path
 pub new = |s| crash "intrinsic: Path.new"
@@ -18,8 +18,8 @@ pub new = |s| crash "intrinsic: Path.new"
 /// Join two paths, returning a new normalized path.
 ///
 /// ```
-/// join(new("foo/bar"), new("baz"))  -> Path("foo/bar/baz")
-/// join(new("foo/"), new("/bar"))    -> Path("foo/bar")  -- collapses leading slash
+/// assert join(new("foo/bar"), new("baz"))->Path.to_str == "foo/bar/baz"
+/// assert join(new("foo/"), new("/bar"))->Path.to_str == "foo/bar"
 /// ```
 pub join : Path, Path -> Path
 pub join = |a, b| crash "intrinsic: Path.join"
@@ -27,8 +27,8 @@ pub join = |a, b| crash "intrinsic: Path.join"
 /// Construct a path from a list of path segments, joining them with the OS separator.
 ///
 /// ```
-/// from_list(["foo", "bar", "baz"])  -> Path("foo/bar/baz")
-/// from_list(["..", "foo"])          -> Path("../foo")
+/// assert from_list(["foo", "bar", "baz"])->Path.to_str == "foo/bar/baz"
+/// assert from_list(["..", "foo"])->Path.to_str == "../foo"
 /// ```
 pub from_list : List(Str) -> Path
 pub from_list = |parts| crash "intrinsic: Path.from_list"
@@ -38,8 +38,8 @@ pub from_list = |parts| crash "intrinsic: Path.from_list"
 /// Return the parent directory of a path.
 ///
 /// ```
-/// parent(new("foo/bar/file.txt"))  -> Ok(Path("foo/bar"))
-/// parent(new("file.txt"))         -> Err(HasNoParent)
+/// assert parent(new("foo/bar/file.txt")) == Ok(new("foo/bar"))
+/// assert parent(new("file.txt")) == Err(HasNoParent)
 /// ```
 pub parent : Path -> Result(Path, [HasNoParent])
 pub parent = |p| crash "intrinsic: Path.parent"
@@ -47,8 +47,8 @@ pub parent = |p| crash "intrinsic: Path.parent"
 /// Return the filename (final component) of a path.
 ///
 /// ```
-/// filename(new("foo/bar/file.txt"))  -> "file.txt"
-/// filename(new("foo/bar"))           -> "bar"
+/// assert filename(new("foo/bar/file.txt")) == "file.txt"
+/// assert filename(new("foo/bar")) == "bar"
 /// ```
 pub filename : Path -> Str
 pub filename = |p| crash "intrinsic: Path.filename"
@@ -56,8 +56,8 @@ pub filename = |p| crash "intrinsic: Path.filename"
 /// Return the stem (filename without extension) of a path.
 ///
 /// ```
-/// stem(new("foo/bar/file.txt"))  -> "file"
-/// stem(new("foo/bar/README"))    -> "README"
+/// assert stem(new("foo/bar/file.txt")) == "file"
+/// assert stem(new("foo/bar/README")) == "README"
 /// ```
 pub stem : Path -> Str
 pub stem = |p| crash "intrinsic: Path.stem"
@@ -65,8 +65,8 @@ pub stem = |p| crash "intrinsic: Path.stem"
 /// Return the extension (including the leading dot) of a path.
 ///
 /// ```
-/// extension(new("foo/bar/file.txt"))  -> ".txt"
-/// extension(new("foo/bar/README"))    -> ""
+/// assert extension(new("foo/bar/file.txt")) == ".txt"
+/// assert extension(new("foo/bar/README")) == ""
 /// ```
 pub extension : Path -> Str
 pub extension = |p| crash "intrinsic: Path.extension"
@@ -76,8 +76,8 @@ pub extension = |p| crash "intrinsic: Path.extension"
 /// Replace the extension of a path with a new one (including the dot).
 ///
 /// ```
-/// with_extension(new("foo/bar/file.txt"), ".md")  -> Path("foo/bar/file.md")
-/// with_extension(new("foo/bar/file.txt"), "")      -> Path("foo/bar/file")
+/// assert with_extension(new("foo/bar/file.txt"), ".md")->Path.to_str == "foo/bar/file.md"
+/// assert with_extension(new("foo/bar/file.txt"), "")->Path.to_str == "foo/bar/file"
 /// ```
 pub with_extension : Path, Str -> Path
 pub with_extension = |p, ext| crash "intrinsic: Path.with_extension"
@@ -85,7 +85,7 @@ pub with_extension = |p, ext| crash "intrinsic: Path.with_extension"
 /// Replace the filename of a path with a new one.
 ///
 /// ```
-/// with_filename(new("foo/bar/file.txt"), "new.txt")  -> Path("foo/bar/new.txt")
+/// assert with_filename(new("foo/bar/file.txt"), "new.txt")->Path.to_str == "foo/bar/new.txt"
 /// ```
 pub with_filename : Path, Str -> Path
 pub with_filename = |p, name| crash "intrinsic: Path.with_filename"
@@ -93,7 +93,7 @@ pub with_filename = |p, name| crash "intrinsic: Path.with_filename"
 /// Replace the parent directory of a path with a new one.
 ///
 /// ```
-/// with_parent(new("foo/bar/file.txt"), new("baz"))  -> Path("baz/file.txt")
+/// assert with_parent(new("foo/bar/file.txt"), new("baz"))->Path.to_str == "baz/file.txt"
 /// ```
 pub with_parent : Path, Path -> Path
 pub with_parent = |p, parent| crash "intrinsic: Path.with_parent"
@@ -103,9 +103,8 @@ pub with_parent = |p, parent| crash "intrinsic: Path.with_parent"
 /// Returns True if the path is absolute (starts from root).
 ///
 /// ```
-/// is_absolute(new("/foo/bar"))  -> True
-/// is_absolute(new("foo/bar"))   -> False
-/// is_absolute(new("~"))          -> False
+/// assert is_absolute(new("/foo/bar")) == True
+/// assert is_absolute(new("foo/bar")) == False
 /// ```
 pub is_absolute : Path -> Bool
 pub is_absolute = |p| crash "intrinsic: Path.is_absolute"
@@ -113,8 +112,8 @@ pub is_absolute = |p| crash "intrinsic: Path.is_absolute"
 /// Returns True if the path is relative (not absolute).
 ///
 /// ```
-/// is_relative(new("foo/bar"))   -> True
-/// is_relative(new("/foo/bar"))   -> False
+/// assert is_relative(new("foo/bar")) == True
+/// assert is_relative(new("/foo/bar")) == False
 /// ```
 pub is_relative : Path -> Bool
 pub is_relative = |p| crash "intrinsic: Path.is_relative"
@@ -124,7 +123,7 @@ pub is_relative = |p| crash "intrinsic: Path.is_relative"
 /// Convert a Path to a string representation.
 ///
 /// ```
-/// to_str(new("foo/bar"))  -> "foo/bar"
+/// assert to_str(new("foo/bar")) == "foo/bar"
 /// ```
 pub to_str : Path -> Str
 pub to_str = |p| crash "intrinsic: Path.to_str"
@@ -132,7 +131,7 @@ pub to_str = |p| crash "intrinsic: Path.to_str"
 /// Iterate over the components of a path.
 ///
 /// ```
-/// to_iter(new("foo/bar/baz"))  -> Iter(["foo", "bar", "baz"])
+/// assert to_iter(new("foo/bar/baz"))->Iter.count == 3
 /// ```
 pub to_iter : Path -> Iter(Str)
 pub to_iter = |p| crash "intrinsic: Path.to_iter"
