@@ -12,6 +12,7 @@ Decl :: union {
 	^Decl_Test,
 	^Decl_Expect,
 	^Decl_Is_Impl,
+	^Decl_Effect_Alias,
 }
 
 Decl_Const :: struct {
@@ -47,6 +48,13 @@ Effect_Op :: struct {
 	return_type:    ^Type,
 	return_effects: ^Type,
 	span:           base.Source_Span,
+}
+
+Decl_Effect_Alias :: struct {
+	name:   base.Intern_ID,
+	target: ^Type,
+	is_pub: bool,
+	span:   base.Source_Span,
 }
 
 Decl_Trait :: struct {
@@ -317,6 +325,7 @@ Pattern :: union {
 	^Pattern_Destructure,
 	^Pattern_Or,
 	^Pattern_As,
+	^Pattern_Interpolated_String,
 }
 
 
@@ -395,6 +404,11 @@ Pattern_As :: struct {
 	span:  base.Source_Span,
 }
 
+Pattern_Interpolated_String :: struct {
+	parts: [dynamic]String_Part,
+	span:  base.Source_Span,
+}
+
 Expr_BinOp :: struct {
 	op:    base.Token_Kind,
 	left:  Expr,
@@ -450,6 +464,7 @@ Expr_Interpolated_String :: struct {
 String_Part :: union {
 	^String_Segment,
 	Expr,
+	Pattern,
 }
 
 String_Segment :: struct {
@@ -764,6 +779,8 @@ expr_destroy :: proc(e: Expr) {
 				free(p)
 			case Expr:
 				expr_destroy(p)
+			case Pattern:
+				pattern_destroy(p)
 			}
 		}
 		delete(v.parts)
@@ -831,6 +848,19 @@ pattern_destroy :: proc(p: Pattern) {
 	case ^Pattern_Or:
 		for elem in v.alternatives do pattern_destroy(elem)
 		delete(v.alternatives)
+		free(v)
+	case ^Pattern_Interpolated_String:
+		for part in v.parts {
+			#partial switch p in part {
+			case ^String_Segment:
+				free(p)
+			case Expr:
+				expr_destroy(p)
+			case Pattern:
+				pattern_destroy(p)
+			}
+		}
+		delete(v.parts)
 		free(v)
 	}
 }

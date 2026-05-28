@@ -806,6 +806,7 @@ substitute_types_in_expr :: proc(
 					display_impl = p.display_impl,
 				}
 				append(&tparts, semantics.TExpr_String_Part(sexpr))
+			case semantics.TPattern:
 			}
 		}
 		result := new(semantics.TExpr_Interpolated_String)
@@ -1064,6 +1065,7 @@ walk_decl_for_call_sites :: proc(decl: semantics.TDecl, env: ^Mono_Env) {
 			for p in op.params {
 			}
 		}
+	case ^semantics.TDecl_Effect_Alias:
 	case ^semantics.TDecl_Trait:
 	case ^semantics.TDecl_Alias:
 	case ^semantics.TDecl_Newtype:
@@ -1236,6 +1238,7 @@ walk_expr_for_call_sites :: proc(expr: semantics.TExpr, env: ^Mono_Env) {
 			case ^semantics.TExpr_String_Literal:
 			case ^semantics.TExpr_String_Expr:
 				walk_expr_for_call_sites(p.expr, env)
+			case semantics.TPattern:
 			}
 		}
 	case ^semantics.TExpr_Handle:
@@ -1291,6 +1294,7 @@ rewrite_calls_in_decl :: proc(
 		}
 	case ^semantics.TDecl_Is_Impl:
 	case ^semantics.TDecl_Effect,
+	     ^semantics.TDecl_Effect_Alias,
 	     ^semantics.TDecl_Trait,
 	     ^semantics.TDecl_Alias,
 	     ^semantics.TDecl_Import:
@@ -1412,6 +1416,7 @@ rewrite_calls_in_expr :: proc(
 			case ^semantics.TExpr_String_Literal:
 			case ^semantics.TExpr_String_Expr:
 				p.expr = rewrite_calls_in_expr(p.expr, specializations, env)
+			case semantics.TPattern:
 			}
 		}
 	case ^semantics.TExpr_Handle:

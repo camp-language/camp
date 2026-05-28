@@ -849,6 +849,7 @@ format_expr_interpolated_string :: proc(
 			append(&parts, doc_text("${"))
 			append(&parts, format_expr(p, info, interner))
 			append(&parts, doc_text("}"))
+		case frontend.Pattern:
 		}
 	}
 

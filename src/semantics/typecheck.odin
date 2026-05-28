@@ -603,6 +603,7 @@ typecheck_synth :: proc(expr: CExpr, env: ^Type_Env, store: ^Type_Store) -> Synt
 				}
 
 				append(&parts_t, TExpr_String_Part(expr_part))
+			case CPattern:
 			}
 		}
 		t := new(TExpr_Interpolated_String)

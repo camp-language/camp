@@ -143,6 +143,18 @@ typecheck_decl :: proc(decl: CDecl, env: ^Type_Env, store: ^Type_Store) -> TDecl
 		}
 		return TDecl(td)
 
+	case ^CDecl_Effect_Alias:
+		append(&store.declared_effects, d.name.name)
+		convert_type_to_var(d.target, store, env)
+		td := new(TDecl_Effect_Alias)
+		td^ = TDecl_Effect_Alias {
+			name   = d.name,
+			target = d.target,
+			is_pub = d.is_pub,
+			span   = d.span,
+		}
+		return TDecl(td)
+
 	case ^CDecl_Trait:
 		typecheck_trait_decl(d, env, store)
 		td := new(TDecl_Trait)

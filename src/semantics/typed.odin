@@ -208,6 +208,7 @@ TPattern :: union {
 	^TPattern_Destructure,
 	^TPattern_Or,
 	^TPattern_As,
+	^TPattern_Interpolated_String,
 }
 
 TPattern_Tag :: struct {
@@ -282,6 +283,11 @@ TPattern_Or :: struct {
 TPattern_As :: struct {
 	name:  base.Intern_ID,
 	inner: TPattern,
+	span:  base.Source_Span,
+}
+
+TPattern_Interpolated_String :: struct {
+	parts: [dynamic]TExpr_String_Part,
 	span:  base.Source_Span,
 }
 
@@ -364,6 +370,7 @@ TExpr_Interpolated_String :: struct {
 TExpr_String_Part :: union {
 	^TExpr_String_Literal,
 	^TExpr_String_Expr,
+	TPattern,
 }
 
 TExpr_String_Literal :: struct {
@@ -434,6 +441,7 @@ TDecl :: union {
 	^TDecl_Test,
 	^TDecl_Expect,
 	^TDecl_Is_Impl,
+	^TDecl_Effect_Alias,
 }
 
 TDecl_Const :: struct {
@@ -454,6 +462,13 @@ TDecl_Effect :: struct {
 	operations:  [dynamic]TEffect_Op,
 	type_params: [dynamic]frontend.Type_Param,
 	span:        base.Source_Span,
+}
+
+TDecl_Effect_Alias :: struct {
+	name:   base.Canonical_Name,
+	target: ^CType,
+	is_pub: bool,
+	span:   base.Source_Span,
 }
 
 TEffect_Op :: struct {
@@ -585,6 +600,8 @@ tdecl_destroy :: proc(d: TDecl) {
 		}
 		delete(v.methods)
 		free(v)
+	case ^TDecl_Effect_Alias:
+		free(v)
 	}
 }
 
@@ -698,6 +715,8 @@ texpr_destroy :: proc(e: TExpr) {
 			case ^TExpr_String_Expr:
 				texpr_destroy(p.expr)
 				free(p)
+			case TPattern:
+				tpattern_destroy(p)
 			}
 		}
 		delete(v.parts)
@@ -769,6 +788,20 @@ tpattern_destroy :: proc(p: TPattern) {
 		free(v)
 	case ^TPattern_As:
 		tpattern_destroy(v.inner)
+		free(v)
+	case ^TPattern_Interpolated_String:
+		for part in v.parts {
+			switch p in part {
+			case ^TExpr_String_Literal:
+				free(p)
+			case ^TExpr_String_Expr:
+				texpr_destroy(p.expr)
+				free(p)
+			case TPattern:
+				tpattern_destroy(p)
+			}
+		}
+		delete(v.parts)
 		free(v)
 	}
 }
