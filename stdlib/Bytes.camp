@@ -1,57 +1,44 @@
--- @Bytes -- opaque contiguous byte buffer, provided by runtime
--- Per D19: Lean module (construction, queries, access, slicing, concat).
--- Conversions via traits: From(Str, Bytes) infallible,
--- TryFrom(Bytes, Str, [InvalidUtf8]) fallible.
+// @Bytes — opaque contiguous byte buffer, provided by runtime
+// Per D19: Lean module (construction, queries, access, slicing, concat).
+// Conversions via traits: From(Str, Bytes) infallible,
+// TryFrom(Bytes, Str, [InvalidUtf8]) fallible.
 
--- Construction
+// Construction
 
-pub new : Bytes
 pub new = crash "intrinsic: Bytes.new"
 
-pub from_list : List(U8) -> Bytes
-pub from_list = |xs| crash "intrinsic: Bytes.from_list"
+pub from_list = |xs: List(U8)| -> Bytes { crash "intrinsic: Bytes.from_list" }
 
-pub singleton : U8 -> Bytes
-pub singleton = |b| crash "intrinsic: Bytes.singleton"
+pub singleton = |b: U8| -> Bytes { crash "intrinsic: Bytes.singleton" }
 
--- Queries
+// Queries
 
-pub length : Bytes -> I64
-pub length = |b| crash "intrinsic: Bytes.length"
+pub length = |b: Bytes| -> I64 { crash "intrinsic: Bytes.length" }
 
-pub is_empty : Bytes -> Bool
-pub is_empty = |b| length(b) == 0
+pub is_empty = |b: Bytes| -> Bool { length(b) == 0 }
 
--- Access
+// Access
 
-pub get : I64, Bytes -> Result(U8, [IndexOutOfBounds])
-pub get = |i, b| crash "intrinsic: Bytes.get"
+pub get = |i: I64, b: Bytes| -> U8 { crash "intrinsic: Bytes.get" }
 
--- Slicing
+// Slicing
 
-pub take : Bytes, I64 -> Bytes
-pub take = |b, n| crash "intrinsic: Bytes.take"
+pub take = |b: Bytes, n: I64| -> Bytes { crash "intrinsic: Bytes.take" }
 
-pub drop : Bytes, I64 -> Bytes
-pub drop = |b, n| crash "intrinsic: Bytes.drop"
+pub drop = |b: Bytes, n: I64| -> Bytes { crash "intrinsic: Bytes.drop" }
 
-pub slice : Bytes, I64, I64 -> Bytes
-pub slice = |b, start, len| crash "intrinsic: Bytes.slice"
+pub slice = |b: Bytes, start: I64, len: I64| -> Bytes { crash "intrinsic: Bytes.slice" }
 
--- Concatenation
+// Concatenation
 
-pub concat : Bytes, Bytes -> Bytes
-pub concat = |a, b| crash "intrinsic: Bytes.concat"
+pub concat = |a: Bytes, b: Bytes| -> Bytes { crash "intrinsic: Bytes.concat" }
 
--- Iteration
+// Iteration
 
-pub to_iter : Bytes -> Iter(U8)
-pub to_iter = |b| crash "intrinsic: Bytes.to_iter"
+pub to_iter = |b: Bytes| -> Iter(U8) { crash "intrinsic: Bytes.to_iter" }
 
--- Conversion
+// Conversion
 
-pub to_list : Bytes -> List(U8)
-pub to_list = |b| crash "intrinsic: Bytes.to_list"
+pub to_list = |b: Bytes| -> List(U8) { crash "intrinsic: Bytes.to_list" }
 
-pub to_str : Bytes -> Str
-pub to_str = |b| crash "intrinsic: Bytes.to_str"
+pub to_str = |b: Bytes| -> Result(Str, [InvalidUtf8]) { crash "intrinsic: Bytes.to_str" }

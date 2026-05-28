@@ -1,9 +1,9 @@
--- Random! effect — two handlers: random_prng (fast PRNG) and random_crypto (WASI random_get)
--- Per D31: one effect, two handlers. Handler choice determines security guarantees.
+// Random! effect — two handlers: random_prng (fast PRNG) and random_crypto (WASI random_get)
+// Per D31: one effect, two handlers. Handler choice determines security guarantees.
 
-effect Random! : {
-  int!   : I64, I64 -> -[Random!]-> I64,
-  float! : F64, F64 -> -[Random!]-> F64,
-  bytes! : I64 -> -[Random!]-> Bytes,
-  bool!  : -[Random!]-> Bool,
+Random! : {
+  int!   : |I64, I64| -[Random!]-> I64,
+  float! : |F64, F64| -[Random!]-> F64,
+  bytes! : |I64| -[Random!]-> Bytes,
+  bool!  : || -[Random!]-> Bool,
 }

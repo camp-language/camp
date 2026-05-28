@@ -1,229 +1,56 @@
--- Iter.camp
+// Iter.camp
+// @Iter(a, e): { next: || -[e]-> [Yield(a) | Done] }  -- declared by compiler
 
-@Iter(a, e): { next: || -[e]-> [Yield(a) | Done] }
+// Construction
 
--- ========================
--- Construction
--- ========================
+pub empty: Iter(a) = crash "intrinsic: Iter.empty"
 
-pub empty : Iter(a, e)
-pub empty = @Iter({ next = || Done })
+pub singleton = |x| { crash "intrinsic: Iter.singleton" }
 
-pub singleton : a -> Iter(a, e)
-pub singleton = |x| {
-  $consumed = False
-  @Iter({ next = || if $consumed { Done } else { $consumed = True; Yield(x) } })
-}
+pub from_list = |list| { crash "intrinsic: Iter.from_list" }
 
-pub from_list : List(a) -> Iter(a, e)
-pub from_list = |$list| {
-  @Iter({
-    next = ||
-      match $list {
-        Cons(head, rest) => $list = rest; Yield(head)
-        Nil => Done
-      }
-  })
-}
+// Core transformations
 
--- ========================
--- Core transformations
--- ========================
+pub map = |iter, f| { crash "intrinsic: Iter.map" }
 
-pub map : Iter(a, e), (a) -> b -> Iter(b, e)
-pub map = |iter, f| @Iter({
-  next = || match iter.next() {
-    Yield(x) => Yield(f(x))
-    Done => Done
-  }
-})
+pub filter = |iter, pred| { crash "intrinsic: Iter.filter" }
 
-pub filter : Iter(a, e), (a) -> Bool -> Iter(a, e)
-pub filter = |iter, pred| {
-  go = || match iter.next() {
-    Yield(x) => if pred(x) { Yield(x) } else { go() }
-    Done => Done
-  }
-  @Iter({ next = go })
-}
+pub flat_map = |iter, f| { crash "intrinsic: Iter.flat_map" }
 
-pub flat_map : Iter(a, e), (a) -> Iter(b, e) -> Iter(b, e)
-pub flat_map = |iter, f| {
-  $inner = empty
-  advance = || match $inner.next() {
-    Yield(b) => Yield(b)
-    Done => match iter.next() {
-      Yield(a) => $inner = f(a); advance()
-      Done => Done
-    }
-  }
-  @Iter({ next = advance })
-}
+pub filter_map = |iter, f| { crash "intrinsic: Iter.filter_map" }
 
-pub filter_map : Iter(a, e), (a) -> Result(b, err) -> Iter(b, e)
-pub filter_map = |iter, f|
-  flat_map(iter, |x| match f(x) {
-    Ok(b) => singleton(b)
-    Err(_) => empty
-  })
+// Consumption
 
--- ========================
--- Consumption
--- ========================
+pub fold = |iter, init, f| { crash "intrinsic: Iter.fold" }
 
-pub fold : Iter(a, e), b, (b, a) -> b -> b
-pub fold = |iter, init, f| {
-  go = |acc| match iter.next() {
-    Yield(x) => go(f(acc, x))
-    Done => acc
-  }
-  go(init)
-}
+pub for_each = |iter, f| { crash "intrinsic: Iter.for_each" }
 
-pub for_each : Iter(a, e), (a) -> () -> ()
-pub for_each = |iter, f| {
-  go = || match iter.next() {
-    Yield(x) => f(x); go()
-    Done => {}
-  }
-  go()
-}
+pub count = |iter| { crash "intrinsic: Iter.count" }
 
-pub count : Iter(a, e) -> I64
-pub count = |iter| fold(iter, 0, |n, _| n + 1)
+// Search
 
--- ========================
--- Search
--- ========================
+pub find = |iter, pred| { crash "intrinsic: Iter.find" }
 
-pub find : Iter(a, e), (a) -> Bool -> Result(a, [NotFound])
-pub find = |iter, pred| {
-  go = || match iter.next() {
-    Yield(x) => if pred(x) { Ok(x) } else { go() }
-    Done => Err(NotFound)
-  }
-  go()
-}
+pub any = |iter, pred| { crash "intrinsic: Iter.any" }
 
-pub any : Iter(a, e), (a) -> Bool -> Bool
-pub any = |iter, pred| {
-  go = || match iter.next() {
-    Yield(x) => if pred(x) { True } else { go() }
-    Done => False
-  }
-  go()
-}
+pub all = |iter, pred| { crash "intrinsic: Iter.all" }
 
-pub all : Iter(a, e), (a) -> Bool -> Bool
-pub all = |iter, pred| {
-  go = || match iter.next() {
-    Yield(x) => if not pred(x) { False } else { go() }
-    Done => True
-  }
-  go()
-}
+pub contains = |iter, target| { crash "intrinsic: Iter.contains" }
 
-pub contains : Iter(a, e), a -> Bool
-pub contains = |iter, target| any(iter, |x| Eq.eq(x, target))
+// Slicing
 
--- ========================
--- Slicing
--- ========================
+pub take = |iter, n| { crash "intrinsic: Iter.take" }
 
-pub take : Iter(a, e), I64 -> Iter(a, e)
-pub take = |iter, n| {
-  $remaining = n
-  @Iter({
-    next = || if $remaining <= 0 { Done } else {
-      $remaining = $remaining - 1
-      iter.next()
-    }
-  })
-}
+pub skip = |iter, n| { crash "intrinsic: Iter.skip" }
 
-pub skip : Iter(a, e), I64 -> Iter(a, e)
-pub skip = |iter, n| {
-  $remaining = n
-  go = || {
-    if $remaining > 0 {
-      $remaining = $remaining - 1
-      match iter.next() {
-        Yield(_) => go()
-        Done => Done
-      }
-    } else {
-      iter.next()
-    }
-  }
-  @Iter({ next = go })
-}
+pub take_while = |iter, pred| { crash "intrinsic: Iter.take_while" }
 
-pub take_while : Iter(a, e), (a) -> Bool -> Iter(a, e)
-pub take_while = |iter, pred| {
-  $done = False
-  @Iter({
-    next = || {
-      if $done { Done } else {
-        match iter.next() {
-          Yield(x) => if pred(x) { Yield(x) } else { $done = True; Done }
-          Done => Done
-        }
-      }
-    }
-  })
-}
+pub skip_while = |iter, pred| { crash "intrinsic: Iter.skip_while" }
 
-pub skip_while : Iter(a, e), (a) -> Bool -> Iter(a, e)
-pub skip_while = |iter, pred| {
-  $skipping = True
-  go = || {
-    if $skipping {
-      match iter.next() {
-        Yield(x) => if pred(x) { go() } else { $skipping = False; Yield(x) }
-        Done => Done
-      }
-    } else {
-      iter.next()
-    }
-  }
-  @Iter({ next = go })
-}
+// Composition
 
--- ========================
--- Composition
--- ========================
+pub chain = |first, second| { crash "intrinsic: Iter.chain" }
 
-pub chain : Iter(a, e), Iter(a, e) -> Iter(a, e)
-pub chain = |first, second| @Iter({
-  next = || match first.next() {
-    Yield(x) => Yield(x)
-    Done => second.next()
-  }
-})
+pub zip = |left, right| { crash "intrinsic: Iter.zip" }
 
-pub zip : Iter(a, e), Iter(b, e) -> Iter((a, b), e)
-pub zip = |left, right| @Iter({
-  next = ||
-    match left.next() {
-      Yield(a) => match right.next() {
-        Yield(b) => Yield((a, b))
-        Done => Done
-      }
-      Done => Done
-    }
-})
-
-pub enumerate : Iter(a, e) -> Iter((I64, a), e)
-pub enumerate = |iter| {
-  $index = 0
-  @Iter({
-    next = || match iter.next() {
-      Yield(x) => {
-        idx = $index
-        $index = $index + 1
-        Yield((idx, x))
-      }
-      Done => Done
-    }
-  })
-}
+pub enumerate = |iter| { crash "intrinsic: Iter.enumerate" }

@@ -1,8 +1,8 @@
--- Console! effect — standard I/O
--- Per D23: Only foo! variants. Use Result.catch for Result versions.
+// Console! effect — standard I/O
+// Per D23: Only foo! variants. Use Result.catch for Result versions.
 
-effect Console! : {
-  println! : Str -> -[Console!]-> (),
-  print!   : Str -> -[Console!]-> (),
-  readln! : -[Console!]-> Str,
+Console! : {
+  println! : |Str| -> -[Console!]-> {},
+  print!   : |Str| -> -[Console!]-> {},
+  readln! : || -[Console!]-> Str,
 }
