@@ -13,6 +13,7 @@ CDecl :: union {
 	^CDecl_Import,
 	^CDecl_Test,
 	^CDecl_Expect,
+	^CDecl_Effect_Alias,
 }
 
 CDecl_Const :: struct {
@@ -34,6 +35,13 @@ CDecl_Effect :: struct {
 	type_params: [dynamic]frontend.Type_Param,
 	doc_comment: string,
 	span:        base.Source_Span,
+}
+
+CDecl_Effect_Alias :: struct {
+	name:   base.Canonical_Name,
+	target: ^CType,
+	is_pub: bool,
+	span:   base.Source_Span,
 }
 
 CEffect_Op :: struct {
@@ -323,6 +331,7 @@ CExpr_Interpolated_String :: struct {
 CExpr_String_Part :: union {
 	^CExpr_String_Literal,
 	CExpr,
+	CPattern,
 }
 
 CExpr_String_Literal :: struct {
@@ -388,6 +397,7 @@ CPattern :: union {
 	^CPattern_Destructure,
 	^CPattern_Or,
 	^CPattern_As,
+	^CPattern_Interpolated_String,
 }
 
 CPattern_Tag :: struct {
@@ -462,6 +472,11 @@ CPattern_Or :: struct {
 CPattern_As :: struct {
 	name:  base.Intern_ID,
 	inner: CPattern,
+	span:  base.Source_Span,
+}
+
+CPattern_Interpolated_String :: struct {
+	parts: [dynamic]CExpr_String_Part,
 	span:  base.Source_Span,
 }
 
@@ -776,6 +791,8 @@ cexpr_destroy :: proc(e: CExpr) {
 				free(p)
 			case CExpr:
 				cexpr_destroy(p)
+			case CPattern:
+				cpattern_destroy(p)
 			}
 		}
 		delete(v.parts)
@@ -844,6 +861,19 @@ cpattern_destroy :: proc(p: CPattern) {
 	case ^CPattern_Or:
 		for elem in v.alternatives do cpattern_destroy(elem)
 		delete(v.alternatives)
+		free(v)
+	case ^CPattern_Interpolated_String:
+		for part in v.parts {
+			#partial switch p in part {
+			case ^CExpr_String_Literal:
+				free(p)
+			case CExpr:
+				cexpr_destroy(p)
+			case CPattern:
+				cpattern_destroy(p)
+			}
+		}
+		delete(v.parts)
 		free(v)
 	}
 }

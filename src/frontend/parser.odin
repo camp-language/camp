@@ -414,6 +414,21 @@ parser_parse_const_decl :: proc(p: ^Parser, is_pub: bool) -> Decl {
 		parser_expect(p, .Gt)
 	}
 
+	// Effect alias: Name! = Type
+	if is_effectful && is_upper && p.current.kind == .Eq {
+		parser_advance(p) // consume =
+		target := parser_parse_type(p)
+		delete(type_params)
+		decl := new(Decl_Effect_Alias)
+		decl^ = Decl_Effect_Alias {
+			name   = name_id,
+			target = target,
+			is_pub = is_pub,
+			span   = start_span,
+		}
+		return decl
+	}
+
 	if p.current.kind == .Colon {
 		parser_advance(p)
 
