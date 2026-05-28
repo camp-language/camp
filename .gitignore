@@ -1,6 +1,6 @@
-tn|camp-*
-tn|!.beans/
-tn|camp-*.bin
+camp-*
+!.beans/
+camp-*.bin
 build
 *.bin
 tree-sitter/node_modules/
