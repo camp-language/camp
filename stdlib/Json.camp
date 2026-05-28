@@ -1,163 +1,82 @@
--- Json.camp — JSON parsing, encoding, and streaming
--- Per D34: Obj uses Map(Str, JsonValue) for O(log n) lookup.
--- Per D35: JsonNumber preserves integer/float distinction.
+// Json.camp — JSON parsing, encoding, and streaming
+// Per D34: Obj uses Map(Str, JsonValue) for O(log n) lookup.
+// Per D35: JsonNumber preserves integer/float distinction.
 
-/// Represents a JSON number, preserving the integer/float distinction.
-///
-/// ```
-/// PosInt(42)    -- positive integer
-/// NegInt(-17)   -- negative integer
-/// Float(3.14)   -- floating-point number (never NaN or Inf)
-/// ```
 @JsonNumber : pub [
-    PosInt(U64)                                -- non-negative integer
-  | NegInt(I64)                                -- negative integer
-  | Float(F64)                                 -- finite float (never NaN/Inf)
+    PosInt(U64)                                // non-negative integer
+  | NegInt(I64)                                // negative integer
+  | Float(F64)                                 // finite float (never NaN/Inf)
 ]
 
-/// Represents an arbitrary JSON value — null, bool, number, string, array, or object.
-///
-/// ```
-/// Null
-/// Bool(True)
-/// Num(PosInt(42))
-/// Str("hello")
-/// Arr([Num(PosInt(1)), Num(PosInt(2))])
-/// Obj(Map.empty())
-/// ```
 @JsonValue : pub [
     Null
   | Bool(Bool)
-  | Num(JsonNumber)                            -- D35: preserves int/float distinction
+  | Num(JsonNumber)                            // D35: preserves int/float distinction
   | Str(Str)
   | Arr(List(JsonValue))
-  | Obj(Map(Str, JsonValue))                   -- D34: Map for O(log n) lookup
+  | Obj(Map(Str, JsonValue))                   // D34: Map for O(log n) lookup
 ]
 
-/// Error type for JSON parsing and encoding operations.
-///
-/// ```
-/// UnexpectedChar(0, "expected digit")  -- position + description
-/// InvalidNumber(5, "out of range")
-/// UnexpectedEnd
-/// TrailingContent(10)
-/// ```
 @JsonErr : pub [
-    UnexpectedChar(U64, Str)                  -- position + description
+    UnexpectedChar(U64, Str)                  // position + description
   | InvalidNumber(U64, Str)
   | UnexpectedEnd
   | TrailingContent(U64)
 ]
 
--- Core DOM API — intrinsic
+// Core DOM API — intrinsic
 
-/// Parse a JSON string into a JsonValue DOM tree.
-///
-/// ```
-/// expect decode("null") == Ok(Null)
-/// expect decode("true") == Ok(Bool(True))
-/// expect decode("{\"a\": 1}")->Result.is_ok == True
-/// expect decode("[1, 2, 3]")->Result.is_ok == True
-/// expect decode("{invalid}")->Result.is_err == True
-/// ```
-pub decode : Str -> Result(JsonValue, JsonErr)
-pub decode = |_s| crash "intrinsic: Json.decode"
+pub decode = |_s| { crash "intrinsic: Json.decode" }
 
-/// Encode a JsonValue DOM tree to a compact JSON string.
-///
-/// ```
-/// expect encode(Null) == "null"
-/// expect encode(Bool(True)) == "true"
-/// expect encode(Obj(Map.new())) == "{}"
-/// expect encode(Arr([Str("a"), Str("b")])) == "[\"a\",\"b\"]"
-/// ```
-pub encode : JsonValue -> Str
-pub encode = |_v| crash "intrinsic: Json.encode"
+pub encode = |_v| { crash "intrinsic: Json.encode" }
 
-/// Encode a JsonValue DOM tree to a prettily formatted JSON string with 2-space indentation.
-///
-/// ```
-/// expect encode_pretty(Obj(Map.new())) == "{\\n  \\n}"
-/// ```
-pub encode_pretty : JsonValue -> Str
-pub encode_pretty = |_v| crash "intrinsic: Json.encode_pretty"
+pub encode_pretty = |_v| { crash "intrinsic: Json.encode_pretty" }  // 2-space indent
 
--- JsonNumber accessors — pure Camp
+// JsonNumber accessors — pure Camp
 
-/// Returns True if the JsonNumber is an integer (PosInt or NegInt).
-///
-/// ```
-/// expect is_int(PosInt(42)) == True
-/// expect is_int(NegInt(-1)) == True
-/// expect is_int(Float(3.14)) == False
-/// ```
-pub is_int : JsonNumber -> Bool
-pub is_int = |n| match n {
-  PosInt(_) -> True
-  NegInt(_) -> True
-  Float(_)  -> False
-}
+pub is_int = |n| { match n {
+  PosInt(_i) => True
+  NegInt(_i) => True
+  Float(_f)  => False
+} }
 
-/// Returns True if the JsonNumber is a floating-point value.
-///
-/// ```
-/// expect is_float(Float(3.14)) == True
-/// expect is_float(PosInt(42)) == False
-/// expect is_float(NegInt(-1)) == False
-/// ```
-pub is_float : JsonNumber -> Bool
-pub is_float = |n| match n {
-  Float(_)  -> True
-  PosInt(_) -> False
-  NegInt(_) -> False
-}
+pub is_float = |n| { match n {
+  Float(_f)  => True
+  PosInt(_i) => False
+  NegInt(_i) => False
+} }
 
-/// Attempt to convert a JsonNumber to an I64 integer.
-///
-/// ```
-/// expect as_i64(NegInt(-17)) == Ok(-17)
-/// expect as_i64(PosInt(42)) == Err(Absent)
-/// expect as_i64(Float(3.14)) == Err(Absent)
-/// ```
-pub as_i64 : JsonNumber -> Result(I64, [Absent])
-pub as_i64 = |n| match n {
-  NegInt(i) -> Ok(i)
-  PosInt(_) -> Err(Absent)   -- TODO: check if <= I64_MAX
-  Float(_)  -> Err(Absent)
-}
+pub as_i64 = |n| { match n {
+  NegInt(i) => Ok(i)
+  PosInt(_i) => Err(Absent)   // TODO: check if <= I64_MAX
+  Float(_f)  => Err(Absent)
+} }
 
-pub as_u64 : JsonNumber -> Result(U64, [Absent])
-pub as_u64 = |n| match n {
-  PosInt(u) -> Ok(u)
-  NegInt(_) -> Err(Absent)
-  Float(_)  -> Err(Absent)
-}
+pub as_u64 = |n| { match n {
+  PosInt(u) => Ok(u)
+  NegInt(_i) => Err(Absent)
+  Float(_f)  => Err(Absent)
+} }
 
-pub as_f64 : JsonNumber -> Result(F64, [Absent])
-pub as_f64 = |n| match n {
-  Float(f)  -> Ok(f)
-  PosInt(_) -> Err(Absent)   -- TODO: always Ok (every JsonNumber can be F64)
-  NegInt(_) -> Err(Absent)   -- TODO: always Ok
-}
+pub as_f64 = |n| { match n {
+  Float(f)  => Ok(f)
+  PosInt(_i) => Err(Absent)   // TODO: always Ok (every JsonNumber can be F64)
+  NegInt(_i) => Err(Absent)   // TODO: always Ok
+} }
 
--- JsonValue convenience accessors — pure Camp
+// JsonValue convenience accessors — pure Camp
 
-pub get : JsonValue, Str -> Result(JsonValue, JsonErr)
-pub get = |_v, _key| crash "intrinsic: Json.get"  -- TODO: pure Camp implementation
+pub get = |_v, _key| { crash "intrinsic: Json.get" }  // TODO: pure Camp implementation
 
-pub get_at : JsonValue, U64 -> Result(JsonValue, JsonErr)
-pub get_at = |_v, _idx| crash "intrinsic: Json.get_at"  -- TODO: pure Camp implementation
+pub get_at = |_v, _idx| { crash "intrinsic: Json.get_at" }  // TODO: pure Camp implementation
 
-pub keys : JsonValue -> Result(List(Str), [Absent])
-pub keys = |_v| crash "intrinsic: Json.keys"  -- TODO: pure Camp implementation
+pub keys = |_v| { crash "intrinsic: Json.keys" }  // TODO: pure Camp implementation
 
-pub values : JsonValue -> Result(List(JsonValue), [Absent])
-pub values = |_v| crash "intrinsic: Json.values"  -- TODO: pure Camp implementation
+pub values = |_v| { crash "intrinsic: Json.values" }  // TODO: pure Camp implementation
 
-pub length : JsonValue -> Result(U64, [Absent])
-pub length = |_v| crash "intrinsic: Json.length"  -- TODO: pure Camp implementation
+pub length = |_v| { crash "intrinsic: Json.length" }  // TODO: pure Camp implementation
 
--- Streaming parser — intrinsic
+// Streaming parser — intrinsic
 
 @JsonEvent : pub [
     StartObj
@@ -173,11 +92,8 @@ pub length = |_v| crash "intrinsic: Json.length"  -- TODO: pure Camp implementat
 
 @JsonParser : pub { source : Str, pos : U64, depth : U64 }
 
-pub parse_init : Str -> JsonParser
-pub parse_init = |_s| crash "intrinsic: Json.parse_init"
+pub parse_init = |_s| { crash "intrinsic: Json.parse_init" }
 
-pub parse_next : JsonParser -> Result((JsonParser, JsonEvent), JsonErr)
-pub parse_next = |_p| crash "intrinsic: Json.parse_next"
+pub parse_next = |_p| { crash "intrinsic: Json.parse_next" }
 
-pub parse_all : Str -> Result(List(JsonEvent), JsonErr)
-pub parse_all = |_s| crash "intrinsic: Json.parse_all"
+pub parse_all = |_s| { crash "intrinsic: Json.parse_all" }

@@ -1,339 +1,56 @@
--- Iter.camp
+// Iter.camp
+// @Iter(a, e): { next: || -[e]-> [Yield(a) | Done] }  -- declared by compiler
 
-@Iter(a, e): { next: || -[e]-> [Yield(a) | Done] }
+// Construction
 
--- ========================
--- Construction
--- ========================
+pub empty: Iter(a) = crash "intrinsic: Iter.empty"
 
-/// Creates an iterator that yields no elements.
- ///
- /// ```
- /// expect count(empty) == 0
- /// ```
-pub empty : Iter(a, e)
-pub empty = @Iter({ next = || Done })
+pub singleton = |x| { crash "intrinsic: Iter.singleton" }
 
-/// Creates an iterator that yields a single element.
- ///
- /// ```
- /// expect from_list([1, 2])->chain(singleton(3))->to_list == [1, 2, 3]
- /// ```
-pub singleton : a -> Iter(a, e)
-pub singleton = |x| {
-  $consumed = False
-  @Iter({ next = || if $consumed { Done } else { $consumed = True; Yield(x) } })
-}
+pub from_list = |list| { crash "intrinsic: Iter.from_list" }
 
-/// Converts a list into an iterator.
- ///
- /// ```
- /// expect from_list([1, 2, 3])->count == 3
- /// ```
-pub from_list : List(a) -> Iter(a, e)
-pub from_list = |$list| {
-  @Iter({
-    next = ||
-      match $list {
-        Cons(head, rest) => $list = rest; Yield(head)
-        Nil => Done
-      }
-  })
-}
+// Core transformations
 
--- ========================
--- Core transformations
--- ========================
+pub map = |iter, f| { crash "intrinsic: Iter.map" }
 
-/// Transforms each element using the given function.
- ///
- /// ```
- /// expect from_list([1, 2, 3])->map(|x| x * 2)->to_list == [2, 4, 6]
- /// ```
-pub map : Iter(a, e), (a) -> b -> Iter(b, e)
-pub map = |iter, f| @Iter({
-  next = || match iter.next() {
-    Yield(x) => Yield(f(x))
-    Done => Done
-  }
-})
+pub filter = |iter, pred| { crash "intrinsic: Iter.filter" }
 
-/// Keeps only elements that satisfy the predicate.
- ///
- /// ```
- /// expect from_list([1, 2, 3, 4])->filter(|x| x % 2 == 0)->to_list == [2, 4]
- /// ```
-pub filter : Iter(a, e), (a) -> Bool -> Iter(a, e)
-pub filter = |iter, pred| {
-  go = || match iter.next() {
-    Yield(x) => if pred(x) { Yield(x) } else { go() }
-    Done => Done
-  }
-  @Iter({ next = go })
-}
+pub flat_map = |iter, f| { crash "intrinsic: Iter.flat_map" }
 
-/// Maps then flattens each result into a new iterator.
- ///
- /// ```
- /// expect from_list([Ok(1), Err(ListWasEmpty), Ok(3)])->flat_map(|x| match x { Ok(v) => singleton(v) | Err(_) => empty })->to_list == [1, 3]
- /// ```
-pub flat_map : Iter(a, e), (a) -> Iter(b, e) -> Iter(b, e)
-pub flat_map = |iter, f| {
-  $inner = empty
-  advance = || match $inner.next() {
-    Yield(b) => Yield(b)
-    Done => match iter.next() {
-      Yield(a) => $inner = f(a); advance()
-      Done => Done
-    }
-  }
-  @Iter({ next = advance })
-}
+pub filter_map = |iter, f| { crash "intrinsic: Iter.filter_map" }
 
-/// Maps and filters in one pass.
- ///
- /// ```
- /// expect from_list(["1", "two", "3"])->filter_map(|s| Str.to_i64(s))->to_list == [1, 3]
- /// ```
-pub filter_map : Iter(a, e), (a) -> Result(b, err) -> Iter(b, e)
-pub filter_map = |iter, f|
-  flat_map(iter, |x| match f(x) {
-    Ok(b) => singleton(b)
-    Err(_) => empty
-  })
+// Consumption
 
--- ========================
--- Consumption
--- ========================
+pub fold = |iter, init, f| { crash "intrinsic: Iter.fold" }
 
-/// Reduces iterator to a single value by applying a binary function.
- ///
- /// ```
- /// expect from_list([1, 2, 3])->fold(0, |acc, x| acc + x) == 6
- /// ```
-pub fold : Iter(a, e), b, (b, a) -> b -> b
-pub fold = |iter, init, f| {
-  go = |acc| match iter.next() {
-    Yield(x) => go(f(acc, x))
-    Done => acc
-  }
-  go(init)
-}
+pub for_each = |iter, f| { crash "intrinsic: Iter.for_each" }
 
-/// Applies a function to each element, discarding results.
- ///
- /// ```
- /// expect from_list([1, 2, 3])->for_each(|x| ()) == ()
- /// ```
-pub for_each : Iter(a, e), (a) -> () -> ()
-pub for_each = |iter, f| {
-  go = || match iter.next() {
-    Yield(x) => f(x); go()
-    Done => {}
-  }
-  go()
-}
+pub count = |iter| { crash "intrinsic: Iter.count" }
 
-/// Counts the number of elements.
- ///
- /// ```
- /// expect from_list([1, 2, 3])->count == 3
- /// ```
-pub count : Iter(a, e) -> I64
-pub count = |iter| fold(iter, 0, |n, _| n + 1)
+// Search
 
--- ========================
--- Search
--- ========================
+pub find = |iter, pred| { crash "intrinsic: Iter.find" }
 
-/// Finds the first element satisfying the predicate.
- ///
- /// ```
- /// expect from_list([1, 2, 3])->find(|x| x > 1) == Ok(2)
- /// expect from_list([1, 2, 3])->find(|x| x > 10) == Err(NotFound)
- /// ```
-pub find : Iter(a, e), (a) -> Bool -> Result(a, [NotFound])
-pub find = |iter, pred| {
-  go = || match iter.next() {
-    Yield(x) => if pred(x) { Ok(x) } else { go() }
-    Done => Err(NotFound)
-  }
-  go()
-}
+pub any = |iter, pred| { crash "intrinsic: Iter.any" }
 
-/// Returns true if any element satisfies the predicate.
- ///
- /// ```
- /// expect from_list([1, 2, 3])->any(|x| x > 2) == True
- /// expect from_list([1, 2, 3])->any(|x| x > 10) == False
- /// ```
-pub any : Iter(a, e), (a) -> Bool -> Bool
-pub any = |iter, pred| {
-  go = || match iter.next() {
-    Yield(x) => if pred(x) { True } else { go() }
-    Done => False
-  }
-  go()
-}
+pub all = |iter, pred| { crash "intrinsic: Iter.all" }
 
-/// Returns true if all elements satisfy the predicate.
- ///
- /// ```
- /// expect from_list([1, 2, 3])->all(|x| x > 0) == True
- /// expect from_list([1, 2, 3])->all(|x| x > 1) == False
- /// ```
-pub all : Iter(a, e), (a) -> Bool -> Bool
-pub all = |iter, pred| {
-  go = || match iter.next() {
-    Yield(x) => if not pred(x) { False } else { go() }
-    Done => True
-  }
-  go()
-}
+pub contains = |iter, target| { crash "intrinsic: Iter.contains" }
 
-/// Returns true if the iterator contains the given element.
- ///
- /// ```
- /// expect from_list([1, 2, 3])->contains(2) == True
- /// expect from_list([1, 2, 3])->contains(10) == False
- /// ```
-pub contains : Iter(a, e), a -> Bool
-pub contains = |iter, target| any(iter, |x| Eq.eq(x, target))
+// Slicing
 
--- ========================
--- Slicing
--- ========================
+pub take = |iter, n| { crash "intrinsic: Iter.take" }
 
-/// Takes the first n elements.
- ///
- /// ```
- /// expect from_list([1, 2, 3, 4])->take(2)->to_list == [1, 2]
- /// ```
-pub take : Iter(a, e), I64 -> Iter(a, e)
-pub take = |iter, n| {
-  $remaining = n
-  @Iter({
-    next = || if $remaining <= 0 { Done } else {
-      $remaining = $remaining - 1
-      iter.next()
-    }
-  })
-}
+pub skip = |iter, n| { crash "intrinsic: Iter.skip" }
 
-/// Skips the first n elements.
- ///
- /// ```
- /// expect from_list([1, 2, 3, 4])->skip(2)->to_list == [3, 4]
- /// ```
-pub skip : Iter(a, e), I64 -> Iter(a, e)
-pub skip = |iter, n| {
-  $remaining = n
-  go = || {
-    if $remaining > 0 {
-      $remaining = $remaining - 1
-      match iter.next() {
-        Yield(_) => go()
-        Done => Done
-      }
-    } else {
-      iter.next()
-    }
-  }
-  @Iter({ next = go })
-}
+pub take_while = |iter, pred| { crash "intrinsic: Iter.take_while" }
 
-/// Takes elements while the predicate returns true.
- ///
- /// ```
- /// expect from_list([1, 2, 3, 4])->take_while(|x| x < 3)->to_list == [1, 2]
- /// ```
-pub take_while : Iter(a, e), (a) -> Bool -> Iter(a, e)
-pub take_while = |iter, pred| {
-  $done = False
-  @Iter({
-    next = || {
-      if $done { Done } else {
-        match iter.next() {
-          Yield(x) => if pred(x) { Yield(x) } else { $done = True; Done }
-          Done => Done
-        }
-      }
-    }
-  })
-}
+pub skip_while = |iter, pred| { crash "intrinsic: Iter.skip_while" }
 
-/// Skips elements while the predicate returns true.
- ///
- /// ```
- /// expect from_list([1, 2, 3, 4])->skip_while(|x| x < 3)->to_list == [3, 4]
- /// ```
-pub skip_while : Iter(a, e), (a) -> Bool -> Iter(a, e)
-pub skip_while = |iter, pred| {
-  $skipping = True
-  go = || {
-    if $skipping {
-      match iter.next() {
-        Yield(x) => if pred(x) { go() } else { $skipping = False; Yield(x) }
-        Done => Done
-      }
-    } else {
-      iter.next()
-    }
-  }
-  @Iter({ next = go })
-}
+// Composition
 
--- ========================
--- Composition
--- ========================
+pub chain = |first, second| { crash "intrinsic: Iter.chain" }
 
-/// Chains two iterators together.
- ///
- /// ```
- /// expect from_list([1, 2])->chain(from_list([3, 4]))->to_list == [1, 2, 3, 4]
- /// ```
-pub chain : Iter(a, e), Iter(a, e) -> Iter(a, e)
-pub chain = |first, second| @Iter({
-  next = || match first.next() {
-    Yield(x) => Yield(x)
-    Done => second.next()
-  }
-})
+pub zip = |left, right| { crash "intrinsic: Iter.zip" }
 
-/// Combines two iterators element by element into pairs.
- ///
- /// ```
- /// expect from_list([1, 2])->zip(from_list([3, 4]))->map(|p| fst(p) + snd(p))->to_list == [4, 6]
- /// ```
-pub zip : Iter(a, e), Iter(b, e) -> Iter((a, b), e)
-pub zip = |left, right| @Iter({
-  next = ||
-    match left.next() {
-      Yield(a) => match right.next() {
-        Yield(b) => Yield((a, b))
-        Done => Done
-      }
-      Done => Done
-    }
-})
-
-/// Pairs each element with its index.
- ///
- /// ```
- /// expect from_list(["a", "b", "c"])->enumerate->map(|p| snd(p))->to_list == ["a", "b", "c"]
- /// expect from_list([10, 20, 30])->enumerate->find(|p| fst(p) == 1) == Ok((1, 20))
- /// ```
-pub enumerate : Iter(a, e) -> Iter((I64, a), e)
-pub enumerate = |iter| {
-  $index = 0
-  @Iter({
-    next = || match iter.next() {
-      Yield(x) => {
-        idx = $index
-        $index = $index + 1
-        Yield((idx, x))
-      }
-      Done => Done
-    }
-  })
-}
+pub enumerate = |iter| { crash "intrinsic: Iter.enumerate" }

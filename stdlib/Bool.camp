@@ -1,18 +1,18 @@
--- Bool.camp
--- @Bool: pub [True | False]  -- declared by compiler
+// Bool.camp
+// @Bool: pub [True | False]  // declared by compiler
 
-pub not : Bool -> Bool
-pub not = |b|
+pub not_ = |b: Bool| -> Bool {
   match b { True => False | False => True }
+}
 
-pub xor : Bool, Bool -> Bool
-pub xor = |a, b|
-  match a { True => not(b) | False => b }
+pub xor_ = |a: Bool, b: Bool| -> Bool {
+  match a { True => not_(b) | False => b }
+}
 
-pub and : Bool, Bool -> Bool
-pub and = |a, b|
+pub and_ = |a: Bool, b: Bool| -> Bool {
   match a { True => b | False => False }
+}
 
-pub or : Bool, Bool -> Bool
-pub or = |a, b|
+pub or_ = |a: Bool, b: Bool| -> Bool {
   match a { True => True | False => b }
+}

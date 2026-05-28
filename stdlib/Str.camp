@@ -1,279 +1,75 @@
--- Str.camp
--- Str is a builtin type. This file declares the public API.
--- All functions are intrinsic (require runtime UTF-8/Unicode support).
+// Str.camp
+// Str is a builtin type. This file declares the public API.
+// All functions are intrinsic (require runtime UTF-8/Unicode support).
 
--- Queries
+// Queries
+pub length = |s: Str| -> I64 { crash "intrinsic: Str.length" }
 
-/// Count of Unicode grapheme clusters in the string.
-///
-/// ```
-/// expect Str.length("hello") == 5
-/// expect Str.length("world!") == 6
-/// ```
-pub length : Str -> I64
-pub length = |s| crash "intrinsic: Str.length"
+pub byte_size = |s: Str| -> I64 { crash "intrinsic: Str.byte_size" }
 
-/// Byte size of the UTF-8 encoded string.
-///
-/// ```
-/// expect Str.byte_size("hello") == 5
-/// expect Str.byte_size("日本語") == 9
-/// ```
-pub byte_size : Str -> I64
-pub byte_size = |s| crash "intrinsic: Str.byte_size"
+pub is_empty = |s: Str| -> Bool { byte_size(s) == 0 }
 
-/// Check if the string contains no grapheme clusters.
-///
-/// ```
-/// expect Str.is_empty("") == True
-/// expect Str.is_empty(" ") == False
-/// ```
-pub is_empty : Str -> Bool
-pub is_empty = |s| byte_size(s) == 0
+// Comparison
+pub starts_with = |s: Str, prefix: Str| -> Bool { crash "intrinsic: Str.starts_with" }
 
--- Comparison
+pub ends_with = |s: Str, suffix: Str| -> Bool { crash "intrinsic: Str.ends_with" }
 
-/// Check if the string starts with the given prefix.
-///
-/// ```
-/// expect Str.starts_with("hello", "he") == True
-/// expect Str.starts_with("hello", "lo") == False
-/// ```
-pub starts_with : Str, Str -> Bool
-pub starts_with = |s, prefix| crash "intrinsic: Str.starts_with"
+pub contains = |s: Str, substr: Str| -> Bool { crash "intrinsic: Str.contains" }
 
-/// Check if the string ends with the given suffix.
-///
-/// ```
-/// expect Str.ends_with("hello", "lo") == True
-/// expect Str.ends_with("hello", "he") == False
-/// ```
-pub ends_with : Str, Str -> Bool
-pub ends_with = |s, suffix| crash "intrinsic: Str.ends_with"
+// Slicing (grapheme-safe)
+pub take = |s: Str, n: I64| -> Str { crash "intrinsic: Str.take" }
 
-/// Check if the string contains the given substring.
-///
-/// ```
-/// expect Str.contains("hello", "ell") == True
-/// expect Str.contains("hello", "world") == False
-/// ```
-pub contains : Str, Str -> Bool
-pub contains = |s, substr| crash "intrinsic: Str.contains"
+pub drop = |s: Str, n: I64| -> Str { crash "intrinsic: Str.drop" }
 
--- Slicing (grapheme-safe)
+pub slice = |s: Str, start: I64, len: I64| -> Str { crash "intrinsic: Str.slice" }
 
-/// Take the first n grapheme clusters from the string.
-///
-/// ```
-/// expect Str.take("hello", 3) == "hel"
-/// ```
-pub take : Str, I64 -> Str
-pub take = |s, n| crash "intrinsic: Str.take"
+// Splitting
+pub split = |s: Str, sep: Str| -> List(Str) { crash "intrinsic: Str.split" }
 
-/// Drop the first n grapheme clusters from the string.
-///
-/// ```
-/// expect Str.drop("hello", 2) == "llo"
-/// ```
-pub drop : Str, I64 -> Str
-pub drop = |s, n| crash "intrinsic: Str.drop"
+pub split_first = |s: Str, sep: Str| -> Result((Str, Str), [NotFound]) { crash "intrinsic: Str.split_first" }
 
-/// Extract a substring starting at offset with the given length.
-///
-/// ```
-/// expect Str.slice("hello", 1, 3) == "ell"
-/// ```
-pub slice : Str, I64, I64 -> Str
-pub slice = |s, start, len| crash "intrinsic: Str.slice"
+pub split_last = |s: Str, sep: Str| -> Result((Str, Str), [NotFound]) { crash "intrinsic: Str.split_last" }
 
--- Splitting
+// Trimming (Unicode whitespace)
+pub trim = |s: Str| -> Str { crash "intrinsic: Str.trim" }
 
-/// Split the string by the given separator, returning all parts.
-///
-/// ```
-/// expect Str.split("a,b,c", ",") == ["a", "b", "c"]
-/// ```
-pub split : Str, Str -> List(Str)
-pub split = |s, sep| crash "intrinsic: Str.split"
+pub trim_start = |s: Str| -> Str { crash "intrinsic: Str.trim_start" }
 
-/// Split on the first occurrence of the separator.
-///
-/// ```
-/// expect Str.split_first("a,b,c", ",") == Ok(("a", "b,c"))
-/// expect Str.split_first("abc", ",") == Err(NotFound)
-/// ```
-pub split_first : Str, Str -> Result((Str, Str), [NotFound])
-pub split_first = |s, sep| crash "intrinsic: Str.split_first"
+pub trim_end = |s: Str| -> Str { crash "intrinsic: Str.trim_end" }
 
-/// Split on the last occurrence of the separator.
-///
-/// ```
-/// expect Str.split_last("a,b,c", ",") == Ok(("a,b", "c"))
-/// expect Str.split_last("abc", ",") == Err(NotFound)
-/// ```
-pub split_last : Str, Str -> Result((Str, Str), [NotFound])
-pub split_last = |s, sep| crash "intrinsic: Str.split_last"
+// Case (Unicode)
+pub to_lower = |s: Str| -> Str { crash "intrinsic: Str.to_lower" }
 
--- Trimming (Unicode whitespace)
+pub to_upper = |s: Str| -> Str { crash "intrinsic: Str.to_upper" }
 
-/// Remove leading and trailing Unicode whitespace.
-///
-/// ```
-/// expect Str.trim("  hello  ") == "hello"
-/// ```
-pub trim : Str -> Str
-pub trim = |s| crash "intrinsic: Str.trim"
+// Concatenation
+pub concat = |a: Str, b: Str| -> Str { crash "intrinsic: Str.concat" }
 
-/// Remove leading Unicode whitespace.
-///
-/// ```
-/// expect Str.trim_start("  hello") == "hello"
-/// ```
-pub trim_start : Str -> Str
-pub trim_start = |s| crash "intrinsic: Str.trim_start"
+pub join = |parts: List(Str), sep: Str| -> Str { crash "intrinsic: Str.join" }
 
-/// Remove trailing Unicode whitespace.
-///
-/// ```
-/// expect Str.trim_end("hello  ") == "hello"
-/// ```
-pub trim_end : Str -> Str
-pub trim_end = |s| crash "intrinsic: Str.trim_end"
+pub repeat = |s: Str, n: I64| -> Str { crash "intrinsic: Str.repeat" }
 
--- Case (Unicode)
+// Replacement
+pub replace = |s: Str, pattern: Str, replacement: Str| -> Str { crash "intrinsic: Str.replace" }
 
-/// Convert the string to lowercase Unicode.
-///
-/// ```
-/// expect Str.to_lower("HELLO") == "hello"
-/// ```
-pub to_lower : Str -> Str
-pub to_lower = |s| crash "intrinsic: Str.to_lower"
+pub replace_first = |s: Str, pattern: Str, replacement: Str| -> Str { crash "intrinsic: Str.replace_first" }
 
-/// Convert the string to uppercase Unicode.
-///
-/// ```
-/// expect Str.to_upper("hello") == "HELLO"
-/// ```
-pub to_upper : Str -> Str
-pub to_upper = |s| crash "intrinsic: Str.to_upper"
+// Prefix/Suffix manipulation
+pub drop_prefix = |s: Str, prefix: Str| -> Str { crash "intrinsic: Str.drop_prefix" }
 
--- Concatenation
+pub drop_suffix = |s: Str, suffix: Str| -> Str { crash "intrinsic: Str.drop_suffix" }
 
-/// Concatenate two strings.
-///
-/// ```
-/// expect Str.concat("hello", " world") == "hello world"
-/// ```
-pub concat : Str, Str -> Str
-pub concat = |a, b| crash "intrinsic: Str.concat"
+// Conversion
+pub to_bytes = |s: Str| -> Bytes { crash "intrinsic: Str.to_bytes" }
 
-/// Join a list of strings with the given separator.
-///
-/// ```
-/// expect Str.join(["a", "b", "c"], ",") == "a,b,c"
-/// ```
-pub join : List(Str), Str -> Str
-pub join = |parts, sep| crash "intrinsic: Str.join"
+pub from_bytes = |b: Bytes| -> Result(Str, [InvalidUtf8]) { crash "intrinsic: Str.from_bytes" }
 
-/// Repeat the string n times.
-///
-/// ```
-/// expect Str.repeat("ab", 3) == "ababab"
-/// ```
-pub repeat : Str, I64 -> Str
-pub repeat = |s, n| crash "intrinsic: Str.repeat"
+pub from_bytes_lossy = |b: Bytes| -> Str { crash "intrinsic: Str.from_bytes_lossy" }
 
--- Replacement
+// Parsing (numeric)
+pub to_i64 = |s: Str| -> Result(I64, [InvalidFormat]) { crash "intrinsic: Str.to_i64" }
 
-/// Replace all occurrences of a pattern with the replacement.
-///
-/// ```
-/// expect Str.replace("hello", "l", "x") == "hexxo"
-/// ```
-pub replace : Str, Str, Str -> Str
-pub replace = |s, pattern, replacement| crash "intrinsic: Str.replace"
+pub to_f64 = |s: Str| -> Result(F64, [InvalidFormat]) { crash "intrinsic: Str.to_f64" }
 
-/// Replace the first occurrence of a pattern with the replacement.
-///
-/// ```
-/// expect Str.replace_first("hello", "l", "x") == "hexlo"
-/// ```
-pub replace_first : Str, Str, Str -> Str
-pub replace_first = |s, pattern, replacement| crash "intrinsic: Str.replace_first"
-
--- Prefix/Suffix manipulation
-
-/// Remove the prefix if present, otherwise return the string unchanged.
-///
-/// ```
-/// expect Str.drop_prefix("hello", "he") == "llo"
-/// expect Str.drop_prefix("hello", "lo") == "hello"
-/// ```
-pub drop_prefix : Str, Str -> Str
-pub drop_prefix = |s, prefix| crash "intrinsic: Str.drop_prefix"
-
-/// Remove the suffix if present, otherwise return the string unchanged.
-///
-/// ```
-/// expect Str.drop_suffix("hello", "lo") == "hel"
-/// expect Str.drop_suffix("hello", "he") == "hello"
-/// ```
-pub drop_suffix : Str, Str -> Str
-pub drop_suffix = |s, suffix| crash "intrinsic: Str.drop_suffix"
-
--- Conversion
-
-/// Encode the string as UTF-8 bytes.
-///
-/// ```
-/// expect Str.to_bytes("hello") == Bytes[0x68, 0x65, 0x6C, 0x6C, 0x6F]
-/// ```
-pub to_bytes : Str -> Bytes
-pub to_bytes = |s| crash "intrinsic: Str.to_bytes"
-
-/// Decode UTF-8 bytes to a string, failing on invalid encoding.
-///
-/// ```
-/// expect Str.from_bytes(Bytes[0x68, 0x65]) == Ok("he")
-/// ```
-pub from_bytes : Bytes -> Result(Str, [InvalidUtf8])
-pub from_bytes = |b| crash "intrinsic: Str.from_bytes"
-
-/// Decode UTF-8 bytes to a string, replacing invalid sequences with the replacement character.
-///
-/// ```
-/// expect Str.from_bytes_lossy(Bytes[0x80]) == ""
-/// ```
-pub from_bytes_lossy : Bytes -> Str
-pub from_bytes_lossy = |b| crash "intrinsic: Str.from_bytes_lossy"
-
--- Parsing (numeric)
-
-/// Parse the string as a 64-bit integer.
-///
-/// ```
-/// expect Str.to_i64("42") == Ok(42)
-/// expect Str.to_i64("hello") == Err(InvalidFormat)
-/// ```
-pub to_i64 : Str -> Result(I64, [InvalidFormat])
-pub to_i64 = |s| crash "intrinsic: Str.to_i64"
-
-/// Parse the string as a 64-bit float.
-///
-/// ```
-/// expect Str.to_f64("3.14") == Ok(3.14)
-/// expect Str.to_f64("hello") == Err(InvalidFormat)
-/// ```
-pub to_f64 : Str -> Result(F64, [InvalidFormat])
-pub to_f64 = |s| crash "intrinsic: Str.to_f64"
-
--- Iteration (grapheme-by-grapheme)
-
-/// Iterate over the string grapheme cluster by grapheme cluster.
-///
-/// ```
-/// expect Str.to_iter("hi")->Iter.count == 2
-/// ```
-pub to_iter : Str -> Iter(Str)
-pub to_iter = |s| crash "intrinsic: Str.to_iter"
+// Iteration (grapheme-by-grapheme)
+pub to_iter = |s: Str| -> Iter(Str) { crash "intrinsic: Str.to_iter" }

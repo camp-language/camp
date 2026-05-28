@@ -1,5 +1,5 @@
--- TryFrom trait — fallible type conversion
+// TryFrom trait — fallible type conversion
 
-TryFrom(source, target, e) : {
-  try_from : source -> Result(target, e),
+TryFrom : {
+  try_from : |Self| -> Result(target, e),
 }

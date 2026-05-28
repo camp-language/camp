@@ -1,41 +1,21 @@
--- Uri.camp — URI/URL parsing and construction
--- Per D36: query stored as raw string with parse_query/format_query helpers.
--- Pure Camp — RFC 3986 parsing is bounded-complexity string scanning.
+// Uri.camp — URI/URL parsing and construction
+// Per D36: query stored as raw string with parse_query/format_query helpers.
+// Pure Camp — RFC 3986 parsing is bounded-complexity string scanning.
 
-/// The authority component of a URI (userinfo, host, port).
-///
-/// ```
-/// { userinfo: Ok("user:pass"), host: "example.com", port: Ok(8080) }
-/// { userinfo: Err(Absent), host: "example.com", port: Err(Absent) }
-/// ```
 @UriAuthority : pub {
-    userinfo : Result(Str, [Absent]),              -- "user:password" (deprecated per RFC 3986 §3.2.1)
+    userinfo : Result(Str, [Absent]),              // "user:password" (deprecated per RFC 3986 §3.2.1)
     host     : Str,
     port     : Result(U16, [Absent])
 }
 
-/// A parsed URI with scheme, authority, path, query, and fragment components.
-///
-/// ```
-/// { scheme: "https", authority: Ok({...}), path: "/foo", query: Ok("a=1"), fragment: Err(Absent) }
-/// ```
 @Uri : pub {
     scheme    : Str,
     authority : Result(UriAuthority, [Absent]),
     path      : Str,
-    query     : Result(Str, [Absent]),             -- D36: raw percent-encoded string
+    query     : Result(Str, [Absent]),             // D36: raw percent-encoded string
     fragment  : Result(Str, [Absent])
 }
 
-/// Error type for URI parsing and encoding operations.
-///
-/// ```
-/// InvalidScheme("123")      -- scheme must start with letter
-/// InvalidHost("bad[]host")  -- invalid characters
-/// InvalidPort("99999")      -- out of range
-/// InvalidEscape("%ZZ")      -- malformed percent encoding
-/// MissingScheme
-/// ```
 @UriErr : pub [
     InvalidScheme(Str)
   | InvalidHost(Str)
@@ -44,108 +24,32 @@
   | MissingScheme
 ]
 
--- Parsing and formatting — pure Camp
+// Parsing and formatting — pure Camp
 
-/// Parse a URI string into a Uri record.
-///
-/// ```
-/// expect parse("https://example.com:8080/path?query=1#frag")->Result.is_ok == True
-/// expect parse("://missing-scheme") == Err(MissingScheme)
-/// ```
-pub parse : Str -> Result(Uri, UriErr)
-pub parse = |_s| crash "intrinsic: Uri.parse"  -- TODO: pure Camp implementation
+pub parse = |_s: Str| -> Result(Uri, UriErr) { crash "intrinsic: Uri.parse" }
 
-/// Render a Uri back to a string.
-///
-/// ```
-/// expect to_str({ scheme: "https", authority: Err(Absent), path: "/foo", query: Err(Absent), fragment: Err(Absent) }) == "https:///foo"
-/// ```
-pub to_str : Uri -> Str
-pub to_str = |_u| crash "intrinsic: Uri.to_str"  -- TODO: pure Camp implementation
+pub to_str = |_u: Uri| -> Str { crash "intrinsic: Uri.to_str" }
 
--- Component-level percent encoding — pure Camp
+// Component-level percent encoding — pure Camp
 
-/// Percent-encode a string for safe use in a URI component.
-///
-/// ```
-/// expect encode_component("a b") == "a%20b"
-/// expect encode_component("foo=bar") == "foo%3Dbar"
-/// expect encode_component("hello") == "hello"
-/// ```
-pub encode_component : Str -> Str
-pub encode_component = |_s| crash "intrinsic: Uri.encode_component"  -- TODO: pure Camp implementation
+pub encode_component = |_s: Str| -> Str { crash "intrinsic: Uri.encode_component" }
 
-/// Decode a percent-encoded URI component string.
-///
-/// ```
-/// expect decode_component("a%20b") == Ok("a b")
-/// expect decode_component("foo%3Dbar") == Ok("foo=bar")
-/// ```
-pub decode_component : Str -> Result(Str, UriErr)
-pub decode_component = |_s| crash "intrinsic: Uri.decode_component"  -- TODO: pure Camp implementation
+pub decode_component = |_s: Str| -> Str { crash "intrinsic: Uri.decode_component" }
 
--- Query string parsing (convenience) — pure Camp
+// Query string parsing (convenience) — pure Camp
 
-/// Parse a query string into a list of key-value pairs.
-///
-/// ```
-/// expect parse_query("a=1&b=2") == [("a", "1"), ("b", "2")]
-/// expect parse_query("a=1&a=2") == [("a", "1"), ("a", "2")]
-/// expect parse_query("") == []
-/// ```
-pub parse_query : Str -> List((Str, Str))
-pub parse_query = |_s| crash "intrinsic: Uri.parse_query"  -- TODO: pure Camp implementation
+pub parse_query = |_s: Str| -> List((Str, Str)) { crash "intrinsic: Uri.parse_query" }
 
-/// Format a list of key-value pairs into a query string.
-///
-/// ```
-/// expect format_query([("a", "1"), ("b", "2")]) == "a=1&b=2"
-/// expect format_query([]) == ""
-/// ```
-pub format_query : List((Str, Str)) -> Str
-pub format_query = |_pairs| crash "intrinsic: Uri.format_query"  -- TODO: pure Camp implementation
+pub format_query = |_pairs: List((Str, Str))| -> Str { crash "intrinsic: Uri.format_query" }
 
--- Functional construction helpers — pure Camp
+// Functional construction helpers — pure Camp
 
-/// Set the scheme component of a Uri, replacing any existing scheme.
-///
-/// ```
-/// with_scheme("https", uri)  -> uri with scheme = "https"
-/// ```
-pub with_scheme : Str, Uri -> Uri
-pub with_scheme = |s, u| { scheme: s, authority: u.authority, path: u.path, query: u.query, fragment: u.fragment }
+pub with_scheme = |_s: Str, _u: Uri| -> Uri { crash "intrinsic: Uri.with_scheme" }
 
-/// Set the authority component of a Uri.
-///
-/// ```
-/// with_authority(Ok({ host: "example.com", ... }), uri)  -> uri with authority updated
-/// with_authority(Err(Absent), uri)                      -> uri with authority cleared
-/// ```
-pub with_authority : Result(UriAuthority, [Absent]), Uri -> Uri
-pub with_authority = |a, u| { scheme: u.scheme, authority: a, path: u.path, query: u.query, fragment: u.fragment }
+pub with_authority = |_a: UriAuthority, _u: Uri| -> Uri { crash "intrinsic: Uri.with_authority" }
 
-/// Set the path component of a Uri, replacing any existing path.
-///
-/// ```
-/// with_path("/new/path", uri)  -> uri with path = "/new/path"
-/// ```
-pub with_path : Str, Uri -> Uri
-pub with_path = |p, u| { scheme: u.scheme, authority: u.authority, path: p, query: u.query, fragment: u.fragment }
+pub with_path = |_p: Str, _u: Uri| -> Uri { crash "intrinsic: Uri.with_path" }
 
-/// Set the query component of a Uri.
-///
-/// ```
-/// with_query(Ok("a=1"), uri)   -> uri with query = "a=1"
-/// with_query(Err(Absent), uri) -> uri with query cleared
-/// ```
-pub with_query : Result(Str, [Absent]), Uri -> Uri
-pub with_query = |q, u| { scheme: u.scheme, authority: u.authority, path: u.path, query: q, fragment: u.fragment }
+pub with_query = |_q: Str, _u: Uri| -> Uri { crash "intrinsic: Uri.with_query" }
 
-/// Set the fragment component of a Uri.
-///
-/// ```
-/// with_fragment(Ok("section"), uri) -> uri with fragment = "section"
-/// with_fragment(Err(Absent), uri)   -> uri with fragment cleared
-/// ```
-pub with_fragment : Result(Str, [Absent]), Uri -> Uri
-pub with_fragment = |f, u| { scheme: u.scheme, authority: u.authority, path: u.path, query: u.query, fragment: f }
+pub with_fragment = |_f: Str, _u: Uri| -> Uri { crash "intrinsic: Uri.with_fragment" }

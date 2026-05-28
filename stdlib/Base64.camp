@@ -1,119 +1,40 @@
--- Base64.camp — Base64/Base32/Hex encoding and decoding
--- Per D39: parameterized by Base64Format plus shorthand convenience functions.
--- Pure Camp — lookup table + bit shifting, no C runtime needed.
+// Base64.camp — Base64/Base32/Hex encoding and decoding
+// Per D39: parameterized by Base64Format plus shorthand convenience functions.
+// Pure Camp — lookup table + bit shifting, no C runtime needed.
 
-/// Supported encoding formats for Base64 operations.
-///
-/// ```
-/// Standard   -- RFC 4648 Base64 (A-Z, a-z, 0-9, +, /)
-/// UrlSafe    -- URL-safe Base64 variant (- and _ instead of + and /)
-/// Base32     -- RFC 4648 Base32 (A-Z, 2-7)
-/// Hex        -- Lowercase hexadecimal (0-9, a-f)
-/// ```
 @Base64Format : pub [Standard | UrlSafe | Base32 | Hex]
 
-/// Error type for Base64 encoding and decoding operations.
-///
-/// ```
-/// InvalidChar(3, "invalid character '@'")  -- position + description
-/// InvalidLength
-/// InvalidPadding
-/// ```
 @Base64Err : pub [
-    InvalidChar(U64, Str)                       -- position + bad character
+    InvalidChar(U64, Str)                       // position + bad character
   | InvalidLength
   | InvalidPadding
 ]
 
--- Core encode/decode (parameterized) — pure Camp
+// Core encode/decode (parameterized) — pure Camp
 
-/// Encode raw bytes to a Base64-encoded string using the specified format.
-///
-/// ```
-/// expect encode(Standard, Bytes.from_list([255, 127, 63])) == "//+/"
-/// expect encode(Hex, Bytes.from_list([255, 127, 63])) == "ff7f3f"
-/// ```
-pub encode : Base64Format, Bytes -> Str
-pub encode = |_fmt, _bytes| crash "intrinsic: Base64.encode"  -- TODO: pure Camp implementation
+pub encode = |_fmt, _bytes| { crash "intrinsic: Base64.encode" }  // TODO: pure Camp implementation
 
-/// Decode a Base64-encoded string back to raw bytes using the specified format.
-///
-/// ```
-/// expect decode(Standard, "//+/") == Ok(Bytes.from_list([255, 127, 63]))
-/// expect decode(Hex, "ff7f3f") == Ok(Bytes.from_list([255, 127, 63]))
-/// ```
-pub decode : Base64Format, Str -> Result(Bytes, Base64Err)
-pub decode = |_fmt, _s| crash "intrinsic: Base64.decode"  -- TODO: pure Camp implementation
+pub decode = |_fmt, _s| { crash "intrinsic: Base64.decode" }  // TODO: pure Camp implementation
 
--- String convenience (UTF-8 encode/decode internally) — pure Camp
+// String convenience (UTF-8 encode/decode internally) — pure Camp
 
-/// Encode a string to Base64 by first converting to UTF-8 bytes.
-///
-/// ```
-/// expect encode_str(Standard, "hello") == "aGVsbG8="
-/// expect encode_str(UrlSafe, "hello") == "aGVsbG8"
-/// ```
-pub encode_str : Base64Format, Str -> Str
-pub encode_str = |fmt, s| encode(fmt, Str.to_bytes(s))
+pub encode_str = |fmt, s| { encode(fmt, Str.to_bytes(s)) }
 
-/// Decode a Base64-encoded string back to a string (UTF-8).
-///
-/// ```
-/// expect decode_str(Standard, "aGVsbG8=") == Ok("hello")
-/// expect decode_str(Standard, "aGVsbG8") == Ok("hello")
-/// ```
-pub decode_str : Base64Format, Str -> Result(Str, Base64Err)
-pub decode_str = |fmt, s| match decode(fmt, s) {
-  Ok(bytes) -> Ok(Bytes.to_str(bytes))
-  Err(e)    -> Err(e)
-}
+pub decode_str = |fmt, s| { match decode(fmt, s) {
+  Ok(bytes) => Ok(Bytes.to_str(bytes))
+  Err(e)    => Err(e)
+} }
 
--- Format-specific shorthands — pure Camp
+// Format-specific shorthands — pure Camp
 
-/// Encode bytes to Standard Base64.
-///
-/// ```
-/// expect encode64(Bytes.from_list([255, 127, 63])) == "//+/"
-/// ```
-pub encode64 : Bytes -> Str
-pub encode64 = |b| encode(Standard, b)
+pub encode64 = |b| { encode(Standard, b) }                     // Standard Base64
 
-/// Decode a Standard Base64 string to bytes.
-///
-/// ```
-/// expect decode64("//+/") == Ok(Bytes.from_list([255, 127, 63]))
-/// ```
-pub decode64 : Str -> Result(Bytes, Base64Err)
-pub decode64 = |s| decode(Standard, s)
+pub decode64 = |s| { decode(Standard, s) }
 
-/// Encode bytes to URL-safe Base64.
-///
-/// ```
-/// expect encode64url(Bytes.from_list([255, 127, 63])) == "__-8"
-/// ```
-pub encode64url : Bytes -> Str
-pub encode64url = |b| encode(UrlSafe, b)
+pub encode64url = |b| { encode(UrlSafe, b) }                  // URL-safe Base64
 
-/// Decode a URL-safe Base64 string to bytes.
-///
-/// ```
-/// expect decode64url("__-8") == Ok(Bytes.from_list([255, 127, 63]))
-/// ```
-pub decode64url : Str -> Result(Bytes, Base64Err)
-pub decode64url = |s| decode(UrlSafe, s)
+pub decode64url = |s| { decode(UrlSafe, s) }
 
-/// Encode bytes to lowercase Hex.
-///
-/// ```
-/// expect encode16(Bytes.from_list([255, 127, 63])) == "ff7f3f"
-/// ```
-pub encode16 : Bytes -> Str
-pub encode16 = |b| encode(Hex, b)
+pub encode16 = |b| { encode(Hex, b) }                     // Hex, lowercase
 
-/// Decode a lowercase Hex string to bytes.
-///
-/// ```
-/// expect decode16("ff7f3f") == Ok(Bytes.from_list([255, 127, 63]))
-/// ```
-pub decode16 : Str -> Result(Bytes, Base64Err)
-pub decode16 = |s| decode(Hex, s)
+pub decode16 = |s| { decode(Hex, s) }

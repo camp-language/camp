@@ -87,6 +87,12 @@ canonicalize_decl :: proc(
 		if d.type_ann != nil {
 			ctype_ann = canonicalize_type(d.type_ann^, scope, interner, collector)
 		}
+
+		// If the body is a float literal and we have a type annotation,
+		// pass the annotation to the literal so typechecker can use it
+		if float_lit, ok := cbody.(^CExpr_Float); ok && ctype_ann != nil {
+			float_lit.type_ann = ctype_ann
+		}
 		where_clauses := make([dynamic]frontend.Where_Clause, 0, len(d.where_clauses))
 		for wc in d.where_clauses {
 			append(&where_clauses, wc)
@@ -705,7 +711,46 @@ canonicalize_expr :: proc(
 		}
 		return c
 
-	case ^frontend.Expr_Call:
+case ^frontend.Expr_Call:
+		// Desugar expect x → if !x { crash "expectation failed" }
+		expect_id := base.intern(interner, "expect")
+		if id, ok := e.callee.(^frontend.Expr_Identifier); ok {
+			if id.name == expect_id && len(e.args) == 1 {
+				// Build: if !arg { crash "expectation failed" }
+				// Create the crash expression first
+				msg := new(frontend.Expr_String)
+				msg^ = frontend.Expr_String {
+					value = "expectation failed",
+					span  = e.span,
+				}
+				crash_e := new(frontend.Expr_Crash)
+				crash_e^ = frontend.Expr_Crash {
+					message = msg,
+					span    = e.span,
+				}
+
+				// Create the prefix op for !arg (arg needs to be re-wrapped as frontend.Expr)
+				arg_front := e.args[0] // args[0] is already a frontend.Expr
+				not_e := new(frontend.Expr_PrefixOp)
+				not_e^ = frontend.Expr_PrefixOp {
+					op      = .Kw_Not,
+					operand = arg_front,
+					span    = e.span,
+				}
+
+				// Create the if expression
+				if_expr := new(frontend.Expr_If)
+				if_expr^ = frontend.Expr_If {
+					condition   = not_e,
+					then_branch = crash_e,
+					span        = e.span,
+				}
+
+				// Recursively canonicalize the whole if expression
+				return canonicalize_expr(if_expr, scope, interner, collector)
+			}
+		}
+
 		ccallee := canonicalize_expr(e.callee, scope, interner, collector)
 		args := make([dynamic]CExpr, 0, len(e.args))
 		for a in e.args {

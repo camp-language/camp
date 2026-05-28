@@ -1,5 +1,5 @@
--- IntoIter trait — convert a collection into an iterator
+// IntoIter trait — convert a collection into an iterator
 
-IntoIter(a) : {
-  to_iter : Self(a) -> Iter(a),
+IntoIter : {
+  to_iter : |Self| -> Iter(a),
 }

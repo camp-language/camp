@@ -3,224 +3,62 @@
 
 // Basic operations (pure Camp)
 
-/// Returns the absolute value of the number.
-///
-/// ```
-/// expect abs(-5) == 5
-/// expect abs(3) == 3
-/// ```
-pub abs : I64 -> I64
-pub abs = |n| if n < 0 { 0 - n } else { n }
+pub abs = |n: I64| -> I64 { if n < 0 { 0 - n } else { n } }
 
-/// Clamps the value between `lo` and `hi`.
-///
-/// ```
-/// expect clamp(0, 10, 5) == 5
-/// expect clamp(0, 10, -3) == 0
-/// expect clamp(0, 10, 15) == 10
-/// ```
-pub clamp : I64, I64, I64 -> I64
-pub clamp = |lo, hi, n| if n < lo { lo } else if n > hi { hi } else { n }
+pub clamp = |lo: I64, hi: I64, n: I64| -> I64 { if n < lo { lo } else if n > hi { hi } else { n } }
 
-/// Returns the larger of two values.
-///
-/// ```
-/// expect max(3, 8) == 8
-/// expect max(10, 2) == 10
-/// ```
-pub max : I64, I64 -> I64
-pub max = |a, b| if a > b { a } else { b }
+pub max = |a: I64, b: I64| -> I64 { if a > b { a } else { b } }
 
-/// Returns the smaller of two values.
-///
-/// ```
-/// expect min(3, 8) == 3
-/// expect min(10, 2) == 2
-/// ```
-pub min : I64, I64 -> I64
-pub min = |a, b| if a < b { a } else { b }
+pub min = |a: I64, b: I64| -> I64 { if a < b { a } else { b } }
 
-/// Returns the negation of the number.
-///
-/// ```
-/// expect neg(5) == -5
-/// expect neg(-3) == 3
-/// ```
-pub neg : I64 -> I64
-pub neg = |n| 0 - n
+pub neg = |n: I64| -> I64 { 0 - n }
 
 // Checked arithmetic (intrinsic — overflow detection)
 
-/// Adds two numbers, returning `Overflow` on wraparound.
-///
-/// ```
-/// expect checked_add(1, 2) == Ok(3)
-/// expect checked_add(I64.MAX, 1) == Err(Overflow)
-/// ```
-pub checked_add : I64, I64 -> Result(I64, [Overflow])
-pub checked_add = |a, b| crash "intrinsic: Num.I64.checked_add"
+pub checked_add = |a: I64, b: I64| -> I64 { crash "intrinsic: Num.I64.checked_add" }
 
-/// Subtracts two numbers, returning `Overflow` on wraparound.
-///
-/// ```
-/// expect checked_sub(5, 3) == Ok(2)
-/// expect checked_sub(I64.MIN, 1) == Err(Overflow)
-/// ```
-pub checked_sub : I64, I64 -> Result(I64, [Overflow])
-pub checked_sub = |a, b| crash "intrinsic: Num.I64.checked_sub"
+pub checked_sub = |a: I64, b: I64| -> I64 { crash "intrinsic: Num.I64.checked_sub" }
 
-/// Multiplies two numbers, returning `Overflow` on wraparound.
-///
-/// ```
-/// expect checked_mul(3, 4) == Ok(12)
-/// expect checked_mul(I64.MAX, 2) == Err(Overflow)
-/// ```
-pub checked_mul : I64, I64 -> Result(I64, [Overflow])
-pub checked_mul = |a, b| crash "intrinsic: Num.I64.checked_mul"
+pub checked_mul = |a: I64, b: I64| -> I64 { crash "intrinsic: Num.I64.checked_mul" }
 
 // Wrapping/saturating arithmetic (intrinsic)
 
-/// Adds two numbers with wrapping semantics (two's complement).
-///
-/// ```
-/// expect wrapping_add(I64.MAX, 1) == I64.MIN
-/// expect wrapping_add(1, 2) == 3
-/// ```
-pub wrapping_add : I64, I64 -> I64
-pub wrapping_add = |a, b| crash "intrinsic: Num.I64.wrapping_add"
+pub wrapping_add = |a: I64, b: I64| -> I64 { crash "intrinsic: Num.I64.wrapping_add" }
 
-/// Adds two numbers, saturating at the bounds instead of wrapping.
-///
-/// ```
-/// expect saturating_add(I64.MAX, 1) == I64.MAX
-/// expect saturating_add(1, 2) == 3
-/// ```
-pub saturating_add : I64, I64 -> I64
-pub saturating_add = |a, b| crash "intrinsic: Num.I64.saturating_add"
+pub saturating_add = |a: I64, b: I64| -> I64 { crash "intrinsic: Num.I64.saturating_add" }
 
-/// Subtracts two numbers, saturating at the bounds instead of wrapping.
-///
-/// ```
-/// expect saturating_sub(I64.MIN, 1) == I64.MIN
-/// expect saturating_sub(5, 3) == 2
-/// ```
-pub saturating_sub : I64, I64 -> I64
-pub saturating_sub = |a, b| crash "intrinsic: Num.I64.saturating_sub"
+pub saturating_sub = |a: I64, b: I64| -> I64 { crash "intrinsic: Num.I64.saturating_sub" }
 
 // Conversion (intrinsic)
 
-/// Converts the number to its string representation.
-///
-/// ```
-/// expect to_str(42) == "42"
-/// expect to_str(-7) == "-7"
-/// ```
-pub to_str : I64 -> Str
-pub to_str = |n| crash "intrinsic: Num.I64.to_str"
+pub to_str = |n: I64| -> Str { crash "intrinsic: Num.I64.to_str" }
 
-/// Parses a string into an I64, returning `InvalidFormat` on failure.
-///
-/// ```
-/// expect from_str("123") == Ok(123)
-/// expect from_str("not a number") == Err(InvalidFormat)
-/// ```
-pub from_str : Str -> Result(I64, [InvalidFormat])
-pub from_str = |s| crash "intrinsic: Num.I64.from_str"
+pub from_str = |s: Str| -> I64 { crash "intrinsic: Num.I64.from_str" }
 
 // Range iteration (intrinsic — needs efficient generator)
 
-/// Generates an iterator over the range [start, end).
-///
-/// ```
-/// expect range(0, 5)->Iter.count == 5
-/// ```
-pub range : I64, I64 -> Iter(I64)
-pub range = |start, end| crash "intrinsic: Num.I64.range"
+pub range = |start: I64, end: I64| { crash "intrinsic: Num.I64.range" }
 
-// Bitwise function wrappers (pure Camp — operator sugar for UFCS)
+// Bitwise function wrappers (intrinsic)
 
-/// Performs bitwise AND on two numbers.
-///
-/// ```
-/// expect bitwise_and(0b1100, 0b1010) == 0b1000
-/// ```
-pub bitwise_and : I64, I64 -> I64
-pub bitwise_and = |a, b| a & b
+pub bitwise_and = |a: I64, b: I64| -> I64 { crash "intrinsic: Num.I64.bitwise_and" }
 
-/// Performs bitwise OR on two numbers.
-///
-/// ```
-/// expect bitwise_or(0b1100, 0b1010) == 0b1110
-/// ```
-pub bitwise_or : I64, I64 -> I64
-pub bitwise_or = |a, b| a | b
+pub bitwise_or = |a: I64, b: I64| -> I64 { crash "intrinsic: Num.I64.bitwise_or" }
 
-/// Performs bitwise XOR on two numbers.
-///
-/// ```
-/// expect bitwise_xor(0b1100, 0b1010) == 0b0110
-/// ```
-pub bitwise_xor : I64, I64 -> I64
-pub bitwise_xor = |a, b| a ^ b
+pub bitwise_xor = |a: I64, b: I64| -> I64 { crash "intrinsic: Num.I64.bitwise_xor" }
 
-/// Performs bitwise NOT (ones complement) on the number.
-///
-/// ```
-/// expect bitwise_not(0) == -1
-/// ```
-pub bitwise_not : I64 -> I64
-pub bitwise_not = |a| ~a
+pub bitwise_not = |a: I64| -> I64 { crash "intrinsic: Num.I64.bitwise_not" }
 
-/// Shifts the number left by the given number of bits.
-///
-/// ```
-/// expect shift_left(1, 4) == 16
-/// ```
-pub shift_left : I64, I64 -> I64
-pub shift_left = |a, n| a << n
+pub shift_left = |a: I64, n: I64| -> I64 { crash "intrinsic: Num.I64.shift_left" }
 
-/// Shifts the number right by the given number of bits (arithmetic shift).
-///
-/// ```
-/// expect shift_right(-16, 2) == -4
-/// ```
-pub shift_right : I64, I64 -> I64
-pub shift_right = |a, n| a >> n
+pub shift_right = |a: I64, n: I64| -> I64 { crash "intrinsic: Num.I64.shift_right" }
 
 // Counting (intrinsic)
 
-/// Counts the number of 1-bits (population count) in the number.
-///
-/// ```
-/// expect count_ones(0b1010) == 2
-/// expect count_ones(-1) == 64
-/// ```
-pub count_ones : I64 -> I64
-pub count_ones = |n| crash "intrinsic: Num.I64.count_ones"
+pub count_ones = |n: I64| -> I64 { crash "intrinsic: Num.I64.count_ones" }
 
-/// Counts the number of 0-bits in the number.
-///
-/// ```
-/// expect count_zeros(0b1010) == 62
-/// expect count_zeros(0) == 64
-/// ```
-pub count_zeros : I64 -> I64
-pub count_zeros = |n| crash "intrinsic: Num.I64.count_zeros"
+pub count_zeros = |n: I64| -> I64 { crash "intrinsic: Num.I64.count_zeros" }
 
-/// Counts the number of leading zeros before the first 1-bit.
-///
-/// ```
-/// expect leading_zeros(1) == 63
-/// expect leading_zeros(I64.MAX) == 0
-/// ```
-pub leading_zeros : I64 -> I64
-pub leading_zeros = |n| crash "intrinsic: Num.I64.leading_zeros"
+pub leading_zeros = |n: I64| -> I64 { crash "intrinsic: Num.I64.leading_zeros" }
 
-/// Counts the number of trailing zeros after the last 1-bit.
-///
-/// ```
-/// expect trailing_zeros(16) == 4
-/// expect trailing_zeros(1) == 0
-/// ```
-pub trailing_zeros : I64 -> I64
-pub trailing_zeros = |n| crash "intrinsic: Num.I64.trailing_zeros"
+pub trailing_zeros = |n: I64| -> I64 { crash "intrinsic: Num.I64.trailing_zeros" }

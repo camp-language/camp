@@ -81,6 +81,34 @@ parser_skip_backslashes :: proc(p: ^Parser) {
 	}
 }
 
+// Recovery points - tokens that indicate we can safely resume parsing
+RECOVERY_TOKENS: map[base.Token_Kind]bool = {
+	.RBrace = true,
+	.RBrack = true,
+	.RParen = true,
+	.Comma = true,
+	.Pipe = true,
+	.Fat_Arrow = true,
+	.Kw_In = true,
+	.Kw_With = true,
+	.Kw_Where = true,
+	.Eq = true,
+	.Colon_Eq = true,
+	.Newline = true,
+	.Eof = true,
+}
+
+is_recovery_token :: proc(kind: base.Token_Kind) -> bool {
+	return RECOVERY_TOKENS[kind]
+}
+
+// Skip tokens until we hit a recovery point or EOF
+parser_skip_to_recovery :: proc(p: ^Parser) {
+	for !is_recovery_token(p.current.kind) && p.current.kind != .Eof {
+		parser_advance(p)
+	}
+}
+
 Span_End :: enum {
 	Start,
 	End,
@@ -912,7 +940,17 @@ parser_parse_prefix :: proc(p: ^Parser) -> Expr {
 		}
 		return e
 	}
-	return nil
+
+	// Unexpected token - recover by skipping to a recovery point
+	start := tok.span
+	diagnostics.collector_add_diag(p.collector, diagnostics.diag_unexpected_token(tok))
+	parser_skip_to_recovery(p)
+	fallback := new(Expr_Todo)
+	fallback^ = Expr_Todo {
+		message = nil,
+		span    = start,
+	}
+	return fallback
 }
 
 parser_parse_nominal_construct :: proc(p: ^Parser) -> Expr {
@@ -3108,10 +3146,9 @@ parser_parse_test_decl :: proc(p: ^Parser) -> Decl {
 	name_tok := parser_expect(p, .String_Literal)
 	parser_expect(p, .LBrace)
 
-	// Test block body is a simple block — immediately parse it
+	// Test block body is a simple block — immediately parse it.
+	// NOTE: parser_parse_block already consumes the closing RBrace.
 	body := parser_parse_block(p, start)
-
-	parser_expect(p, .RBrace)
 
 	decl := new(Decl_Test)
 	decl^ = Decl_Test {

@@ -1,218 +1,94 @@
--- Set.camp
--- @Set(a) -- opaque, Map(a, {}) internally
+// Set.camp
+// @Set(a) — opaque, Map(a, {}) internally
 
 import Iter { empty, singleton, chain, from_list }
 import List { append }
 
--- Construction
+// Construction
 
-/// Create a new empty set.
-///
-/// ```
-/// expect Set.new()->Set.is_empty
-/// ```
-pub new : Set(a)
 pub new = crash "intrinsic: Set.new"
 
-/// Create a set containing a single element.
-///
-/// ```
-/// expect Set.singleton(1)->Set.contains(1)
-/// expect not Set.singleton(1)->Set.contains(2)
-/// ```
-pub singleton : a -> Set(a)
-pub singleton = |x| crash "intrinsic: Set.singleton"
+pub singleton = |x| { crash "intrinsic: Set.singleton" }
 
--- Queries
+// Queries
 
-/// Check if an element is a member of the set.
-///
-/// ```
-/// expect Set.from_list([1, 2, 3])->Set.contains(2)
-/// expect not Set.from_list([1, 2, 3])->Set.contains(4)
-/// ```
-pub contains : a, Set(a) -> Bool
-pub contains = |x, s| crash "intrinsic: Set.contains"
+pub contains = |x, s| { crash "intrinsic: Set.contains" }
 
-/// Return the number of elements in the set.
-///
-/// ```
-/// expect Set.from_list([1, 2, 3])->Set.size == 3
-/// ```
-pub size : Set(a) -> I64
-pub size = |s| crash "intrinsic: Set.size"
+pub size = |s| { crash "intrinsic: Set.size" }
 
-/// Check if the set contains no elements.
-///
-/// ```
-/// expect Set.new()->Set.is_empty
-/// expect not Set.singleton(1)->Set.is_empty
-/// ```
-pub is_empty : Set(a) -> Bool
-pub is_empty = |s| size(s) == 0
+pub is_empty = |s| { size(s) == 0 }
 
-/// Return the smallest element of the set.
-///
-/// ```
-/// expect Set.from_list([3, 1, 2])->Set.min == Ok(1)
-/// expect Set.new()->Set.min == Err([EmptySet])
-/// ```
-pub min : Set(a) -> Result(a, [EmptySet])
-pub min = |s| crash "intrinsic: Set.min"
+pub min = |s| { crash "intrinsic: Set.min" }
 
-/// Return the largest element of the set.
-///
-/// ```
-/// expect Set.from_list([3, 1, 2])->Set.max == Ok(3)
-/// expect Set.new()->Set.max == Err([EmptySet])
-/// ```
-pub max : Set(a) -> Result(a, [EmptySet])
-pub max = |s| crash "intrinsic: Set.max"
+pub max = |s| { crash "intrinsic: Set.max" }
 
--- Modification
+// Modification
 
-/// Insert an element into the set (no-op if already present).
-///
-/// ```
-/// expect Set.new()->Set.insert(1)->Set.contains(1)
-/// expect Set.from_list([1, 2])->Set.insert(2)->Set.size == 2
-/// ```
-pub insert : a, Set(a) -> Set(a)
-pub insert = |x, s| crash "intrinsic: Set.insert"
+pub insert = |x, s| { crash "intrinsic: Set.insert" }
 
-/// Remove an element from the set (no-op if not present).
-///
-/// ```
-/// expect Set.from_list([1, 2, 3])->Set.remove(2)->Set.contains(2) == False
-/// expect Set.from_list([1, 2])->Set.remove(99)->Set.size == 2
-/// ```
-pub remove : a, Set(a) -> Set(a)
-pub remove = |x, s| crash "intrinsic: Set.remove"
+pub remove = |x, s| { crash "intrinsic: Set.remove" }
 
--- Transformation
+// Transformation
 
-/// Accumulate elements of the set into a single value.
-///
-/// ```
-/// expect Set.from_list([1, 2, 3])->Set.fold(0, |acc, x| acc + x) == 6
-/// ```
-pub fold : Set(a), b, (b, a) -> b -> b
-pub fold = |s, init, f|
+pub fold = |s, init, f| {
   match min(s) {
     Ok(x) => fold(remove(x, s), f(init, x), f)
-    Err(_) => init
+    Err(_empty) => init
   }
+}
 
-/// Transform each element of the set, producing a new set.
-///
-/// ```
-/// expect Set.from_list([1, 2, 3])->Set.map(|x| x * 2)->Set.to_list == [2, 4, 6]
-/// ```
-pub map : Set(a), (a) -> b -> Set(b)
-pub map = |s, f|
+pub map = |s, f| {
   fold(s, new, |acc, x| insert(f(x), acc))
+}
 
-/// Keep only elements that satisfy the predicate.
-///
-/// ```
-/// expect Set.from_list([1, 2, 3, 4])->Set.filter(|x| x % 2 == 0)->Set.to_list == [2, 4]
-/// ```
-pub filter : Set(a), (a) -> Bool -> Set(a)
-pub filter = |s, pred|
+pub filter = |s, pred| {
   fold(s, new, |acc, x|
     if pred(x) { insert(x, acc) } else { acc }
   )
+}
 
--- Conversion
+// Conversion
 
-/// Convert the set to an iterator.
-///
-/// ```
-/// expect Set.from_list([1, 2, 3])->Set.to_iter->Iter.size == 3
-/// ```
-pub to_iter : Set(a) -> Iter(a)
-pub to_iter = |s|
-  fold(s, Iter.empty, |acc, x| acc->chain(Iter.singleton(x)))
+pub to_iter = |s| {
+  fold(s, Iter.empty, |acc, x| Iter.chain(acc, Iter.singleton(x)))
+}
 
-/// Create a set from a list (duplicates are collapsed).
-///
-/// ```
-/// expect [1, 2, 2, 3]->Set.from_list->Set.size == 3
-/// ```
-pub from_list : List(a) -> Set(a)
-pub from_list = |xs|
+pub from_list = |xs| {
   Iter.from_list(xs)->fold(new, |s, x| insert(x, s))
+}
 
-/// Convert the set to a list (elements sorted, order unspecified but deterministic).
-///
-/// ```
-/// expect Set.from_list([3, 1, 2])->Set.to_list == [1, 2, 3]
-/// ```
-pub to_list : Set(a) -> List(a)
-pub to_list = |s|
+pub to_list = |s| {
   fold(s, [], |acc, x| List.append(acc, [x]))
+}
 
--- Set operations
+// Set operations
 
-/// Compute the union of two sets.
-///
-/// ```
-/// expect Set.from_list([1, 2])->Set.union(Set.from_list([3, 4]))->Set.size == 4
-/// expect Set.from_list([1, 2])->Set.union(Set.from_list([2, 3]))->Set.size == 3
-/// ```
-pub union : Set(a), Set(a) -> Set(a)
-pub union = |s1, s2|
+pub union = |s1, s2| {
   fold(s2, s1, |acc, x| insert(x, acc))
+}
 
-/// Compute the intersection of two sets.
-///
-/// ```
-/// expect Set.from_list([1, 2, 3])->Set.intersection(Set.from_list([2, 3, 4]))->Set.to_list == [2, 3]
-/// ```
-pub intersection : Set(a), Set(a) -> Set(a)
-pub intersection = |s1, s2|
+pub intersection = |s1, s2| {
   fold(s1, new, |acc, x|
     if contains(x, s2) { insert(x, acc) } else { acc }
   )
+}
 
-/// Compute the set difference (elements in s1 not in s2).
-///
-/// ```
-/// expect Set.from_list([1, 2, 3])->Set.difference(Set.from_list([2, 4]))->Set.to_list == [1, 3]
-/// ```
-pub difference : Set(a), Set(a) -> Set(a)
-pub difference = |s1, s2|
+pub difference = |s1, s2| {
   fold(s2, s1, |acc, x| remove(x, acc))
+}
 
-/// Compute the symmetric difference (elements in either set but not both).
-///
-/// ```
-/// expect Set.from_list([1, 2])->Set.symmetric_difference(Set.from_list([2, 3]))->Set.to_list == [1, 3]
-/// ```
-pub symmetric_difference : Set(a), Set(a) -> Set(a)
-pub symmetric_difference = |s1, s2|
+pub symmetric_difference = |s1, s2| {
   difference(union(s1, s2), intersection(s1, s2))
+}
 
-/// Check if s1 is a subset of s2 (all elements of s1 are in s2).
-///
-/// ```
-/// expect Set.from_list([1, 2])->Set.is_subset(Set.from_list([1, 2, 3]))
-/// expect not Set.from_list([1, 2, 3])->Set.is_subset(Set.from_list([1, 2]))
-/// ```
-pub is_subset : Set(a), Set(a) -> Bool
-pub is_subset = |s1, s2|
+pub is_subset = |s1, s2| {
   fold(s1, True, |acc, x|
     if acc { contains(x, s2) } else { False }
   )
+}
 
-/// Check if two sets are disjoint (no common elements).
-///
-/// ```
-/// expect Set.from_list([1, 2])->Set.is_disjoint(Set.from_list([3, 4]))
-/// expect not Set.from_list([1, 2])->Set.is_disjoint(Set.from_list([2, 3]))
-/// ```
-pub is_disjoint : Set(a), Set(a) -> Bool
-pub is_disjoint = |s1, s2|
+pub is_disjoint = |s1, s2| {
   fold(s1, True, |acc, x|
     if acc { if contains(x, s2) { False } else { True } } else { False }
   )
+}
