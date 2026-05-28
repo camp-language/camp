@@ -595,10 +595,16 @@ Type_Self :: struct {
 	span: base.Source_Span,
 }
 
+Deps_Entry :: struct {
+	alias: string,
+	uri:   string,
+}
+
 File :: struct {
 	path:       string,
 	decls:      [dynamic]Decl,
 	module_doc: string,
+	deps:       [dynamic]Deps_Entry,
 	span:       base.Source_Span,
 }
 

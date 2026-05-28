@@ -32,16 +32,18 @@ KEYWORDS: map[string]base.Token_Kind = {
 	"return"  = .Kw_Return,
 	"crash"   = .Kw_Crash,
 	"todo"    = .Kw_Todo,
+	"deps"    = .Kw_Deps,
 }
 
 Lexer :: struct {
-	source:         string,
-	pos:            int,
-	collector:      ^diagnostics.Diagnostic_Collector,
-	intern:         ^base.Intern_Table,
-	file_id:        int,
-	at_line_start:  bool,
-	saw_blank_line: bool,
+	source:          string,
+	pos:             int,
+	collector:       ^diagnostics.Diagnostic_Collector,
+	intern:          ^base.Intern_Table,
+	file_id:         int,
+	at_line_start:   bool,
+	shebang_skipped: bool,
+	saw_blank_line:  bool,
 }
 
 lexer_init :: proc(
@@ -55,6 +57,7 @@ lexer_init :: proc(
 	l.collector = collector
 	l.intern = table
 	l.file_id = file.id
+	l.shebang_skipped = false
 	l.at_line_start = true
 }
 
@@ -170,6 +173,17 @@ lexer_next :: proc(l: ^Lexer) -> base.Token {
 
 	if l.pos >= len(l.source) {
 		return base.Token{kind = .Eof, span = lexer_make_span(l, l.pos)}
+	}
+
+	// Skip shebang line (#!) at file start
+	if !l.shebang_skipped && l.pos == 0 {
+		l.shebang_skipped = true
+		if l.pos + 1 < len(l.source) && l.source[0] == '#' && l.source[1] == '!' {
+			for l.pos < len(l.source) && l.source[l.pos] != '\n' {l.pos += 1}
+			if l.pos < len(l.source) {l.pos += 1} 	// skip newline
+			l.at_line_start = true
+			return lexer_next(l)
+		}
 	}
 
 	start := l.pos

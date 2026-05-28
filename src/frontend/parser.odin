@@ -159,7 +159,13 @@ parser_parse_file :: proc(p: ^Parser) -> File {
 	file: File
 	file.path = ""
 	file.decls = make([dynamic]Decl, 0, 32)
+	file.deps = make([dynamic]Deps_Entry, 0, 4)
 	module_doc_set := false
+
+	// Parse deps block if present (must appear before any imports/declarations)
+	if p.current.kind == .Kw_Deps {
+		parser_parse_deps_block(p, &file)
+	}
 
 	for p.current.kind != .Eof {
 		doc, orphaned := parser_collect_doc_comments(p)
@@ -185,6 +191,44 @@ parser_parse_file :: proc(p: ^Parser) -> File {
 	}
 
 	return file
+}
+
+
+parser_parse_deps_block :: proc(p: ^Parser, file: ^File) {
+	parser_expect(p, .Kw_Deps) // consume 'deps'
+	parser_expect(p, .LBrace) // consume '{'
+
+	for p.current.kind != .RBrace && p.current.kind != .Eof {
+		if p.current.kind != .Identifier {
+			diagnostics.collector_add_diag(
+				p.collector,
+				diagnostics.diag_expected_token(.Identifier, p.current, p.current.span),
+			)
+			parser_advance(p)
+			continue
+		}
+
+		alias_tok := parser_expect(p, .Identifier)
+		alias := alias_tok.text
+
+		parser_expect(p, .Colon)
+
+		uri_tok: base.Token
+		if p.current.kind == .String_Literal || p.current.kind == .Interpolated_String_Literal {
+			uri_tok = parser_advance(p)
+		} else {
+			diagnostics.collector_add_diag(
+				p.collector,
+				diagnostics.diag_expected_token(.String_Literal, p.current, p.current.span),
+			)
+			parser_advance(p)
+			continue
+		}
+
+		append(&file.deps, Deps_Entry{alias = alias, uri = uri_tok.text})
+	}
+
+	parser_expect(p, .RBrace) // consume '}'
 }
 
 parser_collect_doc_comments :: proc(p: ^Parser) -> (doc: string, orphaned: bool) {
@@ -289,6 +333,7 @@ parser_parse_decl :: proc(p: ^Parser) -> Decl {
 	     .Kw_Return,
 	     .Kw_Crash,
 	     .Kw_Todo,
+	     .Kw_Deps,
 	     .Pipe,
 	     .Arrow,
 	     .Fat_Arrow,
@@ -2118,6 +2163,7 @@ parser_parse_pattern :: proc(p: ^Parser) -> Pattern {
 	     .Kw_Return,
 	     .Kw_Crash,
 	     .Kw_Todo,
+	     .Kw_Deps,
 	     .Arrow,
 	     .Fat_Arrow,
 	     .Eq,
@@ -2453,6 +2499,7 @@ parser_parse_type :: proc(p: ^Parser) -> ^Type {
 	     .Kw_Return,
 	     .Kw_Crash,
 	     .Kw_Todo,
+	     .Kw_Deps,
 	     .Arrow,
 	     .Fat_Arrow,
 	     .Eq,
