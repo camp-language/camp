@@ -622,6 +622,9 @@ compile_test_canon :: proc(
 	defer context.allocator = old_alloc
 	context.allocator = alloc
 
+	// Init DOT_RECEIVER_INTERN_ID for canonicalization
+	semantics.DOT_RECEIVER_INTERN_ID = base.intern(interner, semantics.DOT_RECEIVER_NAME)
+
 	// Build a new CFile: copy all declarations + add main! = test_body
 	main_name_id := base.intern(interner, "main!")
 	main_cn := base.Canonical_Name {
@@ -651,8 +654,13 @@ compile_test_canon :: proc(
 		// Skip test declarations (we're compiling the test body as main!)
 		case ^semantics.CDecl_Expect:
 		// Skip expect declarations (compile-time assertions)
-		case ^semantics.CDecl_Const,
-		     ^semantics.CDecl_Effect,
+		case ^semantics.CDecl_Const:
+			// Skip the original main! declaration - we'll add our own
+			if d.name.name == main_name_id {
+				continue
+			}
+			append(&new_decls, decl)
+		case ^semantics.CDecl_Effect,
 		     ^semantics.CDecl_Trait,
 		     ^semantics.CDecl_Alias,
 		     ^semantics.CDecl_Newtype,
