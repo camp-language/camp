@@ -1,88 +1,64 @@
--- Num/I64.camp
--- Operations on I64. Arithmetic operators are built into the language.
+// Num/I64.camp
+// Operations on I64. Arithmetic operators are built into the language.
 
--- Basic operations (pure Camp)
+// Basic operations (pure Camp)
 
-pub abs : I64 -> I64
-pub abs = |n| if n < 0 { 0 - n } else { n }
+pub abs = |n: I64| -> I64 { if n < 0 { 0 - n } else { n } }
 
-pub clamp : I64, I64, I64 -> I64
-pub clamp = |lo, hi, n| if n < lo { lo } else if n > hi { hi } else { n }
+pub clamp = |lo: I64, hi: I64, n: I64| -> I64 { if n < lo { lo } else if n > hi { hi } else { n } }
 
-pub max : I64, I64 -> I64
-pub max = |a, b| if a > b { a } else { b }
+pub max = |a: I64, b: I64| -> I64 { if a > b { a } else { b } }
 
-pub min : I64, I64 -> I64
-pub min = |a, b| if a < b { a } else { b }
+pub min = |a: I64, b: I64| -> I64 { if a < b { a } else { b } }
 
-pub neg : I64 -> I64
-pub neg = |n| 0 - n
+pub neg = |n: I64| -> I64 { 0 - n }
 
--- Checked arithmetic (intrinsic — overflow detection)
+// Checked arithmetic (intrinsic — overflow detection)
 
-pub checked_add : I64, I64 -> Result(I64, [Overflow])
-pub checked_add = |a, b| crash "intrinsic: Num.I64.checked_add"
+pub checked_add = |a: I64, b: I64| -> I64 { crash "intrinsic: Num.I64.checked_add" }
 
-pub checked_sub : I64, I64 -> Result(I64, [Overflow])
-pub checked_sub = |a, b| crash "intrinsic: Num.I64.checked_sub"
+pub checked_sub = |a: I64, b: I64| -> I64 { crash "intrinsic: Num.I64.checked_sub" }
 
-pub checked_mul : I64, I64 -> Result(I64, [Overflow])
-pub checked_mul = |a, b| crash "intrinsic: Num.I64.checked_mul"
+pub checked_mul = |a: I64, b: I64| -> I64 { crash "intrinsic: Num.I64.checked_mul" }
 
--- Wrapping/saturating arithmetic (intrinsic)
+// Wrapping/saturating arithmetic (intrinsic)
 
-pub wrapping_add : I64, I64 -> I64
-pub wrapping_add = |a, b| crash "intrinsic: Num.I64.wrapping_add"
+pub wrapping_add = |a: I64, b: I64| -> I64 { crash "intrinsic: Num.I64.wrapping_add" }
 
-pub saturating_add : I64, I64 -> I64
-pub saturating_add = |a, b| crash "intrinsic: Num.I64.saturating_add"
+pub saturating_add = |a: I64, b: I64| -> I64 { crash "intrinsic: Num.I64.saturating_add" }
 
-pub saturating_sub : I64, I64 -> I64
-pub saturating_sub = |a, b| crash "intrinsic: Num.I64.saturating_sub"
+pub saturating_sub = |a: I64, b: I64| -> I64 { crash "intrinsic: Num.I64.saturating_sub" }
 
--- Conversion (intrinsic)
+// Conversion (intrinsic)
 
-pub to_str : I64 -> Str
-pub to_str = |n| crash "intrinsic: Num.I64.to_str"
+pub to_str = |n: I64| -> Str { crash "intrinsic: Num.I64.to_str" }
 
-pub from_str : Str -> Result(I64, [InvalidFormat])
-pub from_str = |s| crash "intrinsic: Num.I64.from_str"
+pub from_str = |s: Str| -> I64 { crash "intrinsic: Num.I64.from_str" }
 
--- Range iteration (intrinsic — needs efficient generator)
+// Range iteration (intrinsic — needs efficient generator)
 
-pub range : I64, I64 -> Iter(I64)
-pub range = |start, end| crash "intrinsic: Num.I64.range"
+pub range = |start: I64, end: I64| { crash "intrinsic: Num.I64.range" }
 
--- Bitwise function wrappers (pure Camp — operator sugar for UFCS)
+// Bitwise function wrappers (intrinsic)
 
-pub bitwise_and : I64, I64 -> I64
-pub bitwise_and = |a, b| a & b
+pub bitwise_and = |a: I64, b: I64| -> I64 { crash "intrinsic: Num.I64.bitwise_and" }
 
-pub bitwise_or : I64, I64 -> I64
-pub bitwise_or = |a, b| a | b
+pub bitwise_or = |a: I64, b: I64| -> I64 { crash "intrinsic: Num.I64.bitwise_or" }
 
-pub bitwise_xor : I64, I64 -> I64
-pub bitwise_xor = |a, b| a ^ b
+pub bitwise_xor = |a: I64, b: I64| -> I64 { crash "intrinsic: Num.I64.bitwise_xor" }
 
-pub bitwise_not : I64 -> I64
-pub bitwise_not = |a| ~a
+pub bitwise_not = |a: I64| -> I64 { crash "intrinsic: Num.I64.bitwise_not" }
 
-pub shift_left : I64, I64 -> I64
-pub shift_left = |a, n| a << n
+pub shift_left = |a: I64, n: I64| -> I64 { crash "intrinsic: Num.I64.shift_left" }
 
-pub shift_right : I64, I64 -> I64
-pub shift_right = |a, n| a >> n
+pub shift_right = |a: I64, n: I64| -> I64 { crash "intrinsic: Num.I64.shift_right" }
 
--- Counting (intrinsic)
+// Counting (intrinsic)
 
-pub count_ones : I64 -> I64
-pub count_ones = |n| crash "intrinsic: Num.I64.count_ones"
+pub count_ones = |n: I64| -> I64 { crash "intrinsic: Num.I64.count_ones" }
 
-pub count_zeros : I64 -> I64
-pub count_zeros = |n| crash "intrinsic: Num.I64.count_zeros"
+pub count_zeros = |n: I64| -> I64 { crash "intrinsic: Num.I64.count_zeros" }
 
-pub leading_zeros : I64 -> I64
-pub leading_zeros = |n| crash "intrinsic: Num.I64.leading_zeros"
+pub leading_zeros = |n: I64| -> I64 { crash "intrinsic: Num.I64.leading_zeros" }
 
-pub trailing_zeros : I64 -> I64
-pub trailing_zeros = |n| crash "intrinsic: Num.I64.trailing_zeros"
+pub trailing_zeros = |n: I64| -> I64 { crash "intrinsic: Num.I64.trailing_zeros" }

@@ -1,105 +1,75 @@
--- Str.camp
--- Str is a builtin type. This file declares the public API.
--- All functions are intrinsic (require runtime UTF-8/Unicode support).
+// Str.camp
+// Str is a builtin type. This file declares the public API.
+// All functions are intrinsic (require runtime UTF-8/Unicode support).
 
--- Queries
-pub length : Str -> I64
-pub length = |s| crash "intrinsic: Str.length"
+// Queries
+pub length = |s: Str| -> I64 { crash "intrinsic: Str.length" }
 
-pub byte_size : Str -> I64
-pub byte_size = |s| crash "intrinsic: Str.byte_size"
+pub byte_size = |s: Str| -> I64 { crash "intrinsic: Str.byte_size" }
 
-pub is_empty : Str -> Bool
-pub is_empty = |s| byte_size(s) == 0
+pub is_empty = |s: Str| -> Bool { byte_size(s) == 0 }
 
--- Comparison
-pub starts_with : Str, Str -> Bool
-pub starts_with = |s, prefix| crash "intrinsic: Str.starts_with"
+// Comparison
+pub starts_with = |s: Str, prefix: Str| -> Bool { crash "intrinsic: Str.starts_with" }
 
-pub ends_with : Str, Str -> Bool
-pub ends_with = |s, suffix| crash "intrinsic: Str.ends_with"
+pub ends_with = |s: Str, suffix: Str| -> Bool { crash "intrinsic: Str.ends_with" }
 
-pub contains : Str, Str -> Bool
-pub contains = |s, substr| crash "intrinsic: Str.contains"
+pub contains = |s: Str, substr: Str| -> Bool { crash "intrinsic: Str.contains" }
 
--- Slicing (grapheme-safe)
-pub take : Str, I64 -> Str
-pub take = |s, n| crash "intrinsic: Str.take"
+// Slicing (grapheme-safe)
+pub take = |s: Str, n: I64| -> Str { crash "intrinsic: Str.take" }
 
-pub drop : Str, I64 -> Str
-pub drop = |s, n| crash "intrinsic: Str.drop"
+pub drop = |s: Str, n: I64| -> Str { crash "intrinsic: Str.drop" }
 
-pub slice : Str, I64, I64 -> Str
-pub slice = |s, start, len| crash "intrinsic: Str.slice"
+pub slice = |s: Str, start: I64, len: I64| -> Str { crash "intrinsic: Str.slice" }
 
--- Splitting
-pub split : Str, Str -> List(Str)
-pub split = |s, sep| crash "intrinsic: Str.split"
+// Splitting
+pub split = |s: Str, sep: Str| -> List(Str) { crash "intrinsic: Str.split" }
 
-pub split_first : Str, Str -> Result((Str, Str), [NotFound])
-pub split_first = |s, sep| crash "intrinsic: Str.split_first"
+pub split_first = |s: Str, sep: Str| -> Result((Str, Str), [NotFound]) { crash "intrinsic: Str.split_first" }
 
-pub split_last : Str, Str -> Result((Str, Str), [NotFound])
-pub split_last = |s, sep| crash "intrinsic: Str.split_last"
+pub split_last = |s: Str, sep: Str| -> Result((Str, Str), [NotFound]) { crash "intrinsic: Str.split_last" }
 
--- Trimming (Unicode whitespace)
-pub trim : Str -> Str
-pub trim = |s| crash "intrinsic: Str.trim"
+// Trimming (Unicode whitespace)
+pub trim = |s: Str| -> Str { crash "intrinsic: Str.trim" }
 
-pub trim_start : Str -> Str
-pub trim_start = |s| crash "intrinsic: Str.trim_start"
+pub trim_start = |s: Str| -> Str { crash "intrinsic: Str.trim_start" }
 
-pub trim_end : Str -> Str
-pub trim_end = |s| crash "intrinsic: Str.trim_end"
+pub trim_end = |s: Str| -> Str { crash "intrinsic: Str.trim_end" }
 
--- Case (Unicode)
-pub to_lower : Str -> Str
-pub to_lower = |s| crash "intrinsic: Str.to_lower"
+// Case (Unicode)
+pub to_lower = |s: Str| -> Str { crash "intrinsic: Str.to_lower" }
 
-pub to_upper : Str -> Str
-pub to_upper = |s| crash "intrinsic: Str.to_upper"
+pub to_upper = |s: Str| -> Str { crash "intrinsic: Str.to_upper" }
 
--- Concatenation
-pub concat : Str, Str -> Str
-pub concat = |a, b| crash "intrinsic: Str.concat"
+// Concatenation
+pub concat = |a: Str, b: Str| -> Str { crash "intrinsic: Str.concat" }
 
-pub join : List(Str), Str -> Str
-pub join = |parts, sep| crash "intrinsic: Str.join"
+pub join = |parts: List(Str), sep: Str| -> Str { crash "intrinsic: Str.join" }
 
-pub repeat : Str, I64 -> Str
-pub repeat = |s, n| crash "intrinsic: Str.repeat"
+pub repeat = |s: Str, n: I64| -> Str { crash "intrinsic: Str.repeat" }
 
--- Replacement
-pub replace : Str, Str, Str -> Str
-pub replace = |s, pattern, replacement| crash "intrinsic: Str.replace"
+// Replacement
+pub replace = |s: Str, pattern: Str, replacement: Str| -> Str { crash "intrinsic: Str.replace" }
 
-pub replace_first : Str, Str, Str -> Str
-pub replace_first = |s, pattern, replacement| crash "intrinsic: Str.replace_first"
+pub replace_first = |s: Str, pattern: Str, replacement: Str| -> Str { crash "intrinsic: Str.replace_first" }
 
--- Prefix/Suffix manipulation
-pub drop_prefix : Str, Str -> Str
-pub drop_prefix = |s, prefix| crash "intrinsic: Str.drop_prefix"
+// Prefix/Suffix manipulation
+pub drop_prefix = |s: Str, prefix: Str| -> Str { crash "intrinsic: Str.drop_prefix" }
 
-pub drop_suffix : Str, Str -> Str
-pub drop_suffix = |s, suffix| crash "intrinsic: Str.drop_suffix"
+pub drop_suffix = |s: Str, suffix: Str| -> Str { crash "intrinsic: Str.drop_suffix" }
 
--- Conversion
-pub to_bytes : Str -> Bytes
-pub to_bytes = |s| crash "intrinsic: Str.to_bytes"
+// Conversion
+pub to_bytes = |s: Str| -> Bytes { crash "intrinsic: Str.to_bytes" }
 
-pub from_bytes : Bytes -> Result(Str, [InvalidUtf8])
-pub from_bytes = |b| crash "intrinsic: Str.from_bytes"
+pub from_bytes = |b: Bytes| -> Result(Str, [InvalidUtf8]) { crash "intrinsic: Str.from_bytes" }
 
-pub from_bytes_lossy : Bytes -> Str
-pub from_bytes_lossy = |b| crash "intrinsic: Str.from_bytes_lossy"
+pub from_bytes_lossy = |b: Bytes| -> Str { crash "intrinsic: Str.from_bytes_lossy" }
 
--- Parsing (numeric)
-pub to_i64 : Str -> Result(I64, [InvalidFormat])
-pub to_i64 = |s| crash "intrinsic: Str.to_i64"
+// Parsing (numeric)
+pub to_i64 = |s: Str| -> Result(I64, [InvalidFormat]) { crash "intrinsic: Str.to_i64" }
 
-pub to_f64 : Str -> Result(F64, [InvalidFormat])
-pub to_f64 = |s| crash "intrinsic: Str.to_f64"
+pub to_f64 = |s: Str| -> Result(F64, [InvalidFormat]) { crash "intrinsic: Str.to_f64" }
 
--- Iteration (grapheme-by-grapheme)
-pub to_iter : Str -> Iter(Str)
-pub to_iter = |s| crash "intrinsic: Str.to_iter"
+// Iteration (grapheme-by-grapheme)
+pub to_iter = |s: Str| -> Iter(Str) { crash "intrinsic: Str.to_iter" }

@@ -1,9 +1,9 @@
--- Log! effect — message-only logging
--- Per D15: Message-only. Structured logging is a package concern.
+// Log! effect — message-only logging
+// Per D15: Message-only. Structured logging is a package concern.
 
-effect Log! : {
-  debug! : Str -> -[Log!]-> (),
-  info!  : Str -> -[Log!]-> (),
-  warn!  : Str -> -[Log!]-> (),
-  error! : Str -> -[Log!]-> (),
+Log! : {
+  debug! : |Str| -> -[Log!]-> {},
+  info!  : |Str| -> -[Log!]-> {},
+  warn!  : |Str| -> -[Log!]-> {},
+  error! : |Str| -> -[Log!]-> {},
 }

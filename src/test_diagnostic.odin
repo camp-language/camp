@@ -218,3 +218,201 @@ test_diag_file_not_found :: proc(t: ^testing.T) {
 	testing.expect(t, d.span == base.Source_Span_ZERO)
 }
 
+@(test)
+test_diag_expected_token :: proc(t: ^testing.T) {
+	span := base.Source_Span{file_id = 0, start = 5, end = 8}
+	tok := base.Token{
+		kind = .Identifier,
+		text = "foo",
+		span = span,
+	}
+	d := diagnostics.diag_expected_token(.Kw_If, tok, span)
+	defer diagnostics.diag_destroy(&d)
+	testing.expect(t, d.category == .Error)
+	testing.expect(t, d.title == "SYNTAX ERROR")
+	testing.expect(t, d.code == "C0100")
+	testing.expect(t, d.span == span)
+}
+
+@(test)
+test_diag_unexpected_token :: proc(t: ^testing.T) {
+	span := base.Source_Span{file_id = 0, start = 3, end = 4}
+	tok := base.Token{
+		kind = .Pipe,
+		text = "|",
+		span = span,
+	}
+	d := diagnostics.diag_unexpected_token(tok)
+	defer diagnostics.diag_destroy(&d)
+	testing.expect(t, d.category == .Error)
+	testing.expect(t, d.title == "SYNTAX ERROR")
+	testing.expect(t, d.code == "C0101")
+	testing.expect(t, d.span == span)
+	testing.expect(t, len(d.hints) >= 1)
+}
+
+@(test)
+test_diag_expected_type :: proc(t: ^testing.T) {
+	span := base.Source_Span{file_id = 0, start = 10, end = 15}
+	tok := base.Token{
+		kind = .Int_Literal,
+		text = "42",
+		span = span,
+	}
+	d := diagnostics.diag_expected_type(tok, span)
+	defer diagnostics.diag_destroy(&d)
+	testing.expect(t, d.category == .Error)
+	testing.expect(t, d.title == "SYNTAX ERROR")
+	testing.expect(t, d.code == "C0102")
+	testing.expect(t, d.span == span)
+}
+
+@(test)
+test_diag_unhandled_effect :: proc(t: ^testing.T) {
+	span := base.Source_Span{file_id = 0, start = 0, end = 10}
+	d := diagnostics.diag_unhandled_effect("Console", span)
+	defer diagnostics.diag_destroy(&d)
+	testing.expect(t, d.category == .Error)
+	testing.expect(t, d.title == "UNHANDLED EFFECT")
+	testing.expect(t, d.code == "C0401")
+	testing.expect(t, len(d.hints) == 1)
+	testing.expect(t, d.span == span)
+}
+
+@(test)
+test_diag_primitive_mismatch :: proc(t: ^testing.T) {
+	span_a := base.Source_Span{file_id = 0, start = 0, end = 3}
+	span_b := base.Source_Span{file_id = 0, start = 10, end = 15}
+	d := diagnostics.diag_primitive_mismatch("I64", "String", span_a, span_b)
+	defer diagnostics.diag_destroy(&d)
+	testing.expect(t, d.category == .Error)
+	testing.expect(t, d.title == "TYPE MISMATCH")
+	testing.expect(t, d.code == "C0301")
+	testing.expect(t, d.span == span_a)
+	testing.expect(t, len(d.labels) == 1)
+	testing.expect(t, d.labels[0].span == span_b)
+}
+
+@(test)
+test_diag_primitive_mismatch_no_secondary :: proc(t: ^testing.T) {
+	span_a := base.Source_Span{file_id = 0, start = 0, end = 3}
+	d := diagnostics.diag_primitive_mismatch("I64", "String", span_a, base.Source_Span_ZERO)
+	defer diagnostics.diag_destroy(&d)
+	testing.expect(t, len(d.labels) == 0)
+}
+
+@(test)
+test_diag_infinite_type :: proc(t: ^testing.T) {
+	span_a := base.Source_Span{file_id = 0, start = 0, end = 10}
+	span_b := base.Source_Span{file_id = 0, start = 20, end = 25}
+	d := diagnostics.diag_infinite_type("List", span_a, span_b)
+	defer diagnostics.diag_destroy(&d)
+	testing.expect(t, d.category == .Error)
+	testing.expect(t, d.title == "INFINITE TYPE")
+	testing.expect(t, d.code == "C0303")
+	testing.expect(t, d.span == span_a)
+	testing.expect(t, len(d.labels) == 1)
+	testing.expect(t, d.labels[0].span == span_b)
+}
+
+@(test)
+test_diag_infinite_type_no_secondary :: proc(t: ^testing.T) {
+	span := base.Source_Span{file_id = 0, start = 0, end = 10}
+	d := diagnostics.diag_infinite_type("List", span, base.Source_Span_ZERO)
+	defer diagnostics.diag_destroy(&d)
+	testing.expect(t, len(d.labels) == 0)
+}
+
+@(test)
+test_diag_module_not_found :: proc(t: ^testing.T) {
+	span := base.Source_Span{file_id = 0, start = 7, end = 20}
+	d := diagnostics.diag_module_not_found("io", span)
+	defer diagnostics.diag_destroy(&d)
+	testing.expect(t, d.category == .Error)
+	testing.expect(t, d.title == "MODULE NOT FOUND")
+	testing.expect(t, d.code == "C0800")
+	testing.expect(t, d.span == span)
+}
+
+@(test)
+test_diag_cyclic_dependency :: proc(t: ^testing.T) {
+	span := base.Source_Span{file_id = 0, start = 0, end = 5}
+	d := diagnostics.diag_cyclic_dependency("A -> B -> C -> A", span)
+	defer diagnostics.diag_destroy(&d)
+	testing.expect(t, d.category == .Error)
+	testing.expect(t, d.title == "CYCLIC DEPENDENCY")
+	testing.expect(t, d.code == "C0801")
+	testing.expect(t, d.span == span)
+}
+
+@(test)
+test_diag_entry_point_not_found :: proc(t: ^testing.T) {
+	d := diagnostics.diag_entry_point_not_found()
+	defer diagnostics.diag_destroy(&d)
+	testing.expect(t, d.category == .Error)
+	testing.expect(t, d.title == "ENTRY POINT NOT FOUND")
+	testing.expect(t, d.code == "C0805")
+	testing.expect(t, d.span == base.Source_Span_ZERO)
+}
+
+@(test)
+test_diag_unjoined_spawn :: proc(t: ^testing.T) {
+	span := base.Source_Span{file_id = 0, start = 5, end = 15}
+	d := diagnostics.diag_unjoined_spawn(span)
+	defer diagnostics.diag_destroy(&d)
+	testing.expect(t, d.category == .Warning)
+	testing.expect(t, d.title == "UNJOINED SPAWN")
+	testing.expect(t, d.code == "C0905")
+	testing.expect(t, len(d.hints) == 1)
+	testing.expect(t, d.span == span)
+}
+
+@(test)
+test_diag_redundant_pattern :: proc(t: ^testing.T) {
+	span := base.Source_Span{file_id = 0, start = 10, end = 20}
+	d := diagnostics.diag_redundant_pattern(span)
+	defer diagnostics.diag_destroy(&d)
+	testing.expect(t, d.category == .Warning)
+	testing.expect(t, d.title == "REDUNDANT PATTERN")
+	testing.expect(t, d.code == "C0503")
+	testing.expect(t, len(d.hints) == 1)
+	testing.expect(t, d.span == span)
+}
+
+@(test)
+test_diag_non_exhaustive_bool :: proc(t: ^testing.T) {
+	span := base.Source_Span{file_id = 0, start = 0, end = 20}
+	d := diagnostics.diag_non_exhaustive_bool("false", span)
+	defer diagnostics.diag_destroy(&d)
+	testing.expect(t, d.category == .Error)
+	testing.expect(t, d.title == "NON-EXHAUSTIVE MATCH")
+	testing.expect(t, d.code == "C0500")
+	testing.expect(t, d.span == span)
+}
+
+@(test)
+test_diag_shadow :: proc(t: ^testing.T) {
+	span := base.Source_Span{file_id = 0, start = 0, end = 3}
+	shadow_id := base.Intern_ID(42)
+	d := diagnostics.diag_shadow(shadow_id, "x", span)
+	defer diagnostics.diag_destroy(&d)
+	testing.expect(t, d.category == .Error)
+	testing.expect(t, d.title == "SHADOWING")
+	testing.expect(t, d.code == "C0201")
+	testing.expect(t, len(d.hints) == 1)
+	testing.expect(t, d.shadowed_name == shadow_id)
+	testing.expect(t, d.span == span)
+}
+
+@(test)
+test_diag_unused_binding :: proc(t: ^testing.T) {
+	span := base.Source_Span{file_id = 0, start = 0, end = 3}
+	d := diagnostics.diag_unused_binding("x", "Use _x to suppress", span)
+	defer diagnostics.diag_destroy(&d)
+	testing.expect(t, d.category == .Warning)
+	testing.expect(t, d.title == "UNUSED BINDING")
+	testing.expect(t, d.code == "C0900")
+	testing.expect(t, len(d.hints) == 1)
+	testing.expect(t, d.span == span)
+}
+
