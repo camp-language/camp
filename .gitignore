@@ -1,5 +1,6 @@
 camp
 camp-*
+!.beans/camp-*
 !.beans/
 build
 *.bin
