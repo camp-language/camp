@@ -276,6 +276,143 @@ test_codegen_pipeline_with_if :: proc(t: ^testing.T) {
 
 
 // ═══════════════════════════════════════════════════════════════════════════════
+// Additional expression coverage tests
+// ═══════════════════════════════════════════════════════════════════════════════
+
+@(test)
+test_codegen_string_return :: proc(t: ^testing.T) {
+	// String literal as return value
+	ctx: build.Compilation_Context
+	wasm_bytes := compile_source(&ctx, "main! = || -> Str { \"hello\" }")
+	defer delete(wasm_bytes)
+	defer teardown_codegen(&ctx)
+
+	testing.expect(t, len(wasm_bytes) >= 8)
+	testing.expect(t, wasm_bytes[0] == 0x00)
+	testing.expect(t, wasm_bytes[1] == 0x61)
+	testing.expect(t, wasm_bytes[2] == 0x73)
+	testing.expect(t, wasm_bytes[3] == 0x6D)
+	testing.expect(t, wasm_bytes[4] == 0x01)
+	testing.expect(t, wasm_bytes[5] == 0x00)
+	testing.expect(t, wasm_bytes[6] == 0x00)
+	testing.expect(t, wasm_bytes[7] == 0x00)
+}
+
+@(test)
+test_codegen_integer_add :: proc(t: ^testing.T) {
+	// Integer addition produces valid WASM
+	ctx: build.Compilation_Context
+	wasm_bytes := compile_source(&ctx, "main! = || -> I64 { 1 + 2 }")
+	defer delete(wasm_bytes)
+	defer teardown_codegen(&ctx)
+
+	testing.expect(t, len(wasm_bytes) >= 8)
+	testing.expect(t, wasm_bytes[0] == 0x00)
+	testing.expect(t, wasm_bytes[1] == 0x61)
+	testing.expect(t, wasm_bytes[2] == 0x73)
+	testing.expect(t, wasm_bytes[3] == 0x6D)
+	testing.expect(t, wasm_bytes[4] == 0x01)
+	testing.expect(t, wasm_bytes[5] == 0x00)
+	testing.expect(t, wasm_bytes[6] == 0x00)
+	testing.expect(t, wasm_bytes[7] == 0x00)
+}
+
+@(test)
+test_codegen_if_expression :: proc(t: ^testing.T) {
+	// If expression with True/False produces valid WASM
+	ctx: build.Compilation_Context
+	wasm_bytes := compile_source(&ctx, "main! = || -> I64 { if True { 42 } else { 0 } }")
+	defer delete(wasm_bytes)
+	defer teardown_codegen(&ctx)
+
+	testing.expect(t, len(wasm_bytes) >= 8)
+	testing.expect(t, wasm_bytes[0] == 0x00)
+	testing.expect(t, wasm_bytes[1] == 0x61)
+	testing.expect(t, wasm_bytes[2] == 0x73)
+	testing.expect(t, wasm_bytes[3] == 0x6D)
+	testing.expect(t, wasm_bytes[4] == 0x01)
+	testing.expect(t, wasm_bytes[5] == 0x00)
+	testing.expect(t, wasm_bytes[6] == 0x00)
+	testing.expect(t, wasm_bytes[7] == 0x00)
+}
+
+@(test)
+test_codegen_main_returns_unit :: proc(t: ^testing.T) {
+	// main! returning Unit (no -> type) produces valid WASM
+	ctx: build.Compilation_Context
+	wasm_bytes := compile_source(&ctx, "main! = || { 42 }")
+	defer delete(wasm_bytes)
+	defer teardown_codegen(&ctx)
+
+	testing.expect(t, len(wasm_bytes) >= 8)
+	testing.expect(t, wasm_bytes[0] == 0x00)
+	testing.expect(t, wasm_bytes[1] == 0x61)
+	testing.expect(t, wasm_bytes[2] == 0x73)
+	testing.expect(t, wasm_bytes[3] == 0x6D)
+	testing.expect(t, wasm_bytes[4] == 0x01)
+	testing.expect(t, wasm_bytes[5] == 0x00)
+	testing.expect(t, wasm_bytes[6] == 0x00)
+	testing.expect(t, wasm_bytes[7] == 0x00)
+}
+
+@(test)
+test_codegen_block_expression :: proc(t: ^testing.T) {
+	// Block expression (nested braces) produces valid WASM
+	ctx: build.Compilation_Context
+	wasm_bytes := compile_source(&ctx, "main! = || -> I64 { { 42 } }")
+	defer delete(wasm_bytes)
+	defer teardown_codegen(&ctx)
+
+	testing.expect(t, len(wasm_bytes) >= 8)
+	testing.expect(t, wasm_bytes[0] == 0x00)
+	testing.expect(t, wasm_bytes[1] == 0x61)
+	testing.expect(t, wasm_bytes[2] == 0x73)
+	testing.expect(t, wasm_bytes[3] == 0x6D)
+	testing.expect(t, wasm_bytes[4] == 0x01)
+	testing.expect(t, wasm_bytes[5] == 0x00)
+	testing.expect(t, wasm_bytes[6] == 0x00)
+	testing.expect(t, wasm_bytes[7] == 0x00)
+}
+
+@(test)
+test_codegen_nested_arithmetic :: proc(t: ^testing.T) {
+	// Nested arithmetic with parentheses produces valid WASM
+	ctx: build.Compilation_Context
+	wasm_bytes := compile_source(&ctx, "main! = || -> I64 { (1 + 2) * 3 }")
+	defer delete(wasm_bytes)
+	defer teardown_codegen(&ctx)
+
+	testing.expect(t, len(wasm_bytes) >= 8)
+	testing.expect(t, wasm_bytes[0] == 0x00)
+	testing.expect(t, wasm_bytes[1] == 0x61)
+	testing.expect(t, wasm_bytes[2] == 0x73)
+	testing.expect(t, wasm_bytes[3] == 0x6D)
+	testing.expect(t, wasm_bytes[4] == 0x01)
+	testing.expect(t, wasm_bytes[5] == 0x00)
+	testing.expect(t, wasm_bytes[6] == 0x00)
+	testing.expect(t, wasm_bytes[7] == 0x00)
+}
+
+@(test)
+test_codegen_multiple_declarations :: proc(t: ^testing.T) {
+	// Module-level constant binding referenced by main! produces valid WASM
+	ctx: build.Compilation_Context
+	wasm_bytes := compile_source(&ctx, "helper = 42\nmain! = || -> I64 { helper }")
+	defer delete(wasm_bytes)
+	defer teardown_codegen(&ctx)
+
+	testing.expect(t, len(wasm_bytes) >= 8)
+	testing.expect(t, wasm_bytes[0] == 0x00)
+	testing.expect(t, wasm_bytes[1] == 0x61)
+	testing.expect(t, wasm_bytes[2] == 0x73)
+	testing.expect(t, wasm_bytes[3] == 0x6D)
+	testing.expect(t, wasm_bytes[4] == 0x01)
+	testing.expect(t, wasm_bytes[5] == 0x00)
+	testing.expect(t, wasm_bytes[6] == 0x00)
+	testing.expect(t, wasm_bytes[7] == 0x00)
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
 // Handle one-shot enforcement tests
 // ═══════════════════════════════════════════════════════════════════════════════
 
