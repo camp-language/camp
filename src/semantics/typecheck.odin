@@ -255,8 +255,14 @@ typecheck_synth :: proc(expr: CExpr, env: ^Type_Env, store: ^Type_Store) -> Synt
 		return Synth_Result{var_id = var_id, effects = eff, texpr = TExpr(t)}
 
 	case ^CExpr_Float:
-		name := base.intern(store.interner, "F64")
-		var_id := make_primitive_type(store, name, e.span)
+		// Use type annotation if present, otherwise default to F64
+		var_id: base.Type_Var_ID
+		if e.type_ann != nil {
+			var_id = convert_type_to_var(e.type_ann, store, env)
+		} else {
+			name := base.intern(store.interner, "F64")
+			var_id = make_primitive_type(store, name, e.span)
+		}
 		store.literal_float_values[var_id] = e.value
 		eff := fresh_effect_row(store, e.span)
 		t := new(TExpr_Float)

@@ -6,3 +6,4 @@ build
 tree-sitter/node_modules/
 tree-sitter/build/
 *.wasm
+.omo/

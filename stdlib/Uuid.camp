@@ -1,7 +1,7 @@
--- Uuid.camp — Universally Unique Identifiers
--- Per D38: v4!/v7! use Random! only. Handler choice determines security.
+// Uuid.camp — Universally Unique Identifiers
+// Per D38: v4!/v7! use Random! only. Handler choice determines security.
 
-@Uuid : pub Bytes                              -- 16 bytes, opaque
+@Uuid : pub Bytes                              // 16 bytes, opaque
 
 @UuidErr : pub [
     InvalidFormat(Str)
@@ -12,40 +12,30 @@
 @UuidVariant : pub [V4 | V7 | Unknown(U8)]
 @UuidFormat  : pub [Standard | Compact | Urn | Braced]
 
--- Generation — effectful (intrinsic)
+// Generation — effectful (intrinsic)
 
-pub v4! : -[Random!]-> Uuid
-pub v4! = || crash "intrinsic: Uuid.v4"
+pub v4! = || -> Uuid { crash "intrinsic: Uuid.v4" }
 
-pub v7! : I64 -> -[Random!]-> Uuid              -- timestamp in milliseconds
-pub v7! = |_ts| crash "intrinsic: Uuid.v7"
+pub v7! = |_ts: U64| -> Uuid { crash "intrinsic: Uuid.v7" }
 
--- Parsing — pure Camp
+// Parsing — pure Camp
 
-pub parse : Str -> Result(Uuid, UuidErr)
-pub parse = |_s| crash "intrinsic: Uuid.parse"  -- TODO: pure Camp implementation
+pub parse = |_s: Str| -> Result(Uuid, UuidErr) { crash "intrinsic: Uuid.parse" }
 
-pub from_bytes : Bytes -> Result(Uuid, UuidErr)
-pub from_bytes = |_b| crash "intrinsic: Uuid.from_bytes"  -- TODO: pure Camp implementation
+pub from_bytes = |_b: Bytes| -> Result(Uuid, UuidErr) { crash "intrinsic: Uuid.from_bytes" }
 
--- Formatting — pure Camp
+// Formatting — pure Camp
 
-pub to_str : Uuid -> Str
-pub to_str = |_u| crash "intrinsic: Uuid.to_str"  -- TODO: pure Camp implementation
+pub to_str = |_u: Uuid| -> Str { crash "intrinsic: Uuid.to_str" }
 
-pub format : UuidFormat, Uuid -> Str
-pub format = |_fmt, _u| crash "intrinsic: Uuid.format"  -- TODO: pure Camp implementation
+pub format = |_fmt: UuidFormat, _u: Uuid| -> Str { crash "intrinsic: Uuid.format" }
 
-pub to_bytes : Uuid -> Bytes
-pub to_bytes = |u| u                           -- @Uuid wraps Bytes
+pub to_bytes = |_u: Uuid| -> Bytes { crash "intrinsic: Uuid.to_bytes" }
 
--- Inspection — pure Camp
+// Inspection — pure Camp
 
-pub version : Uuid -> U8
-pub version = |_u| crash "intrinsic: Uuid.version"  -- TODO: pure Camp implementation
+pub version = |_u: Uuid| -> U8 { crash "intrinsic: Uuid.version" }
 
-pub variant : Uuid -> UuidVariant
-pub variant = |_u| crash "intrinsic: Uuid.variant"  -- TODO: pure Camp implementation
+pub variant = |_u: Uuid| -> UuidVariant { crash "intrinsic: Uuid.variant" }
 
-pub timestamp : Uuid -> Result(I64, [Absent])   -- V7 only; Err if not V7
-pub timestamp = |_u| crash "intrinsic: Uuid.timestamp"  -- TODO: pure Camp implementation
+pub timestamp = |_u: Uuid| -> U64 { crash "intrinsic: Uuid.timestamp" }

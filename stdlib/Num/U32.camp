@@ -1,62 +1,42 @@
--- Num/U32.camp
--- Operations on U32. Unsigned — no abs or neg.
+// Num/U32.camp
+// Operations on U32. Unsigned — no abs or neg.
 
-pub clamp : U32, U32, U32 -> U32
-pub clamp = |lo, hi, n| if n < lo { lo } else if n > hi { hi } else { n }
+pub clamp = |lo: U32, hi: U32, n: U32| -> U32 { if n < lo { lo } else if n > hi { hi } else { n } }
 
-pub max : U32, U32 -> U32
-pub max = |a, b| if a > b { a } else { b }
+pub max = |a: U32, b: U32| -> U32 { if a > b { a } else { b } }
 
-pub min : U32, U32 -> U32
-pub min = |a, b| if a < b { a } else { b }
+pub min = |a: U32, b: U32| -> U32 { if a < b { a } else { b } }
 
-pub checked_add : U32, U32 -> Result(U32, [Overflow])
-pub checked_add = |a, b| crash "intrinsic: Num.U32.checked_add"
+pub checked_add = |a: U32, b: U32| -> U32 { crash "intrinsic: Num.U32.checked_add" }
 
-pub checked_sub : U32, U32 -> Result(U32, [Overflow])
-pub checked_sub = |a, b| crash "intrinsic: Num.U32.checked_sub"
+pub checked_sub = |a: U32, b: U32| -> U32 { crash "intrinsic: Num.U32.checked_sub" }
 
-pub checked_mul : U32, U32 -> Result(U32, [Overflow])
-pub checked_mul = |a, b| crash "intrinsic: Num.U32.checked_mul"
+pub checked_mul = |a: U32, b: U32| -> U32 { crash "intrinsic: Num.U32.checked_mul" }
 
-pub wrapping_add : U32, U32 -> U32
-pub wrapping_add = |a, b| crash "intrinsic: Num.U32.wrapping_add"
+pub wrapping_add = |a: U32, b: U32| -> U32 { crash "intrinsic: Num.U32.wrapping_add" }
 
-pub saturating_add : U32, U32 -> U32
-pub saturating_add = |a, b| crash "intrinsic: Num.U32.saturating_add"
+pub saturating_add = |a: U32, b: U32| -> U32 { crash "intrinsic: Num.U32.saturating_add" }
 
-pub saturating_sub : U32, U32 -> U32
-pub saturating_sub = |a, b| crash "intrinsic: Num.U32.saturating_sub"
+pub saturating_sub = |a: U32, b: U32| -> U32 { crash "intrinsic: Num.U32.saturating_sub" }
 
-pub to_str : U32 -> Str
-pub to_str = |n| crash "intrinsic: Num.U32.to_str"
+pub to_str = |n: U32| -> Str { crash "intrinsic: Num.U32.to_str" }
 
-pub from_str : Str -> Result(U32, [InvalidFormat])
-pub from_str = |s| crash "intrinsic: Num.U32.from_str"
+pub from_str = |s: Str| -> U32 { crash "intrinsic: Num.U32.from_str" }
 
-pub bitwise_and : U32, U32 -> U32
-pub bitwise_and = |a, b| a & b
+pub bitwise_and = |a: U32, b: U32| -> U32 { crash "intrinsic: Num.U32.bitwise_and" }
 
-pub bitwise_or : U32, U32 -> U32
-pub bitwise_or = |a, b| a | b
+pub bitwise_or = |a: U32, b: U32| -> U32 { crash "intrinsic: Num.U32.bitwise_or" }
 
-pub bitwise_xor : U32, U32 -> U32
-pub bitwise_xor = |a, b| a ^ b
+pub bitwise_xor = |a: U32, b: U32| -> U32 { crash "intrinsic: Num.U32.bitwise_xor" }
 
-pub bitwise_not : U32 -> U32
-pub bitwise_not = |a| ~a
+pub bitwise_not = |a: U32| -> U32 { crash "intrinsic: Num.U32.bitwise_not" }
 
-pub shift_left : U32, U32 -> U32
-pub shift_left = |a, n| a << n
+pub shift_left = |a: U32, n: U32| -> U32 { crash "intrinsic: Num.U32.shift_left" }
 
-pub shift_right : U32, U32 -> U32
-pub shift_right = |a, n| a >> n
+pub shift_right = |a: U32, n: U32| -> U32 { crash "intrinsic: Num.U32.shift_right" }
 
-pub count_ones : U32 -> U32
-pub count_ones = |n| crash "intrinsic: Num.U32.count_ones"
+pub count_ones = |n: U32| -> U32 { crash "intrinsic: Num.U32.count_ones" }
 
-pub leading_zeros : U32 -> U32
-pub leading_zeros = |n| crash "intrinsic: Num.U32.leading_zeros"
+pub leading_zeros = |n: U32| -> U32 { crash "intrinsic: Num.U32.leading_zeros" }
 
-pub trailing_zeros : U32 -> U32
-pub trailing_zeros = |n| crash "intrinsic: Num.U32.trailing_zeros"
+pub trailing_zeros = |n: U32| -> U32 { crash "intrinsic: Num.U32.trailing_zeros" }

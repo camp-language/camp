@@ -87,6 +87,12 @@ canonicalize_decl :: proc(
 		if d.type_ann != nil {
 			ctype_ann = canonicalize_type(d.type_ann^, scope, interner, collector)
 		}
+
+		// If the body is a float literal and we have a type annotation,
+		// pass the annotation to the literal so typechecker can use it
+		if float_lit, ok := cbody.(^CExpr_Float); ok && ctype_ann != nil {
+			float_lit.type_ann = ctype_ann
+		}
 		where_clauses := make([dynamic]frontend.Where_Clause, 0, len(d.where_clauses))
 		for wc in d.where_clauses {
 			append(&where_clauses, wc)

@@ -1,108 +1,96 @@
--- Map.camp
--- @Map(k, v) -- opaque ordered tree map, provided by runtime
--- Keys require Eq and Ord for ordered tree operations.
+// Map.camp
+// @Map(k, v) — opaque ordered tree map, provided by runtime
+// Keys require Eq and Ord for ordered tree operations.
 
 import Iter { empty, singleton, chain, from_list }
 import List { append }
 
--- Construction
+// Construction
 
-pub new : Map(k, v)
 pub new = crash "intrinsic: Map.new"
 
-pub singleton : k, v -> Map(k, v)
-pub singleton = |k, v| crash "intrinsic: Map.singleton"
+pub singleton = |k, v| { crash "intrinsic: Map.singleton" }
 
--- Lookup
+// Lookup
 
-pub get : k, Map(k, v) -> Result(v, [KeyNotFound])
-pub get = |k, m| crash "intrinsic: Map.get"
+pub get = |k, m| { crash "intrinsic: Map.get" }
 
-pub contains : k, Map(k, v) -> Bool
-pub contains = |k, m| crash "intrinsic: Map.contains"
+pub contains = |k, m| { crash "intrinsic: Map.contains" }
 
-pub size : Map(k, v) -> I64
-pub size = |m| crash "intrinsic: Map.size"
+pub size = |m| { crash "intrinsic: Map.size" }
 
-pub is_empty : Map(k, v) -> Bool
-pub is_empty = |m| size(m) == 0
+pub is_empty = |m| { size(m) == 0 }
 
--- Min/Max (O(log n) on ordered tree)
+// Min/Max (O(log n) on ordered tree)
 
-pub min : Map(k, v) -> Result((k, v), [EmptyMap])
-pub min = |m| crash "intrinsic: Map.min"
+pub min = |m| { crash "intrinsic: Map.min" }
 
-pub max : Map(k, v) -> Result((k, v), [EmptyMap])
-pub max = |m| crash "intrinsic: Map.max"
+pub max = |m| { crash "intrinsic: Map.max" }
 
--- Modification
+// Modification
 
-pub insert : k, v, Map(k, v) -> Map(k, v)
-pub insert = |k, v, m| crash "intrinsic: Map.insert"
+pub insert = |k, v, m| { crash "intrinsic: Map.insert" }
 
-pub remove : k, Map(k, v) -> Map(k, v)
-pub remove = |k, m| crash "intrinsic: Map.remove"
+pub remove = |k, m| { crash "intrinsic: Map.remove" }
 
-pub update : k, (Result(v, [KeyNotFound]) -> Result(v, [KeyNotFound])), Map(k, v) -> Map(k, v)
-pub update = |k, f, m|
+pub update = |k, f, m| {
   match f(get(k, m)) {
     Ok(v) => insert(k, v, m)
     Err(KeyNotFound) => remove(k, m)
   }
+}
 
--- Transformation
+// Transformation
 
-pub fold : Map(k, v), b, (b, k, v) -> b -> b
-pub fold = |m, init, f|
+pub fold = |m, init, f| {
   match min(m) {
     Ok((k, v)) => fold(remove(k, m), f(init, k, v), f)
-    Err(_) => init
+    Err(_empty_map) => init
   }
+}
 
-pub map : Map(k, v), (v) -> w -> Map(k, w)
-pub map = |m, f|
+pub map = |m, f| {
   fold(m, new, |acc, k, v| insert(k, f(v), acc))
+}
 
-pub filter : Map(k, v), (k, v) -> Bool -> Map(k, v)
-pub filter = |m, pred|
+pub filter = |m, pred| {
   fold(m, new, |acc, k, v|
     if pred(k, v) { insert(k, v, acc) } else { acc }
   )
+}
 
--- Conversion
+// Conversion
 
-pub to_iter : Map(k, v) -> Iter((k, v))
-pub to_iter = |m|
-  fold(m, Iter.empty, |acc, k, v| acc->chain(Iter.singleton((k, v))))
+pub to_iter = |m| {
+  fold(m, Iter.empty, |acc, k, v| Iter.chain(acc, Iter.singleton((k, v))))
+}
 
-pub keys : Map(k, v) -> Iter(k)
-pub keys = |m|
-  fold(m, Iter.empty, |acc, k, _| acc->chain(Iter.singleton(k)))
+pub keys = |m| {
+  fold(m, Iter.empty, |acc, k, _k| Iter.chain(acc, Iter.singleton(k)))
+}
 
-pub values : Map(k, v) -> Iter(v)
-pub values = |m|
-  fold(m, Iter.empty, |acc, _, v| acc->chain(Iter.singleton(v)))
+pub values = |m| {
+  fold(m, Iter.empty, |acc, _k, v| Iter.chain(acc, Iter.singleton(v)))
+}
 
-pub from_list : List((k, v)) -> Map(k, v)
-pub from_list = |entries|
-  Iter.from_list(entries)->fold(new, |m, (k, v)| insert(k, v, m))
+pub from_list = |entries| { crash "intrinsic: Map.from_list" }
 
-pub to_list : Map(k, v) -> List((k, v))
-pub to_list = |m|
+pub to_list = |m| {
   fold(m, [], |acc, k, v| List.append(acc, [(k, v)]))
+}
 
--- Set-like operations
+// Set-like operations
 
-pub union : Map(k, v), Map(k, v) -> Map(k, v)
-pub union = |m1, m2|
+pub union = |m1, m2| {
   fold(m1, m2, |acc, k, v| insert(k, v, acc))
+}
 
-pub intersection : Map(k, v), Map(k, v) -> Map(k, v)
-pub intersection = |m1, m2|
+pub intersection = |m1, m2| {
   fold(m1, new, |acc, k, v|
     if contains(k, m2) { insert(k, v, acc) } else { acc }
   )
+}
 
-pub difference : Map(k, v), Map(k, v) -> Map(k, v)
-pub difference = |m1, m2|
-  fold(m2, m1, |acc, k, _| remove(k, acc))
+pub difference = |m1, m2| {
+  fold(m2, m1, |acc, k, _v| remove(k, acc))
+}
