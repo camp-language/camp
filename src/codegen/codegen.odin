@@ -1039,10 +1039,9 @@ codegen :: proc(
 		elem_offset_buf = make([dynamic]u8, 0, CODE_BUF_SMALL)
 		emit_instruction(Wasm_I32_Const{value = 0}, &elem_offset_buf)
 
-		elem_func_indices: [dynamic]int
-		elem_func_indices = make([dynamic]int, 0, total_funcs)
+		func_idxs := make([]int, total_funcs)
 		for i in 0 ..< total_funcs {
-			append(&elem_func_indices, i)
+			func_idxs[i] = i
 		}
 
 		append(
@@ -1050,11 +1049,10 @@ codegen :: proc(
 			Wasm_Element {
 				table_idx = env.table_idx,
 				offset = copy_dynamic_bytes(elem_offset_buf),
-				func_idxs = elem_func_indices[:],
+				func_idxs = func_idxs,
 			},
 		)
 		delete(elem_offset_buf)
-		delete(elem_func_indices)
 	}
 
 	deferred_handler_codes: [dynamic]Wasm_Code
