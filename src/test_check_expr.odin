@@ -11,7 +11,10 @@ import "core:testing"
 find_const_body :: proc(
 	tfile: semantics.TFile,
 	name: base.Intern_ID,
-) -> (body: semantics.TExpr, ok: bool) {
+) -> (
+	body: semantics.TExpr,
+	ok: bool,
+) {
 	for decl in tfile.decls {
 		d, is_const := decl.(^semantics.TDecl_Const)
 		if is_const && d.name.name == name {
@@ -353,3 +356,4 @@ test_check_expr_effectful_name_ok :: proc(t: ^testing.T) {
 	_, is_lam := body.(^semantics.TExpr_Lambda)
 	testing.expect(t, is_lam, "body should be TExpr_Lambda")
 }
+

@@ -74,12 +74,21 @@ test_unused_used_function_param :: proc(t: ^testing.T) {
 
 	analysis.run_unused_analysis(cfile, &ctx.interner, &ctx.collector)
 
-	testing.expectf(t, !has_unused_binding(&ctx.collector, "x"),
-		"Expected no unused warning for param 'x' (used in body)")
-	testing.expectf(t, !has_unused_binding(&ctx.collector, "y"),
-		"Expected no unused warning for param 'y' (used in body)")
-	testing.expectf(t, has_unused_binding(&ctx.collector, "add"),
-		"Expected unused warning for top-level 'add'")
+	testing.expectf(
+		t,
+		!has_unused_binding(&ctx.collector, "x"),
+		"Expected no unused warning for param 'x' (used in body)",
+	)
+	testing.expectf(
+		t,
+		!has_unused_binding(&ctx.collector, "y"),
+		"Expected no unused warning for param 'y' (used in body)",
+	)
+	testing.expectf(
+		t,
+		has_unused_binding(&ctx.collector, "add"),
+		"Expected unused warning for top-level 'add'",
+	)
 }
 
 @(test)
@@ -93,8 +102,11 @@ test_unused_unused_function_param :: proc(t: ^testing.T) {
 
 	analysis.run_unused_analysis(cfile, &ctx.interner, &ctx.collector)
 
-	testing.expectf(t, has_unused_binding(&ctx.collector, "x"),
-		"Expected unused warning for param 'x' (unused in body)")
+	testing.expectf(
+		t,
+		has_unused_binding(&ctx.collector, "x"),
+		"Expected unused warning for param 'x' (unused in body)",
+	)
 }
 
 @(test)
@@ -107,10 +119,17 @@ test_unused_top_level_binding :: proc(t: ^testing.T) {
 
 	analysis.run_unused_analysis(cfile, &ctx.interner, &ctx.collector)
 
-	testing.expectf(t, has_unused_binding(&ctx.collector, "x"),
-		"Expected unused warning for top-level 'x'")
-	testing.expectf(t, count_unused_bindings(&ctx.collector) == 1,
-		"Expected exactly 1 unused binding warning, got %d", count_unused_bindings(&ctx.collector))
+	testing.expectf(
+		t,
+		has_unused_binding(&ctx.collector, "x"),
+		"Expected unused warning for top-level 'x'",
+	)
+	testing.expectf(
+		t,
+		count_unused_bindings(&ctx.collector) == 1,
+		"Expected exactly 1 unused binding warning, got %d",
+		count_unused_bindings(&ctx.collector),
+	)
 }
 
 @(test)
@@ -123,10 +142,17 @@ test_unused_underscore_suppresses_warning :: proc(t: ^testing.T) {
 
 	analysis.run_unused_analysis(cfile, &ctx.interner, &ctx.collector)
 
-	testing.expectf(t, !has_unused_binding(&ctx.collector, "_x"),
-		"Expected no unused warning for '_x' (underscore prefix)")
-	testing.expectf(t, count_unused_bindings(&ctx.collector) == 0,
-		"Expected 0 unused binding warnings, got %d", count_unused_bindings(&ctx.collector))
+	testing.expectf(
+		t,
+		!has_unused_binding(&ctx.collector, "_x"),
+		"Expected no unused warning for '_x' (underscore prefix)",
+	)
+	testing.expectf(
+		t,
+		count_unused_bindings(&ctx.collector) == 0,
+		"Expected 0 unused binding warnings, got %d",
+		count_unused_bindings(&ctx.collector),
+	)
 }
 
 @(test)
@@ -139,10 +165,17 @@ test_unused_public_binding_no_warning :: proc(t: ^testing.T) {
 
 	analysis.run_unused_analysis(cfile, &ctx.interner, &ctx.collector)
 
-	testing.expectf(t, !has_unused_binding(&ctx.collector, "x"),
-		"Expected no unused warning for 'pub x'")
-	testing.expectf(t, count_unused_bindings(&ctx.collector) == 0,
-		"Expected 0 unused binding warnings, got %d", count_unused_bindings(&ctx.collector))
+	testing.expectf(
+		t,
+		!has_unused_binding(&ctx.collector, "x"),
+		"Expected no unused warning for 'pub x'",
+	)
+	testing.expectf(
+		t,
+		count_unused_bindings(&ctx.collector) == 0,
+		"Expected 0 unused binding warnings, got %d",
+		count_unused_bindings(&ctx.collector),
+	)
 }
 
 @(test)
@@ -156,8 +189,11 @@ test_unused_local_binding_in_block :: proc(t: ^testing.T) {
 
 	analysis.run_unused_analysis(cfile, &ctx.interner, &ctx.collector)
 
-	testing.expectf(t, !has_unused_binding(&ctx.collector, "z"),
-		"Expected no unused warning for 'z' (used in block)")
+	testing.expectf(
+		t,
+		!has_unused_binding(&ctx.collector, "z"),
+		"Expected no unused warning for 'z' (used in block)",
+	)
 }
 
 @(test)
@@ -171,8 +207,11 @@ test_unused_local_unused_in_block :: proc(t: ^testing.T) {
 
 	analysis.run_unused_analysis(cfile, &ctx.interner, &ctx.collector)
 
-	testing.expectf(t, has_unused_binding(&ctx.collector, "z"),
-		"Expected unused warning for 'z' (unused in block)")
+	testing.expectf(
+		t,
+		has_unused_binding(&ctx.collector, "z"),
+		"Expected unused warning for 'z' (unused in block)",
+	)
 }
 
 @(test)
@@ -187,10 +226,20 @@ test_unused_mixed_used_and_unused :: proc(t: ^testing.T) {
 
 	analysis.run_unused_analysis(cfile, &ctx.interner, &ctx.collector)
 
-	testing.expectf(t, !has_unused_binding(&ctx.collector, "x"),
-		"Expected no unused warning for 'x' (used by 'y')")
-	testing.expectf(t, has_unused_binding(&ctx.collector, "y"),
-		"Expected unused warning for 'y' (not used)")
-	testing.expectf(t, has_unused_binding(&ctx.collector, "z"),
-		"Expected unused warning for 'z' (not used)")
+	testing.expectf(
+		t,
+		!has_unused_binding(&ctx.collector, "x"),
+		"Expected no unused warning for 'x' (used by 'y')",
+	)
+	testing.expectf(
+		t,
+		has_unused_binding(&ctx.collector, "y"),
+		"Expected unused warning for 'y' (not used)",
+	)
+	testing.expectf(
+		t,
+		has_unused_binding(&ctx.collector, "z"),
+		"Expected unused warning for 'z' (not used)",
+	)
 }
+

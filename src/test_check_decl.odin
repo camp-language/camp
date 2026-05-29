@@ -87,7 +87,11 @@ test_check_decl_type_annotation_error :: proc(t: ^testing.T) {
 	defer build.context_destroy(&ctx)
 	defer semantics.type_store_destroy(store)
 
-	testing.expect(t, diagnostics.diag_collector_has_errors(&ctx.collector), "I64 vs Bool should error")
+	testing.expect(
+		t,
+		diagnostics.diag_collector_has_errors(&ctx.collector),
+		"I64 vs Bool should error",
+	)
 }
 
 @(test)
@@ -152,5 +156,10 @@ test_check_decl_recursive_fn :: proc(t: ^testing.T) {
 	defer build.context_destroy(&ctx)
 	defer semantics.type_store_destroy(store)
 
-	testing.expect(t, !diagnostics.diag_collector_has_errors(&ctx.collector), "recursive fn should typecheck")
+	testing.expect(
+		t,
+		!diagnostics.diag_collector_has_errors(&ctx.collector),
+		"recursive fn should typecheck",
+	)
 }
+

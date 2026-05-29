@@ -70,7 +70,10 @@ test_match_binding :: proc(t: ^testing.T) {
 @(test)
 test_match_string :: proc(t: ^testing.T) {
 	ctx: build.Compilation_Context
-	store, _ := setup_for_typecheck(&ctx, "val = match \"hello\" {\n    \"hello\" => 1\n    _ => 0\n}")
+	store, _ := setup_for_typecheck(
+		&ctx,
+		"val = match \"hello\" {\n    \"hello\" => 1\n    _ => 0\n}",
+	)
 	defer build.context_destroy(&ctx)
 	defer semantics.type_store_destroy(store)
 
@@ -92,7 +95,10 @@ test_match_wildcard :: proc(t: ^testing.T) {
 @(test)
 test_match_redundant_pattern :: proc(t: ^testing.T) {
 	ctx: build.Compilation_Context
-	store, _ := setup_for_typecheck(&ctx, "val = match True {\n    True => 1\n    True => 2\n    False => 0\n}")
+	store, _ := setup_for_typecheck(
+		&ctx,
+		"val = match True {\n    True => 1\n    True => 2\n    False => 0\n}",
+	)
 	defer build.context_destroy(&ctx)
 	defer semantics.type_store_destroy(store)
 
@@ -121,3 +127,4 @@ test_match_or_pattern :: proc(t: ^testing.T) {
 
 	testing.expect(t, !diagnostics.diag_collector_has_errors(&ctx.collector))
 }
+

@@ -83,19 +83,19 @@ parser_skip_backslashes :: proc(p: ^Parser) {
 
 // Recovery points - tokens that indicate we can safely resume parsing
 RECOVERY_TOKENS: map[base.Token_Kind]bool = {
-	.RBrace = true,
-	.RBrack = true,
-	.RParen = true,
-	.Comma = true,
-	.Pipe = true,
+	.RBrace    = true,
+	.RBrack    = true,
+	.RParen    = true,
+	.Comma     = true,
+	.Pipe      = true,
 	.Fat_Arrow = true,
-	.Kw_In = true,
-	.Kw_With = true,
-	.Kw_Where = true,
-	.Eq = true,
-	.Colon_Eq = true,
-	.Newline = true,
-	.Eof = true,
+	.Kw_In     = true,
+	.Kw_With   = true,
+	.Kw_Where  = true,
+	.Eq        = true,
+	.Colon_Eq  = true,
+	.Newline   = true,
+	.Eof       = true,
 }
 
 is_recovery_token :: proc(kind: base.Token_Kind) -> bool {
