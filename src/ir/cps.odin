@@ -103,7 +103,7 @@ cps_transform_decl :: proc(decl: IR_Decl, env: ^CPS_Env) -> IR_Decl {
 		new_fn.effects = make([dynamic]base.Canonical_Name, len(d.effects))
 		for e, i in d.effects {new_fn.effects[i] = e}
 
-		if !d.is_effectful {
+		if !d.is_effectful || len(d.effects) == 0 {
 			return IR_Decl(new_fn)
 		}
 

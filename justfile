@@ -77,8 +77,8 @@ lint-tree-sitter: tree-sitter-test tree-sitter-validate
 test-doc-tests:
 	#!/usr/bin/env sh
 	for f in stdlib/*.camp; do
-	  echo "Testing doc examples in $$f..."
-	  ./camp test "$$f" 2>&1 || { echo "FAIL: doc tests failed in $$f"; exit 1; }
+	  echo "Testing doc examples in $f..."
+	  ./camp test "$f" 2>&1 || { echo "FAIL: doc tests failed in $f"; exit 1; }
 	done
 
 test: test-unit test-e2e lint-tree-sitter test-doc-tests
