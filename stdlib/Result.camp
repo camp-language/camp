@@ -1,93 +1,87 @@
 @Result(a, e): pub [Ok(a) | Err(e)]
 
--- Core combinators
+// Core combinators
 
-pub map : Result(a, e), (a) -> b -> Result(b, e)
-pub map = |r, f|
+pub map = |r, f| {
   match r { Ok(v) => Ok(f(v)) | Err(e) => Err(e) }
+}
 
-pub map_err : Result(a, e), (e) -> f -> Result(a, f)
-pub map_err = |r, f|
+pub map_err = |r, f| {
   match r { Ok(v) => Ok(v) | Err(e) => Err(f(e)) }
+}
 
-pub and_then : Result(a, e), (a) -> Result(b, e) -> Result(b, e)
-pub and_then = |r, f|
+pub and_then = |r, f| {
   match r { Ok(v) => f(v) | Err(e) => Err(e) }
+}
 
-pub or_else : Result(a, e), || -> Result(a, f) -> Result(a, e | f)
-pub or_else = |r, f|
-  match r { Ok(v) => Ok(v) | Err(_) => f() }
+pub or_else = |r, f| {
+  match r { Ok(v) => Ok(v) | Err(_e) => f() }
+}
 
--- Predicates
+// Predicates
 
-pub is_ok : Result(a, e) -> Bool
-pub is_ok = |r|
-  match r { Ok(_) => True | Err(_) => False }
+pub is_ok = |r| {
+  match r { Ok(_v) => True | Err(_e) => False }
+}
 
-pub is_err : Result(a, e) -> Bool
-pub is_err = |r|
-  match r { Ok(_) => False | Err(_) => True }
+pub is_err = |r| {
+  match r { Ok(_v) => False | Err(_e) => True }
+}
 
--- Unwrapping
+// Unwrapping
 
-pub unwrap : Result(a, e) -> a
-pub unwrap = |r|
-  match r { Ok(v) => v | Err(_) => crash "Result.unwrap: called on Err" }
+pub unwrap = |r| {
+  match r { Ok(v) => v | Err(_e) => crash "Result.unwrap: called on Err" }
+}
 
-pub unwrap_or : Result(a, e), a -> a
-pub unwrap_or = |r, default|
-  match r { Ok(v) => v | Err(_) => default }
+pub unwrap_or = |r, default| {
+  match r { Ok(v) => v | Err(_e) => default }
+}
 
-pub unwrap_or_else : Result(a, e), (e) -> a -> a
-pub unwrap_or_else = |r, f|
+pub unwrap_or_else = |r, f| {
   match r { Ok(v) => v | Err(e) => f(e) }
+}
 
-pub unwrap_or_default : Result(a, e) -> a
-pub unwrap_or_default = |r|
-  match r { Ok(v) => v | Err(_) => Default.default }
+pub unwrap_or_default = |r| {
+  match r { Ok(v) => v | Err(_e) => Default.default }
+}
 
--- Boolean composition
+// Boolean composition
 
-pub or : Result(a, e), Result(a, e) -> Result(a, e)
-pub or = |r1, r2|
-  match r1 { Ok(v) => Ok(v) | Err(_) => r2 }
+pub or = |r1, r2| {
+  match r1 { Ok(v) => Ok(v) | Err(_e) => r2 }
+}
 
--- Filtering
+// Filtering
 
-pub filter : Result(a, e), (a) -> Bool, e -> Result(a, e)
-pub filter = |r, pred, err|
+pub filter = |r, pred, err| {
   match r {
     Ok(v) => if pred(v) { Ok(v) } else { Err(err) }
     Err(e) => Err(e)
   }
+}
 
--- Flattening
+// Flattening
 
-pub flatten : Result(Result(a, e), e) -> Result(a, e)
-pub flatten = |r|
+pub flatten = |r| {
   match r { Ok(inner) => inner | Err(e) => Err(e) }
+}
 
--- Conversion
+// Conversion
 
-pub to_list : Result(a, e) -> List(a)
-pub to_list = |r|
-  match r { Ok(v) => [v] | Err(_) => [] }
+pub to_list = |r| {
+  match r { Ok(v) => [v] | Err(_e) => [] }
+}
 
-pub from_list : List(a) -> Result(a, [EmptyList])
-pub from_list = |xs|
+pub from_list = |xs| {
   match xs {
-    Cons(h, _) => Ok(h)
+    Cons(h, _t) => Ok(h)
     Nil => Err(EmptyList)
   }
+}
 
--- Effect bridging
+// Effect bridging — intrinsic
 
-pub unwrap! : Result(a, e) -> -[Throw!(e)]-> a
-pub unwrap! = |r|
-  match r { Ok(v) => v | Err(e) => Throw.raise!(e) }
+pub unwrap! = |r| { crash "intrinsic: Result.unwrap!" }
 
-pub catch : || -[Throw!(e)]-> a -> Result(a, e)
-pub catch = |action|
-  handle Throw! in { Ok(action()) } with {
-    .raise!(resume, err) => Err(err)
-  }
+pub catch = |action| { crash "intrinsic: Result.catch" }

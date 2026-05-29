@@ -1,103 +1,94 @@
--- Set.camp
--- @Set(a) -- opaque, Map(a, {}) internally
+// Set.camp
+// @Set(a) — opaque, Map(a, {}) internally
 
 import Iter { empty, singleton, chain, from_list }
 import List { append }
 
--- Construction
+// Construction
 
-pub new : Set(a)
 pub new = crash "intrinsic: Set.new"
 
-pub singleton : a -> Set(a)
-pub singleton = |x| crash "intrinsic: Set.singleton"
+pub singleton = |x| { crash "intrinsic: Set.singleton" }
 
--- Queries
+// Queries
 
-pub contains : a, Set(a) -> Bool
-pub contains = |x, s| crash "intrinsic: Set.contains"
+pub contains = |x, s| { crash "intrinsic: Set.contains" }
 
-pub size : Set(a) -> I64
-pub size = |s| crash "intrinsic: Set.size"
+pub size = |s| { crash "intrinsic: Set.size" }
 
-pub is_empty : Set(a) -> Bool
-pub is_empty = |s| size(s) == 0
+pub is_empty = |s| { size(s) == 0 }
 
-pub min : Set(a) -> Result(a, [EmptySet])
-pub min = |s| crash "intrinsic: Set.min"
+pub min = |s| { crash "intrinsic: Set.min" }
 
-pub max : Set(a) -> Result(a, [EmptySet])
-pub max = |s| crash "intrinsic: Set.max"
+pub max = |s| { crash "intrinsic: Set.max" }
 
--- Modification
+// Modification
 
-pub insert : a, Set(a) -> Set(a)
-pub insert = |x, s| crash "intrinsic: Set.insert"
+pub insert = |x, s| { crash "intrinsic: Set.insert" }
 
-pub remove : a, Set(a) -> Set(a)
-pub remove = |x, s| crash "intrinsic: Set.remove"
+pub remove = |x, s| { crash "intrinsic: Set.remove" }
 
--- Transformation
+// Transformation
 
-pub fold : Set(a), b, (b, a) -> b -> b
-pub fold = |s, init, f|
+pub fold = |s, init, f| {
   match min(s) {
     Ok(x) => fold(remove(x, s), f(init, x), f)
-    Err(_) => init
+    Err(_empty) => init
   }
+}
 
-pub map : Set(a), (a) -> b -> Set(b)
-pub map = |s, f|
+pub map = |s, f| {
   fold(s, new, |acc, x| insert(f(x), acc))
+}
 
-pub filter : Set(a), (a) -> Bool -> Set(a)
-pub filter = |s, pred|
+pub filter = |s, pred| {
   fold(s, new, |acc, x|
     if pred(x) { insert(x, acc) } else { acc }
   )
+}
 
--- Conversion
+// Conversion
 
-pub to_iter : Set(a) -> Iter(a)
-pub to_iter = |s|
-  fold(s, Iter.empty, |acc, x| acc->chain(Iter.singleton(x)))
+pub to_iter = |s| {
+  fold(s, Iter.empty, |acc, x| Iter.chain(acc, Iter.singleton(x)))
+}
 
-pub from_list : List(a) -> Set(a)
-pub from_list = |xs|
+pub from_list = |xs| {
   Iter.from_list(xs)->fold(new, |s, x| insert(x, s))
+}
 
-pub to_list : Set(a) -> List(a)
-pub to_list = |s|
+pub to_list = |s| {
   fold(s, [], |acc, x| List.append(acc, [x]))
+}
 
--- Set operations
+// Set operations
 
-pub union : Set(a), Set(a) -> Set(a)
-pub union = |s1, s2|
+pub union = |s1, s2| {
   fold(s2, s1, |acc, x| insert(x, acc))
+}
 
-pub intersection : Set(a), Set(a) -> Set(a)
-pub intersection = |s1, s2|
+pub intersection = |s1, s2| {
   fold(s1, new, |acc, x|
     if contains(x, s2) { insert(x, acc) } else { acc }
   )
+}
 
-pub difference : Set(a), Set(a) -> Set(a)
-pub difference = |s1, s2|
+pub difference = |s1, s2| {
   fold(s2, s1, |acc, x| remove(x, acc))
+}
 
-pub symmetric_difference : Set(a), Set(a) -> Set(a)
-pub symmetric_difference = |s1, s2|
+pub symmetric_difference = |s1, s2| {
   difference(union(s1, s2), intersection(s1, s2))
+}
 
-pub is_subset : Set(a), Set(a) -> Bool
-pub is_subset = |s1, s2|
+pub is_subset = |s1, s2| {
   fold(s1, True, |acc, x|
     if acc { contains(x, s2) } else { False }
   )
+}
 
-pub is_disjoint : Set(a), Set(a) -> Bool
-pub is_disjoint = |s1, s2|
+pub is_disjoint = |s1, s2| {
   fold(s1, True, |acc, x|
     if acc { if contains(x, s2) { False } else { True } } else { False }
   )
+}

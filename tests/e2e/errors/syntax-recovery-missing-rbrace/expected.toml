@@ -1,0 +1,10 @@
+stdout = """
+-- C0100: SYNTAX ERROR --- /tmp/camp-e2e/errors/syntax-recovery-missing-rbrace/src/Main.camp
+
+I expected `}` here, but I got `` instead.
+   4 |     missing RBrace here
+                              ^
+compilation failed with 1 error(s)
+"""
+stderr = ""
+exit = 1
