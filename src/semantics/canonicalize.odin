@@ -711,7 +711,7 @@ canonicalize_expr :: proc(
 		}
 		return c
 
-case ^frontend.Expr_Call:
+	case ^frontend.Expr_Call:
 		// Desugar expect x → if !x { crash "expectation failed" }
 		expect_id := base.intern(interner, "expect")
 		if id, ok := e.callee.(^frontend.Expr_Identifier); ok {

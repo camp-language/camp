@@ -164,7 +164,8 @@ test_prelude_inject_twice_idempotent :: proc(t: ^testing.T) {
 		second_count,
 	)
 
-	expected_total := len(semantics.PRELUDE_BUILTIN_TYPES) +
+	expected_total :=
+		len(semantics.PRELUDE_BUILTIN_TYPES) +
 		len(semantics.PRELUDE_CONSTRUCTOR_TYPES) +
 		len(semantics.PRELUDE_TAG_DECLS)
 	testing.expectf(
@@ -189,3 +190,4 @@ test_prelude_inject_twice_idempotent :: proc(t: ^testing.T) {
 		}
 	}
 }
+

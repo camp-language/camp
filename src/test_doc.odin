@@ -12,7 +12,11 @@ test_extract_simple_code_block :: proc(t: ^testing.T) {
 	defer delete(tests)
 
 	testing.expect(t, len(tests) == 1, fmt.tprintf("expected 1 test, got {}", len(tests)))
-	testing.expect(t, tests[0].code == "42 + 1", fmt.tprintf("expected code '42 + 1', got '{}'", tests[0].code))
+	testing.expect(
+		t,
+		tests[0].code == "42 + 1",
+		fmt.tprintf("expected code '42 + 1', got '{}'", tests[0].code),
+	)
 	testing.expect(t, tests[0].decl_name == "add_one")
 	testing.expect(t, tests[0].decl_path == "/test.camp")
 }
@@ -68,7 +72,11 @@ test_extract_unclosed_code_block :: proc(t: ^testing.T) {
 	tests := doc.extract_doc_tests(doc_text, "unclosed_dt", "/test.camp", 0)
 	defer delete(tests)
 
-	testing.expect(t, len(tests) == 1, fmt.tprintf("expected 1 test (unclosed block should be captured), got {}", len(tests)))
+	testing.expect(
+		t,
+		len(tests) == 1,
+		fmt.tprintf("expected 1 test (unclosed block should be captured), got {}", len(tests)),
+	)
 	testing.expect(t, tests[0].code == "unclosed code")
 }
 
@@ -79,7 +87,11 @@ test_extract_line_number_offset :: proc(t: ^testing.T) {
 	defer delete(tests)
 
 	testing.expect(t, len(tests) == 1)
-	testing.expect(t, tests[0].name == "11", fmt.tprintf("expected name '11', got '{}'", tests[0].name))
+	testing.expect(
+		t,
+		tests[0].name == "11",
+		fmt.tprintf("expected name '11', got '{}'", tests[0].name),
+	)
 }
 
 @(test)
@@ -102,3 +114,4 @@ test_join_code_lines_single :: proc(t: ^testing.T) {
 	result := doc.join_code_lines(lines[:])
 	testing.expect(t, result == "single")
 }
+

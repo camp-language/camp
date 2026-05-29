@@ -145,7 +145,10 @@ x = if true { 1 }
 ========
 Match expression
 ========
-x = match x { 1 => 0 | _ => 1 }
+x = match x {
+  1 => 0
+  _ => 1
+}
 ---
 
 (source_file

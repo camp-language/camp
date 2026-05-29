@@ -113,11 +113,7 @@ test_lower_type_function :: proc(t: ^testing.T) {
 	semantics.link_var(
 		&store,
 		fn_var,
-		semantics.Inferred_Function {
-			param_ids = params,
-			return_id = ret,
-			effect_id = eff,
-		},
+		semantics.Inferred_Function{param_ids = params, return_id = ret, effect_id = eff},
 	)
 
 	ir := semantics.lower_type(&store, fn_var)
@@ -141,7 +137,7 @@ test_lower_effect_type :: proc(t: ^testing.T) {
 	semantics.link_var(
 		&store,
 		eff_row,
-		semantics.Inferred_Effect_Row { effects = eff_entries, rest_id = rest },
+		semantics.Inferred_Effect_Row{effects = eff_entries, rest_id = rest},
 	)
 
 	ir := semantics.lower_effect_type(&store, eff_row)
@@ -163,9 +159,9 @@ test_lower_type_newtype :: proc(t: ^testing.T) {
 		uid_var,
 		semantics.Inferred_Newtype {
 			primitive_name = uid_name,
-			arity          = 0,
-			param_ids      = nil,
-			inner_id       = i64_var,
+			arity = 0,
+			param_ids = nil,
+			inner_id = i64_var,
 		},
 	)
 
@@ -189,9 +185,9 @@ test_lower_type_newtype_str_wrapper :: proc(t: ^testing.T) {
 		label_var,
 		semantics.Inferred_Newtype {
 			primitive_name = label_name,
-			arity          = 0,
-			param_ids      = nil,
-			inner_id       = str_var,
+			arity = 0,
+			param_ids = nil,
+			inner_id = str_var,
 		},
 	)
 
@@ -199,3 +195,4 @@ test_lower_type_newtype_str_wrapper :: proc(t: ^testing.T) {
 	testing.expect(t, ir.wasm_type == .I32, "newtype Str inner should propagate wasm_type .I32")
 	testing.expect(t, ir.is_heap, "newtype Str inner should propagate is_heap true")
 }
+

@@ -46,15 +46,19 @@ extract_doc_tests :: proc(
 			} else {
 				code := join_code_lines(current_block[:])
 				if code != "" {
-					label := block_label != "" ? block_label : fmt.tprintf("{}", code_block_start_line + source_offset + 1)
-					append(&tests, Doc_Test{
-						name        = label,
-						code        = code,
-						decl_name   = decl_name,
-						decl_path   = decl_path,
-						doc_comment = "",
-						line_number = code_block_start_line + source_offset + 1,
-					})
+					label :=
+						block_label != "" ? block_label : fmt.tprintf("{}", code_block_start_line + source_offset + 1)
+					append(
+						&tests,
+						Doc_Test {
+							name = label,
+							code = code,
+							decl_name = decl_name,
+							decl_path = decl_path,
+							doc_comment = "",
+							line_number = code_block_start_line + source_offset + 1,
+						},
+					)
 				}
 				delete(current_block)
 				current_block = make([dynamic]string, 0, 8)
@@ -72,15 +76,19 @@ extract_doc_tests :: proc(
 	if in_code_block && len(current_block) > 0 {
 		code := join_code_lines(current_block[:])
 		if code != "" {
-			label := block_label != "" ? block_label : fmt.tprintf("{}", code_block_start_line + source_offset + 1)
-			append(&tests, Doc_Test{
-				name        = label,
-				code        = code,
-				decl_name   = decl_name,
-				decl_path   = decl_path,
-				doc_comment = "",
-				line_number = code_block_start_line + source_offset + 1,
-			})
+			label :=
+				block_label != "" ? block_label : fmt.tprintf("{}", code_block_start_line + source_offset + 1)
+			append(
+				&tests,
+				Doc_Test {
+					name = label,
+					code = code,
+					decl_name = decl_name,
+					decl_path = decl_path,
+					doc_comment = "",
+					line_number = code_block_start_line + source_offset + 1,
+				},
+			)
 		}
 		delete(current_block)
 	}
@@ -173,3 +181,4 @@ _calc_doc_line_offset :: proc(source: string, decl_byte_offset: int) -> int {
 	}
 	return line_offset
 }
+

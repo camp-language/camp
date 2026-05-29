@@ -1,1 +1,7 @@
-main! = || -> I64 { x = 5 match x { n if n > 0 => 1 | _ => 0 } }
+main! = || -> I64 {
+  x = 5
+  match x {
+    n if n > 0 => 1
+    _ => 0
+  }
+}

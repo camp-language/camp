@@ -1,1 +1,6 @@
-main! = || -> I64 { match True { True => 1 | False => 0 } }
+main! = || -> I64 {
+  match True {
+    True => 1
+    False => 0
+  }
+}

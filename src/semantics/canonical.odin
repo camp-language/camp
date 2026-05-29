@@ -162,9 +162,9 @@ CExpr_Int :: struct {
 }
 
 CExpr_Float :: struct {
-	value:     f64,
-	type_ann:  ^CType,  // optional: set when literal type is annotated
-	span:      base.Source_Span,
+	value:    f64,
+	type_ann: ^CType, // optional: set when literal type is annotated
+	span:     base.Source_Span,
 }
 
 CExpr_String :: struct {

@@ -560,7 +560,13 @@ run_test :: proc(args: []string) -> Build_Result {
 			continue
 		}
 
-		compile_ok := compile_doc_test_canon(canon, dt_expr, tmp_wasm_path, &ctx.interner, &sub_arena)
+		compile_ok := compile_doc_test_canon(
+			canon,
+			dt_expr,
+			tmp_wasm_path,
+			&ctx.interner,
+			&sub_arena,
+		)
 		virtual.arena_destroy(&sub_arena)
 
 		if !compile_ok {
@@ -807,7 +813,11 @@ sanitize_test_name :: proc(name: string) -> string {
 	return string(b)
 }
 
-parse_doc_test_expr :: proc(code: string, collector: ^diagnostics.Diagnostic_Collector, interner: ^base.Intern_Table) -> frontend.Expr {
+parse_doc_test_expr :: proc(
+	code: string,
+	collector: ^diagnostics.Diagnostic_Collector,
+	interner: ^base.Intern_Table,
+) -> frontend.Expr {
 	file := base.Source_File {
 		path     = "<doctest>",
 		contents = code,
