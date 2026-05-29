@@ -1,10 +1,46 @@
 stdout = """
-canonicalized /tmp/camp-e2e/pattern-matching/match-record-pattern/src/Main.camp: 1 declaration(s), 0 import(s)
-typecheck passed for /tmp/camp-e2e/pattern-matching/match-record-pattern/src/Main.camp
-compiled /tmp/camp-e2e/pattern-matching/match-record-pattern/src/Main.camp -> /tmp/camp-e2e/pattern-matching/match-record-pattern/src/Main.wasm
+-- C0100: SYNTAX ERROR --- /tmp/camp-e2e/pattern-matching/match-record-pattern/src/Main.camp
+
+I expected `=>` here, but I got `{` instead.
+   3 |     | { x: a, y: b } => a + b
+             ^
+
+-- C0100: SYNTAX ERROR --- /tmp/camp-e2e/pattern-matching/match-record-pattern/src/Main.camp
+
+I expected `=>` here, but I got `a` instead.
+   3 |     | { x: a, y: b } => a + b
+                  ^
+
+-- C0101: SYNTAX ERROR --- /tmp/camp-e2e/pattern-matching/match-record-pattern/src/Main.camp
+
+I was not expecting `,` here.
+   3 |     | { x: a, y: b } => a + b
+                   ^
+
+-- C0100: SYNTAX ERROR --- /tmp/camp-e2e/pattern-matching/match-record-pattern/src/Main.camp
+
+I expected `=>` here, but I got `:` instead.
+   3 |     | { x: a, y: b } => a + b
+                      ^
+
+-- C0101: SYNTAX ERROR --- /tmp/camp-e2e/pattern-matching/match-record-pattern/src/Main.camp
+
+I was not expecting `=>` here.
+   3 |     | { x: a, y: b } => a + b
+                            ^^
+
+-- C0100: SYNTAX ERROR --- /tmp/camp-e2e/pattern-matching/match-record-pattern/src/Main.camp
+
+I expected `=` here, but I got `` instead.
+   6 | 
+       ^
+
+-- C0101: SYNTAX ERROR --- /tmp/camp-e2e/pattern-matching/match-record-pattern/src/Main.camp
+
+I was not expecting `` here.
+   6 | 
+       ^
+compilation failed with 7 error(s)
 """
 stderr = ""
-exit = 0
-wasm_exit = 3
-wasm_stdout = ""
-wasm_stderr = ""
+exit = 1

@@ -129,7 +129,7 @@ test_parser_match :: proc(t: ^testing.T) {
 	build.context_init(&ctx)
 	defer build.context_destroy(&ctx)
 
-	expr := parse_expr("match x { Ok(v) => v | Err(e) => 0 }", &ctx)
+	expr := parse_expr("match x {\n    Ok(v) => v\n    Err(e) => 0\n}", &ctx)
 	testing.expect(t, !diagnostics.diag_collector_has_errors(&ctx.collector))
 	#partial switch e in expr {
 	case ^frontend.Expr_Match:

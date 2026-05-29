@@ -1815,10 +1815,6 @@ parser_parse_match :: proc(p: ^Parser) -> Expr {
 	arms := make([dynamic]Match_Arm, 0, 8)
 
 	parser_expect(p, .LBrace)
-	// Consume optional leading | before first arm
-	if p.current.kind == .Pipe {
-		parser_advance(p)
-	}
 	for p.current.kind != .RBrace && p.current.kind != .Eof {
 		pattern := parser_parse_pattern(p)
 
@@ -1851,9 +1847,6 @@ parser_parse_match :: proc(p: ^Parser) -> Expr {
 			&arms,
 			Match_Arm{pattern = pattern, guard = guard, body = body, span = p.current.span},
 		)
-		if p.current.kind == .Pipe {
-			parser_advance(p)
-		}
 	}
 	parser_expect(p, .RBrace)
 

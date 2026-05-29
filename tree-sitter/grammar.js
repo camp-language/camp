@@ -435,8 +435,7 @@ export default grammar({
 
     match_arms: ($) => seq(
       $.match_arm,
-      repeat(seq("|", $.match_arm)),
-      optional("|"),
+      repeat($.match_arm),
     ),
 
     match_arm: ($) => seq(
