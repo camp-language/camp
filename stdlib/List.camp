@@ -24,7 +24,10 @@ pub length = |xs| {
 }
 
 pub is_empty = |xs| {
-  match xs { Nil => True | Cons(_head, _tail) => False }
+  match xs {
+    Nil => True
+    Cons(_head, _tail) => False
+  }
 }
 
 // Head/tail access (Result per D3)

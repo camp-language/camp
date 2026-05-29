@@ -3,53 +3,86 @@
 // Core combinators
 
 pub map = |r, f| {
-  match r { Ok(v) => Ok(f(v)) | Err(e) => Err(e) }
+  match r {
+    Ok(v) => Ok(f(v))
+    Err(e) => Err(e)
+  }
 }
 
 pub map_err = |r, f| {
-  match r { Ok(v) => Ok(v) | Err(e) => Err(f(e)) }
+  match r {
+    Ok(v) => Ok(v)
+    Err(e) => Err(f(e))
+  }
 }
 
 pub and_then = |r, f| {
-  match r { Ok(v) => f(v) | Err(e) => Err(e) }
+  match r {
+    Ok(v) => f(v)
+    Err(e) => Err(e)
+  }
 }
 
 pub or_else = |r, f| {
-  match r { Ok(v) => Ok(v) | Err(_e) => f() }
+  match r {
+    Ok(v) => Ok(v)
+    Err(_e) => f()
+  }
 }
 
 // Predicates
 
 pub is_ok = |r| {
-  match r { Ok(_v) => True | Err(_e) => False }
+  match r {
+    Ok(_v) => True
+    Err(_e) => False
+  }
 }
 
 pub is_err = |r| {
-  match r { Ok(_v) => False | Err(_e) => True }
+  match r {
+    Ok(_v) => False
+    Err(_e) => True
+  }
 }
 
 // Unwrapping
 
 pub unwrap = |r| {
-  match r { Ok(v) => v | Err(_e) => crash "Result.unwrap: called on Err" }
+  match r {
+    Ok(v) => v
+    Err(_e) => crash "Result.unwrap: called on Err"
+  }
 }
 
 pub unwrap_or = |r, default| {
-  match r { Ok(v) => v | Err(_e) => default }
+  match r {
+    Ok(v) => v
+    Err(_e) => default
+  }
 }
 
 pub unwrap_or_else = |r, f| {
-  match r { Ok(v) => v | Err(e) => f(e) }
+  match r {
+    Ok(v) => v
+    Err(e) => f(e)
+  }
 }
 
 pub unwrap_or_default = |r| {
-  match r { Ok(v) => v | Err(_e) => Default.default }
+  match r {
+    Ok(v) => v
+    Err(_e) => Default.default
+  }
 }
 
 // Boolean composition
 
 pub or = |r1, r2| {
-  match r1 { Ok(v) => Ok(v) | Err(_e) => r2 }
+  match r1 {
+    Ok(v) => Ok(v)
+    Err(_e) => r2
+  }
 }
 
 // Filtering
@@ -64,13 +97,19 @@ pub filter = |r, pred, err| {
 // Flattening
 
 pub flatten = |r| {
-  match r { Ok(inner) => inner | Err(e) => Err(e) }
+  match r {
+    Ok(inner) => inner
+    Err(e) => Err(e)
+  }
 }
 
 // Conversion
 
 pub to_list = |r| {
-  match r { Ok(v) => [v] | Err(_e) => [] }
+  match r {
+    Ok(v) => [v]
+    Err(_e) => []
+  }
 }
 
 pub from_list = |xs| {

@@ -2,17 +2,29 @@
 // @Bool: pub [True | False]  // declared by compiler
 
 pub not_ = |b: Bool| -> Bool {
-  match b { True => False | False => True }
+  match b {
+    True => False
+    False => True
+  }
 }
 
 pub xor_ = |a: Bool, b: Bool| -> Bool {
-  match a { True => not_(b) | False => b }
+  match a {
+    True => not_(b)
+    False => b
+  }
 }
 
 pub and_ = |a: Bool, b: Bool| -> Bool {
-  match a { True => b | False => False }
+  match a {
+    True => b
+    False => False
+  }
 }
 
 pub or_ = |a: Bool, b: Bool| -> Bool {
-  match a { True => True | False => b }
+  match a {
+    True => True
+    False => b
+  }
 }

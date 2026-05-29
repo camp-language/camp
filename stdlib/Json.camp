@@ -34,35 +34,45 @@ pub encode_pretty = |_v| { crash "intrinsic: Json.encode_pretty" }  // 2-space i
 
 // JsonNumber accessors — pure Camp
 
-pub is_int = |n| { match n {
-  PosInt(_i) => True
-  NegInt(_i) => True
-  Float(_f)  => False
-} }
+pub is_int = |n| {
+  match n {
+    PosInt(_i) => True
+    NegInt(_i) => True
+    Float(_f)  => False
+  }
+}
 
-pub is_float = |n| { match n {
-  Float(_f)  => True
-  PosInt(_i) => False
-  NegInt(_i) => False
-} }
+pub is_float = |n| {
+  match n {
+    Float(_f)  => True
+    PosInt(_i) => False
+    NegInt(_i) => False
+  }
+}
 
-pub as_i64 = |n| { match n {
-  NegInt(i) => Ok(i)
-  PosInt(_i) => Err(Absent)   // TODO: check if <= I64_MAX
-  Float(_f)  => Err(Absent)
-} }
+pub as_i64 = |n| {
+  match n {
+    NegInt(i) => Ok(i)
+    PosInt(_i) => Err(Absent)   // TODO: check if <= I64_MAX
+    Float(_f)  => Err(Absent)
+  }
+}
 
-pub as_u64 = |n| { match n {
-  PosInt(u) => Ok(u)
-  NegInt(_i) => Err(Absent)
-  Float(_f)  => Err(Absent)
-} }
+pub as_u64 = |n| {
+  match n {
+    PosInt(u) => Ok(u)
+    NegInt(_i) => Err(Absent)
+    Float(_f)  => Err(Absent)
+  }
+}
 
-pub as_f64 = |n| { match n {
-  Float(f)  => Ok(f)
-  PosInt(_i) => Err(Absent)   // TODO: always Ok (every JsonNumber can be F64)
-  NegInt(_i) => Err(Absent)   // TODO: always Ok
-} }
+pub as_f64 = |n| {
+  match n {
+    Float(f)  => Ok(f)
+    PosInt(_i) => Err(Absent)   // TODO: always Ok (every JsonNumber can be F64)
+    NegInt(_i) => Err(Absent)   // TODO: always Ok
+  }
+}
 
 // JsonValue convenience accessors — pure Camp
 
