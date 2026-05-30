@@ -342,8 +342,11 @@ emit_expr :: proc(expr: ir.IR_Expr, buf: ^[dynamic]u8, env: ^Codegen_Env, runtim
 			emit_instruction(Wasm_I32_Const{value = 0}, buf)
 		}
 	case ^ir.IR_Literal_String:
-		emit_instruction(Wasm_I32_Const{value = i32(env.data_offset)}, buf)
-		env.data_offset += u32(len(e.value))
+		offset, ok := env.string_offsets[e.id]
+		if !ok {
+			offset = 0
+		}
+		emit_instruction(Wasm_I32_Const{value = i32(offset)}, buf)
 	case ^ir.IR_Var:
 		if idx, ok := env.local_map[e.name]; ok {
 			emit_instruction(Wasm_Local_Get{index = idx}, buf)

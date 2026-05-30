@@ -5,6 +5,52 @@ import "camp:semantics"
 import "core:fmt"
 import "core:strings"
 
+// lower_string_content strips the surrounding double quotes from a string
+// literal's source text and resolves escape sequences, producing the raw byte
+// content that lives in the module's string table at runtime.
+lower_string_content :: proc(raw: string) -> string {
+	if len(raw) < 2 {
+		return raw
+	}
+	inner := raw[1:len(raw) - 1]
+	if strings.index_byte(inner, '\\') < 0 {
+		return inner
+	}
+	b: strings.Builder
+	strings.builder_init(&b)
+	i := 0
+	for i < len(inner) {
+		c := inner[i]
+		if c == '\\' && i + 1 < len(inner) {
+			switch inner[i + 1] {
+			case 'n':
+				strings.write_byte(&b, '\n')
+			case 't':
+				strings.write_byte(&b, '\t')
+			case 'r':
+				strings.write_byte(&b, '\r')
+			case '0':
+				strings.write_byte(&b, 0)
+			case '\\':
+				strings.write_byte(&b, '\\')
+			case '"':
+				strings.write_byte(&b, '"')
+			case '\'':
+				strings.write_byte(&b, '\'')
+			case '$':
+				strings.write_byte(&b, '$')
+			case:
+				strings.write_byte(&b, inner[i + 1])
+			}
+			i += 2
+		} else {
+			strings.write_byte(&b, c)
+			i += 1
+		}
+	}
+	return strings.to_string(b)
+}
+
 lower_tfile :: proc(tfile: semantics.TFile, store: ^semantics.Type_Store) -> IR_Module {
 	mod: IR_Module
 	mod.decls = make([dynamic]IR_Decl, 0, len(tfile.decls))
@@ -205,16 +251,16 @@ lower_texpr :: proc(expr: semantics.TExpr, env: ^Lower_Env) -> IR_Expr {
 			base.intern(env.interner, "Str"),
 			e.span,
 		)
+		sid := fresh_ir_name(env)
+		content := lower_string_content(e.value)
 		lit := new(IR_Literal_String)
 		lit^ = IR_Literal_String {
-			value = e.value,
+			id    = sid,
+			value = content,
 			type  = e.type_,
 			span  = e.span,
 		}
-		append(
-			&env.module.string_table,
-			String_Table_Entry{id = fresh_ir_name(env), value = e.value},
-		)
+		append(&env.module.string_table, String_Table_Entry{id = sid, value = content})
 		return IR_Expr(lit)
 
 	case ^semantics.TExpr_Bool:
@@ -1280,7 +1326,10 @@ lower_tpattern :: proc(
 
 	case ^semantics.TPattern_String:
 		string_id := fresh_ir_name(env)
-		append(&env.module.string_table, String_Table_Entry{id = string_id, value = p.value})
+		append(
+			&env.module.string_table,
+			String_Table_Entry{id = string_id, value = lower_string_content(p.value)},
+		)
 		result := new(IR_Pat_String)
 		result.string_id = string_id
 		return IR_Pattern(result)
@@ -1724,16 +1773,16 @@ lower_tinterpolated_string :: proc(
 	) -> IR_Expr {
 		#partial switch p in part {
 		case ^semantics.TExpr_String_Literal:
+			sid := fresh_ir_name(env)
+			content := lower_string_content(p.value)
 			lit := new(IR_Literal_String)
 			lit^ = IR_Literal_String {
-				value = p.value,
+				id    = sid,
+				value = content,
 				type  = p.type_,
 				span  = p.span,
 			}
-			append(
-				&env.module.string_table,
-				String_Table_Entry{id = fresh_ir_name(env), value = p.value},
-			)
+			append(&env.module.string_table, String_Table_Entry{id = sid, value = content})
 			return IR_Expr(lit)
 		case ^semantics.TExpr_String_Expr:
 			inner := lower_texpr(p.expr, env)

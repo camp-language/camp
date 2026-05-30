@@ -1,0 +1,7 @@
+main! = || -> I64 {
+  match "world" {
+    "hello" => 1
+    "world" => 2
+    _ => 3
+  }
+}

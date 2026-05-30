@@ -301,8 +301,8 @@ codegen :: proc(
 	for entry in ir_mod.string_table {
 		offset := env.data_offset
 		env.string_offsets[entry.id] = offset
-		bytes := transmute([]u8)entry.value
-		env.data_offset += u32(len(bytes))
+		// Runtime strings are length-prefixed: [i32 len][utf8 bytes].
+		env.data_offset += u32(4 + len(entry.value))
 	}
 
 	// Error message for camp_report_drop_overflow — stored after string data
@@ -1098,8 +1098,16 @@ codegen :: proc(
 	for entry in ir_mod.string_table {
 		offset := env.data_offset
 		env.string_offsets[entry.id] = offset
-		bytes := transmute([]u8)entry.value
-		env.data_offset += u32(len(bytes))
+		content := transmute([]u8)entry.value
+		n := u32(len(content))
+		// Length-prefixed layout: [i32 len little-endian][utf8 bytes].
+		seg := make([]u8, 4 + len(content))
+		seg[0] = u8(n)
+		seg[1] = u8(n >> 8)
+		seg[2] = u8(n >> 16)
+		seg[3] = u8(n >> 24)
+		copy(seg[4:], content)
+		env.data_offset += 4 + n
 
 		offset_buf: [dynamic]u8
 		offset_buf = make([dynamic]u8, 0, CODE_BUF_SMALL)
@@ -1107,7 +1115,7 @@ codegen :: proc(
 
 		append(
 			&mod.datas,
-			Wasm_Data{mem_idx = 0, offset = copy_dynamic_bytes(offset_buf), bytes = bytes},
+			Wasm_Data{mem_idx = 0, offset = copy_dynamic_bytes(offset_buf), bytes = seg},
 		)
 		delete(offset_buf)
 	}
@@ -1186,7 +1194,8 @@ emit_expect :: proc(
 	msg := base.intern_get(env.interner, d.message_id)
 	offset, ok := env.string_offsets[d.message_id]
 	if ok {
-		emit_instruction(Wasm_I32_Const{value = i32(offset)}, buf)
+		// String data is length-prefixed; the bytes start 4 bytes in.
+		emit_instruction(Wasm_I32_Const{value = i32(offset + 4)}, buf)
 		emit_instruction(Wasm_I32_Const{value = i32(len(msg))}, buf)
 		emit_instruction(Wasm_Call{index = u32(runtime_indices[Runtime_Func.Print_Err])}, buf)
 	}
