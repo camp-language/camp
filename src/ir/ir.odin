@@ -182,6 +182,7 @@ IR_Literal_Float :: struct {
 	span:  ba.Source_Span,
 }
 IR_Literal_String :: struct {
+	id:    ba.Intern_ID,
 	value: string,
 	type:  ba.IR_Type,
 	span:  ba.Source_Span,
