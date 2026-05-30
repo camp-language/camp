@@ -21,6 +21,8 @@ reuse_analyze :: proc(mod: ^IR_Module) {
 		#partial switch d in decl {
 		case ^IR_Decl_Fn:
 			d.body = reuse_analyze_expr(d.body)
+		case ^IR_Decl_Expect:
+			d.condition = reuse_analyze_expr(d.condition)
 		case ^IR_Decl_Const:
 			d.value = reuse_analyze_expr(d.value)
 		case ^IR_Decl_Effect:

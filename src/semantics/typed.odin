@@ -525,8 +525,9 @@ TDecl_Test :: struct {
 }
 
 TDecl_Expect :: struct {
-	condition: TExpr,
-	span:      base.Source_Span,
+	condition:   TExpr,
+	doc_comment: string,
+	span:        base.Source_Span,
 }
 
 TDecl_Is_Impl :: struct {

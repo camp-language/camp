@@ -7,6 +7,8 @@ rc_insert :: proc(mod: ^IR_Module, interner: ^base.Intern_Table) {
 		#partial switch d in decl {
 		case ^IR_Decl_Fn:
 			d.body = rc_insert_fn(d, interner)
+		case ^IR_Decl_Expect:
+			d.condition = rc_insert_expr(d.condition, interner)
 		case ^IR_Decl_Const:
 			d.value = rc_insert_expr(d.value, interner)
 		case ^IR_Decl_Effect:

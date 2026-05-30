@@ -104,8 +104,8 @@ Codegen_Env :: struct {
 	throw_err_msg_offset:    u32,
 	throw_err_suffix_offset: u32,
 	unit_value_offset:       u32,
+	release_mode:            bool,
 }
-
 
 hash_func_type :: proc(params: []Wasm_Value_Type, results: []Wasm_Value_Type) -> int {
 	h: int = 0x9E3779B9
@@ -247,6 +247,7 @@ codegen :: proc(
 	ir_mod: ir.IR_Module,
 	interner: ^base.Intern_Table,
 	thread_count: int,
+	release_mode: bool = false,
 ) -> Wasm_Module {
 	mod: Wasm_Module
 	mod.types = make([dynamic]Wasm_Func_Type, 0, 64)
@@ -284,6 +285,7 @@ codegen :: proc(
 	env.file_id = base.intern(interner, "File!")
 	env.console_id = base.intern(interner, "Console!")
 	env.time_id = base.intern(interner, "Time!")
+	env.release_mode = release_mode
 
 	emit_wasi_imports(&env)
 	emit_runtime_types(&env)
@@ -296,8 +298,9 @@ codegen :: proc(
 
 	env.table_idx = len(mod.tables)
 	append(&mod.tables, Wasm_Table{elem_type = .Funcref, min = 1, max = 1, has_max = true})
-
 	for entry in ir_mod.string_table {
+		offset := env.data_offset
+		env.string_offsets[entry.id] = offset
 		bytes := transmute([]u8)entry.value
 		env.data_offset += u32(len(bytes))
 	}
@@ -866,7 +869,7 @@ codegen :: proc(
 				main_fn_idx = func_idx
 				main_decl = d
 			}
-		case ^ir.IR_Decl_Const, ^ir.IR_Decl_Effect:
+		case ^ir.IR_Decl_Const, ^ir.IR_Decl_Effect, ^ir.IR_Decl_Expect:
 		}
 	}
 
@@ -1015,10 +1018,21 @@ codegen :: proc(
 			if is_main && d.is_effectful {
 				continue
 			}
+		case ^ir.IR_Decl_Expect:
+			if env.release_mode {
+				// Release mode: skip expect check entirely — zero code emitted
+				break
+			}
+			body_buf: [dynamic]u8
+			body_buf = make([dynamic]u8, 0, CODE_BUF_DEFAULT)
+			emit_expect(d, &body_buf, &env, runtime_func_indices[:])
+			emit_instruction(Wasm_End{}, &body_buf)
+			append(&mod.codes, Wasm_Code{body = copy_dynamic_bytes(body_buf)})
+			delete(body_buf)
+			break
 		case ^ir.IR_Decl_Const, ^ir.IR_Decl_Effect:
 		}
 	}
-
 	worker_func_idx := -1
 	if start_func_idx >= 0 {
 		worker_type_idx := get_or_create_type(
@@ -1153,5 +1167,124 @@ codegen :: proc(
 	delete(env.decl_to_wasm_fn_idx)
 	delete(env.string_offsets)
 	return mod
+}
+
+emit_expect :: proc(
+	d: ^ir.IR_Decl_Expect,
+	buf: ^[dynamic]u8,
+	env: ^Codegen_Env,
+	runtime_indices: []int,
+) {
+	// Emit the condition expression — leaves Bool (i32, 0 or 1) on stack
+	emit_expr(d.condition, buf, env, runtime_indices)
+
+	// Check if false: condition == 0 → branch to failure
+	emit_instruction(Wasm_I32_Eqz{}, buf)
+	emit_instruction(Wasm_If{block_type = .Void}, buf)
+
+	// Emit the failure message via print_err(ptr, len)
+	msg := base.intern_get(env.interner, d.message_id)
+	offset, ok := env.string_offsets[d.message_id]
+	if ok {
+		emit_instruction(Wasm_I32_Const{value = i32(offset)}, buf)
+		emit_instruction(Wasm_I32_Const{value = i32(len(msg))}, buf)
+		emit_instruction(Wasm_Call{index = u32(runtime_indices[Runtime_Func.Print_Err])}, buf)
+	}
+
+	// Try to emit rich debug info for comparison operands
+	if binop, is_binop := d.condition.(^ir.IR_BinOp); is_binop {
+		if binop.op == .Eq || binop.op == .Ne {
+			emit_operand_debug(binop.left, buf, env, runtime_indices)
+			emit_operand_debug(binop.right, buf, env, runtime_indices)
+		}
+	}
+
+	// Trap
+	emit_instruction(Wasm_Unreachable{}, buf)
+	emit_instruction(Wasm_End{}, buf) // end if
+}
+
+emit_operand_debug :: proc(
+	operand: ir.IR_Expr,
+	buf: ^[dynamic]u8,
+	env: ^Codegen_Env,
+	runtime_indices: []int,
+) {
+	#partial switch e in operand {
+	case ^ir.IR_Var:
+		local_idx, has_local := env.local_map[e.name]
+		typ, has_type := env.local_types[e.name]
+		if !has_local || !has_type {
+			return
+		}
+
+		// Emit newline + space separator before operand value
+		newline_id := base.intern(env.interner, "\n  ")
+		if nl_off, nl_ok := env.string_offsets[newline_id]; nl_ok {
+			emit_instruction(Wasm_I32_Const{value = i32(nl_off)}, buf)
+			emit_instruction(Wasm_I32_Const{value = i32(2)}, buf)
+			emit_instruction(Wasm_Call{index = u32(runtime_indices[Runtime_Func.Print_Err])}, buf)
+		} else {
+			emit_instruction(Wasm_I32_Const{value = i32(10)}, buf)
+			emit_instruction(Wasm_I32_Const{value = i32(1)}, buf)
+			emit_instruction(Wasm_Call{index = u32(runtime_indices[Runtime_Func.Print_Err])}, buf)
+			emit_instruction(Wasm_I32_Const{value = i32(32)}, buf)
+			emit_instruction(Wasm_I32_Const{value = i32(1)}, buf)
+			emit_instruction(Wasm_Call{index = u32(runtime_indices[Runtime_Func.Print_Err])}, buf)
+			emit_instruction(Wasm_I32_Const{value = i32(32)}, buf)
+			emit_instruction(Wasm_I32_Const{value = i32(1)}, buf)
+			emit_instruction(Wasm_Call{index = u32(runtime_indices[Runtime_Func.Print_Err])}, buf)
+		}
+
+		// Dispatch based on WASM type
+		#partial switch typ.wasm_type {
+		case .I64:
+			emit_instruction(Wasm_Local_Get{index = local_idx}, buf)
+			emit_instruction(Wasm_Call{index = u32(runtime_indices[Runtime_Func.I64_To_Str])}, buf)
+			emit_instruction(Wasm_Local_Tee{index = env.tmp_local_base}, buf) // save result
+			emit_instruction(Wasm_I32_Load{align = 2, offset = 0}, buf) // len = result[0:4]
+			emit_instruction(Wasm_Local_Set{index = env.tmp_local_base + 1}, buf) // save len
+			emit_instruction(Wasm_Local_Get{index = env.tmp_local_base}, buf)
+			emit_instruction(Wasm_I32_Const{value = 4}, buf)
+			emit_instruction(Wasm_I32_Add{}, buf) // data = result + 4
+			emit_instruction(Wasm_Local_Get{index = env.tmp_local_base + 1}, buf) // restore len
+			emit_instruction(Wasm_Call{index = u32(runtime_indices[Runtime_Func.Print_Err])}, buf)
+		case .I32:
+			emit_instruction(Wasm_Local_Get{index = local_idx}, buf)
+			emit_instruction(Wasm_Call{index = u32(runtime_indices[Runtime_Func.I32_To_Str])}, buf)
+			emit_instruction(Wasm_Local_Tee{index = env.tmp_local_base}, buf)
+			emit_instruction(Wasm_I32_Load{align = 2, offset = 0}, buf)
+			emit_instruction(Wasm_Local_Set{index = env.tmp_local_base + 1}, buf)
+			emit_instruction(Wasm_Local_Get{index = env.tmp_local_base}, buf)
+			emit_instruction(Wasm_I32_Const{value = 4}, buf)
+			emit_instruction(Wasm_I32_Add{}, buf)
+			emit_instruction(Wasm_Local_Get{index = env.tmp_local_base + 1}, buf)
+			emit_instruction(Wasm_Call{index = u32(runtime_indices[Runtime_Func.Print_Err])}, buf)
+		case .F64:
+			emit_instruction(Wasm_Local_Get{index = local_idx}, buf)
+			emit_instruction(Wasm_Call{index = u32(runtime_indices[Runtime_Func.F64_To_Str])}, buf)
+			emit_instruction(Wasm_Local_Tee{index = env.tmp_local_base}, buf)
+			emit_instruction(Wasm_I32_Load{align = 2, offset = 0}, buf)
+			emit_instruction(Wasm_Local_Set{index = env.tmp_local_base + 1}, buf)
+			emit_instruction(Wasm_Local_Get{index = env.tmp_local_base}, buf)
+			emit_instruction(Wasm_I32_Const{value = 4}, buf)
+			emit_instruction(Wasm_I32_Add{}, buf)
+			emit_instruction(Wasm_Local_Get{index = env.tmp_local_base + 1}, buf)
+			emit_instruction(Wasm_Call{index = u32(runtime_indices[Runtime_Func.Print_Err])}, buf)
+		case .Funcref, .Void:
+		// Skip
+		}
+	case ^ir.IR_Literal_Int:
+		emit_instruction(Wasm_I64_Const{value = e.value}, buf)
+		emit_instruction(Wasm_Call{index = u32(runtime_indices[Runtime_Func.I64_To_Str])}, buf)
+		emit_instruction(Wasm_Local_Tee{index = env.tmp_local_base}, buf)
+		emit_instruction(Wasm_I32_Load{align = 2, offset = 0}, buf)
+		emit_instruction(Wasm_Local_Set{index = env.tmp_local_base + 1}, buf)
+		emit_instruction(Wasm_Local_Get{index = env.tmp_local_base}, buf)
+		emit_instruction(Wasm_I32_Const{value = 4}, buf)
+		emit_instruction(Wasm_I32_Add{}, buf)
+		emit_instruction(Wasm_Local_Get{index = env.tmp_local_base + 1}, buf)
+		emit_instruction(Wasm_Call{index = u32(runtime_indices[Runtime_Func.Print_Err])}, buf)
+	}
 }
 

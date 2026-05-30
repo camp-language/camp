@@ -19,7 +19,15 @@ IR_Decl :: union {
 	^IR_Decl_Fn,
 	^IR_Decl_Const,
 	^IR_Decl_Effect,
+	^IR_Decl_Expect,
 }
+
+IR_Decl_Expect :: struct {
+	condition:  IR_Expr,
+	message_id: ba.Intern_ID,
+	span:       ba.Source_Span,
+}
+
 
 IR_Decl_Fn :: struct {
 	name:         ba.Canonical_Name,
@@ -785,6 +793,12 @@ ir_module_destroy :: proc(mod: ^IR_Module, freed: ^map[rawptr]bool) {
 			freed[ptr] = true
 			for op in d.operations do delete(op.params)
 			delete(d.operations)
+			free(d)
+		case ^IR_Decl_Expect:
+			ptr := rawptr(d)
+			if ptr in freed do continue
+			freed[ptr] = true
+			ir_expr_destroy(d.condition, freed)
 			free(d)
 		case ^IR_Decl_Const:
 			ptr := rawptr(d)
