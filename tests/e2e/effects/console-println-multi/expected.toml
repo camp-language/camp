@@ -6,5 +6,8 @@ compiled /tmp/camp-e2e/effects/console-println-multi/src/Main.camp -> /tmp/camp-
 stderr = ""
 exit = 0
 wasm_exit = 0
-wasm_stdout = ""
+wasm_stdout = """
+1
+2
+"""
 wasm_stderr = ""

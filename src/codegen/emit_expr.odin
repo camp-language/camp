@@ -1914,6 +1914,25 @@ emit_expr :: proc(expr: ir.IR_Expr, buf: ^[dynamic]u8, env: ^Codegen_Env, runtim
 					emit_instruction(Wasm_I32_Const{value = 0}, buf)
 					emit_instruction(Wasm_Call{index = u32(1)}, buf) // fd_write import
 					emit_instruction(Wasm_Drop{}, buf)
+					if op_str == "println!" {
+						// Append a trailing newline. Scratch: byte at 4104,
+						// iovec {ptr=4104, len=1} at 4108/4112.
+						emit_instruction(Wasm_I32_Const{value = 4104}, buf)
+						emit_instruction(Wasm_I32_Const{value = 10}, buf) // '\n'
+						emit_instruction(Wasm_I32_Store8{offset = 0}, buf)
+						emit_instruction(Wasm_I32_Const{value = 4108}, buf)
+						emit_instruction(Wasm_I32_Const{value = 4104}, buf)
+						emit_instruction(Wasm_I32_Store{align = 2, offset = 0}, buf)
+						emit_instruction(Wasm_I32_Const{value = 4112}, buf)
+						emit_instruction(Wasm_I32_Const{value = 1}, buf)
+						emit_instruction(Wasm_I32_Store{align = 2, offset = 0}, buf)
+						emit_instruction(Wasm_I32_Const{value = 1}, buf) // fd=stdout
+						emit_instruction(Wasm_I32_Const{value = 4108}, buf) // iovs
+						emit_instruction(Wasm_I32_Const{value = 1}, buf) // iovs_len
+						emit_instruction(Wasm_I32_Const{value = 0}, buf) // nwritten
+						emit_instruction(Wasm_Call{index = u32(1)}, buf) // fd_write
+						emit_instruction(Wasm_Drop{}, buf)
+					}
 					// Push Unit return value so the enclosing Let can consume it
 					emit_instruction(Wasm_I32_Const{value = 0}, buf)
 				} else if op_str == "write!" {
