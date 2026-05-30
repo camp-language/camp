@@ -257,8 +257,9 @@ typecheck_decl :: proc(decl: CDecl, env: ^Type_Env, store: ^Type_Store) -> TDecl
 		unify(store, result.var_id, bool_var)
 		td := new(TDecl_Expect)
 		td^ = TDecl_Expect {
-			condition = result.texpr,
-			span      = d.span,
+			condition   = result.texpr,
+			doc_comment = d.doc_comment,
+			span        = d.span,
 		}
 		return TDecl(td)
 
