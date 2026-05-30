@@ -33,7 +33,7 @@ main :: proc() {
 	if len(args) < 2 {
 		fmt.printfln("Camp compiler v{}", VERSION)
 		fmt.println("Usage: camp <command> [options] <file>")
-		fmt.println("Commands: build, test, fmt, check, doc, lsp, add, update, init")
+		fmt.println("Commands: build, test, fmt, check, doc, run, lsp, add, update, init")
 		fmt.println("Global flags: --json, --locked, --frozen")
 		os.exit(1)
 	}
@@ -65,24 +65,78 @@ main :: proc() {
 			thread_count = n
 		}
 	}
+	// Parse -o/--output flag and detect file vs project mode
+	file_path: string
+	output_path: string
+	{
+		i := 0
+		for i < len(remaining_args) {
+			a := remaining_args[i]
+			if a == "-o" || a == "--output" {
+				if i + 1 < len(remaining_args) {
+					output_path = remaining_args[i + 1]
+					i += 1
+				} else {
+					fmt.eprintln("error: -o requires a path argument")
+					os.exit(2)
+				}
+			} else if len(a) > 0 && a[0] != '-' && file_path == "" {
+				file_path = a
+			}
+			i += 1
+		}
+	}
 
 	result: build.Build_Result
 	switch cmd {
 	case .Build:
-		file_path := len(remaining_args) > 0 ? remaining_args[0] : ""
-		result = build.run_build_single(file_path, thread_count)
+		if file_path != "" {
+			result = build.run_build_single(file_path, thread_count, output_path)
+		} else {
+			result = build.run_build_project(thread_count, output_path)
+		}
 	case .Test:
-		result = build.run_test(remaining_args)
+		// Detect if any arg looks like a file path (has .camp extension)
+		has_file := false
+		for a in remaining_args {
+			if len(a) > 0 && a[0] != '-' {
+				has_file = true
+				break
+			}
+		}
+		if has_file {
+			result = build.run_test(remaining_args)
+		} else {
+			filter := ""
+			verbose := false
+			i := 0
+			for i < len(remaining_args) {
+				if remaining_args[i] == "--filter" && i + 1 < len(remaining_args) {
+					i += 1
+					filter = remaining_args[i]
+				} else if remaining_args[i] == "--verbose" {
+					verbose = true
+				}
+				i += 1
+			}
+			result = build.run_test_project(filter, verbose)
+		}
 	case .Fmt:
 		format.run_fmt(remaining_args)
 		return
 	case .Check:
-		result = build.run_check(remaining_args)
+		if file_path != "" {
+			result = build.run_check(remaining_args)
+		} else {
+			result = build.run_build_project(thread_count)
+		}
 	case .Doc:
 		result = build.run_doc(remaining_args)
 	case .Lsp:
 		lsp.lsp_main()
 		return
+	case .Run:
+		result = build.run_run(remaining_args)
 	case .Add:
 		run_add(remaining_args)
 		return

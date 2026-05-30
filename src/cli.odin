@@ -13,6 +13,7 @@ CLI_Command :: enum {
 	Add,
 	Update,
 	Init,
+	Run,
 }
 
 parse_command :: proc(cmd: string) -> (CLI_Command, bool) {
@@ -35,6 +36,8 @@ parse_command :: proc(cmd: string) -> (CLI_Command, bool) {
 		return .Update, true
 	case "init":
 		return .Init, true
+	case "run":
+		return .Run, true
 	case:
 		return .Build, false
 	}

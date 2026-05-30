@@ -34,7 +34,11 @@ Build_Result :: union {
 
 run_command_counter: int
 
-run_build_single :: proc(file_path: string, thread_count: int = 1) -> Build_Result {
+run_build_single :: proc(
+	file_path: string,
+	thread_count: int = 1,
+	output_path: string = "",
+) -> Build_Result {
 	ctx: Compilation_Context
 	context_init(&ctx)
 	ctx.thread_count = thread_count
@@ -134,30 +138,28 @@ run_build_single :: proc(file_path: string, thread_count: int = 1) -> Build_Resu
 	ir_mod = ir.cps_transform(&ir_mod, &ctx.interner)
 	ir.rc_insert(&ir_mod, &ctx.interner)
 	ir.reuse_analyze(&ir_mod)
-
 	wasm_mod := codegen.codegen(ir_mod, &ctx.interner, ctx.thread_count)
 	wasm_bytes := codegen.wasm_serialize(wasm_mod)
 	defer delete(wasm_bytes)
-
-	dir := filepath.dir(file_path)
-	stem := filepath.stem(file_path)
-	output_path := fmt.tprintf("{}/{}.wasm", dir, stem)
-
-	write_err := os.write_entire_file_from_bytes(output_path, wasm_bytes[:])
+	local_output := output_path
+	if local_output == "" {
+		local_output = fmt.tprintf("{}/{}.wasm", filepath.dir(file_path), filepath.stem(file_path))
+	}
+	write_err := os.write_entire_file_from_bytes(local_output, wasm_bytes[:])
 	if write_err != nil {
 		diagnostics.collector_add_diag(
 			&ctx.collector,
-			diagnostics.diag_file_write_failed(output_path, fmt.tprintf("{}", write_err)),
+			diagnostics.diag_file_write_failed(local_output, fmt.tprintf("{}", write_err)),
 		)
 		diagnostics.render_all(&ctx.collector, file_path, source)
-		return Build_Error{message = fmt.tprintf("write failed: {}", output_path), code = 1}
+		return Build_Error{message = fmt.tprintf("write failed: {}", local_output), code = 1}
 	}
 	if diagnostics.is_json_mode() {
 		diagnostics.render_all(&ctx.collector, file_path, source)
 	} else {
-		fmt.printfln("compiled {} -> {}", file_path, output_path)
+		fmt.printfln("compiled {} -> {}", file_path, local_output)
 	}
-	return Build_Output{wasm_path = output_path, has_errors = false}
+	return Build_Output{wasm_path = local_output, has_errors = false}
 }
 
 run_check :: proc(args: []string) -> Build_Result {
@@ -609,6 +611,61 @@ run_test :: proc(args: []string) -> Build_Result {
 	}
 
 	return Build_Output{wasm_path = "", has_errors = false}
+}
+
+run_run :: proc(args: []string) -> Build_Result {
+	output_path: string
+	file_args: [dynamic]string
+	defer delete(file_args)
+
+	i := 0
+	for i < len(args) {
+		if args[i] == "-o" || args[i] == "--output" {
+			if i + 1 < len(args) {
+				i += 1
+				output_path = args[i]
+			} else {
+				return Build_Error{message = "-o requires a path argument", code = 2}
+			}
+		} else {
+			append(&file_args, args[i])
+		}
+		i += 1
+	}
+
+	has_file := len(file_args) > 0
+
+	result: Build_Result
+	if has_file {
+		result = run_build_single(file_args[0], 1, output_path)
+	} else {
+		result = run_build_project(1, output_path)
+	}
+
+	output, is_output := result.(Build_Output)
+	if !is_output {
+		return result
+	}
+
+	if output.wasm_path == "" {
+		return Build_Error{message = "no wasm output to run", code = 1}
+	}
+
+	fmt.printfln("running {}", output.wasm_path)
+	wasm_stdout, wasm_stderr, exit_code := run_wasmtime_proc(output.wasm_path)
+
+	if len(wasm_stdout) > 0 {
+		fmt.print(wasm_stdout)
+	}
+	if len(wasm_stderr) > 0 {
+		fmt.eprint(wasm_stderr)
+	}
+
+	if exit_code != 0 {
+		return Build_Error{message = fmt.tprintf("exit code: {}", exit_code), code = exit_code}
+	}
+
+	return Build_Output{wasm_path = output.wasm_path, has_errors = false}
 }
 
 compile_test_canon :: proc(
