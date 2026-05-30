@@ -421,6 +421,43 @@ format_expr_block :: proc(
 	info: ^Format_Source_Info,
 	interner: ^base.Intern_Table,
 ) -> Doc {
+	// Single-expr block candidate for single-line layout
+	if len(e.statements) == 1 {
+		stmt := e.statements[0]
+
+		// Check 1: not inherently multiline (return, assign)
+		is_candidate := true
+		#partial switch v in stmt {
+		case ^frontend.Expr_Return, ^frontend.Expr_Assign:
+			is_candidate = false
+		}
+
+		if is_candidate {
+			// Check 2: no newline after { in original source
+			has_block_break := info.first_separator_break[e.span.start]
+
+			if !has_block_break {
+				// Check 3: no preceding comment after {
+				stmt_start := frontend.expr_span(stmt, .Start)
+				_, has_comment := info.comments_before[stmt_start]
+
+				if !has_comment {
+					// Check 4: expression itself is single-line (no hard breaks)
+					body_doc := format_expr(stmt, info, interner)
+					if !doc_has_hard_break(body_doc) {
+						// Single-line: { expr }
+						parts: [dynamic]Doc
+						append(&parts, doc_text("{ "))
+						append(&parts, body_doc)
+						append(&parts, doc_text(" }"))
+						return doc_concat(parts[:])
+					}
+				}
+			}
+		}
+	}
+
+	// Multiline (current behavior)
 	parts: [dynamic]Doc
 	defer delete(parts)
 	append(&parts, doc_text("{"))
@@ -452,45 +489,61 @@ format_expr_if :: proc(
 	info: ^Format_Source_Info,
 	interner: ^base.Intern_Table,
 ) -> Doc {
-	_, then_is_block := e.then_branch.(^frontend.Expr_Block)
-	_, else_is_block := e.else_branch.(^frontend.Expr_Block)
-
-	has_braces := then_is_block || else_is_block
 	multiline := info.first_separator_break[e.span.start]
+	has_else := e.else_branch != nil
 
-	if multiline || has_braces {
+	// Format branches once so we can check hard breaks
+	then_doc := format_expr(e.then_branch, info, interner)
+	else_doc: Doc
+	if has_else {
+		else_doc = format_expr(e.else_branch, info, interner)
+	}
+
+	// Multiline if original had breaks or any branch has hard breaks
+	is_multiline := multiline || doc_has_hard_break(then_doc)
+	if has_else {
+		is_multiline = is_multiline || doc_has_hard_break(else_doc)
+	}
+
+	if is_multiline {
 		parts: [dynamic]Doc
 		defer delete(parts)
 		append(&parts, doc_text("if "))
 		append(&parts, format_expr(e.condition, info, interner))
 		append(&parts, doc_text(" {"))
 		append(&parts, doc_line())
-		append(&parts, doc_nest(4, format_expr(e.then_branch, info, interner)))
+		append(&parts, doc_nest(4, then_doc))
 		append(&parts, doc_line())
 		append(&parts, doc_text("}"))
 
-		if else_is_block {
-			append(&parts, doc_text(" else {"))
-			append(&parts, doc_line())
-			append(&parts, doc_nest(4, format_expr(e.else_branch, info, interner)))
-			append(&parts, doc_line())
-			append(&parts, doc_text("}"))
-		} else {
-			append(&parts, doc_text(" else "))
-			append(&parts, format_expr(e.else_branch, info, interner))
+		if has_else {
+			_, else_is_block := e.else_branch.(^frontend.Expr_Block)
+			if else_is_block {
+				append(&parts, doc_text(" else {"))
+				append(&parts, doc_line())
+				append(&parts, doc_nest(4, else_doc))
+				append(&parts, doc_line())
+				append(&parts, doc_text("}"))
+			} else {
+				append(&parts, doc_text(" else "))
+				append(&parts, else_doc)
+			}
 		}
 
 		return doc_concat(parts[:])
 	}
 
+	// Flat path: if cond { expr } else { expr2 }
 	parts: [dynamic]Doc
 	defer delete(parts)
 	append(&parts, doc_text("if "))
 	append(&parts, format_expr(e.condition, info, interner))
 	append(&parts, doc_text(" "))
-	append(&parts, format_expr(e.then_branch, info, interner))
-	append(&parts, doc_text(" else "))
-	append(&parts, format_expr(e.else_branch, info, interner))
+	append(&parts, then_doc)
+	if has_else {
+		append(&parts, doc_text(" else "))
+		append(&parts, else_doc)
+	}
 	return doc_concat(parts[:])
 }
 
@@ -922,7 +975,7 @@ format_expr_par :: proc(
 	defer delete(parts)
 
 	if e.for_var != base.Intern_ID(0) {
-		// par for x in xs { body }
+		// par for x in xs { body } — always multiline (for variant)
 		append(&parts, doc_text("par for "))
 		append(&parts, doc_text(base.intern_get(interner, e.for_var)))
 		append(&parts, doc_text(" in "))
@@ -932,35 +985,62 @@ format_expr_par :: proc(
 		append(&parts, doc_nest(4, format_expr(e.for_body, info, interner)))
 		append(&parts, doc_line())
 		append(&parts, doc_text("}"))
-	} else if len(e.names) > 0 {
-		// par { name: expr, name2: expr2 }
-		append(&parts, doc_text("par {"))
-		append(&parts, doc_line())
-		entry_parts: [dynamic]Doc
-		for idx in 0 ..< len(e.names) {
-			if idx > 0 {
-				append(&entry_parts, doc_text(","))
-				append(&entry_parts, doc_line())
-			}
-			append(&entry_parts, doc_text(base.intern_get(interner, e.names[idx])))
-			append(&entry_parts, doc_text(": "))
-			append(&entry_parts, format_expr(e.expressions[idx], info, interner))
-		}
-		append(&parts, doc_nest(4, doc_concat(entry_parts[:])))
-		append(&parts, doc_line())
-		append(&parts, doc_text("}"))
-	} else {
-		// par { e1, e2, e3 } (unnamed, legacy)
-		append(&parts, doc_text("par {"))
-		append(&parts, doc_line())
-		append(
-			&parts,
-			doc_nest(4, format_exprs_comma_multiline_inner(e.expressions[:], info, interner)),
-		)
-		append(&parts, doc_line())
-		append(&parts, doc_text("}"))
+		return doc_concat(parts[:])
 	}
 
+	// par { ... } — follows record rule
+	multiline := info.first_separator_break[e.span.start]
+
+	if !multiline && len(e.names) == 0 {
+		// Flat unnamed: par { e1, e2 }
+		append(&parts, doc_text("par { "))
+		format_exprs_comma_flat(&parts, e.expressions[:], info, interner)
+		append(&parts, doc_text(" }"))
+		return doc_concat(parts[:])
+	}
+
+	if multiline || (len(e.names) == 0 && len(e.expressions) > 0) {
+		// Multiline path
+		append(&parts, doc_text("par {"))
+		append(&parts, doc_line())
+
+		if len(e.names) > 0 {
+			// Named: par { name: expr, ... }
+			entry_parts: [dynamic]Doc
+			for idx in 0 ..< len(e.names) {
+				if idx > 0 {
+					append(&entry_parts, doc_text(","))
+					append(&entry_parts, doc_line())
+				}
+				append(&entry_parts, doc_text(base.intern_get(interner, e.names[idx])))
+				append(&entry_parts, doc_text(": "))
+				append(&entry_parts, format_expr(e.expressions[idx], info, interner))
+			}
+			append(&parts, doc_nest(4, doc_concat(entry_parts[:])))
+		} else {
+			// Unnamed: par { e1, e2 }
+			append(
+				&parts,
+				doc_nest(4, format_exprs_comma_multiline_inner(e.expressions[:], info, interner)),
+			)
+		}
+
+		append(&parts, doc_line())
+		append(&parts, doc_text("}"))
+		return doc_concat(parts[:])
+	}
+
+	// Flat named: par { name: expr, name2: expr2 }
+	append(&parts, doc_text("par { "))
+	for idx in 0 ..< len(e.names) {
+		if idx > 0 {
+			append(&parts, doc_text(", "))
+		}
+		append(&parts, doc_text(base.intern_get(interner, e.names[idx])))
+		append(&parts, doc_text(": "))
+		append(&parts, format_expr(e.expressions[idx], info, interner))
+	}
+	append(&parts, doc_text(" }"))
 	return doc_concat(parts[:])
 }
 
