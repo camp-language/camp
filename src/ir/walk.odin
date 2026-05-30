@@ -136,6 +136,8 @@ walk_decl_children :: proc(decl: IR_Decl, visitor: proc(expr: IR_Expr, ctx: rawp
 		visitor(d.body, ctx)
 	case ^IR_Decl_Const:
 		visitor(d.value, ctx)
+	case ^IR_Decl_Expect:
+		visitor(d.condition, ctx)
 	// IR_Decl_Effect has no expression children
 	case ^IR_Decl_Effect:
 	// no children

@@ -30,11 +30,9 @@ lower_tfile :: proc(tfile: semantics.TFile, store: ^semantics.Type_Store) -> IR_
 		     ^semantics.TDecl_Newtype,
 		     ^semantics.TDecl_Import,
 		     ^semantics.TDecl_Test,
-		     ^semantics.TDecl_Expect,
 		     ^semantics.TDecl_Is_Impl:
 		}
 	}
-
 	inject_prelude_effect_defs(&mod, store)
 
 	for &decl in tfile.decls {
@@ -53,6 +51,8 @@ lower_tfile :: proc(tfile: semantics.TFile, store: ^semantics.Type_Store) -> IR_
 		case ^semantics.TDecl_Import:
 		case ^semantics.TDecl_Test:
 		case ^semantics.TDecl_Expect:
+			ir_decl := lower_tdecl_expect(&d^, &env)
+			append(&mod.decls, ir_decl)
 		case ^semantics.TDecl_Is_Impl:
 		}
 	}
@@ -607,6 +607,23 @@ lower_tdecl_effect :: proc(d: ^semantics.TDecl_Effect, env: ^Lower_Env) -> IR_De
 	decl^ = IR_Decl_Effect {
 		name       = d.name,
 		operations = ops,
+		span       = d.span,
+	}
+	return IR_Decl(decl)
+}
+
+lower_tdecl_expect :: proc(d: ^semantics.TDecl_Expect, env: ^Lower_Env) -> IR_Decl {
+	cond := lower_texpr(d.condition, env)
+	msg := d.doc_comment
+	if msg == "" {
+		msg = "expectation failed"
+	}
+	msg_id := base.intern(env.interner, msg)
+	append(&env.module.string_table, String_Table_Entry{id = msg_id, value = msg})
+	decl := new(IR_Decl_Expect)
+	decl^ = IR_Decl_Expect {
+		condition  = cond,
+		message_id = msg_id,
 		span       = d.span,
 	}
 	return IR_Decl(decl)

@@ -68,6 +68,7 @@ main :: proc() {
 	// Parse -o/--output flag and detect file vs project mode
 	file_path: string
 	output_path: string
+	release := false
 	{
 		i := 0
 		for i < len(remaining_args) {
@@ -80,6 +81,8 @@ main :: proc() {
 					fmt.eprintln("error: -o requires a path argument")
 					os.exit(2)
 				}
+			} else if a == "--release" {
+				release = true
 			} else if len(a) > 0 && a[0] != '-' && file_path == "" {
 				file_path = a
 			}
@@ -91,7 +94,7 @@ main :: proc() {
 	switch cmd {
 	case .Build:
 		if file_path != "" {
-			result = build.run_build_single(file_path, thread_count, output_path)
+			result = build.run_build_single(file_path, thread_count, output_path, release)
 		} else {
 			result = build.run_build_project(thread_count, output_path)
 		}

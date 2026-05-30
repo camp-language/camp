@@ -38,6 +38,7 @@ run_build_single :: proc(
 	file_path: string,
 	thread_count: int = 1,
 	output_path: string = "",
+	release: bool = false,
 ) -> Build_Result {
 	ctx: Compilation_Context
 	context_init(&ctx)
@@ -138,7 +139,7 @@ run_build_single :: proc(
 	ir_mod = ir.cps_transform(&ir_mod, &ctx.interner)
 	ir.rc_insert(&ir_mod, &ctx.interner)
 	ir.reuse_analyze(&ir_mod)
-	wasm_mod := codegen.codegen(ir_mod, &ctx.interner, ctx.thread_count)
+	wasm_mod := codegen.codegen(ir_mod, &ctx.interner, ctx.thread_count, release)
 	wasm_bytes := codegen.wasm_serialize(wasm_mod)
 	defer delete(wasm_bytes)
 	local_output := output_path
