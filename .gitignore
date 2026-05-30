@@ -3,6 +3,7 @@ camp-*
 !.beans/camp-*
 !.beans/
 build
+!src/build/
 *.bin
 tree-sitter/node_modules/
 tree-sitter/build/
