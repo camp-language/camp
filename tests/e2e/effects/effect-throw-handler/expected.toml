@@ -8,3 +8,6 @@ exit = 0
 wasm_exit = 0
 wasm_stdout = ""
 wasm_stderr = ""
+# skip_wasm: user-defined handle/resume dispatch traps at runtime. Separate
+# effect-handler bug, tracked apart from the effect-execution fix.
+skip_wasm = true

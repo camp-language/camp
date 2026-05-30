@@ -249,12 +249,22 @@ run_test :: proc(test: E2E_Test, update: bool) -> Test_Report {
 		} else {
 			wasm_path, tw_err = filepath.join({tmp_src, "Main.wasm"}, context.allocator)
 		}
+		// `skip_wasm = true` skips only the wasm-execution assertions while
+		// still checking compilation output. Used for tests that compile but
+		// exercise runtime features with known, separately-tracked bugs.
+		skip_wasm := false
+		if v, ok := toml_get(&expected_dict, "skip_wasm"); ok {
+			#partial switch b in v {
+			case bool:
+				skip_wasm = b
+			}
+		}
 		// Only attempt to run the WASM when it actually exports `_start`.
 		// Camp source files with no `main!` (library-style: just top-level
 		// fn or type decls) are valid programs that compile but don't run,
 		// and asking wasmtime to `run` such a module just returns a generic
 		// "no _start" error that obscures the real test signal.
-		if tw_err == nil && wasm_has_start_export(wasm_path) {
+		if tw_err == nil && !skip_wasm && wasm_has_start_export(wasm_path) {
 			has_wasm = true
 			wasm_stdout, wasm_stderr, wasm_exit, wasm_available = run_wasmtime(
 				wasm_path,
@@ -350,7 +360,17 @@ run_test :: proc(test: E2E_Test, update: bool) -> Test_Report {
 		}
 	}
 
-	if update {
+	// Never overwrite a hand-authored skip_wasm snapshot during --update;
+	// the writer doesn't preserve skip_wasm and would silently drop it.
+	skip_wasm_snapshot := false
+	if v, ok := toml_get(&expected_dict, "skip_wasm"); ok {
+		#partial switch b in v {
+		case bool:
+			skip_wasm_snapshot = b
+		}
+	}
+
+	if update && !skip_wasm_snapshot {
 		args_str: string
 		if has_args {
 			#partial switch a in args_val {

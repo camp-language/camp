@@ -892,12 +892,13 @@ codegen :: proc(
 		}
 		env.func_type_indices[cont_func_idx] = u32(cont_type_idx)
 
-		// Main entry wrapper: (i32) -> (i32) for scheduler call_indirect dispatch
-		// Unpacks evidence pointers from env record and calls main!
+		// Main entry wrapper: (i32) -> () to match the scheduler's task ABI
+		// (call_indirect uses type 0 = (i32)->()). Unpacks evidence pointers
+		// from the env record and tail-calls the CPS-transformed main!.
 		main_entry_wrapper_type_idx := get_or_create_type(
 			&env,
 			[]Wasm_Value_Type{.I32},
-			[]Wasm_Value_Type{.I32},
+			[]Wasm_Value_Type{},
 		)
 		main_entry_wrapper_fn_idx = add_function(&env, main_entry_wrapper_type_idx)
 
@@ -1043,6 +1044,34 @@ codegen :: proc(
 		worker_func_idx = add_function(&env, worker_type_idx)
 	}
 
+	deferred_handler_codes: [dynamic]Wasm_Code
+	deferred_handler_codes = make([dynamic]Wasm_Code, 0, 8)
+
+	emit_start_function(
+		&env,
+		main_decl,
+		main_fn_idx,
+		cont_func_idx,
+		start_func_idx,
+		worker_func_idx,
+		runtime_func_indices[:],
+		ir_mod,
+		thread_count,
+		&deferred_handler_codes,
+		main_entry_wrapper_fn_idx,
+		main_entry_wrapper_code,
+	)
+
+	// Append deferred handler code bodies after _start and worker,
+	// preserving the invariant that codes[k] maps to function index import_count + k
+	for code in deferred_handler_codes {
+		append(&mod.codes, code)
+	}
+	delete(deferred_handler_codes)
+
+	// Build the funcref table AFTER all functions (including deferred effect
+	// handlers allocated inside emit_start_function) have been assigned indices,
+	// so handlers stored in evidence records are reachable via call_indirect.
 	if env.table_idx >= 0 && len(env.func_type_indices) > 0 {
 		total_funcs := len(env.func_type_indices)
 
@@ -1068,31 +1097,6 @@ codegen :: proc(
 		)
 		delete(elem_offset_buf)
 	}
-
-	deferred_handler_codes: [dynamic]Wasm_Code
-	deferred_handler_codes = make([dynamic]Wasm_Code, 0, 8)
-
-	emit_start_function(
-		&env,
-		main_decl,
-		main_fn_idx,
-		cont_func_idx,
-		start_func_idx,
-		worker_func_idx,
-		runtime_func_indices[:],
-		ir_mod,
-		thread_count,
-		&deferred_handler_codes,
-		main_entry_wrapper_fn_idx,
-		main_entry_wrapper_code,
-	)
-
-	// Append deferred handler code bodies after _start and worker,
-	// preserving the invariant that codes[k] maps to function index import_count + k
-	for code in deferred_handler_codes {
-		append(&mod.codes, code)
-	}
-	delete(deferred_handler_codes)
 
 	env.data_offset = 0
 	for entry in ir_mod.string_table {

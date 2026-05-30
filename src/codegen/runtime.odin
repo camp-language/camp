@@ -1436,12 +1436,13 @@ emit_camp_sched_spawn_body :: proc(shared: bool) -> Wasm_Code {
 		emit_instruction(Wasm_Atomic_Mem{op = .RMW_Add, width = .I32, align = 2, offset = 0}, &buf)
 		emit_instruction(Wasm_Local_Set{index = 3}, &buf)
 	} else {
+		// next_id = next_id + 1 (store address must be pushed before the value).
+		emit_instruction(Wasm_I32_Const{value = i32(handle_table_base)}, &buf)
 		emit_instruction(Wasm_I32_Const{value = i32(handle_table_base)}, &buf)
 		emit_instruction(Wasm_I32_Load{align = 2, offset = 0}, &buf)
 		emit_instruction(Wasm_Local_Tee{index = 3}, &buf)
 		emit_instruction(Wasm_I32_Const{value = 1}, &buf)
 		emit_instruction(Wasm_I32_Add{}, &buf)
-		emit_instruction(Wasm_I32_Const{value = i32(handle_table_base)}, &buf)
 		emit_instruction(Wasm_I32_Store{align = 2, offset = 0}, &buf)
 	}
 	emit_instruction(Wasm_I32_Const{value = i32(handle_table_base + 4)}, &buf)
@@ -1488,11 +1489,13 @@ emit_camp_sched_spawn_body :: proc(shared: bool) -> Wasm_Code {
 		emit_instruction(Wasm_Drop{}, &buf)
 		notification_base := SCHED_BASE + SCHED_WORKER_COUNT_SIZE + SCHED_SPINNING_SIZE
 	} else {
+		// tail = tail + 1. The store address must be pushed BEFORE the value,
+		// otherwise i32.store reads its operands reversed and the increment is lost.
+		emit_instruction(Wasm_I32_Const{value = i32(global_queue_base + 4)}, &buf)
 		emit_instruction(Wasm_I32_Const{value = i32(global_queue_base + 4)}, &buf)
 		emit_instruction(Wasm_I32_Load{align = 2, offset = 0}, &buf)
 		emit_instruction(Wasm_I32_Const{value = 1}, &buf)
 		emit_instruction(Wasm_I32_Add{}, &buf)
-		emit_instruction(Wasm_I32_Const{value = i32(global_queue_base + 4)}, &buf)
 		emit_instruction(Wasm_I32_Store{align = 2, offset = 0}, &buf)
 		notification_base := SCHED_BASE + SCHED_WORKER_COUNT_SIZE + SCHED_SPINNING_SIZE
 	}
@@ -2221,12 +2224,13 @@ emit_camp_sched_timer_insert_body :: proc(shared: bool) -> Wasm_Code {
 		emit_instruction(Wasm_Atomic_Mem{op = .RMW_Add, width = .I32, align = 2, offset = 0}, &buf)
 		emit_instruction(Wasm_Local_Set{index = 7}, &buf)
 	} else {
+		// next_free = next_free + 1 (store address must be pushed before the value).
+		emit_instruction(Wasm_I32_Const{value = i32(timer_pool_base)}, &buf)
 		emit_instruction(Wasm_I32_Const{value = i32(timer_pool_base)}, &buf)
 		emit_instruction(Wasm_I32_Load{align = 2, offset = 0}, &buf)
 		emit_instruction(Wasm_Local_Tee{index = 7}, &buf)
 		emit_instruction(Wasm_I32_Const{value = 1}, &buf)
 		emit_instruction(Wasm_I32_Add{}, &buf)
-		emit_instruction(Wasm_I32_Const{value = i32(timer_pool_base)}, &buf)
 		emit_instruction(Wasm_I32_Store{align = 2, offset = 0}, &buf)
 	}
 	emit_instruction(Wasm_I32_Const{value = i32(timer_pool_base + 4)}, &buf)
@@ -2421,12 +2425,13 @@ emit_camp_sched_worker_loop_body :: proc(shared: bool) -> Wasm_Code {
 		emit_instruction(Wasm_Atomic_Mem{op = .RMW_Add, width = .I32, align = 2, offset = 0}, &buf)
 		emit_instruction(Wasm_Local_Set{index = 2}, &buf)
 	} else {
+		// head = head + 1 (store address must be pushed before the value).
+		emit_instruction(Wasm_I32_Const{value = i32(global_queue_base)}, &buf)
 		emit_instruction(Wasm_I32_Const{value = i32(global_queue_base)}, &buf)
 		emit_instruction(Wasm_I32_Load{align = 2, offset = 0}, &buf)
 		emit_instruction(Wasm_Local_Tee{index = 2}, &buf)
 		emit_instruction(Wasm_I32_Const{value = 1}, &buf)
 		emit_instruction(Wasm_I32_Add{}, &buf)
-		emit_instruction(Wasm_I32_Const{value = i32(global_queue_base)}, &buf)
 		emit_instruction(Wasm_I32_Store{align = 2, offset = 0}, &buf)
 	}
 	emit_instruction(Wasm_I32_Const{value = i32(global_queue_base + 12)}, &buf)
