@@ -94,6 +94,20 @@ format_decl_effect :: proc(
 		return doc_concat(parts[:])
 	}
 
+	// Find { position to check first_separator_break (record rule)
+	brace_pos := v.span.start + strings.index(info.source[v.span.start:v.span.end], "{")
+	multiline := info.first_separator_break[brace_pos]
+
+	if !multiline && len(v.operations) == 1 {
+		// Single-line: { op: |Type| -> Ret }
+		op := v.operations[0]
+		append(&parts, doc_text(" {"))
+		append(&parts, format_effect_op_flat(op, info, interner))
+		append(&parts, doc_text(" }"))
+		return doc_concat(parts[:])
+	}
+
+	// Multiline
 	append(&parts, doc_text(" {"))
 	append(&parts, doc_nest(4, format_effect_ops(v.operations[:], info, interner)))
 	append(&parts, doc_line())
@@ -153,6 +167,40 @@ format_effect_ops :: proc(
 	return doc_group(op_parts[:])
 }
 
+format_effect_op_flat :: proc(
+	op: frontend.Effect_Op,
+	info: ^Format_Source_Info,
+	interner: ^base.Intern_Table,
+) -> Doc {
+	parts: [dynamic]Doc
+	defer delete(parts)
+	op_name := base.intern_get(interner, op.name)
+	append(&parts, doc_text(op_name))
+	if op.is_effectful && !strings.has_suffix(op_name, "!") {
+		append(&parts, doc_text("!"))
+	}
+	append(&parts, doc_text(": "))
+	if len(op.params) > 0 {
+		append(&parts, doc_text("|"))
+		for param, j in op.params {
+			if j > 0 {
+				append(&parts, doc_text(", "))
+			}
+			append(&parts, doc_text(base.intern_get(interner, param.name)))
+			if param.type_ann != nil {
+				append(&parts, doc_text(": "))
+				append(&parts, format_type(param.type_ann, info, interner))
+			}
+		}
+		append(&parts, doc_text("|"))
+	}
+	if op.return_type != nil {
+		append(&parts, doc_text(": "))
+		append(&parts, format_type(op.return_type, info, interner))
+	}
+	return doc_concat(parts[:])
+}
+
 format_decl_trait :: proc(
 	v: ^frontend.Decl_Trait,
 	info: ^Format_Source_Info,
@@ -171,6 +219,22 @@ format_decl_trait :: proc(
 		return doc_concat(parts[:])
 	}
 
+	// Find { position for first_separator_break (record rule)
+	brace_idx := strings.index(info.source[v.span.start:v.span.end], "{")
+	if brace_idx >= 0 {
+		brace_pos := v.span.start + brace_idx
+		multiline := info.first_separator_break[brace_pos]
+
+		if !multiline && len(v.methods) == 1 {
+			// Single-line: { method: |Param| -> Ret }
+			append(&parts, doc_text(" : {"))
+			append(&parts, format_trait_method_flat(v.methods[0], info, interner))
+			append(&parts, doc_text(" }"))
+			return doc_concat(parts[:])
+		}
+	}
+
+	// Multiline
 	append(&parts, doc_text(" : {"))
 	append(&parts, doc_nest(4, format_trait_methods(v.methods[:], info, interner)))
 	append(&parts, doc_line())
@@ -211,6 +275,32 @@ format_trait_methods :: proc(
 	return doc_group(m_parts[:])
 }
 
+format_trait_method_flat :: proc(
+	m: frontend.Trait_Method,
+	info: ^Format_Source_Info,
+	interner: ^base.Intern_Table,
+) -> Doc {
+	parts: [dynamic]Doc
+	defer delete(parts)
+	append(&parts, doc_text(base.intern_get(interner, m.name)))
+	append(&parts, doc_text(": |"))
+	for param, j in m.params {
+		if j > 0 {
+			append(&parts, doc_text(", "))
+		}
+		append(&parts, doc_text(base.intern_get(interner, param.name)))
+		if param.type_ann != nil {
+			append(&parts, doc_text(": "))
+			append(&parts, format_type(param.type_ann, info, interner))
+		}
+	}
+	append(&parts, doc_text("| -> "))
+	if m.return_type != nil {
+		append(&parts, format_type(m.return_type, info, interner))
+	}
+	return doc_concat(parts[:])
+}
+
 format_decl_alias :: proc(
 	v: ^frontend.Decl_Alias,
 	info: ^Format_Source_Info,
@@ -223,7 +313,6 @@ format_decl_alias :: proc(
 	append(&parts, format_type(v.target, info, interner))
 	return doc_concat(parts[:])
 }
-
 format_decl_newtype :: proc(
 	v: ^frontend.Decl_Newtype,
 	info: ^Format_Source_Info,
