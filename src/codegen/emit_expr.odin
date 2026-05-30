@@ -3,6 +3,17 @@ package codegen
 import "camp:base"
 import "camp:ir"
 
+// cg_tmp_inc reserves one more nested tmp slot and tracks the high-water mark
+// so the function's local declaration can be sized to fit. Use this instead of
+// `env.tmp_count += 1` so deeply nested temporaries never index past the
+// declared locals.
+cg_tmp_inc :: proc(env: ^Codegen_Env) {
+	env.tmp_count += 1
+	if env.tmp_count > env.tmp_max {
+		env.tmp_max = env.tmp_count
+	}
+}
+
 collect_locals :: proc(expr: ir.IR_Expr, locals: ^map[base.Intern_ID]base.IR_Type) {
 	if expr == nil do return
 
@@ -1429,7 +1440,7 @@ emit_expr :: proc(expr: ir.IR_Expr, buf: ^[dynamic]u8, env: ^Codegen_Env, runtim
 			reuse_local, reuse_ok := env.local_map[e.reuse_addr]
 			if reuse_ok {
 				rc_local := env.tmp_local_base + env.tmp_count
-				env.tmp_count += 1
+				cg_tmp_inc(env)
 
 				// Load refcount, decrement, store back
 				emit_instruction(Wasm_Local_Get{index = reuse_local}, buf)
@@ -1512,14 +1523,14 @@ emit_expr :: proc(expr: ir.IR_Expr, buf: ^[dynamic]u8, env: ^Codegen_Env, runtim
 		// records containing env records) don't clobber the outer record's
 		// pointer between alloc and field stores.
 		tmp_local_idx := env.tmp_local_base + env.tmp_count
-		env.tmp_count += 1
+		cg_tmp_inc(env)
 
 		if e.reuse_addr != ir.NO_REUSE_ADDR {
 			// Perceus inline reuse: decrement reuse_addr refcount, reuse if zero + big enough
 			reuse_local, reuse_ok := env.local_map[e.reuse_addr]
 			if reuse_ok {
 				rc_local := env.tmp_local_base + env.tmp_count
-				env.tmp_count += 1
+				cg_tmp_inc(env)
 
 				// Load refcount, decrement, store back
 				emit_instruction(Wasm_Local_Get{index = reuse_local}, buf)
@@ -1606,7 +1617,7 @@ emit_expr :: proc(expr: ir.IR_Expr, buf: ^[dynamic]u8, env: ^Codegen_Env, runtim
 		num_fields := len(e.elements)
 		total_size := CAMP_TAG_HEADER_SIZE + num_fields * 8
 		tmp_local_idx := env.tmp_local_base + env.tmp_count
-		env.tmp_count += 1
+		cg_tmp_inc(env)
 
 		emit_instruction(Wasm_I32_Const{value = i32(total_size)}, buf)
 		emit_instruction(Wasm_Call{index = u32(runtime_indices[Runtime_Func.Alloc])}, buf)
@@ -1681,9 +1692,9 @@ emit_expr :: proc(expr: ir.IR_Expr, buf: ^[dynamic]u8, env: ^Codegen_Env, runtim
 				SCHED_NOTIFICATION_SIZE
 			// local for loop counter
 			scope_local := env.tmp_local_base + env.tmp_count
-			env.tmp_count += 1
+			cg_tmp_inc(env)
 			entry_addr_local := scope_local + 1
-			env.tmp_count += 1
+			cg_tmp_inc(env)
 
 			// Loop over handle table entries
 			emit_instruction(Wasm_I32_Const{value = 0}, buf)
@@ -1762,7 +1773,7 @@ emit_expr :: proc(expr: ir.IR_Expr, buf: ^[dynamic]u8, env: ^Codegen_Env, runtim
 					if len(e.args) >= 1 {
 						// The thunk is a closure: extract fn_index and env_ptr
 						thunk_local := env.tmp_local_base + env.tmp_count
-						env.tmp_count += 1
+						cg_tmp_inc(env)
 						emit_expr(e.args[0], buf, env, runtime_indices)
 						emit_instruction(Wasm_Local_Set{index = thunk_local}, buf)
 
@@ -1894,7 +1905,7 @@ emit_expr :: proc(expr: ir.IR_Expr, buf: ^[dynamic]u8, env: ^Codegen_Env, runtim
 						Wasm_Local_Set{index = u32(env.tmp_local_base + env.tmp_count)},
 						buf,
 					)
-					env.tmp_count += 1
+					cg_tmp_inc(env)
 					str_local := env.tmp_local_base + env.tmp_count - 1
 
 					emit_instruction(Wasm_I32_Const{value = 4096}, buf)
@@ -1952,7 +1963,7 @@ emit_expr :: proc(expr: ir.IR_Expr, buf: ^[dynamic]u8, env: ^Codegen_Env, runtim
 			} else if effect_str == "Parallel!" {
 				if op_str == "map!" && len(e.args) >= 2 {
 					// map!(fn, items) -> camp_parallel_map(fn_idx, fn_env, items_ptr, items_len, chunk_size)
-					fn_local := env.tmp_local_base + env.tmp_count; env.tmp_count += 1
+					fn_local := env.tmp_local_base + env.tmp_count; cg_tmp_inc(env)
 					emit_expr(e.args[0], buf, env, runtime_indices)
 					emit_instruction(Wasm_Local_Set{index = fn_local}, buf)
 					emit_instruction(Wasm_Local_Get{index = fn_local}, buf)
@@ -1965,7 +1976,7 @@ emit_expr :: proc(expr: ir.IR_Expr, buf: ^[dynamic]u8, env: ^Codegen_Env, runtim
 						Wasm_I32_Load{align = 2, offset = u32(CAMP_TAG_FIELDS_OFFSET + 8)},
 						buf,
 					)
-					items_local := env.tmp_local_base + env.tmp_count; env.tmp_count += 1
+					items_local := env.tmp_local_base + env.tmp_count; cg_tmp_inc(env)
 					emit_expr(e.args[1], buf, env, runtime_indices)
 					emit_instruction(Wasm_Local_Set{index = items_local}, buf)
 					emit_instruction(Wasm_Local_Get{index = items_local}, buf)
@@ -1984,7 +1995,7 @@ emit_expr :: proc(expr: ir.IR_Expr, buf: ^[dynamic]u8, env: ^Codegen_Env, runtim
 						buf,
 					)
 				} else if op_str == "reduce!" && len(e.args) >= 3 {
-					fn_local := env.tmp_local_base + env.tmp_count; env.tmp_count += 1
+					fn_local := env.tmp_local_base + env.tmp_count; cg_tmp_inc(env)
 					emit_expr(e.args[0], buf, env, runtime_indices)
 					emit_instruction(Wasm_Local_Set{index = fn_local}, buf)
 					emit_instruction(Wasm_Local_Get{index = fn_local}, buf)
@@ -1997,7 +2008,7 @@ emit_expr :: proc(expr: ir.IR_Expr, buf: ^[dynamic]u8, env: ^Codegen_Env, runtim
 						Wasm_I32_Load{align = 2, offset = u32(CAMP_TAG_FIELDS_OFFSET + 8)},
 						buf,
 					)
-					items_local := env.tmp_local_base + env.tmp_count; env.tmp_count += 1
+					items_local := env.tmp_local_base + env.tmp_count; cg_tmp_inc(env)
 					emit_expr(e.args[1], buf, env, runtime_indices)
 					emit_instruction(Wasm_Local_Set{index = items_local}, buf)
 					emit_instruction(Wasm_Local_Get{index = items_local}, buf)
@@ -2017,7 +2028,7 @@ emit_expr :: proc(expr: ir.IR_Expr, buf: ^[dynamic]u8, env: ^Codegen_Env, runtim
 						buf,
 					)
 				} else if op_str == "any!" && len(e.args) >= 2 {
-					fn_local := env.tmp_local_base + env.tmp_count; env.tmp_count += 1
+					fn_local := env.tmp_local_base + env.tmp_count; cg_tmp_inc(env)
 					emit_expr(e.args[0], buf, env, runtime_indices)
 					emit_instruction(Wasm_Local_Set{index = fn_local}, buf)
 					emit_instruction(Wasm_Local_Get{index = fn_local}, buf)
@@ -2030,7 +2041,7 @@ emit_expr :: proc(expr: ir.IR_Expr, buf: ^[dynamic]u8, env: ^Codegen_Env, runtim
 						Wasm_I32_Load{align = 2, offset = u32(CAMP_TAG_FIELDS_OFFSET + 8)},
 						buf,
 					)
-					items_local := env.tmp_local_base + env.tmp_count; env.tmp_count += 1
+					items_local := env.tmp_local_base + env.tmp_count; cg_tmp_inc(env)
 					emit_expr(e.args[1], buf, env, runtime_indices)
 					emit_instruction(Wasm_Local_Set{index = items_local}, buf)
 					emit_instruction(Wasm_Local_Get{index = items_local}, buf)
@@ -2048,7 +2059,7 @@ emit_expr :: proc(expr: ir.IR_Expr, buf: ^[dynamic]u8, env: ^Codegen_Env, runtim
 						buf,
 					)
 				} else if op_str == "all!" && len(e.args) >= 2 {
-					fn_local := env.tmp_local_base + env.tmp_count; env.tmp_count += 1
+					fn_local := env.tmp_local_base + env.tmp_count; cg_tmp_inc(env)
 					emit_expr(e.args[0], buf, env, runtime_indices)
 					emit_instruction(Wasm_Local_Set{index = fn_local}, buf)
 					emit_instruction(Wasm_Local_Get{index = fn_local}, buf)
@@ -2061,7 +2072,7 @@ emit_expr :: proc(expr: ir.IR_Expr, buf: ^[dynamic]u8, env: ^Codegen_Env, runtim
 						Wasm_I32_Load{align = 2, offset = u32(CAMP_TAG_FIELDS_OFFSET + 8)},
 						buf,
 					)
-					items_local := env.tmp_local_base + env.tmp_count; env.tmp_count += 1
+					items_local := env.tmp_local_base + env.tmp_count; cg_tmp_inc(env)
 					emit_expr(e.args[1], buf, env, runtime_indices)
 					emit_instruction(Wasm_Local_Set{index = items_local}, buf)
 					emit_instruction(Wasm_Local_Get{index = items_local}, buf)
@@ -2080,7 +2091,7 @@ emit_expr :: proc(expr: ir.IR_Expr, buf: ^[dynamic]u8, env: ^Codegen_Env, runtim
 						buf,
 					)
 				} else if op_str == "filter!" && len(e.args) >= 2 {
-					fn_local := env.tmp_local_base + env.tmp_count; env.tmp_count += 1
+					fn_local := env.tmp_local_base + env.tmp_count; cg_tmp_inc(env)
 					emit_expr(e.args[0], buf, env, runtime_indices)
 					emit_instruction(Wasm_Local_Set{index = fn_local}, buf)
 					emit_instruction(Wasm_Local_Get{index = fn_local}, buf)
@@ -2093,7 +2104,7 @@ emit_expr :: proc(expr: ir.IR_Expr, buf: ^[dynamic]u8, env: ^Codegen_Env, runtim
 						Wasm_I32_Load{align = 2, offset = u32(CAMP_TAG_FIELDS_OFFSET + 8)},
 						buf,
 					)
-					items_local := env.tmp_local_base + env.tmp_count; env.tmp_count += 1
+					items_local := env.tmp_local_base + env.tmp_count; cg_tmp_inc(env)
 					emit_expr(e.args[1], buf, env, runtime_indices)
 					emit_instruction(Wasm_Local_Set{index = items_local}, buf)
 					emit_instruction(Wasm_Local_Get{index = items_local}, buf)
@@ -2112,7 +2123,7 @@ emit_expr :: proc(expr: ir.IR_Expr, buf: ^[dynamic]u8, env: ^Codegen_Env, runtim
 						buf,
 					)
 				} else if op_str == "for_each!" && len(e.args) >= 2 {
-					fn_local := env.tmp_local_base + env.tmp_count; env.tmp_count += 1
+					fn_local := env.tmp_local_base + env.tmp_count; cg_tmp_inc(env)
 					emit_expr(e.args[0], buf, env, runtime_indices)
 					emit_instruction(Wasm_Local_Set{index = fn_local}, buf)
 					emit_instruction(Wasm_Local_Get{index = fn_local}, buf)
@@ -2125,7 +2136,7 @@ emit_expr :: proc(expr: ir.IR_Expr, buf: ^[dynamic]u8, env: ^Codegen_Env, runtim
 						Wasm_I32_Load{align = 2, offset = u32(CAMP_TAG_FIELDS_OFFSET + 8)},
 						buf,
 					)
-					items_local := env.tmp_local_base + env.tmp_count; env.tmp_count += 1
+					items_local := env.tmp_local_base + env.tmp_count; cg_tmp_inc(env)
 					emit_expr(e.args[1], buf, env, runtime_indices)
 					emit_instruction(Wasm_Local_Set{index = items_local}, buf)
 					emit_instruction(Wasm_Local_Get{index = items_local}, buf)
@@ -2262,7 +2273,13 @@ emit_expr :: proc(expr: ir.IR_Expr, buf: ^[dynamic]u8, env: ^Codegen_Env, runtim
 	case ^ir.IR_Closure_Call:
 		emit_expr(e.callee, buf, env, runtime_indices)
 
-		callee_local := env.tmp_local_base + 1
+		// Reserve a unique tmp slot for the callee pointer and keep it reserved
+		// while the arguments are emitted. Otherwise a nested construct (e.g. a
+		// continuation closure record passed as an argument) that allocates its
+		// own tmp via tmp_base+tmp_count would clobber the saved callee pointer,
+		// making the call_indirect dispatch through the wrong fn_idx.
+		callee_local := env.tmp_local_base + env.tmp_count
+		cg_tmp_inc(env)
 		emit_instruction(Wasm_Local_Set{index = callee_local}, buf)
 
 		emit_instruction(Wasm_Local_Get{index = callee_local}, buf)
@@ -2274,6 +2291,7 @@ emit_expr :: proc(expr: ir.IR_Expr, buf: ^[dynamic]u8, env: ^Codegen_Env, runtim
 
 		emit_instruction(Wasm_Local_Get{index = callee_local}, buf)
 		emit_instruction(Wasm_I32_Load{align = 2, offset = u32(CAMP_TAG_FIELDS_OFFSET)}, buf)
+		env.tmp_count -= 1
 
 		closure_params := make([]Wasm_Value_Type, len(e.args) + 1)
 		closure_params[0] = .I32

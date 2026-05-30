@@ -5,13 +5,17 @@ compiled /tmp/camp-e2e/effects/effect-handler-resume-twice/src/Main.camp -> /tmp
 """
 stderr = ""
 exit = 0
-wasm_exit = 1
+wasm_exit = 134
 wasm_stdout = ""
 wasm_stderr = """
-Error: failed to compile: wasm[0]::function[66]
+Error: failed to run main module `/tmp/camp-e2e/effects/effect-handler-resume-twice/src/Main.wasm`
 
 Caused by:
-    0: WebAssembly translation error
-    1: Invalid input WebAssembly code at offset 6021: type mismatch: expected i32 but nothing on stack
+    0: failed to invoke command default
+    1: error while executing at wasm backtrace:
+    0:   0x1766 - <unknown>!<wasm function 66>
+    1:   0x1849 - <unknown>!<wasm function 69>
+    2:   0x1851 - <unknown>!<wasm function 70>
+    2: wasm trap: wasm `unreachable` instruction executed
 
 """

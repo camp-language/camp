@@ -252,9 +252,29 @@ el_wrap_throw_handler :: proc(
 	return IR_Expr(handle)
 }
 
+// Effect references in `handle`/`perform` carry the `!` suffix (e.g. `Throw!`),
+// but effect definitions store the bare name (e.g. `Throw`). Compare modulo the
+// trailing `!` so handler lowering can find the operation signatures.
+el_effect_name_matches :: proc(
+	def_name, ref_name: base.Intern_ID,
+	interner: ^base.Intern_Table,
+) -> bool {
+	if def_name == ref_name {
+		return true
+	}
+	strip :: proc(s: string) -> string {
+		if len(s) > 0 && s[len(s) - 1] == '!' {
+			return s[:len(s) - 1]
+		}
+		return s
+	}
+	return strip(base.intern_get(interner, def_name)) ==
+		strip(base.intern_get(interner, ref_name))
+}
+
 el_find_effect_ops :: proc(effect: base.Canonical_Name, env: ^Effect_Lower_Env) -> []IR_Effect_Op {
 	for &eff_def in env.module.effect_defs {
-		if eff_def.name == effect {
+		if el_effect_name_matches(eff_def.name.name, effect.name, env.interner) {
 			return eff_def.operations[:]
 		}
 	}
@@ -374,6 +394,49 @@ el_replace_resume :: proc(
 		return IR_Expr(new_let)
 
 	case ^IR_Closure_Call:
+		// `resume(x)` lowers to an IR_Closure_Call on the `resume` local (it is a
+		// let-bound name, not a module decl). Recognize that shape and rewrite it
+		// into an IR_Resume so it goes through the continuation ABI (env, value, ev)
+		// with the one-shot guard — same as the IR_Call form above.
+		if callee_var, is_var := e.callee.(^IR_Var); is_var && callee_var.name == resume_id {
+			resume_val: IR_Expr
+			if len(e.args) > 0 {
+				resume_val = el_replace_resume(e.args[0], resume_id, resume_param, ev_param, env)
+			} else {
+				lit := new(IR_Literal_Int)
+				lit^ = IR_Literal_Int {
+					value = 0,
+					type = base.IR_Type{wasm_type = .Void, type_id = base.Type_Var_ID(0)},
+					span = e.span,
+				}
+				resume_val = IR_Expr(lit)
+			}
+
+			ev_expr: IR_Expr = nil
+			if ev_param != base.NO_NAME {
+				ev_var := new(IR_Var)
+				ev_var^ = IR_Var {
+					name = ev_param,
+					type = base.IR_Type {
+						wasm_type = .I32,
+						type_id = base.Type_Var_ID(0),
+						is_heap = true,
+					},
+					span = e.span,
+				}
+				ev_expr = IR_Expr(ev_var)
+			}
+
+			resume := new(IR_Resume)
+			resume^ = IR_Resume {
+				resume_id = resume_param,
+				value     = resume_val,
+				ev        = ev_expr,
+				type      = e.type,
+				span      = e.span,
+			}
+			return IR_Expr(resume)
+		}
 		new_args := make([dynamic]IR_Expr, 0, len(e.args))
 		for arg in e.args {
 			append(&new_args, el_replace_resume(arg, resume_id, resume_param, ev_param, env))
@@ -1229,10 +1292,14 @@ el_lower_expr :: proc(expr: IR_Expr, env: ^Effect_Lower_Env) -> IR_Expr {
 			closure_let := new(IR_Let)
 			closure_let^ = IR_Let {
 				binding = closure_binding,
+				// The handler closure is stored into the evidence record (which is
+				// itself non-heap / not RC-managed) and is consumed later by the
+				// perform site. Mark the binding non-heap so rc_insert does not emit
+				// a drop of it before the store that transfers it into the record.
 				type = base.IR_Type {
 					wasm_type = .I32,
 					type_id = base.Type_Var_ID(0),
-					is_heap = true,
+					is_heap = false,
 				},
 				value = IR_Expr(handler_closure),
 				body = result,

@@ -89,6 +89,7 @@ Codegen_Env :: struct {
 	next_local:              u32,
 	tmp_local_base:          u32,
 	tmp_count:               u32,
+	tmp_max:                 u32, // high-water mark of tmp_count within current fn
 	table_idx:               int,
 	func_type_indices:       [dynamic]u32,
 	next_scope_id:           int,
@@ -994,6 +995,11 @@ codegen :: proc(
 
 			env.tmp_local_base = env.next_local
 			env.tmp_count = 0
+			env.tmp_max = 0
+			// Reserve at least 4 tmp slots (fixed-slot scheme: tmp_base+0..3).
+			// After emitting the body we patch this count up to the observed
+			// high-water mark of nested temporaries if it exceeded 4.
+			tmp_decl_index := len(env.locals)
 			append(&env.locals, Wasm_Local_Decl{count = 4, type = .I32})
 			env.next_local += 4
 
@@ -1001,6 +1007,10 @@ codegen :: proc(
 			body_buf = make([dynamic]u8, 0, CODE_BUF_XL)
 			emit_expr(d.body, &body_buf, &env, runtime_func_indices[:])
 			emit_instruction(Wasm_End{}, &body_buf)
+
+			if env.tmp_max > 4 {
+				env.locals[tmp_decl_index].count = env.tmp_max
+			}
 
 			locals_copy := make([]Wasm_Local_Decl, len(env.locals))
 			for l, i in env.locals {
