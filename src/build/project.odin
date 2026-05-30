@@ -20,10 +20,7 @@ run_build_project :: proc(thread_count: int = 1, output_path: string = "") -> Bu
 	ctx.thread_count = thread_count
 	defer context_destroy(&ctx)
 
-	cwd := os.get_env("PWD", ctx.allocator)
-	if len(cwd) == 0 {
-		cwd = "."
-	}
+	cwd := os.getwd(context.allocator) or_else "."
 
 	project := discover_project(cwd, &ctx.interner, &ctx.collector, ctx.allocator)
 	register_stdlib_modules(&project, &ctx.interner)

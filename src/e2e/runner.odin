@@ -621,6 +621,20 @@ run_special_command :: proc(
 			{"./camp", "build", "/nonexistent.camp"},
 			fmt.tprintf("{}-missing", unique_prefix),
 		)
+	case "check":
+		camp_env := os.get_env("CAMP_BIN", context.allocator)
+		camp_bin: string
+		if len(camp_env) > 0 {
+			camp_bin = camp_env
+		} else {
+			camp_bin = "./camp"
+		}
+		return run_command_prefixed(
+			{camp_bin, "check"},
+			fmt.tprintf("{}-check", unique_prefix),
+			cwd = tmp_base,
+		)
+
 	}
 
 	return "", fmt.tprintf("unknown special args: {}", args), 1

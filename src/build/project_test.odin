@@ -17,10 +17,7 @@ run_test_project :: proc(filter: string = "", verbose: bool = false) -> Build_Re
 	defer context.allocator = old_allocator
 	defer context_destroy(&ctx)
 
-	cwd := os.get_env("PWD", ctx.allocator)
-	if len(cwd) == 0 {
-		cwd = "."
-	}
+	cwd := os.getwd(context.allocator) or_else "."
 
 	project := discover_project(cwd, &ctx.interner, &ctx.collector, ctx.allocator)
 	register_stdlib_modules(&project, &ctx.interner)

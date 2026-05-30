@@ -1,0 +1,8 @@
+args = "check"
+stdout = """
+discovered 1 module(s)
+typecheck passed for all modules
+check passed for all modules
+"""
+stderr = ""
+exit = 0
