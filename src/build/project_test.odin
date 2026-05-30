@@ -93,7 +93,7 @@ run_test_project :: proc(filter: string = "", verbose: bool = false) -> Build_Re
 
 		if diagnostics.diag_collector_has_errors(&ctx.collector) {
 			diagnostics.render_all(&ctx.collector, mi.path, mi.source)
-			return Build_Error{
+			return Build_Error {
 				message = fmt.tprintf("typecheck errors in module {}", mod_id),
 				code = 1,
 			}
@@ -135,10 +135,10 @@ run_test_project :: proc(filter: string = "", verbose: bool = false) -> Build_Re
 
 	// Phase 4: collect test declarations from all modules
 	Test_Entry :: struct {
-		mod_name: string,
+		mod_name:  string,
 		test_name: string,
-		cfile: ^semantics.CFile,
-		cbody:  semantics.CExpr,
+		cfile:     ^semantics.CFile,
+		cbody:     semantics.CExpr,
 	}
 
 	test_entries: [dynamic]Test_Entry
@@ -156,12 +156,15 @@ run_test_project :: proc(filter: string = "", verbose: bool = false) -> Build_Re
 			#partial switch d in decl {
 			case ^semantics.CDecl_Test:
 				if filter == "" || strings.contains(d.name, filter) {
-					append(&test_entries, Test_Entry{
-						mod_name  = mod_name,
-						test_name = d.name,
-						cfile     = mi.cfile,
-						cbody     = d.body,
-					})
+					append(
+						&test_entries,
+						Test_Entry {
+							mod_name = mod_name,
+							test_name = d.name,
+							cfile = mi.cfile,
+							cbody = d.body,
+						},
+					)
 				}
 			case ^semantics.CDecl_Expect:
 				total_expect_count += 1
@@ -200,7 +203,13 @@ run_test_project :: proc(filter: string = "", verbose: bool = false) -> Build_Re
 			continue
 		}
 
-		compile_ok := compile_test_canon(entry.cfile^, entry.cbody, tmp_wasm_path, &ctx.interner, &sub_arena)
+		compile_ok := compile_test_canon(
+			entry.cfile^,
+			entry.cbody,
+			tmp_wasm_path,
+			&ctx.interner,
+			&sub_arena,
+		)
 		virtual.arena_destroy(&sub_arena)
 
 		if !compile_ok {
@@ -228,7 +237,12 @@ run_test_project :: proc(filter: string = "", verbose: bool = false) -> Build_Re
 			}
 		} else {
 			fail_count += 1
-			fmt.printfln("  FAIL  {}::{} (exit code: {})", entry.mod_name, entry.test_name, exit_code)
+			fmt.printfln(
+				"  FAIL  {}::{} (exit code: {})",
+				entry.mod_name,
+				entry.test_name,
+				exit_code,
+			)
 			if len(wasm_stdout) > 0 {
 				fmt.printfln("    stdout: {}", wasm_stdout)
 			}
@@ -246,3 +260,4 @@ run_test_project :: proc(filter: string = "", verbose: bool = false) -> Build_Re
 
 	return Build_Output{wasm_path = "", has_errors = false}
 }
+

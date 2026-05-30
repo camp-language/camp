@@ -34,7 +34,11 @@ Build_Result :: union {
 
 run_command_counter: int
 
-run_build_single :: proc(file_path: string, thread_count: int = 1, output_path: string = "") -> Build_Result {
+run_build_single :: proc(
+	file_path: string,
+	thread_count: int = 1,
+	output_path: string = "",
+) -> Build_Result {
 	ctx: Compilation_Context
 	context_init(&ctx)
 	ctx.thread_count = thread_count
