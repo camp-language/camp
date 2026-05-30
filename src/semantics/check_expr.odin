@@ -528,7 +528,13 @@ typecheck_field_access :: proc(
 		record_rest   = resolve_var(store, rest_var),
 		closed        = false,
 	}
-	link_var(store, record_result.var_id, inf)
+	// Unify (not overwrite) so the record's existing fields are preserved.
+	// Linking directly would clobber an already-inferred full record type
+	// (e.g. `{ fst, snd }`) with the single-field constraint `{ field | rest }`,
+	// losing the other fields and corrupting field offsets at codegen.
+	constraint_var := fresh_value_var(store, e.span)
+	link_var(store, constraint_var, inf)
+	unify(store, record_result.var_id, constraint_var)
 
 	t := new(TExpr_Field_Access)
 	t^ = TExpr_Field_Access {
