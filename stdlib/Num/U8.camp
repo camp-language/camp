@@ -40,3 +40,6 @@ pub count_ones = |n: U8| -> U8 { crash "intrinsic: Num.U8.count_ones" }
 pub leading_zeros = |n: U8| -> U8 { crash "intrinsic: Num.U8.leading_zeros" }
 
 pub trailing_zeros = |n: U8| -> U8 { crash "intrinsic: Num.U8.trailing_zeros" }
+Num.U8 is Eq {
+    eq = |a: Self, b: Self| -> Bool { crash "intrinsic: Num.U8_eq" }
+}
