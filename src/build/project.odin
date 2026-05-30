@@ -11,7 +11,7 @@ import "camp:semantics"
 import "core:fmt"
 import "core:os"
 
-run_build_project :: proc(thread_count: int = 1) -> Build_Result {
+run_build_project :: proc(thread_count: int = 1, output_path: string = "") -> Build_Result {
 	ctx: Compilation_Context
 	context_init(&ctx)
 	old_allocator := context.allocator
@@ -234,21 +234,23 @@ run_build_project :: proc(thread_count: int = 1) -> Build_Result {
 	wasm_mod := codegen.codegen(combined_ir, &ctx.interner, ctx.thread_count)
 	wasm_bytes := codegen.wasm_serialize(wasm_mod)
 	defer delete(wasm_bytes)
-
-	output_path := "a.wasm"
-	write_err := os.write_entire_file_from_bytes(output_path, wasm_bytes[:])
+	local_output := output_path
+	if local_output == "" {
+		local_output = "a.wasm"
+	}
+	write_err := os.write_entire_file_from_bytes(local_output, wasm_bytes[:])
 	if write_err != nil {
 		diagnostics.collector_add_diag(
 			&ctx.collector,
-			diagnostics.diag_file_write_failed(output_path, fmt.tprintf("{}", write_err)),
+			diagnostics.diag_file_write_failed(local_output, fmt.tprintf("{}", write_err)),
 		)
 		diagnostics.render_all(&ctx.collector, "", "")
 		return Build_Result(
-			Build_Error{message = fmt.tprintf("write failed: {}", output_path), code = 1},
+			Build_Error{message = fmt.tprintf("write failed: {}", local_output), code = 1},
 		)
 	}
-	fmt.printfln("compiled project -> {}", output_path)
-	return Build_Result(Build_Output{wasm_path = output_path, has_errors = false})
+	fmt.printfln("compiled project -> {}", local_output)
+	return Build_Result(Build_Output{wasm_path = local_output, has_errors = false})
 }
 
 parse_and_canonicalize :: proc(mi: ^Module_Info, ctx: ^Compilation_Context) -> Build_Result {
