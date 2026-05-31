@@ -47,3 +47,21 @@ pub trailing_zeros = |n: I16| -> I16 { crash "intrinsic: Num.I16.trailing_zeros"
 Num.I16 is Eq {
     eq = |a: Self, b: Self| -> Bool { crash "intrinsic: Num.I16_eq" }
 }
+I16 is TryFrom {
+  try_from = |val: I16| -> Result(I8, TryFromIntError) { crash "intrinsic: I16_try_into_I8" }
+}
+I16 is TryFrom {
+  try_from = |val: I16| -> Result(U8, TryFromIntError) { crash "intrinsic: I16_try_into_U8" }
+}
+I16 is TryFrom {
+  try_from = |val: I16| -> Result(U16, TryFromIntError) { crash "intrinsic: I16_try_into_U16" }
+}
+I16 is TryFrom {
+  try_from = |val: I16| -> Result(U32, TryFromIntError) { crash "intrinsic: I16_try_into_U32" }
+}
+I16 is TryFrom {
+  try_from = |val: I16| -> Result(U64, TryFromIntError) { crash "intrinsic: I16_try_into_U64" }
+}
+I16 is TryFrom {
+  try_from = |val: I16| -> Result(F32, TryFromIntError) { crash "intrinsic: I16_try_into_F32" }
+}

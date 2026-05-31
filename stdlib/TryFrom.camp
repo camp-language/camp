@@ -1,5 +1,6 @@
 // TryFrom trait — fallible type conversion
+// Self = target type, source = unbound type variable, e = error type chosen by impl
 
 TryFrom : {
-  try_from : |Self| -> Result(target, e),
+  try_from : |source| -> Result(Self, e),
 }

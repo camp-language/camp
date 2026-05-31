@@ -51,3 +51,7 @@ pub millisecond: Duration = crash "intrinsic: Duration.millisecond"
 pub microsecond: Duration = crash "intrinsic: Duration.microsecond"
 
 pub nanosecond: Duration = crash "intrinsic: Duration.nanosecond"
+
+Duration is Default {
+  default = || -> Duration { crash "intrinsic: Duration_zero" }
+}

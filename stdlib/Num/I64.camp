@@ -62,3 +62,27 @@ pub count_zeros = |n: I64| -> I64 { crash "intrinsic: Num.I64.count_zeros" }
 pub leading_zeros = |n: I64| -> I64 { crash "intrinsic: Num.I64.leading_zeros" }
 
 pub trailing_zeros = |n: I64| -> I64 { crash "intrinsic: Num.I64.trailing_zeros" }
+I64 is TryFrom {
+  try_from = |val: I64| -> Result(I8, TryFromIntError) { crash "intrinsic: I64_try_into_I8" }
+}
+I64 is TryFrom {
+  try_from = |val: I64| -> Result(I16, TryFromIntError) { crash "intrinsic: I64_try_into_I16" }
+}
+I64 is TryFrom {
+  try_from = |val: I64| -> Result(I32, TryFromIntError) { crash "intrinsic: I64_try_into_I32" }
+}
+I64 is TryFrom {
+  try_from = |val: I64| -> Result(U8, TryFromIntError) { crash "intrinsic: I64_try_into_U8" }
+}
+I64 is TryFrom {
+  try_from = |val: I64| -> Result(U16, TryFromIntError) { crash "intrinsic: I64_try_into_U16" }
+}
+I64 is TryFrom {
+  try_from = |val: I64| -> Result(U32, TryFromIntError) { crash "intrinsic: I64_try_into_U32" }
+}
+I64 is TryFrom {
+  try_from = |val: I64| -> Result(U64, TryFromIntError) { crash "intrinsic: I64_try_into_U64" }
+}
+I64 is TryFrom {
+  try_from = |val: I64| -> Result(F32, TryFromIntError) { crash "intrinsic: I64_try_into_F32" }
+}

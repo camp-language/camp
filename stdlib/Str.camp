@@ -77,3 +77,32 @@ pub to_iter = |s: Str| -> Iter(Str) { crash "intrinsic: Str.to_iter" }
 Str is Eq {
     eq = |a: Self, b: Self| -> Bool { crash "intrinsic: Str_eq" }
 }
+
+Str is Default {
+  default = || -> Str { crash "intrinsic: Str_default" }
+}
+Str is From {
+  from = |val: Str| -> Bytes { Str.to_bytes(val) }
+}
+
+Str is TryFrom {
+  try_from = |val: Str| -> Result(I64, ParseError) {
+    match Str.to_i64(val) {
+      Ok(v) => Ok(v)
+      Err(_) => Err(ParseError("Invalid integer format"))
+    }
+  }
+}
+Str is TryFrom {
+  try_from = |val: Str| -> Result(F64, ParseError) {
+    match Str.to_f64(val) {
+      Ok(v) => Ok(v)
+      Err(_) => Err(ParseError("Invalid float format"))
+    }
+  }
+}
+Str is TryFrom {
+  try_from = |b: Bytes| -> Result(Str, [InvalidUtf8]) {
+    Bytes.to_str(b)
+  }
+}

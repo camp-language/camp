@@ -94,3 +94,7 @@ pub intersection = |m1, m2| {
 pub difference = |m1, m2| {
   fold(m2, m1, |acc, k, _v| remove(k, acc))
 }
+
+Map(k, v) is Default {
+  default = || -> Map(k, v) { crash "intrinsic: Map_new" }
+}

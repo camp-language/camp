@@ -39,3 +39,16 @@ pub is_relative = |p: Path| -> Bool { crash "intrinsic: Path.is_relative" }
 pub to_str = |p: Path| -> Str { crash "intrinsic: Path.to_str" }
 
 pub to_iter = |p: Path| -> Iter(Str) { crash "intrinsic: Path.to_iter" }
+
+Path is Default {
+  default = || -> Path { Path.new(".") }
+}
+Path is From {
+  from = |val: Str| -> Path { Path.new(val) }
+}
+
+Path is TryFrom {
+  try_from = |val: Bytes| -> Result(Path, ParseError) {
+    crash "intrinsic: Path_from_bytes"
+  }
+}

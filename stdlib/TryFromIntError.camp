@@ -1,0 +1,5 @@
+// TryFromIntError.camp — zero-payload error for numeric narrowing failures
+@TryFromIntError : {}
+TryFromIntError is Debug {
+  debug = |self: Self| -> Str { crash "intrinsic: TryFromIntError_debug" }
+}

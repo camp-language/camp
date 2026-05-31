@@ -32,3 +32,36 @@ pub or_ = |a: Bool, b: Bool| -> Bool {
 Bool is Eq {
     eq = |a: Self, b: Self| -> Bool { crash "intrinsic: Bool_eq" }
 }
+Bool is Default {
+  default = || -> Bool { False }
+}
+Bool is From {
+  from = |val: Bool| -> I8 { crash "intrinsic: Bool_to_I8" }
+}
+Bool is From {
+  from = |val: Bool| -> I16 { crash "intrinsic: Bool_to_I16" }
+}
+Bool is From {
+  from = |val: Bool| -> I32 { crash "intrinsic: Bool_to_I32" }
+}
+Bool is From {
+  from = |val: Bool| -> I64 { crash "intrinsic: Bool_to_I64" }
+}
+Bool is From {
+  from = |val: Bool| -> U8 { crash "intrinsic: Bool_to_U8" }
+}
+Bool is From {
+  from = |val: Bool| -> U16 { crash "intrinsic: Bool_to_U16" }
+}
+Bool is From {
+  from = |val: Bool| -> U32 { crash "intrinsic: Bool_to_U32" }
+}
+Bool is From {
+  from = |val: Bool| -> U64 { crash "intrinsic: Bool_to_U64" }
+}
+Bool is From {
+  from = |val: Bool| -> F32 { crash "intrinsic: Bool_to_F32" }
+}
+Bool is From {
+  from = |val: Bool| -> F64 { crash "intrinsic: Bool_to_F64" }
+}

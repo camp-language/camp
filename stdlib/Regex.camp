@@ -37,3 +37,9 @@ pub splitn = |_r: Regex, _s: Str, _n: U64| -> List(Str) { crash "intrinsic: Rege
 // Utility — pure Camp
 
 pub escape = |_s: Str| -> Str { crash "intrinsic: Regex.escape" }  // escape regex metacharacters  // TODO: pure Camp implementation
+
+Regex is TryFrom {
+  try_from = |s: Str| -> Result(Regex, RegexErr) {
+    Regex.compile(s)
+  }
+}

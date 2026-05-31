@@ -45,3 +45,30 @@ pub trailing_zeros = |n: U64| -> U64 { crash "intrinsic: Num.U64.trailing_zeros"
 Num.U64 is Eq {
     eq = |a: Self, b: Self| -> Bool { crash "intrinsic: Num.U64_eq" }
 }
+U64 is TryFrom {
+  try_from = |val: U64| -> Result(U8, TryFromIntError) { crash "intrinsic: U64_try_into_U8" }
+}
+U64 is TryFrom {
+  try_from = |val: U64| -> Result(U16, TryFromIntError) { crash "intrinsic: U64_try_into_U16" }
+}
+U64 is TryFrom {
+  try_from = |val: U64| -> Result(U32, TryFromIntError) { crash "intrinsic: U64_try_into_U32" }
+}
+U64 is TryFrom {
+  try_from = |val: U64| -> Result(I8, TryFromIntError) { crash "intrinsic: U64_try_into_I8" }
+}
+U64 is TryFrom {
+  try_from = |val: U64| -> Result(I16, TryFromIntError) { crash "intrinsic: U64_try_into_I16" }
+}
+U64 is TryFrom {
+  try_from = |val: U64| -> Result(I32, TryFromIntError) { crash "intrinsic: U64_try_into_I32" }
+}
+U64 is TryFrom {
+  try_from = |val: U64| -> Result(I64, TryFromIntError) { crash "intrinsic: U64_try_into_I64" }
+}
+U64 is TryFrom {
+  try_from = |val: U64| -> Result(F32, TryFromIntError) { crash "intrinsic: U64_try_into_F32" }
+}
+U64 is TryFrom {
+  try_from = |val: U64| -> Result(F64, TryFromIntError) { crash "intrinsic: U64_try_into_F64" }
+}
