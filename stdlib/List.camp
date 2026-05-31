@@ -65,7 +65,6 @@ pub sort_by = |xs, cmp| { crash "intrinsic: List.sort_by" }
 pub to_iter = |xs| { crash "intrinsic: List.to_iter" }
 
 pub from_iter = |iter| { crash "intrinsic: List.from_iter" }
-
 List(a) is Default {
   default = || -> List(a) { [] }
 }

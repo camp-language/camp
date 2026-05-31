@@ -84,7 +84,28 @@ Str is Default {
 Str is From {
   from = |val: Str| -> Bytes { Str.to_bytes(val) }
 }
-
+Str is From {
+  from = |val: Str| -> Path { Path.new(val) }
+}
+Str is From {
+  from = |val: Str| -> Uuid { Uuid.from_str(val) }
+}
+Str is TryFrom {
+  try_from = |val: Str| -> Result(Uuid, [UuidErr]) {
+    match Uuid.from_str(val) {
+      Ok(v) => Ok(v)
+      Err(_) => Err([UuidErr])
+    }
+  }
+}
+Str is TryFrom {
+  try_from = |val: Str| -> Result(Regex, [RegexErr]) {
+    match Regex.new(val) {
+      Ok(v) => Ok(v)
+      Err(_) => Err([RegexErr])
+    }
+  }
+}
 Str is TryFrom {
   try_from = |val: Str| -> Result(I64, ParseError) {
     match Str.to_i64(val) {

@@ -43,6 +43,24 @@ pub trailing_zeros = |n: U8| -> U8 { crash "intrinsic: Num.U8.trailing_zeros" }
 Num.U8 is Eq {
     eq = |a: Self, b: Self| -> Bool { crash "intrinsic: Num.U8_eq" }
 }
+U8 is Default {
+  default = || -> U8 { crash "intrinsic: U8_default" }
+}
+U8 is From {
+  from = |val: U8| -> U16 { crash "intrinsic: U8_to_U16" }
+}
+U8 is From {
+  from = |val: U8| -> U32 { crash "intrinsic: U8_to_U32" }
+}
+U8 is From {
+  from = |val: U8| -> U64 { crash "intrinsic: U8_to_U64" }
+}
+U8 is From {
+  from = |val: U8| -> F32 { crash "intrinsic: U8_to_F32" }
+}
+U8 is From {
+  from = |val: U8| -> F64 { crash "intrinsic: U8_to_F64" }
+}
 U8 is TryFrom {
   try_from = |val: U8| -> Result(I8, TryFromIntError) { crash "intrinsic: U8_try_into_I8" }
 }

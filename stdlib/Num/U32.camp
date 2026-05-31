@@ -43,6 +43,15 @@ pub trailing_zeros = |n: U32| -> U32 { crash "intrinsic: Num.U32.trailing_zeros"
 Num.U32 is Eq {
     eq = |a: Self, b: Self| -> Bool { crash "intrinsic: Num.U32_eq" }
 }
+U32 is Default {
+  default = || -> U32 { crash "intrinsic: U32_default" }
+}
+U32 is From {
+  from = |val: U32| -> U64 { crash "intrinsic: U32_to_U64" }
+}
+U32 is From {
+  from = |val: U32| -> F64 { crash "intrinsic: U32_to_F64" }
+}
 U32 is TryFrom {
   try_from = |val: U32| -> Result(U8, TryFromIntError) { crash "intrinsic: U32_try_into_U8" }
 }
