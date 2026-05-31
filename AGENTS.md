@@ -90,3 +90,20 @@ Use **beans** (`.beans/`) for tracking all tasks — not TODO comments in docs, 
 1. Create bean with `beans create "<title>" [--priority <level>]`
 2. Work the bean; close it when done
 3. No need to keep docs in sync for closed beans
+
+## Stdlib Testing
+
+### Coverage Requirements
+- **Zero tests = untested module**. Every stdlib module MUST have test blocks.
+- Tests go at bottom of module file (`stdlib/<Module>.camp`), below implementation.
+- Prefer pure Camp tests (no effects) for determinism and speed.
+- Test order: happy path → empty/zero → singleton → multi-element → error/edge → identity.
+
+### Test Design Principles
+- **One concern per test**: name tests by condition, not function. Bad: `test "map { ... }"`. Good: `test "map preserves Err payload through identity function"`.
+- **Boundary-first**: test typical inputs, then edges (empty, single, large, invalid).
+- **Test Camp contract, not host**: intrinsic functions (`crash "intrinsic: ..."`) verify return type/pattern match/semantics, not host implementation.
+- **Integration tests**: cross-module interactions (e.g., `List` + `Iter`) go in `stdlib/integration.camp` or kitchen-sink.
+
+### When Missing Coverage
+If a module has no tests, add them following the principles above. Update kitchen-sink test if needed. Do not ship untested stdlib modules.
