@@ -15,6 +15,7 @@ destructure_counter: int = 0
 Canonicalize_Scope :: struct {
 	local_names: map[base.Intern_ID]base.Canonical_Name,
 	local_kinds: map[base.Intern_ID]Decl_Kind,
+	generated_decl: [dynamic]CDecl,
 }
 
 Decl_Kind :: enum {
@@ -36,6 +37,8 @@ canonicalize :: proc(
 	DOT_RECEIVER_INTERN_ID = base.intern(interner, DOT_RECEIVER_NAME)
 
 	scope: Canonicalize_Scope
+	scope.generated_decl = make([dynamic]CDecl, 0, 8)
+	defer delete(scope.generated_decl)
 	scope.local_names = make(map[base.Intern_ID]base.Canonical_Name, 64)
 	scope.local_kinds = make(map[base.Intern_ID]Decl_Kind, 64)
 	defer delete(scope.local_names)
@@ -68,6 +71,12 @@ canonicalize :: proc(
 		     ^CDecl_Expect:
 		}
 	}
+	
+	// Emit generated decls (e.g. auto-derived Eq for structural types)
+	for g in scope.generated_decl {
+		append(&cfile.decls, g)
+	}
+	
 
 	return cfile
 }
@@ -1422,7 +1431,6 @@ canonicalize_type :: proc(
 			cf := canonicalize_type(f.type, scope, interner, collector)
 			append(&fields, CType_Field{name = f.name, type = cf^, span = f.span})
 		}
-		sort_type_fields_by_name(&fields)
 		c := new(CType_Record)
 		c^ = CType_Record {
 			fields  = fields,
@@ -1431,6 +1439,21 @@ canonicalize_type :: proc(
 			span    = ty.span,
 		}
 		result = CType(c)
+	// Auto-derive Eq for records
+	if len(c.fields) > 0 {
+		element_types := make([]Struct_Element, len(c.fields))
+		field_names_str := "record"
+		for i in 0 ..< len(c.fields) {
+			type_ref := new(CType)
+			type_ref^ = c.fields[i].type
+			element_types[i].name = c.fields[i].name
+			element_types[i].type_ref = type_ref
+			name_str := base.intern_get(interner, c.fields[i].name)
+			field_names_str = fmt.tprintf("{}_{}", field_names_str, name_str)
+		}
+		gen_eq := generate_struct_eq(field_names_str, element_types[:], false, scope, interner, collector, c.span)
+		append(&scope.generated_decl, gen_eq)
+	}
 	case ^frontend.Type_Tuple:
 		elements := make([dynamic]CType, 0, len(ty.elements))
 		for el in ty.elements {
@@ -1443,7 +1466,20 @@ canonicalize_type :: proc(
 			span     = ty.span,
 		}
 		result = CType(c)
-
+	// Auto-derive Eq for tuples
+	if len(c.elements) > 0 {
+		element_types := make([]Struct_Element, len(c.elements))
+		for i in 0 ..< len(c.elements) {
+			type_ref := new(CType)
+			type_ref^ = c.elements[i]
+			name_str := fmt.tprintf("_{}", i + 1)
+			element_types[i].name = base.intern(interner, name_str)
+			element_types[i].type_ref = type_ref
+		}
+		name_str := fmt.tprintf("tuple_{}", len(c.elements))
+		gen_eq := generate_struct_eq(name_str, element_types[:], false, scope, interner, collector, c.span)
+		append(&scope.generated_decl, gen_eq)
+	}
 	case ^frontend.Type_Tag_Union:
 		tags := make([dynamic]CType_Tag, 0, len(ty.tags))
 		for tg in ty.tags {
@@ -1462,7 +1498,19 @@ canonicalize_type :: proc(
 			span    = ty.span,
 		}
 		result = CType(c)
-
+	// Auto-derive Eq for tag unions
+	if len(c.tags) > 0 {
+		tag_elements := make([]Struct_Element, len(c.tags))
+		tag_names_str := "tagunion"
+		for i in 0 ..< len(c.tags) {
+			tag_elements[i].name = c.tags[i].name
+			tag_elements[i].type_ref = nil
+			tag_name := base.intern_get(interner, c.tags[i].name)
+			tag_names_str = fmt.tprintf("{}_{}", tag_names_str, tag_name)
+		}
+		gen_eq := generate_struct_eq(tag_names_str, tag_elements[:], true, scope, interner, collector, c.span)
+		append(&scope.generated_decl, gen_eq)
+	}
 	case ^frontend.Type_Effect_Row:
 		effects := make([dynamic]CType_Effect_Entry, 0, len(ty.effects))
 		for e in ty.effects {
@@ -1915,3 +1963,202 @@ infer_type_params :: proc(
 	return result
 }
 
+
+
+Struct_Element :: struct {
+	name:     base.Intern_ID,
+	type_ref: ^CType,
+}
+
+generate_struct_eq :: proc(
+	type_name_hint: string,
+	element_types: []Struct_Element,
+	is_tag_union: bool,
+	scope: ^Canonicalize_Scope,
+	interner: ^base.Intern_Table,
+	collector: ^diagnostics.Diagnostic_Collector,
+	span: base.Source_Span,
+) -> CDecl {
+	type_name_id := base.intern(interner, type_name_hint)
+	
+	param_name_strs := [2]string{"x", "y"}
+	params := make([dynamic]CFunc_Param, 0, 2)
+	param_ids := make([dynamic]base.Intern_ID, 0, 2)
+	for i in 0 ..< 2 {
+		p_id := base.intern(interner, param_name_strs[i])
+		append(&param_ids, p_id)
+		append(&params, CFunc_Param{name = p_id, span = span})
+	}
+	
+	x_name := base.Canonical_Name {
+		module   = base.NO_NAME,
+		name     = param_ids[0],
+		is_local = true,
+	}
+	x_expr := new(CExpr_Name)
+	x_expr^ = CExpr_Name {
+		name = x_name,
+		span = span,
+	}
+	
+	y_name := base.Canonical_Name {
+		module   = base.NO_NAME,
+		name     = param_ids[1],
+		is_local = true,
+	}
+	y_expr := new(CExpr_Name)
+	y_expr^ = CExpr_Name {
+		name = y_name,
+		span = span,
+	}
+	
+	body_expr: CExpr
+	if is_tag_union {
+		body_expr = generate_tag_union_eq_body(element_types[:], x_expr, y_expr, interner, span)
+	} else {
+		body_expr = generate_record_eq_body(element_types[:], param_ids[0], param_ids[1], interner, span)
+	}
+	
+	lambda := new(CExpr_Lambda)
+	lambda^ = CExpr_Lambda {
+		type_params   = make([dynamic]frontend.Type_Param, 0),
+		params        = params,
+		return_type   = nil,
+		effects       = nil,
+		where_clauses = make([dynamic]frontend.Where_Clause, 0),
+		body          = body_expr,
+		span          = span,
+	}
+	
+	cdecl := new(CDecl_Const)
+	cdecl^ = CDecl_Const {
+		name           = base.Canonical_Name{module = base.NO_NAME, name = type_name_id, is_local = true},
+		is_pub         = true,
+		is_effectful   = false,
+		body           = lambda,
+		derive_targets = make([dynamic]base.Intern_ID, 0, 4),
+		span           = span,
+	}
+	
+	return cdecl
+}
+
+generate_record_eq_body :: proc(
+	elements: []Struct_Element,
+	x_id, y_id: base.Intern_ID,
+	interner: ^base.Intern_Table,
+	span: base.Source_Span,
+) -> CExpr {
+	if len(elements) == 0 {
+		true_lit := new(CExpr_Bool)
+		true_lit^ = CExpr_Bool{value = true, span = span}
+		return true_lit
+	}
+	
+	x_rec := new(CExpr_Name)
+	x_rec^ = CExpr_Name{name = base.Canonical_Name{module = base.NO_NAME, name = x_id, is_local = true}, span = span}
+	x_field := new(CExpr_Field_Access)
+	x_field^ = CExpr_Field_Access {
+		record = x_rec,
+		field  = elements[0].name,
+		span   = span,
+	}
+	
+	y_rec := new(CExpr_Name)
+	y_rec^ = CExpr_Name{name = base.Canonical_Name{module = base.NO_NAME, name = y_id, is_local = true}, span = span}
+	y_field := new(CExpr_Field_Access)
+	y_field^ = CExpr_Field_Access {
+		record = y_rec,
+		field  = elements[0].name,
+		span   = span,
+	}
+	
+	field_eq := new(CExpr_BinOp)
+	field_eq^ = CExpr_BinOp {
+		op    = .Eq_Eq,
+		left  = x_field,
+		right = y_field,
+		span  = span,
+	}
+	
+	result := field_eq
+	
+	for i in 1 ..< len(elements) {
+		x_rec_i := new(CExpr_Name)
+		x_rec_i^ = CExpr_Name{name = base.Canonical_Name{module = base.NO_NAME, name = x_id, is_local = true}, span = span}
+		x_field_i := new(CExpr_Field_Access)
+		x_field_i^ = CExpr_Field_Access {
+			record = x_rec_i,
+			field  = elements[i].name,
+			span   = span,
+		}
+		
+		y_rec_i := new(CExpr_Name)
+		y_rec_i^ = CExpr_Name{name = base.Canonical_Name{module = base.NO_NAME, name = y_id, is_local = true}, span = span}
+		y_field_i := new(CExpr_Field_Access)
+		y_field_i^ = CExpr_Field_Access {
+			record = y_rec_i,
+			field  = elements[i].name,
+			span   = span,
+		}
+		
+		field_eq_i := new(CExpr_BinOp)
+		field_eq_i^ = CExpr_BinOp {
+			op    = .Eq_Eq,
+			left  = x_field_i,
+			right = y_field_i,
+			span  = span,
+		}
+		
+		new_and := new(CExpr_BinOp)
+		new_and^ = CExpr_BinOp {
+			op    = .Kw_And,
+			left  = result,
+			right = field_eq_i,
+			span  = span,
+		}
+		result = new_and
+	}
+	
+	return result
+}
+
+generate_tag_union_eq_body :: proc(
+	tags: []Struct_Element,
+	x_expr, y_expr: CExpr,
+	interner: ^base.Intern_Table,
+	span: base.Source_Span,
+) -> CExpr {
+	tag_id := base.intern(interner, "tag")
+	
+	x_tag := new(CExpr_Field_Access)
+	x_tag^ = CExpr_Field_Access {
+		record = x_expr,
+		field  = tag_id,
+		span   = span,
+	}
+	
+	y_tag := new(CExpr_Field_Access)
+	y_tag^ = CExpr_Field_Access {
+		record = y_expr,
+		field  = tag_id,
+		span   = span,
+	}
+	
+	tag_eq := new(CExpr_BinOp)
+	tag_eq^ = CExpr_BinOp {
+		op    = .Eq_Eq,
+		left  = x_tag,
+		right = y_tag,
+		span  = span,
+	}
+	
+	not_tag_eq := new(CExpr_PrefixOp)
+	not_tag_eq^ = CExpr_PrefixOp {
+		op      = .Kw_Not,
+		operand = tag_eq,
+		span    = span,
+	}
+	
+	return not_tag_eq
+}

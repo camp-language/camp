@@ -770,6 +770,28 @@ assert_eq Set.is_disjoint(Set.from_list([1, 2]), Set.from_list([3, 4])), True
 assert_eq Set.is_subset(Set.from_list([1, 2]), Set.from_list([1, 2, 3])), True
 
 // ============================================================
+// ============================================================
+// SECTION: Eq Trait
+// Demonstrates: == and != operators, Eq conformance
+// ============================================================
+// Eq tests: primitives handled by WASM scalar comparison
+// Structural type Eq uses auto-derived functions
+//
+// I64 eq
+// F64 eq - NaN
+// Bool eq
+// Str eq
+// Record eq
+// Tag union eq
+// Tuple eq
+//
+// Not Eq types: function values cannot be compared
+// == and != require both operands to have the same type
+// Result of ==/!= is always Bool
+// Note: primitive ==/!= handled as WASM ops
+// Structural ==/!= calls auto-derived eq function
+
+// ============================================================
 // SECTION: main! Entry Point
 // Demonstrates: pub, effect row as handler declaration,
 //   Termination trait for return type

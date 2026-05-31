@@ -302,7 +302,7 @@ I expected `=` here, but I got `True` instead.
 -- C0101: SYNTAX ERROR --- /tmp/camp-e2e/language/kitchen-sink/src/Main.camp
 
 I was not expecting `pub` here.
-  778 | pub main! = || -[Console! | Throw!([..])]-> I64 {
+  800 | pub main! = || -[Console! | Throw!([..])]-> I64 {
         ^^^
 compilation failed with 51 error(s)
 """
