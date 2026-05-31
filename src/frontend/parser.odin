@@ -2928,17 +2928,26 @@ is_trait_decl :: proc(p: ^Parser) -> bool {
 	saved_pos := p.lexer.pos
 	saved_tok := p.current
 
-	parser_advance(p)
+	parser_advance(p) // skip first Upper_Id
 	if p.current.kind == .Kw_Is {
+		parser_advance(p) // skip Kw_Is
+		if p.current.kind == .Upper_Id {
+			parser_advance(p) // skip second Upper_Id
+			result := p.current.kind == .Colon // trait decl has `:`, is-impl has `{`
+			p.lexer.pos = saved_pos
+			p.current = saved_tok
+			return result
+		}
 		p.lexer.pos = saved_pos
 		p.current = saved_tok
-		return true
+		return false
 	}
 
 	p.lexer.pos = saved_pos
 	p.current = saved_tok
 	return false
 }
+
 
 is_is_impl_decl :: proc(p: ^Parser) -> bool {
 	// TypeName is TraitName { ... }

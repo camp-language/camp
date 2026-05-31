@@ -131,7 +131,7 @@ main :: proc() {
 		if file_path != "" {
 			result = build.run_check(remaining_args)
 		} else {
-		result = build.run_check_project(thread_count)
+			result = build.run_check_project(thread_count)
 		}
 	case .Doc:
 		result = build.run_doc(remaining_args)

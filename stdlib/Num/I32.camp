@@ -46,3 +46,6 @@ pub count_ones = |n: I32| -> I32 { crash "intrinsic: Num.I32.count_ones" }
 pub leading_zeros = |n: I32| -> I32 { crash "intrinsic: Num.I32.leading_zeros" }
 
 pub trailing_zeros = |n: I32| -> I32 { crash "intrinsic: Num.I32.trailing_zeros" }
+Num.I32 is Eq {
+    eq = |a: Self, b: Self| -> Bool { crash "intrinsic: Num.I32_eq" }
+}

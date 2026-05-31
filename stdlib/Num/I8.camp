@@ -44,3 +44,6 @@ pub count_ones = |n: I8| -> I8 { crash "intrinsic: Num.I8.count_ones" }
 pub leading_zeros = |n: I8| -> I8 { crash "intrinsic: Num.I8.leading_zeros" }
 
 pub trailing_zeros = |n: I8| -> I8 { crash "intrinsic: Num.I8.trailing_zeros" }
+Num.I8 is Eq {
+    eq = |a: Self, b: Self| -> Bool { crash "intrinsic: Num.I8_eq" }
+}
