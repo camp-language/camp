@@ -49,15 +49,6 @@ pub trailing_zeros = |n: I32| -> I32 { crash "intrinsic: Num.I32.trailing_zeros"
 Num.I32 is Eq {
     eq = |a: Self, b: Self| -> Bool { crash "intrinsic: Num.I32_eq" }
 }
-I32 is Default {
-  default = || -> I32 { crash "intrinsic: I32_default" }
-}
-I32 is From {
-  from = |val: I32| -> I64 { crash "intrinsic: I32_to_I64" }
-}
-I32 is From {
-  from = |val: I32| -> F64 { crash "intrinsic: I32_to_F64" }
-}
 I32 is TryFrom {
   try_from = |val: I32| -> Result(I8, TryFromIntError) { crash "intrinsic: I32_try_into_I8" }
 }
@@ -72,6 +63,9 @@ I32 is TryFrom {
 }
 I32 is TryFrom {
   try_from = |val: I32| -> Result(U32, TryFromIntError) { crash "intrinsic: I32_try_into_U32" }
+}
+I32 is TryFrom {
+  try_from = |val: I32| -> Result(U64, TryFromIntError) { crash "intrinsic: I32_try_into_U64" }
 }
 I32 is TryFrom {
   try_from = |val: I32| -> Result(F32, TryFromIntError) { crash "intrinsic: I32_try_into_F32" }

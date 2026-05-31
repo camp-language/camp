@@ -49,8 +49,3 @@ Bytes is Eq {
 Bytes is Default {
   default = || -> Bytes { crash "intrinsic: Bytes_new" }
 }
-Bytes is TryFrom {
-  try_from = |s: Str| -> Result(Bytes, [InvalidUtf8]) {
-    Str.to_bytes(s)
-  }
-}

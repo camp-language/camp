@@ -62,9 +62,6 @@ pub count_zeros = |n: I64| -> I64 { crash "intrinsic: Num.I64.count_zeros" }
 pub leading_zeros = |n: I64| -> I64 { crash "intrinsic: Num.I64.leading_zeros" }
 
 pub trailing_zeros = |n: I64| -> I64 { crash "intrinsic: Num.I64.trailing_zeros" }
-I64 is Default {
-  default = || -> I64 { crash "intrinsic: I64_default" }
-}
 I64 is TryFrom {
   try_from = |val: I64| -> Result(I8, TryFromIntError) { crash "intrinsic: I64_try_into_I8" }
 }
