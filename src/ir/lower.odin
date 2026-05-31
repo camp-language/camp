@@ -1417,44 +1417,6 @@ lower_binop_kind :: proc(op: base.Token_Kind) -> IR_BinOp_Kind {
 }
 
 
-compute_struct_eq_name :: proc(
-	store: ^semantics.Type_Store,
-	type_var: base.Type_Var_ID,
-) -> base.Intern_ID {
-	resolved := semantics.resolve_var(store, type_var)
-	v := &store.vars[int(resolved)]
-	
-	if it, ok := v.link.(semantics.Inferred_Type); ok {
-		#partial switch concrete in it {
-		case semantics.Inferred_Record_Row:
-			parts := make([dynamic]string, 0, len(concrete.record_fields) + 2)
-			append(&parts, "record")
-			for f in concrete.record_fields {
-				name_str := base.intern_get(store.interner, f.name)
-				append(&parts, name_str)
-			}
-			str := strings.join(parts[:], "_")
-			return base.intern(store.interner, str)
-		case semantics.Inferred_Tag_Union_Row:
-			parts := make([dynamic]string, 0, len(concrete.tag_entries) + 2)
-			append(&parts, "tagunion")
-			for t in concrete.tag_entries {
-				name_str := base.intern_get(store.interner, t.name)
-				append(&parts, name_str)
-			}
-			str := strings.join(parts[:], "_")
-			return base.intern(store.interner, str)
-		case semantics.Inferred_Tuple:
-			name_str := fmt.tprintf("tuple_{}", concrete.element_count)
-			return base.intern(store.interner, name_str)
-		case:
-			return base.NO_NAME
-		}
-	}
-	
-	return base.NO_NAME
-}
-
 lower_tbinop :: proc(e: ^semantics.TExpr_BinOp, env: ^Lower_Env) -> IR_Expr {
 	// String concatenation: convert `a + b` (when both operands are Str) to Str.concat(a, b)
 	if e.op == .Plus {
@@ -1485,54 +1447,6 @@ lower_tbinop :: proc(e: ^semantics.TExpr_BinOp, env: ^Lower_Env) -> IR_Expr {
 			}
 		}
 	}
-
-	// Handle == and != for structural types via auto-derived Eq functions
-	if e.op == .Eq_Eq || e.op == .Bang_Eq {
-		operand_type_var := semantics.resolve_var(env.store, texpr_type_id(e.left))
-		operand_type_var = semantics.resolve_var(env.store, operand_type_var)
-		v := &env.store.vars[int(operand_type_var)]
-
-		is_scalar := false
-		if it, ok := v.link.(semantics.Inferred_Type); ok {
-			if _, prim_ok := it.(semantics.Inferred_Primitive); prim_ok {
-				is_scalar = true
-			}
-		}
-
-		if !is_scalar {
-			eq_fn_name := compute_struct_eq_name(env.store, operand_type_var)
-
-			if eq_fn_name != base.NO_NAME {
-				left_ir := lower_texpr(e.left, env)
-				right_ir := lower_texpr(e.right, env)
-				args := make([dynamic]IR_Expr, 0, 2)
-				append(&args, left_ir)
-				append(&args, right_ir)
-				call := new(IR_Call)
-				call^ = IR_Call {
-					callee           = base.Canonical_Name{module = base.NO_NAME, name = eq_fn_name, is_local = true},
-					args             = args,
-					type             = e.type_,
-					span             = e.span,
-					ord_compare_func = base.Canonical_Name{},
-				}
-				eq_result := IR_Expr(call)
-				if e.op == .Bang_Eq {
-					not_result := new(IR_BinOp)
-					not_result^ = IR_BinOp {
-						op    = .Eq,
-						left  = make_ir_lit_bool(false, e.type_, e.span),
-						right = eq_result,
-						type  = e.type_,
-						span  = e.span,
-					}
-					return IR_Expr(not_result)
-				}
-				return eq_result
-			}
-		}
-	}
-
 	left_ir := lower_texpr(e.left, env)
 	right_ir := lower_texpr(e.right, env)
 	result := new(IR_BinOp)

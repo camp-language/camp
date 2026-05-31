@@ -1439,21 +1439,6 @@ canonicalize_type :: proc(
 			span    = ty.span,
 		}
 		result = CType(c)
-	// Auto-derive Eq for records
-	if len(c.fields) > 0 {
-		element_types := make([]Struct_Element, len(c.fields))
-		field_names_str := "record"
-		for i in 0 ..< len(c.fields) {
-			type_ref := new(CType)
-			type_ref^ = c.fields[i].type
-			element_types[i].name = c.fields[i].name
-			element_types[i].type_ref = type_ref
-			name_str := base.intern_get(interner, c.fields[i].name)
-			field_names_str = fmt.tprintf("{}_{}", field_names_str, name_str)
-		}
-		gen_eq := generate_struct_eq(field_names_str, element_types[:], false, scope, interner, collector, c.span)
-		append(&scope.generated_decl, gen_eq)
-	}
 	case ^frontend.Type_Tuple:
 		elements := make([dynamic]CType, 0, len(ty.elements))
 		for el in ty.elements {
@@ -1466,20 +1451,6 @@ canonicalize_type :: proc(
 			span     = ty.span,
 		}
 		result = CType(c)
-	// Auto-derive Eq for tuples
-	if len(c.elements) > 0 {
-		element_types := make([]Struct_Element, len(c.elements))
-		for i in 0 ..< len(c.elements) {
-			type_ref := new(CType)
-			type_ref^ = c.elements[i]
-			name_str := fmt.tprintf("_{}", i + 1)
-			element_types[i].name = base.intern(interner, name_str)
-			element_types[i].type_ref = type_ref
-		}
-		name_str := fmt.tprintf("tuple_{}", len(c.elements))
-		gen_eq := generate_struct_eq(name_str, element_types[:], false, scope, interner, collector, c.span)
-		append(&scope.generated_decl, gen_eq)
-	}
 	case ^frontend.Type_Tag_Union:
 		tags := make([dynamic]CType_Tag, 0, len(ty.tags))
 		for tg in ty.tags {
@@ -1498,19 +1469,6 @@ canonicalize_type :: proc(
 			span    = ty.span,
 		}
 		result = CType(c)
-	// Auto-derive Eq for tag unions
-	if len(c.tags) > 0 {
-		tag_elements := make([]Struct_Element, len(c.tags))
-		tag_names_str := "tagunion"
-		for i in 0 ..< len(c.tags) {
-			tag_elements[i].name = c.tags[i].name
-			tag_elements[i].type_ref = nil
-			tag_name := base.intern_get(interner, c.tags[i].name)
-			tag_names_str = fmt.tprintf("{}_{}", tag_names_str, tag_name)
-		}
-		gen_eq := generate_struct_eq(tag_names_str, tag_elements[:], true, scope, interner, collector, c.span)
-		append(&scope.generated_decl, gen_eq)
-	}
 	case ^frontend.Type_Effect_Row:
 		effects := make([dynamic]CType_Effect_Entry, 0, len(ty.effects))
 		for e in ty.effects {
