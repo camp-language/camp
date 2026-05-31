@@ -1,5 +1,5 @@
 stdout = """
-canonicalized /tmp/camp-e2e/derive/basic/src/Main.camp: 4 declaration(s), 0 import(s)
+canonicalized /tmp/camp-e2e/derive/basic/src/Main.camp: 3 declaration(s), 0 import(s)
 typecheck passed for /tmp/camp-e2e/derive/basic/src/Main.camp
 compiled /tmp/camp-e2e/derive/basic/src/Main.camp -> /tmp/camp-e2e/derive/basic/src/Main.wasm
 """

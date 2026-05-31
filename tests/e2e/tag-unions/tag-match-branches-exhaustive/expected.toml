@@ -1,12 +1,7 @@
 stdout = """
-canonicalized /tmp/camp-e2e/tag-unions/tag-match-branches-exhaustive/src/Main.camp: 3 declaration(s), 0 import(s)
--- C0201: SHADOWING --- /tmp/camp-e2e/tag-unions/tag-match-branches-exhaustive/src/Main.camp
-
-`x` shadows a binding from an enclosing scope. All shadowing is forbidden.
-   1 | x : [Ok(I64) | Error(I64)] = Ok(1)
-           ^
-  Use a different name for this binding.
-compilation failed with 1 error(s)
+canonicalized /tmp/camp-e2e/tag-unions/tag-match-branches-exhaustive/src/Main.camp: 2 declaration(s), 0 import(s)
+typecheck passed for /tmp/camp-e2e/tag-unions/tag-match-branches-exhaustive/src/Main.camp
+compiled /tmp/camp-e2e/tag-unions/tag-match-branches-exhaustive/src/Main.camp -> /tmp/camp-e2e/tag-unions/tag-match-branches-exhaustive/src/Main.wasm
 """
 stderr = ""
-exit = 1
+exit = 0
