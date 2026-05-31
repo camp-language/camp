@@ -29,19 +29,40 @@ format_decl :: proc(
 	case ^frontend.Decl_Expect:
 		return format_decl_expect(v, info, interner)
 	case ^frontend.Decl_Is_Impl:
-		return format_decl_is_impl(v, info, interner)
-	}
-	return doc_text("?")
-}
-
-format_decl_const :: proc(
-	v: ^frontend.Decl_Const,
+format_decl_is_impl :: proc(
+	v: ^frontend.Decl_Is_Impl,
 	info: ^Format_Source_Info,
 	interner: ^base.Intern_Table,
 ) -> Doc {
 	parts: [dynamic]Doc
 	defer delete(parts)
-	if v.is_pub {
+	append(&parts, doc_text(base.intern_get(interner, v.type_name)))
+	if len(v.type_args) > 0 {
+		append(&parts, doc_text("("))
+		for arg, i in v.type_args {
+			if i > 0 do append(&parts, doc_text(", "))
+			append(&parts, format_type(arg, info, interner))
+		}
+		append(&parts, doc_text(")"))
+	}
+	append(&parts, doc_text(" is "))
+	append(&parts, doc_text(base.intern_get(interner, v.trait_name)))
+	if len(v.trait_args) > 0 {
+		append(&parts, doc_text("("))
+		for arg, i in v.trait_args {
+			if i > 0 do append(&parts, doc_text(", "))
+			append(&parts, format_type(arg, info, interner))
+		}
+		append(&parts, doc_text(")"))
+	}
+	append(&parts, doc_text(" {"))
+	append(&parts, doc_line())
+	append(&parts, doc_nest(4, format_is_methods(v.methods[:], info, interner)))
+	append(&parts, doc_line())
+	append(&parts, doc_text("}"))
+	return doc_concat(parts[:])
+}
+
 		append(&parts, doc_text("pub "))
 	}
 	name_str := base.intern_get(interner, v.name)

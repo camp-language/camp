@@ -71,8 +71,15 @@ pub to_i64 = |s: Str| -> Result(I64, [InvalidFormat]) { crash "intrinsic: Str.to
 
 pub to_f64 = |s: Str| -> Result(F64, [InvalidFormat]) { crash "intrinsic: Str.to_f64" }
 
-// Iteration (grapheme-by-grapheme)
-pub to_iter = |s: Str| -> Iter(Str) { crash "intrinsic: Str.to_iter" }
+Str is IntoIter(Str) {
+  to_iter = |self| { crash "intrinsic: Str_to_iter" }
+}
+
+Str is FromIter(Str) {
+  from_iter = |iter| {
+    Iter.fold(iter, "", |acc, s| Str.concat(acc, s))
+  }
+}
 
 Str is Eq {
     eq = |a: Self, b: Self| -> Bool { crash "intrinsic: Str_eq" }

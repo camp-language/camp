@@ -404,3 +404,54 @@ inject_prelude_effects_typecheck :: proc(store: ^Type_Store) {
 	}
 }
 
+	// Register IntoIter trait
+	into_iter_name := base.intern(store.interner, "IntoIter")
+	to_iter_name := base.intern(store.interner, "to_iter")
+
+	if !is_trait_declared(store, into_iter_name) {
+		into_iter_methods := make([dynamic]Trait_Method_Info, 0, 1, store.allocator)
+
+		// to_iter: |Self| -> Iter(a, e)
+		param_types := make([]base.Type_Var_ID, 1, store.allocator)
+		param_types[0] = fresh_value_var(store, base.Source_Span_ZERO)  // Self
+		return_type := fresh_value_var(store, base.Source_Span_ZERO)     // Iter(a, e)
+
+		append(
+			&into_iter_methods,
+			Trait_Method_Info{name = to_iter_name, param_types = param_types, return_type = return_type},
+		)
+
+		store.trait_registry[into_iter_name] = Trait_Info {
+			name    = into_iter_name,
+			module  = base.NO_NAME,
+			parent  = base.NO_NAME,
+			methods = into_iter_methods[:],
+		}
+	}
+
+	// Register FromIter trait
+	from_iter_name := base.intern(store.interner, "FromIter")
+	from_iter_method_name := base.intern(store.interner, "from_iter")
+
+	if !is_trait_declared(store, from_iter_name) {
+		from_iter_methods := make([dynamic]Trait_Method_Info, 0, 1, store.allocator)
+
+		// from_iter: |Iter(a, e)| -[e]-> Self
+		param_types := make([]base.Type_Var_ID, 1, store.allocator)
+		param_types[0] = fresh_value_var(store, base.Source_Span_ZERO)  // Iter(a, e)
+		return_type := fresh_value_var(store, base.Source_Span_ZERO)     // Self
+
+		append(
+			&from_iter_methods,
+			Trait_Method_Info{name = from_iter_method_name, param_types = param_types, return_type = return_type},
+		)
+
+		store.trait_registry[from_iter_name] = Trait_Info {
+			name    = from_iter_name,
+			module  = base.NO_NAME,
+			parent  = base.NO_NAME,
+			methods = from_iter_methods[:],
+		}
+	}
+
+

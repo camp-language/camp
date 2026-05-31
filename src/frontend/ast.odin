@@ -124,14 +124,17 @@ Decl_Expect :: struct {
 	span:        base.Source_Span,
 }
 
+&127 137
 Decl_Is_Impl :: struct {
 	type_name:   base.Intern_ID,
+	type_params: [dynamic]Type_Param,
+	type_args:   [dynamic]^Type,
 	trait_name:  base.Intern_ID,
+	trait_args:  [dynamic]^Type,
 	methods:     [dynamic]Is_Method,
 	doc_comment: string,
 	span:        base.Source_Span,
 }
-
 Is_Method :: struct {
 	name: base.Intern_ID,
 	body: Expr,
@@ -665,9 +668,26 @@ decl_destroy :: proc(d: Decl) {
 	case ^Decl_Expect:
 		expr_destroy(v.condition)
 		free(v)
+&671 674
 	case ^Decl_Is_Impl:
-		for method in v.methods do expr_destroy(method.body)
+		for method in v.methods {
+			expr_destroy(method.body)
+		}
 		delete(v.methods)
+		for tp in v.type_params {
+			delete(tp.constraints)
+		}
+		delete(v.type_params)
+		for ta in v.type_args {
+			type_destroy(ta^)
+			free(ta)
+		}
+		delete(v.type_args)
+		for ta in v.trait_args {
+			type_destroy(ta^)
+			free(ta)
+		}
+		delete(v.trait_args)
 		free(v)
 	}
 }

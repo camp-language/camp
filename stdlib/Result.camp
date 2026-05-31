@@ -105,10 +105,12 @@ pub flatten = |r| {
 
 // Conversion
 
-pub to_list = |r| {
-  match r {
-    Ok(v) => [v]
-    Err(_e) => []
+Result(a) is IntoIter(a) {
+  to_iter = |self| {
+    match self {
+      Ok(v) => Iter.singleton(v)
+      Err(_) => Iter.empty
+    }
   }
 }
 

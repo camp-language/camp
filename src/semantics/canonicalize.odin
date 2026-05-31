@@ -279,14 +279,32 @@ canonicalize_decl :: proc(
 		}
 		return cdecl
 
-	case ^frontend.Decl_Is_Impl:
-		type_name := canonicalize_local_name(d.type_name, .Const, scope, interner, collector)
-		trait_name := canonicalize_local_name(d.trait_name, .Trait, scope, interner, collector)
-		methods := make([dynamic]CIs_Method, 0, len(d.methods))
-		for m in d.methods {
-			cbody := canonicalize_expr(m.body, scope, interner, collector)
-			append(&methods, CIs_Method{name = m.name, body = cbody, span = m.span})
-		}
+case ^frontend.Decl_Is_Impl:
+	type_name := canonicalize_local_name(d.type_name, .Const, scope, interner, collector)
+	trait_name := canonicalize_local_name(d.trait_name, .Trait, scope, interner, collector)
+
+	// Canonicalize type params (just the names)
+	type_params := make([dynamic]base.Intern_ID, 0, len(d.type_params))
+	for tp in d.type_params {
+		append(&type_params, tp.name)
+	}
+
+	methods := make([dynamic]CIs_Method, 0, len(d.methods))
+	for m in d.methods {
+		cbody := canonicalize_expr(m.body, scope, interner, collector)
+		append(&methods, CIs_Method{name = m.name, body = cbody, span = m.span})
+	}
+	cdecl := new(CDecl_Is_Impl)
+	cdecl^ = CDecl_Is_Impl {
+		type_name   = type_name,
+		type_params = type_params,
+		trait_name  = trait_name,
+		methods     = methods,
+		doc_comment = d.doc_comment,
+		span        = d.span,
+	}
+	return cdecl
+
 		cdecl := new(CDecl_Is_Impl)
 		cdecl^ = CDecl_Is_Impl {
 			type_name   = type_name,

@@ -110,11 +110,13 @@ CDecl_Expect :: struct {
 
 CDecl_Is_Impl :: struct {
 	type_name:   base.Canonical_Name,
+	type_params: [dynamic]base.Intern_ID,
 	trait_name:  base.Canonical_Name,
 	methods:     [dynamic]CIs_Method,
 	doc_comment: string,
 	span:        base.Source_Span,
 }
+
 
 CIs_Method :: struct {
 	name: base.Intern_ID,
@@ -634,11 +636,13 @@ cdecl_destroy :: proc(d: CDecl) {
 		}
 		delete(v.methods)
 		free(v)
-	case ^CDecl_Is_Impl:
-		for method in v.methods do cexpr_destroy(method.body)
-		delete(v.methods)
-		free(v)
-	case ^CDecl_Alias:
+case ^CDecl_Is_Impl:
+	for m in v.methods {
+		cexpr_destroy(m.body)
+	}
+	delete(v.methods)
+	delete(v.type_params)
+	free(v)
 		if v.target != nil {
 			ctype_destroy(v.target^)
 			free(v.target)

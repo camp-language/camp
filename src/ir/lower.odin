@@ -897,14 +897,21 @@ lower_tmethod_call :: proc(e: ^semantics.TExpr_Method_Call, env: ^Lower_Env) -> 
 	}
 
 
-	// Try resolving via trait implementations for newtypes
+	// Try resolving via trait implementations for newtypes and constructors
 	if receiver_type_var != 0 {
 		resolved_type := semantics.resolve_var(env.store, receiver_type_var)
 		v := &env.store.vars[int(resolved_type)]
 		if inf, ok := v.link.(semantics.Inferred_Type); ok {
-			if nt, ok2 := inf.(semantics.Inferred_Newtype); ok2 {
+			impl_type_name: base.Intern_ID
+			switch concrete in inf {
+			case semantics.Inferred_Newtype:
+				impl_type_name = concrete.primitive_name
+			case semantics.Inferred_Constructor:
+				impl_type_name = concrete.primitive_name
+			}
+			if impl_type_name != base.NO_NAME {
 				for impl in env.store.trait_impls {
-					if impl.type_name == nt.primitive_name {
+					if impl.type_name == impl_type_name {
 						if fn_name, has := impl.methods[e.method.name]; has {
 							ir_args := make([dynamic]IR_Expr, 0, len(e.args) + 1)
 							append(&ir_args, receiver_ir)

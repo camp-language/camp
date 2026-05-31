@@ -1,5 +1,7 @@
 // IntoIter trait — convert a collection into an iterator
+// e is the effect row of the produced iterator's next operation.
+// For pure collections, e = [].
 
-IntoIter : {
-  to_iter : |Self| -> Iter(a),
+IntoIter(a, e) : {
+  to_iter : |Self| -> Iter(a, e),
 }

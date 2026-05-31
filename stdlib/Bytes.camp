@@ -7,8 +7,6 @@
 
 pub new = crash "intrinsic: Bytes.new"
 
-pub from_list = |xs: List(U8)| -> Bytes { crash "intrinsic: Bytes.from_list" }
-
 pub singleton = |b: U8| -> Bytes { crash "intrinsic: Bytes.singleton" }
 
 // Queries
@@ -33,15 +31,16 @@ pub slice = |b: Bytes, start: I64, len: I64| -> Bytes { crash "intrinsic: Bytes.
 
 pub concat = |a: Bytes, b: Bytes| -> Bytes { crash "intrinsic: Bytes.concat" }
 
-// Iteration
+Bytes is IntoIter(U8) {
+  to_iter = |self| { crash "intrinsic: Bytes_to_iter" }
+}
 
-pub to_iter = |b: Bytes| -> Iter(U8) { crash "intrinsic: Bytes.to_iter" }
+Bytes is FromIter(U8) {
+  from_iter = |iter| {
+    Iter.fold(iter, Bytes.new, |acc, b| Bytes.concat(acc, Bytes.singleton(b)))
+  }
+}
 
-// Conversion
-
-pub to_list = |b: Bytes| -> List(U8) { crash "intrinsic: Bytes.to_list" }
-
-pub to_str = |b: Bytes| -> Result(Str, [InvalidUtf8]) { crash "intrinsic: Bytes.to_str" }
 Bytes is Eq {
     eq = |a: Self, b: Self| -> Bool { crash "intrinsic: Bytes_eq" }
 }

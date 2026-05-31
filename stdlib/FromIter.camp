@@ -1,5 +1,7 @@
 // FromIter trait — construct a collection from an iterator
+// e is the effect row of the iterator's next operation.
+// For pure collections, e = [].
 
-FromIter : {
-  from_iter : |Iter(a)| -> Self,
+FromIter(a, e) : {
+  from_iter : |Iter(a, e)| -[e]-> Self,
 }

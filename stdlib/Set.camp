@@ -1,8 +1,7 @@
 // Set.camp
 // @Set(a) — opaque, Map(a, {}) internally
 
-import Iter { empty, singleton, chain, from_list }
-import List { append }
+import Iter { empty, singleton, chain }
 
 // Construction
 
@@ -49,12 +48,16 @@ pub filter = |s, pred| {
 
 // Conversion
 
-pub to_iter = |s| {
-  fold(s, Iter.empty, |acc, x| Iter.chain(acc, Iter.singleton(x)))
+Set(a) is IntoIter(a) {
+  to_iter = |self| {
+    fold(self, Iter.empty, |acc, x| Iter.chain(acc, Iter.singleton(x)))
+  }
 }
 
-pub from_list = |xs| {
-  Iter.from_list(xs)->fold(new, |s, x| insert(x, s))
+Set(a) is FromIter(a) {
+  from_iter = |iter| {
+    Iter.fold(iter, Set.new, |acc, x| Set.insert(x, acc))
+  }
 }
 
 pub to_list = |s| {

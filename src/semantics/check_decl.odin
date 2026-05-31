@@ -271,48 +271,121 @@ typecheck_decl :: proc(decl: CDecl, env: ^Type_Env, store: ^Type_Store) -> TDecl
 		}
 		return TDecl(td)
 
-	case ^CDecl_Is_Impl:
-		methods := make([dynamic]TIs_Method, len(d.methods))
-		for m, i in d.methods {
-			body_result := typecheck_synth(m.body, env, store)
-			methods[i] = TIs_Method {
-				name   = m.name,
-				params = make([dynamic]TFunc_Param, 0),
-				body   = body_result.texpr,
-				type_  = lower_type(store, body_result.var_id),
-				eff_   = lower_effect_type(store, body_result.effects),
-				is_pub = false,
-				span   = m.span,
-			}
+case ^CDecl_Is_Impl:
+	enter_level(store)
+
+	// Create fresh type vars for each type param
+	type_param_vars := make(map[base.Intern_ID]base.Type_Var_ID, len(d.type_params))
+	defer delete(type_param_vars)
+	for param_name in d.type_params {
+		tv := fresh_value_var(store, d.span)
+		type_param_vars[param_name] = tv
+		env.bindings[param_name] = tv
+	}
+
+	// Typecheck each method body
+	methods := make([dynamic]TIs_Method, len(d.methods))
+	for m, i in d.methods {
+		body_result := typecheck_synth(m.body, env, store)
+		methods[i] = TIs_Method {
+			name   = m.name,
+			params = make([dynamic]TFunc_Param, 0),
+			body   = body_result.texpr,
+			type_  = lower_type(store, body_result.var_id),
+			eff_   = lower_effect_type(store, body_result.effects),
+			is_pub = false,
+			span   = m.span,
 		}
-		td := new(TDecl_Is_Impl)
-		td^ = TDecl_Is_Impl {
-			type_name  = d.type_name,
-			trait_name = d.trait_name,
-			methods    = methods,
-			span       = d.span,
-		}
-		type_module := d.type_name.module
-		if type_module == base.NO_NAME {
-			type_module = env.current_module
-		}
-		ok := verify_trait_conformance(
-			d.type_name.name,
-			type_module,
-			d.trait_name.name,
-			d.span,
-			store,
-			env,
+	}
+
+	td := new(TDecl_Is_Impl)
+	td^ = TDecl_Is_Impl {
+		type_name          = d.type_name,
+		type_params_names  = d.type_params,
+		trait_name         = d.trait_name,
+		methods            = methods,
+		span               = d.span,
+	}
+
+	// Orphan rule check
+	type_module := d.type_name.module
+	if type_module == base.NO_NAME {
+		type_module = env.current_module
+	}
+
+	trait_info, trait_ok := store.trait_registry[d.trait_name.name]
+	if !trait_ok {
+		type_str := base.intern_get(store.interner, d.type_name.name)
+		trait_str := base.intern_get(store.interner, d.trait_name.name)
+		diagnostics.collector_add_diag(
+			store.collector,
+			diagnostics.diag_internal(
+				fmt.tprintf("trait `{}` not found in registry for `{}`", trait_str, type_str),
+				d.span,
+			),
 		)
-		if !ok {
-			// Conformance check already emitted diagnostics.
-			// Continue with the impl so downstream passes don't crash on nil.
-		}
+		exit_level(store)
 		return TDecl(td)
 	}
-	unreachable()
-}
 
+	if type_module != trait_info.module && type_module != base.NO_NAME {
+		type_str := base.intern_get(store.interner, d.type_name.name)
+		trait_str := base.intern_get(store.interner, d.trait_name.name)
+		diagnostics.collector_add_diag(
+			store.collector,
+			diagnostics.diag_orphan_rule_violation(type_str, trait_str, d.span),
+		)
+		exit_level(store)
+		return TDecl(td)
+	}
+
+	// Overlap check
+	for impl in store.trait_impls {
+		if impl.trait_name == d.trait_name.name && impl.type_name == d.type_name.name {
+			type_str := base.intern_get(store.interner, d.type_name.name)
+			trait_str := base.intern_get(store.interner, d.trait_name.name)
+			diagnostics.collector_add_diag(
+				store.collector,
+				diagnostics.diag_overlapping_instance(type_str, trait_str, d.span),
+			)
+			exit_level(store)
+			return TDecl(td)
+		}
+	}
+
+	// Generalize type param vars to generic level
+	for _, tv in type_param_vars {
+		generalize_var(store, tv)
+	}
+	exit_level(store)
+
+	// Register impl
+	methods_map := make(map[base.Intern_ID]base.Canonical_Name)
+	for method in trait_info.methods {
+		impl_fn_name := fmt.tprintf(
+			"{}_{}",
+			base.intern_get(store.interner, d.type_name.name),
+			base.intern_get(store.interner, method.name),
+		)
+		impl_fn_id := base.intern(store.interner, impl_fn_name)
+		methods_map[method.name] = base.Canonical_Name {
+			module   = type_module,
+			name     = impl_fn_id,
+			is_local = false,
+		}
+	}
+
+	impl := Trait_Impl {
+		trait_name  = d.trait_name.name,
+		type_name   = d.type_name.name,
+		type_module = type_module,
+		methods     = methods_map,
+		is_generic  = len(d.type_params) > 0,
+		type_params = d.type_params,
+	}
+	append(&store.trait_impls, impl)
+
+	return TDecl(td)
 typecheck_newtype_decl :: proc(d: ^CDecl_Newtype, env: ^Type_Env, store: ^Type_Store) {
 	param_vars := make([dynamic]base.Type_Var_ID, 0, len(d.type_params))
 	enter_level(store)

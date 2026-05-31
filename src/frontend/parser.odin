@@ -2950,50 +2950,110 @@ is_trait_decl :: proc(p: ^Parser) -> bool {
 
 
 is_is_impl_decl :: proc(p: ^Parser) -> bool {
-	// TypeName is TraitName { ... }
-	// Must distinguish from: TypeName is ParentTrait : { methods } (trait decl)
-	// and: TypeName = expr (const decl)
 	saved_pos := p.lexer.pos
 	saved_tok := p.current
 
 	parser_advance(p) // skip Upper_Id
+	// Skip optional type params (params)
+	if p.current.kind == .LParen {
+		parser_advance(p)
+		depth := 1
+		for depth > 0 && p.current.kind != .Eof {
+			if p.current.kind == .LParen do depth += 1
+			if p.current.kind == .RParen do depth -= 1
+			if depth > 0 do parser_advance(p)
+		}
+		parser_advance(p) // skip RParen
+	}
 	if p.current.kind == .Kw_Is {
 		parser_advance(p)
-		// If next is Upper_Id followed by LBrace (not Colon), it's an is-impl
 		if p.current.kind == .Upper_Id {
 			parser_advance(p)
-			result := p.current.kind == .LBrace
-			p.lexer.pos = saved_pos
-			p.current = saved_tok
-			return result
-		}
-	}
-
-	p.lexer.pos = saved_pos
-	p.current = saved_tok
-	return false
-}
-
+			// Skip optional trait params (params)
+			if p.current.kind == .LParen {
+				parser_advance(p)
+				depth := 1
+				for depth > 0 && p.current.kind != .Eof {
 parser_parse_is_impl_decl :: proc(p: ^Parser) -> Decl {
 	start := p.current.span
 
 	type_tok := parser_expect(p, .Upper_Id)
-	type_id := base.intern(p.intern, type_tok.text)
+	type_name_id := base.intern(p.intern, type_tok.text)
+
+	type_params := make([dynamic]frontend.Type_Param, 0, 4)
+	type_args := make([dynamic]^frontend.Type, 0, 4)
+
+	if p.current.kind == .LParen {
+		parser_advance(p) // skip LParen
+		// Parse type param list: comma-separated Lower_Id identifiers
+		for p.current.kind != .RParen && p.current.kind != .Eof {
+			param_tok := parser_expect(p, .Lower_Id)
+			param_id := base.intern(p.intern, param_tok.text)
+			tp := new(frontend.Type_Param)
+			tp^ = frontend.Type_Param {
+				name        = param_id,
+				constraints = make([dynamic]base.Intern_ID, 0),
+				span        = param_tok.span,
+			}
+			append(&type_params, tp^)
+			// Create type variable reference for type args
+			tv := new(frontend.Type)
+			tv^ = frontend.Type_Variable{name = param_id, span = param_tok.span}
+			append(&type_args, tv)
+
+			if p.current.kind == .Comma {
+				parser_advance(p)
+			}
+		}
+		parser_expect(p, .RParen)
+	}
 
 	parser_expect(p, .Kw_Is)
 
 	trait_tok := parser_expect(p, .Upper_Id)
 	trait_id := base.intern(p.intern, trait_tok.text)
 
-	parser_expect(p, .LBrace)
+	trait_args := make([dynamic]^frontend.Type, 0, 4)
+	if p.current.kind == .LParen {
+		parser_advance(p)
+		// Parse trait type args: comma-separated full type expressions
+		for p.current.kind != .RParen && p.current.kind != .Eof {
+			arg_type := parser_parse_type(p)
+			append(&trait_args, arg_type)
+			if p.current.kind == .Comma {
+				parser_advance(p)
+			}
+		}
+		parser_expect(p, .RParen)
+	}
 
+	parser_expect(p, .LBrace)
 	methods := make([dynamic]Is_Method, 0, 8)
 	for p.current.kind != .RBrace && p.current.kind != .Eof {
 		m_name_tok := parser_advance(p)
 		m_name_id := base.intern(p.intern, m_name_tok.text)
-
 		parser_expect(p, .Eq)
 		body := parser_parse_expr(p)
+		append(&methods, Is_Method{name = m_name_id, body = body, span = m_name_tok.span})
+		if p.current.kind == .Comma {
+			parser_advance(p)
+		}
+	}
+	parser_expect(p, .RBrace)
+
+	decl := new(Decl_Is_Impl)
+	decl^ = Decl_Is_Impl {
+		type_name   = type_name_id,
+		type_params = type_params,
+		type_args   = type_args,
+		trait_name  = trait_id,
+		trait_args  = trait_args,
+		methods     = methods,
+		span        = start,
+	}
+	return decl
+}
+
 
 		append(&methods, Is_Method{name = m_name_id, body = body, span = m_name_tok.span})
 

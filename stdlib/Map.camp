@@ -2,7 +2,7 @@
 // @Map(k, v) — opaque ordered tree map, provided by runtime
 // Keys require Eq and Ord for ordered tree operations.
 
-import Iter { empty, singleton, chain, from_list }
+import Iter { empty, singleton, chain }
 import List { append }
 
 // Construction
@@ -61,8 +61,20 @@ pub filter = |m, pred| {
 
 // Conversion
 
-pub to_iter = |m| {
-  fold(m, Iter.empty, |acc, k, v| Iter.chain(acc, Iter.singleton((k, v))))
+Map(k, v) is IntoIter((k, v)) {
+  to_iter = |self| {
+    fold(self, Iter.empty, |acc, k, v| Iter.chain(acc, Iter.singleton((k, v))))
+  }
+}
+
+Map(k, v) is FromIter((k, v)) {
+  from_iter = |iter| {
+    Iter.fold(iter, Map.new, |acc, pair| {
+      match pair {
+        (k, v) => Map.insert(k, v, acc)
+      }
+    })
+  }
 }
 
 pub keys = |m| {
@@ -72,8 +84,6 @@ pub keys = |m| {
 pub values = |m| {
   fold(m, Iter.empty, |acc, _k, v| Iter.chain(acc, Iter.singleton(v)))
 }
-
-pub from_list = |entries| { crash "intrinsic: Map.from_list" }
 
 pub to_list = |m| {
   fold(m, [], |acc, k, v| List.append(acc, [(k, v)]))

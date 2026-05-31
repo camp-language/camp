@@ -531,11 +531,13 @@ TDecl_Expect :: struct {
 }
 
 TDecl_Is_Impl :: struct {
-	type_name:  base.Canonical_Name,
-	trait_name: base.Canonical_Name,
-	methods:    [dynamic]TIs_Method,
-	span:       base.Source_Span,
+	type_name:          base.Canonical_Name,
+	type_params_names:  [dynamic]base.Intern_ID,
+	trait_name:         base.Canonical_Name,
+	methods:            [dynamic]TIs_Method,
+	span:               base.Source_Span,
 }
+
 
 TIs_Method :: struct {
 	name:   base.Intern_ID,
@@ -594,11 +596,14 @@ tdecl_destroy :: proc(d: TDecl) {
 	case ^TDecl_Expect:
 		texpr_destroy(v.condition)
 		free(v)
-	case ^TDecl_Is_Impl:
-		for m in v.methods {
-			delete(m.params)
-			texpr_destroy(m.body)
-		}
+case ^TDecl_Is_Impl:
+	for m in v.methods {
+		delete(m.params)
+		texpr_destroy(m.body)
+	}
+	delete(v.methods)
+	delete(v.type_params_names)
+	free(v)
 		delete(v.methods)
 		free(v)
 	case ^TDecl_Effect_Alias:

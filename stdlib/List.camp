@@ -60,8 +60,10 @@ pub sort = |xs| { crash "intrinsic: List.sort" }
 
 pub sort_by = |xs, cmp| { crash "intrinsic: List.sort_by" }
 
-// Conversion (gateway to/from Iter)
+List(a) is IntoIter(a) {
+  to_iter = |self| { crash "intrinsic: List_to_iter" }
+}
 
-pub to_iter = |xs| { crash "intrinsic: List.to_iter" }
-
-pub from_iter = |iter| { crash "intrinsic: List.from_iter" }
+List(a) is FromIter(a) {
+  from_iter = |iter| { crash "intrinsic: List_from_iter" }
+}

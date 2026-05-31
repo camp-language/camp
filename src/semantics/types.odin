@@ -23,7 +23,10 @@ Trait_Impl :: struct {
 	type_name:   base.Intern_ID,
 	type_module: base.Intern_ID,
 	methods:     map[base.Intern_ID]base.Canonical_Name,
+	is_generic:  bool,
+	type_params: []base.Intern_ID,
 }
+
 
 Type_Var_Kind :: enum {
 	Value,
@@ -237,9 +240,12 @@ type_store_destroy :: proc(store: ^Type_Store) {
 	delete(store.bindings)
 	delete(store.newtype_decls)
 	delete(store.trait_registry)
-	for impl in store.trait_impls {
-		delete(impl.methods)
+for &impl in store.trait_impls {
+	delete(impl.methods)
+	if impl.is_generic {
+		delete(impl.type_params)
 	}
+}
 	delete(store.trait_impls)
 	delete(store.type_constraints)
 	delete(store.rec_vars)
@@ -367,6 +373,13 @@ generalize_at_level :: proc(store: ^Type_Store, level: int) {
 		}
 	}
 }
+
+generalize_var :: proc(store: ^Type_Store, id: base.Type_Var_ID) {
+	if store.vars[int(id)].level != base.LEVEL_GENERIC {
+		store.vars[int(id)].level = base.LEVEL_GENERIC
+	}
+}
+
 
 is_generic :: proc(store: ^Type_Store, id: base.Type_Var_ID) -> bool {
 	return store.vars[int(id)].level == base.LEVEL_GENERIC
