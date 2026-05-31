@@ -53,3 +53,7 @@ pub with_path = |_p: Str, _u: Uri| -> Uri { crash "intrinsic: Uri.with_path" }
 pub with_query = |_q: Str, _u: Uri| -> Uri { crash "intrinsic: Uri.with_query" }
 
 pub with_fragment = |_f: Str, _u: Uri| -> Uri { crash "intrinsic: Uri.with_fragment" }
+
+Uri is Default {
+  default = || -> Uri { crash "intrinsic: Uri_default" }
+}

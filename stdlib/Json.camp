@@ -107,3 +107,13 @@ pub parse_init = |_s| { crash "intrinsic: Json.parse_init" }
 pub parse_next = |_p| { crash "intrinsic: Json.parse_next" }
 
 pub parse_all = |_s| { crash "intrinsic: Json.parse_all" }
+
+Json is Default {
+  default = || -> Json { Json.Null }
+}
+
+Json is TryFrom {
+  try_from = |s: Str| -> Result(Json, JsonErr) {
+    Json.decode(s)
+  }
+}

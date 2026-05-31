@@ -1,0 +1,5 @@
+// ParseError.camp — error for string parse failures
+@ParseError : pub Str
+ParseError is Debug {
+  debug = |self: Self| -> Str { crash "intrinsic: ParseError_debug" }
+}

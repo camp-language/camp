@@ -47,3 +47,18 @@ pub trailing_zeros = |n: I8| -> I8 { crash "intrinsic: Num.I8.trailing_zeros" }
 Num.I8 is Eq {
     eq = |a: Self, b: Self| -> Bool { crash "intrinsic: Num.I8_eq" }
 }
+I8 is TryFrom {
+  try_from = |val: I8| -> Result(U8, TryFromIntError) { crash "intrinsic: I8_try_into_U8" }
+}
+I8 is TryFrom {
+  try_from = |val: I8| -> Result(U16, TryFromIntError) { crash "intrinsic: I8_try_into_U16" }
+}
+I8 is TryFrom {
+  try_from = |val: I8| -> Result(U32, TryFromIntError) { crash "intrinsic: I8_try_into_U32" }
+}
+I8 is TryFrom {
+  try_from = |val: I8| -> Result(U64, TryFromIntError) { crash "intrinsic: I8_try_into_U64" }
+}
+I8 is TryFrom {
+  try_from = |val: I8| -> Result(F32, TryFromIntError) { crash "intrinsic: I8_try_into_F32" }
+}

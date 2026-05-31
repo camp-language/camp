@@ -87,3 +87,15 @@ pub from_i64 = |n: I64| -> F64 { crash "intrinsic: Num.F64.from_i64" }
 Num.F64 is Eq {
     eq = |a: Self, b: Self| -> Bool { crash "intrinsic: Num.F64_eq" }
 }
+F64 is Default {
+  default = || -> F64 { crash "intrinsic: F64_default" }
+}
+F64 is TryFrom {
+  try_from = |val: F64| -> Result(F32, TryFromIntError) { crash "intrinsic: F64_try_into_F32" }
+}
+F64 is TryFrom {
+  try_from = |val: F64| -> Result(I64, TryFromIntError) { crash "intrinsic: F64_try_into_I64" }
+}
+F64 is TryFrom {
+  try_from = |val: F64| -> Result(I32, TryFromIntError) { crash "intrinsic: F64_try_into_I32" }
+}

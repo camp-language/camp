@@ -43,3 +43,6 @@ pub trailing_zeros = |n: U8| -> U8 { crash "intrinsic: Num.U8.trailing_zeros" }
 Num.U8 is Eq {
     eq = |a: Self, b: Self| -> Bool { crash "intrinsic: Num.U8_eq" }
 }
+U8 is TryFrom {
+  try_from = |val: U8| -> Result(I8, TryFromIntError) { crash "intrinsic: U8_try_into_I8" }
+}

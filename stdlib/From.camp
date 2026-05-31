@@ -1,5 +1,6 @@
 // From trait — infallible type conversion
+// Self = target type, source = unbound type variable resolved at impl site
 
 From : {
-  from : |Self| -> target,
+  from : |source| -> Self,
 }

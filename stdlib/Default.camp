@@ -1,5 +1,6 @@
 // Default trait — default/zero values
+// Field is a zero-arg function, not a value (all trait fields are pure functions)
 
 Default : {
-  default : Self,
+  default : || -> Self,
 }

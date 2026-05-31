@@ -45,3 +45,7 @@ pub to_str = |b: Bytes| -> Result(Str, [InvalidUtf8]) { crash "intrinsic: Bytes.
 Bytes is Eq {
     eq = |a: Self, b: Self| -> Bool { crash "intrinsic: Bytes_eq" }
 }
+
+Bytes is Default {
+  default = || -> Bytes { crash "intrinsic: Bytes_new" }
+}

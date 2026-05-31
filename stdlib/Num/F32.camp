@@ -67,3 +67,18 @@ pub from_i64 = |n: I64| -> F32 { crash "intrinsic: Num.F32.from_i64" }
 Num.F32 is Eq {
     eq = |a: Self, b: Self| -> Bool { crash "intrinsic: Num.F32_eq" }
 }
+F32 is Default {
+  default = || -> F32 { crash "intrinsic: F32_default" }
+}
+F32 is From {
+  from = |val: F32| -> F64 { crash "intrinsic: F32_to_F64" }
+}
+F32 is TryFrom {
+  try_from = |val: F32| -> Result(I32, TryFromIntError) { crash "intrinsic: F32_try_into_I32" }
+}
+F32 is TryFrom {
+  try_from = |val: F32| -> Result(I16, TryFromIntError) { crash "intrinsic: F32_try_into_I16" }
+}
+F32 is TryFrom {
+  try_from = |val: F32| -> Result(I8, TryFromIntError) { crash "intrinsic: F32_try_into_I8" }
+}

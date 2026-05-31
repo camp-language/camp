@@ -39,3 +39,19 @@ pub version = |_u: Uuid| -> U8 { crash "intrinsic: Uuid.version" }
 pub variant = |_u: Uuid| -> UuidVariant { crash "intrinsic: Uuid.variant" }
 
 pub timestamp = |_u: Uuid| -> U64 { crash "intrinsic: Uuid.timestamp" }
+
+Uuid is Default {
+  default = || -> Uuid { crash "intrinsic: Uuid_nil" }
+}
+Uuid is From {
+  from = |val: Uuid| -> Str { Uuid.to_str(val) }
+}
+Uuid is From {
+  from = |val: Uuid| -> Bytes { Uuid.to_bytes(val) }
+}
+
+Uuid is TryFrom {
+  try_from = |s: Str| -> Result(Uuid, UuidErr) {
+    Uuid.parse(s)
+  }
+}
