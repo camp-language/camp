@@ -804,3 +804,30 @@ pub main! = || -[Console! | Throw!([..])]-> I64 {
 // main! returns any type implementing Termination trait:
 // I64 -> exit code, {} -> exit 0, Result(a, e) -> Ok=0 / Err=1
 // Throw!([..]) means "can throw any error type" (open tag union)
+
+// ============================================================
+// SECTION: IntoIter / FromIter Traits
+// Demonstrates: trait with type params, is-blocks on generic types,
+//   into_iter for List/Map/Set/Str/Bytes/Result,
+//   from_iter for List/Map/Set/Str/Bytes,
+//   collect pattern via FromIter
+// ============================================================
+
+// List into_iter / from_iter:
+// xs = [1, 2, 3]
+// xs.to_iter()                          -- yields Iter(I64)
+// Iter.from_list([1,2,3])->List.from_iter()  -- collect into List
+
+// Map into_iter: yields (k, v) pairs
+// Map.singleton("a", 1)->Map.to_iter()
+
+// Result into_iter: 0 or 1 elements
+// Ok(42).to_iter()                      -- yields [42] via Iter
+// Err("x").to_iter()                    -- yields [] via Iter
+
+// Str into_iter: grapheme-by-grapheme
+// "hello".to_iter()                     -- yields ["h","e","l","l","o"]
+
+// Bytes into_iter:
+// Bytes.singleton(0xFF).to_iter()       -- yields [255]
+
