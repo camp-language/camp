@@ -1,7 +1,7 @@
 ---
 id: camp-e5f6
 title: Implement Default trait for stdlib types
-status: todo
+status: done
 type: task
 priority: medium
 created_at: 2026-05-30T16:22:00Z
@@ -26,3 +26,5 @@ Semantics per type:
 - Uuid: nil UUID (all zeros)
 - Regex: empty pattern or always-fail regex
 - Json: `Json.Null`
+## Status: Done
+Default trait defined in stdlib/Default.camp. Implementations on all numeric types + Bool + Str + Bytes + List + Map + Set + Path + Duration + Uri + Uuid + Json. Compiler builds. 464 tests pass.

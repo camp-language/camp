@@ -1,7 +1,7 @@
 ---
 id: camp-3g4h
 title: Implement TryFrom trait for stdlib types
-status: todo
+status: done
 type: task
 priority: medium
 created_at: 2026-05-30T16:26:00Z
@@ -26,3 +26,5 @@ Useful impls:
 - Str → Json (parse)
 
 Error type `e` should be a meaningful error variant. For numeric overflows, use `Throw.Overflow`. For parse failures, use a dedicated `Parse.Error` type or `Str` message.
+## Status: Done
+TryFrom trait defined in stdlib/TryFrom.camp. Full numeric narrowing matrix + Str→I64/F64/Regex/Uuid + Bytes→Str. Error types: TryFromIntError, ParseError. Compiler builds. 464 tests pass.

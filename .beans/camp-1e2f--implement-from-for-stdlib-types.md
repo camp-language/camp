@@ -1,7 +1,7 @@
 ---
 id: camp-1e2f
 title: Implement From trait for stdlib types
-status: todo
+status: done
 type: task
 priority: medium
 created_at: 2026-05-30T16:25:00Z
@@ -25,3 +25,5 @@ Useful impls:
 - Uuid → Str, Bytes
 
 Note: `From` for numeric types must handle sign extension correctly. Unsigned → signed widening is fine (no truncation). Float widening is exact.
+## Status: Done
+From trait defined in stdlib/From.camp. All lossless numeric widens + Bool→numeric + Str→Bytes/Path + Uuid→Str/Bytes. Compiler builds. 464 tests pass.
