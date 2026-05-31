@@ -1416,6 +1416,7 @@ lower_binop_kind :: proc(op: base.Token_Kind) -> IR_BinOp_Kind {
 	return .Add
 }
 
+
 lower_tbinop :: proc(e: ^semantics.TExpr_BinOp, env: ^Lower_Env) -> IR_Expr {
 	// String concatenation: convert `a + b` (when both operands are Str) to Str.concat(a, b)
 	if e.op == .Plus {
@@ -1446,7 +1447,6 @@ lower_tbinop :: proc(e: ^semantics.TExpr_BinOp, env: ^Lower_Env) -> IR_Expr {
 			}
 		}
 	}
-
 	left_ir := lower_texpr(e.left, env)
 	right_ir := lower_texpr(e.right, env)
 	result := new(IR_BinOp)

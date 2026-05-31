@@ -169,3 +169,4 @@ run_check_project :: proc(thread_count: int = 1) -> Build_Result {
 	fmt.printfln("check passed for all modules")
 	return Build_Result(Build_Output{wasm_path = "", has_errors = false})
 }
+

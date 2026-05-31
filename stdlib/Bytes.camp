@@ -42,3 +42,6 @@ pub to_iter = |b: Bytes| -> Iter(U8) { crash "intrinsic: Bytes.to_iter" }
 pub to_list = |b: Bytes| -> List(U8) { crash "intrinsic: Bytes.to_list" }
 
 pub to_str = |b: Bytes| -> Result(Str, [InvalidUtf8]) { crash "intrinsic: Bytes.to_str" }
+Bytes is Eq {
+    eq = |a: Self, b: Self| -> Bool { crash "intrinsic: Bytes_eq" }
+}

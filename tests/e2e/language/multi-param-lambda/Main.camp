@@ -1,7 +1,7 @@
 pair = |a, b| { { fst: a, snd: b } }
 
 pub main! = || -[Console! | Throw!([..])]-> I64 {
-    result = pair 1 2
+    result = pair(1, 2)
     Console.println!(result.fst)
     Console.println!(result.snd)
     0
