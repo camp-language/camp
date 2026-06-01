@@ -1,0 +1,3 @@
+# Keep OCI image for Camp CI testing.
+# Daemon reads this from repo root at session start, falls back to default.
+image = "ghcr.io/smores56/camp-ci:latest"
