@@ -124,3 +124,38 @@ pub from_list = |xs| {
 pub unwrap! = |r| { crash "intrinsic: Result.unwrap!" }
 
 pub catch = |action| { crash "intrinsic: Result.catch" }
+
+// Tests
+
+test "core combinators cover all paths" {
+  expect is_ok(Ok(42))
+  expect is_err(Err("x"))
+  expect not is_ok(Err("x"))
+  expect not is_err(Ok(42))
+  expect unwrap(Ok(42)) == 42
+  expect unwrap_or(Ok(42), 0) == 42
+  expect unwrap_or(Err("x"), 0) == 0
+  expect unwrap_or_else(Ok(42), \|_\| 0) == 42
+  expect unwrap_or_else(Err("x"), \|_\| 0) == 0
+  expect is_ok(map(Ok(42), \|x\| x + 1))
+  expect is_err(map(Err("e"), \|x\| x))
+  expect is_ok(map_err(Ok(42), \|_\| "y"))
+  expect is_err(map_err(Err("e"), \|_\| "y"))
+  expect is_ok(and_then(Ok(42), \|x\| Ok(x + 1)))
+  expect is_err(and_then(Err("e"), \|x\| Ok(x)))
+  expect is_ok(or_else(Ok(42), \|\| Ok(0)))
+  expect is_ok(or_else(Err("e"), \|\| Ok(0)))
+  expect is_ok(or(Ok(1), Ok(2)))
+  expect is_ok(or(Err("e"), Ok(2)))
+  expect is_err(or(Err("a"), Err("b")))
+  expect is_ok(flatten(Ok(Ok(42))))
+  expect is_err(flatten(Ok(Err("e"))))
+  expect is_err(flatten(Err("outer")))
+  expect is_ok(filter(Ok(42), \|x\| x > 0, "filtered"))
+  expect is_err(filter(Ok(0), \|x\| x > 0, "filtered"))
+  expect is_err(filter(Err("base"), \|x\| True, "err"))
+  expect match to_list(Ok(42)) { Cons(h, Nil) => h == 42 | _ => False }
+  expect match to_list(Err("x")) { Nil => True | _ => False }
+  expect is_ok(from_list([42]))
+  expect is_err(from_list([]))
+}
