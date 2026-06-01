@@ -57,9 +57,9 @@ RUN curl -fsSL "https://github.com/bytecodealliance/wasmtime/releases/download/v
 RUN curl -fsSL "https://github.com/casey/just/releases/download/1.51.0/just-1.51.0-x86_64-unknown-linux-musl.tar.gz" \
         | tar -xzf - -C /usr/local/bin just
 
-# --- tree-sitter CLI ---
+# --- tree-sitter CLI (musl build - static) ---
 RUN TS_VER="v0.26.8" \
-    && curl -fsSL "https://github.com/tree-sitter/tree-sitter/releases/download/${TS_VER}/tree-sitter-linux-x64.gz" \
+    && curl -fsSL "https://github.com/tree-sitter/tree-sitter/releases/download/${TS_VER}/tree-sitter-linux-musl-x64.gz" \
         | gunzip > /usr/local/bin/tree-sitter \
     && chmod +x /usr/local/bin/tree-sitter
 
