@@ -1,9 +1,9 @@
-Camp CI build container for keep microVM
-Reproduces tools from .github/workflows/ci.yml
-
-Usage:
-  podman build -t ghcr.io/camp-language/camp-ci:latest .
-  podman push ghcr.io/camp-language/camp-ci:latest
+# Camp CI build container for keep microVM
+# Reproduces tools from .github/workflows/ci.yml
+#
+# Usage:
+#   podman build -t ghcr.io/camp-language/camp-ci:latest .
+#   podman push ghcr.io/camp-language/camp-ci:latest
 
 FROM debian:bookworm-slim AS builder
 
