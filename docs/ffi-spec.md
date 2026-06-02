@@ -17,10 +17,12 @@ compilation pipeline, see `docs/compiler-spec.md`.
 
 ## Purpose
 
-Define how Camp code reaches the host platform (WASM imports / WASI) in a
-way that integrates with — rather than bypasses — the algebraic effect
-system. The goal is to generalize the two host-interaction mechanisms that
-exist today (hardcoded stdlib intrinsics and hardcoded "scheduler" prelude
+Define how Camp interoperates with the host platform in a way that
+integrates with — rather than bypasses — the algebraic effect system,
+covering both directions: **outbound** (Camp calling the host via WASM
+imports / WASI) and **inbound** (another language calling a Camp export).
+The goal is to generalize the two host-interaction mechanisms that exist
+today (hardcoded stdlib intrinsics and hardcoded "scheduler" prelude
 effects) into a single *declared* mechanism, without weakening effect
 tracking, strict typing, or Perceus reference-counting semantics.
 
@@ -181,6 +183,117 @@ suspends and resumes Camp continuations itself and uses leaf FFI
 up: **the scheduler is the handler; `poll_oneoff` is a leaf.** Direct
 host→Camp resumption stays forbidden; the scheduler mediates it.
 
+## Direction: Inbound Calls (Exports)
+
+Everything above is the *outbound* direction — Camp calling the host via
+imports. The *inbound* direction — another language calling a Camp function
+— is a separate, asymmetric problem.
+
+### Current state
+
+Camp emits only three WASM exports today (`src/codegen/emit_start.odin`,
+`src/codegen/codegen.odin`): `_start` (the WASI command entry wrapping
+`main!`), `memory`, and `camp_worker_entry` (scheduler workers). The
+`Export_Table` in `src/build/export_table.odin` is **not** a foreign ABI —
+it is purely Camp's *internal* module system, resolving `pub`
+consts/effects/traits between `.camp` files (`Export_Kind` =
+`Const/Effect/Trait/Alias/Newtype`). There is no mechanism to expose an
+arbitrary `pub` Camp function to a Rust/JS caller.
+
+### A handler is an interpreter; it lives in the language that owns the effect
+
+A foreign caller has no notion of a Camp effect row — it cannot typecheck
+`-[Db!]->`, install a handler in a form Camp's CPS machinery understands, or
+reason about resumption. Effects are intrinsically a Camp-internal concept.
+So the boundary rule mirrors the outbound leaf invariant:
+
+> **Effects never cross the boundary as an obligation on the foreign side.**
+> On import, the host cannot *perform* Camp effects. On export, the foreign
+> caller cannot *handle* them. Effects are always discharged on the Camp
+> side — by Camp handlers, or by host-backed leaf imports.
+
+This is the standard FFI discipline for any effect/monad system, not a Camp
+limitation: Haskell cannot export an unhandled `IO a` for C to "run" (the
+RTS runs it; C sees `a`); OCaml 5 cannot export an unhandled effectful
+computation for C to supply the handler. Run/handle it in the language that
+understands the effect, then hand a value across.
+
+### What an export may carry: effect-closed signatures
+
+An exported Camp function MUST be **effect-closed**: its signature is pure,
+*or* its only residual effects are **host-backed leaves** (`Console!`,
+`File!`, `Clock!`, …) that resolve to imports. This is exactly why `main!`
+is already allowed the row `-[Console! | Throw!([..])]->` — those resolve to
+host-backed leaves (WASI), not to a Camp handler.
+
+### Effect-closed ≠ effect-free
+
+This is the crux, and the reason exports do **not** defeat the purpose of
+effects. An effect-closed export may still:
+
+- **Perform any effect internally and handle it itself** — `State!`,
+  nondeterminism, retries, logging. The effects *happen*; the effect system
+  did its entire job (tracking, sequencing, handler-based interpretation,
+  mockability) *inside that call*. The foreign caller simply receives the
+  result, the same way it does not participate in Camp's type inference or
+  Perceus RC.
+- **Route residual effects to host-backed leaves**, so real I/O still
+  reaches the host via the import direction that works.
+
+### The host can still inject behavior — as a capability, via imports
+
+The case to worry about is "what if Rust wants to control how a Camp effect
+behaves?" That works — not by making the host a handler, but by making the
+host a **leaf the Camp handler calls**. Invert it:
+
+```camp
+Db! : { query!: |Str| -[Db!]-> Bytes }
+
+@extern("host_db", "exec")            # host provides the capability as a leaf
+host_db_exec = |Str| -> Bytes
+
+# Camp owns the handler (the interpreter); the host owns the capability
+runWithDb = |work| {
+  handle Db! in work() with {
+    .query!(resume, sql) => resume(host_db_exec(sql))
+  }
+}
+
+pub run_report = || -> Bytes {        # exported: effect-closed
+  runWithDb(|| { ... Db!.query!("select ...") ... })
+}
+```
+
+Rust calls `run_report`. Inside, Camp performs `Db!`, the **Camp handler**
+interprets it, and the actual database work is done by the **host import**
+`host_db_exec`. The host fully controls behavior — but as a capability
+passed *in* via imports, with Camp's handler as the mediator. The effect
+typing stays meaningful end to end: `Db!` was tracked and sequenced, and the
+handler chose to route it to the host.
+
+> The export carries values. The imports carry capabilities. The Camp side
+> owns the handler. Neither direction carries an unhandled effect obligation.
+
+### What is genuinely not possible (and why it is a feature)
+
+A foreign caller cannot be a **transparent effect handler that resumes Camp
+continuations** — e.g. Rust calling `f : || -[Ask!]-> I64` and Rust itself
+being the `Ask!` handler that resumes. That would require the host to
+implement Camp's continuation protocol and hold a Camp continuation across
+the boundary — the same unsoundness the outbound leaf invariant forbids,
+which would break Camp's one-shot/RC semantics. The capability-as-import
+pattern above delivers everything *useful* about that without it. (No two
+languages share an effect ABI in any case; effect-polymorphic composition
+across a WASM boundary was never on the table for any language.)
+
+### Memory / RC ownership (both directions)
+
+`Str`/`Bytes` crossing the boundary need an ownership convention consistent
+with Perceus, in *both* directions: who frees a buffer the foreign caller
+passes in, and who owns a buffer Camp returns. The v1 leaf convention (see
+Type Marshaling) must be stated symmetrically for exports — left as an open
+decision below.
+
 ## Implementation Sketch (smallest viable cut)
 
 1. **Parser / AST** (`src/frontend/`): parse `@extern("mod", "field")` as an
@@ -232,12 +345,22 @@ These need the project owner's sign-off and must be recorded in
    WASI preview2/0.3 typed interfaces (worlds, resources, async), and
    whether `@extern` should eventually be generated from `.wit` rather than
    hand-written.
+5. **Export surface.** How a `pub` Camp function is marked for export to a
+   foreign caller (e.g. an `@export("name")` attribute), and how the
+   compiler enforces the *effect-closed* requirement on exported signatures
+   (reject any residual effect that is not pure or a host-backed leaf).
+6. **RC ownership convention across the boundary.** The symmetric rule for
+   who owns/frees `Str`/`Bytes` passed in by a foreign caller versus
+   returned by Camp, consistent with Perceus.
 
 ## Non-Goals
 
 - Garbage collection or any runtime dependency (Perceus RC is preserved;
   ownership of `Str`/`Bytes` passed across the boundary follows existing RC
   rules).
-- Allowing foreign code to capture or resume Camp continuations directly.
+- Allowing foreign code to capture or resume Camp continuations directly
+  (in either direction — host as handler of a Camp export is forbidden).
+- Exporting effect-open Camp functions (signatures with unhandled
+  user-defined effects); exports must be effect-closed.
 - Dynamic loading / `dlopen`-style FFI — all imports are resolved at WASM
   link time.
