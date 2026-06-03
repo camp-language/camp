@@ -994,6 +994,7 @@ codegen :: proc(
 
 			env.tmp_local_base = env.next_local
 			env.tmp_count = 0
+			tmp_decl_idx := len(env.locals)
 			append(&env.locals, Wasm_Local_Decl{count = 4, type = .I32})
 			env.next_local += 4
 
@@ -1001,6 +1002,14 @@ codegen :: proc(
 			body_buf = make([dynamic]u8, 0, CODE_BUF_XL)
 			emit_expr(d.body, &body_buf, &env, runtime_func_indices[:])
 			emit_instruction(Wasm_End{}, &body_buf)
+
+			// Reserve enough tmp i32 locals for every unique slot the body
+			// consumed (each nested IR_Construct_Tag/Record takes one). The
+			// initial 4 is a floor for paths that use fixed tmp slots without
+			// bumping tmp_count (e.g. list ops at tmp_local_base+0/+1).
+			if env.tmp_count > 4 {
+				env.locals[tmp_decl_idx].count = env.tmp_count
+			}
 
 			locals_copy := make([]Wasm_Local_Decl, len(env.locals))
 			for l, i in env.locals {

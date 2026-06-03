@@ -1422,7 +1422,12 @@ emit_expr :: proc(expr: ir.IR_Expr, buf: ^[dynamic]u8, env: ^Codegen_Env, runtim
 			}
 		}
 		total_size := CAMP_TAG_HEADER_SIZE + num_fields * 8
-		tmp_local_idx := env.tmp_local_base
+		// Use a unique tmp slot so a nested IR_Construct_Tag in a payload (e.g.
+		// the Nil/Cons tail of a Cons cell) doesn't clobber this cell's pointer
+		// between alloc and the field stores. IR_Construct_Record already does
+		// this; tag construction had the same hazard.
+		tmp_local_idx := env.tmp_local_base + env.tmp_count
+		env.tmp_count += 1
 
 		if e.reuse_addr != ir.NO_REUSE_ADDR {
 			// Perceus inline reuse: decrement reuse_addr refcount, reuse if zero + big enough
