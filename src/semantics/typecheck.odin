@@ -410,6 +410,22 @@ typecheck_synth :: proc(expr: CExpr, env: ^Type_Env, store: ^Type_Store) -> Synt
 				store.collector,
 				diagnostics.diag_undefined_type(type_str, {"newtype"}, e.span),
 			)
+		} else {
+			// For a newtype wrapping a HEAP type (record/tag/list), link the
+			// construct's type var to the nominal type. Without this the var
+			// stays free and lower_type defaults to .I64, contradicting the
+			// i32 heap pointer the construct produces (invalid WASM on access).
+			// Scalar newtypes (e.g. `@UserId : U64`) are left transparent so
+			// arithmetic like `uid + 1` still unifies — and their .I64 default
+			// already matches the inner scalar's representation.
+			nt_res := store.vars[int(resolve_var(store, resolved_var))]
+			if nt_inf, ok := nt_res.link.(Inferred_Type); ok {
+				if nt, is_nt := nt_inf.(Inferred_Newtype); is_nt {
+					if lower_type(store, nt.inner_id).is_heap {
+						unify(store, type_var, instantiate(store, resolved_var))
+					}
+				}
+			}
 		}
 		t := new(TExpr_Nominal_Construct)
 		t^ = TExpr_Nominal_Construct {

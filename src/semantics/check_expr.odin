@@ -55,14 +55,21 @@ typecheck_lambda :: proc(e: ^CExpr_Lambda, env: ^Type_Env, store: ^Type_Store) -
 		child_env.bindings[param.name] = param_var
 		param_ids[i] = param_var
 		params_t[i] = TFunc_Param {
-			name  = param.name,
-			type_ = lower_type(store, param_var),
-			eff_  = lower_effect_type(store, fresh_effect_row(store, param.span)),
-			span  = param.span,
+			name = param.name,
+			eff_ = lower_effect_type(store, fresh_effect_row(store, param.span)),
+			span = param.span,
 		}
 	}
 
 	body_result := typecheck_synth(e.body, &child_env, store)
+
+	// Lower each param's type only after the body has been checked — the body
+	// (e.g. a `match` on the param) is what constrains an otherwise-free param
+	// var. Lowering earlier captured the free var as .I64, contradicting the
+	// i32 heap value of a list/tag-union argument at the call boundary.
+	for i in 0 ..< len(e.params) {
+		params_t[i].type_ = lower_type(store, param_ids[i])
+	}
 
 	effect_id := fresh_effect_row(store, e.span)
 	unify(store, effect_id, body_result.effects)
@@ -534,7 +541,17 @@ typecheck_field_access :: proc(
 	// losing the other fields and corrupting field offsets at codegen.
 	constraint_var := fresh_value_var(store, e.span)
 	link_var(store, constraint_var, inf)
-	unify(store, record_result.var_id, constraint_var)
+	// Field access on a nominal record (`@Pt : { x, y }`) targets the inner
+	// record, so unwrap one level of newtype before applying the constraint.
+	// (Codegen's flatten_record_fields already unwraps the same way.)
+	target_var := record_result.var_id
+	rec_resolved := resolve_var(store, record_result.var_id)
+	if rinf, rok := store.vars[int(rec_resolved)].link.(Inferred_Type); rok {
+		if nt, is_nt := rinf.(Inferred_Newtype); is_nt {
+			target_var = nt.inner_id
+		}
+	}
+	unify(store, target_var, constraint_var)
 
 	t := new(TExpr_Field_Access)
 	t^ = TExpr_Field_Access {
@@ -613,6 +630,36 @@ typecheck_list :: proc(e: ^CExpr_List, env: ^Type_Env, store: ^Type_Store) -> Sy
 	}
 
 	var_id := fresh_value_var(store, e.span)
+	// Type the list literal as the tag union `[Nil | Cons(elem, tail)]` — exactly
+	// what the Cons/Nil construction it lowers to produces. This makes it an i32
+	// heap value (so lower_type no longer defaults to .I64, which produced invalid
+	// WASM) AND lets it unify with `Nil`/`Cons` patterns. A bare List constructor
+	// gave the right wasm type but failed to unify with the patterns.
+	nil_name := base.intern(store.interner, "Nil")
+	cons_name := base.intern(store.interner, "Cons")
+	tail_var := fresh_value_var(store, e.span)
+	tag_rest := fresh_tag_row(store, e.span)
+	tag_entries := store_alloc(store, Type_Tag_Entry, 2)
+	tag_entries[0] = Type_Tag_Entry {
+		name    = nil_name,
+		payload = store_alloc(store, base.Type_Var_ID, 0),
+	}
+	cons_payload := store_alloc(store, base.Type_Var_ID, 2)
+	cons_payload[0] = resolve_var(store, element_var)
+	cons_payload[1] = tail_var
+	tag_entries[1] = Type_Tag_Entry {
+		name    = cons_name,
+		payload = cons_payload,
+	}
+	link_var(
+		store,
+		var_id,
+		Inferred_Tag_Union_Row{tag_entries = tag_entries, tag_rest = resolve_var(store, tag_rest)},
+	)
+	// The Cons tail is left as an open var; it re-unifies with the concrete list
+	// type at use sites (matching, recursion). Tying it back to var_id directly
+	// would build a cyclic type that loops the unifier.
+	_ = tail_var
 	t := new(TExpr_List)
 	t^ = TExpr_List {
 		elements = elements_t,

@@ -1,0 +1,9 @@
+main! = || -> I64 {
+    match [10, 20, 30] {
+        Nil => 0
+        Cons(h, t) => match t {
+            Nil => 0
+            Cons(h2, _t2) => h + h2
+        }
+    }
+}
