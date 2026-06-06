@@ -4,28 +4,33 @@ title: Implement Hash trait for stdlib types
 status: todo
 type: task
 priority: low
-created_at: 2026-05-30T16:29:00Z
-updated_at: 2026-05-30T16:29:00Z
+created_at: 2026-05-30T16:27:00Z
+updated_at: 2026-06-06T18:30:00Z
 ---
 
-Stdlib defines `Hash : { hash : |Self, Hasher| -> Hasher }` in `stdlib/Hash.camp`.
-No types implement it. `Hash` is needed for HashMap/HashSet keys and consistent hashing.
+## ✅ Done (PR #95)
+- `@Hasher : {}` defined in `stdlib/Hash.camp`
+- `Hash : { hash : |Self, Hasher| -> Hasher }` trait defined
+- Stdlib: `is Hash` blocks for all 25 types (via `crash "intrinsic: X_hash"`)
+- Codegen infrastructure ready to wire runtime functions
 
-Depends on `Hasher` type being defined (likely a stateful hash accumulator type).
+## ❌ Remaining
 
-Types needing impls:
-- Bool: hash 0 or 1
-- All Num types: hash the in-memory representation
-- Str: hash string bytes (stable hash, e.g. FNV-1a or SipHash)
-- Bytes: hash byte sequence
-- List(T): hash each element in order, combine with Hasher — requires T: Hash
-- Result(T, E): hash variant tag then payload
-- Map(K, V): hash sorted keys then values (order-independent hash)
-- Set(T): hash elements (order-independent, e.g. XOR)
-- Path: hash string representation
-- Uri: hash string representation
-- Uuid: hash 16 bytes
-- Duration: hash nanosecond count
-- Regex: hash pattern string
+### 1. Hasher runtime implementation
+`Hasher` is opaque — its internal state is a u64 hash value.
+Need runtime functions:
 
-Requires `Hasher` type definition and its interface before impls can be written.
+- **`Hasher_New`**: allocate Hasher struct with initial FNV-1a offset basis (`0xcbf29ce484222325`)
+- **`Hasher_Write_U64`**: XOR 8 bytes into hash state, multiply by FNV prime
+- **`Hasher_Write_Bytes`**: iterate bytes, XOR and multiply
+- **`Hasher_Finish`**: return final u64 hash value
+- **`*_hash` codegen**: recognize `X_hash` calls and route to Hasher_Write
+
+### 2. `Hasher.finish` API
+Current trait has no `finish` method. Need to add `Hasher.finish(h: Hasher) -> U64` to stdlib.
+Or make the final hash extraction an intrinsic.
+
+### 3. FN V-1a vs SipHash
+FNV-1a is simple (~50 lines WASM) but collision-prone.
+SipHash-1-3 is secure but ~200 lines WASM.
+Start with FNV-1a, document as non-cryptographic.

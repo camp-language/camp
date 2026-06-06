@@ -71,7 +71,11 @@ Bool is Debug {
     debug = |a: Self| -> Str { crash "intrinsic: Bool_debug" }
 }
 
-Bool is Ord {    compare = |a: Self, b: Self| -> Order { crash "intrinsic: Bool_compare" }}
+Bool is Ord {
+    compare = |a: Self, b: Self| -> Order {
+        if a < b { Less } else if a == b { Equal } else { Greater }
+    }
+}
 // Tests
 
 test "truth table complete" {

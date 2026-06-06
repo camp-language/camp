@@ -52,7 +52,9 @@ U8 is Debug {
 }
 
 U8 is Ord {
-    compare = |a: Self, b: Self| -> Order { crash "intrinsic: U8_compare" }
+    compare = |a: Self, b: Self| -> Order {
+        if a < b { Less } else if a == b { Equal } else { Greater }
+    }
 }
 
 U8 is Hash {

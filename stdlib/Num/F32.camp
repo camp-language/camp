@@ -88,7 +88,9 @@ F32 is Debug {
 }
 
 F32 is Ord {
-    compare = |a: Self, b: Self| -> Order { crash "intrinsic: F32_compare" }
+    compare = |a: Self, b: Self| -> Order {
+        if a < b { Less } else if a == b { Equal } else { Greater }
+    }
 }
 
 F32 is Hash {

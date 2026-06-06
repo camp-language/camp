@@ -76,7 +76,9 @@ I32 is Debug {
 }
 
 I32 is Ord {
-    compare = |a: Self, b: Self| -> Order { crash "intrinsic: I32_compare" }
+    compare = |a: Self, b: Self| -> Order {
+        if a < b { Less } else if a == b { Equal } else { Greater }
+    }
 }
 
 I32 is Hash {

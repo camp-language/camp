@@ -91,7 +91,9 @@ I64 is Debug {
 }
 
 I64 is Ord {
-    compare = |a: Self, b: Self| -> Order { crash "intrinsic: I64_compare" }
+    compare = |a: Self, b: Self| -> Order {
+        if a < b { Less } else if a == b { Equal } else { Greater }
+    }
 }
 
 I64 is Hash {

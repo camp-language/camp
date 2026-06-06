@@ -68,7 +68,9 @@ I8 is Debug {
 }
 
 I8 is Ord {
-    compare = |a: Self, b: Self| -> Order { crash "intrinsic: I8_compare" }
+    compare = |a: Self, b: Self| -> Order {
+        if a < b { Less } else if a == b { Equal } else { Greater }
+    }
 }
 
 I8 is Hash {
