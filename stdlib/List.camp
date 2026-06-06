@@ -77,3 +77,6 @@ List is Ord {
 List is Hash {
     hash = |a: Self, h: Hasher| -> Hasher { crash "intrinsic: List_hash" }
 }
+List is Eq {
+    eq = |a: Self, b: Self| -> Bool { crash "intrinsic: List_eq" }
+}

@@ -33,6 +33,8 @@ PRELUDE_BUILTIN_TYPES :: []Prelude_Builtin_Type {
 	{"U8", false},
 	{"U16", false},
 	{"U32", false},
+	{"Hasher", false},
+	{"Char", false},
 	{"Bytes", false},
 }
 
@@ -570,6 +572,69 @@ inject_prelude_effects_typecheck :: proc(store: ^Type_Store) {
 			},
 		)
 	}
-
+	// Register Hash trait
+	hash_name := base.intern(store.interner, "Hash")
+	hash_method_name := base.intern(store.interner, "hash")
+	if !is_trait_declared(store, hash_name) {
+		hash_generic_vars: map[int]base.Type_Var_ID
+		hash_generic_vars = make(map[int]base.Type_Var_ID, 4, store.allocator)
+		hash_methods := make([dynamic]Trait_Method_Info, 0, 4, store.allocator)
+		params := make([]base.Type_Var_ID, 2, store.allocator)
+		params[0] = fresh_value_var(store, base.Source_Span_ZERO)
+		params[1] = prelude_resolve_type_ref(store, "Hasher", 0, &hash_generic_vars)
+		return_type := prelude_resolve_type_ref(store, "Hasher", 0, &hash_generic_vars)
+		append(
+			&hash_methods,
+			Trait_Method_Info {
+				name = hash_method_name,
+				param_types = params,
+				return_type = return_type,
+			},
+		)
+		store.trait_registry[hash_name] = Trait_Info {
+			name    = hash_name,
+			module  = base.NO_NAME,
+			parent  = base.NO_NAME,
+			methods = hash_methods[:],
+		}
+		delete(hash_generic_vars)
+	}
+	// Register Hash implementations for primitive types
+	primitive_hash_types := []struct {
+		name:  string,
+		canon: string,
+	} {
+		{"I64", "I64_hash"},
+		{"I32", "I32_hash"},
+		{"I16", "I16_hash"},
+		{"I8", "I8_hash"},
+		{"U64", "U64_hash"},
+		{"U32", "U32_hash"},
+		{"U16", "U16_hash"},
+		{"U8", "U8_hash"},
+		{"F64", "F64_hash"},
+		{"F32", "F32_hash"},
+		{"Bool", "Bool_hash"},
+		{"Str", "Str_hash"},
+		{"Bytes", "Bytes_hash"},
+		{"Char", "Char_hash"},
+	}
+	for pdt in primitive_hash_types {
+		type_id := base.intern(store.interner, pdt.name)
+		method_map := make(map[base.Intern_ID]base.Canonical_Name, 1, store.allocator)
+		method_map[hash_method_name] = base.Canonical_Name {
+			module = base.NO_NAME,
+			name   = base.intern(store.interner, pdt.canon),
+		}
+		append(
+			&store.trait_impls,
+			Trait_Impl {
+				trait_name = hash_name,
+				type_name = type_id,
+				type_module = base.NO_NAME,
+				methods = method_map,
+			},
+		)
+	}
 }
 

@@ -838,6 +838,68 @@ emit_expr :: proc(expr: ir.IR_Expr, buf: ^[dynamic]u8, env: ^Codegen_Env, runtim
 				emit_expr(e.args[0], buf, env, runtime_indices)
 				break
 			}
+			if name_str == "I8_debug" && len(e.args) == 1 {
+				emit_expr(e.args[0], buf, env, runtime_indices)
+				emit_instruction(Wasm_I64_Extend_I32_S{}, buf)
+				emit_instruction(
+					Wasm_Call{index = u32(runtime_indices[Runtime_Func.I64_To_Str])},
+					buf,
+				)
+				break
+			}
+			if name_str == "I16_debug" && len(e.args) == 1 {
+				emit_expr(e.args[0], buf, env, runtime_indices)
+				emit_instruction(Wasm_I64_Extend_I32_S{}, buf)
+				emit_instruction(
+					Wasm_Call{index = u32(runtime_indices[Runtime_Func.I64_To_Str])},
+					buf,
+				)
+				break
+			}
+			if name_str == "U8_debug" && len(e.args) == 1 {
+				emit_expr(e.args[0], buf, env, runtime_indices)
+				emit_instruction(Wasm_I64_Extend_I32_S{}, buf)
+				emit_instruction(
+					Wasm_Call{index = u32(runtime_indices[Runtime_Func.I64_To_Str])},
+					buf,
+				)
+				break
+			}
+			if name_str == "U16_debug" && len(e.args) == 1 {
+				emit_expr(e.args[0], buf, env, runtime_indices)
+				emit_instruction(Wasm_I64_Extend_I32_S{}, buf)
+				emit_instruction(
+					Wasm_Call{index = u32(runtime_indices[Runtime_Func.I64_To_Str])},
+					buf,
+				)
+				break
+			}
+			if name_str == "U32_debug" && len(e.args) == 1 {
+				emit_expr(e.args[0], buf, env, runtime_indices)
+				emit_instruction(Wasm_I64_Extend_I32_S{}, buf)
+				emit_instruction(
+					Wasm_Call{index = u32(runtime_indices[Runtime_Func.I64_To_Str])},
+					buf,
+				)
+				break
+			}
+			if name_str == "U64_debug" && len(e.args) == 1 {
+				emit_expr(e.args[0], buf, env, runtime_indices)
+				emit_instruction(
+					Wasm_Call{index = u32(runtime_indices[Runtime_Func.I64_To_Str])},
+					buf,
+				)
+				break
+			}
+			if name_str == "Char_debug" && len(e.args) == 1 {
+				emit_expr(e.args[0], buf, env, runtime_indices)
+				emit_instruction(Wasm_I64_Extend_I32_S{}, buf)
+				emit_instruction(
+					Wasm_Call{index = u32(runtime_indices[Runtime_Func.I64_To_Str])},
+					buf,
+				)
+				break
+			}
 		}
 
 		call_idx: int = 0

@@ -76,9 +76,11 @@ Bool is Ord {
         if a < b { Less } else if a == b { Equal } else { Greater }
     }
 }
+Bool is Hash {
+    hash = |a: Self, h: Hasher| -> Hasher { crash "intrinsic: Bool_hash" }
+}
 // Tests
-
-test "truth table complete" {
+test "Bool traits" {
   expect not_(True) == False
   expect not_(False) == True
   expect and_(True, True) == True
@@ -93,8 +95,9 @@ test "truth table complete" {
   expect xor_(True, False) == True
   expect xor_(False, True) == True
   expect xor_(False, False) == False
-}
-
-Bool is Hash {
-    hash = |a: Self, h: Hasher| -> Hasher { crash "intrinsic: Bool_hash" }
+  expect False < True
+  expect not (True < False)
+  expect True > False
+  expect False <= False
+  expect True >= True
 }

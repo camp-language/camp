@@ -84,8 +84,8 @@ pub from_str = |s: Str| -> F64 { crash "intrinsic: Num.F64.from_str" }
 pub to_i64 = |n: F64| -> I64 { crash "intrinsic: Num.F64.to_i64" }
 
 pub from_i64 = |n: I64| -> F64 { crash "intrinsic: Num.F64.from_i64" }
-Num.F64 is Eq {
-    eq = |a: Self, b: Self| -> Bool { crash "intrinsic: Num.F64_eq" }
+F64 is Eq {
+    eq = |a: Self, b: Self| -> Bool { crash "intrinsic: F64_eq" }
 }
 F64 is Default {
   default = || -> F64 { crash "intrinsic: F64_default" }

@@ -46,9 +46,6 @@ pub count_ones = |n: I32| -> I32 { crash "intrinsic: Num.I32.count_ones" }
 pub leading_zeros = |n: I32| -> I32 { crash "intrinsic: Num.I32.leading_zeros" }
 
 pub trailing_zeros = |n: I32| -> I32 { crash "intrinsic: Num.I32.trailing_zeros" }
-Num.I32 is Eq {
-    eq = |a: Self, b: Self| -> Bool { crash "intrinsic: Num.I32_eq" }
-}
 I32 is TryFrom {
   try_from = |val: I32| -> Result(I8, TryFromIntError) { crash "intrinsic: I32_try_into_I8" }
 }
@@ -70,17 +67,26 @@ I32 is TryFrom {
 I32 is TryFrom {
   try_from = |val: I32| -> Result(F32, TryFromIntError) { crash "intrinsic: I32_try_into_F32" }
 }
-
-I32 is Debug {
+ I32 is Debug {
     debug = |a: Self| -> Str { crash "intrinsic: I32_debug" }
 }
-
 I32 is Ord {
     compare = |a: Self, b: Self| -> Order {
         if a < b { Less } else if a == b { Equal } else { Greater }
     }
 }
-
 I32 is Hash {
     hash = |a: Self, h: Hasher| -> Hasher { crash "intrinsic: I32_hash" }
+}
+test "I32 equality" {
+  expect 0 == 0
+  expect 42 == 42
+  expect not (0 == 1)
+}
+test "I32 ordering" {
+  expect 0 < 1
+  expect (-2147483648) < 2147483647
+  expect 2147483647 > 0
+  expect 42 <= 42
+  expect 42 >= 42
 }

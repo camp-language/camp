@@ -44,8 +44,8 @@ pub count_ones = |n: I16| -> I16 { crash "intrinsic: Num.I16.count_ones" }
 pub leading_zeros = |n: I16| -> I16 { crash "intrinsic: Num.I16.leading_zeros" }
 
 pub trailing_zeros = |n: I16| -> I16 { crash "intrinsic: Num.I16.trailing_zeros" }
-Num.I16 is Eq {
-    eq = |a: Self, b: Self| -> Bool { crash "intrinsic: Num.I16_eq" }
+I16 is Eq {
+    eq = |a: Self, b: Self| -> Bool { crash "intrinsic: I16_eq" }
 }
 I16 is TryFrom {
   try_from = |val: I16| -> Result(I8, TryFromIntError) { crash "intrinsic: I16_try_into_I8" }
@@ -78,4 +78,15 @@ I16 is Ord {
 
 I16 is Hash {
     hash = |a: Self, h: Hasher| -> Hasher { crash "intrinsic: I16_hash" }
+}
+
+test "I16 traits" {
+  expect 0 == 0
+  expect 42 == 42
+  expect not (0 == 1)
+  expect 0 < 1
+  expect (-32768) < 32767
+  expect 32767 > 0
+  expect 42 <= 42
+  expect 42 >= 42
 }

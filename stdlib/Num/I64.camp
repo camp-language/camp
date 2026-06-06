@@ -99,3 +99,16 @@ I64 is Ord {
 I64 is Hash {
     hash = |a: Self, h: Hasher| -> Hasher { crash "intrinsic: I64_hash" }
 }
+
+test "I64 traits" {
+  expect 0 == 0
+  expect 42 == 42
+  expect not (0 == 1)
+  expect 0 < 1
+  expect 42 <= 42
+  expect 42 >= 42
+  expect 100 > 99
+}
+I64 is Eq {
+    eq = |a: Self, b: Self| -> Bool { crash "intrinsic: Num.I64_eq" }
+}
