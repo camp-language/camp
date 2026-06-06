@@ -1138,7 +1138,8 @@ test_rc_insert_dup_drop :: proc(t: ^testing.T) {
 
 	fn_decl := find_decl_fn(mod, false)
 	testing.expect(t, fn_decl != nil)
-	testing.expect(t, has_dup_or_drop(fn_decl.body))
+	// I64 is not heap-allocated, so no dup/drop should be emitted
+	testing.expect(t, !has_dup_or_drop(fn_decl.body))
 }
 
 contains_ir_field_access :: proc(expr: ir.IR_Expr) -> bool {
@@ -1780,7 +1781,8 @@ test_rc_insert_multi_use_has_dup :: proc(t: ^testing.T) {
 
 	fn_decl := find_decl_fn(mod, false)
 	testing.expect(t, fn_decl != nil)
-	testing.expect(t, count_ir_dup(fn_decl.body) >= 1)
+	// I64 is not heap-allocated, so no dup should be emitted
+	testing.expect(t, count_ir_dup(fn_decl.body) == 0)
 }
 
 @(test)
@@ -1795,8 +1797,8 @@ test_rc_insert_has_drop :: proc(t: ^testing.T) {
 	testing.expect(t, fn_decl != nil)
 	// a = 42 is I64 (not heap-allocated), so no drop should be emitted
 	testing.expect(t, count_ir_drop(fn_decl.body) == 0)
-	// Verify dups ARE inserted (the real RC signal)
-	testing.expect(t, count_ir_dup(fn_decl.body) >= 1)
+	// I64 is not heap-allocated, so no dup should be emitted either
+	testing.expect(t, count_ir_dup(fn_decl.body) == 0)
 }
 
 @(test)
@@ -1886,8 +1888,8 @@ test_rc_insert_branch_independent :: proc(t: ^testing.T) {
 
 	fn_decl := find_decl_fn(mod, false)
 	testing.expect(t, fn_decl != nil)
-	// Each branch uses `a` twice (a + a), so each branch should get a dup
-	testing.expect(t, has_dup_or_drop(fn_decl.body))
+	// I64 is not heap-allocated, so no dup/drop should be emitted
+	testing.expect(t, !has_dup_or_drop(fn_decl.body))
 }
 
 @(test)

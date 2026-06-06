@@ -65,3 +65,22 @@ Bool is From {
 Bool is From {
   from = |val: Bool| -> F64 { crash "intrinsic: Bool_to_F64" }
 }
+
+// Tests
+
+test "truth table complete" {
+  expect not_(True) == False
+  expect not_(False) == True
+  expect and_(True, True) == True
+  expect and_(True, False) == False
+  expect and_(False, True) == False
+  expect and_(False, False) == False
+  expect or_(True, True) == True
+  expect or_(True, False) == True
+  expect or_(False, True) == True
+  expect or_(False, False) == False
+  expect xor_(True, True) == False
+  expect xor_(True, False) == True
+  expect xor_(False, True) == True
+  expect xor_(False, False) == False
+}

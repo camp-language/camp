@@ -3,6 +3,43 @@ package codegen
 import "camp:base"
 import "camp:ir"
 
+coerce_arg_to :: proc(
+	buf: ^[dynamic]u8,
+	src: base.IR_Wasm_Type,
+	func_type_idx: int,
+	func_arg_idx: int,
+	env: ^Codegen_Env,
+) {
+	if func_type_idx < 0 || func_type_idx >= len(env.mod.types) do return
+	func_type := env.mod.types[func_type_idx]
+	if func_arg_idx < 0 || func_arg_idx >= len(func_type.params) do return
+	dst := value_type_to_ir_wasm_type(func_type.params[func_arg_idx])
+	if src == dst do return
+	if src == .I32 && dst == .I64 {
+		emit_instruction(Wasm_I64_Extend_I32_S{}, buf)
+	} else if src == .I64 && dst == .I32 {
+		emit_instruction(Wasm_I32_Wrap_I64{}, buf)
+	}
+}
+
+coerce_ret_to :: proc(
+	buf: ^[dynamic]u8,
+	func_type_idx: int,
+	expected: base.IR_Wasm_Type,
+	env: ^Codegen_Env,
+) {
+	if func_type_idx < 0 || func_type_idx >= len(env.mod.types) do return
+	func_type := env.mod.types[func_type_idx]
+	if len(func_type.results) != 1 do return
+	src := value_type_to_ir_wasm_type(func_type.results[0])
+	if src == expected do return
+	if src == .I32 && expected == .I64 {
+		emit_instruction(Wasm_I64_Extend_I32_S{}, buf)
+	} else if src == .I64 && expected == .I32 {
+		emit_instruction(Wasm_I32_Wrap_I64{}, buf)
+	}
+}
+
 collect_locals :: proc(expr: ir.IR_Expr, locals: ^map[base.Intern_ID]base.IR_Type) {
 	if expr == nil do return
 
@@ -759,9 +796,6 @@ emit_expr :: proc(expr: ir.IR_Expr, buf: ^[dynamic]u8, env: ^Codegen_Env, runtim
 			}
 		}
 
-		for arg in e.args {
-			emit_expr(arg, buf, env, runtime_indices)
-		}
 		call_idx: int = 0
 		if e.callee.module != base.NO_NAME {
 			mangled := base.mangle_name(e.callee.module, e.callee.name, env.interner)
@@ -773,12 +807,32 @@ emit_expr :: proc(expr: ir.IR_Expr, buf: ^[dynamic]u8, env: ^Codegen_Env, runtim
 		} else if idx, ok := env.func_map[u64(e.callee.name)]; ok {
 			call_idx = idx
 		}
+		// Resolve function type index for polymorphic call coercion
+		func_type_idx := -1
+		if call_idx >= 0 && call_idx < len(env.func_type_indices) {
+			func_type_idx = int(env.func_type_indices[call_idx])
+		}
+		// Emit args with interleaved coercion so wrap/extend applies to the
+		// correct stack position (top of stack = just-emitted arg).
+		for i in 0 ..< len(e.args) {
+			emit_expr(e.args[i], buf, env, runtime_indices)
+			if func_type_idx >= 0 &&
+			   func_type_idx < len(env.mod.types) &&
+			   i < len(env.mod.types[func_type_idx].params) {
+				arg_type := ir.ir_expr_wasm_type(e.args[i])
+				coerce_arg_to(buf, arg_type, func_type_idx, i, env)
+			}
+		}
 		emit_instruction(Wasm_Call{index = u32(call_idx)}, buf)
+		// Coerce return value to match expression's expected type
+		if func_type_idx >= 0 && func_type_idx < len(env.mod.types) {
+			expr_type := ir.ir_expr_wasm_type(e)
+			coerce_ret_to(buf, func_type_idx, expr_type, env)
+		}
+
 	case ^ir.IR_Tail_Call:
 		// Check if callee is a local variable (closure pointer) or a named function
 		if local_idx, ok := env.local_map[e.callee.name]; ok {
-			// Callee is a closure pointer in a local variable — use call_indirect
-			emit_instruction(Wasm_Local_Get{index = local_idx}, buf)
 
 			callee_local := env.tmp_local_base + 2
 			emit_instruction(Wasm_Local_Set{index = callee_local}, buf)

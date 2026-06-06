@@ -788,10 +788,27 @@ codegen :: proc(
 			emit_instruction(Wasm_F64_Const{value = v.value}, &init_buf)
 			valtype = .F64
 		case:
-			// Non-literal const: emit as mutable global with zero initializer
-			// Actual value will be computed at _start time (future work)
-			emit_instruction(Wasm_I64_Const{value = 0}, &init_buf)
-			valtype = .I64
+			// Non-literal const: emit as mutable global with zero initializer.
+			// Actual value will be computed at _start time (future work).
+			// Use the const's declared WASM type so the global type matches
+			// references to it.
+			switch c.type.wasm_type {
+			case .I32:
+				emit_instruction(Wasm_I32_Const{value = 0}, &init_buf)
+				valtype = .I32
+			case .I64:
+				emit_instruction(Wasm_I64_Const{value = 0}, &init_buf)
+				valtype = .I64
+			case .F32:
+				emit_instruction(Wasm_F32_Const{value = 0.0}, &init_buf)
+				valtype = .F32
+			case .F64:
+				emit_instruction(Wasm_F64_Const{value = 0.0}, &init_buf)
+				valtype = .F64
+			case .Funcref, .Void:
+				emit_instruction(Wasm_I32_Const{value = 0}, &init_buf)
+				valtype = .I32
+			}
 			is_mutable = true
 		}
 

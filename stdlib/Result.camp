@@ -69,12 +69,7 @@ pub unwrap_or_else = |r, f| {
   }
 }
 
-pub unwrap_or_default = |r| {
-  match r {
-    Ok(v) => v
-    Err(_e) => Default.default
-  }
-}
+pub unwrap_or_default = |r| { crash "intrinsic: Result.unwrap_or_default" }
 
 // Boolean composition
 
@@ -124,3 +119,4 @@ pub from_list = |xs| {
 pub unwrap! = |r| { crash "intrinsic: Result.unwrap!" }
 
 pub catch = |action| { crash "intrinsic: Result.catch" }
+
