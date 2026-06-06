@@ -233,29 +233,32 @@ typecheck_binop :: proc(e: ^CExpr_BinOp, env: ^Type_Env, store: ^Type_Store) -> 
 		unified_type := resolve_var(store, left_result.var_id)
 		type_var := &store.vars[int(unified_type)]
 		if inf, is_inf := type_var.link.(Inferred_Type); is_inf {
-			switch inf in {
-			case Inferred_Record_Row, Inferred_Tag_Union_Row, Inferred_Tuple, Inferred_Constructor:
-				// Structural types auto-derive Eq
-				result_var = base.NO_NAME
-			case Inferred_Primitive:
-				type_name := inf.primitive_name
+			if _, is_prim := inf.(Inferred_Primitive); is_prim {
+				type_name := inf.(Inferred_Primitive).primitive_name
 				eq_name := base.intern(store.interner, "Eq")
-				_, has_impl := find_trait_impl(store, eq_name, type_name)
-				if !has_impl {
-					type_str := base.intern_get(store.interner, type_name)
-					diagnostics.collector_add_diag(
-						store.collector,
-						diag_missing_trait_method(
-							type_str,
-							"eq",
-							"Eq",
-							e.span,
-						),
-					)
-					result_var = base.NO_NAME
+				// Only check Eq conformance when Eq trait has at least one impl
+				// (prelude is loaded). Without prelude, all types lack Eq and
+				// we'd get false positives in tests.
+				eq_exists := false
+				for impl in store.trait_impls {
+					if impl.trait_name == eq_name {
+						eq_exists = true
+						break
+					}
+				}
+				if eq_exists {
+					_, has_impl := find_trait_impl(store, eq_name, type_name)
+					if !has_impl {
+						type_str := base.intern_get(store.interner, type_name)
+						diagnostics.collector_add_diag(
+							store.collector,
+							diagnostics.diag_missing_trait_method(type_str, "eq", "Eq", e.span),
+						)
+					}
 				}
 			}
 		}
+
 	case .Plus, .Minus, .Star, .Slash, .Percent, .Caret, .Lt_Lt, .Gt_Gt:
 		unify(store, left_result.var_id, right_result.var_id)
 		result_var = left_result.var_id

@@ -796,9 +796,6 @@ emit_expr :: proc(expr: ir.IR_Expr, buf: ^[dynamic]u8, env: ^Codegen_Env, runtim
 			}
 		}
 
-		for arg in e.args {
-			emit_expr(arg, buf, env, runtime_indices)
-		}
 		call_idx: int = 0
 		if e.callee.module != base.NO_NAME {
 			mangled := base.mangle_name(e.callee.module, e.callee.name, env.interner)
@@ -809,17 +806,19 @@ emit_expr :: proc(expr: ir.IR_Expr, buf: ^[dynamic]u8, env: ^Codegen_Env, runtim
 			}
 		} else if idx, ok := env.func_map[u64(e.callee.name)]; ok {
 			call_idx = idx
-		// Type coercion for polymorphic calls: the function's WASM signature
-		// may use the default i32 for generic params while call-site args are
-		// i64, or vice versa. Insert wrap/extend to match.
+		}
+		// Resolve function type index for polymorphic call coercion
 		func_type_idx := -1
 		if call_idx >= 0 && call_idx < len(env.func_type_indices) {
 			func_type_idx = int(env.func_type_indices[call_idx])
 		}
-		if func_type_idx >= 0 && func_type_idx < len(env.mod.types) {
-			// Coerce each arg to match function's declared param type
-			func_type := env.mod.types[func_type_idx]
-			for i in 0 ..< min(len(e.args), len(func_type.params)) {
+		// Emit args with interleaved coercion so wrap/extend applies to the
+		// correct stack position (top of stack = just-emitted arg).
+		for i in 0 ..< len(e.args) {
+			emit_expr(e.args[i], buf, env, runtime_indices)
+			if func_type_idx >= 0 &&
+			   func_type_idx < len(env.mod.types) &&
+			   i < len(env.mod.types[func_type_idx].params) {
 				arg_type := ir.ir_expr_wasm_type(e.args[i])
 				coerce_arg_to(buf, arg_type, func_type_idx, i, env)
 			}
@@ -830,11 +829,10 @@ emit_expr :: proc(expr: ir.IR_Expr, buf: ^[dynamic]u8, env: ^Codegen_Env, runtim
 			expr_type := ir.ir_expr_wasm_type(e)
 			coerce_ret_to(buf, func_type_idx, expr_type, env)
 		}
+
 	case ^ir.IR_Tail_Call:
 		// Check if callee is a local variable (closure pointer) or a named function
 		if local_idx, ok := env.local_map[e.callee.name]; ok {
-			// Callee is a closure pointer in a local variable — use call_indirect
-			emit_instruction(Wasm_Local_Get{index = local_idx}, buf)
 
 			callee_local := env.tmp_local_base + 2
 			emit_instruction(Wasm_Local_Set{index = callee_local}, buf)
@@ -3078,3 +3076,4 @@ emit_atomic_rmw :: proc(op: ir.Atomic_Op, width: ir.Atomic_Width, offset: u32, b
 		buf,
 	)
 }
+

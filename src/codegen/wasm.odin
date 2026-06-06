@@ -1090,3 +1090,4 @@ ir_wasm_type_to_block_type :: proc(t: base.IR_Wasm_Type) -> Wasm_Block_Type {
 	}
 	return .Void
 }
+

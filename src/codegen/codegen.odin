@@ -1326,3 +1326,4 @@ emit_operand_debug :: proc(
 		emit_instruction(Wasm_Call{index = u32(runtime_indices[Runtime_Func.Print_Err])}, buf)
 	}
 }
+
