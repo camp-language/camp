@@ -55,3 +55,7 @@ pub nanosecond: Duration = crash "intrinsic: Duration.nanosecond"
 Duration is Default {
   default = || -> Duration { crash "intrinsic: Duration_zero" }
 }
+
+Duration is Debug {
+    debug = |a: Self| -> Str { crash "intrinsic: Duration_debug" }
+}

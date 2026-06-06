@@ -1580,6 +1580,15 @@ generate_derive_stubs :: proc(
 					make_derive_method_decl(d, "eq", 2, false, scope, interner, collector),
 				)
 			}
+		case "Debug":
+			stub_name := fmt.tprintf("{}_debug", type_name_str)
+			if !generated[stub_name] {
+				generated[stub_name] = true
+				append(
+					&result,
+					make_derive_method_decl(d, "debug", 1, false, scope, interner, collector),
+				)
+			}
 		case:
 			diagnostics.collector_add_diag(
 				collector,

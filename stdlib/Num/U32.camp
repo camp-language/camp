@@ -61,3 +61,7 @@ U32 is TryFrom {
 U32 is TryFrom {
   try_from = |val: U32| -> Result(F32, TryFromIntError) { crash "intrinsic: U32_try_into_F32" }
 }
+
+U32 is Debug {
+    debug = |a: Self| -> Str { crash "intrinsic: U32_debug" }
+}

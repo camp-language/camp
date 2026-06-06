@@ -120,3 +120,7 @@ pub unwrap! = |r| { crash "intrinsic: Result.unwrap!" }
 
 pub catch = |action| { crash "intrinsic: Result.catch" }
 
+
+Result is Debug {
+    debug = |r: Self| -> Str { crash "intrinsic: Result_debug" }
+}

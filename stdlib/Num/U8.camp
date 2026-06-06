@@ -46,3 +46,7 @@ Num.U8 is Eq {
 U8 is TryFrom {
   try_from = |val: U8| -> Result(I8, TryFromIntError) { crash "intrinsic: U8_try_into_I8" }
 }
+
+U8 is Debug {
+    debug = |a: Self| -> Str { crash "intrinsic: U8_debug" }
+}

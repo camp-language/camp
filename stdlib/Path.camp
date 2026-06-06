@@ -52,3 +52,6 @@ Path is TryFrom {
     crash "intrinsic: Path_from_bytes"
   }
 }
+Path is Debug {
+    debug = |a: Self| -> Str { crash "intrinsic: Path_debug" }
+}

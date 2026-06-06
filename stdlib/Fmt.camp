@@ -19,3 +19,6 @@ pub f32_with_precision = |n: F32, precision: I64| -> Str { crash "intrinsic: Fmt
 pub pad_left = |s: Str, width: I64, fill: Str| -> Str { crash "intrinsic: Fmt.pad_left" }
 
 pub pad_right = |s: Str, width: I64, fill: Str| -> Str { crash "intrinsic: Fmt.pad_right" }
+Fmt is Debug {
+    debug = |a: Self| -> Str { crash "intrinsic: Fmt_debug" }
+}

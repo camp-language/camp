@@ -38,3 +38,6 @@ pub decode64url = |s| { decode(UrlSafe, s) }
 pub encode16 = |b| { encode(Hex, b) }                     // Hex, lowercase
 
 pub decode16 = |s| { decode(Hex, s) }
+Base64 is Debug {
+    debug = |a: Self| -> Str { crash "intrinsic: Base64_debug" }
+}

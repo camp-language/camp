@@ -66,6 +66,10 @@ Bool is From {
   from = |val: Bool| -> F64 { crash "intrinsic: Bool_to_F64" }
 }
 
+
+Bool is Debug {
+    debug = |a: Self| -> Str { crash "intrinsic: Bool_debug" }
+}
 // Tests
 
 test "truth table complete" {

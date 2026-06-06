@@ -43,3 +43,6 @@ Regex is TryFrom {
     Regex.compile(s)
   }
 }
+Regex is Debug {
+    debug = |a: Self| -> Str { crash "intrinsic: Regex_debug" }
+}

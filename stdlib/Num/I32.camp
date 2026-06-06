@@ -70,3 +70,7 @@ I32 is TryFrom {
 I32 is TryFrom {
   try_from = |val: I32| -> Result(F32, TryFromIntError) { crash "intrinsic: I32_try_into_F32" }
 }
+
+I32 is Debug {
+    debug = |a: Self| -> Str { crash "intrinsic: I32_debug" }
+}

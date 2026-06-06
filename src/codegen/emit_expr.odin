@@ -794,6 +794,50 @@ emit_expr :: proc(expr: ir.IR_Expr, buf: ^[dynamic]u8, env: ^Codegen_Env, runtim
 				emit_expr(e.args[0], buf, env, runtime_indices)
 				break
 			}
+			if name_str == "I64_debug" && len(e.args) == 1 {
+				emit_expr(e.args[0], buf, env, runtime_indices)
+				emit_instruction(
+					Wasm_Call{index = u32(runtime_indices[Runtime_Func.I64_To_Str])},
+					buf,
+				)
+				break
+			}
+			if name_str == "I32_debug" && len(e.args) == 1 {
+				emit_expr(e.args[0], buf, env, runtime_indices)
+				emit_instruction(
+					Wasm_Call{index = u32(runtime_indices[Runtime_Func.I32_To_Str])},
+					buf,
+				)
+				break
+			}
+			if name_str == "F64_debug" && len(e.args) == 1 {
+				emit_expr(e.args[0], buf, env, runtime_indices)
+				emit_instruction(
+					Wasm_Call{index = u32(runtime_indices[Runtime_Func.F64_To_Str])},
+					buf,
+				)
+				break
+			}
+			if name_str == "F32_debug" && len(e.args) == 1 {
+				emit_expr(e.args[0], buf, env, runtime_indices)
+				emit_instruction(
+					Wasm_Call{index = u32(runtime_indices[Runtime_Func.F64_To_Str])},
+					buf,
+				)
+				break
+			}
+			if name_str == "Bool_debug" && len(e.args) == 1 {
+				emit_expr(e.args[0], buf, env, runtime_indices)
+				emit_instruction(
+					Wasm_Call{index = u32(runtime_indices[Runtime_Func.Bool_To_Str])},
+					buf,
+				)
+				break
+			}
+			if name_str == "Str_debug" && len(e.args) == 1 {
+				emit_expr(e.args[0], buf, env, runtime_indices)
+				break
+			}
 		}
 
 		call_idx: int = 0
@@ -3076,4 +3120,3 @@ emit_atomic_rmw :: proc(op: ir.Atomic_Op, width: ir.Atomic_Width, offset: u32, b
 		buf,
 	)
 }
-

@@ -92,3 +92,6 @@ pub is_disjoint = |s1, s2| {
     if acc { if contains(x, s2) { False } else { True } } else { False }
   )
 }
+Set is Debug {
+    debug = |a: Self| -> Str { crash "intrinsic: Set_debug" }
+}

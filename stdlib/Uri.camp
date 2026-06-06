@@ -57,3 +57,6 @@ pub with_fragment = |_f: Str, _u: Uri| -> Uri { crash "intrinsic: Uri.with_fragm
 Uri is Default {
   default = || -> Uri { crash "intrinsic: Uri_default" }
 }
+Uri is Debug {
+    debug = |a: Self| -> Str { crash "intrinsic: Uri_debug" }
+}

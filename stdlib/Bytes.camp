@@ -49,3 +49,7 @@ Bytes is Eq {
 Bytes is Default {
   default = || -> Bytes { crash "intrinsic: Bytes_new" }
 }
+
+Bytes is Debug {
+    debug = |a: Self| -> Str { crash "intrinsic: Bytes_debug" }
+}

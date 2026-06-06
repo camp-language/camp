@@ -117,3 +117,7 @@ Json is TryFrom {
     Json.decode(s)
   }
 }
+
+Json is Debug {
+    debug = |a: Self| -> Str { crash "intrinsic: Json_debug" }
+}

@@ -72,3 +72,7 @@ U64 is TryFrom {
 U64 is TryFrom {
   try_from = |val: U64| -> Result(F64, TryFromIntError) { crash "intrinsic: U64_try_into_F64" }
 }
+
+U64 is Debug {
+    debug = |a: Self| -> Str { crash "intrinsic: U64_debug" }
+}

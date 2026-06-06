@@ -55,3 +55,6 @@ Uuid is TryFrom {
     Uuid.parse(s)
   }
 }
+Uuid is Debug {
+    debug = |a: Self| -> Str { crash "intrinsic: Uuid_debug" }
+}
