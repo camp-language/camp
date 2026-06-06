@@ -215,12 +215,6 @@ Every Camp file SHALL implicitly import builtin types and operations before proc
 - WHEN the compiler processes `True and False`
 - THEN `Bool` SHALL be a primitive type with literal values `True` and `False`
 
-#### Scenario: Prelude opt-out
-
-- GIVEN a file containing `import Camp {}`
-- WHEN the compiler processes the file
-- THEN no builtin types or operations SHALL be in implicit scope
-
 ### Requirement: Per-File Content Hash Caching
 
 The compiler SHALL cache per-file compilation results keyed by content hash. Parse and canonicalization results SHALL be cacheable by the file's SHA256 content hash. Typecheck results SHALL be cacheable by the file's content hash combined with the sorted content hashes of all imported modules.
