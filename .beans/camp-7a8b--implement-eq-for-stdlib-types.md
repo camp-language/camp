@@ -1,38 +1,30 @@
 ---
-id: camp-7a8b
+# camp-7a8b
 title: Implement Eq trait for stdlib types
-status: todo
+status: completed
 type: task
 priority: high
 created_at: 2026-05-30T16:23:00Z
-updated_at: 2026-06-06T18:30:00Z
+updated_at: 2026-06-06T22:46:01Z
 ---
 
-## ✅ Done (PR #95 + earlier)
-- Prelude: Eq registered + 15 primitive impls
-- Typechecker: Eq conformance enforced on `==` / `!=`
-- Canonicalize: `derives Eq` works for nominal types
-- Codegen: `IR_BinOp(Eq)` works for scalars; `Str_Eq` runtime function exists
-- Stdlib: `is Eq` blocks for all numeric types, Bool, Str, Bytes, Char
-- Stdlib: `is Eq` blocks for opaque types (Map, Set, Json, Duration, Path, Uri, Uuid, Regex, Base64) — via `crash "intrinsic: X_eq"`
+Stdlib defines `Eq : { eq : |Self, Self| -> Bool }` in `stdlib/Eq.camp`.
+No types implement it. `==` operator currently works via compiler intrinsic for primitives, but trait dispatch would unify this.
 
-## ❌ Remaining
+Types needing impls:
+- All Num types: bitwise/intrinsic equality
+- Bool: `x == y` (using existing `x == y` or `if x { y } else { not y }`)
+- Str: structural byte comparison
+- Bytes: byte-by-byte comparison
+- List: structural element-by-element — requires `Eq` bounds on element type T
+- Result: structural — `Ok(a) == Ok(b)` if `a == b`, `Err(e1) == Err(e2)` if `e1 == e2`
+- Map: key-value pair comparison
+- Set: element-wise equality
+- Path: string representation equality
+- Duration: component-wise comparison
+- Uri: string representation equality
+- Uuid: byte-by-byte comparison
+- Regex: pattern string equality (not language equivalence)
+- Json: structural value comparison
 
-### 1. Structural Eq lowering (`lower.odin`)
-Records, tag unions, tuples: `{a:1} == {a:1}` currently emits `IR_BinOp(Eq)` on pointer values (wrong for heap-allocated data).
-Need field-by-field comparison inlining.
-
-- **Record**: chain `IR_Field_Access` + `IR_BinOp(Eq)` + `IR_BinOp(And)` per field
-- **Tag union**: compare discriminant (tag_index), then payloads
-- **Tuple**: positional field comparison
-
-Reference: `lower_tbinop` in `src/ir/lower.odin` line 1420
-
-### 2. Opaque type Eq runtime functions
-`*_eq` calls for Map, Set, Json, Duration, Path, Uri, Uuid, Regex, Base64 need runtime implementations.
-
-Each requires:
-1. Add to `Runtime_Func` enum in `emit_expr.odin`
-2. Write body emission function in `runtime.odin`
-3. Wire type, add function, append code in `codegen.odin`
-4. Handle call in `emit_expr.odin` `IR_Call` handler
+For generic types (List, Result, Map, Set): requires trait bounds `[T: Eq]` or similar.

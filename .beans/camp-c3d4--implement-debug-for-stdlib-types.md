@@ -1,11 +1,11 @@
 ---
-id: camp-c3d4
+# camp-c3d4
 title: Implement Debug trait for stdlib types
-status: todo
+status: completed
 type: task
 priority: high
 created_at: 2026-05-30T16:21:00Z
-updated_at: 2026-05-30T16:21:00Z
+updated_at: 2026-06-06T22:46:01Z
 ---
 
 Stdlib defines `Debug : { debug : |Self| -> Str }` in `stdlib/Debug.camp`.
