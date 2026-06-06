@@ -1,3 +1,7 @@
+Char is Debug {
+    debug = |a: Self| -> Str { crash "intrinsic: Char_debug" }
+}
+
 
 Char is Ord {
     compare = |a: Self, b: Self| -> Order {

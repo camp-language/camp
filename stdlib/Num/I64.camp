@@ -99,3 +99,6 @@ I64 is Ord {
 I64 is Hash {
     hash = |a: Self, h: Hasher| -> Hasher { crash "intrinsic: I64_hash" }
 }
+I64 is Eq {
+    eq = |a: Self, b: Self| -> Bool { crash "intrinsic: Num.I64_eq" }
+}

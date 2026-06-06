@@ -132,3 +132,6 @@ Result is Ord {
 Result is Hash {
     hash = |a: Self, h: Hasher| -> Hasher { crash "intrinsic: Result_hash" }
 }
+Result is Eq {
+    eq = |a: Self, b: Self| -> Bool { crash "intrinsic: Result_eq" }
+}
