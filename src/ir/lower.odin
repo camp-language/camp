@@ -300,10 +300,18 @@ lower_texpr :: proc(expr: semantics.TExpr, env: ^Lower_Env) -> IR_Expr {
 		return IR_Expr(crash)
 
 	case ^semantics.TExpr_Name:
+		// Re-resolve the wasm type from the final type var. The type snapshot taken
+		// during inference can be stale for recursive bindings — e.g. a list tail
+		// bound by `Cons(_, t)` only resolves to an i32 heap pointer after the
+		// recursive call unifies it, so the snapshot would still read i64.
+		var_type := e.type_
+		if var_type.type_id != base.Type_Var_ID(0) {
+			var_type = semantics.lower_type(env.store, var_type.type_id)
+		}
 		v := new(IR_Var)
 		v^ = IR_Var {
 			name = e.name.name,
-			type = e.type_,
+			type = var_type,
 			span = e.span,
 		}
 		return IR_Expr(v)

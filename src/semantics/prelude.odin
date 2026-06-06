@@ -58,6 +58,34 @@ PRELUDE_TAG_DECLS :: []Prelude_Tag_Decl {
 	{"Cons", true},
 }
 
+// Prelude tag-union types are registered as bare constructors (above) so that `Map`,
+// `Iter`, etc. stay opaque. These definitions give the genuinely-variant ones their
+// underlying rows, so an annotation like `Result(I64, Str)` or `List(a)` unifies with
+// the `Ok`/`Err`/`Cons`/`Nil` rows produced by construction and matching.
+//
+// A payload slot >= 0 selects that type argument; -1 means a fresh open variable
+// (used for List's recursive `Cons` tail, kept open to avoid building a cyclic type).
+Prelude_Tag_Spec :: struct {
+	name:    string,
+	payload: []int,
+}
+
+Prelude_Tag_Union :: struct {
+	name:  string,
+	arity: int,
+	tags:  []Prelude_Tag_Spec,
+}
+
+PRELUDE_TAG_UNIONS :: []Prelude_Tag_Union {
+	{"List", 1, []Prelude_Tag_Spec{{"Nil", []int{}}, {"Cons", []int{0, -1}}}},
+	{"Result", 2, []Prelude_Tag_Spec{{"Ok", []int{0}}, {"Err", []int{1}}}},
+	{
+		"Ordering",
+		0,
+		[]Prelude_Tag_Spec{{"Less", []int{}}, {"Equal", []int{}}, {"Greater", []int{}}},
+	},
+}
+
 PRELUDE_EFFECT_FULL :: []string{"Console", "Throw", "Parallel", "Spawn", "Async"}
 PRELUDE_EFFECT_FORWARD :: []string{"File", "Env", "Time", "Random", "Log", "CryptoRandom"}
 

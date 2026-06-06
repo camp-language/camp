@@ -1,0 +1,11 @@
+// An annotated parameterized prelude tag union (`Result`) must unify with the
+// `Ok`/`Err` rows produced by construction and matching.
+unwrap_or = |r: Result(I64, Str)| -> I64 {
+  match r {
+    Ok(v) => v
+    Err(_e) => 0
+  }
+}
+main! = || -> I64 {
+  unwrap_or(Ok(42))
+}

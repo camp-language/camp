@@ -1513,10 +1513,16 @@ emit_expr :: proc(expr: ir.IR_Expr, buf: ^[dynamic]u8, env: ^Codegen_Env, runtim
 
 	case ^ir.IR_Construct_Tag:
 		num_fields := len(e.payload)
-		scan_size := 0
-		for p in e.payload {
-			if ir.ir_expr_wasm_type(p) == .I32 {
-				scan_size += 1
+		// scan_size is the total field count (used for dealloc size and the drop
+		// loop bound); scalar_mask marks which fields drop must NOT recurse into.
+		// A field is a heap pointer only if it is an i32 that is_heap — i64/f64
+		// scalars, bools, and function indices are i32-or-i64 but not pointers.
+		scan_size := num_fields
+		scalar_mask := 0
+		for p, i in e.payload {
+			heap_ptr := ir.ir_expr_wasm_type(p) == .I32 && ir.ir_expr_is_heap(p)
+			if i < 8 && !heap_ptr {
+				scalar_mask |= 1 << uint(i)
 			}
 		}
 		total_size := CAMP_TAG_HEADER_SIZE + num_fields * 8
@@ -1592,6 +1598,10 @@ emit_expr :: proc(expr: ir.IR_Expr, buf: ^[dynamic]u8, env: ^Codegen_Env, runtim
 		emit_instruction(Wasm_I32_Const{value = i32(scan_size)}, buf)
 		emit_instruction(Wasm_I32_Store8{offset = CAMP_TAG_SCAN_SIZE_OFFSET}, buf)
 
+		emit_instruction(Wasm_Local_Get{index = tmp_local_idx}, buf)
+		emit_instruction(Wasm_I32_Const{value = i32(scalar_mask)}, buf)
+		emit_instruction(Wasm_I32_Store8{offset = CAMP_TAG_SCALAR_MASK_OFFSET}, buf)
+
 		for i in 0 ..< len(e.payload) {
 			emit_instruction(Wasm_Local_Get{index = tmp_local_idx}, buf)
 			emit_instruction(Wasm_I32_Const{value = i32(CAMP_TAG_FIELDS_OFFSET + i * 8)}, buf)
@@ -1604,10 +1614,14 @@ emit_expr :: proc(expr: ir.IR_Expr, buf: ^[dynamic]u8, env: ^Codegen_Env, runtim
 
 	case ^ir.IR_Construct_Record:
 		num_fields := len(e.fields)
-		scan_size := 0
-		for f in e.fields {
-			if ir.ir_expr_wasm_type(f.value) == .I32 {
-				scan_size += 1
+		// See IR_Construct_Tag: scan_size is the field count, scalar_mask marks the
+		// fields drop must not dereference (everything that is not a heap pointer).
+		scan_size := num_fields
+		scalar_mask := 0
+		for f, i in e.fields {
+			heap_ptr := ir.ir_expr_wasm_type(f.value) == .I32 && ir.ir_expr_is_heap(f.value)
+			if i < 8 && !heap_ptr {
+				scalar_mask |= 1 << uint(i)
 			}
 		}
 		total_size := CAMP_TAG_HEADER_SIZE + num_fields * 8
@@ -1681,6 +1695,10 @@ emit_expr :: proc(expr: ir.IR_Expr, buf: ^[dynamic]u8, env: ^Codegen_Env, runtim
 		emit_instruction(Wasm_Local_Get{index = tmp_local_idx}, buf)
 		emit_instruction(Wasm_I32_Const{value = i32(scan_size)}, buf)
 		emit_instruction(Wasm_I32_Store8{offset = CAMP_TAG_SCAN_SIZE_OFFSET}, buf)
+
+		emit_instruction(Wasm_Local_Get{index = tmp_local_idx}, buf)
+		emit_instruction(Wasm_I32_Const{value = i32(scalar_mask)}, buf)
+		emit_instruction(Wasm_I32_Store8{offset = CAMP_TAG_SCALAR_MASK_OFFSET}, buf)
 
 		// Pre-compute interned "fn_idx" name for decl-to-wasm translation
 		fn_idx_name := env.interner != nil ? base.intern(env.interner, "fn_idx") : 0
