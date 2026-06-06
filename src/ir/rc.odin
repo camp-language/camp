@@ -424,6 +424,10 @@ collect_heap_types :: proc(expr: IR_Expr, types: ^map[base.Intern_ID]base.IR_Typ
 		for arg in e.args {
 			collect_heap_types(arg, types)
 		}
+	case ^IR_Tail_Call:
+		for arg in e.args {
+			collect_heap_types(arg, types)
+		}
 	case ^IR_Construct_Tag:
 		for p in e.payload {
 			collect_heap_types(p, types)
@@ -445,6 +449,15 @@ collect_heap_types :: proc(expr: IR_Expr, types: ^map[base.Intern_ID]base.IR_Typ
 		for arm in e.arms {
 			collect_heap_types(arm.body, types)
 		}
+	case ^IR_Perform:
+		for arg in e.args {
+			collect_heap_types(arg, types)
+		}
+	case ^IR_Resume:
+		collect_heap_types(e.value, types)
+		if e.ev != nil {
+			collect_heap_types(e.ev, types)
+		}
 	case ^IR_BinOp:
 		collect_heap_types(e.left, types)
 		collect_heap_types(e.right, types)
@@ -457,6 +470,25 @@ collect_heap_types :: proc(expr: IR_Expr, types: ^map[base.Intern_ID]base.IR_Typ
 	case ^IR_Loop:
 		collect_heap_types(e.iterable, types)
 		collect_heap_types(e.body, types)
+	case ^IR_I32_Load:
+		collect_heap_types(e.base, types)
+	case ^IR_I32_Store:
+		collect_heap_types(e.base, types)
+		collect_heap_types(e.value, types)
+	case ^IR_Atomic_Load:
+		collect_heap_types(e.base, types)
+	case ^IR_Atomic_Store:
+		collect_heap_types(e.base, types)
+		collect_heap_types(e.value, types)
+	case ^IR_Atomic_RMW:
+		collect_heap_types(e.base, types)
+		collect_heap_types(e.value, types)
+	case ^IR_Wait:
+		collect_heap_types(e.base, types)
+		collect_heap_types(e.expected, types)
+	case ^IR_Notify:
+		collect_heap_types(e.base, types)
+		collect_heap_types(e.count, types)
 	case:
 	}
 }
@@ -473,18 +505,21 @@ rc_insert_expr_inner :: proc(
 		if !ok do return expr
 		(remaining^)[e.name] = count - 1
 		if (remaining^)[e.name] > 0 {
-			dup := new(IR_Dup)
-			dup^ = IR_Dup {
-				value = e.name,
-				span  = e.span,
+			type_info, type_ok := (heap_types^)[e.name]
+			if type_ok && type_info.is_heap {
+				dup := new(IR_Dup)
+				dup^ = IR_Dup {
+					value = e.name,
+					span  = e.span,
+				}
+				block := new(IR_Block)
+				block^ = IR_Block {
+					statements = make_ir_duo(IR_Expr(dup), expr),
+					type       = e.type,
+					span       = e.span,
+				}
+				return IR_Expr(block)
 			}
-			block := new(IR_Block)
-			block^ = IR_Block {
-				statements = make_ir_duo(IR_Expr(dup), expr),
-				type       = e.type,
-				span       = e.span,
-			}
-			return IR_Expr(block)
 		}
 		return expr
 
