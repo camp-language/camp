@@ -242,7 +242,7 @@ logic_demo = || -> I64 {
 //
 // Self in trait definitions refers to the implementing type
 // No associated types, no default implementations, no HKT
-// Derivable built-in traits: Eq, Ord, Hash, Debug, Clone, Copy
+// Derivable built-in traits: Eq, Ord, Hash, Debug
 // Trait implementations are separate is blocks:
 //
 // Color is Eq {
@@ -616,10 +616,10 @@ logic_demo = || -> I64 {
 
 // ============================================================
 // SECTION: Built-in Derivable Traits
-// Demonstrates: Eq, Ord, Hash, Debug, Clone, Copy
+// Demonstrates: Eq, Ord, Hash, Debug
 // ============================================================
 
-// derives Eq, Ord, Hash, Debug, Clone, Copy
+// derives Eq, Ord, Hash, Debug
 // Available only on nominal types (not type aliases)
 // Display is NOT derivable (must be implemented manually)
 // User-defined traits require manual is blocks

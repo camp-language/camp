@@ -1554,15 +1554,6 @@ generate_derive_stubs :: proc(
 					make_derive_method_decl(d, "eq", 2, false, scope, interner, collector),
 				)
 			}
-		case "Clone":
-			stub_name := fmt.tprintf("{}_clone", type_name_str)
-			if !generated[stub_name] {
-				generated[stub_name] = true
-				append(
-					&result,
-					make_derive_method_decl(d, "clone", 1, true, scope, interner, collector),
-				)
-			}
 		case "Hash":
 			stub_name := fmt.tprintf("{}_hash", type_name_str)
 			if !generated[stub_name] {
@@ -2140,4 +2131,3 @@ generate_tag_union_eq_body :: proc(
 
 	return not_tag_eq
 }
-

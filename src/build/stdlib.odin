@@ -2179,7 +2179,6 @@ STDLIB_MODULES: []Stdlib_Module = []Stdlib_Module {
 	{"Hash", HASH_CAMP, "stdlib/Hash.camp"},
 	{"Debug", DEBUG_CAMP, "stdlib/Debug.camp"},
 	{"Default", DEFAULT_CAMP, "stdlib/Default.camp"},
-	{"Clone", CLONE_CAMP, "stdlib/Clone.camp"},
 	{"IntoIter", INTO_ITER_CAMP, "stdlib/IntoIter.camp"},
 	{"FromIter", FROM_ITER_CAMP, "stdlib/FromIter.camp"},
 	{"From", FROM_CAMP, "stdlib/From.camp"},
@@ -2214,4 +2213,3 @@ stdlib_is_module :: proc(name: string) -> bool {
 	_, ok := stdlib_lookup(name)
 	return ok
 }
-

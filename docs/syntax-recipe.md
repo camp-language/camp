@@ -225,7 +225,7 @@ Color is Eq {
 - `derives` on type definition auto-generates `is` blocks for built-in traits only
 
 ### Built-in Derivable Traits
-`Eq`, `Ord`, `Hash`, `Debug`, `Clone`, `Copy`
+`Eq`, `Ord`, `Hash`, `Debug`
 
 - `derives` generates compiler-internal implementations (not visible as `is` blocks in source)
 - User-defined traits require manual `is` blocks
@@ -574,7 +574,7 @@ Rich prelude (like Rust), compiler-injected. Includes:
 - No associated types (methods only)
 - No default implementations
 - No higher-kinded types
-- Auto-deriving: built-in traits only (like Swift): `Eq`, `Ord`, `Hash`, `Debug`, `Clone`, `Copy`
+- Auto-deriving: built-in traits only (like Swift): `Eq`, `Ord`, `Hash`, `Debug`
 - Manual impl: `Color is Eq { ... }` separate blocks
 - Strict orphan rule: type must be local to the module
 
