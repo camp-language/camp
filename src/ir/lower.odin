@@ -2344,3 +2344,4 @@ resolve_ord_compare :: proc(
 
 	return func_name
 }
+

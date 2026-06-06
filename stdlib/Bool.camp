@@ -79,7 +79,6 @@ Bool is Ord {
 Bool is Hash {
     hash = |a: Self, h: Hasher| -> Hasher { crash "intrinsic: Bool_hash" }
 }
-}
 // Tests
 test "Bool traits" {
   expect not_(True) == False
