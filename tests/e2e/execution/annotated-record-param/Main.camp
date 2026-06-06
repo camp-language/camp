@@ -1,0 +1,9 @@
+// An annotated nominal record type must resolve to its newtype binding so that the
+// argument unifies and field access unwraps to the inner record.
+@Pt : pub { x : I64, y : I64 }
+addp = |p: Pt| -> I64 {
+  p.x + p.y
+}
+main! = || -> I64 {
+  addp(@Pt({ x: 5, y: 6 }))
+}

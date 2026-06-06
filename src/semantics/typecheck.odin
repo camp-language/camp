@@ -1066,6 +1066,43 @@ expand_named_tag_union :: proc(
 	return instantiate_rec(store, info.inner_type, &subst), true
 }
 
+// resolve_record_newtype resolves a named record newtype (`@Pt : { x, y }`) annotation
+// to an instantiated copy of its newtype binding. Records stay nominal (unlike tag
+// unions, which expand to a structural row) so that `@Pt { .. }` construction and a
+// `p: Pt` annotation share one `Inferred_Newtype` representation — field access then
+// unwraps the newtype to its inner record. Mirrors how typecheck_newtype_construct
+// resolves the type. Returns (var, true) for record newtypes; otherwise (_, false) so
+// scalar newtypes and opaque types keep their existing behavior.
+resolve_record_newtype :: proc(
+	store: ^Type_Store,
+	env: ^Type_Env,
+	name: base.Intern_ID,
+) -> (
+	base.Type_Var_ID,
+	bool,
+) {
+	info, ok := store.newtype_decls[name]
+	if !ok {
+		return 0, false
+	}
+	inner_resolved := store.vars[int(resolve_var(store, info.inner_type))]
+	inner_inf, is_inf := inner_resolved.link.(Inferred_Type)
+	if !is_inf {
+		return 0, false
+	}
+	if _, is_rec := inner_inf.(Inferred_Record_Row); !is_rec {
+		return 0, false
+	}
+	nt_binding, found := env_lookup(env, name)
+	if !found {
+		nt_binding, found = store.bindings[name]
+	}
+	if !found {
+		return 0, false
+	}
+	return instantiate(store, nt_binding), true
+}
+
 convert_type_to_var_val :: proc(
 	t: CType,
 	store: ^Type_Store,
@@ -1080,11 +1117,17 @@ convert_type_to_var_val :: proc(
 		if expanded, ok := expand_named_tag_union(store, env, ty.name, nil, ty.span); ok {
 			return expanded
 		}
+		if rec, ok := resolve_record_newtype(store, env, ty.name); ok {
+			return rec
+		}
 		return make_primitive_type(store, ty.name, ty.span)
 
 	case ^CType_Variable:
 		if expanded, ok := expand_named_tag_union(store, env, ty.name, nil, ty.span); ok {
 			return expanded
+		}
+		if rec, ok := resolve_record_newtype(store, env, ty.name); ok {
+			return rec
 		}
 		if existing, ok := env_lookup(env, ty.name); ok {
 			return existing
