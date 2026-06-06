@@ -477,7 +477,7 @@ match input {
 - `pub` per-declaration (two-level: type export vs variant export)
 - No re-exports (every name has one canonical home)
 - Circular imports: banned (compile error)
-- Prelude is compiler-injected (not a source module); opt-out mechanism TBD
+- Prelude is compiler-injected (not a source module); no opt-out
 
 ---
 
@@ -635,10 +635,9 @@ Both mechanisms:
 | List comprehensions | Decided: no | Use `List.map`, `List.filter`, `par for` |
 | Higher-kinded types | Decided: no | Ship without, observe, add associated types later if needed |
 | Multi-shot continuations | Decided: no | One-shot only; backtracking as library effect |
-| Prelude opt-out | TBD | Need mechanism to disable compiler-injected prelude |
- Shebang dependency syntax | Decided: `deps` block | `deps { alias: "uri" }` before imports; script-only; see openspec/specs/packages |
- `camp.toml` format | Decided: TOML | `[package]`, `[dependencies]`, `[dev-dependencies]`; bare URI deps; see openspec/specs/packages |
- `camp build` / `camp test` CLI | TBD | Build system and test runner interface |
+| Shebang dependency syntax | Decided: `deps` block | `deps { alias: "uri" }` before imports; script-only; see openspec/specs/packages |
+| `camp.toml` format | Decided: TOML | `[package]`, `[dependencies]`, `[dev-dependencies]`; bare URI deps; see openspec/specs/packages |
+| `camp build` / `camp test` CLI | TBD | Build system and test runner interface |
 
 ---
 
