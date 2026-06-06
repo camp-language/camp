@@ -1455,6 +1455,21 @@ lower_tbinop :: proc(e: ^semantics.TExpr_BinOp, env: ^Lower_Env) -> IR_Expr {
 			}
 		}
 	}
+	// Structural Eq: for records, tag unions, and tuples, generate
+	// field-by-field comparison instead of a pointer-level BinOp.
+	if e.op == .Eq_Eq || e.op == .Bang_Eq {
+		left_type_id := texpr_type_id(e.left)
+		resolved := semantics.resolve_var(env.store, left_type_id)
+		v := &env.store.vars[int(resolved)]
+		if inf, ok := v.link.(semantics.Inferred_Type); ok {
+			#partial switch tin in inf {
+			case semantics.Inferred_Record_Row:
+				return lower_structural_eq(e, env, tin.record_fields, tin.record_rest)
+			case semantics.Inferred_Tuple:
+				return lower_tuple_eq(e, env, tin)
+			}
+		}
+	}
 	left_ir := lower_texpr(e.left, env)
 	right_ir := lower_texpr(e.right, env)
 	result := new(IR_BinOp)
@@ -1463,6 +1478,193 @@ lower_tbinop :: proc(e: ^semantics.TExpr_BinOp, env: ^Lower_Env) -> IR_Expr {
 		left  = left_ir,
 		right = right_ir,
 		type  = e.type_,
+		span  = e.span,
+	}
+	return IR_Expr(result)
+}
+// lower_structural_eq generates field-by-field == for records:
+// (a.f1 == b.f1) && (a.f2 == b.f2) && ...
+// For !=, wraps the result in a not-equal comparison.
+lower_structural_eq :: proc(
+	e: ^semantics.TExpr_BinOp,
+	env: ^Lower_Env,
+	fields: []semantics.Type_Field_Entry,
+	rest: base.Type_Var_ID,
+) -> IR_Expr {
+	if len(fields) == 0 {
+		left_ir := lower_texpr(e.left, env)
+		right_ir := lower_texpr(e.right, env)
+		result := new(IR_BinOp)
+		result^ = IR_BinOp {
+			op    = .Eq,
+			left  = left_ir,
+			right = right_ir,
+			type  = e.type_,
+			span  = e.span,
+		}
+		ir_expr := IR_Expr(result)
+		if e.op == .Bang_Eq {
+			return wrap_not(ir_expr, e)
+		}
+		return ir_expr
+	}
+	// Canonical alphabetical order
+	sorted := make([dynamic]semantics.Type_Field_Entry, 0, len(fields))
+	for f in fields do append(&sorted, f)
+	for i := 1; i < len(sorted); i += 1 {
+		for j := i; j > 0; j -= 1 {
+			a := base.intern_get(env.interner, sorted[j].name)
+			b := base.intern_get(env.interner, sorted[j - 1].name)
+			if a < b {
+				sorted[j], sorted[j - 1] = sorted[j - 1], sorted[j]
+			} else {
+				break
+			}
+		}
+	}
+	defer delete(sorted)
+	bool_type := base.IR_Type {
+		wasm_type = .I32,
+		type_id   = 0,
+	}
+	chain: IR_Expr = nil
+	for fi in 0 ..< len(sorted) {
+		f := sorted[fi]
+		f_type := semantics.lower_type(env.store, f.var)
+		left_fa := new(IR_Field_Access)
+		left_fa^ = IR_Field_Access {
+			record      = lower_texpr(e.left, env),
+			field       = f.name,
+			field_index = fi,
+			type        = f_type,
+			span        = e.span,
+		}
+		right_fa := new(IR_Field_Access)
+		right_fa^ = IR_Field_Access {
+			record      = lower_texpr(e.right, env),
+			field       = f.name,
+			field_index = fi,
+			type        = f_type,
+			span        = e.span,
+		}
+		field_eq := new(IR_BinOp)
+		field_eq^ = IR_BinOp {
+			op    = .Eq,
+			left  = IR_Expr(left_fa),
+			right = IR_Expr(right_fa),
+			type  = bool_type,
+			span  = e.span,
+		}
+		if chain == nil {
+			chain = IR_Expr(field_eq)
+		} else {
+			both := new(IR_BinOp)
+			both^ = IR_BinOp {
+				op    = .And,
+				left  = chain,
+				right = IR_Expr(field_eq),
+				type  = bool_type,
+				span  = e.span,
+			}
+			chain = IR_Expr(both)
+		}
+	}
+	if chain == nil {
+		chain = make_ir_lit_bool(true, e.type_, e.span)
+	}
+	if e.op == .Bang_Eq {
+		return wrap_not(chain, e)
+	}
+	return chain
+}
+lower_tuple_eq :: proc(
+	e: ^semantics.TExpr_BinOp,
+	env: ^Lower_Env,
+	tin: semantics.Inferred_Tuple,
+) -> IR_Expr {
+	if tin.element_count == 0 {
+		left_ir := lower_texpr(e.left, env)
+		right_ir := lower_texpr(e.right, env)
+		result := new(IR_BinOp)
+		result^ = IR_BinOp {
+			op    = .Eq,
+			left  = left_ir,
+			right = right_ir,
+			type  = e.type_,
+			span  = e.span,
+		}
+		ir_expr := IR_Expr(result)
+		if e.op == .Bang_Eq {
+			return wrap_not(ir_expr, e)
+		}
+		return ir_expr
+	}
+	bool_type := base.IR_Type {
+		wasm_type = .I32,
+		type_id   = 0,
+	}
+	chain: IR_Expr = nil
+	for i in 0 ..< tin.element_count {
+		field_name := base.intern(env.interner, fmt.tprintf("_%d", i))
+		elem_type := semantics.lower_type(env.store, tin.element_types[i])
+		left_fa := new(IR_Field_Access)
+		left_fa^ = IR_Field_Access {
+			record      = lower_texpr(e.left, env),
+			field       = field_name,
+			field_index = i,
+			type        = elem_type,
+			span        = e.span,
+		}
+		right_fa := new(IR_Field_Access)
+		right_fa^ = IR_Field_Access {
+			record      = lower_texpr(e.right, env),
+			field       = field_name,
+			field_index = i,
+			type        = elem_type,
+			span        = e.span,
+		}
+		field_eq := new(IR_BinOp)
+		field_eq^ = IR_BinOp {
+			op    = .Eq,
+			left  = IR_Expr(left_fa),
+			right = IR_Expr(right_fa),
+			type  = bool_type,
+			span  = e.span,
+		}
+		if chain == nil {
+			chain = IR_Expr(field_eq)
+		} else {
+			both := new(IR_BinOp)
+			both^ = IR_BinOp {
+				op    = .And,
+				left  = chain,
+				right = IR_Expr(field_eq),
+				type  = bool_type,
+				span  = e.span,
+			}
+			chain = IR_Expr(both)
+		}
+	}
+	if chain == nil {
+		chain = make_ir_lit_bool(true, e.type_, e.span)
+	}
+	if e.op == .Bang_Eq {
+		return wrap_not(chain, e)
+	}
+	return chain
+}
+wrap_not :: proc(expr: IR_Expr, e: ^semantics.TExpr_BinOp) -> IR_Expr {
+	bool_type := base.IR_Type {
+		wasm_type = .I32,
+		type_id   = 0,
+	}
+	false_lit := make_ir_lit_bool(false, bool_type, e.span)
+	result := new(IR_BinOp)
+	result^ = IR_BinOp {
+		op    = .Eq,
+		left  = expr,
+		right = false_lit,
+		type  = bool_type,
 		span  = e.span,
 	}
 	return IR_Expr(result)
@@ -2142,4 +2344,3 @@ resolve_ord_compare :: proc(
 
 	return func_name
 }
-
