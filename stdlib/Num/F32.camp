@@ -82,3 +82,15 @@ F32 is TryFrom {
 F32 is TryFrom {
   try_from = |val: F32| -> Result(I8, TryFromIntError) { crash "intrinsic: F32_try_into_I8" }
 }
+
+F32 is Debug {
+    debug = |a: Self| -> Str { crash "intrinsic: F32_debug" }
+}
+
+F32 is Ord {
+    compare = |a: Self, b: Self| -> Order { crash "intrinsic: F32_compare" }
+}
+
+F32 is Hash {
+    hash = |a: Self, h: Hasher| -> Hasher { crash "intrinsic: F32_hash" }
+}

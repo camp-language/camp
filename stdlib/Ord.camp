@@ -4,3 +4,12 @@
 @Order : pub [Less | Equal | Greater]
 
 Ord : { compare : |Self, Self| -> Order }
+Order is Debug {
+    debug = |a: Self| -> Str {
+        match a {
+            Less => "Less"
+            Equal => "Equal"
+            Greater => "Greater"
+        }
+    }
+}

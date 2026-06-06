@@ -106,3 +106,15 @@ Str is TryFrom {
     Bytes.to_str(b)
   }
 }
+
+Str is Debug {
+    debug = |a: Self| -> Str { crash "intrinsic: Str_debug" }
+}
+
+Str is Ord {
+    compare = |a: Self, b: Self| -> Order { crash "intrinsic: Str_compare" }
+}
+
+Str is Hash {
+    hash = |a: Self, h: Hasher| -> Hasher { crash "intrinsic: Str_hash" }
+}

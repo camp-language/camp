@@ -55,3 +55,15 @@ U16 is TryFrom {
 U16 is TryFrom {
   try_from = |val: U16| -> Result(F32, TryFromIntError) { crash "intrinsic: U16_try_into_F32" }
 }
+
+U16 is Debug {
+    debug = |a: Self| -> Str { crash "intrinsic: U16_debug" }
+}
+
+U16 is Ord {
+    compare = |a: Self, b: Self| -> Order { crash "intrinsic: U16_compare" }
+}
+
+U16 is Hash {
+    hash = |a: Self, h: Hasher| -> Hasher { crash "intrinsic: U16_hash" }
+}

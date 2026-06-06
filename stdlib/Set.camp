@@ -92,3 +92,18 @@ pub is_disjoint = |s1, s2| {
     if acc { if contains(x, s2) { False } else { True } } else { False }
   )
 }
+Set is Debug {
+    debug = |a: Self| -> Str { crash "intrinsic: Set_debug" }
+}
+
+Set is Ord {
+    compare = |a: Self, b: Self| -> Order { crash "intrinsic: Set_compare" }
+}
+
+Set is Hash {
+    hash = |a: Self, h: Hasher| -> Hasher { crash "intrinsic: Set_hash" }
+}
+
+Set is Eq {
+    eq = |a: Self, b: Self| -> Bool { crash "intrinsic: Set_eq" }
+}

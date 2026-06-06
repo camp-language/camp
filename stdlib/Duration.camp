@@ -55,3 +55,19 @@ pub nanosecond: Duration = crash "intrinsic: Duration.nanosecond"
 Duration is Default {
   default = || -> Duration { crash "intrinsic: Duration_zero" }
 }
+
+Duration is Debug {
+    debug = |a: Self| -> Str { crash "intrinsic: Duration_debug" }
+}
+
+Duration is Ord {
+    compare = |a: Self, b: Self| -> Order { crash "intrinsic: Duration_compare" }
+}
+
+Duration is Hash {
+    hash = |a: Self, h: Hasher| -> Hasher { crash "intrinsic: Duration_hash" }
+}
+
+Duration is Eq {
+    eq = |a: Self, b: Self| -> Bool { crash "intrinsic: Duration_eq" }
+}

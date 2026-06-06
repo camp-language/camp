@@ -49,3 +49,15 @@ Bytes is Eq {
 Bytes is Default {
   default = || -> Bytes { crash "intrinsic: Bytes_new" }
 }
+
+Bytes is Debug {
+    debug = |a: Self| -> Str { crash "intrinsic: Bytes_debug" }
+}
+
+Bytes is Ord {
+    compare = |a: Self, b: Self| -> Order { crash "intrinsic: Bytes_compare" }
+}
+
+Bytes is Hash {
+    hash = |a: Self, h: Hasher| -> Hasher { crash "intrinsic: Bytes_hash" }
+}

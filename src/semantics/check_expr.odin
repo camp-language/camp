@@ -224,7 +224,7 @@ typecheck_binop :: proc(e: ^CExpr_BinOp, env: ^Type_Env, store: ^Type_Store) -> 
 		unify(store, right_result.var_id, bool_var)
 		result_var = bool_var
 
-	case .Eq_Eq, .Bang_Eq, .Lt, .Gt, .Lt_Eq, .Gt_Eq:
+	case .Eq_Eq, .Bang_Eq:
 		unify(store, left_result.var_id, right_result.var_id)
 		bool_name := base.intern(store.interner, "Bool")
 		bool_var := make_primitive_type(store, bool_name, e.span)
@@ -236,9 +236,6 @@ typecheck_binop :: proc(e: ^CExpr_BinOp, env: ^Type_Env, store: ^Type_Store) -> 
 			if _, is_prim := inf.(Inferred_Primitive); is_prim {
 				type_name := inf.(Inferred_Primitive).primitive_name
 				eq_name := base.intern(store.interner, "Eq")
-				// Only check Eq conformance when Eq trait has at least one impl
-				// (prelude is loaded). Without prelude, all types lack Eq and
-				// we'd get false positives in tests.
 				eq_exists := false
 				for impl in store.trait_impls {
 					if impl.trait_name == eq_name {
@@ -253,6 +250,43 @@ typecheck_binop :: proc(e: ^CExpr_BinOp, env: ^Type_Env, store: ^Type_Store) -> 
 						diagnostics.collector_add_diag(
 							store.collector,
 							diagnostics.diag_missing_trait_method(type_str, "eq", "Eq", e.span),
+						)
+					}
+				}
+			}
+		}
+
+	case .Lt, .Gt, .Lt_Eq, .Gt_Eq:
+		unify(store, left_result.var_id, right_result.var_id)
+		bool_name := base.intern(store.interner, "Bool")
+		bool_var := make_primitive_type(store, bool_name, e.span)
+		result_var = bool_var
+		// Check Ord conformance for the unified type
+		unified_type := resolve_var(store, left_result.var_id)
+		type_var := &store.vars[int(unified_type)]
+		if inf, is_inf := type_var.link.(Inferred_Type); is_inf {
+			if _, is_prim := inf.(Inferred_Primitive); is_prim {
+				type_name := inf.(Inferred_Primitive).primitive_name
+				ord_name := base.intern(store.interner, "Ord")
+				ord_exists := false
+				for impl in store.trait_impls {
+					if impl.trait_name == ord_name {
+						ord_exists = true
+						break
+					}
+				}
+				if ord_exists {
+					_, has_impl := find_trait_impl(store, ord_name, type_name)
+					if !has_impl {
+						type_str := base.intern_get(store.interner, type_name)
+						diagnostics.collector_add_diag(
+							store.collector,
+							diagnostics.diag_missing_trait_method(
+								type_str,
+								"compare",
+								"Ord",
+								e.span,
+							),
 						)
 					}
 				}

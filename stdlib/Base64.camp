@@ -38,3 +38,18 @@ pub decode64url = |s| { decode(UrlSafe, s) }
 pub encode16 = |b| { encode(Hex, b) }                     // Hex, lowercase
 
 pub decode16 = |s| { decode(Hex, s) }
+Base64 is Debug {
+    debug = |a: Self| -> Str { crash "intrinsic: Base64_debug" }
+}
+
+Base64 is Ord {
+    compare = |a: Self, b: Self| -> Order { crash "intrinsic: Base64_compare" }
+}
+
+Base64 is Hash {
+    hash = |a: Self, h: Hasher| -> Hasher { crash "intrinsic: Base64_hash" }
+}
+
+Base64 is Eq {
+    eq = |a: Self, b: Self| -> Bool { crash "intrinsic: Base64_eq" }
+}

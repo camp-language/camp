@@ -43,3 +43,18 @@ Regex is TryFrom {
     Regex.compile(s)
   }
 }
+Regex is Debug {
+    debug = |a: Self| -> Str { crash "intrinsic: Regex_debug" }
+}
+
+Regex is Ord {
+    compare = |a: Self, b: Self| -> Order { crash "intrinsic: Regex_compare" }
+}
+
+Regex is Hash {
+    hash = |a: Self, h: Hasher| -> Hasher { crash "intrinsic: Regex_hash" }
+}
+
+Regex is Eq {
+    eq = |a: Self, b: Self| -> Bool { crash "intrinsic: Regex_eq" }
+}

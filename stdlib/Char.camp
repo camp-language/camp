@@ -1,0 +1,12 @@
+
+Char is Ord {
+    compare = |a: Self, b: Self| -> Order { crash "intrinsic: Char_compare" }
+}
+
+Char is Hash {
+    hash = |a: Self, h: Hasher| -> Hasher { crash "intrinsic: Char_hash" }
+}
+
+Char is Eq {
+    eq = |a: Self, b: Self| -> Bool { crash "intrinsic: Char_eq" }
+}

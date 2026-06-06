@@ -55,3 +55,18 @@ Uuid is TryFrom {
     Uuid.parse(s)
   }
 }
+Uuid is Debug {
+    debug = |a: Self| -> Str { crash "intrinsic: Uuid_debug" }
+}
+
+Uuid is Ord {
+    compare = |a: Self, b: Self| -> Order { crash "intrinsic: Uuid_compare" }
+}
+
+Uuid is Hash {
+    hash = |a: Self, h: Hasher| -> Hasher { crash "intrinsic: Uuid_hash" }
+}
+
+Uuid is Eq {
+    eq = |a: Self, b: Self| -> Bool { crash "intrinsic: Uuid_eq" }
+}

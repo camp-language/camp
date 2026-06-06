@@ -70,3 +70,15 @@ I32 is TryFrom {
 I32 is TryFrom {
   try_from = |val: I32| -> Result(F32, TryFromIntError) { crash "intrinsic: I32_try_into_F32" }
 }
+
+I32 is Debug {
+    debug = |a: Self| -> Str { crash "intrinsic: I32_debug" }
+}
+
+I32 is Ord {
+    compare = |a: Self, b: Self| -> Order { crash "intrinsic: I32_compare" }
+}
+
+I32 is Hash {
+    hash = |a: Self, h: Hasher| -> Hasher { crash "intrinsic: I32_hash" }
+}

@@ -54,3 +54,6 @@ pub chain = |first, second| { crash "intrinsic: Iter.chain" }
 pub zip = |left, right| { crash "intrinsic: Iter.zip" }
 
 pub enumerate = |iter| { crash "intrinsic: Iter.enumerate" }
+Iter is Debug {
+    debug = |a: Self| -> Str { crash "intrinsic: Iter_debug" }
+}
