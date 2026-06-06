@@ -78,7 +78,9 @@ U64 is Debug {
 }
 
 U64 is Ord {
-    compare = |a: Self, b: Self| -> Order { crash "intrinsic: U64_compare" }
+    compare = |a: Self, b: Self| -> Order {
+        if a < b { Less } else if a == b { Equal } else { Greater }
+    }
 }
 
 U64 is Hash {

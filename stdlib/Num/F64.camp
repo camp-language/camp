@@ -105,7 +105,9 @@ F64 is Debug {
 }
 
 F64 is Ord {
-    compare = |a: Self, b: Self| -> Order { crash "intrinsic: F64_compare" }
+    compare = |a: Self, b: Self| -> Order {
+        if a < b { Less } else if a == b { Equal } else { Greater }
+    }
 }
 
 F64 is Hash {
