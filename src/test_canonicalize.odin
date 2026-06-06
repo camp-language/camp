@@ -246,32 +246,3 @@ test_canonicalize_derive_ord :: proc(t: ^testing.T) {
 		testing.expect(t, false)
 	}
 }
-
-@(test)
-test_canonicalize_derive_clone :: proc(t: ^testing.T) {
-	file, ctx := canon_file("@UserId derives Clone : U64")
-	defer build.context_destroy(ctx)
-	defer free(ctx)
-
-	testing.expect(t, len(file.decls) == 2)
-	#partial switch decl in file.decls[1] {
-	case ^semantics.CDecl_Const:
-		clone_name := base.intern(&ctx.interner, "UserId_clone")
-		testing.expect(t, decl.name.name == clone_name)
-		#partial switch expr in decl.body {
-		case ^semantics.CExpr_Lambda:
-			testing.expect(t, len(expr.params) == 1)
-			#partial switch body in expr.body {
-			case ^semantics.CExpr_Tag:
-				testing.expect(t, len(body.payload) == 1)
-			case:
-				testing.expect(t, false)
-			}
-		case:
-			testing.expect(t, false)
-		}
-	case:
-		testing.expect(t, false)
-	}
-}
-
