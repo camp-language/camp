@@ -40,8 +40,8 @@ pub count_ones = |n: U8| -> U8 { crash "intrinsic: Num.U8.count_ones" }
 pub leading_zeros = |n: U8| -> U8 { crash "intrinsic: Num.U8.leading_zeros" }
 
 pub trailing_zeros = |n: U8| -> U8 { crash "intrinsic: Num.U8.trailing_zeros" }
-Num.U8 is Eq {
-    eq = |a: Self, b: Self| -> Bool { crash "intrinsic: Num.U8_eq" }
+U8 is Eq {
+    eq = |a: Self, b: Self| -> Bool { crash "intrinsic: U8_eq" }
 }
 U8 is TryFrom {
   try_from = |val: U8| -> Result(I8, TryFromIntError) { crash "intrinsic: U8_try_into_I8" }
@@ -61,13 +61,10 @@ U8 is Hash {
     hash = |a: Self, h: Hasher| -> Hasher { crash "intrinsic: U8_hash" }
 }
 
-test "U8 equality" {
+test "U8 traits" {
   expect 0 == 0
   expect 42 == 42
   expect not (0 == 1)
-}
-
-test "U8 ordering" {
   expect 0 < 1
   expect 255 > 0
   expect 42 <= 42

@@ -42,8 +42,8 @@ pub count_ones = |n: U64| -> U64 { crash "intrinsic: Num.U64.count_ones" }
 pub leading_zeros = |n: U64| -> U64 { crash "intrinsic: Num.U64.leading_zeros" }
 
 pub trailing_zeros = |n: U64| -> U64 { crash "intrinsic: Num.U64.trailing_zeros" }
-Num.U64 is Eq {
-    eq = |a: Self, b: Self| -> Bool { crash "intrinsic: Num.U64_eq" }
+U64 is Eq {
+    eq = |a: Self, b: Self| -> Bool { crash "intrinsic: U64_eq" }
 }
 U64 is TryFrom {
   try_from = |val: U64| -> Result(U8, TryFromIntError) { crash "intrinsic: U64_try_into_U8" }

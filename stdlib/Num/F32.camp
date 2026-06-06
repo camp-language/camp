@@ -64,8 +64,8 @@ pub from_str = |s: Str| -> F32 { crash "intrinsic: Num.F32.from_str" }
 pub to_i64 = |n: F32| -> I64 { crash "intrinsic: Num.F32.to_i64" }
 
 pub from_i64 = |n: I64| -> F32 { crash "intrinsic: Num.F32.from_i64" }
-Num.F32 is Eq {
-    eq = |a: Self, b: Self| -> Bool { crash "intrinsic: Num.F32_eq" }
+F32 is Eq {
+    eq = |a: Self, b: Self| -> Bool { crash "intrinsic: F32_eq" }
 }
 F32 is Default {
   default = || -> F32 { crash "intrinsic: F32_default" }
