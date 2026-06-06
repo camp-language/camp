@@ -1,0 +1,10 @@
+stdout = """
+canonicalized /tmp/camp-e2e/execution/annotated-tag-union-param/src/Main.camp: 3 declaration(s), 0 import(s)
+typecheck passed for /tmp/camp-e2e/execution/annotated-tag-union-param/src/Main.camp
+compiled /tmp/camp-e2e/execution/annotated-tag-union-param/src/Main.camp -> /tmp/camp-e2e/execution/annotated-tag-union-param/src/Main.wasm
+"""
+stderr = ""
+exit = 0
+wasm_exit = 3
+wasm_stdout = ""
+wasm_stderr = ""

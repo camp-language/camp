@@ -1,0 +1,12 @@
+// An annotated user tag-union type must unify with its bare-tag patterns.
+@Color : pub [Red | Green | Blue]
+rank = |c: Color| -> I64 {
+  match c {
+    Red => 1
+    Green => 2
+    Blue => 3
+  }
+}
+main! = || -> I64 {
+  rank(Blue)
+}

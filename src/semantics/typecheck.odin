@@ -977,6 +977,95 @@ convert_type_to_var :: proc(t: ^CType, store: ^Type_Store, env: ^Type_Env) -> ba
 	return convert_type_to_var_val(t^, store, env)
 }
 
+// expand_named_tag_union resolves a named type reference whose definition is a tag
+// union into a fresh tag-union row, substituting the supplied type arguments for the
+// definition's type parameters. This lets an annotation such as `xs: List(I64)`,
+// `c: Color`, or `r: Result(I64, Str)` unify with the open tag-union rows that
+// construction (`Cons`/`Nil`, `Ok`/`Err`) and pattern matching produce.
+//
+// Returns (var, true) when `name` denotes a tag-union type; otherwise (_, false), so
+// scalar newtypes (`@UserId : U64`), opaque constructors, and abstract types keep
+// their bare `Inferred_Constructor` representation and remain nominal.
+expand_named_tag_union :: proc(
+	store: ^Type_Store,
+	env: ^Type_Env,
+	name: base.Intern_ID,
+	args: []base.Type_Var_ID,
+	span: base.Source_Span,
+) -> (
+	base.Type_Var_ID,
+	bool,
+) {
+	// Prelude tag-union builtins (`List`, `Result`, `Ordering`) are registered as bare
+	// constructors with no decl body; synthesize their rows from PRELUDE_TAG_UNIONS.
+	name_str := base.intern_get(store.interner, name)
+	for def in PRELUDE_TAG_UNIONS {
+		if def.name == name_str && def.arity == len(args) {
+			tag_entries := store_alloc(store, Type_Tag_Entry, len(def.tags))
+			for tag, ti in def.tags {
+				payload: []base.Type_Var_ID = nil
+				if len(tag.payload) > 0 {
+					payload = store_alloc(store, base.Type_Var_ID, len(tag.payload))
+					for slot, si in tag.payload {
+						if slot >= 0 && slot < len(args) {
+							payload[si] = args[slot]
+						} else {
+							// -1 (or out of range): a fresh open var, e.g. List's
+							// recursive `Cons` tail, kept open to avoid a cyclic type.
+							payload[si] = fresh_value_var(store, span)
+						}
+					}
+				}
+				tag_entries[ti] = Type_Tag_Entry {
+					name    = base.intern(store.interner, tag.name),
+					payload = payload,
+				}
+			}
+			vid := fresh_value_var(store, span)
+			link_var(
+				store,
+				vid,
+				Inferred_Tag_Union_Row {
+					tag_entries = tag_entries,
+					tag_rest = fresh_tag_row(store, span),
+				},
+			)
+			return vid, true
+		}
+	}
+
+	// User `@Name(params) : [tags]` — expand only when the inner type is a tag union.
+	info, ok := store.newtype_decls[name]
+	if !ok {
+		return 0, false
+	}
+	inner_resolved := store.vars[int(resolve_var(store, info.inner_type))]
+	inner_inf, is_inf := inner_resolved.link.(Inferred_Type)
+	if !is_inf {
+		return 0, false
+	}
+	if _, is_tu := inner_inf.(Inferred_Tag_Union_Row); !is_tu {
+		return 0, false
+	}
+
+	// Substitute the declared type parameters with the supplied arguments, then make a
+	// fresh copy of the inner row.
+	subst := make(map[base.Type_Var_ID]base.Type_Var_ID, 8)
+	defer delete(subst)
+	if nt_var, found := env_lookup(env, name); found {
+		nt_resolved := store.vars[int(resolve_var(store, nt_var))]
+		if nt_inf, nt_is := nt_resolved.link.(Inferred_Type); nt_is {
+			if nt, nt_ok := nt_inf.(Inferred_Newtype); nt_ok {
+				n := min(len(nt.param_ids), len(args))
+				for i in 0 ..< n {
+					subst[resolve_var(store, nt.param_ids[i])] = args[i]
+				}
+			}
+		}
+	}
+	return instantiate_rec(store, info.inner_type, &subst), true
+}
+
 convert_type_to_var_val :: proc(
 	t: CType,
 	store: ^Type_Store,
@@ -985,9 +1074,18 @@ convert_type_to_var_val :: proc(
 ) -> base.Type_Var_ID {
 	switch ty in t {
 	case ^CType_Primitive:
+		// A bare name may denote a user tag-union type (`Color`, `NetErr`) or a nominal
+		// record (`Pt`); resolve it. Real primitives (`I64`, `Str`), scalar newtypes,
+		// and opaque types fall through.
+		if expanded, ok := expand_named_tag_union(store, env, ty.name, nil, ty.span); ok {
+			return expanded
+		}
 		return make_primitive_type(store, ty.name, ty.span)
 
 	case ^CType_Variable:
+		if expanded, ok := expand_named_tag_union(store, env, ty.name, nil, ty.span); ok {
+			return expanded
+		}
 		if existing, ok := env_lookup(env, ty.name); ok {
 			return existing
 		}
@@ -1023,17 +1121,21 @@ convert_type_to_var_val :: proc(
 		for &a, i in ty.args {
 			arg_ids[i] = convert_type_to_var_val(a, store, env)
 		}
-		vid := fresh_value_var(store, ty.span)
 		handle_name := base.intern(store.interner, "Handle")
 		if ty.name == handle_name && len(ty.args) == 2 {
+			vid := fresh_value_var(store, ty.span)
 			link_var(store, vid, Inferred_Handle{inner_id = arg_ids[0], effect_id = arg_ids[1]})
-		} else {
-			link_var(
-				store,
-				vid,
-				Inferred_Constructor{primitive_name = ty.name, arity = len(ty.args)},
-			)
+			return vid
 		}
+		// A named tag-union type (`List(a)`, user `@Color : [..]`, `Result(t,e)`)
+		// expands to its underlying tag-union row so that an annotation unifies with
+		// the rows produced by construction and pattern matching. Scalar newtypes and
+		// opaque constructors keep their bare representation.
+		if expanded, ok := expand_named_tag_union(store, env, ty.name, arg_ids, ty.span); ok {
+			return expanded
+		}
+		vid := fresh_value_var(store, ty.span)
+		link_var(store, vid, Inferred_Constructor{primitive_name = ty.name, arity = len(ty.args)})
 		return vid
 
 	case ^CType_Record:
@@ -1134,16 +1236,24 @@ instantiate_rec :: proc(
 	subst: ^map[base.Type_Var_ID]base.Type_Var_ID,
 ) -> base.Type_Var_ID {
 	resolved := resolve_var(store, var_id)
+
+	// Universal memo: a var already being instantiated returns its representative.
+	// For structural types this ties the knot on cyclic (equirecursive) types — an
+	// annotated recursive list unifies its `Cons` tail with itself, so without this
+	// memo instantiate_rec recursed forever copying the cycle.
+	if existing, ok := subst[resolved]; ok {
+		return existing
+	}
 	v := store.vars[int(resolved)]
 
 	_, is_unlinked := v.link.(Type_Unlinked)
-	if is_unlinked && is_generic(store, resolved) {
-		if existing, ok := subst[resolved]; ok {
-			return existing
+	if is_unlinked {
+		if is_generic(store, resolved) {
+			new_id := fresh_var(store, v.kind, v.name, v.span)
+			subst[resolved] = new_id
+			return new_id
 		}
-		new_id := fresh_var(store, v.kind, v.name, v.span)
-		subst[resolved] = new_id
-		return new_id
+		return resolved
 	}
 
 	inf, is_inf := v.link.(Inferred_Type)
@@ -1151,17 +1261,24 @@ instantiate_rec :: proc(
 		return resolved
 	}
 
-	switch f in inf {
+	// Primitives and constructors are atomic and shared directly (no copy, no knot).
+	#partial switch f in inf {
 	case Inferred_Primitive, Inferred_Constructor:
 		return resolved
+	}
 
+	// Structural type: allocate the fresh representative and memoize it BEFORE
+	// recursing into children so cyclic references resolve back to `vid`.
+	vid := fresh_var(store, v.kind, v.name, v.span)
+	subst[resolved] = vid
+
+	#partial switch f in inf {
 	case Inferred_Newtype:
 		param_ids := store_alloc(store, base.Type_Var_ID, len(f.param_ids))
 		for i in 0 ..< len(f.param_ids) {
 			param_ids[i] = instantiate_rec(store, f.param_ids[i], subst)
 		}
 		inner_id := instantiate_rec(store, f.inner_id, subst)
-		vid := fresh_value_var(store, v.span)
 		link_var(
 			store,
 			vid,
@@ -1172,7 +1289,6 @@ instantiate_rec :: proc(
 				inner_id = inner_id,
 			},
 		)
-		return vid
 
 	case Inferred_Function:
 		param_ids := store_alloc(store, base.Type_Var_ID, len(f.param_ids))
@@ -1181,13 +1297,11 @@ instantiate_rec :: proc(
 		}
 		return_id := instantiate_rec(store, f.return_id, subst)
 		effect_id := instantiate_rec(store, f.effect_id, subst)
-		vid := fresh_value_var(store, v.span)
 		link_var(
 			store,
 			vid,
 			Inferred_Function{param_ids = param_ids, return_id = return_id, effect_id = effect_id},
 		)
-		return vid
 
 	case Inferred_Effect_Row:
 		effect_entries := store_alloc(store, Effect_Row_Entry, len(f.effects))
@@ -1203,9 +1317,7 @@ instantiate_rec :: proc(
 			}
 		}
 		rest_id := instantiate_rec(store, f.rest_id, subst)
-		vid := fresh_effect_row(store, v.span)
 		link_var(store, vid, Inferred_Effect_Row{effects = effect_entries, rest_id = rest_id})
-		return vid
 
 	case Inferred_Record_Row:
 		record_fields := store_alloc(store, Type_Field_Entry, len(f.record_fields))
@@ -1217,7 +1329,6 @@ instantiate_rec :: proc(
 			}
 		}
 		record_rest := instantiate_rec(store, f.record_rest, subst)
-		vid := fresh_value_var(store, v.span)
 		link_var(
 			store,
 			vid,
@@ -1227,7 +1338,6 @@ instantiate_rec :: proc(
 				closed = f.closed,
 			},
 		)
-		return vid
 
 	case Inferred_Tag_Union_Row:
 		tag_entries := store_alloc(store, Type_Tag_Entry, len(f.tag_entries))
@@ -1243,27 +1353,22 @@ instantiate_rec :: proc(
 			}
 		}
 		tag_rest := instantiate_rec(store, f.tag_rest, subst)
-		vid := fresh_value_var(store, v.span)
 		link_var(
 			store,
 			vid,
 			Inferred_Tag_Union_Row{tag_entries = tag_entries, tag_rest = tag_rest},
 		)
-		return vid
 
 	case Inferred_Handle:
 		inner_id := instantiate_rec(store, f.inner_id, subst)
 		effect_id := instantiate_rec(store, f.effect_id, subst)
-		vid := fresh_value_var(store, v.span)
 		link_var(store, vid, Inferred_Handle{inner_id = inner_id, effect_id = effect_id})
-		return vid
 
 	case Inferred_Tuple:
 		element_types := store_alloc(store, base.Type_Var_ID, len(f.element_types))
 		for i in 0 ..< len(f.element_types) {
 			element_types[i] = instantiate_rec(store, f.element_types[i], subst)
 		}
-		vid := fresh_value_var(store, v.span)
 		link_var(
 			store,
 			vid,
@@ -1273,10 +1378,9 @@ instantiate_rec :: proc(
 				closed = f.closed,
 			},
 		)
-		return vid
 	}
 
-	return resolved
+	return vid
 }
 
 deep_clone_type :: proc(

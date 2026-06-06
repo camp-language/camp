@@ -9,6 +9,11 @@ CAMP_TAG_HEADER_SIZE :: 8
 CAMP_TAG_REFCOUNT_OFFSET :: 0
 CAMP_TAG_TAG_OFFSET :: 4
 CAMP_TAG_SCAN_SIZE_OFFSET :: 5
+// Bit i set => payload field i is a scalar (inline i64/f64), not a heap pointer, so
+// camp_drop must not recurse into it. Defaults to 0 (all fields treated as heap
+// pointers) so runtime-constructed cells, which store only pointers, need no change.
+// 8 bits cover the first 8 fields; scalars beyond field 7 fall back to legacy scanning.
+CAMP_TAG_SCALAR_MASK_OFFSET :: 6
 CAMP_TAG_FIELDS_OFFSET :: 8
 MAP_HEADER_TAG :: 0x10
 MAP_NODE_TAG :: 0x11

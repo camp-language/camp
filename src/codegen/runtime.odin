@@ -183,6 +183,12 @@ emit_camp_drop_body :: proc(
 	emit_instruction(Wasm_I32_Load8U{align = 0, offset = 5}, &buf)
 	emit_instruction(Wasm_Local_Set{index = 3}, &buf)
 
+	// Load scalar_mask at ptr + 6 into local 6: bit i set => field i is an inline
+	// scalar that must not be dereferenced as a heap pointer.
+	emit_instruction(Wasm_Local_Get{index = 0}, &buf)
+	emit_instruction(Wasm_I32_Load8U{align = 0, offset = CAMP_TAG_SCALAR_MASK_OFFSET}, &buf)
+	emit_instruction(Wasm_Local_Set{index = 6}, &buf)
+
 	// i = 0
 	emit_instruction(Wasm_I32_Const{value = 0}, &buf)
 	emit_instruction(Wasm_Local_Set{index = 4}, &buf)
@@ -207,13 +213,22 @@ emit_camp_drop_body :: proc(
 	emit_instruction(Wasm_I32_Load{align = 2, offset = 0}, &buf)
 	emit_instruction(Wasm_Local_Tee{index = 5}, &buf)
 
-	// If non-zero, recursive drop
+	// If non-zero AND not a scalar field, recursive drop.
+	emit_instruction(Wasm_If{block_type = .Void}, &buf)
+	// (scalar_mask >> i) & 1 == 0  =>  field i is a heap pointer
+	emit_instruction(Wasm_Local_Get{index = 6}, &buf)
+	emit_instruction(Wasm_Local_Get{index = 4}, &buf)
+	emit_instruction(Wasm_I32_Shr_U{}, &buf)
+	emit_instruction(Wasm_I32_Const{value = 1}, &buf)
+	emit_instruction(Wasm_I32_And{}, &buf)
+	emit_instruction(Wasm_I32_Eqz{}, &buf)
 	emit_instruction(Wasm_If{block_type = .Void}, &buf)
 	emit_instruction(Wasm_Local_Get{index = 5}, &buf)
 	emit_instruction(Wasm_Local_Get{index = 1}, &buf)
 	emit_instruction(Wasm_I32_Const{value = 1}, &buf)
 	emit_instruction(Wasm_I32_Add{}, &buf)
 	emit_instruction(Wasm_Call{index = u32(drop_func_idx)}, &buf)
+	emit_instruction(Wasm_End{}, &buf)
 	emit_instruction(Wasm_End{}, &buf)
 
 	// i++
@@ -239,9 +254,10 @@ emit_camp_drop_body :: proc(
 
 	emit_instruction(Wasm_End{}, &buf)
 
+	// Locals 2..6: new_refcount, scan_size, i, field_value, scalar_mask.
 	locals := make([]Wasm_Local_Decl, 1)
 	locals[0] = Wasm_Local_Decl {
-		count = 4,
+		count = 5,
 		type  = .I32,
 	}
 

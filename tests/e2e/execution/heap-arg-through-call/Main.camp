@@ -1,0 +1,11 @@
+// A heap value (list) passed through a function-call boundary must survive Perceus
+// drop of its scalar-bearing cells. `first` extracts the head and drops the tail.
+first = |xs: List(I64)| -> I64 {
+  match xs {
+    Nil => 0
+    Cons(h, _t) => h
+  }
+}
+main! = || -> I64 {
+  first([7, 8, 9])
+}

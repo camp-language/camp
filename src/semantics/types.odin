@@ -377,20 +377,31 @@ link_var :: proc(store: ^Type_Store, id: base.Type_Var_ID, target: Type_Link) {
 }
 
 resolve_var :: proc(store: ^Type_Store, id: base.Type_Var_ID) -> base.Type_Var_ID {
-	v := &store.vars[int(id)]
-	_, is_unlinked := v.link.(Type_Unlinked)
-	if is_unlinked {
-		return id
-	}
-	linked_id, is_id := v.link.(base.Type_Var_ID)
-	if is_id {
-		resolved := resolve_var(store, linked_id)
-		if resolved != linked_id {
-			v.link = resolved
+	// Follow the union-find chain iteratively. Recursive-type inference can build a
+	// long var->var chain (an equirecursive list type unifies its tail with itself
+	// across recursive calls); walking it recursively overflowed the stack. The step
+	// cap also makes a cyclic chain terminate instead of spinning.
+	cur := id
+	max_steps := len(store.vars) + 1
+	for steps := 0; steps < max_steps; steps += 1 {
+		linked_id, is_id := store.vars[int(cur)].link.(base.Type_Var_ID)
+		if !is_id || linked_id == cur {
+			break
 		}
-		return resolved
+		cur = linked_id
 	}
-	return id
+
+	// Path compression: point every node on the chain directly at the representative.
+	walk := id
+	for walk != cur {
+		linked_id, is_id := store.vars[int(walk)].link.(base.Type_Var_ID)
+		if !is_id || linked_id == walk {
+			break
+		}
+		store.vars[int(walk)].link = cur
+		walk = linked_id
+	}
+	return cur
 }
 
 make_primitive_type :: proc(
