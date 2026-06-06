@@ -3200,3 +3200,4 @@ emit_atomic_rmw :: proc(op: ir.Atomic_Op, width: ir.Atomic_Width, offset: u32, b
 		buf,
 	)
 }
+

@@ -79,3 +79,17 @@ I16 is Ord {
 I16 is Hash {
     hash = |a: Self, h: Hasher| -> Hasher { crash "intrinsic: I16_hash" }
 }
+
+test "I16 equality" {
+  expect 0 == 0
+  expect 42 == 42
+  expect not (0 == 1)
+}
+
+test "I16 ordering" {
+  expect 0 < 1
+  expect (-32768) < 32767
+  expect 32767 > 0
+  expect 42 <= 42
+  expect 42 >= 42
+}

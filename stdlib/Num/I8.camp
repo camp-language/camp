@@ -76,3 +76,18 @@ I8 is Ord {
 I8 is Hash {
     hash = |a: Self, h: Hasher| -> Hasher { crash "intrinsic: I8_hash" }
 }
+
+test "I8 equality" {
+  expect 0 == 0
+  expect 42 == 42
+  expect not (0 == 1)
+  expect not (127 == (-128))
+}
+
+test "I8 ordering" {
+  expect 0 < 1
+  expect (-128) < 127
+  expect 127 > 0
+  expect 42 <= 42
+  expect 42 >= 42
+}

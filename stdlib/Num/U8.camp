@@ -60,3 +60,16 @@ U8 is Ord {
 U8 is Hash {
     hash = |a: Self, h: Hasher| -> Hasher { crash "intrinsic: U8_hash" }
 }
+
+test "U8 equality" {
+  expect 0 == 0
+  expect 42 == 42
+  expect not (0 == 1)
+}
+
+test "U8 ordering" {
+  expect 0 < 1
+  expect 255 > 0
+  expect 42 <= 42
+  expect 42 >= 42
+}

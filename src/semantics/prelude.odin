@@ -647,3 +647,4 @@ inject_prelude_effects_typecheck :: proc(store: ^Type_Store) {
 
 	}
 }
+

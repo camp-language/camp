@@ -98,3 +98,16 @@ test "truth table complete" {
 Bool is Hash {
     hash = |a: Self, h: Hasher| -> Hasher { crash "intrinsic: Bool_hash" }
 }
+
+test "Bool debug" {
+  expect True->debug() == "True"
+  expect False->debug() == "False"
+}
+
+test "Bool ordering" {
+  expect False < True
+  expect not (True < False)
+  expect True > False
+  expect False <= False
+  expect True >= True
+}
