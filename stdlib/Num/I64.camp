@@ -89,3 +89,11 @@ I64 is TryFrom {
 I64 is Debug {
     debug = |a: Self| -> Str { crash "intrinsic: I64_debug" }
 }
+
+I64 is Ord {
+    compare = |a: Self, b: Self| -> Order { crash "intrinsic: I64_compare" }
+}
+
+I64 is Hash {
+    hash = |a: Self, h: Hasher| -> Hasher { crash "intrinsic: I64_hash" }
+}

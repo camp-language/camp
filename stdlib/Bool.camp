@@ -70,6 +70,8 @@ Bool is From {
 Bool is Debug {
     debug = |a: Self| -> Str { crash "intrinsic: Bool_debug" }
 }
+
+Bool is Ord {    compare = |a: Self, b: Self| -> Order { crash "intrinsic: Bool_compare" }}
 // Tests
 
 test "truth table complete" {
@@ -87,4 +89,8 @@ test "truth table complete" {
   expect xor_(True, False) == True
   expect xor_(False, True) == True
   expect xor_(False, False) == False
+}
+
+Bool is Hash {
+    hash = |a: Self, h: Hasher| -> Hasher { crash "intrinsic: Bool_hash" }
 }

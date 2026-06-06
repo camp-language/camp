@@ -50,3 +50,11 @@ U8 is TryFrom {
 U8 is Debug {
     debug = |a: Self| -> Str { crash "intrinsic: U8_debug" }
 }
+
+U8 is Ord {
+    compare = |a: Self, b: Self| -> Order { crash "intrinsic: U8_compare" }
+}
+
+U8 is Hash {
+    hash = |a: Self, h: Hasher| -> Hasher { crash "intrinsic: U8_hash" }
+}

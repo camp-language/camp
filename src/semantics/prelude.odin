@@ -487,7 +487,11 @@ inject_prelude_effects_typecheck :: proc(store: ^Type_Store) {
 
 		append(
 			&ord_methods,
-			Trait_Method_Info{name = compare_method_name, param_types = params, return_type = return_type},
+			Trait_Method_Info {
+				name = compare_method_name,
+				param_types = params,
+				return_type = return_type,
+			},
 		)
 
 		store.trait_registry[ord_name] = Trait_Info {
@@ -540,3 +544,4 @@ inject_prelude_effects_typecheck :: proc(store: ^Type_Store) {
 	}
 
 }
+

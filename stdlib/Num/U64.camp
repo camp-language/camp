@@ -76,3 +76,11 @@ U64 is TryFrom {
 U64 is Debug {
     debug = |a: Self| -> Str { crash "intrinsic: U64_debug" }
 }
+
+U64 is Ord {
+    compare = |a: Self, b: Self| -> Order { crash "intrinsic: U64_compare" }
+}
+
+U64 is Hash {
+    hash = |a: Self, h: Hasher| -> Hasher { crash "intrinsic: U64_hash" }
+}

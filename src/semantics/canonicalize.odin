@@ -2140,3 +2140,4 @@ generate_tag_union_eq_body :: proc(
 
 	return not_tag_eq
 }
+

@@ -65,3 +65,11 @@ U32 is TryFrom {
 U32 is Debug {
     debug = |a: Self| -> Str { crash "intrinsic: U32_debug" }
 }
+
+U32 is Ord {
+    compare = |a: Self, b: Self| -> Order { crash "intrinsic: U32_compare" }
+}
+
+U32 is Hash {
+    hash = |a: Self, h: Hasher| -> Hasher { crash "intrinsic: U32_hash" }
+}

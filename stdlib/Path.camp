@@ -55,3 +55,15 @@ Path is TryFrom {
 Path is Debug {
     debug = |a: Self| -> Str { crash "intrinsic: Path_debug" }
 }
+
+Path is Ord {
+    compare = |a: Self, b: Self| -> Order { crash "intrinsic: Path_compare" }
+}
+
+Path is Hash {
+    hash = |a: Self, h: Hasher| -> Hasher { crash "intrinsic: Path_hash" }
+}
+
+Path is Eq {
+    eq = |a: Self, b: Self| -> Bool { crash "intrinsic: Path_eq" }
+}

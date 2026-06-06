@@ -103,3 +103,11 @@ F64 is TryFrom {
 F64 is Debug {
     debug = |a: Self| -> Str { crash "intrinsic: F64_debug" }
 }
+
+F64 is Ord {
+    compare = |a: Self, b: Self| -> Order { crash "intrinsic: F64_compare" }
+}
+
+F64 is Hash {
+    hash = |a: Self, h: Hasher| -> Hasher { crash "intrinsic: F64_hash" }
+}

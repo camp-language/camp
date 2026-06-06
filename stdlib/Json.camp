@@ -121,3 +121,15 @@ Json is TryFrom {
 Json is Debug {
     debug = |a: Self| -> Str { crash "intrinsic: Json_debug" }
 }
+
+Json is Ord {
+    compare = |a: Self, b: Self| -> Order { crash "intrinsic: Json_compare" }
+}
+
+Json is Hash {
+    hash = |a: Self, h: Hasher| -> Hasher { crash "intrinsic: Json_hash" }
+}
+
+Json is Eq {
+    eq = |a: Self, b: Self| -> Bool { crash "intrinsic: Json_eq" }
+}

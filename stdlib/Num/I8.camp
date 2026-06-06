@@ -66,3 +66,11 @@ I8 is TryFrom {
 I8 is Debug {
     debug = |a: Self| -> Str { crash "intrinsic: I8_debug" }
 }
+
+I8 is Ord {
+    compare = |a: Self, b: Self| -> Order { crash "intrinsic: I8_compare" }
+}
+
+I8 is Hash {
+    hash = |a: Self, h: Hasher| -> Hasher { crash "intrinsic: I8_hash" }
+}

@@ -246,3 +246,4 @@ test_canonicalize_derive_ord :: proc(t: ^testing.T) {
 		testing.expect(t, false)
 	}
 }
+

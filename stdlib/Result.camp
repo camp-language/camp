@@ -124,3 +124,11 @@ pub catch = |action| { crash "intrinsic: Result.catch" }
 Result is Debug {
     debug = |r: Self| -> Str { crash "intrinsic: Result_debug" }
 }
+
+Result is Ord {
+    compare = |a: Self, b: Self| -> Order { crash "intrinsic: Result_compare" }
+}
+
+Result is Hash {
+    hash = |a: Self, h: Hasher| -> Hasher { crash "intrinsic: Result_hash" }
+}

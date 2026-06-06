@@ -69,3 +69,11 @@ pub from_iter = |iter| { crash "intrinsic: List.from_iter" }
 List is Debug {
     debug = |xs: Self| -> Str { crash "intrinsic: List_debug" }
 }
+
+List is Ord {
+    compare = |a: Self, b: Self| -> Order { crash "intrinsic: List_compare" }
+}
+
+List is Hash {
+    hash = |a: Self, h: Hasher| -> Hasher { crash "intrinsic: List_hash" }
+}

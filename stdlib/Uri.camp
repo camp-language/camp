@@ -60,3 +60,15 @@ Uri is Default {
 Uri is Debug {
     debug = |a: Self| -> Str { crash "intrinsic: Uri_debug" }
 }
+
+Uri is Ord {
+    compare = |a: Self, b: Self| -> Order { crash "intrinsic: Uri_compare" }
+}
+
+Uri is Hash {
+    hash = |a: Self, h: Hasher| -> Hasher { crash "intrinsic: Uri_hash" }
+}
+
+Uri is Eq {
+    eq = |a: Self, b: Self| -> Bool { crash "intrinsic: Uri_eq" }
+}

@@ -2205,3 +2205,4 @@ stdlib_is_module :: proc(name: string) -> bool {
 	_, ok := stdlib_lookup(name)
 	return ok
 }
+

@@ -86,3 +86,11 @@ F32 is TryFrom {
 F32 is Debug {
     debug = |a: Self| -> Str { crash "intrinsic: F32_debug" }
 }
+
+F32 is Ord {
+    compare = |a: Self, b: Self| -> Order { crash "intrinsic: F32_compare" }
+}
+
+F32 is Hash {
+    hash = |a: Self, h: Hasher| -> Hasher { crash "intrinsic: F32_hash" }
+}

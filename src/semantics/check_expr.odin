@@ -1177,3 +1177,4 @@ typecheck_qualified_tag_construct :: proc(
 	}
 	return Synth_Result{var_id = inst_binding, effects = eff, texpr = TExpr(t)}
 }
+

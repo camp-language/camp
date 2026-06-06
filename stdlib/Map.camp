@@ -97,3 +97,15 @@ pub difference = |m1, m2| {
 Map is Debug {
     debug = |a: Self| -> Str { crash "intrinsic: Map_debug" }
 }
+
+Map is Ord {
+    compare = |a: Self, b: Self| -> Order { crash "intrinsic: Map_compare" }
+}
+
+Map is Hash {
+    hash = |a: Self, h: Hasher| -> Hasher { crash "intrinsic: Map_hash" }
+}
+
+Map is Eq {
+    eq = |a: Self, b: Self| -> Bool { crash "intrinsic: Map_eq" }
+}
