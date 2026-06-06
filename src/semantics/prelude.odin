@@ -470,4 +470,73 @@ inject_prelude_effects_typecheck :: proc(store: ^Type_Store) {
 			},
 		)
 	}
+	// Register Ord trait with compare: (Self, Self) -> Order
+	ord_name := base.intern(store.interner, "Ord")
+	compare_method_name := base.intern(store.interner, "compare")
+
+	if !is_trait_declared(store, ord_name) {
+		ord_generic_vars: map[int]base.Type_Var_ID
+		ord_generic_vars = make(map[int]base.Type_Var_ID, 4, store.allocator)
+
+		ord_methods := make([dynamic]Trait_Method_Info, 0, 4, store.allocator)
+
+		params := make([]base.Type_Var_ID, 2, store.allocator)
+		params[0] = fresh_value_var(store, base.Source_Span_ZERO)
+		params[1] = fresh_value_var(store, base.Source_Span_ZERO)
+		return_type := prelude_resolve_type_ref(store, "Order", 0, &ord_generic_vars)
+
+		append(
+			&ord_methods,
+			Trait_Method_Info{name = compare_method_name, param_types = params, return_type = return_type},
+		)
+
+		store.trait_registry[ord_name] = Trait_Info {
+			name    = ord_name,
+			module  = base.NO_NAME,
+			parent  = base.NO_NAME,
+			methods = ord_methods[:],
+		}
+
+		delete(ord_generic_vars)
+	}
+
+	// Register Ord implementations for primitive types
+	primitive_ord_types := []struct {
+		name:  string,
+		canon: string,
+	} {
+		{"I64", "I64_compare"},
+		{"I32", "I32_compare"},
+		{"I16", "I16_compare"},
+		{"I8", "I8_compare"},
+		{"U64", "U64_compare"},
+		{"U32", "U32_compare"},
+		{"U16", "U16_compare"},
+		{"U8", "U8_compare"},
+		{"F64", "F64_compare"},
+		{"F32", "F32_compare"},
+		{"Bool", "Bool_compare"},
+		{"Str", "Str_compare"},
+		{"Bytes", "Bytes_compare"},
+		{"Char", "Char_compare"},
+	}
+
+	for pdt in primitive_ord_types {
+		type_id := base.intern(store.interner, pdt.name)
+		method_map := make(map[base.Intern_ID]base.Canonical_Name, 1, store.allocator)
+		method_map[compare_method_name] = base.Canonical_Name {
+			module = base.NO_NAME,
+			name   = base.intern(store.interner, pdt.canon),
+		}
+		append(
+			&store.trait_impls,
+			Trait_Impl {
+				trait_name = ord_name,
+				type_name = type_id,
+				type_module = base.NO_NAME,
+				methods = method_map,
+			},
+		)
+	}
+
 }
