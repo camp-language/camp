@@ -63,14 +63,19 @@ lower_tfile :: proc(tfile: semantics.TFile, store: ^semantics.Type_Store) -> IR_
 		interner = store.interner,
 	}
 	env.pending_decls = make([dynamic]IR_Decl, 0, 8)
+	env.module_decl_names = make(map[base.Intern_ID]bool, len(tfile.decls))
 
 	for &decl in tfile.decls {
 		#partial switch d in decl {
 		case ^semantics.TDecl_Effect:
+			env.module_decl_names[d.name.name] = true
 			eff_def := lower_teffect_def(&d^, &env)
 			append(&mod.effect_defs, eff_def)
+		case ^semantics.TDecl_Const:
+			// Register the name only; the body (which may reference this decl
+			// recursively) is lowered in the second pass below.
+			env.module_decl_names[d.name.name] = true
 		case ^semantics.TDecl_Effect_Alias,
-		     ^semantics.TDecl_Const,
 		     ^semantics.TDecl_Trait,
 		     ^semantics.TDecl_Alias,
 		     ^semantics.TDecl_Newtype,
@@ -128,16 +133,21 @@ lower_tfile :: proc(tfile: semantics.TFile, store: ^semantics.Type_Store) -> IR_
 		append(&mod.decls, d)
 	}
 	delete(env.pending_decls)
+	delete(env.module_decl_names)
 
 	return mod
 }
 
 Lower_Env :: struct {
-	module:        ^IR_Module,
-	store:         ^semantics.Type_Store,
-	interner:      ^base.Intern_Table,
-	fresh_counter: int,
-	pending_decls: [dynamic]IR_Decl,
+	module:            ^IR_Module,
+	store:             ^semantics.Type_Store,
+	interner:          ^base.Intern_Table,
+	fresh_counter:     int,
+	pending_decls:     [dynamic]IR_Decl,
+	// Names of all top-level decls, registered before any body is lowered so that a
+	// recursive self-reference resolves to a direct call rather than a closure call
+	// (the decl is not yet appended to mod.decls while its own body is being lowered).
+	module_decl_names: map[base.Intern_ID]bool,
 }
 
 fresh_ir_name :: proc(env: ^Lower_Env) -> base.Intern_ID {
@@ -735,18 +745,6 @@ inject_prelude_effect_defs :: proc(mod: ^IR_Module, store: ^semantics.Type_Store
 	inject_prelude_effects_lower(mod, store)
 }
 
-is_module_decl :: proc(mod: ^IR_Module, name: base.Intern_ID) -> bool {
-	for d in mod.decls {
-		#partial switch dd in d {
-		case ^IR_Decl_Fn:
-			if dd.name.name == name do return true
-		case ^IR_Decl_Const:
-			if dd.name.name == name do return true
-		}
-	}
-	return false
-}
-
 lower_tcall :: proc(e: ^semantics.TExpr_Call, env: ^Lower_Env) -> IR_Expr {
 	#partial switch c in e.callee {
 	case ^semantics.TExpr_Name:
@@ -756,8 +754,11 @@ lower_tcall :: proc(e: ^semantics.TExpr_Call, env: ^Lower_Env) -> IR_Expr {
 			append(&ir_args, lower_texpr(arg, env))
 		}
 		// A let-bound name refers to a closure record on the heap, not a
-		// top-level function decl — dispatch through the closure.
-		if callee_name.is_local && !is_module_decl(env.module, callee_name.name) {
+		// top-level function decl — dispatch through the closure. Module decl names
+		// are checked against a set registered before any body is lowered, so a
+		// recursive self-reference resolves to a direct call (the decl is not yet in
+		// mod.decls while its own body is being lowered).
+		if callee_name.is_local && !env.module_decl_names[callee_name.name] {
 			callee_expr := lower_texpr(e.callee, env)
 			ccall := new(IR_Closure_Call)
 			ccall^ = IR_Closure_Call {

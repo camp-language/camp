@@ -1,3 +1,5 @@
+// A recursive function's self-reference must lower to a direct call, not a closure
+// call_indirect. `sum` recurses over the list tail.
 sum = |xs: List(I64)| -> I64 {
   match xs {
     Nil => 0
