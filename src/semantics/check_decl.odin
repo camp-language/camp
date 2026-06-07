@@ -452,7 +452,15 @@ verify_trait_conformance :: proc(
 		return false
 	}
 
-	if type_module != trait_info.module && type_module != base.NO_NAME {
+	// Orphan rule: an impl is allowed when it lives in the module that defines the
+	// type OR the module that defines the trait. (type_module is the type's defining
+	// module — the current module for a locally-defined type.) Comparing the type's
+	// module directly against the trait's module was too strict: it rejected a valid
+	// impl like `Order is Debug` written in Order's own module (Order != Debug).
+	impl_module := env.current_module
+	in_type_module := impl_module == type_module || type_module == base.NO_NAME
+	in_trait_module := impl_module == trait_info.module || trait_info.module == base.NO_NAME
+	if !in_type_module && !in_trait_module {
 		type_str := base.intern_get(store.interner, type_name)
 		trait_str := base.intern_get(store.interner, trait_name)
 		diagnostics.collector_add_diag(
