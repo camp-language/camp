@@ -54,7 +54,8 @@ camp-9m0n (Hash stdlib impls) ──► camp-llot (SipHash runtime) ─┬► ca
 8. camp-a6je (kitchen-sink integration tests)
 
 After each step: run `just check`. Fix anything that breaks before moving on.
-
+11 beans remain (8 remaining + 3 completed with residual work). This document covers 8
+tasks: the 8 uncompleted beans (with camp-9m0n and camp-llot combined into Task 5).
 ---
 
 ## Task 1: camp-recursive-closure — Recursive closure fn_idx trap
@@ -64,7 +65,7 @@ After each step: run `just check`. Fix anything that breaks before moving on.
 **Symptom:** Recursive list functions compile to valid WASM but trap at runtime:  
 "undefined element: out of bounds table access"
 
-### Root Cause Analysis
+### Root Cause Analysis (DIAGNOSTIC-FIRST — do NOT guess, inspect)
 
 The issue is in closure conversion for self-referencing closures. When a function like:
 ```camp
@@ -81,13 +82,34 @@ When `sum(t)` executes recursively:
 3. Loads `env_ptr` from closure record at offset `CAMP_TAG_FIELDS_OFFSET + 8` (16)
 4. Calls `call_indirect(fn_idx, env_ptr, t)`
 
-**The problem:** In `IR_Construct_Record` codegen (`emit_expr.odin:1773-1781`), the
-`fn_idx` field translation from decl index to WASM function index only handles
-`IR_Literal_Int`. The closure converter produces `IR_Var` with name = closed function name.
-This `IR_Var` goes through normal emit which hits `env.func_map[u64(e.name)]` — this
-should work IF the closed function name is in `func_map`.
+**Preliminary analysis (verify before acting on):**
 
-**Debugging steps:**
+The `fn_idx` field in the closure record is an `IR_Var` with `name = closed_fn_name.name`.
+In codegen, `emit_expr` for `IR_Var` resolves via `env.func_map[u64(e.name)]`
+(`emit_expr.odin:392`). The closed function IS registered in `func_map` at
+`codegen.odin:882`. So the func_map path SHOULD resolve correctly.
+
+However, the bean reports "fn_idx is wrong/uninitialized". Possible root causes:
+
+1. **`call_indirect` type index mismatch.** The closed function's WASM type is computed
+   from its `IR_Param` list (closure_convert.odin:479-493). The `IR_Closure_Call` computes
+   its type from `e.args` + env (emit_expr.odin:2461-2475). If these produce different
+   `get_or_create_type` results (e.g., `i32` vs `i64` for a list pointer due to
+   coercion), `call_indirect` traps with "type mismatch in call_indirect".
+
+2. **Element table out of bounds.** If `fn_idx` resolves to a value beyond
+   `total_funcs` (the element table size), the lookup traps. This could happen if
+   `func_map` returns a stale or incorrect index.
+
+3. **fn_idx resolves to 0 (default fallback).** If `func_map` lookup fails at
+   `emit_expr.odin:392`, the fallback is `Wasm_I32_Const{value = 0}`. Index 0 IS
+   a valid table entry, but it would call the WRONG function, which might trap
+   internally.
+
+**DO NOT apply a fix until you confirm which of these is the cause.**
+
+### Debugging Steps (MANDATORY — do these first)
+
 1. Add a test: `tests/e2e/execution/recursive-list-sum/Main.camp`:
    ```camp
    sum = |xs: List(I64)| -> I64 {
@@ -99,24 +121,33 @@ should work IF the closed function name is in `func_map`.
    pub main! = || -> I64 { sum([1, 2, 3, 4]) }
    ```
    Expected: exit code 10 (1+2+3+4)
-2. Build and run to confirm the trap
-3. Inspect the generated WASM (use `wasm2wat`) to check:
-   - Is the element table populated for the closed function?
-   - Is `fn_idx` in the closure record pointing to a valid table entry?
-   - Does `call_indirect` use the right type index?
-4. Likely fix locations:
-   - **`src/ir/closure_convert.odin:539-544`**: The `fn_idx_var` IR_Var for the closed
-     function may need to be an `IR_Literal_Int` referencing the decl index, so the
-     `decl_to_wasm_fn_idx` translation in `emit_expr.odin:1774` kicks in. OR:
-   - **`src/codegen/emit_expr.odin:1773-1781`**: Extend the fn_idx translation to also
-     handle `IR_Var` by checking `env.func_map` directly.
-   - **`src/codegen/codegen.odin`**: Ensure closed functions generated during closure
-     conversion are registered in `func_map` AND `decl_to_wasm_fn_idx`.
 
-**Key insight:** The `decl_to_wasm_fn_idx` map (populated at `codegen.odin:848-883`)
-maps decl index → WASM function index. But `IR_Literal_Int` for fn_idx stores the
-decl index. The codegen translates it. For `IR_Var`, the emit path goes through
-`func_map` which uses Intern_ID keys. Both paths should reach the same WASM index.
+2. Build: `just build`
+
+3. Run to confirm the trap: `wasmtime run camp.wasm` (or the e2e runner)
+
+4. Inspect the generated WASM with `wasm2wat`:
+   - Find the closed function in the module — verify it exists
+   - Find the element table section — verify the closed function's index is listed
+   - Find the `call_indirect` instruction in the recursive call path — check its
+     type index and compare with the closed function's actual type
+   - If the trap is "undefined element": the fn_idx value is out of table bounds
+   - If the trap is "type mismatch": the call_indirect type doesn't match the function
+
+5. Only AFTER confirming the root cause, apply the fix:
+   - **If type mismatch:** Fix the param type computation in either closure_convert
+     (the closed function's params) or emit_expr (the Closure_Call's type).
+   - **If fn_idx wrong:** Add logging to `emit_expr` for `IR_Var` to see what
+     `func_map` returns. Check if the Intern_ID matches.
+   - **If fn_idx = 0:** The func_map lookup is failing. Check if the closed function
+     name's Intern_ID is consistent between closure_convert and codegen.
+
+**Key files for debugging:**
+- `src/ir/closure_convert.odin:539-544` — fn_idx_var creation
+- `src/codegen/emit_expr.odin:1773-1781` — fn_idx translation in Construct_Record
+- `src/codegen/emit_expr.odin:2445-2480` — Closure_Call codegen + type computation
+- `src/codegen/codegen.odin:848-883` — func_map + decl_to_wasm_fn_idx population
+- `src/codegen/codegen.odin:1116-1128` — element table population
 
 ### Verification
 - `tests/e2e/execution/recursive-list-sum/`: `sum([1,2,3,4])` returns 10
@@ -157,8 +188,29 @@ Add `lower_tag_union_eq` to `src/ir/lower.odin`. Strategy:
 3. **If same tag, compare payloads:** For each payload field of the matching tag,
    do field-by-field comparison chained with `&&`.
 
-The approach mirrors how `IR_Match` handles tag unions, but simpler since we know
-both operands have the same type:
+### Tag byte extraction (critical detail)
+
+The IR has no byte-level load node. `IR_I32_Load` loads 4 bytes. The tag byte is at
+offset 4 within the heap-allocated tag cell. Since WASM is little-endian, loading an
+`i32` at offset 4 puts the tag byte in the least-significant byte.
+
+**Approach:** Load i32 at offset 4, mask with `0xFF` to isolate the tag byte:
+```
+tag_l = IR_I32_Load(base=left, offset=4)   // loads 4 bytes starting at offset 4
+tag_l_masked = IR_BinOp(.And, tag_l, 0xFF)  // isolate LSB = tag byte
+tag_r = IR_I32_Load(base=right, offset=4)
+tag_r_masked = IR_BinOp(.And, tag_r, 0xFF)
+tags_equal = IR_BinOp(.Eq, tag_l_masked, tag_r_masked)
+```
+
+The mask with `0xFF` is necessary because the bytes after the tag byte
+(scan_size, scalar_mask) would contaminate the comparison.
+
+**Alternative:** Generate `IR_Match` on the left operand to dispatch by tag, then
+compare the right operand's tag byte + payloads within each arm. This is more complex
+but mirrors existing match codegen.
+
+### Full algorithm
 
 ```odin
 lower_tag_union_eq :: proc(
@@ -174,42 +226,51 @@ lower_tag_union_eq :: proc(
     flatten_tag_entries(env.store, e.left.type_.type_id, &all_tags)
     
     bool_type := base.IR_Type{wasm_type = .I32, type_id = 0}
+    i32_type := base.IR_Type{wasm_type = .I32, type_id = 0}
     
-    // 2. Load tag bytes from both operands
-    // Tag byte is at offset CAMP_TAG_TAG_OFFSET (4) from heap pointer
     left_ir := lower_texpr(e.left, env)
     right_ir := lower_texpr(e.right, env)
     
-    // Generate: tag_index(left) == tag_index(right) && payload_eq
-    // Tag comparison: load byte at offset 4 from each, compare with I32_Eq
+    // 2. Load and compare tag bytes (masked to isolate tag byte)
+    left_tag_load := new(IR_I32_Load)
+    left_tag_load^ = IR_I32_Load {
+        base = left_ir, offset = CAMP_TAG_TAG_OFFSET, type = i32_type, span = e.span,
+    }
+    left_tag_mask := new(IR_BinOp)  // AND with 0xFF
+    left_tag_mask^ = IR_BinOp {
+        op = .And, left = IR_Expr(left_tag_load),
+        right = make_ir_lit_int(0xFF, i32_type, e.span),
+        type = i32_type, span = e.span,
+    }
+    // ... same for right_tag_mask ...
     
-    // For each tag, generate a match arm:
-    //   if tag == tag_i: compare payloads field by field
-    // Chain all tag-specific comparisons with OR
-    // But only if tag matches for BOTH sides
+    tags_eq := new(IR_BinOp)
+    tags_eq^ = IR_BinOp {
+        op = .Eq, left = IR_Expr(left_tag_mask), right = IR_Expr(right_tag_mask),
+        type = bool_type, span = e.span,
+    }
     
-    // Simpler approach: compare tag bytes, then if equal, compare payloads
-    // using a match-like structure
+    // 3. If tags differ → False. If same → compare payloads.
+    // For each tag variant with payloads, generate field-by-field && chains.
+    // Tags with no payloads: True (tags already match).
+    // Chain payload comparisons with nested IR_If:
+    //   if tag_l == TAG_I_INDEX:
+    //     (left.payload0 == right.payload0) && (left.payload1 == right.payload1) && ...
+    //   else if tag_l == TAG_J_INDEX:
+    //     ...
+    //   else: True  // no-payload tag
     
-    // ... (detailed IR construction)
+    // 4. Wrap: if !tags_eq then False else payload_comparison
+    // For !=, wrap the result with wrap_not (existing helper).
 }
 ```
 
-**Alternative simpler approach** (recommended for first pass):
-Since tag unions are heap-allocated with a discriminant byte, generate:
-```
-let tag_l = load_u8(left, CAMP_TAG_TAG_OFFSET)
-let tag_r = load_u8(right, CAMP_TAG_TAG_OFFSET)
-if tag_l != tag_r { return False }
-// Same tag — compare payloads
-// For each tag variant with payloads:
-//   if tag_l == TAG_I_INDEX:
-//     return (left.payload0 == right.payload0) && (left.payload1 == right.payload1) && ...
-// Tags with no payloads: return True (tag bytes already match)
-```
+**Payload access:** Tag payloads are at `CAMP_TAG_FIELDS_OFFSET + field_index * 8`
+from the heap pointer. Use `IR_I32_Load` or `IR_I64_Load` depending on the payload
+type. For heap payloads (records, other tags), use `IR_I32_Load` (pointer).
 
-**Use existing IR nodes:** `IR_I32_Load` (load tag byte), `IR_BinOp(.Eq)` (compare),
-`IR_If` (branch), `IR_Field_Access` (payload access).
+**Use existing IR nodes:** `IR_I32_Load` (load tag byte + payloads), `IR_BinOp` (compare,
+mask), `IR_If` (branch on tag match).
 
 ### Files to modify
 - `src/ir/lower.odin`: Add `lower_tag_union_eq`, add case in `lower_tbinop`
@@ -311,6 +372,13 @@ comparison codegen for each field type (which already works for primitives).
 ```
 
 For `<=`, `>=`, adjust the final "all equal" case and the intermediate checks.
+
+**Recursive structural fields:** If a field is itself a structural type (e.g.,
+`{a: {x: I64}, b: I64}`), the `a.f_i < b.f_i` comparison for that field will
+recursively trigger `lower_structural_ord`. This is correct — the recursive call
+generates nested if-then-else chains for the inner record. No special handling needed,
+but be aware of this when debugging: the generated IR will be deeply nested for
+records-within-records.
 
 #### `lower_tag_union_ord` — Tag union comparison
 
@@ -486,20 +554,33 @@ for primitives. The stubs only matter when the runtime function returns null.
 The Hash trait: `Hash : { hash : |Self, Hasher| -> Hasher }`  
 The Hasher type: `@Hasher : {}` — opaque, internally a SipHash-1-3 state
 
-At the WASM level, `Hasher` is a heap-allocated record holding:
-- `[0..7]`: SipHash state v0 (i64)
-- `[8..15]`: SipHash state v1 (i64)
-- `[16..23]`: SipHash state v2 (i64)
-- `[24..31]`: SipHash state v3 (i64)
-- `[32..35]`: byte count / tail
-- `[36..39]`: tail length
+### Hasher memory layout (EXACT)
+
+`Hasher` is a heap-allocated record. Total size: 44 bytes payload + 8 bytes header = 52 bytes.
+
+```
+Offset  Size  Field
+------  ----  -----
+0       4     refcount (i32)        — standard tag header
+4       1     tag (u8)             — 0x20 (unique tag for Hasher)
+5       1     scan_size (u8)       — 0 (no heap pointers inside)
+6       2     scalar_mask (u16)    — 0xFF (all scalars)
+8       8     v0 (i64)             — SipHash state word 0
+16      8     v1 (i64)             — SipHash state word 1
+24      8     v2 (i64)             — SipHash state word 2
+32      8     v3 (i64)             — SipHash state word 3
+40      8     tail (i64)           — buffered bytes (little-endian)
+48      4     tail_len (i32)       — number of bytes in tail (0..7)
+```
+
+Use a unique tag value (e.g., `HASHER_TAG :: 0x20`) so `camp_drop` can identify it.
+`scan_size = 0` because the Hasher contains no heap pointers (all i64/i32 scalars).
 
 ### New Runtime_Func entries needed
 
 ```odin
 // In Runtime_Func enum:
 Hash_Init,        // () -> i32 (Hasher pointer)
-Hash_Write_Byte,  // (hasher: i32, byte: i32) -> i32 (hasher)
 Hash_Write_I64,   // (hasher: i32, val: i64) -> i32 (hasher)
 Hash_Write_I32,   // (hasher: i32, val: i32) -> i32 (hasher)
 Hash_Write_I16,   // (hasher: i32, val: i32) -> i32 (hasher)
@@ -510,43 +591,122 @@ Hash_Write_Str,   // (hasher: i32, str: i32) -> i32 (hasher)
 Hash_Finish,      // (hasher: i32) -> i64 (hash value)
 ```
 
+Note: No `Hash_Write_Byte` — all writes go through typed functions that handle
+byte decomposition internally.
+
 ### SipHash-1-3 Implementation
 
 Implement in WASM bytecode (`src/codegen/runtime.odin`). The algorithm:
 
-**Initialization:**
+**SipHash constants:**
 ```
-v0 = k0 ^ 0x736f6d6570736575
-v1 = k1 ^ 0x646f72616e646f6d
-v2 = k0 ^ 0x6c7967656e657261
-v3 = k1 ^ 0x7465646279746573
+SIP_C0 :: 0x736f6d6570736575
+SIP_C1 :: 0x646f72616e646f6d
+SIP_C2 :: 0x6c7967656e657261
+SIP_C3 :: 0x7465646279746573
 ```
-Default key: k0 = k1 = 0 (no key mixing needed for hash maps).
 
-**Compression round (SipRound):**
+**Initialization (`Hash_Init`):**
+Allocate 52-byte Hasher. Set:
+```
+v0 = SIP_C0  (key is zero, so k0 ^ C0 = C0)
+v1 = SIP_C1
+v2 = SIP_C2
+v3 = SIP_C3
+tail = 0
+tail_len = 0
+```
+
+**SipRound (compression round):**
 ```
 v0 += v1; v2 += v3
-v1 = ROTL(v1, 13); v3 = ROTL(v3, 16)
+v1 = ROTL64(v1, 13); v3 = ROTL64(v3, 16)
 v1 ^= v0; v3 ^= v2
-v0 = ROTL(v0, 32)
+v0 = ROTL64(v0, 32)
 v0 += v3; v2 += v1
-v1 = ROTL(v1, 17); v3 = ROTL(v3, 21)
+v1 = ROTL64(v1, 17); v3 = ROTL64(v3, 21)
 v1 ^= v3; v2 ^= v0
-v2 = ROTL(v2, 32)
+v2 = ROTL64(v2, 32)
 ```
 
-**Finalization:**
+**Byte buffering (critical):** SipHash processes 8-byte blocks. When `Hash_Write_I32`
+is called (4 bytes), the bytes must be buffered:
+
 ```
-v2 ^= 0xff
-// 4 SipRounds
-v0 ^= v1 ^ v2 ^ v3
-return v0
+Hash_Write_I32(hasher_ptr, val_i32):
+    tail = load_i64(hasher_ptr + 40)
+    tail_len = load_i32(hasher_ptr + 48)
+    
+    // Pack val as little-endian bytes into tail
+    shifted = i64(val_i32) << (tail_len * 8)
+    tail = tail | shifted
+    tail_len = tail_len + 4
+    
+    // If tail_len >= 8, compress one block
+    if tail_len >= 8:
+        v0..v3 = load from hasher
+        v3 ^= tail
+        SipRound (1 round)
+        v0 ^= tail
+        tail_len = tail_len - 8
+        // Handle remaining bytes (if tail_len was > 8, which can't happen for i32)
+        store v0..v3 back
+    
+    store tail, tail_len back
+    return hasher_ptr
+```
+
+For `Hash_Write_I64` (8 bytes), the value IS a full block:
+```
+Hash_Write_I64(hasher_ptr, val_i64):
+    // Flush any existing tail first (if tail_len > 0)
+    // Then compress val directly as one block
+    v0..v3 = load from hasher
+    v3 ^= val_i64
+    SipRound (1 round)
+    v0 ^= val_i64
+    store v0..v3 back
+    return hasher_ptr
+```
+
+For `Hash_Write_Str`: iterate bytes of the string, buffer each byte via tail.
+String layout: `[len: i32][bytes...]`. Use a loop over `0..len`, load each byte,
+shift into tail, compress when tail reaches 8 bytes.
+
+**Finalization (`Hash_Finish`):**
+```
+Hash_Finish(hasher_ptr):
+    tail = load_i64(hasher_ptr + 40)
+    tail_len = load_i32(hasher_ptr + 48)
+    
+    // Pad tail: set byte at tail_len to 0xFF, rest to 0
+    // (shift 0xFF into position, OR with existing tail)
+    padded_tail = tail | (0xFF << (tail_len * 8))
+    
+    v0..v3 = load from hasher
+    v3 ^= padded_tail
+    SipRound (1 round)   // SipHash-1-3: 1 compression round
+    v0 ^= padded_tail
+    
+    // Finalization: 3 rounds with v2 ^= 0xFF
+    v2 ^= 0xFF
+    SipRound (round 1 of 3)
+    SipRound (round 2 of 3)
+    SipRound (round 3 of 3)
+    
+    return v0 ^ v1 ^ v2 ^ v3
 ```
 
 **WASM implementation notes:**
-- Use `i64.add`, `i64.xor`, `i64.rotl` (via `i64.shl` + `i64.shr_u` + `i64.or`)
-- WASM has no native `i64.rotl` — implement as `(x << n) | (x >>> (64 - n))`
-- SipHash-1-3 uses 1 compression round and 3 finalization rounds
+- Use `i64.add`, `i64.xor` directly
+- WASM has no native `i64.rotl` — implement as:
+  `ROTL64(x, n) = (i64.shl(x, n) | i64.shr_u(x, 64 - n))`
+- Each SipRound is ~20 WASM instructions (8 adds, 4 xors, 4 rotls, misc)
+- SipHash-1-3 total: 1 init + 1 compression + 3 finalization rounds = 5 SipRounds
+- Total per `Hash_Finish` call: ~100 WASM instructions + byte processing loop
+
+**Hasher tag constant:** Add `HASHER_TAG :: 0x20` to `codegen.odin` alongside
+`MAP_HEADER_TAG :: 0x10` and `MAP_NODE_TAG :: 0x11`.
 
 ### Codegen wiring for Hash intrinsics
 
@@ -628,15 +788,68 @@ Set, and Result — all with `crash "intrinsic: ..."` bodies. These need either:
 with runtime WASM implementations. The runtime functions receive the compare/hash/debug
 function pointer as an extra argument (similar to Map's `ord_compare_func` pattern).
 
+### Trait method resolution (critical architectural detail)
+
+The runtime functions need a function pointer (e.g., the element type's `Eq.eq`).
+The codegen must resolve this at compile time. Two approaches exist:
+
+**Approach A — Lowering-time resolution (RECOMMENDED):** Mirror `resolve_ord_compare`.
+
+1. Add fields to `IR_Call` for generic trait method pointers:
+   ```odin
+   IR_Call :: struct {
+       // ... existing fields ...
+       eq_compare_func:    base.Canonical_Name,  // for Eq.eq dispatch
+       ord_compare_func:   base.Canonical_Name,  // existing — for Ord.compare
+       hash_func:          base.Canonical_Name,  // for Hash.hash dispatch
+       debug_func:         base.Canonical_Name,  // for Debug.debug dispatch
+   }
+   ```
+
+2. In `lower_tcall`, when lowering a call like `List_eq(a, b)`:
+   - Determine the element type from the List type argument
+   - Call `resolve_trait_method(store, interner, element_type_id, "Eq", "eq")`
+   - Store the resolved Canonical_Name in `eq_compare_func`
+
+3. In codegen (`emit_expr.odin`), when intercepting `List_eq`:
+   - Look up `e.eq_compare_func` in `func_map` to get the WASM function index
+   - Pass it as the first argument to the runtime function
+
+**Approach B — Codegen-time resolution:** Look up trait impls during codegen.
+Requires passing the type store to codegen (currently not available). More invasive.
+Use Approach A.
+
+**Existing pattern to follow:** `resolve_ord_compare` at `lower.odin:2258` resolves
+the `Ord.compare` method for Map/Set key types. The same pattern applies:
+```odin
+resolve_eq_fn :: proc(
+    store: ^semantics.Type_Store,
+    interner: ^base.Intern_Table,
+    type_id: base.Type_Var_ID,
+) -> base.Canonical_Name {
+    func_name, ok := resolve_trait_method(store, interner, type_id, "Eq", "eq")
+    if !ok { return base.Canonical_Name{} }
+    return func_name
+}
+```
+
 ### Implementation pattern (using List_eq as example)
 
 **Runtime function signature:** `camp_list_eq(eq_fn_idx: i32, list_a: i32, list_b: i32) -> i32`
 
-**Codegen interception** in `emit_expr.odin`:
+**Lowering** (`lower.odin`): When the typechecker produces a call to the intrinsic
+`List_eq`, resolve the element type's `Eq.eq` method and store it in the `IR_Call`.
+
+**Codegen interception** (`emit_expr.odin`):
 ```odin
 if name_str == "List_eq" && len(e.args) == 2 {
-    // Resolve the element type's Eq.eq function index
-    eq_fn_idx := resolve_eq_fn_for_type(element_type, env)
+    // Resolve eq function from the IR_Call's eq_compare_func field
+    eq_fn_idx := 0
+    if e.eq_compare_func.name != 0 {
+        if idx, ok := env.func_map[u64(e.eq_compare_func.name)]; ok {
+            eq_fn_idx = idx
+        }
+    }
     emit_instruction(Wasm_I32_Const{value = i32(eq_fn_idx)}, buf)
     emit_expr(e.args[0], buf, env, runtime_indices)
     emit_expr(e.args[1], buf, env, runtime_indices)
@@ -666,6 +879,9 @@ emit_camp_list_eq_body :: proc(eq_type_idx: int, table_idx: int) -> Wasm_Code {
     //     br 0
 }
 ```
+
+**call_indirect type for Eq.eq:** `(i32, i32) -> i32` (Self, Self) -> Bool.
+Use `get_or_create_type` to get the type index, pass to `emit_camp_list_eq_body`.
 
 ### New Runtime_Func entries
 ```odin
