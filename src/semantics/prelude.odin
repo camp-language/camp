@@ -500,6 +500,38 @@ inject_prelude_effects_typecheck :: proc(store: ^Type_Store) {
 			},
 		)
 	}
+	// Register Eq trait with eq: (Self, Self) -> Bool. (Registered like Debug/Ord/Hash;
+	// it was previously missing, so explicit `T is Eq` impls in the stdlib failed
+	// conformance with "trait `Eq` not found in registry".)
+	eq_name := base.intern(store.interner, "Eq")
+	eq_method_name := base.intern(store.interner, "eq")
+
+	if !is_trait_declared(store, eq_name) {
+		eq_methods := make([dynamic]Trait_Method_Info, 0, 4, store.allocator)
+		eq_params := make([]base.Type_Var_ID, 2, store.allocator)
+		eq_params[0] = fresh_value_var(store, base.Source_Span_ZERO)
+		eq_params[1] = fresh_value_var(store, base.Source_Span_ZERO)
+		eq_return := make_primitive_type(
+			store,
+			base.intern(store.interner, "Bool"),
+			base.Source_Span_ZERO,
+		)
+		append(
+			&eq_methods,
+			Trait_Method_Info {
+				name = eq_method_name,
+				param_types = eq_params,
+				return_type = eq_return,
+			},
+		)
+		store.trait_registry[eq_name] = Trait_Info {
+			name    = eq_name,
+			module  = base.NO_NAME,
+			parent  = base.NO_NAME,
+			methods = eq_methods[:],
+		}
+	}
+
 	// Register Ord trait with compare: (Self, Self) -> Order
 	ord_name := base.intern(store.interner, "Ord")
 	compare_method_name := base.intern(store.interner, "compare")
