@@ -33,14 +33,33 @@ that entry is missing, so `call_idx` defaults to 0 and the call is emitted again
 function 0 (`proc_exit`) / dropped → the list pointer (i32) is left where the i64
 length is expected.
 
-`is_empty` works because it is a normally-compiled function present in `func_map`, so
-the generic path resolves it (the prepended module receiver lowers to nothing).
+UPDATE (deeper investigation): instrumenting `func_map` shows **neither** `length`
+**nor** `is_empty` is resolved — both lower to `IR_Call{module: NO_NAME, name, args:
+[receiver, list]}` with `in_func_map == false`, so both fall to `call_idx = 0`
+(`proc_exit`). `is_empty` only *appeared* to work because the emitted WASM happened to
+validate (wasm2wat), not because it executed correctly. **Adding `import List` does not
+fix it** — `List.length([1,2,3])` still produces invalid WASM / traps with an explicit
+import. So the stdlib `List` functions are not being compiled into the module / placed
+in `func_map` for qualified calls at all.
 
 ## Why identical user code works
 
 A monomorphic OR generic *user* `mylen` runs fine — it is a direct call, not the
 `List.foo` method-call/intercept path. So this is NOT a generic/recursive codegen bug
-(as first suspected); it is the module-qualified-call ↔ builtin-intercept mismatch.
+(as first suspected). It is a combination of:
+1. module-qualified `List.foo(x)` lowered as a method call (module dropped, receiver
+   prepended) so the builtin intercept misses; and
+2. the stdlib `List` functions not being compiled/resolved in `func_map` for the
+   qualified-call path (even with `import List`).
+
+## Attempt + outcome
+
+A surgical reroute (lower module-qualified builtin calls to `IR_Call{module: List, …}`
+without the prepended receiver) was tried — it **regressed `is_empty` and returned wrong
+values** (`length` → 1), so the prepended-receiver convention is load-bearing for the
+current path. Reverted. This needs a coordinated fix across canonicalize/typecheck
+(distinguish module-qualified from UFCS) **and** stdlib module compilation/func_map
+resolution — not a localized patch.
 
 ## Fix direction (needs care — regression risk)
 
