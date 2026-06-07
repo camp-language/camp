@@ -280,8 +280,20 @@ canonicalize_decl :: proc(
 		return cdecl
 
 	case ^frontend.Decl_Is_Impl:
-		type_name := canonicalize_local_name(d.type_name, .Const, scope, interner, collector)
-		trait_name := canonicalize_local_name(d.trait_name, .Trait, scope, interner, collector)
+		// A trait impl references an existing type and trait — it does not declare
+		// them. Build plain name references; registering them as new decls (via
+		// canonicalize_local_name) collided with the type's own `@T` newtype decl and
+		// the trait's decl ("duplicate name").
+		type_name := base.Canonical_Name {
+			module   = base.NO_NAME,
+			name     = d.type_name,
+			is_local = true,
+		}
+		trait_name := base.Canonical_Name {
+			module   = base.NO_NAME,
+			name     = d.trait_name,
+			is_local = true,
+		}
 		methods := make([dynamic]CIs_Method, 0, len(d.methods))
 		for m in d.methods {
 			cbody := canonicalize_expr(m.body, scope, interner, collector)
