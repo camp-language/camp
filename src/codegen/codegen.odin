@@ -649,6 +649,61 @@ codegen :: proc(
 	set_max_func_idx := add_function(&env, map_min_type_idx)
 	runtime_func_indices[Runtime_Func.Set_Max] = set_max_func_idx
 
+	// Hash runtime function types
+	hash_init_type_idx := get_or_create_type(&env, []Wasm_Value_Type{}, []Wasm_Value_Type{.I32})
+	// (hasher: i32, val: i64) -> i32
+	hash_write_i64_type_idx := get_or_create_type(
+		&env,
+		[]Wasm_Value_Type{.I32, .I64},
+		[]Wasm_Value_Type{.I32},
+	)
+	// (hasher: i32, val: i32) -> i32
+	hash_write_i32_type_idx := get_or_create_type(
+		&env,
+		[]Wasm_Value_Type{.I32, .I32},
+		[]Wasm_Value_Type{.I32},
+	)
+	hash_write_i16_type_idx := hash_write_i32_type_idx
+	hash_write_i8_type_idx := hash_write_i32_type_idx
+	// (hasher: i32, val: f64) -> i32
+	hash_write_f64_type_idx := get_or_create_type(
+		&env,
+		[]Wasm_Value_Type{.I32, .F64},
+		[]Wasm_Value_Type{.I32},
+	)
+	// (hasher: i32, val: f32) -> i32
+	hash_write_f32_type_idx := get_or_create_type(
+		&env,
+		[]Wasm_Value_Type{.I32, .F32},
+		[]Wasm_Value_Type{.I32},
+	)
+	hash_write_str_type_idx := hash_write_i32_type_idx
+	// (hasher: i32) -> i64
+	hash_finish_type_idx := get_or_create_type(
+		&env,
+		[]Wasm_Value_Type{.I32},
+		[]Wasm_Value_Type{.I64},
+	)
+
+	hash_init_func_idx := add_function(&env, hash_init_type_idx)
+	runtime_func_indices[Runtime_Func.Hash_Init] = hash_init_func_idx
+	hash_write_i64_func_idx := add_function(&env, hash_write_i64_type_idx)
+	runtime_func_indices[Runtime_Func.Hash_Write_I64] = hash_write_i64_func_idx
+	hash_write_i32_func_idx := add_function(&env, hash_write_i32_type_idx)
+	runtime_func_indices[Runtime_Func.Hash_Write_I32] = hash_write_i32_func_idx
+	hash_write_i16_func_idx := add_function(&env, hash_write_i16_type_idx)
+	runtime_func_indices[Runtime_Func.Hash_Write_I16] = hash_write_i16_func_idx
+	hash_write_i8_func_idx := add_function(&env, hash_write_i8_type_idx)
+	runtime_func_indices[Runtime_Func.Hash_Write_I8] = hash_write_i8_func_idx
+	hash_write_f64_func_idx := add_function(&env, hash_write_f64_type_idx)
+	runtime_func_indices[Runtime_Func.Hash_Write_F64] = hash_write_f64_func_idx
+	hash_write_f32_func_idx := add_function(&env, hash_write_f32_type_idx)
+	runtime_func_indices[Runtime_Func.Hash_Write_F32] = hash_write_f32_func_idx
+	hash_write_str_func_idx := add_function(&env, hash_write_str_type_idx)
+	runtime_func_indices[Runtime_Func.Hash_Write_Str] = hash_write_str_func_idx
+	hash_finish_func_idx := add_function(&env, hash_finish_type_idx)
+	runtime_func_indices[Runtime_Func.Hash_Finish] = hash_finish_func_idx
+
 	camp_alloc_code := emit_camp_alloc_body(heap_ptr_global_idx)
 	append(&mod.codes, camp_alloc_code)
 
@@ -759,6 +814,17 @@ codegen :: proc(
 	append(&mod.codes, emit_map_max_body(alloc_func_idx))
 	append(&mod.codes, emit_set_min_body(alloc_func_idx))
 	append(&mod.codes, emit_set_max_body(alloc_func_idx))
+
+	// Hash runtime function bodies (SipHash-1-3)
+	append(&mod.codes, emit_hash_init_body(alloc_func_idx))
+	append(&mod.codes, emit_hash_write_i64_body())
+	append(&mod.codes, emit_hash_write_i32_body())
+	append(&mod.codes, emit_hash_write_i16_body())
+	append(&mod.codes, emit_hash_write_i8_body())
+	append(&mod.codes, emit_hash_write_f64_body())
+	append(&mod.codes, emit_hash_write_f32_body())
+	append(&mod.codes, emit_hash_write_str_body())
+	append(&mod.codes, emit_hash_finish_body())
 
 	camp_alloc_name := base.intern(interner, "camp_alloc")
 	env.func_map[u64(camp_alloc_name)] = alloc_func_idx

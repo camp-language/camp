@@ -272,6 +272,15 @@ Runtime_Func :: enum {
 	Map_Max,
 	Set_Min,
 	Set_Max,
+	Hash_Init,
+	Hash_Write_I64,
+	Hash_Write_I32,
+	Hash_Write_I16,
+	Hash_Write_I8,
+	Hash_Write_F64,
+	Hash_Write_F32,
+	Hash_Write_Str,
+	Hash_Finish,
 }
 
 RUNTIME_FUNC_COUNT :: int(len(Runtime_Func))
@@ -754,6 +763,24 @@ emit_expr :: proc(expr: ir.IR_Expr, buf: ^[dynamic]u8, env: ^Codegen_Env, runtim
 					break
 				}
 			}
+
+			if module_str == "Hash" {
+				if name_str == "new" && len(e.args) == 0 {
+					emit_instruction(
+						Wasm_Call{index = u32(runtime_indices[Runtime_Func.Hash_Init])},
+						buf,
+					)
+					break
+				}
+				if name_str == "finish" && len(e.args) == 1 {
+					emit_expr(e.args[0], buf, env, runtime_indices)
+					emit_instruction(
+						Wasm_Call{index = u32(runtime_indices[Runtime_Func.Hash_Finish])},
+						buf,
+					)
+					break
+				}
+			}
 		}
 
 		// Check for Display.to_str intrinsic calls (unqualified name)
@@ -897,6 +924,136 @@ emit_expr :: proc(expr: ir.IR_Expr, buf: ^[dynamic]u8, env: ^Codegen_Env, runtim
 				emit_instruction(Wasm_I64_Extend_I32_S{}, buf)
 				emit_instruction(
 					Wasm_Call{index = u32(runtime_indices[Runtime_Func.I64_To_Str])},
+					buf,
+				)
+				break
+			}
+
+			// Hash intrinsics: hash(val, hasher) -> hasher
+			// Runtime functions take (hasher_ptr, val) in that order.
+			if name_str == "I64_hash" && len(e.args) == 2 {
+				emit_expr(e.args[1], buf, env, runtime_indices) // hasher
+				emit_expr(e.args[0], buf, env, runtime_indices) // val (i64)
+				emit_instruction(
+					Wasm_Call{index = u32(runtime_indices[Runtime_Func.Hash_Write_I64])},
+					buf,
+				)
+				break
+			}
+			if name_str == "I32_hash" && len(e.args) == 2 {
+				emit_expr(e.args[1], buf, env, runtime_indices) // hasher
+				emit_expr(e.args[0], buf, env, runtime_indices) // val (i32)
+				emit_instruction(
+					Wasm_Call{index = u32(runtime_indices[Runtime_Func.Hash_Write_I32])},
+					buf,
+				)
+				break
+			}
+			if name_str == "I16_hash" && len(e.args) == 2 {
+				emit_expr(e.args[1], buf, env, runtime_indices) // hasher
+				emit_expr(e.args[0], buf, env, runtime_indices) // val (i32)
+				emit_instruction(
+					Wasm_Call{index = u32(runtime_indices[Runtime_Func.Hash_Write_I16])},
+					buf,
+				)
+				break
+			}
+			if name_str == "I8_hash" && len(e.args) == 2 {
+				emit_expr(e.args[1], buf, env, runtime_indices) // hasher
+				emit_expr(e.args[0], buf, env, runtime_indices) // val (i32)
+				emit_instruction(
+					Wasm_Call{index = u32(runtime_indices[Runtime_Func.Hash_Write_I8])},
+					buf,
+				)
+				break
+			}
+			if name_str == "U64_hash" && len(e.args) == 2 {
+				emit_expr(e.args[1], buf, env, runtime_indices) // hasher
+				emit_expr(e.args[0], buf, env, runtime_indices) // val (i64)
+				emit_instruction(
+					Wasm_Call{index = u32(runtime_indices[Runtime_Func.Hash_Write_I64])},
+					buf,
+				)
+				break
+			}
+			if name_str == "U32_hash" && len(e.args) == 2 {
+				emit_expr(e.args[1], buf, env, runtime_indices) // hasher
+				emit_expr(e.args[0], buf, env, runtime_indices) // val (i32)
+				emit_instruction(
+					Wasm_Call{index = u32(runtime_indices[Runtime_Func.Hash_Write_I32])},
+					buf,
+				)
+				break
+			}
+			if name_str == "U16_hash" && len(e.args) == 2 {
+				emit_expr(e.args[1], buf, env, runtime_indices) // hasher
+				emit_expr(e.args[0], buf, env, runtime_indices) // val (i32)
+				emit_instruction(
+					Wasm_Call{index = u32(runtime_indices[Runtime_Func.Hash_Write_I16])},
+					buf,
+				)
+				break
+			}
+			if name_str == "U8_hash" && len(e.args) == 2 {
+				emit_expr(e.args[1], buf, env, runtime_indices) // hasher
+				emit_expr(e.args[0], buf, env, runtime_indices) // val (i32)
+				emit_instruction(
+					Wasm_Call{index = u32(runtime_indices[Runtime_Func.Hash_Write_I8])},
+					buf,
+				)
+				break
+			}
+			if name_str == "F64_hash" && len(e.args) == 2 {
+				emit_expr(e.args[1], buf, env, runtime_indices) // hasher
+				emit_expr(e.args[0], buf, env, runtime_indices) // val (f64)
+				emit_instruction(
+					Wasm_Call{index = u32(runtime_indices[Runtime_Func.Hash_Write_F64])},
+					buf,
+				)
+				break
+			}
+			if name_str == "F32_hash" && len(e.args) == 2 {
+				emit_expr(e.args[1], buf, env, runtime_indices) // hasher
+				emit_expr(e.args[0], buf, env, runtime_indices) // val (f32)
+				emit_instruction(Wasm_F64_Promote{}, buf) // promote f32 to f64
+				emit_instruction(
+					Wasm_Call{index = u32(runtime_indices[Runtime_Func.Hash_Write_F64])},
+					buf,
+				)
+				break
+			}
+			if name_str == "Bool_hash" && len(e.args) == 2 {
+				emit_expr(e.args[1], buf, env, runtime_indices) // hasher
+				emit_expr(e.args[0], buf, env, runtime_indices) // val (i32)
+				emit_instruction(
+					Wasm_Call{index = u32(runtime_indices[Runtime_Func.Hash_Write_I8])},
+					buf,
+				)
+				break
+			}
+			if name_str == "Str_hash" && len(e.args) == 2 {
+				emit_expr(e.args[1], buf, env, runtime_indices) // hasher
+				emit_expr(e.args[0], buf, env, runtime_indices) // val (str ptr)
+				emit_instruction(
+					Wasm_Call{index = u32(runtime_indices[Runtime_Func.Hash_Write_Str])},
+					buf,
+				)
+				break
+			}
+			if name_str == "Bytes_hash" && len(e.args) == 2 {
+				emit_expr(e.args[1], buf, env, runtime_indices) // hasher
+				emit_expr(e.args[0], buf, env, runtime_indices) // val (bytes ptr, same layout as str)
+				emit_instruction(
+					Wasm_Call{index = u32(runtime_indices[Runtime_Func.Hash_Write_Str])},
+					buf,
+				)
+				break
+			}
+			if name_str == "Char_hash" && len(e.args) == 2 {
+				emit_expr(e.args[1], buf, env, runtime_indices) // hasher
+				emit_expr(e.args[0], buf, env, runtime_indices) // val (i32)
+				emit_instruction(
+					Wasm_Call{index = u32(runtime_indices[Runtime_Func.Hash_Write_I32])},
 					buf,
 				)
 				break

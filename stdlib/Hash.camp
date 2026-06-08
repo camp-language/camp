@@ -6,3 +6,9 @@
 Hash : {
   hash : |Self, Hasher| -> Hasher,
 }
+
+// Create a new Hasher with initialized SipHash state.
+pub new = crash "intrinsic: Hash.new"
+
+// Finalize the hash and return the 64-bit hash value.
+pub finish = |h: Hasher| -> I64 { crash "intrinsic: Hash.finish" }

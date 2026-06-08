@@ -6,13 +6,13 @@ import "core:fmt"
 import "core:strings"
 
 Closure_Convert_Env :: struct {
-	module:      ^IR_Module,
-	interner:    ^base.Intern_Table,
-	collector:   ^diagnostics.Diagnostic_Collector,
-	fresh_state: base.Fresh_State,
+	module:            ^IR_Module,
+	interner:          ^base.Intern_Table,
+	collector:         ^diagnostics.Diagnostic_Collector,
+	fresh_state:       base.Fresh_State,
 	// Names of synthesized closed_fn decls — references to these are
 	// function pointers, not free variables to capture.
-	known_fns:   map[base.Intern_ID]bool,
+	known_fns:         map[base.Intern_ID]bool,
 	// Name of the current declaration being closure-converted.
 	// Used to detect self-referential closures (recursive).
 	current_decl_name: base.Intern_ID,
@@ -376,7 +376,7 @@ cc_convert_decl :: proc(decl: IR_Decl, env: ^Closure_Convert_Env) -> IR_Decl {
 cc_convert_expr :: proc(expr: IR_Expr, env: ^Closure_Convert_Env) -> IR_Expr {
 	#partial switch e in expr {
 	case ^IR_Closure:
-	// If fn_name is set and body is nil, this is a reference closure
+		// If fn_name is set and body is nil, this is a reference closure
 		// pointing to an already-created IR_Decl_Fn (e.g., from effect_lower)
 		if e.body == nil && e.fn_name.name != base.NO_NAME {
 			// Use IR_Var referencing the function by name — codegen resolves via func_map
@@ -645,7 +645,11 @@ cc_convert_expr :: proc(expr: IR_Expr, env: ^Closure_Convert_Env) -> IR_Expr {
 				params = make([dynamic]IR_Param, 0),
 				env = env_rec_expr,
 				body = nil,
-				type = base.IR_Type{wasm_type = .I32, type_id = base.Type_Var_ID(0), is_heap = true},
+				type = base.IR_Type {
+					wasm_type = .I32,
+					type_id = base.Type_Var_ID(0),
+					is_heap = true,
+				},
 				return_type = e.return_type,
 				span = e.span,
 				is_self_referential = true,

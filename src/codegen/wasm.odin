@@ -231,6 +231,10 @@ Wasm_F64_Store :: struct {
 	align:  u32,
 	offset: u32,
 }
+Wasm_F32_Store :: struct {
+	align:  u32,
+	offset: u32,
+}
 Wasm_F64_Load :: struct {
 	align:  u32,
 	offset: u32,
@@ -262,6 +266,7 @@ Wasm_Nop :: struct {}
 Wasm_Unreachable :: struct {}
 Wasm_I32_Wrap_I64 :: struct {}
 Wasm_I64_Extend_I32_S :: struct {}
+Wasm_F64_Promote :: struct {}
 Wasm_Ref_Null :: struct {
 	heap_type: u8,
 }
@@ -422,6 +427,7 @@ Wasm_Instruction :: union {
 	Wasm_I32_Store8,
 	Wasm_I64_Store,
 	Wasm_F64_Store,
+	Wasm_F32_Store,
 	Wasm_F64_Load,
 	Wasm_F64_Lt,
 	Wasm_F64_Gt,
@@ -445,6 +451,7 @@ Wasm_Instruction :: union {
 	Wasm_Unreachable,
 	Wasm_I32_Wrap_I64,
 	Wasm_I64_Extend_I32_S,
+	Wasm_F64_Promote,
 	Wasm_Ref_Null,
 	Wasm_Ref_Func,
 	Wasm_Atomic_Fence,
@@ -639,6 +646,10 @@ emit_instruction :: proc(instr: Wasm_Instruction, buf: ^[dynamic]u8) {
 		append(buf, 0x39)
 		encode_u32_leb128(i.align, buf)
 		encode_u32_leb128(i.offset, buf)
+	case Wasm_F32_Store:
+		append(buf, 0x38)
+		encode_u32_leb128(i.align, buf)
+		encode_u32_leb128(i.offset, buf)
 	case Wasm_F64_Load:
 		append(buf, 0x2B)
 		encode_u32_leb128(i.align, buf)
@@ -695,6 +706,8 @@ emit_instruction :: proc(instr: Wasm_Instruction, buf: ^[dynamic]u8) {
 		append(buf, 0xA7)
 	case Wasm_I64_Extend_I32_S:
 		append(buf, 0xAC)
+	case Wasm_F64_Promote:
+		append(buf, 0xBB)
 	case Wasm_Ref_Null:
 		append(buf, 0xD0)
 		append(buf, i.heap_type)
