@@ -1,0 +1,5 @@
+main! = || -> I64 {
+  m0 = Map.singleton(42, "hello")
+  m1 = Map.insert(100, "world", m0)
+  if Map.contains(42, m1) { 1 } else { 0 }
+}

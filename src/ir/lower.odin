@@ -768,6 +768,11 @@ lower_tcall :: proc(e: ^semantics.TExpr_Call, env: ^Lower_Env) -> IR_Expr {
 			}
 			return IR_Expr(ccall)
 		}
+
+		if callee_name.module == base.NO_NAME {
+			callee_name = detect_container_module(callee_name, e.args, env)
+		}
+
 		call := new(IR_Call)
 		call^ = IR_Call {
 			callee           = callee_name,
@@ -776,6 +781,7 @@ lower_tcall :: proc(e: ^semantics.TExpr_Call, env: ^Lower_Env) -> IR_Expr {
 			span             = e.span,
 			ord_compare_func = resolve_ord_compare(callee_name, e.args, env),
 			eq_func          = resolve_eq_func(callee_name, e.args, env),
+			debug_func       = resolve_debug_func(callee_name, e.args, env),
 		}
 		return IR_Expr(call)
 
@@ -939,22 +945,38 @@ lower_tmethod_call :: proc(e: ^semantics.TExpr_Method_Call, env: ^Lower_Env) -> 
 		v := &env.store.vars[int(resolved_type)]
 		if inf, ok := v.link.(semantics.Inferred_Type); ok {
 			if nt, ok2 := inf.(semantics.Inferred_Newtype); ok2 {
+				nt_name_str := base.intern_get(env.interner, nt.primitive_name)
 				for impl in env.store.trait_impls {
 					if impl.type_name == nt.primitive_name {
 						if fn_name, has := impl.methods[e.method.name]; has {
-							ir_args := make([dynamic]IR_Expr, 0, len(e.args) + 1)
-							append(&ir_args, receiver_ir)
+							resolved_fn_name := fn_name
+							// Restore module qualifier if lost
+							if resolved_fn_name.module == base.NO_NAME {
+								mod_name := base.intern_get(env.interner, nt.primitive_name)
+								resolved_fn_name.module = base.intern(env.interner, mod_name)
+							}
+							// When module is known, strip receiver from args
+							call_args := make([dynamic]IR_Expr, 0, len(e.args))
 							for arg in e.args {
-								append(&ir_args, lower_texpr(arg, env))
+								append(&call_args, lower_texpr(arg, env))
 							}
 							call := new(IR_Call)
 							call^ = IR_Call {
-								callee           = fn_name,
-								args             = ir_args,
+								callee           = resolved_fn_name,
+								args             = call_args,
 								type             = e.type_,
 								span             = e.span,
-								ord_compare_func = base.Canonical_Name{},
-								eq_func          = base.Canonical_Name{},
+								ord_compare_func = resolve_ord_compare(
+									resolved_fn_name,
+									e.args,
+									env,
+								),
+								eq_func          = resolve_eq_func(resolved_fn_name, e.args, env),
+								debug_func       = resolve_debug_func(
+									resolved_fn_name,
+									e.args,
+									env,
+								),
 							}
 							return IR_Expr(call)
 						}
@@ -970,14 +992,41 @@ lower_tmethod_call :: proc(e: ^semantics.TExpr_Method_Call, env: ^Lower_Env) -> 
 	}
 
 	if e.resolved_.name != 0 {
+		resolved_name := e.resolved_
+		// If the module qualifier was lost, try to detect Map/Set from
+		// the receiver type and arguments
+		if resolved_name.module == base.NO_NAME {
+			// The receiver's type store entry should tell us the module name.
+			// Walk through trait_impls looking for a method match by name,
+			// since we know the type name from the impl entry.
+			for impl in env.store.trait_impls {
+				if fn_name, has := impl.methods[resolved_name.name]; has {
+					if fn_name.module != base.NO_NAME {
+						resolved_name.module = fn_name.module
+						break
+					}
+				}
+			}
+		}
+		// When the module is known, the function is a module-level function
+		// (not a method). Strip the receiver from the args since the callee
+		// already knows its module context.
+		call_args := ir_args
+		if resolved_name.module != base.NO_NAME {
+			call_args = make([dynamic]IR_Expr, 0, len(e.args))
+			for arg in e.args {
+				append(&call_args, lower_texpr(arg, env))
+			}
+		}
 		meth_call := new(IR_Call)
 		meth_call^ = IR_Call {
-			callee           = e.resolved_,
-			args             = ir_args,
+			callee           = resolved_name,
+			args             = call_args,
 			type             = e.type_,
 			span             = e.span,
-			ord_compare_func = base.Canonical_Name{},
-			eq_func          = base.Canonical_Name{},
+			ord_compare_func = resolve_ord_compare(resolved_name, e.args, env),
+			eq_func          = resolve_eq_func(resolved_name, e.args, env),
+			debug_func       = resolve_debug_func(resolved_name, e.args, env),
 		}
 		return IR_Expr(meth_call)
 	}
@@ -3230,6 +3279,12 @@ resolve_ord_compare :: proc(
 			}
 			key_type_id = key
 		}
+	} else if name_str == "singleton" {
+		// singleton(k, v) or singleton(k) — the key type is the first arg's type.
+		if len(args) == 0 {
+			return base.Canonical_Name{}
+		}
+		key_type_id = texpr_type_id(args[0])
 	} else {
 		// For all other Map/Set functions, find the container argument
 		// and extract the key type from its first type parameter.
@@ -3316,6 +3371,111 @@ resolve_eq_func :: proc(
 		return base.Canonical_Name{}
 	}
 
+	return func_name
+}
+
+// detect_container_module checks if a callee with NO_NAME module is actually
+// a Map or Set intrinsic call. It examines the callee name against known
+// container intrinsic names and attempts to resolve the module from argument
+// types. Returns the original callee if no container is detected.
+detect_container_module :: proc(
+	callee: base.Canonical_Name,
+	args: [dynamic]semantics.TExpr,
+	env: ^Lower_Env,
+) -> base.Canonical_Name {
+	if callee.module != base.NO_NAME {
+		return callee
+	}
+
+	name_str := base.intern_get(env.interner, callee.name)
+
+	// Known Map/Set intrinsic function names
+	is_container_intrinsic := false
+	switch name_str {
+	case "new",
+	     "singleton",
+	     "insert",
+	     "get",
+	     "contains",
+	     "remove",
+	     "size",
+	     "is_empty",
+	     "min",
+	     "max",
+	     "keys",
+	     "values",
+	     "from_list",
+	     "eq",
+	     "update",
+	     "fold":
+		is_container_intrinsic = true
+	}
+	if !is_container_intrinsic {
+		return callee
+	}
+
+	// Try to find a Map or Set container type in the arguments
+	for i in 0 ..< len(args) {
+		_, ok := extract_container_element_type(env.store, env.interner, args[i], "Map", 0)
+		if ok {
+			result := callee
+			result.module = base.intern(env.interner, "Map")
+			return result
+		}
+		_, ok = extract_container_element_type(env.store, env.interner, args[i], "Set", 0)
+		if ok {
+			result := callee
+			result.module = base.intern(env.interner, "Set")
+			return result
+		}
+	}
+
+	return callee
+}
+
+// resolve_debug_func resolves the Debug.debug method for the element type
+// of a container debug call. Returns a zero Canonical_Name if resolution fails.
+resolve_debug_func :: proc(
+	callee: base.Canonical_Name,
+	args: [dynamic]semantics.TExpr,
+	env: ^Lower_Env,
+) -> base.Canonical_Name {
+	name_str := base.intern_get(env.interner, callee.name)
+	if name_str != "List_debug" && name_str != "Set_debug" {
+		return base.Canonical_Name{}
+	}
+
+	// For List_debug and Set_debug, extract the element type from the first arg
+	if len(args) == 0 {
+		return base.Canonical_Name{}
+	}
+
+	// Try to extract element type from the container
+	container_name := "List"
+	if name_str == "Set_debug" {
+		container_name = "Set"
+	}
+	elem_type_id, ok := extract_container_element_type(
+		env.store,
+		env.interner,
+		args[0],
+		container_name,
+		0,
+	)
+	if !ok {
+		return base.Canonical_Name{}
+	}
+
+	func_name, debug_ok := resolve_trait_method(
+		env.store,
+		env.interner,
+		elem_type_id,
+		"Debug",
+		"debug",
+	)
+	if !debug_ok {
+		return base.Canonical_Name{}
+	}
 	return func_name
 }
 

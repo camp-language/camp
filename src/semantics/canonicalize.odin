@@ -784,6 +784,32 @@ canonicalize_expr :: proc(
 		if existing, ok := scope.local_names[e.method]; ok {
 			name = existing
 		}
+		// If the method still has no module, check if the receiver is a
+		// module name (e.g., Map.singleton, Set.insert). Module names
+		// appear as CExpr_Name entries in the receiver position.
+		// If the method still has no module, check if the receiver is a
+		// module name (e.g., Map.singleton, Set.insert). Module names
+		// appear as CExpr_Tag entries in the receiver position.
+		if name.module == base.NO_NAME {
+			#partial switch recv in creceiver {
+			case ^CExpr_Name:
+				recv_str := base.intern_get(interner, recv.name.name)
+				if recv_str == "Map" ||
+				   recv_str == "Set" ||
+				   recv_str == "List" ||
+				   recv_str == "Result" {
+					name.module = recv.name.name
+				}
+			case ^CExpr_Tag:
+				recv_str := base.intern_get(interner, recv.name.name)
+				if recv_str == "Map" ||
+				   recv_str == "Set" ||
+				   recv_str == "List" ||
+				   recv_str == "Result" {
+					name.module = recv.name.name
+				}
+			}
+		}
 		args := make([dynamic]CExpr, 0, len(e.args))
 		for a in e.args {
 			append(&args, canonicalize_expr(a, scope, interner, collector))

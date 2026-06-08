@@ -3816,9 +3816,62 @@ emit_map_new_body :: proc(alloc_func_idx: int) -> Wasm_Code {
 
 	locals := make([]Wasm_Local_Decl, 1)
 	locals[0] = Wasm_Local_Decl {
-		count = 1,
+		count = 2,
 		type  = .I32,
-	}
+	} // locals 1-2: current, result
+	body := make([]u8, len(buf))
+	for b, i in buf {body[i] = b}
+	delete(buf)
+	return Wasm_Code{locals = locals, body = body}
+}
+
+emit_i64_trampoline_body :: proc(i64_compare_func_idx: int) -> Wasm_Code {
+	// (ptr_a: i32, ptr_b: i32) -> i32
+	// Loads i64 from each boxed cell (offset 4) and calls I64_Compare
+	buf: [dynamic]u8
+	buf = make([dynamic]u8, 0, CODE_BUF_MINOR)
+
+	emit_instruction(Wasm_Local_Get{index = 0}, &buf)
+	emit_instruction(Wasm_I64_Load{align = 2, offset = 4}, &buf)
+	emit_instruction(Wasm_Local_Get{index = 1}, &buf)
+	emit_instruction(Wasm_I64_Load{align = 2, offset = 4}, &buf)
+	emit_instruction(Wasm_Call{index = u32(i64_compare_func_idx)}, &buf)
+	emit_instruction(Wasm_End{}, &buf)
+
+	locals := make([]Wasm_Local_Decl, 0)
+	body := make([]u8, len(buf))
+	for b, i in buf {body[i] = b}
+	delete(buf)
+	return Wasm_Code{locals = locals, body = body}
+}
+
+emit_i64_compare_body :: proc() -> Wasm_Code {
+	// (a: i64, b: i64) -> i32
+	// Returns -1 if a < b, 0 if a == b, 1 if a > b
+	buf: [dynamic]u8
+	buf = make([dynamic]u8, 0, CODE_BUF_MINOR)
+
+	// if a < b, return -1
+	emit_instruction(Wasm_Local_Get{index = 0}, &buf)
+	emit_instruction(Wasm_Local_Get{index = 1}, &buf)
+	emit_instruction(Wasm_I64_Lt_S{}, &buf)
+	emit_instruction(Wasm_If{block_type = .I32}, &buf)
+	emit_instruction(Wasm_I32_Const{value = -1}, &buf)
+	emit_instruction(Wasm_Else{}, &buf)
+	// if a > b, return 1
+	emit_instruction(Wasm_Local_Get{index = 0}, &buf)
+	emit_instruction(Wasm_Local_Get{index = 1}, &buf)
+	emit_instruction(Wasm_I64_Gt_S{}, &buf)
+	emit_instruction(Wasm_If{block_type = .I32}, &buf)
+	emit_instruction(Wasm_I32_Const{value = 1}, &buf)
+	emit_instruction(Wasm_Else{}, &buf)
+	// a == b, return 0
+	emit_instruction(Wasm_I32_Const{value = 0}, &buf)
+	emit_instruction(Wasm_End{}, &buf) // end inner if
+	emit_instruction(Wasm_End{}, &buf) // end outer if
+	emit_instruction(Wasm_End{}, &buf) // end function
+
+	locals := make([]Wasm_Local_Decl, 0)
 	body := make([]u8, len(buf))
 	for b, i in buf {body[i] = b}
 	delete(buf)

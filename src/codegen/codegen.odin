@@ -110,6 +110,8 @@ Codegen_Env :: struct {
 	throw_err_suffix_offset: u32,
 	unit_value_offset:       u32,
 	release_mode:            bool,
+	i64_trampoline_cache:    map[int]int,
+	debug_str_offsets:       map[string]u32,
 }
 
 hash_func_type :: proc(params: []Wasm_Value_Type, results: []Wasm_Value_Type) -> int {
@@ -329,6 +331,28 @@ codegen :: proc(
 	unit_value_offset := env.data_offset
 	env.data_offset += 8
 	env.unit_value_offset = unit_value_offset
+
+	// Debug string constants for container debug functions (length-prefixed)
+	debug_strs := [][2]string {
+		{"[", "["},
+		{"]", "]"},
+		{", ", ", "},
+		{"(", "("},
+		{"Ok(", "Ok("},
+		{"Err(", "Err("},
+		{"Map{", "Map{"},
+		{"}", "}"},
+		{": ", ": "},
+		{"Set{", "Set{"},
+	}
+	debug_str_offsets: map[string]u32
+	debug_str_offsets = make(map[string]u32, len(debug_strs))
+	for ds in debug_strs {
+		offset := env.data_offset
+		env.data_offset += u32(4 + len(ds[1])) // len prefix + utf8 bytes
+		debug_str_offsets[ds[0]] = offset
+	}
+	env.debug_str_offsets = debug_str_offsets
 
 	heap_ptr_global_idx := len(mod.globals)
 	heap_ptr_init: [dynamic]u8
@@ -721,6 +745,50 @@ codegen :: proc(
 	hash_finish_func_idx := add_function(&env, hash_finish_type_idx)
 	runtime_func_indices[Runtime_Func.Hash_Finish] = hash_finish_func_idx
 
+	// I64_Compare: (i64, i64) -> i32 — built-in compare for I64 keys
+	i64_compare_type_idx := get_or_create_type(
+		&env,
+		[]Wasm_Value_Type{.I64, .I64},
+		[]Wasm_Value_Type{.I32},
+	)
+	i64_compare_func_idx := add_function(&env, i64_compare_type_idx)
+	runtime_func_indices[Runtime_Func.I64_Compare] = i64_compare_func_idx
+
+	// I64_Trampoline: (i32, i32) -> i32 — unboxes two I64 keys and calls I64_Compare
+	i64_trampoline_type_idx := get_or_create_type(
+		&env,
+		[]Wasm_Value_Type{.I32, .I32},
+		[]Wasm_Value_Type{.I32},
+	)
+	i64_trampoline_func_idx := add_function(&env, i64_trampoline_type_idx)
+	runtime_func_indices[Runtime_Func.I64_Trampoline] = i64_trampoline_func_idx
+
+	// Container debug function types
+	// List_Debug: (elem_debug_fn: i32, list: i32) -> i32
+	list_debug_type_idx := get_or_create_type(
+		&env,
+		[]Wasm_Value_Type{.I32, .I32},
+		[]Wasm_Value_Type{.I32},
+	)
+	list_debug_func_idx := add_function(&env, list_debug_type_idx)
+	runtime_func_indices[Runtime_Func.List_Debug] = list_debug_func_idx
+	// Map_Debug: (key_debug_fn: i32, val_debug_fn: i32, map: i32) -> i32
+	map_debug_type_idx := get_or_create_type(
+		&env,
+		[]Wasm_Value_Type{.I32, .I32, .I32},
+		[]Wasm_Value_Type{.I32},
+	)
+	map_debug_func_idx := add_function(&env, map_debug_type_idx)
+	runtime_func_indices[Runtime_Func.Map_Debug] = map_debug_func_idx
+	// Set_Debug: (elem_debug_fn: i32, set: i32) -> i32
+	set_debug_type_idx := list_debug_type_idx
+	set_debug_func_idx := add_function(&env, set_debug_type_idx)
+	runtime_func_indices[Runtime_Func.Set_Debug] = set_debug_func_idx
+	// Result_Debug: (ok_debug_fn: i32, err_debug_fn: i32, result: i32) -> i32
+	result_debug_type_idx := map_debug_type_idx
+	result_debug_func_idx := add_function(&env, result_debug_type_idx)
+	runtime_func_indices[Runtime_Func.Result_Debug] = result_debug_func_idx
+
 	camp_alloc_code := emit_camp_alloc_body(heap_ptr_global_idx)
 	append(&mod.codes, camp_alloc_code)
 
@@ -846,6 +914,66 @@ codegen :: proc(
 	append(&mod.codes, emit_hash_write_f32_body())
 	append(&mod.codes, emit_hash_write_str_body())
 	append(&mod.codes, emit_hash_finish_body())
+
+	// I64 compare function body
+	append(&mod.codes, emit_i64_compare_body())
+	// I64 trampoline function body (unboxes two I64 keys, calls I64_Compare)
+	append(&mod.codes, emit_i64_trampoline_body(i64_compare_func_idx))
+	// Register I64_compare in func_map so emit_expr can find it
+	i64_compare_name := base.intern(interner, "I64_compare")
+	env.func_map[u64(i64_compare_name)] = i64_compare_func_idx
+	// Map I64_Compare -> I64_Trampoline in the trampoline cache
+	env.i64_trampoline_cache[i64_compare_func_idx] = i64_trampoline_func_idx
+
+	// Debug callback type: (i32) -> i32 (takes value, returns Str pointer)
+	debug_cb_type_idx := get_or_create_type(&env, []Wasm_Value_Type{.I32}, []Wasm_Value_Type{.I32})
+
+	// Container debug function bodies
+	append(
+		&mod.codes,
+		emit_list_debug_body(
+			str_concat_func_idx,
+			debug_cb_type_idx,
+			env.table_idx,
+			env.debug_str_offsets["["],
+			env.debug_str_offsets["]"],
+			env.debug_str_offsets[", "],
+		),
+	)
+	append(
+		&mod.codes,
+		emit_result_debug_body(
+			str_concat_func_idx,
+			debug_cb_type_idx,
+			env.table_idx,
+			env.debug_str_offsets["Ok("],
+			env.debug_str_offsets["Err("],
+			env.debug_str_offsets[")"],
+		),
+	)
+	// Map.debug and Set.debug: stub bodies for now (return empty string)
+	append(
+		&mod.codes,
+		emit_list_debug_body(
+			str_concat_func_idx,
+			debug_cb_type_idx,
+			env.table_idx,
+			env.debug_str_offsets["["],
+			env.debug_str_offsets["]"],
+			env.debug_str_offsets[", "],
+		),
+	)
+	append(
+		&mod.codes,
+		emit_list_debug_body(
+			str_concat_func_idx,
+			debug_cb_type_idx,
+			env.table_idx,
+			env.debug_str_offsets["["],
+			env.debug_str_offsets["]"],
+			env.debug_str_offsets[", "],
+		),
+	)
 
 	camp_alloc_name := base.intern(interner, "camp_alloc")
 	env.func_map[u64(camp_alloc_name)] = alloc_func_idx
@@ -1291,11 +1419,47 @@ codegen :: proc(
 	)
 	delete(offset_buf_throw_suffix)
 
+	// Data segments for debug string constants (length-prefixed)
+	debug_str_names := [][2]string {
+		{"[", "["},
+		{"]", "]"},
+		{", ", ", "},
+		{"(", "("},
+		{"Ok(", "Ok("},
+		{"Err(", "Err("},
+		{"Map{", "Map{"},
+		{"}", "}"},
+		{": ", ": "},
+		{"Set{", "Set{"},
+	}
+	for ds in debug_str_names {
+		if off, ok := env.debug_str_offsets[ds[0]]; ok {
+			content := ds[1]
+			n := u32(len(content))
+			seg := make([]u8, 4 + len(content))
+			seg[0] = u8(n)
+			seg[1] = u8(n >> 8)
+			seg[2] = u8(n >> 16)
+			seg[3] = u8(n >> 24)
+			copy(seg[4:], content)
+			ds_offset_buf: [dynamic]u8
+			ds_offset_buf = make([dynamic]u8, 0, CODE_BUF_SMALL)
+			emit_instruction(Wasm_I32_Const{value = i32(off)}, &ds_offset_buf)
+			append(
+				&mod.datas,
+				Wasm_Data{mem_idx = 0, offset = copy_dynamic_bytes(ds_offset_buf), bytes = seg},
+			)
+			delete(ds_offset_buf)
+		}
+	}
+
 	delete(env.type_map)
 	delete(env.func_map)
 	delete(env.func_type_indices)
 	delete(env.decl_to_wasm_fn_idx)
 	delete(env.string_offsets)
+	delete(env.debug_str_offsets)
+	delete(env.i64_trampoline_cache)
 	return mod
 }
 
