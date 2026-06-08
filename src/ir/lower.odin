@@ -648,10 +648,10 @@ lower_tlambda_as_decl :: proc(
 	// IR_Call (not IR_Closure_Call) by lower_tcall's is_module_decl check.
 	placeholder := new(IR_Decl_Fn)
 	placeholder^ = IR_Decl_Fn {
-		name = name,
-		params = params,
+		name        = name,
+		params      = params,
 		return_type = e.return_type,
-		span = span,
+		span        = span,
 	}
 	append(&env.module.decls, IR_Decl(placeholder))
 
@@ -775,6 +775,7 @@ lower_tcall :: proc(e: ^semantics.TExpr_Call, env: ^Lower_Env) -> IR_Expr {
 			type             = e.type_,
 			span             = e.span,
 			ord_compare_func = resolve_ord_compare(callee_name, e.args, env),
+			eq_func          = resolve_eq_func(callee_name, e.args, env),
 		}
 		return IR_Expr(call)
 
@@ -922,6 +923,7 @@ lower_tmethod_call :: proc(e: ^semantics.TExpr_Method_Call, env: ^Lower_Env) -> 
 							type = e.type_,
 							span = e.span,
 							ord_compare_func = base.Canonical_Name{},
+							eq_func = base.Canonical_Name{},
 						}
 						return IR_Expr(call)
 					}
@@ -952,6 +954,7 @@ lower_tmethod_call :: proc(e: ^semantics.TExpr_Method_Call, env: ^Lower_Env) -> 
 								type             = e.type_,
 								span             = e.span,
 								ord_compare_func = base.Canonical_Name{},
+								eq_func          = base.Canonical_Name{},
 							}
 							return IR_Expr(call)
 						}
@@ -974,6 +977,7 @@ lower_tmethod_call :: proc(e: ^semantics.TExpr_Method_Call, env: ^Lower_Env) -> 
 			type             = e.type_,
 			span             = e.span,
 			ord_compare_func = base.Canonical_Name{},
+			eq_func          = base.Canonical_Name{},
 		}
 		return IR_Expr(meth_call)
 	}
@@ -1475,6 +1479,7 @@ lower_tbinop :: proc(e: ^semantics.TExpr_BinOp, env: ^Lower_Env) -> IR_Expr {
 						type = e.type_,
 						span = e.span,
 						ord_compare_func = base.Canonical_Name{},
+						eq_func = base.Canonical_Name{},
 					}
 					return IR_Expr(call)
 				}
@@ -1734,10 +1739,7 @@ lower_tuple_eq :: proc(
 // lower_tag_union_eq generates tag-byte + per-variant payload == for tag unions.
 // Compare discriminants first; if equal, match on the left to compare
 // payload fields of the matched variant.
-lower_tag_union_eq :: proc(
-	e: ^semantics.TExpr_BinOp,
-	env: ^Lower_Env,
-) -> IR_Expr {
+lower_tag_union_eq :: proc(e: ^semantics.TExpr_BinOp, env: ^Lower_Env) -> IR_Expr {
 	left_ir := lower_texpr(e.left, env)
 	right_ir := lower_texpr(e.right, env)
 	bool_type := base.IR_Type {
@@ -1823,13 +1825,10 @@ lower_tag_union_eq :: proc(
 		// via IR_Field_Access, not via pattern bindings).
 		pat := new(IR_Pat_Tag)
 		pat^ = IR_Pat_Tag {
-			name     = entry.name,
+			name      = entry.name,
 			tag_index = i,
 		}
-		append(&arms, IR_Match_Arm {
-			pattern = IR_Pattern(pat),
-			body    = chain,
-		})
+		append(&arms, IR_Match_Arm{pattern = IR_Pattern(pat), body = chain})
 	}
 
 	match_ir := new(IR_Match)
@@ -2100,10 +2099,7 @@ lower_tuple_ord :: proc(
 
 // lower_tag_union_ord generates < / > / <= / >= for tag unions.
 // First compare tag indices (lower index = less), then payloads lexicographically.
-lower_tag_union_ord :: proc(
-	e: ^semantics.TExpr_BinOp,
-	env: ^Lower_Env,
-) -> IR_Expr {
+lower_tag_union_ord :: proc(e: ^semantics.TExpr_BinOp, env: ^Lower_Env) -> IR_Expr {
 	left_ir := lower_texpr(e.left, env)
 	right_ir := lower_texpr(e.right, env)
 	bool_type := base.IR_Type {
@@ -2261,10 +2257,7 @@ lower_tag_union_ord :: proc(
 			name      = entry.name,
 			tag_index = i,
 		}
-		append(&arms, IR_Match_Arm {
-			pattern = IR_Pattern(pat),
-			body    = payload_chain,
-		})
+		append(&arms, IR_Match_Arm{pattern = IR_Pattern(pat), body = payload_chain})
 	}
 
 	match_ir := new(IR_Match)
@@ -2635,6 +2628,7 @@ lower_tinterpolated_string :: proc(
 					type             = str_type,
 					span             = span,
 					ord_compare_func = base.Canonical_Name{},
+					eq_func          = base.Canonical_Name{},
 				}
 				return IR_Expr(call)
 			}
@@ -2660,6 +2654,7 @@ lower_tinterpolated_string :: proc(
 			type = e.type_,
 			span = e.span,
 			ord_compare_func = base.Canonical_Name{},
+			eq_func = base.Canonical_Name{},
 		}
 		result = IR_Expr(call)
 	}
@@ -2816,14 +2811,20 @@ lower_container_eq_from_type :: proc(
 		cons_index: int,
 		depth: int,
 	) -> IR_Expr {
-		bool_type_inner := base.IR_Type{wasm_type = .I32, type_id = 0}
+		bool_type_inner := base.IR_Type {
+			wasm_type = .I32,
+			type_id   = 0,
+		}
 
 		// Exceeded depth — fall back to pointer comparison
 		if depth >= max_depth {
 			ptr_eq := new(IR_BinOp)
-			ptr_eq^ = IR_BinOp{
-				op = .Eq, left = left, right = right,
-				type = bool_type_inner, span = base.Source_Span_ZERO,
+			ptr_eq^ = IR_BinOp {
+				op    = .Eq,
+				left  = left,
+				right = right,
+				type  = bool_type_inner,
+				span  = base.Source_Span_ZERO,
 			}
 			return IR_Expr(ptr_eq)
 		}
@@ -2831,16 +2832,23 @@ lower_container_eq_from_type :: proc(
 		// Helper to load just the tag byte (IR_I32_Load reads 4 bytes, but
 		// the tag is only 1 byte — we AND with 0xFF to mask off extra bytes).
 		load_tag_byte :: proc(ptr: IR_Expr) -> IR_Expr {
-			i32t := base.IR_Type{wasm_type = .I32, type_id = 0}
+			i32t := base.IR_Type {
+				wasm_type = .I32,
+				type_id   = 0,
+			}
 			load := new(IR_I32_Load)
-			load^ = IR_I32_Load{base = ptr, offset = 4, span = base.Source_Span_ZERO}
+			load^ = IR_I32_Load {
+				base   = ptr,
+				offset = 4,
+				span   = base.Source_Span_ZERO,
+			}
 			mask := new(IR_BinOp)
-			mask^ = IR_BinOp{
-				op = .And,
-				left = IR_Expr(load),
+			mask^ = IR_BinOp {
+				op    = .And,
+				left  = IR_Expr(load),
 				right = make_ir_lit_int(0xFF, i32t, base.Source_Span_ZERO),
-				type = i32t,
-				span = base.Source_Span_ZERO,
+				type  = i32t,
+				span  = base.Source_Span_ZERO,
 			}
 			return IR_Expr(mask)
 		}
@@ -2848,14 +2856,15 @@ lower_container_eq_from_type :: proc(
 		// --- Nil arm of left ---
 		// match right { Nil => true, Cons(_, _) => false }
 		is_right_nil := new(IR_BinOp)
-		is_right_nil^ = IR_BinOp{
-			op = .Eq,
-			left = load_tag_byte(right),
+		is_right_nil^ = IR_BinOp {
+			op    = .Eq,
+			left  = load_tag_byte(right),
 			right = make_ir_lit_int(i64(nil_index), bool_type_inner, base.Source_Span_ZERO),
-			type = bool_type_inner, span = base.Source_Span_ZERO,
+			type  = bool_type_inner,
+			span  = base.Source_Span_ZERO,
 		}
 		// Nil arm body: if right is Nil → true, else → false
-		nil_arm_body := is_right_nil  // 1 if right is Nil, 0 if Cons
+		nil_arm_body := is_right_nil // 1 if right is Nil, 0 if Cons
 
 		// --- Cons arm of left ---
 		// Cons(head_l, tail_l)
@@ -2863,86 +2872,112 @@ lower_container_eq_from_type :: proc(
 		// for field access to avoid type mismatches. This is correct for i32-sized
 		// types (Bool, I32, pointers). For I64/F64 fields, only the lower 32 bits
 		// are compared — a known limitation shared with structural tag union Eq.
-		i32_field_type := base.IR_Type{wasm_type = .I32, type_id = 0}
+		i32_field_type := base.IR_Type {
+			wasm_type = .I32,
+			type_id   = 0,
+		}
 
 		head_l := new(IR_Field_Access)
-		head_l^ = IR_Field_Access{
-			record = left, field_index = 0, type = i32_field_type, span = base.Source_Span_ZERO,
+		head_l^ = IR_Field_Access {
+			record      = left,
+			field_index = 0,
+			type        = i32_field_type,
+			span        = base.Source_Span_ZERO,
 		}
 		tail_l := new(IR_Field_Access)
-		tail_l^ = IR_Field_Access{
-			record = left, field_index = 1, type = i32_field_type, span = base.Source_Span_ZERO,
+		tail_l^ = IR_Field_Access {
+			record      = left,
+			field_index = 1,
+			type        = i32_field_type,
+			span        = base.Source_Span_ZERO,
 		}
 
 		// match right { Nil => false, Cons(head_r, tail_r) => ... }
 		is_right_cons := new(IR_BinOp)
-		is_right_cons^ = IR_BinOp{
-			op = .Eq,
-			left = load_tag_byte(right),
+		is_right_cons^ = IR_BinOp {
+			op    = .Eq,
+			left  = load_tag_byte(right),
 			right = make_ir_lit_int(i64(cons_index), bool_type_inner, base.Source_Span_ZERO),
-			type = bool_type_inner, span = base.Source_Span_ZERO,
+			type  = bool_type_inner,
+			span  = base.Source_Span_ZERO,
 		}
 
 		head_r := new(IR_Field_Access)
-		head_r^ = IR_Field_Access{
-			record = right, field_index = 0, type = i32_field_type, span = base.Source_Span_ZERO,
+		head_r^ = IR_Field_Access {
+			record      = right,
+			field_index = 0,
+			type        = i32_field_type,
+			span        = base.Source_Span_ZERO,
 		}
 		tail_r := new(IR_Field_Access)
-		tail_r^ = IR_Field_Access{
-			record = right, field_index = 1, type = i32_field_type, span = base.Source_Span_ZERO,
+		tail_r^ = IR_Field_Access {
+			record      = right,
+			field_index = 1,
+			type        = i32_field_type,
+			span        = base.Source_Span_ZERO,
 		}
 
 		// head comparison
 		head_eq := new(IR_BinOp)
-		head_eq^ = IR_BinOp{
-			op = .Eq,
-			left = IR_Expr(head_l), right = IR_Expr(head_r),
-			type = bool_type_inner, span = base.Source_Span_ZERO,
+		head_eq^ = IR_BinOp {
+			op    = .Eq,
+			left  = IR_Expr(head_l),
+			right = IR_Expr(head_r),
+			type  = bool_type_inner,
+			span  = base.Source_Span_ZERO,
 		}
 
 		// tail comparison (recursive)
 		tail_eq := inner(
-			IR_Expr(tail_l), IR_Expr(tail_r), env, type_id,
-			cons_payload_types, nil_index, cons_index, depth + 1,
+			IR_Expr(tail_l),
+			IR_Expr(tail_r),
+			env,
+			type_id,
+			cons_payload_types,
+			nil_index,
+			cons_index,
+			depth + 1,
 		)
 
 		// Cons arm body: if right is Cons → head_eq && tail_eq, else → false
 		both := new(IR_BinOp)
-		both^ = IR_BinOp{
-			op = .And,
-			left = IR_Expr(head_eq), right = tail_eq,
-			type = bool_type_inner, span = base.Source_Span_ZERO,
+		both^ = IR_BinOp {
+			op    = .And,
+			left  = IR_Expr(head_eq),
+			right = tail_eq,
+			type  = bool_type_inner,
+			span  = base.Source_Span_ZERO,
 		}
 		cons_if := new(IR_If)
-		cons_if^ = IR_If{
-			condition = IR_Expr(is_right_cons),
+		cons_if^ = IR_If {
+			condition   = IR_Expr(is_right_cons),
 			then_branch = IR_Expr(both),
 			else_branch = make_ir_lit_bool(false, bool_type_inner, base.Source_Span_ZERO),
-			type = bool_type_inner, span = base.Source_Span_ZERO,
+			type        = bool_type_inner,
+			span        = base.Source_Span_ZERO,
 		}
 
 		// Outer: if left is Nil → nil_arm_body, else → cons_if
 		is_left_nil := new(IR_BinOp)
-		is_left_nil^ = IR_BinOp{
-			op = .Eq,
-			left = load_tag_byte(left),
+		is_left_nil^ = IR_BinOp {
+			op    = .Eq,
+			left  = load_tag_byte(left),
 			right = make_ir_lit_int(i64(nil_index), bool_type_inner, base.Source_Span_ZERO),
-			type = bool_type_inner, span = base.Source_Span_ZERO,
+			type  = bool_type_inner,
+			span  = base.Source_Span_ZERO,
 		}
 		outer := new(IR_If)
-		outer^ = IR_If{
-			condition = IR_Expr(is_left_nil),
+		outer^ = IR_If {
+			condition   = IR_Expr(is_left_nil),
 			then_branch = IR_Expr(nil_arm_body),
 			else_branch = IR_Expr(cons_if),
-			type = bool_type_inner, span = base.Source_Span_ZERO,
+			type        = bool_type_inner,
+			span        = base.Source_Span_ZERO,
 		}
 		return IR_Expr(outer)
 	}
 
-	result := inner(
-		left_ir, right_ir, env, type_id,
-		cons_payload_types, nil_index, cons_index, 0,
-	)
+	result := inner(left_ir, right_ir, env, type_id, cons_payload_types, nil_index, cons_index, 0)
 	if e.op == .Bang_Eq {
 		return wrap_not(result, e)
 	}
@@ -2984,11 +3019,12 @@ lower_container_eq :: proc(
 	append(&args, right_ir)
 	call := new(IR_Call)
 	call^ = IR_Call {
-		callee           = base.Canonical_Name{module = mod_name, name = eq_name},
-		args             = args,
-		type             = e.type_,
-		span             = e.span,
+		callee = base.Canonical_Name{module = mod_name, name = eq_name},
+		args = args,
+		type = e.type_,
+		span = e.span,
 		ord_compare_func = eq_method,
+		eq_func = base.Canonical_Name{},
 	}
 	result := IR_Expr(call)
 	if e.op == .Bang_Eq {
@@ -3238,6 +3274,45 @@ resolve_ord_compare :: proc(
 
 	func_name, ok := resolve_trait_method(env.store, env.interner, key_type_id, "Ord", "compare")
 	if !ok {
+		return base.Canonical_Name{}
+	}
+
+	return func_name
+}
+
+// resolve_eq_func resolves the Eq.eq method for the value type
+// of a Map intrinsic call. Returns a zero-value Canonical_Name if
+// resolution fails.
+resolve_eq_func :: proc(
+	callee: base.Canonical_Name,
+	args: [dynamic]semantics.TExpr,
+	env: ^Lower_Env,
+) -> base.Canonical_Name {
+	module_str := base.intern_get(env.interner, callee.module)
+	name_str := base.intern_get(env.interner, callee.name)
+
+	if module_str != "Map" || name_str != "eq" {
+		return base.Canonical_Name{}
+	}
+
+	// For Map.eq, extract the value type (param_index = 1) from the first arg (map_a)
+	if len(args) < 1 {
+		return base.Canonical_Name{}
+	}
+
+	val_type_id, val_ok := extract_container_element_type(
+		env.store,
+		env.interner,
+		args[0],
+		"Map",
+		1, // value type parameter
+	)
+	if !val_ok {
+		return base.Canonical_Name{}
+	}
+
+	func_name, eq_ok := resolve_trait_method(env.store, env.interner, val_type_id, "Eq", "eq")
+	if !eq_ok {
 		return base.Canonical_Name{}
 	}
 

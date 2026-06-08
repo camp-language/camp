@@ -272,6 +272,17 @@ Runtime_Func :: enum {
 	Map_Max,
 	Set_Min,
 	Set_Max,
+	Map_Eq,
+	Set_Eq,
+	Hash_Init,
+	Hash_Write_I64,
+	Hash_Write_I32,
+	Hash_Write_I16,
+	Hash_Write_I8,
+	Hash_Write_F64,
+	Hash_Write_F32,
+	Hash_Write_Str,
+	Hash_Finish,
 }
 
 RUNTIME_FUNC_COUNT :: int(len(Runtime_Func))
@@ -655,6 +666,44 @@ emit_expr :: proc(expr: ir.IR_Expr, buf: ^[dynamic]u8, env: ^Codegen_Env, runtim
 					)
 					break
 				}
+				if name_str == "eq" && len(e.args) == 2 {
+					// Map.eq: resolve eq_func for value comparison and cmp_func for key comparison
+					eq_fn_idx := 0
+					if e.eq_func.module != base.NO_NAME && e.eq_func.name != 0 {
+						mangled := base.mangle_name(e.eq_func.module, e.eq_func.name, env.interner)
+						if idx, ok := env.func_map[base.hash_string(mangled)]; ok {
+							eq_fn_idx = idx
+						}
+					} else if e.eq_func.name != 0 {
+						if idx, ok := env.func_map[u64(e.eq_func.name)]; ok {
+							eq_fn_idx = idx
+						}
+					}
+					cmp_fn_idx := 0
+					if e.ord_compare_func.module != base.NO_NAME && e.ord_compare_func.name != 0 {
+						mangled := base.mangle_name(
+							e.ord_compare_func.module,
+							e.ord_compare_func.name,
+							env.interner,
+						)
+						if idx, ok := env.func_map[base.hash_string(mangled)]; ok {
+							cmp_fn_idx = idx
+						}
+					} else if e.ord_compare_func.name != 0 {
+						if idx, ok := env.func_map[u64(e.ord_compare_func.name)]; ok {
+							cmp_fn_idx = idx
+						}
+					}
+					emit_instruction(Wasm_I32_Const{value = i32(eq_fn_idx)}, buf)
+					emit_instruction(Wasm_I32_Const{value = i32(cmp_fn_idx)}, buf)
+					emit_expr(e.args[0], buf, env, runtime_indices)
+					emit_expr(e.args[1], buf, env, runtime_indices)
+					emit_instruction(
+						Wasm_Call{index = u32(runtime_indices[Runtime_Func.Map_Eq])},
+						buf,
+					)
+					break
+				}
 			}
 
 			if module_str == "Set" {
@@ -753,7 +802,89 @@ emit_expr :: proc(expr: ir.IR_Expr, buf: ^[dynamic]u8, env: ^Codegen_Env, runtim
 					)
 					break
 				}
+				if name_str == "eq" && len(e.args) == 2 {
+					// Set.eq: resolve cmp_func for key comparison only (no values in sets)
+					cmp_fn_idx := 0
+					if e.ord_compare_func.module != base.NO_NAME && e.ord_compare_func.name != 0 {
+						mangled := base.mangle_name(
+							e.ord_compare_func.module,
+							e.ord_compare_func.name,
+							env.interner,
+						)
+						if idx, ok := env.func_map[base.hash_string(mangled)]; ok {
+							cmp_fn_idx = idx
+						}
+					} else if e.ord_compare_func.name != 0 {
+						if idx, ok := env.func_map[u64(e.ord_compare_func.name)]; ok {
+							cmp_fn_idx = idx
+						}
+					}
+					emit_instruction(Wasm_I32_Const{value = i32(cmp_fn_idx)}, buf)
+					emit_expr(e.args[0], buf, env, runtime_indices)
+					emit_expr(e.args[1], buf, env, runtime_indices)
+					emit_instruction(
+						Wasm_Call{index = u32(runtime_indices[Runtime_Func.Set_Eq])},
+						buf,
+					)
+					break
+				}
 			}
+
+			// Hash trait method: hash(val, _ignored_hasher) -> hasher
+			// Dispatches to the appropriate Hash_Write_* runtime function based on
+			// the module name (which identifies the Self type).
+			if name_str == "hash" && len(e.args) == 2 {
+				// Always create a fresh hasher via Hash_Init
+				emit_instruction(
+					Wasm_Call{index = u32(runtime_indices[Runtime_Func.Hash_Init])},
+					buf,
+				)
+				// Emit the value argument
+				emit_expr(e.args[0], buf, env, runtime_indices)
+
+				// Dispatch to appropriate Hash_Write_* based on the module (type)
+				write_func: Runtime_Func = .Hash_Write_I64 // default
+				if module_str == "Num.I64" ||
+				   module_str == "Num.U64" ||
+				   module_str == "I64" ||
+				   module_str == "U64" {
+					write_func = .Hash_Write_I64
+				} else if module_str == "Num.I32" ||
+				   module_str == "Num.U32" ||
+				   module_str == "I32" ||
+				   module_str == "U32" {
+					write_func = .Hash_Write_I32
+				} else if module_str == "Num.I16" ||
+				   module_str == "Num.U16" ||
+				   module_str == "I16" ||
+				   module_str == "U16" {
+					write_func = .Hash_Write_I16
+				} else if module_str == "Num.I8" ||
+				   module_str == "Num.U8" ||
+				   module_str == "I8" ||
+				   module_str == "U8" {
+					write_func = .Hash_Write_I8
+				} else if module_str == "Num.F64" || module_str == "F64" {
+					write_func = .Hash_Write_F64
+				} else if module_str == "Num.F32" || module_str == "F32" {
+					// Promote f32 to f64 before hashing
+					emit_instruction(Wasm_F64_Promote{}, buf)
+					write_func = .Hash_Write_F64
+				} else if module_str == "Bool" {
+					write_func = .Hash_Write_I8
+				} else if module_str == "Str" {
+					write_func = .Hash_Write_Str
+				} else if module_str == "Bytes" {
+					write_func = .Hash_Write_Str
+				} else if module_str == "Char" {
+					write_func = .Hash_Write_I32
+				}
+				emit_instruction(Wasm_Call{index = u32(runtime_indices[write_func])}, buf)
+				emit_instruction(Wasm_I64_Extend_I32_S{}, buf)
+				break
+			}
+
+
 		}
 
 		// Check for Display.to_str intrinsic calls (unqualified name)
@@ -899,6 +1030,46 @@ emit_expr :: proc(expr: ir.IR_Expr, buf: ^[dynamic]u8, env: ^Codegen_Env, runtim
 					Wasm_Call{index = u32(runtime_indices[Runtime_Func.I64_To_Str])},
 					buf,
 				)
+				break
+			}
+
+			// Hash trait method: hash(val, _ignored_hasher, ...) -> hasher
+			// When trait dispatch is used (e.g., I64.hash(42, Hasher{})),
+			// the call is unqualified with name "hash" and extra dispatch args.
+			// Creates a fresh hasher, writes the value, returns hasher pointer.
+			if name_str == "hash" && len(e.args) >= 2 {
+				// Determine the write function from the value's WASM type
+				val_type := ir.ir_expr_wasm_type(e.args[1])
+				write_func: Runtime_Func = .Hash_Write_I64
+				if val_type == .I64 {
+					write_func = .Hash_Write_I64
+				} else if val_type == .F64 {
+					write_func = .Hash_Write_F64
+				} else if val_type == .F32 {
+					write_func = .Hash_Write_F64
+				} else {
+					write_func = .Hash_Write_I32
+				}
+
+				// Create fresh hasher
+				emit_instruction(
+					Wasm_Call{index = u32(runtime_indices[Runtime_Func.Hash_Init])},
+					buf,
+				)
+				// Emit the value argument — for trait dispatch, value is args[1]
+				emit_expr(e.args[1], buf, env, runtime_indices)
+				// Promote f32 to f64 if needed
+				if val_type == .F32 {
+					emit_instruction(Wasm_F64_Promote{}, buf)
+				}
+				// Call the appropriate hash write function
+				emit_instruction(Wasm_Call{index = u32(runtime_indices[write_func])}, buf)
+				// Finalize the hash to get the 64-bit hash value
+				emit_instruction(
+					Wasm_Call{index = u32(runtime_indices[Runtime_Func.Hash_Finish])},
+					buf,
+				)
+				// Hash_Finish returns i64 directly — no extend needed
 				break
 			}
 		}

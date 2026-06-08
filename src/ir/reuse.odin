@@ -125,6 +125,7 @@ reuse_analyze_expr :: proc(expr: IR_Expr) -> IR_Expr {
 			type             = e.type,
 			span             = e.span,
 			ord_compare_func = e.ord_compare_func,
+			eq_func          = e.eq_func,
 		}
 		return IR_Expr(new_call)
 

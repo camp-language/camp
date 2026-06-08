@@ -228,6 +228,7 @@ IR_Call :: struct {
 	type:             ba.IR_Type,
 	span:             ba.Source_Span,
 	ord_compare_func: ba.Canonical_Name,
+	eq_func:          ba.Canonical_Name,
 }
 
 IR_Tail_Call :: struct {
@@ -390,13 +391,13 @@ IR_Resume :: struct {
 }
 
 IR_Closure :: struct {
-	fn_name:          ba.Canonical_Name,
-	params:           [dynamic]IR_Param,
-	env:              IR_Expr,
-	body:             IR_Expr,
-	type:             ba.IR_Type,
-	return_type:      ba.IR_Type,
-	span:             ba.Source_Span,
+	fn_name:             ba.Canonical_Name,
+	params:              [dynamic]IR_Param,
+	env:                 IR_Expr,
+	body:                IR_Expr,
+	type:                ba.IR_Type,
+	return_type:         ba.IR_Type,
+	span:                ba.Source_Span,
 	is_self_referential: bool, // true when the closure references its own binding name
 }
 

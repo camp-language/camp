@@ -1542,6 +1542,7 @@ Hash(a) : {
   hash : (a, Hasher) -> Hasher,
 }`
 
+
 DEBUG_CAMP :: `-- Debug trait -- developer-facing string representation
 
 Debug(a) : {

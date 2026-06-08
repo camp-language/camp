@@ -583,6 +583,7 @@ rc_insert_expr_inner :: proc(
 			type             = e.type,
 			span             = e.span,
 			ord_compare_func = e.ord_compare_func,
+			eq_func          = e.eq_func,
 		}
 		return IR_Expr(new_call)
 
