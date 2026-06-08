@@ -1103,8 +1103,8 @@ codegen :: proc(
 	// Build the funcref table AFTER all functions (including deferred effect
 	// handlers allocated inside emit_start_function) have been assigned indices,
 	// so handlers stored in evidence records are reachable via call_indirect.
-	if env.table_idx >= 0 && len(env.func_type_indices) > 0 {
-		total_funcs := len(env.func_type_indices)
+	if env.table_idx >= 0 && env.next_func_idx > 0 {
+		total_funcs := env.next_func_idx
 
 		mod.tables[env.table_idx].min = u32(total_funcs)
 		mod.tables[env.table_idx].max = u32(total_funcs)

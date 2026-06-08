@@ -1,0 +1,10 @@
+stdout = """
+canonicalized /tmp/camp-e2e/execution/recursive-list-sum/src/Main.camp: 2 declaration(s), 0 import(s)
+typecheck passed for /tmp/camp-e2e/execution/recursive-list-sum/src/Main.camp
+compiled /tmp/camp-e2e/execution/recursive-list-sum/src/Main.camp -> /tmp/camp-e2e/execution/recursive-list-sum/src/Main.wasm
+"""
+stderr = ""
+exit = 0
+wasm_exit = 10
+wasm_stdout = ""
+wasm_stderr = ""
