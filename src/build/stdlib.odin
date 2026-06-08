@@ -1540,11 +1540,8 @@ HASH_CAMP :: `-- Hash trait -- hashing for map/set keys
 
 Hash(a) : {
   hash : (a, Hasher) -> Hasher,
-}
+}`
 
-pub new = crash "intrinsic: Hash.new"
-
-pub finish = |h: Hasher| -> I64 { crash "intrinsic: Hash.finish" }`
 
 DEBUG_CAMP :: `-- Debug trait -- developer-facing string representation
 

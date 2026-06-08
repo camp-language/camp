@@ -1,0 +1,9 @@
+main! = || -> I64 {
+    h1 = I64.hash(42, Hasher, {
+        
+    })
+    h2 = I64.hash(42, Hasher, {
+        
+    })
+    if h1 == h2 { 1 } else { 0 }
+}
