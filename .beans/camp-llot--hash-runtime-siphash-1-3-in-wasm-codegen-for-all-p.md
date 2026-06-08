@@ -5,14 +5,15 @@ status: completed
 type: task
 priority: high
 created_at: 2026-06-06T22:44:38Z
-updated_at: 2026-06-08T05:00:00Z
+updated_at: 2026-06-08T06:30:00Z
 blocked_by:
     - camp-9m0n
 ---
 
 ## Completed
 
-Implemented SipHash-1-3 runtime in WASM bytecode (`src/codegen/siphash.odin`).
+Implemented SipHash-1-3 runtime in WASM bytecode (`src/codegen/siphash.odin`)
+and wired it to the hash trait dispatch.
 
 ### What was implemented:
 - `Hash_Init`: allocates 52-byte Hasher with SipHash state constants
@@ -26,14 +27,15 @@ Implemented SipHash-1-3 runtime in WASM bytecode (`src/codegen/siphash.odin`).
 ### Codegen wiring:
 - 9 `Runtime_Func` entries added to enum
 - WASM function types registered in codegen.odin
-- Intrinsic dispatch for 14 primitive Hash types in emit_expr.odin
-- `Hash.new` and `Hash.finish` module-level functions added to stdlib
+- Unified hash handler in emit_expr matches `name_str == "hash"` with >= 2 args
+  (handles both trait dispatch and module-qualified calls)
+- Type-based dispatch: i64, f64, f32→f64, i32 (fallback)
+- Hash pipeline: Init → Write → Finish, returns i64 hash value
 - `Wasm_F32_Store` and `Wasm_F64_Promote` instructions added to wasm.odin
 
-### Known issue (tracked as camp-hash-intercept):
-`Hash.new`/`Hash.finish` module-qualified call interception doesn't fire.
-The SipHash runtime functions work correctly but are not yet wired to the
-user-facing API. See `.beans/camp-hash-intercept.md`.
+### Tests:
+- `tests/e2e/execution/hash-basic/`: I64.hash(42) == I64.hash(42) → exit 1
 
 ### Dependencies resolved:
 - camp-9m0n: Hash trait + stdlib impls (already registered in prelude)
+- camp-hash-intercept: module-level interception issue (resolved by unified handler)
