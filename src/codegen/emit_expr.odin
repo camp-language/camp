@@ -283,6 +283,12 @@ Runtime_Func :: enum {
 	Hash_Write_F32,
 	Hash_Write_Str,
 	Hash_Finish,
+	List_Debug,
+	Map_Debug,
+	Set_Debug,
+	Result_Debug,
+	I64_Compare,
+	I64_Trampoline,
 }
 
 RUNTIME_FUNC_COUNT :: int(len(Runtime_Func))
@@ -545,6 +551,33 @@ emit_expr :: proc(expr: ir.IR_Expr, buf: ^[dynamic]u8, env: ^Codegen_Env, runtim
 					)
 					break
 				}
+				if name_str == "debug" && len(e.args) == 1 {
+					// Resolve element debug function from debug_func
+					debug_fn_idx := 0
+					if e.debug_func.module != base.NO_NAME && e.debug_func.name != 0 {
+						mangled := base.mangle_name(
+							e.debug_func.module,
+							e.debug_func.name,
+							env.interner,
+						)
+						if idx, ok := env.func_map[base.hash_string(mangled)]; ok {
+							debug_fn_idx = idx
+						}
+					} else if e.debug_func.name != 0 {
+						if idx, ok := env.func_map[u64(e.debug_func.name)]; ok {
+							debug_fn_idx = idx
+						}
+					}
+					emit_instruction(Wasm_I32_Const{value = i32(debug_fn_idx)}, buf)
+					emit_expr(e.args[0], buf, env, runtime_indices)
+					emit_instruction(
+						Wasm_Call{index = u32(runtime_indices[Runtime_Func.List_Debug])},
+						buf,
+					)
+					if ir.ir_expr_wasm_type(e) ==
+					   .I64 {emit_instruction(Wasm_I64_Extend_I32_S{}, buf)}
+					break
+				}
 			}
 
 			if module_str == "Map" {
@@ -567,6 +600,39 @@ emit_expr :: proc(expr: ir.IR_Expr, buf: ^[dynamic]u8, env: ^Codegen_Env, runtim
 					}
 				}
 
+				// Detect I64 key type for boxing/trampoline support.
+				// Key expr position varies by operation.
+				is_i64_key := false
+				key_expr: ir.IR_Expr = nil
+				if name_str == "singleton" && len(e.args) == 2 {
+					key_expr = e.args[0]
+				} else if name_str == "insert" && len(e.args) == 3 {
+					key_expr = e.args[0]
+				} else if (name_str == "get" || name_str == "contains" || name_str == "remove") &&
+				   len(e.args) == 2 {
+					key_expr = e.args[0]
+				}
+				if key_expr != nil && ir.ir_expr_wasm_type(key_expr) == .I64 {
+					is_i64_key = true
+					// If cmp_fn_idx is 0 (ord_compare_func not resolved),
+					// try to find I64.compare directly in func_map.
+					if cmp_fn_idx == 0 {
+						i64_cmp_id := base.intern(env.interner, "I64_compare")
+						if idx, ok := env.func_map[u64(i64_cmp_id)]; ok {
+							cmp_fn_idx = idx
+						}
+					}
+					if cmp_fn_idx == 0 {
+						compare_id := base.intern(env.interner, "compare")
+						if idx, ok := env.func_map[u64(compare_id)]; ok {
+							cmp_fn_idx = idx
+						}
+					}
+					if cmp_fn_idx != 0 {
+						cmp_fn_idx = get_or_create_i64_trampoline(env, cmp_fn_idx)
+					}
+				}
+
 				if name_str == "new" && len(e.args) == 0 {
 					emit_instruction(
 						Wasm_Call{index = u32(runtime_indices[Runtime_Func.Map_New])},
@@ -576,39 +642,80 @@ emit_expr :: proc(expr: ir.IR_Expr, buf: ^[dynamic]u8, env: ^Codegen_Env, runtim
 				}
 				if name_str == "singleton" && len(e.args) == 2 {
 					emit_instruction(Wasm_I32_Const{value = i32(cmp_fn_idx)}, buf)
-					emit_expr(e.args[0], buf, env, runtime_indices)
+					if is_i64_key {
+						emit_box_i64_key(e.args[0], buf, env, runtime_indices)
+					} else {
+						emit_expr(e.args[0], buf, env, runtime_indices)
+						if ir.ir_expr_wasm_type(e.args[0]) ==
+						   .I64 {emit_instruction(Wasm_I32_Wrap_I64{}, buf)}
+					}
 					emit_expr(e.args[1], buf, env, runtime_indices)
+					if ir.ir_expr_wasm_type(e.args[1]) ==
+					   .I64 {emit_instruction(Wasm_I32_Wrap_I64{}, buf)}
 					emit_instruction(
 						Wasm_Call{index = u32(runtime_indices[Runtime_Func.Map_Singleton])},
 						buf,
 					)
+					if ir.ir_expr_wasm_type(e) ==
+					   .I64 {emit_instruction(Wasm_I64_Extend_I32_S{}, buf)}
 					break
 				}
 				if name_str == "insert" && len(e.args) == 3 {
 					emit_instruction(Wasm_I32_Const{value = i32(cmp_fn_idx)}, buf)
-					emit_expr(e.args[0], buf, env, runtime_indices)
+					// args[0]=key, args[1]=value, args[2]=map
+					if is_i64_key {
+						emit_box_i64_key(e.args[0], buf, env, runtime_indices)
+					} else {
+						emit_expr(e.args[0], buf, env, runtime_indices)
+						if ir.ir_expr_wasm_type(e.args[0]) ==
+						   .I64 {emit_instruction(Wasm_I32_Wrap_I64{}, buf)}
+					}
 					emit_expr(e.args[1], buf, env, runtime_indices)
+					if ir.ir_expr_wasm_type(e.args[1]) ==
+					   .I64 {emit_instruction(Wasm_I32_Wrap_I64{}, buf)}
 					emit_expr(e.args[2], buf, env, runtime_indices)
+					if ir.ir_expr_wasm_type(e.args[2]) ==
+					   .I64 {emit_instruction(Wasm_I32_Wrap_I64{}, buf)}
 					emit_instruction(
 						Wasm_Call{index = u32(runtime_indices[Runtime_Func.Map_Insert])},
 						buf,
 					)
+					if ir.ir_expr_wasm_type(e) ==
+					   .I64 {emit_instruction(Wasm_I64_Extend_I32_S{}, buf)}
 					break
 				}
 				if name_str == "get" && len(e.args) == 2 {
 					emit_instruction(Wasm_I32_Const{value = i32(cmp_fn_idx)}, buf)
-					emit_expr(e.args[0], buf, env, runtime_indices)
+					if is_i64_key {
+						emit_box_i64_key(e.args[0], buf, env, runtime_indices)
+					} else {
+						emit_expr(e.args[0], buf, env, runtime_indices)
+						if ir.ir_expr_wasm_type(e.args[0]) ==
+						   .I64 {emit_instruction(Wasm_I32_Wrap_I64{}, buf)}
+					}
 					emit_expr(e.args[1], buf, env, runtime_indices)
+					if ir.ir_expr_wasm_type(e.args[1]) ==
+					   .I64 {emit_instruction(Wasm_I32_Wrap_I64{}, buf)}
 					emit_instruction(
 						Wasm_Call{index = u32(runtime_indices[Runtime_Func.Map_Get])},
 						buf,
 					)
+					if ir.ir_expr_wasm_type(e) ==
+					   .I64 {emit_instruction(Wasm_I64_Extend_I32_S{}, buf)}
 					break
 				}
 				if name_str == "contains" && len(e.args) == 2 {
 					emit_instruction(Wasm_I32_Const{value = i32(cmp_fn_idx)}, buf)
-					emit_expr(e.args[0], buf, env, runtime_indices)
+					if is_i64_key {
+						emit_box_i64_key(e.args[0], buf, env, runtime_indices)
+					} else {
+						emit_expr(e.args[0], buf, env, runtime_indices)
+						if ir.ir_expr_wasm_type(e.args[0]) ==
+						   .I64 {emit_instruction(Wasm_I32_Wrap_I64{}, buf)}
+					}
 					emit_expr(e.args[1], buf, env, runtime_indices)
+					if ir.ir_expr_wasm_type(e.args[1]) ==
+					   .I64 {emit_instruction(Wasm_I32_Wrap_I64{}, buf)}
 					emit_instruction(
 						Wasm_Call{index = u32(runtime_indices[Runtime_Func.Map_Contains])},
 						buf,
@@ -617,16 +724,28 @@ emit_expr :: proc(expr: ir.IR_Expr, buf: ^[dynamic]u8, env: ^Codegen_Env, runtim
 				}
 				if name_str == "remove" && len(e.args) == 2 {
 					emit_instruction(Wasm_I32_Const{value = i32(cmp_fn_idx)}, buf)
-					emit_expr(e.args[0], buf, env, runtime_indices)
+					if is_i64_key {
+						emit_box_i64_key(e.args[0], buf, env, runtime_indices)
+					} else {
+						emit_expr(e.args[0], buf, env, runtime_indices)
+						if ir.ir_expr_wasm_type(e.args[0]) ==
+						   .I64 {emit_instruction(Wasm_I32_Wrap_I64{}, buf)}
+					}
 					emit_expr(e.args[1], buf, env, runtime_indices)
+					if ir.ir_expr_wasm_type(e.args[1]) ==
+					   .I64 {emit_instruction(Wasm_I32_Wrap_I64{}, buf)}
 					emit_instruction(
 						Wasm_Call{index = u32(runtime_indices[Runtime_Func.Map_Remove])},
 						buf,
 					)
+					if ir.ir_expr_wasm_type(e) ==
+					   .I64 {emit_instruction(Wasm_I64_Extend_I32_S{}, buf)}
 					break
 				}
 				if name_str == "size" && len(e.args) == 1 {
 					emit_expr(e.args[0], buf, env, runtime_indices)
+					if ir.ir_expr_wasm_type(e.args[0]) ==
+					   .I64 {emit_instruction(Wasm_I32_Wrap_I64{}, buf)}
 					emit_instruction(
 						Wasm_Call{index = u32(runtime_indices[Runtime_Func.Map_Size])},
 						buf,
@@ -725,6 +844,21 @@ emit_expr :: proc(expr: ir.IR_Expr, buf: ^[dynamic]u8, env: ^Codegen_Env, runtim
 					}
 				}
 
+				// Detect I64 key type for boxing/trampoline support.
+				is_i64_key := false
+				key_expr: ir.IR_Expr = nil
+				if name_str == "singleton" && len(e.args) == 1 {
+					key_expr = e.args[0]
+				} else if name_str == "insert" && len(e.args) == 2 {
+					key_expr = e.args[1]
+				} else if (name_str == "contains" || name_str == "remove") && len(e.args) == 2 {
+					key_expr = e.args[0]
+				}
+				if key_expr != nil && ir.ir_expr_wasm_type(key_expr) == .I64 {
+					is_i64_key = true
+					cmp_fn_idx = get_or_create_i64_trampoline(env, cmp_fn_idx)
+				}
+
 				// UNIT_VALUE: pointer to a zero-field record (tag=0, scan_size=0, no fields)
 				// Allocated as a global constant in static memory.
 				unit_value_ptr := env.unit_value_offset
@@ -738,7 +872,11 @@ emit_expr :: proc(expr: ir.IR_Expr, buf: ^[dynamic]u8, env: ^Codegen_Env, runtim
 				}
 				if name_str == "singleton" && len(e.args) == 1 {
 					emit_instruction(Wasm_I32_Const{value = i32(cmp_fn_idx)}, buf)
-					emit_expr(e.args[0], buf, env, runtime_indices)
+					if is_i64_key {
+						emit_box_i64_key(e.args[0], buf, env, runtime_indices)
+					} else {
+						emit_expr(e.args[0], buf, env, runtime_indices)
+					}
 					emit_instruction(Wasm_I32_Const{value = i32(unit_value_ptr)}, buf)
 					emit_instruction(
 						Wasm_Call{index = u32(runtime_indices[Runtime_Func.Map_Singleton])},
@@ -750,7 +888,11 @@ emit_expr :: proc(expr: ir.IR_Expr, buf: ^[dynamic]u8, env: ^Codegen_Env, runtim
 					emit_instruction(Wasm_I32_Const{value = i32(cmp_fn_idx)}, buf)
 					emit_expr(e.args[0], buf, env, runtime_indices)
 					emit_instruction(Wasm_I32_Const{value = i32(unit_value_ptr)}, buf)
-					emit_expr(e.args[1], buf, env, runtime_indices)
+					if is_i64_key {
+						emit_box_i64_key(e.args[1], buf, env, runtime_indices)
+					} else {
+						emit_expr(e.args[1], buf, env, runtime_indices)
+					}
 					emit_instruction(
 						Wasm_Call{index = u32(runtime_indices[Runtime_Func.Map_Insert])},
 						buf,
@@ -759,7 +901,11 @@ emit_expr :: proc(expr: ir.IR_Expr, buf: ^[dynamic]u8, env: ^Codegen_Env, runtim
 				}
 				if name_str == "contains" && len(e.args) == 2 {
 					emit_instruction(Wasm_I32_Const{value = i32(cmp_fn_idx)}, buf)
-					emit_expr(e.args[0], buf, env, runtime_indices)
+					if is_i64_key {
+						emit_box_i64_key(e.args[0], buf, env, runtime_indices)
+					} else {
+						emit_expr(e.args[0], buf, env, runtime_indices)
+					}
 					emit_expr(e.args[1], buf, env, runtime_indices)
 					emit_instruction(
 						Wasm_Call{index = u32(runtime_indices[Runtime_Func.Map_Contains])},
@@ -769,7 +915,11 @@ emit_expr :: proc(expr: ir.IR_Expr, buf: ^[dynamic]u8, env: ^Codegen_Env, runtim
 				}
 				if name_str == "remove" && len(e.args) == 2 {
 					emit_instruction(Wasm_I32_Const{value = i32(cmp_fn_idx)}, buf)
-					emit_expr(e.args[0], buf, env, runtime_indices)
+					if is_i64_key {
+						emit_box_i64_key(e.args[0], buf, env, runtime_indices)
+					} else {
+						emit_expr(e.args[0], buf, env, runtime_indices)
+					}
 					emit_expr(e.args[1], buf, env, runtime_indices)
 					emit_instruction(
 						Wasm_Call{index = u32(runtime_indices[Runtime_Func.Map_Remove])},
@@ -826,6 +976,41 @@ emit_expr :: proc(expr: ir.IR_Expr, buf: ^[dynamic]u8, env: ^Codegen_Env, runtim
 						Wasm_Call{index = u32(runtime_indices[Runtime_Func.Set_Eq])},
 						buf,
 					)
+					break
+				}
+			}
+
+			if module_str == "Result" {
+				if name_str == "debug" && len(e.args) == 1 {
+					// Result.debug: resolve ok/err debug functions
+					ok_debug_fn_idx := 0
+					err_debug_fn_idx := 0
+					// For now, use the same debug_func for both ok and err
+					if e.debug_func.module != base.NO_NAME && e.debug_func.name != 0 {
+						mangled := base.mangle_name(
+							e.debug_func.module,
+							e.debug_func.name,
+							env.interner,
+						)
+						if idx, ok := env.func_map[base.hash_string(mangled)]; ok {
+							ok_debug_fn_idx = idx
+							err_debug_fn_idx = idx
+						}
+					} else if e.debug_func.name != 0 {
+						if idx, ok := env.func_map[u64(e.debug_func.name)]; ok {
+							ok_debug_fn_idx = idx
+							err_debug_fn_idx = idx
+						}
+					}
+					emit_instruction(Wasm_I32_Const{value = i32(ok_debug_fn_idx)}, buf)
+					emit_instruction(Wasm_I32_Const{value = i32(err_debug_fn_idx)}, buf)
+					emit_expr(e.args[0], buf, env, runtime_indices)
+					emit_instruction(
+						Wasm_Call{index = u32(runtime_indices[Runtime_Func.Result_Debug])},
+						buf,
+					)
+					if ir.ir_expr_wasm_type(e) ==
+					   .I64 {emit_instruction(Wasm_I64_Extend_I32_S{}, buf)}
 					break
 				}
 			}
@@ -3388,5 +3573,44 @@ emit_atomic_rmw :: proc(op: ir.Atomic_Op, width: ir.Atomic_Width, offset: u32, b
 		Wasm_Atomic_Mem{op = wasm_op, width = wasm_width, align = align, offset = offset},
 		buf,
 	)
+}
+
+// emit_box_i64_key boxes an I64 value into a 12-byte heap cell and leaves
+// the i32 pointer on the stack. The cell layout is:
+//   offset 0: refcount (i32, value 1)
+//   offset 4: i64 value
+// The key expression is emitted inline between the alloc and the i64 store,
+// so the caller passes a closure that emits the key.
+emit_box_i64_key :: proc(
+	key_expr: ir.IR_Expr,
+	buf: ^[dynamic]u8,
+	env: ^Codegen_Env,
+	runtime_indices: []int,
+) {
+	alloc_idx := u32(runtime_indices[Runtime_Func.Alloc])
+	tmp_local := env.tmp_local_base + env.tmp_count
+	env.tmp_count += 1
+
+	// Allocate 12-byte cell
+	emit_instruction(Wasm_I32_Const{value = 12}, buf)
+	emit_instruction(Wasm_Call{index = alloc_idx}, buf)
+	emit_instruction(Wasm_Local_Tee{index = tmp_local}, buf)
+	// Store refcount = 1 at offset 0
+	emit_instruction(Wasm_I32_Const{value = 1}, buf)
+	emit_instruction(Wasm_I32_Store{align = 2, offset = 0}, buf)
+	// Push pointer, emit key, store i64 at offset 4
+	emit_instruction(Wasm_Local_Get{index = tmp_local}, buf)
+	emit_expr(key_expr, buf, env, runtime_indices)
+	emit_instruction(Wasm_I64_Store{align = 2, offset = 4}, buf)
+	// Push the i32 pointer result
+	emit_instruction(Wasm_Local_Get{index = tmp_local}, buf)
+}
+
+// get_or_create_i64_trampoline returns the function index of a trampoline
+// compare function for the given real I64 compare function. For I64 keys,
+// this always returns the pre-registered I64_Trampoline runtime function.
+get_or_create_i64_trampoline :: proc(env: ^Codegen_Env, real_cmp_fn_idx: int) -> int {
+	// For the built-in I64_Compare, use the pre-registered I64_Trampoline
+	return env.i64_trampoline_cache[real_cmp_fn_idx]
 }
 

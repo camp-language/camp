@@ -229,6 +229,7 @@ IR_Call :: struct {
 	span:             ba.Source_Span,
 	ord_compare_func: ba.Canonical_Name,
 	eq_func:          ba.Canonical_Name,
+	debug_func:       ba.Canonical_Name,
 }
 
 IR_Tail_Call :: struct {
