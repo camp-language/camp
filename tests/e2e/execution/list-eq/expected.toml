@@ -1,0 +1,10 @@
+stdout = """
+canonicalized /tmp/camp-e2e/execution/list-eq/src/Main.camp: 1 declaration(s), 0 import(s)
+typecheck passed for /tmp/camp-e2e/execution/list-eq/src/Main.camp
+compiled /tmp/camp-e2e/execution/list-eq/src/Main.camp -> /tmp/camp-e2e/execution/list-eq/src/Main.wasm
+"""
+stderr = ""
+exit = 0
+wasm_exit = 1
+wasm_stdout = ""
+wasm_stderr = ""

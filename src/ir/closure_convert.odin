@@ -13,6 +13,9 @@ Closure_Convert_Env :: struct {
 	// Names of synthesized closed_fn decls — references to these are
 	// function pointers, not free variables to capture.
 	known_fns:   map[base.Intern_ID]bool,
+	// Name of the current declaration being closure-converted.
+	// Used to detect self-referential closures (recursive).
+	current_decl_name: base.Intern_ID,
 }
 
 
@@ -360,7 +363,9 @@ cc_convert_decl :: proc(decl: IR_Decl, env: ^Closure_Convert_Env) -> IR_Decl {
 	case ^IR_Decl_Const:
 		new_const := new(IR_Decl_Const)
 		new_const^ = d^
+		env.current_decl_name = d.name.name
 		new_const.value = cc_convert_expr(d.value, env)
+		env.current_decl_name = 0
 		return IR_Decl(new_const)
 	case ^IR_Decl_Effect:
 		return decl
@@ -371,7 +376,7 @@ cc_convert_decl :: proc(decl: IR_Decl, env: ^Closure_Convert_Env) -> IR_Decl {
 cc_convert_expr :: proc(expr: IR_Expr, env: ^Closure_Convert_Env) -> IR_Expr {
 	#partial switch e in expr {
 	case ^IR_Closure:
-		// If fn_name is set and body is nil, this is a reference closure
+	// If fn_name is set and body is nil, this is a reference closure
 		// pointing to an already-created IR_Decl_Fn (e.g., from effect_lower)
 		if e.body == nil && e.fn_name.name != base.NO_NAME {
 			// Use IR_Var referencing the function by name — codegen resolves via func_map
@@ -431,6 +436,29 @@ cc_convert_expr :: proc(expr: IR_Expr, env: ^Closure_Convert_Env) -> IR_Expr {
 			}
 		}
 		delete(raw_free)
+
+		// Detect self-referential closures: if the current declaration name
+		// appears as a free variable, the closure references itself (recursive).
+		// Remove it from captured vars and mark the closure so codegen stores
+		// the closure pointer as its own env field.
+		is_self_referential := false
+		if env.current_decl_name != 0 {
+			filtered_free: [dynamic]base.Intern_ID
+			filtered_free = make([dynamic]base.Intern_ID, 0, len(free))
+			for fv in free {
+				if fv == env.current_decl_name {
+					is_self_referential = true
+				} else {
+					append(&filtered_free, fv)
+				}
+			}
+			if is_self_referential {
+				delete(free)
+				free = filtered_free
+			} else {
+				delete(filtered_free)
+			}
+		}
 
 		// Mutable ($-prefixed) variables are stack-local and cannot escape
 		// into a closure. Emit an error for each and remove from capture list.
@@ -519,6 +547,19 @@ cc_convert_expr :: proc(expr: IR_Expr, env: ^Closure_Convert_Env) -> IR_Expr {
 			)
 		}
 
+		// For self-referential closures, map the declaration name to the
+		// _cenv parameter directly. The closed function receives its own
+		// closure pointer as _cenv, so recursive calls work via Closure_Call.
+		if is_self_referential {
+			self_var := new(IR_Var)
+			self_var^ = IR_Var {
+				name = env_param_name,
+				type = base.IR_Type{wasm_type = .I32, type_id = base.Type_Var_ID(0)},
+				span = e.span,
+			}
+			env_access_map[env.current_decl_name] = IR_Expr(self_var)
+		}
+
 		converted_body := cc_convert_expr(e.body, env)
 
 		closed_fn := new(IR_Decl_Fn)
@@ -592,6 +633,27 @@ cc_convert_expr :: proc(expr: IR_Expr, env: ^Closure_Convert_Env) -> IR_Expr {
 				span = e.span,
 			}
 			env_rec_expr = IR_Expr(env_nil)
+		}
+
+		if is_self_referential {
+			// Self-referential closure: return IR_Closure with is_self_referential flag.
+			// The codegen will store the closure pointer as its own env field,
+			// enabling the closed function to call itself recursively.
+			self_closure := new(IR_Closure)
+			self_closure^ = IR_Closure {
+				fn_name = closed_fn_name,
+				params = make([dynamic]IR_Param, 0),
+				env = env_rec_expr,
+				body = nil,
+				type = base.IR_Type{wasm_type = .I32, type_id = base.Type_Var_ID(0), is_heap = true},
+				return_type = e.return_type,
+				span = e.span,
+				is_self_referential = true,
+			}
+			delete(env_access_map)
+			delete(bound)
+			delete(free)
+			return IR_Expr(self_closure)
 		}
 
 		fields := make([dynamic]IR_Record_Field, 0, 2)

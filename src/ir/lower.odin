@@ -85,7 +85,28 @@ lower_tfile :: proc(tfile: semantics.TFile, store: ^semantics.Type_Store) -> IR_
 		#partial switch d in decl {
 		case ^semantics.TDecl_Const:
 			ir_decl := lower_tdecl_const(&d^, &env)
-			append(&mod.decls, ir_decl)
+			// lower_tlambda_as_decl pre-registers lambda declarations in
+			// env.module.decls so self-referential calls are classified as
+			// direct IR_Call.  Don't double-append the same pointer.
+			already_registered := false
+			#partial switch new_decl in ir_decl {
+			case ^IR_Decl_Fn:
+				for existing in mod.decls {
+					#partial switch d in existing {
+					case ^IR_Decl_Fn:
+						if d == new_decl {
+							already_registered = true
+							break
+						}
+					}
+					if already_registered {
+						break
+					}
+				}
+			}
+			if !already_registered {
+				append(&mod.decls, ir_decl)
+			}
 		case ^semantics.TDecl_Effect:
 			ir_decl := lower_tdecl_effect(&d^, &env)
 			append(&mod.decls, ir_decl)
@@ -622,6 +643,18 @@ lower_tlambda_as_decl :: proc(
 		append(&params, IR_Param{name = p.name, type = p.type_})
 	}
 
+	// Pre-register a placeholder declaration so that self-referential calls
+	// (e.g., `sum(t)` inside `sum = |xs| -> ...`) are classified as direct
+	// IR_Call (not IR_Closure_Call) by lower_tcall's is_module_decl check.
+	placeholder := new(IR_Decl_Fn)
+	placeholder^ = IR_Decl_Fn {
+		name = name,
+		params = params,
+		return_type = e.return_type,
+		span = span,
+	}
+	append(&env.module.decls, IR_Decl(placeholder))
+
 	body := lower_texpr(e.body, env)
 
 	// Extract effects from the typechecker's resolved function type,
@@ -636,18 +669,11 @@ lower_tlambda_as_decl :: proc(
 	// default handlers. Normalize here so the whole pipeline sees a
 	// consistent view; otherwise `main! = || { 42 }` is half-effectful and
 	// produces invalid WASM.
-	fn_decl := new(IR_Decl_Fn)
-	fn_decl^ = IR_Decl_Fn {
-		name         = name,
-		is_effectful = is_effectful && len(effects) > 0,
-		params       = params,
-		return_type  = e.return_type,
-		effect_row   = e.effects,
-		effects      = effects,
-		body         = body,
-		span         = span,
-	}
-	return IR_Decl(fn_decl)
+	placeholder.is_effectful = is_effectful && len(effects) > 0
+	placeholder.effects = effects
+	placeholder.effect_row = e.effects
+	placeholder.body = body
+	return IR_Decl(placeholder)
 }
 
 lower_tdecl_effect :: proc(d: ^semantics.TDecl_Effect, env: ^Lower_Env) -> IR_Decl {
@@ -1467,6 +1493,58 @@ lower_tbinop :: proc(e: ^semantics.TExpr_BinOp, env: ^Lower_Env) -> IR_Expr {
 				return lower_structural_eq(e, env, tin.record_fields, tin.record_rest)
 			case semantics.Inferred_Tuple:
 				return lower_tuple_eq(e, env, tin)
+			case semantics.Inferred_Tag_Union_Row:
+				// List literals are typed as Tag_Union_Row with Nil/Cons.
+				// Inline comparison fails for List because tails are different
+				// heap objects — redirect to the List_Eq runtime function.
+				if is_list_tag_union(env.store, env.interner, left_type_id) {
+					return lower_container_eq_from_type(e, env, "List", left_type_id, 0)
+				}
+				return lower_tag_union_eq(e, env)
+			case semantics.Inferred_Newtype:
+				// Nominal tag unions (Result, etc.) get structural tag union Eq.
+				// Container types (List, Map, Set) are excluded — their linked-list
+				// structure makes inline comparison infinite; they need runtime funcs.
+				name_str := base.intern_get(env.interner, tin.primitive_name)
+				if name_str == "List" {
+					return lower_container_eq(e, env, "List", tin, 0)
+				} else if name_str != "Map" && name_str != "Set" {
+					tag_entries: [dynamic]semantics.Type_Tag_Entry
+					tag_entries = make([dynamic]semantics.Type_Tag_Entry, 0, 4)
+					defer delete(tag_entries)
+					flatten_tag_entries(env.store, left_type_id, &tag_entries)
+					if len(tag_entries) > 0 {
+						return lower_tag_union_eq(e, env)
+					}
+				}
+			}
+		}
+	}
+	// Structural Ord: for records, tag unions, tuples, and nominal tag
+	// unions (Result, etc.), generate lexicographic comparison.
+	if e.op == .Lt || e.op == .Gt || e.op == .Lt_Eq || e.op == .Gt_Eq {
+		left_type_id := texpr_type_id(e.left)
+		resolved := semantics.resolve_var(env.store, left_type_id)
+		v := &env.store.vars[int(resolved)]
+		if inf, ok := v.link.(semantics.Inferred_Type); ok {
+			#partial switch tin in inf {
+			case semantics.Inferred_Record_Row:
+				return lower_structural_ord(e, env, tin.record_fields)
+			case semantics.Inferred_Tuple:
+				return lower_tuple_ord(e, env, tin)
+			case semantics.Inferred_Tag_Union_Row:
+				return lower_tag_union_ord(e, env)
+			case semantics.Inferred_Newtype:
+				name_str := base.intern_get(env.interner, tin.primitive_name)
+				if name_str != "List" && name_str != "Map" && name_str != "Set" {
+					tag_entries: [dynamic]semantics.Type_Tag_Entry
+					tag_entries = make([dynamic]semantics.Type_Tag_Entry, 0, 4)
+					defer delete(tag_entries)
+					flatten_tag_entries(env.store, left_type_id, &tag_entries)
+					if len(tag_entries) > 0 {
+						return lower_tag_union_ord(e, env)
+					}
+				}
 			}
 		}
 	}
@@ -1653,6 +1731,121 @@ lower_tuple_eq :: proc(
 	}
 	return chain
 }
+// lower_tag_union_eq generates tag-byte + per-variant payload == for tag unions.
+// Compare discriminants first; if equal, match on the left to compare
+// payload fields of the matched variant.
+lower_tag_union_eq :: proc(
+	e: ^semantics.TExpr_BinOp,
+	env: ^Lower_Env,
+) -> IR_Expr {
+	left_ir := lower_texpr(e.left, env)
+	right_ir := lower_texpr(e.right, env)
+	bool_type := base.IR_Type {
+		wasm_type = .I32,
+		type_id   = 0,
+	}
+	left_type_id := texpr_type_id(e.left)
+
+	entries: [dynamic]semantics.Type_Tag_Entry
+	entries = make([dynamic]semantics.Type_Tag_Entry, 0, 4)
+	defer delete(entries)
+	flatten_tag_entries(env.store, left_type_id, &entries)
+
+	// Build IR_Match arms on the left operand.  In each arm, compare the
+	// right's tag index and payload fields.
+	arms := make([dynamic]IR_Match_Arm, 0, len(entries))
+	for i in 0 ..< len(entries) {
+		entry := entries[i]
+
+		// Build the arm body: compare right's tag index, then payload fields.
+		// right_tag == i  (mask to byte: IR_I32_Load reads 4 bytes but tag is 1 byte)
+		right_tag_load := new(IR_I32_Load)
+		right_tag_load^ = IR_I32_Load {
+			base   = right_ir,
+			offset = 4, // CAMP_TAG_TAG_OFFSET — tag discriminant byte
+			span   = e.span,
+		}
+		right_tag_masked := new(IR_BinOp)
+		right_tag_masked^ = IR_BinOp {
+			op    = .And,
+			left  = IR_Expr(right_tag_load),
+			right = make_ir_lit_int(0xFF, bool_type, e.span),
+			type  = bool_type,
+			span  = e.span,
+		}
+		expected_tag := make_ir_lit_int(i64(i), bool_type, e.span)
+		tag_check := new(IR_BinOp)
+		tag_check^ = IR_BinOp {
+			op    = .Eq,
+			left  = IR_Expr(right_tag_masked),
+			right = expected_tag,
+			type  = bool_type,
+			span  = e.span,
+		}
+
+		chain: IR_Expr = IR_Expr(tag_check)
+		for j in 0 ..< len(entry.payload) {
+			f_type := semantics.lower_type(env.store, entry.payload[j])
+			left_fa := new(IR_Field_Access)
+			left_fa^ = IR_Field_Access {
+				record      = left_ir,
+				field_index = j,
+				type        = f_type,
+				span        = e.span,
+			}
+			right_fa := new(IR_Field_Access)
+			right_fa^ = IR_Field_Access {
+				record      = right_ir,
+				field_index = j,
+				type        = f_type,
+				span        = e.span,
+			}
+			field_eq := new(IR_BinOp)
+			field_eq^ = IR_BinOp {
+				op    = .Eq,
+				left  = IR_Expr(left_fa),
+				right = IR_Expr(right_fa),
+				type  = bool_type,
+				span  = e.span,
+			}
+			both := new(IR_BinOp)
+			both^ = IR_BinOp {
+				op    = .And,
+				left  = chain,
+				right = IR_Expr(field_eq),
+				type  = bool_type,
+				span  = e.span,
+			}
+			chain = IR_Expr(both)
+		}
+
+		// Build pattern (wildcard payload bindings — we access fields
+		// via IR_Field_Access, not via pattern bindings).
+		pat := new(IR_Pat_Tag)
+		pat^ = IR_Pat_Tag {
+			name     = entry.name,
+			tag_index = i,
+		}
+		append(&arms, IR_Match_Arm {
+			pattern = IR_Pattern(pat),
+			body    = chain,
+		})
+	}
+
+	match_ir := new(IR_Match)
+	match_ir^ = IR_Match {
+		scrutinee = left_ir,
+		arms      = arms,
+		type      = bool_type,
+		span      = e.span,
+	}
+	result := IR_Expr(match_ir)
+	if e.op == .Bang_Eq {
+		return wrap_not(result, e)
+	}
+	return result
+}
+
 wrap_not :: proc(expr: IR_Expr, e: ^semantics.TExpr_BinOp) -> IR_Expr {
 	bool_type := base.IR_Type {
 		wasm_type = .I32,
@@ -1668,6 +1861,442 @@ wrap_not :: proc(expr: IR_Expr, e: ^semantics.TExpr_BinOp) -> IR_Expr {
 		span  = e.span,
 	}
 	return IR_Expr(result)
+}
+
+// lower_structural_ord generates lexicographic < / > / <= / >= for records.
+// Fields are sorted alphabetically.  For each pair, check "less_op" (True)
+// then "greater_op" (False), falling through to the next field.  The base
+// case depends on whether the operator is strict (< / > → false) or
+// reflexive (<= / >= → true).
+lower_structural_ord :: proc(
+	e: ^semantics.TExpr_BinOp,
+	env: ^Lower_Env,
+	fields: []semantics.Type_Field_Entry,
+) -> IR_Expr {
+	bool_type := base.IR_Type {
+		wasm_type = .I32,
+		type_id   = 0,
+	}
+
+	less_op, greater_op: IR_BinOp_Kind
+	base_val: bool
+	if e.op == .Lt {
+		less_op = .Lt; greater_op = .Gt; base_val = false
+	} else if e.op == .Gt {
+		less_op = .Gt; greater_op = .Lt; base_val = false
+	} else if e.op == .Lt_Eq {
+		less_op = .Lt; greater_op = .Gt; base_val = true
+	} else if e.op == .Gt_Eq {
+		less_op = .Gt; greater_op = .Lt; base_val = true
+	} else {
+		return make_ir_lit_bool(false, bool_type, e.span)
+	}
+
+	if len(fields) == 0 {
+		return make_ir_lit_bool(base_val, bool_type, e.span)
+	}
+
+	sorted := make([dynamic]semantics.Type_Field_Entry, 0, len(fields))
+	for f in fields do append(&sorted, f)
+	for i := 1; i < len(sorted); i += 1 {
+		for j := i; j > 0; j -= 1 {
+			a := base.intern_get(env.interner, sorted[j].name)
+			b := base.intern_get(env.interner, sorted[j - 1].name)
+			if a < b {
+				sorted[j], sorted[j - 1] = sorted[j - 1], sorted[j]
+			} else {
+				break
+			}
+		}
+	}
+	defer delete(sorted)
+
+	// Build from the inside out: start with the base case, then wrap
+	// each field pair's checks around it.
+	chain := make_ir_lit_bool(base_val, bool_type, e.span)
+	for fi := len(sorted) - 1; fi >= 0; fi -= 1 {
+		f := sorted[fi]
+		f_type := semantics.lower_type(env.store, f.var)
+		left_fa := new(IR_Field_Access)
+		left_fa^ = IR_Field_Access {
+			record      = lower_texpr(e.left, env),
+			field       = f.name,
+			field_index = fi,
+			type        = f_type,
+			span        = e.span,
+		}
+		right_fa := new(IR_Field_Access)
+		right_fa^ = IR_Field_Access {
+			record      = lower_texpr(e.right, env),
+			field       = f.name,
+			field_index = fi,
+			type        = f_type,
+			span        = e.span,
+		}
+
+		// if a.f <op> b.f { true } else { ... }
+		less_check := new(IR_BinOp)
+		less_check^ = IR_BinOp {
+			op    = less_op,
+			left  = IR_Expr(left_fa),
+			right = IR_Expr(right_fa),
+			type  = bool_type,
+			span  = e.span,
+		}
+		true_lit := make_ir_lit_bool(true, bool_type, e.span)
+		if_less := new(IR_If)
+		if_less^ = IR_If {
+			condition   = IR_Expr(less_check),
+			then_branch = true_lit,
+			else_branch = chain,
+			type        = bool_type,
+			span        = e.span,
+		}
+
+		// if a.f <greater_op> b.f { false } else { if_less }
+		greater_fa_l := new(IR_Field_Access)
+		greater_fa_l^ = IR_Field_Access {
+			record      = lower_texpr(e.left, env),
+			field       = f.name,
+			field_index = fi,
+			type        = f_type,
+			span        = e.span,
+		}
+		greater_fa_r := new(IR_Field_Access)
+		greater_fa_r^ = IR_Field_Access {
+			record      = lower_texpr(e.right, env),
+			field       = f.name,
+			field_index = fi,
+			type        = f_type,
+			span        = e.span,
+		}
+		greater_check := new(IR_BinOp)
+		greater_check^ = IR_BinOp {
+			op    = greater_op,
+			left  = IR_Expr(greater_fa_l),
+			right = IR_Expr(greater_fa_r),
+			type  = bool_type,
+			span  = e.span,
+		}
+		false_lit := make_ir_lit_bool(false, bool_type, e.span)
+		if_greater := new(IR_If)
+		if_greater^ = IR_If {
+			condition   = IR_Expr(greater_check),
+			then_branch = false_lit,
+			else_branch = IR_Expr(if_less),
+			type        = bool_type,
+			span        = e.span,
+		}
+		chain = IR_Expr(if_greater)
+	}
+	return chain
+}
+
+// lower_tuple_ord generates lexicographic < / > / <= / >= for tuples.
+lower_tuple_ord :: proc(
+	e: ^semantics.TExpr_BinOp,
+	env: ^Lower_Env,
+	tin: semantics.Inferred_Tuple,
+) -> IR_Expr {
+	bool_type := base.IR_Type {
+		wasm_type = .I32,
+		type_id   = 0,
+	}
+
+	less_op, greater_op: IR_BinOp_Kind
+	base_val: bool
+	if e.op == .Lt {
+		less_op = .Lt; greater_op = .Gt; base_val = false
+	} else if e.op == .Gt {
+		less_op = .Gt; greater_op = .Lt; base_val = false
+	} else if e.op == .Lt_Eq {
+		less_op = .Lt; greater_op = .Gt; base_val = true
+	} else if e.op == .Gt_Eq {
+		less_op = .Gt; greater_op = .Lt; base_val = true
+	} else {
+		return make_ir_lit_bool(false, bool_type, e.span)
+	}
+
+	if tin.element_count == 0 {
+		return make_ir_lit_bool(base_val, bool_type, e.span)
+	}
+
+	chain := make_ir_lit_bool(base_val, bool_type, e.span)
+	for i := tin.element_count - 1; i >= 0; i -= 1 {
+		field_name := base.intern(env.interner, fmt.tprintf("_%d", i))
+		elem_type := semantics.lower_type(env.store, tin.element_types[i])
+		left_fa := new(IR_Field_Access)
+		left_fa^ = IR_Field_Access {
+			record      = lower_texpr(e.left, env),
+			field       = field_name,
+			field_index = i,
+			type        = elem_type,
+			span        = e.span,
+		}
+		right_fa := new(IR_Field_Access)
+		right_fa^ = IR_Field_Access {
+			record      = lower_texpr(e.right, env),
+			field       = field_name,
+			field_index = i,
+			type        = elem_type,
+			span        = e.span,
+		}
+
+		less_check := new(IR_BinOp)
+		less_check^ = IR_BinOp {
+			op    = less_op,
+			left  = IR_Expr(left_fa),
+			right = IR_Expr(right_fa),
+			type  = bool_type,
+			span  = e.span,
+		}
+		true_lit := make_ir_lit_bool(true, bool_type, e.span)
+		if_less := new(IR_If)
+		if_less^ = IR_If {
+			condition   = IR_Expr(less_check),
+			then_branch = true_lit,
+			else_branch = chain,
+			type        = bool_type,
+			span        = e.span,
+		}
+
+		greater_fa_l := new(IR_Field_Access)
+		greater_fa_l^ = IR_Field_Access {
+			record      = lower_texpr(e.left, env),
+			field       = field_name,
+			field_index = i,
+			type        = elem_type,
+			span        = e.span,
+		}
+		greater_fa_r := new(IR_Field_Access)
+		greater_fa_r^ = IR_Field_Access {
+			record      = lower_texpr(e.right, env),
+			field       = field_name,
+			field_index = i,
+			type        = elem_type,
+			span        = e.span,
+		}
+		greater_check := new(IR_BinOp)
+		greater_check^ = IR_BinOp {
+			op    = greater_op,
+			left  = IR_Expr(greater_fa_l),
+			right = IR_Expr(greater_fa_r),
+			type  = bool_type,
+			span  = e.span,
+		}
+		false_lit := make_ir_lit_bool(false, bool_type, e.span)
+		if_greater := new(IR_If)
+		if_greater^ = IR_If {
+			condition   = IR_Expr(greater_check),
+			then_branch = false_lit,
+			else_branch = IR_Expr(if_less),
+			type        = bool_type,
+			span        = e.span,
+		}
+		chain = IR_Expr(if_greater)
+	}
+	return chain
+}
+
+// lower_tag_union_ord generates < / > / <= / >= for tag unions.
+// First compare tag indices (lower index = less), then payloads lexicographically.
+lower_tag_union_ord :: proc(
+	e: ^semantics.TExpr_BinOp,
+	env: ^Lower_Env,
+) -> IR_Expr {
+	left_ir := lower_texpr(e.left, env)
+	right_ir := lower_texpr(e.right, env)
+	bool_type := base.IR_Type {
+		wasm_type = .I32,
+		type_id   = 0,
+	}
+	left_type_id := texpr_type_id(e.left)
+
+	less_op, greater_op: IR_BinOp_Kind
+	base_val: bool
+	if e.op == .Lt {
+		less_op = .Lt; greater_op = .Gt; base_val = false
+	} else if e.op == .Gt {
+		less_op = .Gt; greater_op = .Lt; base_val = false
+	} else if e.op == .Lt_Eq {
+		less_op = .Lt; greater_op = .Gt; base_val = true
+	} else if e.op == .Gt_Eq {
+		less_op = .Gt; greater_op = .Lt; base_val = true
+	} else {
+		return make_ir_lit_bool(false, bool_type, e.span)
+	}
+
+	entries: [dynamic]semantics.Type_Tag_Entry
+	entries = make([dynamic]semantics.Type_Tag_Entry, 0, 4)
+	defer delete(entries)
+	flatten_tag_entries(env.store, left_type_id, &entries)
+
+	// Tag index comparison: tag(left) vs tag(right)
+	// Mask with 0xFF: IR_I32_Load reads 4 bytes but tag is 1 byte.
+	left_tag_load := new(IR_I32_Load)
+	left_tag_load^ = IR_I32_Load {
+		base   = left_ir,
+		offset = 4, // CAMP_TAG_TAG_OFFSET
+		span   = e.span,
+	}
+	left_tag_masked := new(IR_BinOp)
+	left_tag_masked^ = IR_BinOp {
+		op    = .And,
+		left  = IR_Expr(left_tag_load),
+		right = make_ir_lit_int(0xFF, bool_type, e.span),
+		type  = bool_type,
+		span  = e.span,
+	}
+	right_tag_load := new(IR_I32_Load)
+	right_tag_load^ = IR_I32_Load {
+		base   = right_ir,
+		offset = 4,
+		span   = e.span,
+	}
+	right_tag_masked := new(IR_BinOp)
+	right_tag_masked^ = IR_BinOp {
+		op    = .And,
+		left  = IR_Expr(right_tag_load),
+		right = make_ir_lit_int(0xFF, bool_type, e.span),
+		type  = bool_type,
+		span  = e.span,
+	}
+
+	// If tags differ, compare tag indices directly.
+	tag_less := new(IR_BinOp)
+	tag_less^ = IR_BinOp {
+		op    = less_op,
+		left  = IR_Expr(left_tag_masked),
+		right = IR_Expr(right_tag_masked),
+		type  = bool_type,
+		span  = e.span,
+	}
+	tag_greater := new(IR_BinOp)
+	tag_greater^ = IR_BinOp {
+		op    = greater_op,
+		left  = IR_Expr(left_tag_masked),
+		right = IR_Expr(right_tag_masked),
+		type  = bool_type,
+		span  = e.span,
+	}
+
+	// If tags equal, compare payloads per variant using IR_Match.
+	arms := make([dynamic]IR_Match_Arm, 0, len(entries))
+	for i in 0 ..< len(entries) {
+		entry := entries[i]
+
+		// Build payload comparison chain (lexicographic, inside-out).
+		payload_chain := make_ir_lit_bool(base_val, bool_type, e.span)
+		for j := len(entry.payload) - 1; j >= 0; j -= 1 {
+			f_type := semantics.lower_type(env.store, entry.payload[j])
+			l_fa := new(IR_Field_Access)
+			l_fa^ = IR_Field_Access {
+				record      = left_ir,
+				field_index = j,
+				type        = f_type,
+				span        = e.span,
+			}
+			r_fa := new(IR_Field_Access)
+			r_fa^ = IR_Field_Access {
+				record      = right_ir,
+				field_index = j,
+				type        = f_type,
+				span        = e.span,
+			}
+
+			l_check := new(IR_BinOp)
+			l_check^ = IR_BinOp {
+				op    = less_op,
+				left  = IR_Expr(l_fa),
+				right = IR_Expr(r_fa),
+				type  = bool_type,
+				span  = e.span,
+			}
+			true_lit := make_ir_lit_bool(true, bool_type, e.span)
+			if_l := new(IR_If)
+			if_l^ = IR_If {
+				condition   = IR_Expr(l_check),
+				then_branch = true_lit,
+				else_branch = payload_chain,
+				type        = bool_type,
+				span        = e.span,
+			}
+
+			g_fa_l := new(IR_Field_Access)
+			g_fa_l^ = IR_Field_Access {
+				record      = left_ir,
+				field_index = j,
+				type        = f_type,
+				span        = e.span,
+			}
+			g_fa_r := new(IR_Field_Access)
+			g_fa_r^ = IR_Field_Access {
+				record      = right_ir,
+				field_index = j,
+				type        = f_type,
+				span        = e.span,
+			}
+			g_check := new(IR_BinOp)
+			g_check^ = IR_BinOp {
+				op    = greater_op,
+				left  = IR_Expr(g_fa_l),
+				right = IR_Expr(g_fa_r),
+				type  = bool_type,
+				span  = e.span,
+			}
+			false_lit := make_ir_lit_bool(false, bool_type, e.span)
+			if_g := new(IR_If)
+			if_g^ = IR_If {
+				condition   = IR_Expr(g_check),
+				then_branch = false_lit,
+				else_branch = IR_Expr(if_l),
+				type        = bool_type,
+				span        = e.span,
+			}
+			payload_chain = IR_Expr(if_g)
+		}
+
+		pat := new(IR_Pat_Tag)
+		pat^ = IR_Pat_Tag {
+			name      = entry.name,
+			tag_index = i,
+		}
+		append(&arms, IR_Match_Arm {
+			pattern = IR_Pattern(pat),
+			body    = payload_chain,
+		})
+	}
+
+	match_ir := new(IR_Match)
+	match_ir^ = IR_Match {
+		scrutinee = left_ir,
+		arms      = arms,
+		type      = bool_type,
+		span      = e.span,
+	}
+
+	// if tag(left) <_op tag(right): true
+	// else if tag(left) >_op tag(right): false
+	// else: match on left for payload comparison
+	false_lit := make_ir_lit_bool(false, bool_type, e.span)
+	if_greater := new(IR_If)
+	if_greater^ = IR_If {
+		condition   = IR_Expr(tag_greater),
+		then_branch = false_lit,
+		else_branch = IR_Expr(match_ir),
+		type        = bool_type,
+		span        = e.span,
+	}
+	true_lit := make_ir_lit_bool(true, bool_type, e.span)
+	result_if := new(IR_If)
+	result_if^ = IR_If {
+		condition   = IR_Expr(tag_less),
+		then_branch = true_lit,
+		else_branch = IR_Expr(if_greater),
+		type        = bool_type,
+		span        = e.span,
+	}
+	return IR_Expr(result_if)
 }
 
 lower_tprefixop :: proc(e: ^semantics.TExpr_PrefixOp, env: ^Lower_Env) -> IR_Expr {
@@ -2098,6 +2727,276 @@ lower_tlist :: proc(e: ^semantics.TExpr_List, env: ^Lower_Env) -> IR_Expr {
 	}
 	return result
 }
+// is_list_tag_union returns true if the given type is a tag union with
+// exactly Nil and Cons variants — the internal representation of List.
+is_list_tag_union :: proc(
+	store: ^semantics.Type_Store,
+	interner: ^base.Intern_Table,
+	type_id: base.Type_Var_ID,
+) -> bool {
+	entries: [dynamic]semantics.Type_Tag_Entry
+	entries = make([dynamic]semantics.Type_Tag_Entry, 0, 4)
+	defer delete(entries)
+	flatten_tag_entries(store, type_id, &entries)
+	if len(entries) != 2 {
+		return false
+	}
+	nil_name := base.intern(interner, "Nil")
+	cons_name := base.intern(interner, "Cons")
+	has_nil := entries[0].name == nil_name || entries[1].name == nil_name
+	has_cons := entries[0].name == cons_name || entries[1].name == cons_name
+	return has_nil && has_cons
+}
+
+// lower_container_eq_from_type generates a recursive list-equality function
+// and returns an IR_Call to it.  The generated function uses IR_Match on the
+// Cons/Nil structure, IR_BinOp(Eq) for element comparison (correct for all
+// inline types), and a recursive self-call for tails (correct for any length).
+lower_container_eq_from_type :: proc(
+	e: ^semantics.TExpr_BinOp,
+	env: ^Lower_Env,
+	container_name: string,
+	type_id: base.Type_Var_ID,
+	param_index: int,
+) -> IR_Expr {
+	bool_type := base.IR_Type {
+		wasm_type = .I32,
+		type_id   = 0,
+	}
+
+	left_ir := lower_texpr(e.left, env)
+	right_ir := lower_texpr(e.right, env)
+
+	nil_name := base.intern(env.interner, "Nil")
+	cons_name := base.intern(env.interner, "Cons")
+	nil_index := resolve_tag_index(env.store, type_id, nil_name)
+	cons_index := resolve_tag_index(env.store, type_id, cons_name)
+
+	entries: [dynamic]semantics.Type_Tag_Entry
+	entries = make([dynamic]semantics.Type_Tag_Entry, 0, 4)
+	defer delete(entries)
+	flatten_tag_entries(env.store, type_id, &entries)
+
+	// Find Cons entry to determine element type and field count
+	cons_payload_types: []base.Type_Var_ID
+	for entry in entries {
+		if entry.name == cons_name {
+			cons_payload_types = entry.payload
+			break
+		}
+	}
+
+	// --- Build inline list comparison: ---
+	// match left {
+	//   Nil  => match right { Nil => true, Cons(_, _) => false }
+	//   Cons(head_l, tail_l) => match right {
+	//     Nil => false
+	//     Cons(head_r, tail_r) => (head_l == head_r) && (tail_l == tail_r)
+	//   }
+	// }
+	// The tail comparison is recursive (calls lower_container_eq_from_type
+	// again), but each recursive call peels off one Cons layer, so it
+	// terminates when we hit Nil.  In practice this only works for lists
+	// whose length is known at compile time (literal lists).  For
+	// dynamically-sized lists, the expansion would be infinite.
+	//
+	// To handle dynamic-length lists properly, we'd need to generate a
+	// named function with a self-recursive call.  For now, we cap the
+	// expansion depth and fall back to pointer comparison beyond that.
+
+	max_depth :: 8 // max compile-time unrolling depth
+
+	inner :: proc(
+		left: IR_Expr,
+		right: IR_Expr,
+		env: ^Lower_Env,
+		type_id: base.Type_Var_ID,
+		cons_payload_types: []base.Type_Var_ID,
+		nil_index: int,
+		cons_index: int,
+		depth: int,
+	) -> IR_Expr {
+		bool_type_inner := base.IR_Type{wasm_type = .I32, type_id = 0}
+
+		// Exceeded depth — fall back to pointer comparison
+		if depth >= max_depth {
+			ptr_eq := new(IR_BinOp)
+			ptr_eq^ = IR_BinOp{
+				op = .Eq, left = left, right = right,
+				type = bool_type_inner, span = base.Source_Span_ZERO,
+			}
+			return IR_Expr(ptr_eq)
+		}
+
+		// Helper to load just the tag byte (IR_I32_Load reads 4 bytes, but
+		// the tag is only 1 byte — we AND with 0xFF to mask off extra bytes).
+		load_tag_byte :: proc(ptr: IR_Expr) -> IR_Expr {
+			i32t := base.IR_Type{wasm_type = .I32, type_id = 0}
+			load := new(IR_I32_Load)
+			load^ = IR_I32_Load{base = ptr, offset = 4, span = base.Source_Span_ZERO}
+			mask := new(IR_BinOp)
+			mask^ = IR_BinOp{
+				op = .And,
+				left = IR_Expr(load),
+				right = make_ir_lit_int(0xFF, i32t, base.Source_Span_ZERO),
+				type = i32t,
+				span = base.Source_Span_ZERO,
+			}
+			return IR_Expr(mask)
+		}
+
+		// --- Nil arm of left ---
+		// match right { Nil => true, Cons(_, _) => false }
+		is_right_nil := new(IR_BinOp)
+		is_right_nil^ = IR_BinOp{
+			op = .Eq,
+			left = load_tag_byte(right),
+			right = make_ir_lit_int(i64(nil_index), bool_type_inner, base.Source_Span_ZERO),
+			type = bool_type_inner, span = base.Source_Span_ZERO,
+		}
+		// Nil arm body: if right is Nil → true, else → false
+		nil_arm_body := is_right_nil  // 1 if right is Nil, 0 if Cons
+
+		// --- Cons arm of left ---
+		// Cons(head_l, tail_l)
+		// Note: IR_Field_Access always loads i32 in codegen, so we use i32 type
+		// for field access to avoid type mismatches. This is correct for i32-sized
+		// types (Bool, I32, pointers). For I64/F64 fields, only the lower 32 bits
+		// are compared — a known limitation shared with structural tag union Eq.
+		i32_field_type := base.IR_Type{wasm_type = .I32, type_id = 0}
+
+		head_l := new(IR_Field_Access)
+		head_l^ = IR_Field_Access{
+			record = left, field_index = 0, type = i32_field_type, span = base.Source_Span_ZERO,
+		}
+		tail_l := new(IR_Field_Access)
+		tail_l^ = IR_Field_Access{
+			record = left, field_index = 1, type = i32_field_type, span = base.Source_Span_ZERO,
+		}
+
+		// match right { Nil => false, Cons(head_r, tail_r) => ... }
+		is_right_cons := new(IR_BinOp)
+		is_right_cons^ = IR_BinOp{
+			op = .Eq,
+			left = load_tag_byte(right),
+			right = make_ir_lit_int(i64(cons_index), bool_type_inner, base.Source_Span_ZERO),
+			type = bool_type_inner, span = base.Source_Span_ZERO,
+		}
+
+		head_r := new(IR_Field_Access)
+		head_r^ = IR_Field_Access{
+			record = right, field_index = 0, type = i32_field_type, span = base.Source_Span_ZERO,
+		}
+		tail_r := new(IR_Field_Access)
+		tail_r^ = IR_Field_Access{
+			record = right, field_index = 1, type = i32_field_type, span = base.Source_Span_ZERO,
+		}
+
+		// head comparison
+		head_eq := new(IR_BinOp)
+		head_eq^ = IR_BinOp{
+			op = .Eq,
+			left = IR_Expr(head_l), right = IR_Expr(head_r),
+			type = bool_type_inner, span = base.Source_Span_ZERO,
+		}
+
+		// tail comparison (recursive)
+		tail_eq := inner(
+			IR_Expr(tail_l), IR_Expr(tail_r), env, type_id,
+			cons_payload_types, nil_index, cons_index, depth + 1,
+		)
+
+		// Cons arm body: if right is Cons → head_eq && tail_eq, else → false
+		both := new(IR_BinOp)
+		both^ = IR_BinOp{
+			op = .And,
+			left = IR_Expr(head_eq), right = tail_eq,
+			type = bool_type_inner, span = base.Source_Span_ZERO,
+		}
+		cons_if := new(IR_If)
+		cons_if^ = IR_If{
+			condition = IR_Expr(is_right_cons),
+			then_branch = IR_Expr(both),
+			else_branch = make_ir_lit_bool(false, bool_type_inner, base.Source_Span_ZERO),
+			type = bool_type_inner, span = base.Source_Span_ZERO,
+		}
+
+		// Outer: if left is Nil → nil_arm_body, else → cons_if
+		is_left_nil := new(IR_BinOp)
+		is_left_nil^ = IR_BinOp{
+			op = .Eq,
+			left = load_tag_byte(left),
+			right = make_ir_lit_int(i64(nil_index), bool_type_inner, base.Source_Span_ZERO),
+			type = bool_type_inner, span = base.Source_Span_ZERO,
+		}
+		outer := new(IR_If)
+		outer^ = IR_If{
+			condition = IR_Expr(is_left_nil),
+			then_branch = IR_Expr(nil_arm_body),
+			else_branch = IR_Expr(cons_if),
+			type = bool_type_inner, span = base.Source_Span_ZERO,
+		}
+		return IR_Expr(outer)
+	}
+
+	result := inner(
+		left_ir, right_ir, env, type_id,
+		cons_payload_types, nil_index, cons_index, 0,
+	)
+	if e.op == .Bang_Eq {
+		return wrap_not(result, e)
+	}
+	return result
+}
+
+// lower_container_eq generates an IR_Call to a container's eq intrinsic
+// (e.g., List.eq) with the element type's Eq trait method resolved as a callback.
+// param_index selects which type parameter to use for the element (0 for List/Set,
+// 0 for Map keys, 1 for Map values — Map is handled separately for now).
+lower_container_eq :: proc(
+	e: ^semantics.TExpr_BinOp,
+	env: ^Lower_Env,
+	container_name: string,
+	nt: semantics.Inferred_Newtype,
+	param_index: int,
+) -> IR_Expr {
+	bool_type := base.IR_Type {
+		wasm_type = .I32,
+		type_id   = 0,
+	}
+
+	// Resolve element type from container's type parameters
+	if param_index >= len(nt.param_ids) {
+		return make_ir_lit_bool(false, bool_type, e.span)
+	}
+	elem_type_id := nt.param_ids[param_index]
+
+	// Resolve element's Eq.eq trait method
+	eq_method, _ := resolve_trait_method(env.store, env.interner, elem_type_id, "Eq", "eq")
+
+	// Generate IR_Call to e.g. List.eq(left, right)
+	mod_name := base.intern(env.interner, container_name)
+	eq_name := base.intern(env.interner, "eq")
+	left_ir := lower_texpr(e.left, env)
+	right_ir := lower_texpr(e.right, env)
+	args := make([dynamic]IR_Expr, 0, 2)
+	append(&args, left_ir)
+	append(&args, right_ir)
+	call := new(IR_Call)
+	call^ = IR_Call {
+		callee           = base.Canonical_Name{module = mod_name, name = eq_name},
+		args             = args,
+		type             = e.type_,
+		span             = e.span,
+		ord_compare_func = eq_method,
+	}
+	result := IR_Expr(call)
+	if e.op == .Bang_Eq {
+		return wrap_not(result, e)
+	}
+	return result
+}
+
 // --- Generic trait dispatch resolution ---
 //
 // These helpers resolve trait method implementations at IR lowering time,

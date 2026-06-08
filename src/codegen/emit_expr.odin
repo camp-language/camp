@@ -418,7 +418,8 @@ emit_expr :: proc(expr: ir.IR_Expr, buf: ^[dynamic]u8, env: ^Codegen_Env, runtim
 	case ^ir.IR_Loop:
 		// Evaluate iterable, store in tmp local
 		emit_expr(e.iterable, buf, env, runtime_indices)
-		list_local := env.tmp_local_base
+		list_local := env.tmp_local_base + env.tmp_count
+		env.tmp_count += 1
 		emit_instruction(Wasm_Local_Set{index = list_local}, buf)
 
 		// block $break (label 1), loop $continue (label 0)
@@ -940,7 +941,8 @@ emit_expr :: proc(expr: ir.IR_Expr, buf: ^[dynamic]u8, env: ^Codegen_Env, runtim
 		// Check if callee is a local variable (closure pointer) or a named function
 		if local_idx, ok := env.local_map[e.callee.name]; ok {
 
-			callee_local := env.tmp_local_base + 2
+			callee_local := env.tmp_local_base + env.tmp_count
+			env.tmp_count += 1
 			emit_instruction(Wasm_Local_Set{index = callee_local}, buf)
 
 			// Load env from closure record
@@ -1089,7 +1091,8 @@ emit_expr :: proc(expr: ir.IR_Expr, buf: ^[dynamic]u8, env: ^Codegen_Env, runtim
 				emit_instruction(Wasm_Block{block_type = block_type}, buf)
 
 				emit_expr(e.scrutinee, buf, env, runtime_indices)
-				scrutinee_local := env.tmp_local_base + 2
+				scrutinee_local := env.tmp_local_base + env.tmp_count
+				env.tmp_count += 1
 				emit_instruction(Wasm_Local_Set{index = scrutinee_local}, buf)
 
 				for arm_idx in 0 ..< len(e.arms) {
@@ -1221,7 +1224,8 @@ emit_expr :: proc(expr: ir.IR_Expr, buf: ^[dynamic]u8, env: ^Codegen_Env, runtim
 					}
 				}
 
-				scrutinee_local := env.tmp_local_base + 2
+				scrutinee_local := env.tmp_local_base + env.tmp_count
+				env.tmp_count += 1
 
 				// Outer result block (depth grows from here)
 				emit_instruction(Wasm_Block{block_type = block_type}, buf)
@@ -1297,7 +1301,8 @@ emit_expr :: proc(expr: ir.IR_Expr, buf: ^[dynamic]u8, env: ^Codegen_Env, runtim
 			emit_instruction(Wasm_Block{block_type = block_type}, buf)
 
 			emit_expr(e.scrutinee, buf, env, runtime_indices)
-			scrutinee_local := env.tmp_local_base + 2
+			scrutinee_local := env.tmp_local_base + env.tmp_count
+			env.tmp_count += 1
 			emit_instruction(Wasm_Local_Set{index = scrutinee_local}, buf)
 
 			for arm_idx in 0 ..< len(e.arms) {
@@ -1446,7 +1451,8 @@ emit_expr :: proc(expr: ir.IR_Expr, buf: ^[dynamic]u8, env: ^Codegen_Env, runtim
 			emit_instruction(Wasm_Block{block_type = block_type}, buf)
 
 			emit_expr(e.scrutinee, buf, env, runtime_indices)
-			scrutinee_local := env.tmp_local_base + 2
+			scrutinee_local := env.tmp_local_base + env.tmp_count
+			env.tmp_count += 1
 			emit_instruction(Wasm_Local_Set{index = scrutinee_local}, buf)
 
 			for arm_idx in 0 ..< len(e.arms) {
@@ -1518,7 +1524,8 @@ emit_expr :: proc(expr: ir.IR_Expr, buf: ^[dynamic]u8, env: ^Codegen_Env, runtim
 			emit_instruction(Wasm_Block{block_type = block_type}, buf)
 
 			emit_expr(e.scrutinee, buf, env, runtime_indices)
-			scrutinee_local := env.tmp_local_base + 2
+			scrutinee_local := env.tmp_local_base + env.tmp_count
+			env.tmp_count += 1
 			emit_instruction(Wasm_Local_Set{index = scrutinee_local}, buf)
 
 			for arm_idx in 0 ..< len(e.arms) {
@@ -2344,8 +2351,10 @@ emit_expr :: proc(expr: ir.IR_Expr, buf: ^[dynamic]u8, env: ^Codegen_Env, runtim
 			emit_instruction(Wasm_Unreachable{}, buf)
 		}
 	case ^ir.IR_Resume:
-		resume_local := env.tmp_local_base + 3
-		fn_idx_local := env.tmp_local_base + 2
+		resume_local := env.tmp_local_base + env.tmp_count
+		env.tmp_count += 1
+		fn_idx_local := env.tmp_local_base + env.tmp_count
+		env.tmp_count += 1
 
 		if idx, ok := env.local_map[e.resume_id]; ok {
 			emit_instruction(Wasm_Local_Get{index = idx}, buf)
@@ -2408,7 +2417,8 @@ emit_expr :: proc(expr: ir.IR_Expr, buf: ^[dynamic]u8, env: ^Codegen_Env, runtim
 		emit_instruction(Wasm_I32_Const{value = i32(total_size)}, buf)
 		emit_instruction(Wasm_Call{index = u32(runtime_indices[Runtime_Func.Alloc])}, buf)
 
-		tmp_local_idx := env.tmp_local_base
+		tmp_local_idx := env.tmp_local_base + env.tmp_count
+		env.tmp_count += 1
 		emit_instruction(Wasm_Local_Set{index = tmp_local_idx}, buf)
 
 		emit_instruction(Wasm_Local_Get{index = tmp_local_idx}, buf)
@@ -2437,7 +2447,13 @@ emit_expr :: proc(expr: ir.IR_Expr, buf: ^[dynamic]u8, env: ^Codegen_Env, runtim
 		emit_instruction(Wasm_Local_Get{index = tmp_local_idx}, buf)
 		emit_instruction(Wasm_I32_Const{value = i32(CAMP_TAG_FIELDS_OFFSET + 8)}, buf)
 		emit_instruction(Wasm_I32_Add{}, buf)
-		emit_expr(e.env, buf, env, runtime_indices)
+		if e.is_self_referential {
+			// Self-referential closure: store the closure pointer as its own env field.
+			// This makes _cenv = closure_pointer, enabling recursive calls.
+			emit_instruction(Wasm_Local_Get{index = tmp_local_idx}, buf)
+		} else {
+			emit_expr(e.env, buf, env, runtime_indices)
+		}
 		emit_instruction(Wasm_I32_Store{align = 2, offset = 0}, buf)
 
 		emit_instruction(Wasm_Local_Get{index = tmp_local_idx}, buf)
@@ -2445,7 +2461,8 @@ emit_expr :: proc(expr: ir.IR_Expr, buf: ^[dynamic]u8, env: ^Codegen_Env, runtim
 	case ^ir.IR_Closure_Call:
 		emit_expr(e.callee, buf, env, runtime_indices)
 
-		callee_local := env.tmp_local_base + 1
+		callee_local := env.tmp_local_base + env.tmp_count
+		env.tmp_count += 1
 		emit_instruction(Wasm_Local_Set{index = callee_local}, buf)
 
 		emit_instruction(Wasm_Local_Get{index = callee_local}, buf)
@@ -2775,7 +2792,8 @@ emit_handler_into_evidence :: proc(
 	emit_instruction(Wasm_I32_Const{value = 24}, buf)
 	emit_instruction(Wasm_Call{index = u32(runtime_indices[Runtime_Func.Alloc])}, buf)
 
-	tmp := env.tmp_local_base + 3
+	tmp := env.tmp_local_base + env.tmp_count
+	env.tmp_count += 1
 	emit_instruction(Wasm_Local_Tee{index = u32(tmp)}, buf)
 
 	// Set refcount = 1
