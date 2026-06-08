@@ -228,6 +228,7 @@ IR_Call :: struct {
 	type:             ba.IR_Type,
 	span:             ba.Source_Span,
 	ord_compare_func: ba.Canonical_Name,
+	eq_func:          ba.Canonical_Name,
 }
 
 IR_Tail_Call :: struct {

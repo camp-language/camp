@@ -110,5 +110,5 @@ test "I64 traits" {
   expect 100 > 99
 }
 I64 is Eq {
-    eq = |a: Self, b: Self| -> Bool { crash "intrinsic: Num.I64_eq" }
+    eq = |a: Self, b: Self| -> Bool { a == b }
 }

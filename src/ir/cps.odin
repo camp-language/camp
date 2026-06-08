@@ -285,6 +285,7 @@ cps_transform_expr :: proc(expr: IR_Expr, k_name: base.Intern_ID, env: ^CPS_Env)
 			type             = e.type,
 			span             = e.span,
 			ord_compare_func = e.ord_compare_func,
+			eq_func          = e.eq_func,
 		}
 		return IR_Expr(new_call)
 

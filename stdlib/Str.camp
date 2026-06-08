@@ -75,7 +75,7 @@ pub to_f64 = |s: Str| -> Result(F64, [InvalidFormat]) { crash "intrinsic: Str.to
 pub to_iter = |s: Str| -> Iter(Str) { crash "intrinsic: Str.to_iter" }
 
 Str is Eq {
-    eq = |a: Self, b: Self| -> Bool { crash "intrinsic: Str_eq" }
+    eq = |a: Self, b: Self| -> Bool { a == b }
 }
 
 Str is Default {

@@ -359,6 +359,7 @@ el_replace_resume :: proc(
 			type             = e.type,
 			span             = e.span,
 			ord_compare_func = e.ord_compare_func,
+			eq_func          = e.eq_func,
 		}
 		return IR_Expr(new_call)
 
@@ -705,6 +706,7 @@ el_make_camp_alloc_call :: proc(
 		type = base.IR_Type{wasm_type = .I32, type_id = base.Type_Var_ID(0), is_heap = false},
 		span = span,
 		ord_compare_func = base.Canonical_Name{},
+		eq_func = base.Canonical_Name{},
 	}
 	return IR_Expr(call)
 }
@@ -746,6 +748,7 @@ el_make_camp_dealloc_call :: proc(
 		type = base.IR_Type{wasm_type = .Void, type_id = base.Type_Var_ID(0)},
 		span = span,
 		ord_compare_func = base.Canonical_Name{},
+		eq_func = base.Canonical_Name{},
 	}
 	return IR_Expr(call)
 }
@@ -1462,6 +1465,7 @@ el_lower_expr :: proc(expr: IR_Expr, env: ^Effect_Lower_Env) -> IR_Expr {
 			type             = e.type,
 			span             = e.span,
 			ord_compare_func = e.ord_compare_func,
+			eq_func          = e.eq_func,
 		}
 		return IR_Expr(new_call)
 

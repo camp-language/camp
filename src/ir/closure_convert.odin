@@ -710,6 +710,7 @@ cc_convert_expr :: proc(expr: IR_Expr, env: ^Closure_Convert_Env) -> IR_Expr {
 			type             = e.type,
 			span             = e.span,
 			ord_compare_func = e.ord_compare_func,
+			eq_func          = e.eq_func,
 		}
 		return IR_Expr(new_call)
 
@@ -1021,6 +1022,7 @@ rewrite_free_var_access :: proc(expr: IR_Expr, env_map: ^map[base.Intern_ID]IR_E
 			type             = e.type,
 			span             = e.span,
 			ord_compare_func = e.ord_compare_func,
+			eq_func          = e.eq_func,
 		}
 		return IR_Expr(new_call)
 	case ^IR_Closure_Call:

@@ -30,7 +30,7 @@ pub or_ = |a: Bool, b: Bool| -> Bool {
 }
 
 Bool is Eq {
-    eq = |a: Self, b: Self| -> Bool { crash "intrinsic: Bool_eq" }
+    eq = |a: Self, b: Self| -> Bool { a == b }
 }
 Bool is Default {
   default = || -> Bool { False }

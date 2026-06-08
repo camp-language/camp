@@ -775,6 +775,7 @@ lower_tcall :: proc(e: ^semantics.TExpr_Call, env: ^Lower_Env) -> IR_Expr {
 			type             = e.type_,
 			span             = e.span,
 			ord_compare_func = resolve_ord_compare(callee_name, e.args, env),
+			eq_func          = resolve_eq_func(callee_name, e.args, env),
 		}
 		return IR_Expr(call)
 
@@ -922,6 +923,7 @@ lower_tmethod_call :: proc(e: ^semantics.TExpr_Method_Call, env: ^Lower_Env) -> 
 							type = e.type_,
 							span = e.span,
 							ord_compare_func = base.Canonical_Name{},
+							eq_func = base.Canonical_Name{},
 						}
 						return IR_Expr(call)
 					}
@@ -952,6 +954,7 @@ lower_tmethod_call :: proc(e: ^semantics.TExpr_Method_Call, env: ^Lower_Env) -> 
 								type             = e.type_,
 								span             = e.span,
 								ord_compare_func = base.Canonical_Name{},
+								eq_func          = base.Canonical_Name{},
 							}
 							return IR_Expr(call)
 						}
@@ -974,6 +977,7 @@ lower_tmethod_call :: proc(e: ^semantics.TExpr_Method_Call, env: ^Lower_Env) -> 
 			type             = e.type_,
 			span             = e.span,
 			ord_compare_func = base.Canonical_Name{},
+			eq_func          = base.Canonical_Name{},
 		}
 		return IR_Expr(meth_call)
 	}
@@ -1475,6 +1479,7 @@ lower_tbinop :: proc(e: ^semantics.TExpr_BinOp, env: ^Lower_Env) -> IR_Expr {
 						type = e.type_,
 						span = e.span,
 						ord_compare_func = base.Canonical_Name{},
+						eq_func = base.Canonical_Name{},
 					}
 					return IR_Expr(call)
 				}
@@ -2623,6 +2628,7 @@ lower_tinterpolated_string :: proc(
 					type             = str_type,
 					span             = span,
 					ord_compare_func = base.Canonical_Name{},
+					eq_func          = base.Canonical_Name{},
 				}
 				return IR_Expr(call)
 			}
@@ -2648,6 +2654,7 @@ lower_tinterpolated_string :: proc(
 			type = e.type_,
 			span = e.span,
 			ord_compare_func = base.Canonical_Name{},
+			eq_func = base.Canonical_Name{},
 		}
 		result = IR_Expr(call)
 	}
@@ -3017,6 +3024,7 @@ lower_container_eq :: proc(
 		type = e.type_,
 		span = e.span,
 		ord_compare_func = eq_method,
+		eq_func = base.Canonical_Name{},
 	}
 	result := IR_Expr(call)
 	if e.op == .Bang_Eq {
@@ -3266,6 +3274,45 @@ resolve_ord_compare :: proc(
 
 	func_name, ok := resolve_trait_method(env.store, env.interner, key_type_id, "Ord", "compare")
 	if !ok {
+		return base.Canonical_Name{}
+	}
+
+	return func_name
+}
+
+// resolve_eq_func resolves the Eq.eq method for the value type
+// of a Map intrinsic call. Returns a zero-value Canonical_Name if
+// resolution fails.
+resolve_eq_func :: proc(
+	callee: base.Canonical_Name,
+	args: [dynamic]semantics.TExpr,
+	env: ^Lower_Env,
+) -> base.Canonical_Name {
+	module_str := base.intern_get(env.interner, callee.module)
+	name_str := base.intern_get(env.interner, callee.name)
+
+	if module_str != "Map" || name_str != "eq" {
+		return base.Canonical_Name{}
+	}
+
+	// For Map.eq, extract the value type (param_index = 1) from the first arg (map_a)
+	if len(args) < 1 {
+		return base.Canonical_Name{}
+	}
+
+	val_type_id, val_ok := extract_container_element_type(
+		env.store,
+		env.interner,
+		args[0],
+		"Map",
+		1, // value type parameter
+	)
+	if !val_ok {
+		return base.Canonical_Name{}
+	}
+
+	func_name, eq_ok := resolve_trait_method(env.store, env.interner, val_type_id, "Eq", "eq")
+	if !eq_ok {
 		return base.Canonical_Name{}
 	}
 

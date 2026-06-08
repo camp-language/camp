@@ -649,6 +649,23 @@ codegen :: proc(
 	set_max_func_idx := add_function(&env, map_min_type_idx)
 	runtime_func_indices[Runtime_Func.Set_Max] = set_max_func_idx
 
+	// Map_Eq: (eq_fn: i32, cmp_fn: i32, map_a: i32, map_b: i32) -> i32
+	map_eq_type_idx := get_or_create_type(
+		&env,
+		[]Wasm_Value_Type{.I32, .I32, .I32, .I32},
+		[]Wasm_Value_Type{.I32},
+	)
+	map_eq_func_idx := add_function(&env, map_eq_type_idx)
+	runtime_func_indices[Runtime_Func.Map_Eq] = map_eq_func_idx
+	// Set_Eq: (cmp_fn: i32, set_a: i32, set_b: i32) -> i32
+	set_eq_type_idx := get_or_create_type(
+		&env,
+		[]Wasm_Value_Type{.I32, .I32, .I32},
+		[]Wasm_Value_Type{.I32},
+	)
+	set_eq_func_idx := add_function(&env, set_eq_type_idx)
+	runtime_func_indices[Runtime_Func.Set_Eq] = set_eq_func_idx
+
 	// Hash runtime function types
 	hash_init_type_idx := get_or_create_type(&env, []Wasm_Value_Type{}, []Wasm_Value_Type{.I32})
 	// (hasher: i32, val: i64) -> i32
@@ -814,6 +831,10 @@ codegen :: proc(
 	append(&mod.codes, emit_map_max_body(alloc_func_idx))
 	append(&mod.codes, emit_set_min_body(alloc_func_idx))
 	append(&mod.codes, emit_set_max_body(alloc_func_idx))
+
+	// Map_Eq and Set_Eq runtime function bodies
+	append(&mod.codes, emit_map_eq_body(compare_type_idx, env.table_idx))
+	append(&mod.codes, emit_set_eq_body(compare_type_idx, env.table_idx))
 
 	// Hash runtime function bodies (SipHash-1-3)
 	append(&mod.codes, emit_hash_init_body(alloc_func_idx))
