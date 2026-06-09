@@ -287,8 +287,10 @@ Runtime_Func :: enum {
 	Map_Debug,
 	Set_Debug,
 	Result_Debug,
+	Result_Debug_I64,
 	I64_Compare,
 	I64_Trampoline,
+	I64_Debug_Trampoline,
 }
 
 RUNTIME_FUNC_COUNT :: int(len(Runtime_Func))
@@ -568,8 +570,18 @@ emit_expr :: proc(expr: ir.IR_Expr, buf: ^[dynamic]u8, env: ^Codegen_Env, runtim
 							debug_fn_idx = idx
 						}
 					}
+					// Fallback: if debug_func resolution failed, try I64_debug_trampoline
+					// (same pattern as I64 key compare fallback)
+					if debug_fn_idx == 0 {
+						i64_dbg_id := base.intern(env.interner, "I64_debug_trampoline")
+						if idx, ok := env.func_map[u64(i64_dbg_id)]; ok {
+							debug_fn_idx = idx
+						}
+					}
 					emit_instruction(Wasm_I32_Const{value = i32(debug_fn_idx)}, buf)
 					emit_expr(e.args[0], buf, env, runtime_indices)
+					if ir.ir_expr_wasm_type(e.args[0]) ==
+					   .I64 {emit_instruction(Wasm_I32_Wrap_I64{}, buf)}
 					emit_instruction(
 						Wasm_Call{index = u32(runtime_indices[Runtime_Func.List_Debug])},
 						buf,
@@ -823,6 +835,65 @@ emit_expr :: proc(expr: ir.IR_Expr, buf: ^[dynamic]u8, env: ^Codegen_Env, runtim
 					)
 					break
 				}
+				if name_str == "debug" && len(e.args) == 1 {
+					// Map.debug: resolve key and value debug functions
+					key_debug_fn_idx := 0
+					if e.debug_func.module != base.NO_NAME && e.debug_func.name != 0 {
+						mangled := base.mangle_name(
+							e.debug_func.module,
+							e.debug_func.name,
+							env.interner,
+						)
+						if idx, ok := env.func_map[base.hash_string(mangled)]; ok {
+							key_debug_fn_idx = idx
+						}
+					} else if e.debug_func.name != 0 {
+						if idx, ok := env.func_map[u64(e.debug_func.name)]; ok {
+							key_debug_fn_idx = idx
+						}
+					}
+					// Fallback for key debug: try I64_debug_trampoline
+					if key_debug_fn_idx == 0 {
+						i64_dbg_id := base.intern(env.interner, "I64_debug_trampoline")
+						if idx, ok := env.func_map[u64(i64_dbg_id)]; ok {
+							key_debug_fn_idx = idx
+						}
+					}
+					val_debug_fn_idx := 0
+					if e.val_debug_func.module != base.NO_NAME && e.val_debug_func.name != 0 {
+						mangled := base.mangle_name(
+							e.val_debug_func.module,
+							e.val_debug_func.name,
+							env.interner,
+						)
+						if idx, ok := env.func_map[base.hash_string(mangled)]; ok {
+							val_debug_fn_idx = idx
+						}
+					} else if e.val_debug_func.name != 0 {
+						if idx, ok := env.func_map[u64(e.val_debug_func.name)]; ok {
+							val_debug_fn_idx = idx
+						}
+					}
+					// Fallback for val debug: try I64_debug_trampoline
+					if val_debug_fn_idx == 0 {
+						i64_dbg_id := base.intern(env.interner, "I64_debug_trampoline")
+						if idx, ok := env.func_map[u64(i64_dbg_id)]; ok {
+							val_debug_fn_idx = idx
+						}
+					}
+					emit_instruction(Wasm_I32_Const{value = i32(key_debug_fn_idx)}, buf)
+					emit_instruction(Wasm_I32_Const{value = i32(val_debug_fn_idx)}, buf)
+					emit_expr(e.args[0], buf, env, runtime_indices)
+					if ir.ir_expr_wasm_type(e.args[0]) ==
+					   .I64 {emit_instruction(Wasm_I32_Wrap_I64{}, buf)}
+					emit_instruction(
+						Wasm_Call{index = u32(runtime_indices[Runtime_Func.Map_Debug])},
+						buf,
+					)
+					if ir.ir_expr_wasm_type(e) ==
+					   .I64 {emit_instruction(Wasm_I64_Extend_I32_S{}, buf)}
+					break
+				}
 			}
 
 			if module_str == "Set" {
@@ -882,6 +953,8 @@ emit_expr :: proc(expr: ir.IR_Expr, buf: ^[dynamic]u8, env: ^Codegen_Env, runtim
 						Wasm_Call{index = u32(runtime_indices[Runtime_Func.Map_Singleton])},
 						buf,
 					)
+					if ir.ir_expr_wasm_type(e) ==
+					   .I64 {emit_instruction(Wasm_I64_Extend_I32_S{}, buf)}
 					break
 				}
 				if name_str == "insert" && len(e.args) == 2 {
@@ -978,14 +1051,48 @@ emit_expr :: proc(expr: ir.IR_Expr, buf: ^[dynamic]u8, env: ^Codegen_Env, runtim
 					)
 					break
 				}
+				if name_str == "debug" && len(e.args) == 1 {
+					// Set.debug: resolve element debug function
+					elem_debug_fn_idx := 0
+					if e.debug_func.module != base.NO_NAME && e.debug_func.name != 0 {
+						mangled := base.mangle_name(
+							e.debug_func.module,
+							e.debug_func.name,
+							env.interner,
+						)
+						if idx, ok := env.func_map[base.hash_string(mangled)]; ok {
+							elem_debug_fn_idx = idx
+						}
+					} else if e.debug_func.name != 0 {
+						if idx, ok := env.func_map[u64(e.debug_func.name)]; ok {
+							elem_debug_fn_idx = idx
+						}
+					}
+					// Fallback for elem debug: try I64_debug_trampoline
+					if elem_debug_fn_idx == 0 {
+						i64_dbg_id := base.intern(env.interner, "I64_debug_trampoline")
+						if idx, ok := env.func_map[u64(i64_dbg_id)]; ok {
+							elem_debug_fn_idx = idx
+						}
+					}
+					emit_instruction(Wasm_I32_Const{value = i32(elem_debug_fn_idx)}, buf)
+					emit_expr(e.args[0], buf, env, runtime_indices)
+					if ir.ir_expr_wasm_type(e.args[0]) ==
+					   .I64 {emit_instruction(Wasm_I32_Wrap_I64{}, buf)}
+					emit_instruction(
+						Wasm_Call{index = u32(runtime_indices[Runtime_Func.Set_Debug])},
+						buf,
+					)
+					if ir.ir_expr_wasm_type(e) ==
+					   .I64 {emit_instruction(Wasm_I64_Extend_I32_S{}, buf)}
+					break
+				}
 			}
 
 			if module_str == "Result" {
 				if name_str == "debug" && len(e.args) == 1 {
-					// Result.debug: resolve ok/err debug functions
+					// Result.debug: resolve ok and err debug functions
 					ok_debug_fn_idx := 0
-					err_debug_fn_idx := 0
-					// For now, use the same debug_func for both ok and err
 					if e.debug_func.module != base.NO_NAME && e.debug_func.name != 0 {
 						mangled := base.mangle_name(
 							e.debug_func.module,
@@ -994,17 +1101,71 @@ emit_expr :: proc(expr: ir.IR_Expr, buf: ^[dynamic]u8, env: ^Codegen_Env, runtim
 						)
 						if idx, ok := env.func_map[base.hash_string(mangled)]; ok {
 							ok_debug_fn_idx = idx
-							err_debug_fn_idx = idx
 						}
 					} else if e.debug_func.name != 0 {
 						if idx, ok := env.func_map[u64(e.debug_func.name)]; ok {
 							ok_debug_fn_idx = idx
+						}
+					}
+					// Fallback for ok debug: try I64_debug_trampoline
+					if ok_debug_fn_idx == 0 {
+						i64_dbg_id := base.intern(env.interner, "I64_debug_trampoline")
+						if idx, ok := env.func_map[u64(i64_dbg_id)]; ok {
+							ok_debug_fn_idx = idx
+						}
+					}
+					err_debug_fn_idx := 0
+					if e.val_debug_func.module != base.NO_NAME && e.val_debug_func.name != 0 {
+						mangled := base.mangle_name(
+							e.val_debug_func.module,
+							e.val_debug_func.name,
+							env.interner,
+						)
+						if idx, ok := env.func_map[base.hash_string(mangled)]; ok {
 							err_debug_fn_idx = idx
 						}
+					} else if e.val_debug_func.name != 0 {
+						if idx, ok := env.func_map[u64(e.val_debug_func.name)]; ok {
+							err_debug_fn_idx = idx
+						}
+					}
+					// Fallback for err debug: try I64_debug_trampoline
+					if err_debug_fn_idx == 0 {
+						i64_dbg_id := base.intern(env.interner, "I64_debug_trampoline")
+						if idx, ok := env.func_map[u64(i64_dbg_id)]; ok {
+							err_debug_fn_idx = idx
+						}
+					}
+					// Detect if both callbacks fell back to I64 trampoline.
+					// Result stores I64 payloads unboxed (as raw i64), so we
+					// need a special body that uses i64.load and calls I64_To_Str
+					// directly (type (i64)->i32) instead of the trampoline.
+					i64_trampoline_idx := 0
+					i64_dbg_id := base.intern(env.interner, "I64_debug_trampoline")
+					if idx, ok := env.func_map[u64(i64_dbg_id)]; ok {
+						i64_trampoline_idx = idx
+					}
+					both_i64 :=
+						ok_debug_fn_idx == i64_trampoline_idx &&
+						err_debug_fn_idx == i64_trampoline_idx
+					if both_i64 {
+						// Result_Debug_I64 hardcodes I64_To_Str calls directly
+						emit_expr(e.args[0], buf, env, runtime_indices)
+						if ir.ir_expr_wasm_type(e.args[0]) ==
+						   .I64 {emit_instruction(Wasm_I32_Wrap_I64{}, buf)}
+						emit_instruction(
+							Wasm_Call{index = u32(runtime_indices[Runtime_Func.Result_Debug_I64])},
+							buf,
+						)
+						if ir.ir_expr_wasm_type(e) ==
+						   .I64 {emit_instruction(Wasm_I64_Extend_I32_S{}, buf)}
+						break
 					}
 					emit_instruction(Wasm_I32_Const{value = i32(ok_debug_fn_idx)}, buf)
 					emit_instruction(Wasm_I32_Const{value = i32(err_debug_fn_idx)}, buf)
 					emit_expr(e.args[0], buf, env, runtime_indices)
+					if ir.ir_expr_wasm_type(e.args[0]) ==
+					   .I64 {emit_instruction(Wasm_I32_Wrap_I64{}, buf)}
 					emit_instruction(
 						Wasm_Call{index = u32(runtime_indices[Runtime_Func.Result_Debug])},
 						buf,

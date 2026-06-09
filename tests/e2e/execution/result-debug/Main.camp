@@ -1,0 +1,5 @@
+main! = || -> I64 {
+  r: Result(Str, Str) = Ok("hello")
+  _ = Result.debug(r)
+  1
+}

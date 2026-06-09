@@ -230,6 +230,7 @@ IR_Call :: struct {
 	ord_compare_func: ba.Canonical_Name,
 	eq_func:          ba.Canonical_Name,
 	debug_func:       ba.Canonical_Name,
+	val_debug_func:   ba.Canonical_Name,
 }
 
 IR_Tail_Call :: struct {

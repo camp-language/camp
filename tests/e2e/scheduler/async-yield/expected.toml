@@ -8,10 +8,10 @@ exit = 0
 wasm_exit = 1
 wasm_stdout = ""
 wasm_stderr = """
-Error: failed to compile: wasm[0]::function[83]
+Error: failed to compile: wasm[0]::function[85]
 
 Caused by:
     0: WebAssembly translation error
-    1: Invalid input WebAssembly code at offset 9277: type mismatch: expected a type but nothing on stack
+    1: Invalid input WebAssembly code at offset 9375: type mismatch: expected a type but nothing on stack
 
 """

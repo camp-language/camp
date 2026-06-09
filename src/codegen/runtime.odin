@@ -3845,6 +3845,24 @@ emit_i64_trampoline_body :: proc(i64_compare_func_idx: int) -> Wasm_Code {
 	return Wasm_Code{locals = locals, body = body}
 }
 
+emit_i64_debug_trampoline_body :: proc(i64_to_str_func_idx: int) -> Wasm_Code {
+	// (ptr: i32) -> i32
+	// Loads i64 from boxed cell at offset 4, calls I64_To_Str, returns Str ptr.
+	buf: [dynamic]u8
+	buf = make([dynamic]u8, 0, CODE_BUF_MINOR)
+
+	emit_instruction(Wasm_Local_Get{index = 0}, &buf)
+	emit_instruction(Wasm_I64_Load{align = 2, offset = 4}, &buf)
+	emit_instruction(Wasm_Call{index = u32(i64_to_str_func_idx)}, &buf)
+	emit_instruction(Wasm_End{}, &buf)
+
+	locals := make([]Wasm_Local_Decl, 0)
+	body := make([]u8, len(buf))
+	for b, i in buf {body[i] = b}
+	delete(buf)
+	return Wasm_Code{locals = locals, body = body}
+}
+
 emit_i64_compare_body :: proc() -> Wasm_Code {
 	// (a: i64, b: i64) -> i32
 	// Returns -1 if a < b, 0 if a == b, 1 if a > b

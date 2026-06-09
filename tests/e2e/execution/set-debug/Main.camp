@@ -1,0 +1,5 @@
+main! = || -> I64 {
+  s = Set.singleton(42)
+  _ = Set.debug(s)
+  1
+}
