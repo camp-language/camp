@@ -518,41 +518,9 @@ emit_expr :: proc(expr: ir.IR_Expr, buf: ^[dynamic]u8, env: ^Codegen_Env, runtim
 			}
 
 			if module_str == "List" {
-				if name_str == "length" && len(e.args) == 1 {
-					emit_expr(e.args[0], buf, env, runtime_indices)
-					emit_instruction(
-						Wasm_Call{index = u32(runtime_indices[Runtime_Func.List_Len])},
-						buf,
-					)
-					// List.length returns I64 in Camp but Runtime_Func.List_Len returns i32
-					emit_instruction(Wasm_I64_Extend_I32_S{}, buf)
-					break
-				}
-				if name_str == "get" && len(e.args) == 2 {
-					emit_expr(e.args[0], buf, env, runtime_indices)
-					emit_expr(e.args[1], buf, env, runtime_indices)
-					emit_instruction(
-						Wasm_Call{index = u32(runtime_indices[Runtime_Func.List_Get])},
-						buf,
-					)
-					break
-				}
-				if name_str == "push" && len(e.args) == 2 {
-					emit_expr(e.args[0], buf, env, runtime_indices)
-					emit_expr(e.args[1], buf, env, runtime_indices)
-					emit_instruction(
-						Wasm_Call{index = u32(runtime_indices[Runtime_Func.List_Push])},
-						buf,
-					)
-					break
-				}
-				if name_str == "alloc" && len(e.args) == 0 {
-					emit_instruction(
-						Wasm_Call{index = u32(runtime_indices[Runtime_Func.List_Alloc])},
-						buf,
-					)
-					break
-				}
+				// List.debug uses a runtime function that takes a function pointer for element debug.
+				// This is separate from length/get/push/alloc which operate on the internal
+				// growable array struct, not the Camp tag union (Nil | Cons).
 				if name_str == "debug" && len(e.args) == 1 {
 					// Resolve element debug function from debug_func
 					debug_fn_idx := 0

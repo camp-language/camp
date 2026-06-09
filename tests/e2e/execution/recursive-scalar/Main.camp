@@ -1,0 +1,10 @@
+// Recursive self-call over a scalar argument (no heap) must also be a direct call.
+sumto = |n: I64| -> I64 {
+  match n {
+    0 => 0
+    _ => n + sumto(n - 1)
+  }
+}
+main! = || -> I64 {
+  sumto(4)
+}
