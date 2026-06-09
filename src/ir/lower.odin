@@ -992,10 +992,20 @@ lower_tmethod_call :: proc(e: ^semantics.TExpr_Method_Call, env: ^Lower_Env) -> 
 			}
 		}
 	}
-	ir_args := make([dynamic]IR_Expr, 0, len(e.args) + 1)
-	append(&ir_args, receiver_ir)
-	for arg in e.args {
-		append(&ir_args, lower_texpr(arg, env))
+	ir_args: [dynamic]IR_Expr
+	if e.resolved_.module != base.NO_NAME {
+		// Module-qualified call (e.g. List.length(xs)) — receiver is a module/type name, not a value
+		ir_args = make([dynamic]IR_Expr, 0, len(e.args))
+		for arg in e.args {
+			append(&ir_args, lower_texpr(arg, env))
+		}
+	} else {
+		// UFCS method call (e.g. xs.length()) — receiver is the value, prepend as arg[0]
+		ir_args = make([dynamic]IR_Expr, 0, len(e.args) + 1)
+		append(&ir_args, receiver_ir)
+		for arg in e.args {
+			append(&ir_args, lower_texpr(arg, env))
+		}
 	}
 
 	if e.resolved_.name != 0 {

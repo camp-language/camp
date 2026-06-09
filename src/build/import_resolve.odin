@@ -333,6 +333,26 @@ resolve_expr_names :: proc(
 			resolve_expr_names(arg, scope, export_tables, interner, collector)
 		}
 
+		// Module-qualified call detection: List.length(xs) where receiver is a module/type
+		#partial switch r in e.receiver {
+		case ^semantics.CExpr_Name:
+			if r.name.is_local && r.name.module == base.NO_NAME {
+				if _, is_module := scope.module_aliased[r.name.name]; is_module {
+					if resolved, ok := resolve_qualified_access(
+						r.name.name,
+						e.method.name,
+						scope,
+						export_tables,
+						interner,
+						collector,
+						e.span,
+					); ok {
+						e.method = resolved
+					}
+				}
+			}
+		}
+
 	case ^semantics.CExpr_Lambda:
 		resolve_expr_names(e.body, scope, export_tables, interner, collector)
 

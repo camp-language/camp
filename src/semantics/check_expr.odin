@@ -1009,6 +1009,36 @@ typecheck_method_call :: proc(
 		}
 	}
 
+	// Detect module-qualified calls: receiver is a prelude type used as a module qualifier
+	// e.g. List.length(xs), Str.length(s), Map.new() — receiver is a type/constructor, not a value.
+	is_module_qualified := false
+	qualified_module: base.Intern_ID
+	if !is_effect_op {
+		#partial switch r in e.receiver {
+		case ^CExpr_Tag:
+			if len(r.payload) == 0 {
+				if v, has_v := store.bindings[r.name.name]; has_v {
+					resolved_v := resolve_var(store, v)
+					if inf, is_inf := store.vars[int(resolved_v)].link.(Inferred_Type); is_inf {
+						if _, is_ctor := inf.(Inferred_Constructor); is_ctor {
+							is_module_qualified = true
+							qualified_module = r.name.name
+						}
+					}
+				}
+			}
+		}
+	}
+
+	resolved_name := e.method
+	if is_module_qualified {
+		resolved_name = base.Canonical_Name {
+			module   = qualified_module,
+			name     = e.method.name,
+			is_local = false,
+		}
+	}
+
 	for a in e.args {
 		arg_result := typecheck_synth(a, env, store)
 		unify(store, eff, arg_result.effects)
@@ -1033,7 +1063,7 @@ typecheck_method_call :: proc(
 		args      = args_t,
 		type_     = lower_type(store, return_var),
 		eff_      = lower_effect_type(store, eff),
-		resolved_ = e.method,
+		resolved_ = resolved_name,
 		dispatch  = e.dispatch,
 		span      = e.span,
 	}
