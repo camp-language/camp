@@ -782,6 +782,7 @@ lower_tcall :: proc(e: ^semantics.TExpr_Call, env: ^Lower_Env) -> IR_Expr {
 			ord_compare_func = resolve_ord_compare(callee_name, e.args, env),
 			eq_func          = resolve_eq_func(callee_name, e.args, env),
 			debug_func       = resolve_debug_func(callee_name, e.args, env),
+			val_debug_func   = resolve_val_debug_func(callee_name, e.args, env),
 		}
 		return IR_Expr(call)
 
@@ -977,6 +978,11 @@ lower_tmethod_call :: proc(e: ^semantics.TExpr_Method_Call, env: ^Lower_Env) -> 
 									e.args,
 									env,
 								),
+								val_debug_func   = resolve_val_debug_func(
+									resolved_fn_name,
+									e.args,
+									env,
+								),
 							}
 							return IR_Expr(call)
 						}
@@ -1027,6 +1033,7 @@ lower_tmethod_call :: proc(e: ^semantics.TExpr_Method_Call, env: ^Lower_Env) -> 
 			ord_compare_func = resolve_ord_compare(resolved_name, e.args, env),
 			eq_func          = resolve_eq_func(resolved_name, e.args, env),
 			debug_func       = resolve_debug_func(resolved_name, e.args, env),
+			val_debug_func   = resolve_val_debug_func(resolved_name, e.args, env),
 		}
 		return IR_Expr(meth_call)
 	}
@@ -3433,36 +3440,52 @@ detect_container_module :: proc(
 	return callee
 }
 
-// resolve_debug_func resolves the Debug.debug method for the element type
+// resolve_debug_func resolves the Debug.debug method for the element/key/Ok type
 // of a container debug call. Returns a zero Canonical_Name if resolution fails.
+// For List_debug/Set_debug: element type debug (param_index 0).
+// For Map_debug: key type debug (param_index 0).
+// For Result_debug: Ok type debug (param_index 0).
 resolve_debug_func :: proc(
 	callee: base.Canonical_Name,
 	args: [dynamic]semantics.TExpr,
 	env: ^Lower_Env,
 ) -> base.Canonical_Name {
 	name_str := base.intern_get(env.interner, callee.name)
-	if name_str != "List_debug" && name_str != "Set_debug" {
-		return base.Canonical_Name{}
-	}
 
-	// For List_debug and Set_debug, extract the element type from the first arg
-	if len(args) == 0 {
-		return base.Canonical_Name{}
-	}
-
-	// Try to extract element type from the container
-	container_name := "List"
-	if name_str == "Set_debug" {
+	// Determine container name and element type index for the primary debug func
+	container_name: string
+	param_index := 0
+	switch name_str {
+	case "List_debug":
+		container_name = "List"
+	case "Set_debug":
 		container_name = "Set"
+	case "Map_debug":
+		container_name = "Map" // key type
+	case "Result_debug":
+		container_name = "Result" // Ok type
+	case:
+		return base.Canonical_Name{}
 	}
-	elem_type_id, ok := extract_container_element_type(
-		env.store,
-		env.interner,
-		args[0],
-		container_name,
-		0,
-	)
-	if !ok {
+
+	// Find the container arg (skip non-container args like function receiver)
+	elem_type_id: base.Type_Var_ID
+	found := false
+	for i in 0 ..< len(args) {
+		et, ok := extract_container_element_type(
+			env.store,
+			env.interner,
+			args[i],
+			container_name,
+			param_index,
+		)
+		if ok {
+			elem_type_id = et
+			found = true
+			break
+		}
+	}
+	if !found {
 		return base.Canonical_Name{}
 	}
 
@@ -3476,6 +3499,83 @@ resolve_debug_func :: proc(
 	if !debug_ok {
 		return base.Canonical_Name{}
 	}
+
+	// I64 elements are boxed in containers; use the unboxing trampoline
+	func_name_str := base.intern_get(env.interner, func_name.name)
+	if func_name_str == "I64_debug" {
+		result := func_name
+		result.name = base.intern(env.interner, "I64_debug_trampoline")
+		return result
+	}
+
+	return func_name
+}
+
+// resolve_val_debug_func resolves the Debug.debug method for the value/Err type
+// of a container debug call. Returns a zero Canonical_Name if resolution fails
+// or if the call doesn't need a secondary debug func.
+// For Map_debug: value type debug (param_index 1).
+// For Result_debug: Err type debug (param_index 1).
+// For List_debug/Set_debug: returns zero (no secondary type).
+resolve_val_debug_func :: proc(
+	callee: base.Canonical_Name,
+	args: [dynamic]semantics.TExpr,
+	env: ^Lower_Env,
+) -> base.Canonical_Name {
+	name_str := base.intern_get(env.interner, callee.name)
+
+	// Only Map and Result need a second debug func
+	container_name: string
+	param_index := 1
+	switch name_str {
+	case "Map_debug":
+		container_name = "Map" // value type
+	case "Result_debug":
+		container_name = "Result" // Err type
+	case:
+		return base.Canonical_Name{}
+	}
+
+	// Find the container arg and extract value/err type
+	elem_type_id: base.Type_Var_ID
+	found := false
+	for i in 0 ..< len(args) {
+		et, ok := extract_container_element_type(
+			env.store,
+			env.interner,
+			args[i],
+			container_name,
+			param_index,
+		)
+		if ok {
+			elem_type_id = et
+			found = true
+			break
+		}
+	}
+	if !found {
+		return base.Canonical_Name{}
+	}
+
+	func_name, debug_ok := resolve_trait_method(
+		env.store,
+		env.interner,
+		elem_type_id,
+		"Debug",
+		"debug",
+	)
+	if !debug_ok {
+		return base.Canonical_Name{}
+	}
+
+	// I64 elements are boxed in containers; use the unboxing trampoline
+	func_name_str := base.intern_get(env.interner, func_name.name)
+	if func_name_str == "I64_debug" {
+		result := func_name
+		result.name = base.intern(env.interner, "I64_debug_trampoline")
+		return result
+	}
+
 	return func_name
 }
 

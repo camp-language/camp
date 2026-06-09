@@ -1,0 +1,5 @@
+main! = || -> I64 {
+  m = Map.singleton(42, "hello")
+  _ = Map.debug(m)
+  1
+}

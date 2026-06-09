@@ -763,6 +763,15 @@ codegen :: proc(
 	i64_trampoline_func_idx := add_function(&env, i64_trampoline_type_idx)
 	runtime_func_indices[Runtime_Func.I64_Trampoline] = i64_trampoline_func_idx
 
+	// I64_Debug_Trampoline: (i32) -> i32 — unboxes I64, calls I64_To_Str
+	i64_debug_trampoline_type_idx := get_or_create_type(
+		&env,
+		[]Wasm_Value_Type{.I32},
+		[]Wasm_Value_Type{.I32},
+	)
+	i64_debug_trampoline_func_idx := add_function(&env, i64_debug_trampoline_type_idx)
+	runtime_func_indices[Runtime_Func.I64_Debug_Trampoline] = i64_debug_trampoline_func_idx
+
 	// Container debug function types
 	// List_Debug: (elem_debug_fn: i32, list: i32) -> i32
 	list_debug_type_idx := get_or_create_type(
@@ -788,6 +797,11 @@ codegen :: proc(
 	result_debug_type_idx := map_debug_type_idx
 	result_debug_func_idx := add_function(&env, result_debug_type_idx)
 	runtime_func_indices[Runtime_Func.Result_Debug] = result_debug_func_idx
+	// Result_Debug_I64: (result: i32) -> i32 — hardcodes I64_To_Str direct calls
+	// for when both Ok and Err payloads are I64 (stored unboxed in tag union)
+	result_debug_i64_type_idx := i64_debug_trampoline_type_idx // (i32) -> i32
+	result_debug_i64_func_idx := add_function(&env, result_debug_i64_type_idx)
+	runtime_func_indices[Runtime_Func.Result_Debug_I64] = result_debug_i64_func_idx
 
 	camp_alloc_code := emit_camp_alloc_body(heap_ptr_global_idx)
 	append(&mod.codes, camp_alloc_code)
@@ -924,6 +938,15 @@ codegen :: proc(
 	env.func_map[u64(i64_compare_name)] = i64_compare_func_idx
 	// Map I64_Compare -> I64_Trampoline in the trampoline cache
 	env.i64_trampoline_cache[i64_compare_func_idx] = i64_trampoline_func_idx
+	// I64 debug trampoline function body (unboxes I64, calls I64_To_Str)
+	append(&mod.codes, emit_i64_debug_trampoline_body(i64_to_str_func_idx))
+	// Register I64_debug_trampoline in func_map so resolve_debug_func can find it
+	i64_dbg_trampoline_name := base.intern(interner, "I64_debug_trampoline")
+	env.func_map[u64(i64_dbg_trampoline_name)] = i64_debug_trampoline_func_idx
+	// Also register I64_debug itself to point to the trampoline, so that
+	// if resolve_debug_func returns the raw I64_debug name, the lookup succeeds
+	i64_debug_name := base.intern(interner, "I64_debug")
+	env.func_map[u64(i64_debug_name)] = i64_debug_trampoline_func_idx
 
 	// Debug callback type: (i32) -> i32 (takes value, returns Str pointer)
 	debug_cb_type_idx := get_or_create_type(&env, []Wasm_Value_Type{.I32}, []Wasm_Value_Type{.I32})
@@ -940,6 +963,30 @@ codegen :: proc(
 			env.debug_str_offsets[", "],
 		),
 	)
+	// Map.debug and Set.debug bodies
+	append(
+		&mod.codes,
+		emit_map_debug_body(
+			str_concat_func_idx,
+			debug_cb_type_idx,
+			env.table_idx,
+			env.debug_str_offsets["Map{"],
+			env.debug_str_offsets["}"],
+			env.debug_str_offsets[", "],
+			env.debug_str_offsets[": "],
+		),
+	)
+	append(
+		&mod.codes,
+		emit_set_debug_body(
+			str_concat_func_idx,
+			debug_cb_type_idx,
+			env.table_idx,
+			env.debug_str_offsets["Set{"],
+			env.debug_str_offsets["}"],
+			env.debug_str_offsets[", "],
+		),
+	)
 	append(
 		&mod.codes,
 		emit_result_debug_body(
@@ -951,27 +998,15 @@ codegen :: proc(
 			env.debug_str_offsets[")"],
 		),
 	)
-	// Map.debug and Set.debug: stub bodies for now (return empty string)
+	// Result_Debug_I64 body: calls I64_To_Str directly for both Ok and Err
 	append(
 		&mod.codes,
-		emit_list_debug_body(
+		emit_result_debug_i64_body(
 			str_concat_func_idx,
-			debug_cb_type_idx,
-			env.table_idx,
-			env.debug_str_offsets["["],
-			env.debug_str_offsets["]"],
-			env.debug_str_offsets[", "],
-		),
-	)
-	append(
-		&mod.codes,
-		emit_list_debug_body(
-			str_concat_func_idx,
-			debug_cb_type_idx,
-			env.table_idx,
-			env.debug_str_offsets["["],
-			env.debug_str_offsets["]"],
-			env.debug_str_offsets[", "],
+			i64_to_str_func_idx,
+			env.debug_str_offsets["Ok("],
+			env.debug_str_offsets["Err("],
+			env.debug_str_offsets[")"],
 		),
 	)
 

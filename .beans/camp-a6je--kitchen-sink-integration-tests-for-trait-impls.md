@@ -7,7 +7,6 @@ priority: normal
 created_at: 2026-06-06T22:45:06Z
 updated_at: 2026-06-06T22:46:14Z
 blocked_by:
-    - camp-llot
     - camp-sirt
 ---
 
