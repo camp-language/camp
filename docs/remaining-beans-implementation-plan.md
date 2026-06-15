@@ -124,7 +124,7 @@ However, the bean reports "fn_idx is wrong/uninitialized". Possible root causes:
 
 2. Build: `just build`
 
-3. Run to confirm the trap: `wasmtime run camp.wasm` (or the e2e runner)
+3. Run to confirm the trap: `wasmer run camp.wasm` (or the e2e runner)
 
 4. Inspect the generated WASM with `wasm2wat`:
    - Find the closed function in the module — verify it exists

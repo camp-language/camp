@@ -38,7 +38,7 @@ camp lsp                  # Start the language server (stdio)
 ```bash
 echo 'main! = || -> I64 { 42 }' > hello.camp
 camp build hello.camp     # Produces hello.wasm
-wasmtime run hello.wasm   # Exits with code 42
+wasmer run hello.wasm   # Exits with code 42
 ```
 
 ## Testing

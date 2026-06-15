@@ -216,7 +216,7 @@ run_test_project :: proc(filter: string = "", verbose: bool = false) -> Build_Re
 			continue
 		}
 
-		wasm_stdout, wasm_stderr, exit_code := run_wasmtime_proc(tmp_wasm_path)
+		wasm_stdout, wasm_stderr, exit_code := run_wasmer_proc(tmp_wasm_path)
 		os.remove_all(tmp_dir)
 
 		if exit_code == 0 {

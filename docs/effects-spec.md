@@ -252,3 +252,22 @@ When a `handle` expression handles effect `E`, the resulting effect row SHALL be
 
 - **WHEN** a `handle Throw!` block has body with row `-[Throw!([NotFound | PermissionDenied]) | Console!]->`
 - **THEN** the resulting row SHALL be `-[Console!]->` — `Throw!` removed regardless of its type arguments
+
+### Requirement: Non-Prelude Runtime-Backed Effects (Process!)
+
+Runtime-backed effects that are not prelude effects SHALL be defined in the stdlib as regular effect declarations. Users SHALL import them explicitly. The codegen SHALL provide built-in handlers that bridge effect operations to host syscalls. `Process!` (backed by WASIX `proc_spawn`/`wait` via wasmer) is the canonical example.
+
+#### Scenario: Process! requires explicit import
+
+- **WHEN** a program calls `Process!.spawn!(cmd)`
+- **THEN** the program SHALL import `Process { Process!, Command, ProcessHandle, ... }` and `main!`'s effect row SHALL include `Process!`
+
+#### Scenario: Process! handler bridges to WASIX
+
+- **WHEN** `Process!.spawn!` is performed
+- **THEN** the runtime handler SHALL marshal the `Command` into WASIX `proc_spawn` arguments and return a `ProcessHandle` with optional pipe handles
+
+#### Scenario: Process! streaming API
+
+- **WHEN** a `Command` has `stdout: Capture` and is spawned via `Process!.spawn!`
+- **THEN** `ProcessHandle.stdout` SHALL be `Some(handle)` and `Process!.read!(handle)` SHALL return bytes from the child's stdout pipe

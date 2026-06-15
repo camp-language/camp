@@ -638,6 +638,7 @@ Both mechanisms:
 | Shebang dependency syntax | Decided: `deps` block | `deps { alias: "uri" }` before imports; script-only; see openspec/specs/packages |
 | `camp.toml` format | Decided: TOML | `[package]`, `[dependencies]`, `[dev-dependencies]`; bare URI deps; see openspec/specs/packages |
 | `camp build` / `camp test` CLI | TBD | Build system and test runner interface |
+| Process! effect runtime handler | In progress | WASIX proc_spawn/wait codegen wiring; see stdlib/Process.camp for effect definition |
 
 ---
 

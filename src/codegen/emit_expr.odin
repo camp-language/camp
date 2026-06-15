@@ -291,6 +291,12 @@ Runtime_Func :: enum {
 	I64_Compare,
 	I64_Trampoline,
 	I64_Debug_Trampoline,
+	Process_Spawn,
+	Process_Wait,
+	Process_Read,
+	Process_Write,
+	Process_Close,
+	Process_Run,
 }
 
 RUNTIME_FUNC_COUNT :: int(len(Runtime_Func))
@@ -2621,6 +2627,80 @@ emit_expr :: proc(expr: ir.IR_Expr, buf: ^[dynamic]u8, env: ^Codegen_Env, runtim
 					// Use fd_write for actual write, then block_io if needed
 					emit_instruction(Wasm_Call{index = u32(1)}, buf) // fd_write import
 					emit_instruction(Wasm_Drop{}, buf)
+				} else {
+					emit_instruction(Wasm_Unreachable{}, buf)
+				}
+			} else if effect_str == "Process!" ||
+			   effect_str == "Process" {
+				// Process! operations route to WASIX-backed runtime functions
+				if op_str == "spawn!" {
+					// spawn!(cmd) -> ProcessHandle
+					if len(e.args) >= 1 {
+						emit_expr(e.args[0], buf, env, runtime_indices)
+					} else {
+						emit_instruction(Wasm_I32_Const{value = 0}, buf)
+					}
+					emit_instruction(
+						Wasm_Call{index = u32(runtime_indices[Runtime_Func.Process_Spawn])},
+						buf,
+					)
+				} else if op_str == "wait!" {
+					// wait!(handle) -> I32 exit code
+					if len(e.args) >= 1 {
+						emit_expr(e.args[0], buf, env, runtime_indices)
+					} else {
+						emit_instruction(Wasm_I32_Const{value = 0}, buf)
+					}
+					emit_instruction(
+						Wasm_Call{index = u32(runtime_indices[Runtime_Func.Process_Wait])},
+						buf,
+					)
+				} else if op_str == "read!" {
+					// read!(handle) -> Bytes
+					if len(e.args) >= 1 {
+						emit_expr(e.args[0], buf, env, runtime_indices)
+					} else {
+						emit_instruction(Wasm_I32_Const{value = 0}, buf)
+					}
+					emit_instruction(
+						Wasm_Call{index = u32(runtime_indices[Runtime_Func.Process_Read])},
+						buf,
+					)
+				} else if op_str == "write!" {
+					// write!(handle, bytes) -> {}
+					if len(e.args) >= 2 {
+						emit_expr(e.args[0], buf, env, runtime_indices)
+						emit_expr(e.args[1], buf, env, runtime_indices)
+					} else {
+						emit_instruction(Wasm_I32_Const{value = 0}, buf)
+						emit_instruction(Wasm_I32_Const{value = 0}, buf)
+					}
+					emit_instruction(
+						Wasm_Call{index = u32(runtime_indices[Runtime_Func.Process_Write])},
+						buf,
+					)
+				} else if op_str == "close!" {
+					// close!(handle) -> {}
+					if len(e.args) >= 1 {
+						emit_expr(e.args[0], buf, env, runtime_indices)
+					} else {
+						emit_instruction(Wasm_I32_Const{value = 0}, buf)
+					}
+					emit_instruction(
+						Wasm_Call{index = u32(runtime_indices[Runtime_Func.Process_Close])},
+						buf,
+					)
+				} else if op_str == "run!" {
+					// run!(cmd) -> ProcessResult
+					if len(e.args) >= 1 {
+						emit_expr(e.args[0], buf, env, runtime_indices)
+					} else {
+						emit_instruction(Wasm_I32_Const{value = 0}, buf)
+					}
+					emit_instruction(
+						Wasm_Call{index = u32(runtime_indices[Runtime_Func.Process_Run])},
+						buf,
+					)
 				} else {
 					emit_instruction(Wasm_Unreachable{}, buf)
 				}

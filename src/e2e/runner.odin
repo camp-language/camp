@@ -262,11 +262,11 @@ run_test :: proc(test: E2E_Test, update: bool) -> Test_Report {
 		// Only attempt to run the WASM when it actually exports `_start`.
 		// Camp source files with no `main!` (library-style: just top-level
 		// fn or type decls) are valid programs that compile but don't run,
-		// and asking wasmtime to `run` such a module just returns a generic
+		// and asking wasmer to `run` such a module just returns a generic
 		// "no _start" error that obscures the real test signal.
 		if tw_err == nil && !skip_wasm && wasm_has_start_export(wasm_path) {
 			has_wasm = true
-			wasm_stdout, wasm_stderr, wasm_exit, wasm_available = run_wasmtime(
+			wasm_stdout, wasm_stderr, wasm_exit, wasm_available = run_wasmer(
 				wasm_path,
 				unique_prefix,
 			)
@@ -275,7 +275,7 @@ run_test :: proc(test: E2E_Test, update: bool) -> Test_Report {
 
 	if has_wasm && !wasm_available {
 		report.result = .Fail
-		report.diff = "  wasm: wasmtime not available"
+		report.diff = "  wasm: wasmer not available"
 		return report
 	}
 
@@ -527,18 +527,18 @@ run_camp_build :: proc(
 	return run_command_prefixed({camp_bin, "build", camp_path}, unique_prefix)
 }
 
-resolve_wasmtime :: proc() -> string {
-	env_val := os.get_env_alloc("WASMTIME", context.allocator)
+resolve_wasmer :: proc() -> string {
+	env_val := os.get_env_alloc("WASMER", context.allocator)
 	if len(env_val) > 0 {
 		clone, _ := strings.clone(env_val, context.allocator)
 		return clone
 	}
-	return "wasmtime"
+	return "wasmer"
 }
 
 // wasm_has_start_export returns true if the module at wasm_path declares an
 // export named `_start`. Camp programs without `main!` produce a module that
-// compiles but has no entry point — running them with wasmtime emits a
+// compiles but has no entry point — running them with wasmer emits a
 // generic error that drowns out the actual test signal, so we skip the run.
 wasm_has_start_export :: proc(wasm_path: string) -> bool {
 	data, read_err := os.read_entire_file(wasm_path, context.allocator)
@@ -582,7 +582,7 @@ read_uleb_u32 :: proc(b: []u8, start: int) -> (u32, int) {
 	return result, p
 }
 
-run_wasmtime :: proc(
+run_wasmer :: proc(
 	wasm_path: string,
 	unique_prefix: string,
 ) -> (
@@ -591,9 +591,9 @@ run_wasmtime :: proc(
 	exit_code: int,
 	available: bool,
 ) {
-	wasmtime_bin := resolve_wasmtime()
+	wasmer_bin := resolve_wasmer()
 	stdout, stderr, exit_code = run_command_prefixed(
-		{wasmtime_bin, "run", wasm_path},
+		{wasmer_bin, "run", wasm_path},
 		unique_prefix,
 	)
 	if exit_code == -1 && stderr == "process timed out after 10s" {

@@ -1,0 +1,196 @@
+// Process! effect — subprocess spawning
+// Backed by WASIX proc_spawn/wait syscalls via wasmer.
+// Two API levels:
+//   Low-level: spawn! → read!/write!/close! → wait!
+//   Simple: run! (spawn + wait + capture in one call)
+
+// --- Types ---
+
+@Command : pub {
+  program: Str,
+  args: List(Str),
+  env: List((Str, Str)),
+  clear_env: Bool,
+  working_dir: Option(Str),
+  stdin: StdioMode,
+  stdout: StdioMode,
+  stderr: StdioMode,
+}
+
+StdioMode : pub [Inherit | Capture | Null]
+
+@Handle : {}  // opaque file descriptor wrapper
+
+@ProcessHandle : pub {
+  pid: I32,
+  stdin: Option(Handle),
+  stdout: Option(Handle),
+  stderr: Option(Handle),
+}
+
+// ProcessResult uses Bytes for stdout/stderr — consistent with read!.
+// Use Process.to_str() to decode to Str when needed.
+@ProcessResult : pub {
+  exit_code: I32,
+  stdout: Bytes,
+  stderr: Bytes,
+}
+
+ProcessError : pub [SpawnFailed(Str) | TimedOut | IoError(Str)]
+
+// --- Effect operations ---
+
+Process! : {
+  // Non-blocking: spawn a child process. Pipe handles are available
+  // based on the Command's StdioMode settings (Capture → Some, others → None).
+  spawn! : |Command| -[Process! | Throw!([ProcessError])]-> ProcessHandle,
+
+  // Block until the child exits. Returns exit code.
+  // Auto-closes all pipe handles in the ProcessHandle before returning,
+  // since pipes are dead after the child exits anyway (POSIX semantics).
+  // Explicit close! is available for early cleanup (e.g., closing stdin
+  // before the process exits to signal EOF).
+  wait! : |ProcessHandle| -[Process! | Throw!([ProcessError])]-> I32,
+
+  // Read bytes from a pipe handle (stdout/stderr of a spawned process).
+  read! : |Handle| -[Process! | Throw!([ProcessError])]-> Bytes,
+
+  // Write bytes to a pipe handle (stdin of a spawned process).
+  write! : |Handle, Bytes| -[Process! | Throw!([ProcessError])]-> {},
+
+  // Close a pipe handle early. Optional — wait! auto-closes all handles.
+  // Use this to signal EOF on stdin before the process exits.
+  close! : |Handle| -[Process!]-> {},
+
+  // Convenience: spawn, wait, capture output.
+  // Respects StdioMode: Capture → output captured, Inherit/Null → empty Bytes.
+  // For the common case where you just want exit code + output.
+  run! : |Command| -[Process! | Throw!([ProcessError])]-> ProcessResult,
+}
+
+// --- Pure helpers ---
+
+// Decode a ProcessResult's Bytes fields to Str (assumes UTF-8).
+pub to_str = |r: ProcessResult| -> { exit_code: I32, stdout: Str, stderr: Str } {
+  // TODO: use actual UTF-8 decode when available
+  { exit_code: r.exit_code, stdout: "", stderr: "" }
+}
+
+// --- Pure builder helpers ---
+
+pub from = |program: Str| -> Command {
+  {
+    program: program,
+    args: [],
+    env: [],
+    clear_env: False,
+    working_dir: None,
+    stdin: Inherit,
+    stdout: Inherit,
+    stderr: Inherit,
+  }
+}
+
+pub arg = |cmd: Command, a: Str| -> Command {
+  {
+    program: cmd.program,
+    args: append(cmd.args, [a]),
+    env: cmd.env,
+    clear_env: cmd.clear_env,
+    working_dir: cmd.working_dir,
+    stdin: cmd.stdin,
+    stdout: cmd.stdout,
+    stderr: cmd.stderr,
+  }
+}
+
+pub args = |cmd: Command, new_args: List(Str)| -> Command {
+  {
+    program: cmd.program,
+    args: new_args,
+    env: cmd.env,
+    clear_env: cmd.clear_env,
+    working_dir: cmd.working_dir,
+    stdin: cmd.stdin,
+    stdout: cmd.stdout,
+    stderr: cmd.stderr,
+  }
+}
+
+pub env = |cmd: Command, key: Str, val: Str| -> Command {
+  {
+    program: cmd.program,
+    args: cmd.args,
+    env: Cons((key, val), cmd.env),
+    clear_env: cmd.clear_env,
+    working_dir: cmd.working_dir,
+    stdin: cmd.stdin,
+    stdout: cmd.stdout,
+    stderr: cmd.stderr,
+  }
+}
+
+pub cwd = |cmd: Command, dir: Str| -> Command {
+  {
+    program: cmd.program,
+    args: cmd.args,
+    env: cmd.env,
+    clear_env: cmd.clear_env,
+    working_dir: Some(dir),
+    stdin: cmd.stdin,
+    stdout: cmd.stdout,
+    stderr: cmd.stderr,
+  }
+}
+
+pub capture_stdout = |cmd: Command| -> Command {
+  {
+    program: cmd.program,
+    args: cmd.args,
+    env: cmd.env,
+    clear_env: cmd.clear_env,
+    working_dir: cmd.working_dir,
+    stdin: cmd.stdin,
+    stdout: Capture,
+    stderr: cmd.stderr,
+  }
+}
+
+pub capture_stderr = |cmd: Command| -> Command {
+  {
+    program: cmd.program,
+    args: cmd.args,
+    env: cmd.env,
+    clear_env: cmd.clear_env,
+    working_dir: cmd.working_dir,
+    stdin: cmd.stdin,
+    stdout: cmd.stdout,
+    stderr: Capture,
+  }
+}
+
+pub capture_all = |cmd: Command| -> Command {
+  {
+    program: cmd.program,
+    args: cmd.args,
+    env: cmd.env,
+    clear_env: cmd.clear_env,
+    working_dir: cmd.working_dir,
+    stdin: cmd.stdin,
+    stdout: Capture,
+    stderr: Capture,
+  }
+}
+
+pub null_stdin = |cmd: Command| -> Command {
+  {
+    program: cmd.program,
+    args: cmd.args,
+    env: cmd.env,
+    clear_env: cmd.clear_env,
+    working_dir: cmd.working_dir,
+    stdin: Null,
+    stdout: cmd.stdout,
+    stderr: cmd.stderr,
+  }
+}

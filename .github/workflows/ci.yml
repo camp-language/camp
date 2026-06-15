@@ -31,8 +31,8 @@ jobs:
           chmod +x /usr/local/bin/odinfmt
           rm ols.zip
 
-      - name: Install wasmtime
-        uses: bytecodealliance/actions/wasmtime/setup@v1
+      - name: Install wasmer
+        run: curl https://get.wasmer.io -sSfL | sh
 
       - name: Run checks
         run: just check

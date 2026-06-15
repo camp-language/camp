@@ -4,6 +4,7 @@ import "camp:base"
 import "camp:ir"
 
 WASI_MODULE :: "wasi_snapshot_preview1"
+WASIX_MODULE :: "wasix_snapshot_preview1"
 
 CAMP_TAG_HEADER_SIZE :: 8
 CAMP_TAG_REFCOUNT_OFFSET :: 0
@@ -235,12 +236,68 @@ emit_wasi_imports :: proc(env: ^Codegen_Env) {
 	add_import(env, WASI_MODULE, "sched_yield", .Func, sched_yield_type)
 }
 
+// emit_wasix_imports adds WASIX process-spawning imports.
+// Called conditionally only when the program uses the Process! effect.
+// Standard WASI programs must NOT call this — wasmer does not provide
+// the wasix_snapshot_preview1 module for basic WASI execution.
+emit_wasix_imports :: proc(env: ^Codegen_Env) {
+	// proc_spawn(name_ptr, name_len, chroot_ptr, chroot_len,
+	//            args_ptr, args_len, preopen_ptr, preopen_len,
+	//            stdin_mode, stdout_mode, stderr_mode,
+	//            working_dir_ptr, working_dir_len, ret_handles_ptr) -> errno
+	proc_spawn_type := get_or_create_type(
+		env,
+		[]Wasm_Value_Type{.I32, .I32, .I32, .I32, .I32, .I32, .I32, .I32, .I32, .I32, .I32, .I32, .I32, .I32},
+		[]Wasm_Value_Type{.I32},
+	)
+	add_import(env, WASIX_MODULE, "proc_spawn", .Func, proc_spawn_type)
+
+	// proc_exec(name_ptr, name_len, args_ptr, args_len) -> errno (noreturn on success)
+	proc_exec_type := get_or_create_type(
+		env,
+		[]Wasm_Value_Type{.I32, .I32, .I32, .I32},
+		[]Wasm_Value_Type{.I32},
+	)
+	add_import(env, WASIX_MODULE, "proc_exec", .Func, proc_exec_type)
+
+	// proc_fork(ret_pid_ptr) -> errno
+	proc_fork_type := get_or_create_type(
+		env,
+		[]Wasm_Value_Type{.I32},
+		[]Wasm_Value_Type{.I32},
+	)
+	add_import(env, WASIX_MODULE, "proc_fork", .Func, proc_fork_type)
+
+	// wait(tid_ptr, options, ret_status_ptr, ret_exit_code_ptr) -> errno
+	wait_type := get_or_create_type(
+		env,
+		[]Wasm_Value_Type{.I32, .I32, .I32, .I32},
+		[]Wasm_Value_Type{.I32},
+	)
+	add_import(env, WASIX_MODULE, "wait", .Func, wait_type)
+
+	// pid_get() -> errno (returns pid via pointer in the real spec, simplified here)
+	pid_get_type := get_or_create_type(
+		env,
+		[]Wasm_Value_Type{.I32},
+		[]Wasm_Value_Type{.I32},
+	)
+	add_import(env, WASIX_MODULE, "pid_get", .Func, pid_get_type)
+}
+
 // WASI import function indices (offset from import_count base)
 WASI_IMPORT_POLL_ONEOFF :: 4
 WASI_IMPORT_FD_READ :: 5
 WASI_IMPORT_FD_CLOSE :: 6
 WASI_IMPORT_CLOCK_TIME_GET :: 7
 WASI_IMPORT_SCHED_YIELD :: 8
+
+// WASIX import function indices (offset from import_count base, after WASI imports)
+WASIX_IMPORT_PROC_SPAWN :: 9
+WASIX_IMPORT_PROC_EXEC :: 10
+WASIX_IMPORT_PROC_FORK :: 11
+WASIX_IMPORT_WAIT :: 12
+WASIX_IMPORT_PID_GET :: 13
 
 emit_runtime_types :: proc(env: ^Codegen_Env) {
 	get_or_create_type(env, []Wasm_Value_Type{.I32}, []Wasm_Value_Type{.I32})
@@ -803,6 +860,32 @@ codegen :: proc(
 	result_debug_i64_func_idx := add_function(&env, result_debug_i64_type_idx)
 	runtime_func_indices[Runtime_Func.Result_Debug_I64] = result_debug_i64_func_idx
 
+	// Process! runtime function types
+	// Process_Spawn: (cmd_ptr: I32) -> I32 (handle)
+	process_spawn_type_idx := get_or_create_type(&env, []Wasm_Value_Type{.I32}, []Wasm_Value_Type{.I32})
+	process_spawn_func_idx := add_function(&env, process_spawn_type_idx)
+	runtime_func_indices[Runtime_Func.Process_Spawn] = process_spawn_func_idx
+	// Process_Wait: (handle: I32) -> I32 (exit code)
+	process_wait_type_idx := get_or_create_type(&env, []Wasm_Value_Type{.I32}, []Wasm_Value_Type{.I32})
+	process_wait_func_idx := add_function(&env, process_wait_type_idx)
+	runtime_func_indices[Runtime_Func.Process_Wait] = process_wait_func_idx
+	// Process_Read: (handle: I32) -> I32 (bytes ptr)
+	process_read_type_idx := get_or_create_type(&env, []Wasm_Value_Type{.I32}, []Wasm_Value_Type{.I32})
+	process_read_func_idx := add_function(&env, process_read_type_idx)
+	runtime_func_indices[Runtime_Func.Process_Read] = process_read_func_idx
+	// Process_Write: (handle: I32, bytes_ptr: I32) -> Void
+	process_write_type_idx := get_or_create_type(&env, []Wasm_Value_Type{.I32, .I32}, []Wasm_Value_Type{})
+	process_write_func_idx := add_function(&env, process_write_type_idx)
+	runtime_func_indices[Runtime_Func.Process_Write] = process_write_func_idx
+	// Process_Close: (handle: I32) -> Void
+	process_close_type_idx := get_or_create_type(&env, []Wasm_Value_Type{.I32}, []Wasm_Value_Type{})
+	process_close_func_idx := add_function(&env, process_close_type_idx)
+	runtime_func_indices[Runtime_Func.Process_Close] = process_close_func_idx
+	// Process_Run: (cmd_ptr: I32) -> I32 (result ptr)
+	process_run_type_idx := get_or_create_type(&env, []Wasm_Value_Type{.I32}, []Wasm_Value_Type{.I32})
+	process_run_func_idx := add_function(&env, process_run_type_idx)
+	runtime_func_indices[Runtime_Func.Process_Run] = process_run_func_idx
+
 	camp_alloc_code := emit_camp_alloc_body(heap_ptr_global_idx)
 	append(&mod.codes, camp_alloc_code)
 
@@ -1009,6 +1092,14 @@ codegen :: proc(
 			env.debug_str_offsets[")"],
 		),
 	)
+
+	// Process! runtime function bodies
+	append(&mod.codes, emit_camp_process_spawn_body(alloc_func_idx))
+	append(&mod.codes, emit_camp_process_wait_body())
+	append(&mod.codes, emit_camp_process_read_body())
+	append(&mod.codes, emit_camp_process_write_body())
+	append(&mod.codes, emit_camp_process_close_body())
+	append(&mod.codes, emit_camp_process_run_body(alloc_func_idx))
 
 	camp_alloc_name := base.intern(interner, "camp_alloc")
 	env.func_map[u64(camp_alloc_name)] = alloc_func_idx
