@@ -1079,14 +1079,14 @@ parser_parse_identifier_expr :: proc(p: ^Parser) -> Expr {
 		}
 		parser_expect(p, .RParen)
 
-		if p.current.kind == .Dot {
+		if p.current.kind == .Dot || p.current.kind == .Arrow {
 			return parser_parse_method_chain(p, call)
 		}
 
 		return call
 	}
 
-	if p.current.kind == .Dot {
+	if p.current.kind == .Dot || p.current.kind == .Arrow {
 		id_expr := new(Expr_Identifier)
 		id_expr^ = Expr_Identifier {
 			name = name_id,

@@ -56,7 +56,7 @@ just update-snapshots     # Regenerate e2e snapshots after intentional output ch
 src/                  Compiler (Odin)
 tests/e2e/            E2E snapshot tests
 tree-sitter/          Tree-sitter grammar
-docs/                 Syntax recipe, diagnostics catalog, design notes
+docs/                 Syntax recipe (authoritative), diagnostics catalog, stdlib design notes
 justfile              Build and test commands
 ```
 

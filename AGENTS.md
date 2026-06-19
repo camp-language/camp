@@ -7,7 +7,9 @@ You are an AI assistant helping develop the Camp programming language - a strict
 ## Critical Constraints
 
 ### DO
-- Read relevant specs in `docs/<domain>-spec.md` before implementing
+- Read `docs/syntax-recipe.md` before implementing — it is the authoritative syntax reference
+- Read `docs/diagnostics-catalog.md` for error codes and messages
+- Read `docs/stdlib-design-notes.md` for stdlib design rationale
 - Read the code to understand current implementation — code is the source of truth
 - Follow existing type system design (Level inference + row unification)
 - Respect effect tracking in type signatures
