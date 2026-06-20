@@ -296,6 +296,10 @@ Runtime_Func :: enum {
 	I64_Compare,
 	I64_Trampoline,
 	I64_Debug_Trampoline,
+	// Bool_Compare: (a: i32, b: i32) -> i32 — interim element compare for
+	// Bool (i32 0/1). Returns an Order heap cell (tag 0/1/2 = Less/Equal/
+	// Greater), per Design B (callbacks yield Order cells, not raw -1/0/1).
+	Bool_Compare,
 }
 
 RUNTIME_FUNC_COUNT :: int(len(Runtime_Func))
