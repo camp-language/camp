@@ -395,7 +395,11 @@ emit_expr :: proc(expr: ir.IR_Expr, buf: ^[dynamic]u8, env: ^Codegen_Env, runtim
 			emit_instruction(Wasm_I64_Const{value = e.value}, buf)
 		}
 	case ^ir.IR_Literal_Float:
-		emit_instruction(Wasm_F64_Const{value = e.value}, buf)
+		if e.type.wasm_type == .F32 {
+			emit_instruction(Wasm_F32_Const{value = f32(e.value)}, buf)
+		} else {
+			emit_instruction(Wasm_F64_Const{value = e.value}, buf)
+		}
 	case ^ir.IR_Literal_Bool:
 		if e.value {
 			emit_instruction(Wasm_I32_Const{value = 1}, buf)
@@ -3247,6 +3251,8 @@ emit_binop :: proc(op: ir.IR_BinOp_Kind, operand_type: base.IR_Wasm_Type, buf: ^
 			emit_instruction(Wasm_I32_Add{}, buf)
 		} else if operand_type == .F64 {
 			emit_instruction(Wasm_F64_Add{}, buf)
+		} else if operand_type == .F32 {
+			emit_instruction(Wasm_F32_Add{}, buf)
 		} else {
 			emit_instruction(Wasm_I64_Add{}, buf)
 		}
@@ -3255,6 +3261,8 @@ emit_binop :: proc(op: ir.IR_BinOp_Kind, operand_type: base.IR_Wasm_Type, buf: ^
 			emit_instruction(Wasm_I32_Sub{}, buf)
 		} else if operand_type == .F64 {
 			emit_instruction(Wasm_F64_Sub{}, buf)
+		} else if operand_type == .F32 {
+			emit_instruction(Wasm_F32_Sub{}, buf)
 		} else {
 			emit_instruction(Wasm_I64_Sub{}, buf)
 		}
@@ -3263,6 +3271,8 @@ emit_binop :: proc(op: ir.IR_BinOp_Kind, operand_type: base.IR_Wasm_Type, buf: ^
 			emit_instruction(Wasm_I32_Mul{}, buf)
 		} else if operand_type == .F64 {
 			emit_instruction(Wasm_F64_Mul{}, buf)
+		} else if operand_type == .F32 {
+			emit_instruction(Wasm_F32_Mul{}, buf)
 		} else {
 			emit_instruction(Wasm_I64_Mul{}, buf)
 		}
@@ -3271,6 +3281,8 @@ emit_binop :: proc(op: ir.IR_BinOp_Kind, operand_type: base.IR_Wasm_Type, buf: ^
 			emit_instruction(Wasm_I32_Div_S{}, buf)
 		} else if operand_type == .F64 {
 			emit_instruction(Wasm_F64_Div{}, buf)
+		} else if operand_type == .F32 {
+			emit_instruction(Wasm_F32_Div{}, buf)
 		} else {
 			emit_instruction(Wasm_I64_Div_S{}, buf)
 		}
@@ -3287,6 +3299,8 @@ emit_binop :: proc(op: ir.IR_BinOp_Kind, operand_type: base.IR_Wasm_Type, buf: ^
 			emit_instruction(Wasm_I64_Eq{}, buf)
 		} else if operand_type == .F64 {
 			emit_instruction(Wasm_F64_Eq{}, buf)
+		} else if operand_type == .F32 {
+			emit_instruction(Wasm_F32_Eq{}, buf)
 		} else {
 			emit_instruction(Wasm_I32_Eq{}, buf)
 		}
@@ -3295,6 +3309,8 @@ emit_binop :: proc(op: ir.IR_BinOp_Kind, operand_type: base.IR_Wasm_Type, buf: ^
 			emit_instruction(Wasm_I64_Ne{}, buf)
 		} else if operand_type == .F64 {
 			emit_instruction(Wasm_F64_Ne{}, buf)
+		} else if operand_type == .F32 {
+			emit_instruction(Wasm_F32_Ne{}, buf)
 		} else {
 			emit_instruction(Wasm_I32_Ne{}, buf)
 		}
@@ -3303,6 +3319,8 @@ emit_binop :: proc(op: ir.IR_BinOp_Kind, operand_type: base.IR_Wasm_Type, buf: ^
 			emit_instruction(Wasm_I64_Lt_S{}, buf)
 		} else if operand_type == .F64 {
 			emit_instruction(Wasm_F64_Lt{}, buf)
+		} else if operand_type == .F32 {
+			emit_instruction(Wasm_F32_Lt{}, buf)
 		} else {
 			emit_instruction(Wasm_I32_Lt_S{}, buf)
 		}
@@ -3311,6 +3329,8 @@ emit_binop :: proc(op: ir.IR_BinOp_Kind, operand_type: base.IR_Wasm_Type, buf: ^
 			emit_instruction(Wasm_I64_Gt_S{}, buf)
 		} else if operand_type == .F64 {
 			emit_instruction(Wasm_F64_Gt{}, buf)
+		} else if operand_type == .F32 {
+			emit_instruction(Wasm_F32_Gt{}, buf)
 		} else {
 			emit_instruction(Wasm_I32_Gt_S{}, buf)
 		}
@@ -3319,6 +3339,8 @@ emit_binop :: proc(op: ir.IR_BinOp_Kind, operand_type: base.IR_Wasm_Type, buf: ^
 			emit_instruction(Wasm_I64_Le_S{}, buf)
 		} else if operand_type == .F64 {
 			emit_instruction(Wasm_F64_Le{}, buf)
+		} else if operand_type == .F32 {
+			emit_instruction(Wasm_F32_Le{}, buf)
 		} else {
 			emit_instruction(Wasm_I32_Le_S{}, buf)
 		}
@@ -3327,6 +3349,8 @@ emit_binop :: proc(op: ir.IR_BinOp_Kind, operand_type: base.IR_Wasm_Type, buf: ^
 			emit_instruction(Wasm_I64_Ge_S{}, buf)
 		} else if operand_type == .F64 {
 			emit_instruction(Wasm_F64_Ge{}, buf)
+		} else if operand_type == .F32 {
+			emit_instruction(Wasm_F32_Ge{}, buf)
 		} else {
 			emit_instruction(Wasm_I32_Ge_S{}, buf)
 		}

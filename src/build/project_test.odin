@@ -257,4 +257,3 @@ run_test_project :: proc(filter: string = "", verbose: bool = false) -> Build_Re
 
 	return Build_Output{wasm_path = "", has_errors = false}
 }
-

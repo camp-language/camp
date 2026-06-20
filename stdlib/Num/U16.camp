@@ -69,3 +69,15 @@ U16 is Ord {
 U16 is Hash {
     hash = |a: Self, h: Hasher| -> Hasher { crash "intrinsic: U16_hash" }
 }
+
+test "U16 traits" {
+  expect 0 == 0
+  expect 42 == 42
+  expect not (0 == 1)
+  expect 0 < 1
+  expect 65535 > 0
+  expect 42 <= 42
+  expect 42 >= 42
+  u16_val: U16 = 65535
+  expect u16_val == 65535
+}

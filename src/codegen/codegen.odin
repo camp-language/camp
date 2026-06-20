@@ -1079,8 +1079,13 @@ codegen :: proc(
 			emit_instruction(Wasm_I32_Const{value = v.value ? 1 : 0}, &init_buf)
 			valtype = .I32
 		case ^ir.IR_Literal_Float:
-			emit_instruction(Wasm_F64_Const{value = v.value}, &init_buf)
-			valtype = .F64
+			if v.type.wasm_type == .F32 {
+				emit_instruction(Wasm_F32_Const{value = f32(v.value)}, &init_buf)
+				valtype = .F32
+			} else {
+				emit_instruction(Wasm_F64_Const{value = v.value}, &init_buf)
+				valtype = .F64
+			}
 		case:
 			// Non-literal const: emit as mutable global with zero initializer.
 			// Actual value will be computed at _start time (future work).
