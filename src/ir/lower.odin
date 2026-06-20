@@ -82,6 +82,10 @@ lower_tfile :: proc(tfile: semantics.TFile, store: ^semantics.Type_Store) -> IR_
 		     ^semantics.TDecl_Import,
 		     ^semantics.TDecl_Test,
 		     ^semantics.TDecl_Is_Impl:
+		// Trait impl methods are registered during the second pass
+		// (lower_tdecl_is_impl) because their Canonical_Names come from
+		// the trait_impl registry and must be registered before bodies
+		// are lowered so direct calls classify as IR_Call.
 		}
 	}
 	inject_prelude_effect_defs(&mod, store)
@@ -126,6 +130,9 @@ lower_tfile :: proc(tfile: semantics.TFile, store: ^semantics.Type_Store) -> IR_
 			ir_decl := lower_tdecl_expect(&d^, &env)
 			append(&mod.decls, ir_decl)
 		case ^semantics.TDecl_Is_Impl:
+			for ir_decl in lower_tdecl_is_impl(&d^, &env) {
+				append(&mod.decls, ir_decl)
+			}
 		}
 	}
 
@@ -686,6 +693,90 @@ lower_tlambda_as_decl :: proc(
 	return IR_Decl(placeholder)
 }
 
+// trait_impl_fn_name replicates the naming used by register_trait_impl
+// (semantics/check_decl.odin): "{type_name}_{method_name}". The Canonical_Name
+// returned has the same module as the type's module (NO_NAME for unqualified
+// stdlib types like Bool/Char/Str), which is what resolve_trait_method returns
+// and what emit_expr looks up in func_map.
+trait_impl_fn_name :: proc(
+	type_name: base.Intern_ID,
+	type_module: base.Intern_ID,
+	method_name: base.Intern_ID,
+	interner: ^base.Intern_Table,
+) -> base.Canonical_Name {
+	impl_fn_name := fmt.tprintf(
+		"{}_{}",
+		base.intern_get(interner, type_name),
+		base.intern_get(interner, method_name),
+	)
+	return base.Canonical_Name {
+		module = type_module,
+		name = base.intern(interner, impl_fn_name),
+		is_local = false,
+	}
+}
+
+// lower_tdecl_is_impl lowers a `Type is Trait { method = |...| ... }` impl
+// declaration into one IR_Decl_Fn per method, so the methods exist as real
+// standalone WASM functions. This is required for the container runtime
+// functions (Result/List eq/compare/hash, Map/Set eq) to obtain function
+// pointers to the element/type trait methods via func_map.
+//
+// Each method body is a TExpr_Lambda; `lower_tlambda_as_decl` handles the
+// param extraction and body lowering. The Canonical_Name is taken from the
+// registered Trait_Impl (store.trait_impls), which is the SAME name
+// resolve_trait_method returns — so the codegen func_map lookup succeeds.
+lower_tdecl_is_impl :: proc(d: ^semantics.TDecl_Is_Impl, env: ^Lower_Env) -> []IR_Decl {
+	// Look up the registered impl to get the exact Canonical_Name for each
+	// method (matches resolve_trait_method's returned name).
+	impl, impl_ok := semantics.find_trait_impl(env.store, d.trait_name.name, d.type_name.name)
+
+	decls := make([dynamic]IR_Decl, 0, len(d.methods))
+	for m in d.methods {
+		fn_name: base.Canonical_Name
+		if impl_ok {
+			if registered, has := impl.methods[m.name]; has {
+				fn_name = registered
+			}
+		}
+		if fn_name == (base.Canonical_Name{}) {
+			// Fallback: reconstruct the naming if the impl registry lookup
+			// failed (shouldn't happen for well-formed programs).
+			type_module := d.type_name.module
+			fn_name = trait_impl_fn_name(d.type_name.name, type_module, m.name, env.interner)
+		}
+
+		// Register the name so direct calls to it classify as IR_Call.
+		env.module_decl_names[fn_name.name] = true
+
+		lambda, is_lambda := m.body.(^semantics.TExpr_Lambda)
+		if !is_lambda {
+			// Method body isn't a lambda (rare). Wrap as a zero-arg function.
+			decl := new(IR_Decl_Fn)
+			decl^ = IR_Decl_Fn {
+				name        = fn_name,
+				params      = make([dynamic]IR_Param, 0),
+				return_type = m.type_,
+				effect_row  = m.eff_,
+				body        = lower_texpr(m.body, env),
+				span        = m.span,
+			}
+			append(&decls, IR_Decl(decl))
+			continue
+		}
+
+		decl := lower_tlambda_as_decl(
+			lambda,
+			fn_name,
+			false, // trait impl methods are pure (no effect row)
+			m.span,
+			env,
+		)
+		append(&decls, decl)
+	}
+	return decls[:]
+}
+
 lower_tdecl_effect :: proc(d: ^semantics.TDecl_Effect, env: ^Lower_Env) -> IR_Decl {
 	ops := make([dynamic]IR_Effect_Op, 0, len(d.operations))
 	for op in d.operations {
@@ -830,7 +921,7 @@ lower_tcall :: proc(e: ^semantics.TExpr_Call, env: ^Lower_Env) -> IR_Expr {
 	return IR_Expr(nil)
 }
 
-	lower_tmethod_call :: proc(e: ^semantics.TExpr_Method_Call, env: ^Lower_Env) -> IR_Expr {
+lower_tmethod_call :: proc(e: ^semantics.TExpr_Method_Call, env: ^Lower_Env) -> IR_Expr {
 	receiver_ir := lower_texpr(e.receiver, env)
 
 	// Check if this is an effect operation call
@@ -1046,6 +1137,34 @@ lower_tcall :: proc(e: ^semantics.TExpr_Call, env: ^Lower_Env) -> IR_Expr {
 			debug_func       = resolve_debug_func(resolved_name, e.args, env),
 			val_debug_func   = resolve_val_debug_func(resolved_name, e.args, env),
 		}
+
+		// Post-process for Result and List container methods
+		module_str := base.intern_get(env.interner, resolved_name.module)
+		name_str := base.intern_get(env.interner, resolved_name.name)
+		if module_str == "Result" {
+			if name_str == "eq" || name_str == "compare" || name_str == "hash" {
+				ok_fn := resolve_container_trait_fn("Result", name_str, e.args, 0, env)
+				err_fn := resolve_container_trait_fn("Result", name_str, e.args, 1, env)
+				if ok_fn != (base.Canonical_Name{}) {
+					meth_call.debug_func = ok_fn
+				}
+				if err_fn != (base.Canonical_Name{}) {
+					meth_call.val_debug_func = err_fn
+				}
+			}
+		} else if module_str == "List" {
+			if name_str == "compare" {
+				cmp_fn := resolve_container_trait_fn("List", "compare", e.args, 0, env)
+				if cmp_fn != (base.Canonical_Name{}) {
+					meth_call.ord_compare_func = cmp_fn
+				}
+			} else if name_str == "hash" {
+				hash_fn := resolve_container_trait_fn("List", "hash", e.args, 0, env)
+				if hash_fn != (base.Canonical_Name{}) {
+					meth_call.hash_func = hash_fn
+				}
+			}
+		}
 		return IR_Expr(meth_call)
 	}
 
@@ -1252,25 +1371,16 @@ lower_tmatch :: proc(e: ^semantics.TExpr_Match, env: ^Lower_Env) -> IR_Expr {
 		or_pat, is_or := e.arms[i].pattern.(^semantics.TPattern_Or)
 		if is_or {
 			for alt in or_pat.alternatives {
-				sub_pat, sub_body := expand_nested_tag_pattern(alt, body_ir, env, scrutinee_type_id)
-				append(
-					&arms,
-					IR_Match_Arm {
-						pattern = sub_pat,
-						guard = guard_ir,
-						body = sub_body,
-					},
+				sub_pat, sub_body := expand_nested_tag_pattern(
+					alt,
+					body_ir,
+					env,
+					scrutinee_type_id,
 				)
+				append(&arms, IR_Match_Arm{pattern = sub_pat, guard = guard_ir, body = sub_body})
 			}
 		} else {
-			append(
-				&arms,
-				IR_Match_Arm {
-					pattern = pat_ir,
-					guard = guard_ir,
-					body = expanded_body,
-				},
-			)
+			append(&arms, IR_Match_Arm{pattern = pat_ir, guard = guard_ir, body = expanded_body})
 		}
 	}
 
@@ -1318,7 +1428,10 @@ expand_nested_tag_pattern :: proc(
 	body: IR_Expr,
 	env: ^Lower_Env,
 	scrutinee_type_id: base.Type_Var_ID,
-) -> (IR_Pattern, IR_Expr) {
+) -> (
+	IR_Pattern,
+	IR_Expr,
+) {
 	#partial switch p in pattern {
 	case ^semantics.TPattern_Tag:
 		// Scan payload for nested tag patterns
@@ -1389,9 +1502,9 @@ expand_nested_tag_pattern :: proc(
 				inner_match := new(IR_Match)
 				inner_match^ = IR_Match {
 					scrutinee = IR_Expr(new(IR_Var)),
-					arms      = inner_arms,
-					type      = base.IR_Type{wasm_type = .I64, type_id = base.Type_Var_ID(0)},
-					span      = base.Source_Span_ZERO,
+					arms = inner_arms,
+					type = base.IR_Type{wasm_type = .I64, type_id = base.Type_Var_ID(0)},
+					span = base.Source_Span_ZERO,
 				}
 				(inner_match.scrutinee.(^IR_Var)).name = inner_name
 
@@ -3364,21 +3477,66 @@ extract_container_element_type :: proc(
 		return base.Type_Var_ID(0), false
 	}
 
+	// Case 1: Inferred_Newtype (e.g. an explicitly-typed List(t) / Result(t,e) value)
+	// The type parameters live in param_ids.
 	nt, nt_ok := inf.(semantics.Inferred_Newtype)
-	if !nt_ok {
+	if nt_ok {
+		nt_name := base.intern_get(interner, nt.primitive_name)
+		if nt_name != container_name {
+			return base.Type_Var_ID(0), false
+		}
+		if param_index >= len(nt.param_ids) {
+			return base.Type_Var_ID(0), false
+		}
+		return nt.param_ids[param_index], true
+	}
+
+	// Case 2: Inferred_Tag_Union_Row. List literals and tag constructions
+	// (Ok(1), ['a','b']) lower to a tag-union-row value, not to the List/Result
+	// constructor. The element/payload type is recoverable from the matching
+	// tag entry's payload:
+	//   List  param 0 -> "Cons" entry payload[0] (head element type)
+	//   Result param 0 -> "Ok" entry payload[0]
+	//   Result param 1 -> "Err" entry payload[0]
+	row, row_ok := inf.(semantics.Inferred_Tag_Union_Row)
+	if !row_ok {
 		return base.Type_Var_ID(0), false
 	}
 
-	nt_name := base.intern_get(interner, nt.primitive_name)
-	if nt_name != container_name {
+	tag_name: base.Intern_ID = 0
+	has_tag_name := false
+	if container_name == "List" && param_index == 0 {
+		tag_name = base.intern(interner, "Cons")
+		has_tag_name = true
+	} else if container_name == "Result" {
+		if param_index == 0 {
+			tag_name = base.intern(interner, "Ok")
+			has_tag_name = true
+		} else if param_index == 1 {
+			tag_name = base.intern(interner, "Err")
+			has_tag_name = true
+		}
+	}
+	if !has_tag_name {
 		return base.Type_Var_ID(0), false
 	}
 
-	if param_index >= len(nt.param_ids) {
-		return base.Type_Var_ID(0), false
+	for entry in row.tag_entries {
+		if entry.name != tag_name {
+			continue
+		}
+		if param_index >= len(entry.payload) && param_index != 0 {
+			// Cons has payload[0]=head, payload[1]=tail; Result has payload[0].
+			// param_index 0 always targets payload[0].
+			return base.Type_Var_ID(0), false
+		}
+		if len(entry.payload) == 0 {
+			return base.Type_Var_ID(0), false
+		}
+		return entry.payload[0], true
 	}
 
-	return nt.param_ids[param_index], true
+	return base.Type_Var_ID(0), false
 }
 
 // extract_tuple_element_type resolves a type var to an Inferred_Tuple
@@ -3426,6 +3584,71 @@ intrinsic_needs_trait :: proc(callee: base.Canonical_Name, interner: ^base.Inter
 	}
 
 	return true
+}
+
+// resolve_container_trait_fn resolves a trait method for a container's element type.
+// This is used to populate IR_Call fields (debug_func, val_debug_func, ord_compare_func, hash_func)
+// with the correct function pointers for Result and List intrinsic calls.
+resolve_container_trait_fn :: proc(
+	module_str: string,
+	method_str: string,
+	args: [dynamic]semantics.TExpr,
+	param_index: int,
+	env: ^Lower_Env,
+) -> base.Canonical_Name {
+	// Map method names to trait names
+	trait_name: string
+	trait_method: string
+	switch method_str {
+	case "eq":
+		trait_name = "Eq"
+		trait_method = "eq"
+	case "compare":
+		trait_name = "Ord"
+		trait_method = "compare"
+	case "hash":
+		trait_name = "Hash"
+		trait_method = "hash"
+	case "debug":
+		trait_name = "Debug"
+		trait_method = "debug"
+	case:
+		return base.Canonical_Name{}
+	}
+
+	// Extract element type from the first container arg
+	elem_type_id: base.Type_Var_ID
+	found := false
+	for i in 0 ..< len(args) {
+		et, ok := extract_container_element_type(
+			env.store,
+			env.interner,
+			args[i],
+			module_str,
+			param_index,
+		)
+		if ok {
+			elem_type_id = et
+			found = true
+			break
+		}
+	}
+	if !found {
+		return base.Canonical_Name{}
+	}
+
+	func_name, ok := resolve_trait_method(
+		env.store,
+		env.interner,
+		elem_type_id,
+		trait_name,
+		trait_method,
+	)
+	if !ok {
+		return base.Canonical_Name{}
+	}
+
+	return func_name
 }
 
 // resolve_ord_compare resolves the Ord.compare method for the key type

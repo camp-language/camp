@@ -781,6 +781,20 @@ codegen :: proc(
 	)
 	list_debug_func_idx := add_function(&env, list_debug_type_idx)
 	runtime_func_indices[Runtime_Func.List_Debug] = list_debug_func_idx
+	// List_Compare: (cmp_fn: i32, a: i32, b: i32) -> i32
+	// (i32, i32, i32) -> i32 type
+	list_3param_type_idx := get_or_create_type(
+		&env,
+		[]Wasm_Value_Type{.I32, .I32, .I32},
+		[]Wasm_Value_Type{.I32},
+	)
+	list_compare_type_idx := list_3param_type_idx
+	list_compare_func_idx := add_function(&env, list_compare_type_idx)
+	runtime_func_indices[Runtime_Func.List_Compare] = list_compare_func_idx
+	// List_Hash: (hash_fn: i32, list: i32, hasher: i32) -> i32
+	list_hash_type_idx := list_3param_type_idx
+	list_hash_func_idx := add_function(&env, list_hash_type_idx)
+	runtime_func_indices[Runtime_Func.List_Hash] = list_hash_func_idx
 	// Map_Debug: (key_debug_fn: i32, val_debug_fn: i32, map: i32) -> i32
 	map_debug_type_idx := get_or_create_type(
 		&env,
@@ -802,6 +816,24 @@ codegen :: proc(
 	result_debug_i64_type_idx := i64_debug_trampoline_type_idx // (i32) -> i32
 	result_debug_i64_func_idx := add_function(&env, result_debug_i64_type_idx)
 	runtime_func_indices[Runtime_Func.Result_Debug_I64] = result_debug_i64_func_idx
+	// Result_Eq: (ok_eq_fn: i32, err_eq_fn: i32, a: i32, b: i32) -> i32
+	// (i32, i32, i32, i32) -> i32 type
+	result_4param_type_idx := get_or_create_type(
+		&env,
+		[]Wasm_Value_Type{.I32, .I32, .I32, .I32},
+		[]Wasm_Value_Type{.I32},
+	)
+	result_eq_type_idx := result_4param_type_idx
+	result_eq_func_idx := add_function(&env, result_eq_type_idx)
+	runtime_func_indices[Runtime_Func.Result_Eq] = result_eq_func_idx
+	// Result_Compare: (ok_cmp_fn: i32, err_cmp_fn: i32, a: i32, b: i32) -> i32
+	result_compare_type_idx := result_4param_type_idx
+	result_compare_func_idx := add_function(&env, result_compare_type_idx)
+	runtime_func_indices[Runtime_Func.Result_Compare] = result_compare_func_idx
+	// Result_Hash: (ok_hash_fn: i32, err_hash_fn: i32, result: i32, hasher: i32) -> i32
+	result_hash_type_idx := result_4param_type_idx
+	result_hash_func_idx := add_function(&env, result_hash_type_idx)
+	runtime_func_indices[Runtime_Func.Result_Hash] = result_hash_func_idx
 
 	camp_alloc_code := emit_camp_alloc_body(heap_ptr_global_idx)
 	append(&mod.codes, camp_alloc_code)
@@ -963,6 +995,9 @@ codegen :: proc(
 			env.debug_str_offsets[", "],
 		),
 	)
+	// List_Compare, List_Hash bodies (must follow List_Debug in registration order)
+	append(&mod.codes, emit_list_compare_body(compare_type_idx, env.table_idx))
+	append(&mod.codes, emit_list_hash_body(compare_type_idx, env.table_idx))
 	// Map.debug and Set.debug bodies
 	append(
 		&mod.codes,
@@ -1009,6 +1044,10 @@ codegen :: proc(
 			env.debug_str_offsets[")"],
 		),
 	)
+	// Result_Eq, Result_Compare, Result_Hash bodies
+	append(&mod.codes, emit_result_eq_body(compare_type_idx, env.table_idx))
+	append(&mod.codes, emit_result_compare_body(compare_type_idx, env.table_idx))
+	append(&mod.codes, emit_result_hash_body(compare_type_idx, env.table_idx))
 
 	camp_alloc_name := base.intern(interner, "camp_alloc")
 	env.func_map[u64(camp_alloc_name)] = alloc_func_idx
