@@ -995,4 +995,3 @@ compile_doc_test_canon :: proc(
 	err := os.write_entire_file_from_bytes(output_path, wasm_bytes[:])
 	return err == nil
 }
-

@@ -262,12 +262,8 @@ make_ir_lit_bool :: proc(value: bool, type_: base.IR_Type, span: base.Source_Spa
 lower_texpr :: proc(expr: semantics.TExpr, env: ^Lower_Env) -> IR_Expr {
 	switch e in expr {
 	case ^semantics.TExpr_Int:
-		type_var := semantics.make_primitive_type(
-			env.store,
-			base.intern(env.interner, "I64"),
-			e.span,
-		)
-		return make_ir_lit_int(e.value, semantics.lower_type(env.store, type_var), e.span)
+		resolved_type := semantics.lower_type(env.store, e.type_.type_id)
+		return make_ir_lit_int(e.value, resolved_type, e.span)
 
 	case ^semantics.TExpr_Float:
 		type_var := semantics.make_primitive_type(
@@ -275,10 +271,11 @@ lower_texpr :: proc(expr: semantics.TExpr, env: ^Lower_Env) -> IR_Expr {
 			base.intern(env.interner, "F64"),
 			e.span,
 		)
+		resolved_type := semantics.lower_type(env.store, e.type_.type_id)
 		lit := new(IR_Literal_Float)
 		lit^ = IR_Literal_Float {
 			value = e.value,
-			type  = e.type_,
+			type  = resolved_type,
 			span  = e.span,
 		}
 		return IR_Expr(lit)
@@ -3986,4 +3983,3 @@ resolve_val_debug_func :: proc(
 
 	return func_name
 }
-

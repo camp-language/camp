@@ -249,6 +249,17 @@ Wasm_F64_Eq :: struct {}
 Wasm_F64_Ne :: struct {}
 Wasm_F64_Le :: struct {}
 Wasm_F64_Ge :: struct {}
+Wasm_F32_Eq :: struct {}
+Wasm_F32_Ne :: struct {}
+Wasm_F32_Lt :: struct {}
+Wasm_F32_Gt :: struct {}
+Wasm_F32_Le :: struct {}
+Wasm_F32_Ge :: struct {}
+Wasm_F32_Add :: struct {}
+Wasm_F32_Sub :: struct {}
+Wasm_F32_Mul :: struct {}
+Wasm_F32_Div :: struct {}
+Wasm_F32_Demote :: struct {}
 Wasm_Memory_Size :: struct {}
 Wasm_Memory_Grow :: struct {}
 Wasm_Block :: struct {
@@ -439,6 +450,17 @@ Wasm_Instruction :: union {
 	Wasm_F64_Ne,
 	Wasm_F64_Le,
 	Wasm_F64_Ge,
+	Wasm_F32_Eq,
+	Wasm_F32_Ne,
+	Wasm_F32_Lt,
+	Wasm_F32_Gt,
+	Wasm_F32_Le,
+	Wasm_F32_Ge,
+	Wasm_F32_Add,
+	Wasm_F32_Sub,
+	Wasm_F32_Mul,
+	Wasm_F32_Div,
+	Wasm_F32_Demote,
 	Wasm_Memory_Size,
 	Wasm_Memory_Grow,
 	Wasm_Memory_Copy,
@@ -674,6 +696,28 @@ emit_instruction :: proc(instr: Wasm_Instruction, buf: ^[dynamic]u8) {
 		append(buf, 0x65)
 	case Wasm_F64_Ge:
 		append(buf, 0x66)
+	case Wasm_F32_Eq:
+		append(buf, 0x5B)
+	case Wasm_F32_Ne:
+		append(buf, 0x5C)
+	case Wasm_F32_Lt:
+		append(buf, 0x5D)
+	case Wasm_F32_Gt:
+		append(buf, 0x5E)
+	case Wasm_F32_Le:
+		append(buf, 0x5F)
+	case Wasm_F32_Ge:
+		append(buf, 0x60)
+	case Wasm_F32_Add:
+		append(buf, 0x92)
+	case Wasm_F32_Sub:
+		append(buf, 0x93)
+	case Wasm_F32_Mul:
+		append(buf, 0x94)
+	case Wasm_F32_Div:
+		append(buf, 0x95)
+	case Wasm_F32_Demote:
+		append(buf, 0xB6)
 	case Wasm_Memory_Size:
 		append(buf, 0x3F)
 		append(buf, 0x00)

@@ -75,3 +75,15 @@ U32 is Ord {
 U32 is Hash {
     hash = |a: Self, h: Hasher| -> Hasher { crash "intrinsic: U32_hash" }
 }
+
+test "U32 traits" {
+  expect 0 == 0
+  expect 42 == 42
+  expect not (0 == 1)
+  expect 0 < 1
+  expect 4294967295 > 0
+  expect 42 <= 42
+  expect 42 >= 42
+  u32_val: U32 = 4294967295
+  expect u32_val == 4294967295
+}
