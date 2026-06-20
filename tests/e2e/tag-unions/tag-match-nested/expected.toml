@@ -1,17 +1,8 @@
+exit = 0
+wasm_exit = 42
 stdout = """
 canonicalized /tmp/camp-e2e/tag-unions/tag-match-nested/src/Main.camp: 1 declaration(s), 0 import(s)
 typecheck passed for /tmp/camp-e2e/tag-unions/tag-match-nested/src/Main.camp
 compiled /tmp/camp-e2e/tag-unions/tag-match-nested/src/Main.camp -> /tmp/camp-e2e/tag-unions/tag-match-nested/src/Main.wasm
 """
 stderr = ""
-exit = 0
-wasm_exit = 1
-wasm_stdout = ""
-wasm_stderr = """
-Error: failed to compile: wasm[0]::function[85]
-
-Caused by:
-    0: WebAssembly translation error
-    1: Invalid input WebAssembly code at offset 9493: type mismatch: expected i64, found i32
-
-"""
