@@ -73,9 +73,9 @@ emit_list_debug_body :: proc(
 	emit_instruction(Wasm_Call{index = u32(str_concat_func_idx)}, &buf)
 	emit_instruction(Wasm_Local_Set{index = 2}, &buf)
 
-	// current = tail
+	// current = tail (Cons field[1] at CAMP_TAG_FIELDS_OFFSET + 8)
 	emit_instruction(Wasm_Local_Get{index = 3}, &buf)
-	emit_instruction(Wasm_I32_Load{align = 2, offset = u32(CAMP_TAG_FIELDS_OFFSET + 4)}, &buf)
+	emit_instruction(Wasm_I32_Load{align = 2, offset = u32(CAMP_TAG_FIELDS_OFFSET + 8)}, &buf)
 	emit_instruction(Wasm_Local_Set{index = 3}, &buf)
 
 	emit_instruction(Wasm_Br{label = 0}, &buf)

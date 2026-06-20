@@ -288,6 +288,11 @@ Runtime_Func :: enum {
 	Set_Debug,
 	Result_Debug,
 	Result_Debug_I64,
+	Result_Eq,
+	Result_Compare,
+	Result_Hash,
+	List_Compare,
+	List_Hash,
 	I64_Compare,
 	I64_Trampoline,
 	I64_Debug_Trampoline,
@@ -556,6 +561,62 @@ emit_expr :: proc(expr: ir.IR_Expr, buf: ^[dynamic]u8, env: ^Codegen_Env, runtim
 					)
 					if ir.ir_expr_wasm_type(e) ==
 					   .I64 {emit_instruction(Wasm_I64_Extend_I32_S{}, buf)}
+					break
+				}
+
+				// List.compare: (a: List(t), b: List(t)) -> Order
+				// Uses ord_compare_func for element's Ord.compare
+				if name_str == "compare" && len(e.args) == 2 {
+					cmp_fn_idx := 0
+					if e.ord_compare_func.module != base.NO_NAME && e.ord_compare_func.name != 0 {
+						mangled := base.mangle_name(
+							e.ord_compare_func.module,
+							e.ord_compare_func.name,
+							env.interner,
+						)
+						if idx, ok := env.func_map[base.hash_string(mangled)]; ok {
+							cmp_fn_idx = idx
+						}
+					} else if e.ord_compare_func.name != 0 {
+						if idx, ok := env.func_map[u64(e.ord_compare_func.name)]; ok {
+							cmp_fn_idx = idx
+						}
+					}
+					emit_instruction(Wasm_I32_Const{value = i32(cmp_fn_idx)}, buf)
+					emit_expr(e.args[0], buf, env, runtime_indices)
+					emit_expr(e.args[1], buf, env, runtime_indices)
+					emit_instruction(
+						Wasm_Call{index = u32(runtime_indices[Runtime_Func.List_Compare])},
+						buf,
+					)
+					break
+				}
+
+				// List.hash: (list: List(t), hasher: Hasher) -> Hasher
+				// Uses hash_func for element's Hash.hash
+				if name_str == "hash" && len(e.args) == 2 {
+					hash_fn_idx := 0
+					if e.hash_func.module != base.NO_NAME && e.hash_func.name != 0 {
+						mangled := base.mangle_name(
+							e.hash_func.module,
+							e.hash_func.name,
+							env.interner,
+						)
+						if idx, ok := env.func_map[base.hash_string(mangled)]; ok {
+							hash_fn_idx = idx
+						}
+					} else if e.hash_func.name != 0 {
+						if idx, ok := env.func_map[u64(e.hash_func.name)]; ok {
+							hash_fn_idx = idx
+						}
+					}
+					emit_instruction(Wasm_I32_Const{value = i32(hash_fn_idx)}, buf)
+					emit_expr(e.args[0], buf, env, runtime_indices)
+					emit_expr(e.args[1], buf, env, runtime_indices)
+					emit_instruction(
+						Wasm_Call{index = u32(runtime_indices[Runtime_Func.List_Hash])},
+						buf,
+					)
 					break
 				}
 			}
@@ -1140,6 +1201,138 @@ emit_expr :: proc(expr: ir.IR_Expr, buf: ^[dynamic]u8, env: ^Codegen_Env, runtim
 					)
 					if ir.ir_expr_wasm_type(e) ==
 					   .I64 {emit_instruction(Wasm_I64_Extend_I32_S{}, buf)}
+					break
+				}
+
+				// Result.eq: (a: Result(ok, err), b: Result(ok, err)) -> Bool
+				// Uses debug_func for Ok's Eq.eq, val_debug_func for Err's Eq.eq
+				if name_str == "eq" && len(e.args) == 2 {
+					ok_eq_fn_idx := 0
+					if e.debug_func.module != base.NO_NAME && e.debug_func.name != 0 {
+						mangled := base.mangle_name(
+							e.debug_func.module,
+							e.debug_func.name,
+							env.interner,
+						)
+						if idx, ok := env.func_map[base.hash_string(mangled)]; ok {
+							ok_eq_fn_idx = idx
+						}
+					} else if e.debug_func.name != 0 {
+						if idx, ok := env.func_map[u64(e.debug_func.name)]; ok {
+							ok_eq_fn_idx = idx
+						}
+					}
+					err_eq_fn_idx := 0
+					if e.val_debug_func.module != base.NO_NAME && e.val_debug_func.name != 0 {
+						mangled := base.mangle_name(
+							e.val_debug_func.module,
+							e.val_debug_func.name,
+							env.interner,
+						)
+						if idx, ok := env.func_map[base.hash_string(mangled)]; ok {
+							err_eq_fn_idx = idx
+						}
+					} else if e.val_debug_func.name != 0 {
+						if idx, ok := env.func_map[u64(e.val_debug_func.name)]; ok {
+							err_eq_fn_idx = idx
+						}
+					}
+					emit_instruction(Wasm_I32_Const{value = i32(ok_eq_fn_idx)}, buf)
+					emit_instruction(Wasm_I32_Const{value = i32(err_eq_fn_idx)}, buf)
+					emit_expr(e.args[0], buf, env, runtime_indices)
+					emit_expr(e.args[1], buf, env, runtime_indices)
+					emit_instruction(
+						Wasm_Call{index = u32(runtime_indices[Runtime_Func.Result_Eq])},
+						buf,
+					)
+					break
+				}
+
+				// Result.compare: (a: Result(ok, err), b: Result(ok, err)) -> Order
+				// Uses debug_func for Ok's Ord.compare, val_debug_func for Err's Ord.compare
+				if name_str == "compare" && len(e.args) == 2 {
+					ok_cmp_fn_idx := 0
+					if e.debug_func.module != base.NO_NAME && e.debug_func.name != 0 {
+						mangled := base.mangle_name(
+							e.debug_func.module,
+							e.debug_func.name,
+							env.interner,
+						)
+						if idx, ok := env.func_map[base.hash_string(mangled)]; ok {
+							ok_cmp_fn_idx = idx
+						}
+					} else if e.debug_func.name != 0 {
+						if idx, ok := env.func_map[u64(e.debug_func.name)]; ok {
+							ok_cmp_fn_idx = idx
+						}
+					}
+					err_cmp_fn_idx := 0
+					if e.val_debug_func.module != base.NO_NAME && e.val_debug_func.name != 0 {
+						mangled := base.mangle_name(
+							e.val_debug_func.module,
+							e.val_debug_func.name,
+							env.interner,
+						)
+						if idx, ok := env.func_map[base.hash_string(mangled)]; ok {
+							err_cmp_fn_idx = idx
+						}
+					} else if e.val_debug_func.name != 0 {
+						if idx, ok := env.func_map[u64(e.val_debug_func.name)]; ok {
+							err_cmp_fn_idx = idx
+						}
+					}
+					emit_instruction(Wasm_I32_Const{value = i32(ok_cmp_fn_idx)}, buf)
+					emit_instruction(Wasm_I32_Const{value = i32(err_cmp_fn_idx)}, buf)
+					emit_expr(e.args[0], buf, env, runtime_indices)
+					emit_expr(e.args[1], buf, env, runtime_indices)
+					emit_instruction(
+						Wasm_Call{index = u32(runtime_indices[Runtime_Func.Result_Compare])},
+						buf,
+					)
+					break
+				}
+
+				// Result.hash: (result: Result(ok, err), hasher: Hasher) -> Hasher
+				// Uses debug_func for Ok's Hash.hash, val_debug_func for Err's Hash.hash
+				if name_str == "hash" && len(e.args) == 2 {
+					ok_hash_fn_idx := 0
+					if e.debug_func.module != base.NO_NAME && e.debug_func.name != 0 {
+						mangled := base.mangle_name(
+							e.debug_func.module,
+							e.debug_func.name,
+							env.interner,
+						)
+						if idx, ok := env.func_map[base.hash_string(mangled)]; ok {
+							ok_hash_fn_idx = idx
+						}
+					} else if e.debug_func.name != 0 {
+						if idx, ok := env.func_map[u64(e.debug_func.name)]; ok {
+							ok_hash_fn_idx = idx
+						}
+					}
+					err_hash_fn_idx := 0
+					if e.val_debug_func.module != base.NO_NAME && e.val_debug_func.name != 0 {
+						mangled := base.mangle_name(
+							e.val_debug_func.module,
+							e.val_debug_func.name,
+							env.interner,
+						)
+						if idx, ok := env.func_map[base.hash_string(mangled)]; ok {
+							err_hash_fn_idx = idx
+						}
+					} else if e.val_debug_func.name != 0 {
+						if idx, ok := env.func_map[u64(e.val_debug_func.name)]; ok {
+							err_hash_fn_idx = idx
+						}
+					}
+					emit_instruction(Wasm_I32_Const{value = i32(ok_hash_fn_idx)}, buf)
+					emit_instruction(Wasm_I32_Const{value = i32(err_hash_fn_idx)}, buf)
+					emit_expr(e.args[0], buf, env, runtime_indices)
+					emit_expr(e.args[1], buf, env, runtime_indices)
+					emit_instruction(
+						Wasm_Call{index = u32(runtime_indices[Runtime_Func.Result_Hash])},
+						buf,
+					)
 					break
 				}
 			}
