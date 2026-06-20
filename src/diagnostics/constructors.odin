@@ -191,6 +191,21 @@ diag_undefined_name :: proc(
 	return d
 }
 
+diag_use_of_discard :: proc(name: string, span: base.Source_Span) -> Diagnostic {
+	d := diag_init(
+		.Error,
+		"C0210",
+		"USE OF DISCARDED VALUE",
+		span,
+		fmt.tprintf(
+			"`{}` begins with `_` and is treated as a discarded value — it cannot be read.",
+			name,
+		),
+	)
+	append(&d.hints, "Bind this value to a named binding instead, or use `_` directly to discard.")
+	return d
+}
+
 diag_unhandled_effect :: proc(effect_name: string, span: base.Source_Span) -> Diagnostic {
 	d := diag_init(
 		.Error,
