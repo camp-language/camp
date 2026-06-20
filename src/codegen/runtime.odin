@@ -3825,25 +3825,85 @@ emit_map_new_body :: proc(alloc_func_idx: int) -> Wasm_Code {
 	return Wasm_Code{locals = locals, body = body}
 }
 
-emit_i64_trampoline_body :: proc(i64_compare_func_idx: int) -> Wasm_Code {
-	// (ptr_a: i32, ptr_b: i32) -> i32
-	// Loads i64 from each boxed cell (offset 4) and calls I64_Compare
+// emit_i64_trampoline_body: (ptr_a: i32, ptr_b: i32) -> i32
+// Loads i64 from each boxed cell (offset 4) and calls I64_Compare, which
+// returns a raw -1/0/1 (the internal intrinsic, unchanged). Under Design B,
+// container compare callbacks must yield an Order heap cell, so this
+// trampoline converts the raw result into an Order cell (Less/Equal/Greater)
+// and returns the cell pointer. Locals: 0=ptr_a, 1=ptr_b, 2=raw_result,
+// 3=ptr, 4=tag
+emit_i64_trampoline_body :: proc(i64_compare_func_idx: int, alloc_func_idx: int) -> Wasm_Code {
 	buf: [dynamic]u8
-	buf = make([dynamic]u8, 0, CODE_BUF_MINOR)
+	buf = make([dynamic]u8, 0, CODE_BUF_MODERATE)
 
+	// raw = I64_Compare(*a, *b)  (in [-1, 0, 1])
 	emit_instruction(Wasm_Local_Get{index = 0}, &buf)
 	emit_instruction(Wasm_I64_Load{align = 2, offset = 4}, &buf)
 	emit_instruction(Wasm_Local_Get{index = 1}, &buf)
 	emit_instruction(Wasm_I64_Load{align = 2, offset = 4}, &buf)
 	emit_instruction(Wasm_Call{index = u32(i64_compare_func_idx)}, &buf)
+	emit_instruction(Wasm_Local_Set{index = 2}, &buf)
+
+	// Map raw -> tag: raw < 0 -> 0 (Less); raw > 0 -> 2 (Greater); else 1 (Equal)
+	emit_instruction(Wasm_Local_Get{index = 2}, &buf)
+	emit_instruction(Wasm_I32_Const{value = 0}, &buf)
+	emit_instruction(Wasm_I32_Lt_S{}, &buf)
+	emit_instruction(Wasm_If{block_type = .Void}, &buf)
+	emit_instruction(Wasm_I32_Const{value = 0}, &buf) // Less
+	emit_instruction(Wasm_Local_Set{index = 4}, &buf)
+	emit_instruction(Wasm_Else{}, &buf)
+	emit_instruction(Wasm_Local_Get{index = 2}, &buf)
+	emit_instruction(Wasm_I32_Const{value = 0}, &buf)
+	emit_instruction(Wasm_I32_Gt_S{}, &buf)
+	emit_instruction(Wasm_If{block_type = .Void}, &buf)
+	emit_instruction(Wasm_I32_Const{value = 2}, &buf) // Greater
+	emit_instruction(Wasm_Local_Set{index = 4}, &buf)
+	emit_instruction(Wasm_Else{}, &buf)
+	emit_instruction(Wasm_I32_Const{value = 1}, &buf) // Equal
+	emit_instruction(Wasm_Local_Set{index = 4}, &buf)
+	emit_instruction(Wasm_End{}, &buf)
 	emit_instruction(Wasm_End{}, &buf)
 
-	locals := make([]Wasm_Local_Decl, 0)
+	// ptr = camp_alloc(CAMP_TAG_HEADER_SIZE)
+	emit_instruction(Wasm_I32_Const{value = i32(CAMP_TAG_HEADER_SIZE)}, &buf)
+	emit_instruction(Wasm_Call{index = u32(alloc_func_idx)}, &buf)
+	emit_instruction(Wasm_Local_Set{index = 3}, &buf)
+
+	// refcount = 1
+	emit_instruction(Wasm_Local_Get{index = 3}, &buf)
+	emit_instruction(Wasm_I32_Const{value = 1}, &buf)
+	emit_instruction(Wasm_I32_Store{align = 2, offset = CAMP_TAG_REFCOUNT_OFFSET}, &buf)
+
+	// tag byte
+	emit_instruction(Wasm_Local_Get{index = 3}, &buf)
+	emit_instruction(Wasm_Local_Get{index = 4}, &buf)
+	emit_instruction(Wasm_I32_Store8{align = 0, offset = CAMP_TAG_TAG_OFFSET}, &buf)
+
+	// scan_size = 0
+	emit_instruction(Wasm_Local_Get{index = 3}, &buf)
+	emit_instruction(Wasm_I32_Const{value = 0}, &buf)
+	emit_instruction(Wasm_I32_Store8{align = 0, offset = CAMP_TAG_SCAN_SIZE_OFFSET}, &buf)
+
+	// scalar_mask = 0
+	emit_instruction(Wasm_Local_Get{index = 3}, &buf)
+	emit_instruction(Wasm_I32_Const{value = 0}, &buf)
+	emit_instruction(Wasm_I32_Store8{align = 0, offset = CAMP_TAG_SCALAR_MASK_OFFSET}, &buf)
+
+	// return ptr
+	emit_instruction(Wasm_Local_Get{index = 3}, &buf)
+	emit_instruction(Wasm_End{}, &buf)
+
+	locals := make([]Wasm_Local_Decl, 1)
+	locals[0] = Wasm_Local_Decl {
+		count = 3,
+		type  = .I32,
+	} // locals 2-4: raw_result, ptr, tag
 	body := make([]u8, len(buf))
 	for b, i in buf {body[i] = b}
 	delete(buf)
 	return Wasm_Code{locals = locals, body = body}
 }
+
 
 emit_i64_debug_trampoline_body :: proc(i64_to_str_func_idx: int) -> Wasm_Code {
 	// (ptr: i32) -> i32
@@ -3896,14 +3956,90 @@ emit_i64_compare_body :: proc() -> Wasm_Code {
 	return Wasm_Code{locals = locals, body = body}
 }
 
+// emit_bool_compare_body: (a: i32, b: i32) -> i32
+// Bool is i32 0 (False) / 1 (True). False < True matches Bool.camp:74-78
+// (`a < b` then `a == b` then `a > b`). Returns an Order heap cell:
+//   a < b  -> Less    (tag 0)
+//   a == b -> Equal   (tag 1)
+//   a > b  -> Greater (tag 2)
+// Locals: 0=a, 1=b, 2=ptr, 3=tag
+emit_bool_compare_body :: proc(alloc_func_idx: int) -> Wasm_Code {
+	buf: [dynamic]u8
+	buf = make([dynamic]u8, 0, CODE_BUF_MINOR)
+
+	// Compute tag value into local 3.
+	// if a < b: tag = 0 (Less)
+	emit_instruction(Wasm_Local_Get{index = 0}, &buf)
+	emit_instruction(Wasm_Local_Get{index = 1}, &buf)
+	emit_instruction(Wasm_I32_Lt_S{}, &buf)
+	emit_instruction(Wasm_If{block_type = .Void}, &buf)
+	emit_instruction(Wasm_I32_Const{value = 0}, &buf) // Less
+	emit_instruction(Wasm_Local_Set{index = 3}, &buf)
+	emit_instruction(Wasm_Else{}, &buf)
+	// else if a > b: tag = 2 (Greater)
+	emit_instruction(Wasm_Local_Get{index = 0}, &buf)
+	emit_instruction(Wasm_Local_Get{index = 1}, &buf)
+	emit_instruction(Wasm_I32_Gt_S{}, &buf)
+	emit_instruction(Wasm_If{block_type = .Void}, &buf)
+	emit_instruction(Wasm_I32_Const{value = 2}, &buf) // Greater
+	emit_instruction(Wasm_Local_Set{index = 3}, &buf)
+	emit_instruction(Wasm_Else{}, &buf)
+	// else a == b: tag = 1 (Equal)
+	emit_instruction(Wasm_I32_Const{value = 1}, &buf) // Equal
+	emit_instruction(Wasm_Local_Set{index = 3}, &buf)
+	emit_instruction(Wasm_End{}, &buf) // end inner if
+	emit_instruction(Wasm_End{}, &buf) // end outer if
+
+	// ptr = camp_alloc(CAMP_TAG_HEADER_SIZE)
+	emit_instruction(Wasm_I32_Const{value = i32(CAMP_TAG_HEADER_SIZE)}, &buf)
+	emit_instruction(Wasm_Call{index = u32(alloc_func_idx)}, &buf)
+	emit_instruction(Wasm_Local_Set{index = 2}, &buf)
+
+	// refcount = 1
+	emit_instruction(Wasm_Local_Get{index = 2}, &buf)
+	emit_instruction(Wasm_I32_Const{value = 1}, &buf)
+	emit_instruction(Wasm_I32_Store{align = 2, offset = CAMP_TAG_REFCOUNT_OFFSET}, &buf)
+
+	// tag byte
+	emit_instruction(Wasm_Local_Get{index = 2}, &buf)
+	emit_instruction(Wasm_Local_Get{index = 3}, &buf)
+	emit_instruction(Wasm_I32_Store8{align = 0, offset = CAMP_TAG_TAG_OFFSET}, &buf)
+
+	// scan_size = 0
+	emit_instruction(Wasm_Local_Get{index = 2}, &buf)
+	emit_instruction(Wasm_I32_Const{value = 0}, &buf)
+	emit_instruction(Wasm_I32_Store8{align = 0, offset = CAMP_TAG_SCAN_SIZE_OFFSET}, &buf)
+
+	// scalar_mask = 0
+	emit_instruction(Wasm_Local_Get{index = 2}, &buf)
+	emit_instruction(Wasm_I32_Const{value = 0}, &buf)
+	emit_instruction(Wasm_I32_Store8{align = 0, offset = CAMP_TAG_SCALAR_MASK_OFFSET}, &buf)
+
+	// return ptr
+	emit_instruction(Wasm_Local_Get{index = 2}, &buf)
+	emit_instruction(Wasm_End{}, &buf)
+
+	locals := make([]Wasm_Local_Decl, 1)
+	locals[0] = Wasm_Local_Decl {
+		count = 2,
+		type  = .I32,
+	} // locals 2-3: ptr, tag
+	body := make([]u8, len(buf))
+	for b, i in buf {body[i] = b}
+	delete(buf)
+	return Wasm_Code{locals = locals, body = body}
+}
+
 emit_map_insert_body :: proc(
 	alloc_func_idx: int,
 	compare_type_idx: int,
 	table_idx: int,
+	drop_func_idx: int,
 ) -> Wasm_Code {
 	// (cmp_fn: i32, key: i32, value: i32, map: i32) -> i32
 	// Imperative insert into sorted linked list. Returns map pointer.
-	// Locals: 0=cmp_fn, 1=key, 2=value, 3=map, 4=current, 5=prev, 6=cmp_result, 7=new_node
+	// Locals: 0=cmp_fn, 1=key, 2=value, 3=map, 4=current, 5=prev, 6=cmp_result,
+	//         7=new_node, 8=order_ptr (scratch for Design B Order drop)
 	buf: [dynamic]u8
 	buf = make([dynamic]u8, 0, CODE_BUF_XXL)
 
@@ -3927,6 +4063,8 @@ emit_map_insert_body :: proc(
 	emit_instruction(Wasm_Br_If{label = 1}, &buf) // break
 
 	// cmp_result = compare(key, current.key) via call_indirect
+	// Under Design B the callback returns an Order cell: consume it into a
+	// trinary (local 6) and drop the intermediate (scratch local 8).
 	emit_instruction(Wasm_Local_Get{index = 1}, &buf) // key
 	emit_instruction(Wasm_Local_Get{index = 4}, &buf) // current
 	emit_instruction(Wasm_I32_Load{align = 2, offset = MAP_NODE_KEY_OFFSET}, &buf) // current.key
@@ -3935,7 +4073,7 @@ emit_map_insert_body :: proc(
 		Wasm_Call_Indirect{type_idx = u32(compare_type_idx), table_idx = u32(table_idx)},
 		&buf,
 	)
-	emit_instruction(Wasm_Local_Set{index = 6}, &buf)
+	consume_order_to_trinary(6, 8, drop_func_idx, &buf)
 
 	// if cmp_result == 0: key found, update value in place
 	emit_instruction(Wasm_Local_Get{index = 6}, &buf)
@@ -4034,9 +4172,9 @@ emit_map_insert_body :: proc(
 
 	locals := make([]Wasm_Local_Decl, 1)
 	locals[0] = Wasm_Local_Decl {
-		count = 4,
+		count = 5,
 		type  = .I32,
-	} // locals 4-7: current, prev, cmp_result, new_node
+	} // locals 4-8: current, prev, cmp_result, new_node, order_ptr
 	body := make([]u8, len(buf))
 	for b, i in buf {body[i] = b}
 	delete(buf)
@@ -4047,6 +4185,7 @@ emit_map_get_body :: proc(
 	alloc_func_idx: int,
 	compare_type_idx: int,
 	table_idx: int,
+	drop_func_idx: int,
 ) -> Wasm_Code {
 	// (cmp_fn: i32, key: i32, map: i32) -> i32
 	// Returns Result: Ok(value) or Err(KeyNotFound)
@@ -4054,7 +4193,8 @@ emit_map_get_body :: proc(
 	//   tag byte at offset 4: 0=Ok, 1=Err
 	//   Ok: value at offset 8
 	//   Err: no payload
-	// Locals: 0=cmp_fn, 1=key, 2=map, 3=current, 4=cmp_result, 5=result
+	// Locals: 0=cmp_fn, 1=key, 2=map, 3=current, 4=cmp_result, 5=result,
+	//         6=order_ptr (scratch for Design B Order drop)
 	buf: [dynamic]u8
 	buf = make([dynamic]u8, 0, CODE_BUF_XXL)
 
@@ -4074,6 +4214,8 @@ emit_map_get_body :: proc(
 	emit_instruction(Wasm_Br_If{label = 1}, &buf)
 
 	// cmp_result = compare(key, current.key)
+	// Under Design B the callback returns an Order cell: consume it into a
+	// trinary (local 4) and drop the intermediate (scratch local 6).
 	emit_instruction(Wasm_Local_Get{index = 1}, &buf)
 	emit_instruction(Wasm_Local_Get{index = 3}, &buf)
 	emit_instruction(Wasm_I32_Load{align = 2, offset = MAP_NODE_KEY_OFFSET}, &buf)
@@ -4082,7 +4224,7 @@ emit_map_get_body :: proc(
 		Wasm_Call_Indirect{type_idx = u32(compare_type_idx), table_idx = u32(table_idx)},
 		&buf,
 	)
-	emit_instruction(Wasm_Local_Set{index = 4}, &buf)
+	consume_order_to_trinary(4, 6, drop_func_idx, &buf)
 
 	// if cmp_result == 0: found, return Ok(current.value)
 	emit_instruction(Wasm_I32_Const{value = 0}, &buf)
@@ -4163,19 +4305,24 @@ emit_map_get_body :: proc(
 
 	locals := make([]Wasm_Local_Decl, 1)
 	locals[0] = Wasm_Local_Decl {
-		count = 3,
+		count = 4,
 		type  = .I32,
-	} // locals 3-5: current, cmp_result, result
+	} // locals 3-6: current, cmp_result, result, order_ptr
 	body := make([]u8, len(buf))
 	for b, i in buf {body[i] = b}
 	delete(buf)
 	return Wasm_Code{locals = locals, body = body}
 }
 
-emit_map_contains_body :: proc(compare_type_idx: int, table_idx: int) -> Wasm_Code {
+emit_map_contains_body :: proc(
+	compare_type_idx: int,
+	table_idx: int,
+	drop_func_idx: int,
+) -> Wasm_Code {
 	// (cmp_fn: i32, key: i32, map: i32) -> i32
 	// Returns 1 if key found, 0 otherwise
-	// Locals: 0=cmp_fn, 1=key, 2=map, 3=current, 4=cmp_result
+	// Locals: 0=cmp_fn, 1=key, 2=map, 3=current, 4=cmp_result,
+	//         5=order_ptr (scratch for Design B Order drop)
 	buf: [dynamic]u8
 	buf = make([dynamic]u8, 0, CODE_BUF_XL)
 
@@ -4195,6 +4342,8 @@ emit_map_contains_body :: proc(compare_type_idx: int, table_idx: int) -> Wasm_Co
 	emit_instruction(Wasm_Br_If{label = 1}, &buf)
 
 	// cmp_result = compare(key, current.key)
+	// Under Design B the callback returns an Order cell: consume it into a
+	// trinary (local 4) and drop the intermediate (scratch local 5).
 	emit_instruction(Wasm_Local_Get{index = 1}, &buf)
 	emit_instruction(Wasm_Local_Get{index = 3}, &buf)
 	emit_instruction(Wasm_I32_Load{align = 2, offset = MAP_NODE_KEY_OFFSET}, &buf)
@@ -4203,7 +4352,7 @@ emit_map_contains_body :: proc(compare_type_idx: int, table_idx: int) -> Wasm_Co
 		Wasm_Call_Indirect{type_idx = u32(compare_type_idx), table_idx = u32(table_idx)},
 		&buf,
 	)
-	emit_instruction(Wasm_Local_Set{index = 4}, &buf)
+	consume_order_to_trinary(4, 5, drop_func_idx, &buf)
 
 	// if cmp_result == 0: return 1
 	emit_instruction(Wasm_I32_Const{value = 0}, &buf)
@@ -4235,19 +4384,24 @@ emit_map_contains_body :: proc(compare_type_idx: int, table_idx: int) -> Wasm_Co
 
 	locals := make([]Wasm_Local_Decl, 1)
 	locals[0] = Wasm_Local_Decl {
-		count = 2,
+		count = 3,
 		type  = .I32,
-	} // locals 3-4: current, cmp_result
+	} // locals 3-5: current, cmp_result, order_ptr
 	body := make([]u8, len(buf))
 	for b, i in buf {body[i] = b}
 	delete(buf)
 	return Wasm_Code{locals = locals, body = body}
 }
 
-emit_map_remove_body :: proc(compare_type_idx: int, table_idx: int) -> Wasm_Code {
+emit_map_remove_body :: proc(
+	compare_type_idx: int,
+	table_idx: int,
+	drop_func_idx: int,
+) -> Wasm_Code {
 	// (cmp_fn: i32, key: i32, map: i32) -> i32
 	// Remove key from map. Returns map pointer.
-	// Locals: 0=cmp_fn, 1=key, 2=map, 3=current, 4=prev, 5=cmp_result
+	// Locals: 0=cmp_fn, 1=key, 2=map, 3=current, 4=prev, 5=cmp_result,
+	//         6=order_ptr (scratch for Design B Order drop)
 	buf: [dynamic]u8
 	buf = make([dynamic]u8, 0, CODE_BUF_XXL)
 
@@ -4271,6 +4425,8 @@ emit_map_remove_body :: proc(compare_type_idx: int, table_idx: int) -> Wasm_Code
 	emit_instruction(Wasm_Br_If{label = 1}, &buf)
 
 	// cmp_result = compare(key, current.key)
+	// Under Design B the callback returns an Order cell: consume it into a
+	// trinary (local 5) and drop the intermediate (scratch local 6).
 	emit_instruction(Wasm_Local_Get{index = 1}, &buf)
 	emit_instruction(Wasm_Local_Get{index = 3}, &buf)
 	emit_instruction(Wasm_I32_Load{align = 2, offset = MAP_NODE_KEY_OFFSET}, &buf)
@@ -4279,7 +4435,7 @@ emit_map_remove_body :: proc(compare_type_idx: int, table_idx: int) -> Wasm_Code
 		Wasm_Call_Indirect{type_idx = u32(compare_type_idx), table_idx = u32(table_idx)},
 		&buf,
 	)
-	emit_instruction(Wasm_Local_Set{index = 5}, &buf)
+	consume_order_to_trinary(5, 6, drop_func_idx, &buf)
 
 	// if cmp_result == 0: found, unlink
 	emit_instruction(Wasm_I32_Const{value = 0}, &buf)
@@ -4340,9 +4496,9 @@ emit_map_remove_body :: proc(compare_type_idx: int, table_idx: int) -> Wasm_Code
 
 	locals := make([]Wasm_Local_Decl, 1)
 	locals[0] = Wasm_Local_Decl {
-		count = 3,
+		count = 4,
 		type  = .I32,
-	} // locals 3-5: current, prev, cmp_result
+	} // locals 3-6: current, prev, cmp_result, order_ptr
 	body := make([]u8, len(buf))
 	for b, i in buf {body[i] = b}
 	delete(buf)

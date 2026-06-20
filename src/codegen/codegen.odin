@@ -772,6 +772,13 @@ codegen :: proc(
 	i64_debug_trampoline_func_idx := add_function(&env, i64_debug_trampoline_type_idx)
 	runtime_func_indices[Runtime_Func.I64_Debug_Trampoline] = i64_debug_trampoline_func_idx
 
+	// Bool_Compare: (a: i32, b: i32) -> i32 — interim element compare for
+	// Bool (i32 0/1). Returns an Order heap cell (Less/Equal/Greater) per
+	// Design B. Reuses the (i32, i32) -> i32 compare type shared by all
+	// container element compare callbacks.
+	bool_compare_func_idx := add_function(&env, compare_type_idx)
+	runtime_func_indices[Runtime_Func.Bool_Compare] = bool_compare_func_idx
+
 	// Container debug function types
 	// List_Debug: (elem_debug_fn: i32, list: i32) -> i32
 	list_debug_type_idx := get_or_create_type(
@@ -930,10 +937,16 @@ codegen :: proc(
 
 	// Map runtime function bodies
 	append(&mod.codes, emit_map_new_body(alloc_func_idx))
-	append(&mod.codes, emit_map_insert_body(alloc_func_idx, compare_type_idx, env.table_idx))
-	append(&mod.codes, emit_map_get_body(alloc_func_idx, compare_type_idx, env.table_idx))
-	append(&mod.codes, emit_map_contains_body(compare_type_idx, env.table_idx))
-	append(&mod.codes, emit_map_remove_body(compare_type_idx, env.table_idx))
+	append(
+		&mod.codes,
+		emit_map_insert_body(alloc_func_idx, compare_type_idx, env.table_idx, drop_func_idx),
+	)
+	append(
+		&mod.codes,
+		emit_map_get_body(alloc_func_idx, compare_type_idx, env.table_idx, drop_func_idx),
+	)
+	append(&mod.codes, emit_map_contains_body(compare_type_idx, env.table_idx, drop_func_idx))
+	append(&mod.codes, emit_map_remove_body(compare_type_idx, env.table_idx, drop_func_idx))
 	append(&mod.codes, emit_map_size_body())
 	append(&mod.codes, emit_map_singleton_body(alloc_func_idx, compare_type_idx, env.table_idx))
 	append(&mod.codes, emit_map_keys_body(alloc_func_idx, list_alloc_func_idx, list_push_func_idx))
@@ -963,8 +976,9 @@ codegen :: proc(
 
 	// I64 compare function body
 	append(&mod.codes, emit_i64_compare_body())
-	// I64 trampoline function body (unboxes two I64 keys, calls I64_Compare)
-	append(&mod.codes, emit_i64_trampoline_body(i64_compare_func_idx))
+	// I64 trampoline function body (unboxes two I64 keys, calls I64_Compare,
+	// then wraps the raw -1/0/1 result into an Order heap cell per Design B).
+	append(&mod.codes, emit_i64_trampoline_body(i64_compare_func_idx, alloc_func_idx))
 	// Register I64_compare in func_map so emit_expr can find it
 	i64_compare_name := base.intern(interner, "I64_compare")
 	env.func_map[u64(i64_compare_name)] = i64_compare_func_idx
@@ -979,6 +993,17 @@ codegen :: proc(
 	// if resolve_debug_func returns the raw I64_debug name, the lookup succeeds
 	i64_debug_name := base.intern(interner, "I64_debug")
 	env.func_map[u64(i64_debug_name)] = i64_debug_trampoline_func_idx
+
+	// Bool_Compare function body. Returns an Order heap cell so it matches
+	// the Design B container compare ABI.
+	append(&mod.codes, emit_bool_compare_body(alloc_func_idx))
+	// Register Bool_compare in func_map under the canonical name the prelude
+	// records for `Bool is Ord` (semantics/prelude.odin registers the impl
+	// method name as "Bool_compare" with module NO_NAME; resolve_trait_method
+	// returns that, and emit_expr looks it up by bare intern-ID). This gives
+	// container compares (List/Result/Map) a real element compare callback.
+	bool_compare_name := base.intern(interner, "Bool_compare")
+	env.func_map[u64(bool_compare_name)] = bool_compare_func_idx
 
 	// Debug callback type: (i32) -> i32 (takes value, returns Str pointer)
 	debug_cb_type_idx := get_or_create_type(&env, []Wasm_Value_Type{.I32}, []Wasm_Value_Type{.I32})
@@ -996,7 +1021,10 @@ codegen :: proc(
 		),
 	)
 	// List_Compare, List_Hash bodies (must follow List_Debug in registration order)
-	append(&mod.codes, emit_list_compare_body(compare_type_idx, env.table_idx))
+	append(
+		&mod.codes,
+		emit_list_compare_body(compare_type_idx, env.table_idx, alloc_func_idx, drop_func_idx),
+	)
 	append(&mod.codes, emit_list_hash_body(compare_type_idx, env.table_idx))
 	// Map.debug and Set.debug bodies
 	append(
@@ -1046,7 +1074,10 @@ codegen :: proc(
 	)
 	// Result_Eq, Result_Compare, Result_Hash bodies
 	append(&mod.codes, emit_result_eq_body(compare_type_idx, env.table_idx))
-	append(&mod.codes, emit_result_compare_body(compare_type_idx, env.table_idx))
+	append(
+		&mod.codes,
+		emit_result_compare_body(compare_type_idx, env.table_idx, alloc_func_idx, drop_func_idx),
+	)
 	append(&mod.codes, emit_result_hash_body(compare_type_idx, env.table_idx))
 
 	camp_alloc_name := base.intern(interner, "camp_alloc")

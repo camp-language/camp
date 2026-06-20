@@ -1,7 +1,7 @@
 ---
 # camp-24mj
 title: Trait method impls are never compiled to standalone WASM functions, blocking container runtime dispatch
-status: todo
+status: in_progress
 type: bug
 priority: high
 tags:
@@ -9,10 +9,44 @@ tags:
     - traits
     - ir
 created_at: 2026-06-20T03:02:41Z
-updated_at: 2026-06-20T03:02:54Z
+updated_at: 2026-06-20T07:45:00Z
 blocked_by:
     - camp-stdlib-compile-single
 ---
+
+## Progress (2026-06-20): ABI blocker resolved (Design B); stdlib-compile-single remains
+
+The deeper ABI mismatch flagged in `camp-ty9s` has been FIXED (Design B): the
+container runtime compare intrinsics now treat element `Ord.compare` callbacks
+as returning `Order` heap tag cells (read tag, drop intermediate, return Order).
+`List.compare([True,False],[True,False])` now exits 1 (Equal) — the method-call
+compare path works for Bool elements. 468 unit + 176 e2e tests pass; new e2e
+test `tests/e2e/traits/list-compare-method`. See `camp-ty9s` for the full
+change list.
+
+**BUT the bean's original goal is only partially met**: only `Bool_compare`
+exists as a real WASM function (a hand-written runtime intrinsic standing in
+for the stdlib lambda). `Char_compare`, `Str_compare`, `I32_compare`, etc. are
+still names-only → `cmp_fn_idx` stays 0 for non-Bool element types → still
+trap. The bean's literal acceptance test uses Char elements (`['a','b','c']`)
+and still traps; the Bool-element variant passes.
+
+To fully resolve, the **camp-stdlib-compile-single** blocker must be addressed
+so the real stdlib trait-impl lambdas reach `lower_tdecl_is_impl`. That
+requires:
+1. Sync the stale embedded `STDLIB_MODULES` sources in `src/build/stdlib.odin`
+   with on-disk `stdlib/*.camp` (the embedded copies predate the trait-impl
+   blocks; on-disk has 15 `is` impls in Bool.camp, embedded has 0). NOTE: the
+   F64.camp "parse error" claimed below is a PHANTOM (no such line; all stdlib
+   parses cleanly) — the real blockers are semantic, not syntactic.
+2. Fix on-disk stdlib semantic errors that block compilation (e.g.
+   `Bool.camp`'s `Bool is Hash` overlaps the prelude's `Bool is Hash` →
+   `C0601 OVERLAPPING INSTANCE`; similar across Char/Str/I64/F64/List/Result).
+3. Route `run_build_single` through `combine_module_irs` (synthesize a
+   `Project_Discovery` with the user file + stdlib, typecheck with dep
+   injection + import resolution) so `lower_tdecl_is_impl` emits real
+   `Bool_compare`/`Char_compare`/etc. from the stdlib lambdas (same `Order`
+   ABI as Design B — the runtime is ready for them).
 
 ## Problem
 

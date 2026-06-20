@@ -941,6 +941,31 @@ typecheck_method_call :: proc(
 			return Synth_Result{var_id = return_var, effects = eff, texpr = TExpr(t)}
 		}
 
+		yield_name := base.intern(store.interner, "yield!")
+		cancel_name := base.intern(store.interner, "cancel!")
+
+		// Async!/Spawn! operations that return Unit (yield!, cancel!) need their
+		// result unified with Unit. Otherwise return_var stays an unbound fresh
+		// var that lower_type resolves to the default wasm_type (.I64), which
+		// makes IR_Block emit a stray `drop` after the void scheduler call and
+		// produces invalid wasm. See camp-iokq.
+		if is_scheduler && (e.method.name == yield_name || e.method.name == cancel_name) {
+			unit_name := base.intern(store.interner, "Unit")
+			unit_var := make_primitive_type(store, unit_name, e.span)
+			t := new(TExpr_Method_Call)
+			t^ = TExpr_Method_Call {
+				receiver  = receiver_result.texpr,
+				method    = e.method,
+				args      = args_t,
+				type_     = lower_type(store, unit_var),
+				eff_      = lower_effect_type(store, eff),
+				resolved_ = e.method,
+				dispatch  = e.dispatch,
+				span      = e.span,
+			}
+			return Synth_Result{var_id = unit_var, effects = eff, texpr = TExpr(t)}
+		}
+
 		is_parallel := effect_name == base.intern(store.interner, "Parallel!")
 		if is_parallel {
 			// Effect row for Parallel! operations: Parallel! | (callback effects)
