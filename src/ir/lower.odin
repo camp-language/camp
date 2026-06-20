@@ -830,7 +830,7 @@ lower_tcall :: proc(e: ^semantics.TExpr_Call, env: ^Lower_Env) -> IR_Expr {
 	return IR_Expr(nil)
 }
 
-lower_tmethod_call :: proc(e: ^semantics.TExpr_Method_Call, env: ^Lower_Env) -> IR_Expr {
+	lower_tmethod_call :: proc(e: ^semantics.TExpr_Method_Call, env: ^Lower_Env) -> IR_Expr {
 	receiver_ir := lower_texpr(e.receiver, env)
 
 	// Check if this is an effect operation call
@@ -1008,7 +1008,7 @@ lower_tmethod_call :: proc(e: ^semantics.TExpr_Method_Call, env: ^Lower_Env) -> 
 		}
 	}
 
-	if e.resolved_.name != 0 {
+	if e.resolved_.name != base.NO_NAME {
 		resolved_name := e.resolved_
 		// If the module qualifier was lost, try to detect Map/Set from
 		// the receiver type and arguments
@@ -1240,15 +1240,25 @@ lower_tmatch :: proc(e: ^semantics.TExpr_Match, env: ^Lower_Env) -> IR_Expr {
 		}
 		body_ir := lower_texpr(e.arms[i].body, env)
 
+		// Expand nested tag patterns (e.g. Ok(Ok(v)) => v becomes
+		// Ok(__ir_N) => match __ir_N { Ok(v) => v }).
+		pat_ir, expanded_body := expand_nested_tag_pattern(
+			e.arms[i].pattern,
+			body_ir,
+			env,
+			scrutinee_type_id,
+		)
+
 		or_pat, is_or := e.arms[i].pattern.(^semantics.TPattern_Or)
 		if is_or {
 			for alt in or_pat.alternatives {
+				sub_pat, sub_body := expand_nested_tag_pattern(alt, body_ir, env, scrutinee_type_id)
 				append(
 					&arms,
 					IR_Match_Arm {
-						pattern = lower_tpattern(alt, env, scrutinee_type_id),
+						pattern = sub_pat,
 						guard = guard_ir,
-						body = body_ir,
+						body = sub_body,
 					},
 				)
 			}
@@ -1256,9 +1266,9 @@ lower_tmatch :: proc(e: ^semantics.TExpr_Match, env: ^Lower_Env) -> IR_Expr {
 			append(
 				&arms,
 				IR_Match_Arm {
-					pattern = lower_tpattern(e.arms[i].pattern, env, scrutinee_type_id),
+					pattern = pat_ir,
 					guard = guard_ir,
-					body = body_ir,
+					body = expanded_body,
 				},
 			)
 		}
@@ -1272,6 +1282,170 @@ lower_tmatch :: proc(e: ^semantics.TExpr_Match, env: ^Lower_Env) -> IR_Expr {
 		span      = e.span,
 	}
 	return IR_Expr(result)
+}
+
+// expand_nested_tag_pattern detects nested tag patterns within a TPattern_Tag's
+// payload and expands them into inner IR_Match wrappers.
+// For Ok(Ok(v)) => body:
+//   Returns (IR_Pat_Tag(Ok, [__ir_N]), match __ir_N { Ok(v) => body })
+// resolve_payload_type_id returns the type variable ID for the i-th payload
+// field of the tag with the given name in the given scrutinee type.
+resolve_payload_type_id :: proc(
+	store: ^semantics.Type_Store,
+	scrutinee_type_id: base.Type_Var_ID,
+	tag_name: base.Intern_ID,
+	field_index: int,
+) -> base.Type_Var_ID {
+	if scrutinee_type_id == base.Type_Var_ID(0) {
+		return base.Type_Var_ID(0)
+	}
+	entries: [dynamic]semantics.Type_Tag_Entry
+	entries = make([dynamic]semantics.Type_Tag_Entry, 0, 4)
+	defer delete(entries)
+	flatten_tag_entries(store, scrutinee_type_id, &entries)
+	for entry in entries {
+		if entry.name == tag_name {
+			if field_index >= 0 && field_index < len(entry.payload) {
+				return entry.payload[field_index]
+			}
+		}
+	}
+	return base.Type_Var_ID(0)
+}
+
+expand_nested_tag_pattern :: proc(
+	pattern: semantics.TPattern,
+	body: IR_Expr,
+	env: ^Lower_Env,
+	scrutinee_type_id: base.Type_Var_ID,
+) -> (IR_Pattern, IR_Expr) {
+	#partial switch p in pattern {
+	case ^semantics.TPattern_Tag:
+		// Scan payload for nested tag patterns
+		has_nested := false
+		for sub in p.payload {
+			#partial switch s in sub {
+			case ^semantics.TPattern_Tag:
+				has_nested = true
+			case ^semantics.TPattern_Identifier,
+			     ^semantics.TPattern_Record,
+			     ^semantics.TPattern_List,
+			     ^semantics.TPattern_Int,
+			     ^semantics.TPattern_String,
+			     ^semantics.TPattern_Bool,
+			     ^semantics.TPattern_Wildcard,
+			     ^semantics.TPattern_Destructure,
+			     ^semantics.TPattern_Or:
+			}
+		}
+
+		if !has_nested {
+			return lower_tpattern(pattern, env, scrutinee_type_id), body
+		}
+
+		// Build flat IR_Pat_Tag with unique binders for nested patterns,
+		// wrapping body in inner IR_Match nodes (right-to-left for nesting).
+		current_body := body
+		payload_ids := make([dynamic]base.Intern_ID, 0, len(p.payload))
+		payload_wasm_types := resolve_tag_payload_wasm_types(
+			env.store,
+			scrutinee_type_id,
+			p.name.name,
+		)
+
+		for i := len(p.payload) - 1; i >= 0; i -= 1 {
+			sub := p.payload[i]
+			#partial switch s in sub {
+			case ^semantics.TPattern_Tag:
+				// Nested tag pattern: generate unique binder, wrap body in inner match
+				inner_name := fresh_ir_name(env)
+				inner_wt := base.IR_Wasm_Type(.I32)
+				if i < len(payload_wasm_types) {
+					inner_wt = payload_wasm_types[i]
+				}
+
+				// Resolve the inner scrutinee type from the payload field's type var
+				inner_scrutinee_type_id := resolve_payload_type_id(
+					env.store,
+					scrutinee_type_id,
+					p.name.name,
+					i,
+				)
+
+				// Recursively expand nested patterns using the inner scrutinee type
+				inner_pat, inner_body := expand_nested_tag_pattern(
+					sub,
+					current_body,
+					env,
+					inner_scrutinee_type_id,
+				)
+
+				// Build IR_Match: match inner_value { inner_pat => inner_body }
+				inner_arms := make([dynamic]IR_Match_Arm, 1)
+				inner_arms[0] = IR_Match_Arm {
+					pattern = inner_pat,
+					body    = inner_body,
+				}
+				inner_match := new(IR_Match)
+				inner_match^ = IR_Match {
+					scrutinee = IR_Expr(new(IR_Var)),
+					arms      = inner_arms,
+					type      = base.IR_Type{wasm_type = .I64, type_id = base.Type_Var_ID(0)},
+					span      = base.Source_Span_ZERO,
+				}
+				(inner_match.scrutinee.(^IR_Var)).name = inner_name
+
+				current_body = IR_Expr(inner_match)
+
+				// Prepend the binder to payload_ids
+				// Since we're iterating right-to-left, insert at front
+				// Actually, payload_ids are built left-to-right later
+				// So we accumulate in a temp and reverse
+				append(&payload_ids, inner_name)
+
+			case ^semantics.TPattern_Identifier:
+				append(&payload_ids, s.name)
+			case ^semantics.TPattern_Wildcard:
+				append(&payload_ids, base.Intern_ID(0))
+			case ^semantics.TPattern_Record,
+			     ^semantics.TPattern_List,
+			     ^semantics.TPattern_Int,
+			     ^semantics.TPattern_String,
+			     ^semantics.TPattern_Bool,
+			     ^semantics.TPattern_Destructure,
+			     ^semantics.TPattern_Or:
+				append(&payload_ids, base.Intern_ID(0))
+			}
+		}
+
+		// payload_ids was built right-to-left, reverse it for the correct order
+		reversed := make([dynamic]base.Intern_ID, len(payload_ids))
+		for j in 0 ..< len(payload_ids) {
+			reversed[len(payload_ids) - 1 - j] = payload_ids[j]
+		}
+
+		result := new(IR_Pat_Tag)
+		result^ = IR_Pat_Tag {
+			name               = p.name.name,
+			tag_index          = resolve_tag_index(env.store, scrutinee_type_id, p.name.name),
+			payload            = reversed,
+			payload_wasm_types = payload_wasm_types,
+		}
+		return IR_Pattern(result), current_body
+
+	case ^semantics.TPattern_Identifier,
+	     ^semantics.TPattern_Wildcard,
+	     ^semantics.TPattern_Record,
+	     ^semantics.TPattern_Tuple,
+	     ^semantics.TPattern_List,
+	     ^semantics.TPattern_Int,
+	     ^semantics.TPattern_String,
+	     ^semantics.TPattern_Bool,
+	     ^semantics.TPattern_Destructure,
+	     ^semantics.TPattern_Or:
+		return lower_tpattern(pattern, env, scrutinee_type_id), body
+	}
+	return lower_tpattern(pattern, env, scrutinee_type_id), body
 }
 
 lower_tpattern :: proc(
@@ -1295,7 +1469,7 @@ lower_tpattern :: proc(
 			     ^semantics.TPattern_Wildcard,
 			     ^semantics.TPattern_Destructure,
 			     ^semantics.TPattern_Or:
-				append(&payload_ids, base.Intern_ID(0))
+				append(&payload_ids, fresh_ir_name(env))
 			}
 		}
 		result := new(IR_Pat_Tag)
