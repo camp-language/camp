@@ -535,9 +535,17 @@ rc_insert_expr_inner :: proc(
 		if binding_used && binding_count == -1 {
 			// Binding was already dropped by branches (e.g., in IR_If/IR_Match)
 			// Don't emit another drop
-		} else if !binding_used || binding_count <= 0 {
-			// Binding was never used or all uses were consumed —
-			// if is_heap, we need to drop the original ownership
+		} else if !binding_used {
+			// Binding was never referenced at all (absent from the use map).
+			// If is_heap, we need to drop the original ownership.
+			//
+			// NOTE: `binding_count == 0` WITH `binding_used == true` means every use
+			// was visited by rc_insert_expr_inner (the last one without an inserted
+			// Dup — i.e. a move/consume). Under Perceus semantics the ownership has
+			// already been transferred to that last use's destination (e.g. a stored
+			// pointer, a moved argument), so emitting another Drop here would be a
+			// double-free / use-after-free. Only the genuinely-never-referenced case
+			// (`!binding_used`) needs an explicit drop. See camp-esbs.
 			if e.type.is_heap {
 				drop := new(IR_Drop)
 				drop^ = IR_Drop {
