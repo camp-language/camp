@@ -484,3 +484,19 @@ test_diag_unused_binding :: proc(t: ^testing.T) {
 	testing.expect(t, d.span == span)
 }
 
+@(test)
+test_diag_use_of_discard :: proc(t: ^testing.T) {
+	span := base.Source_Span {
+		file_id = 0,
+		start   = 0,
+		end     = 6,
+	}
+	d := diagnostics.diag_use_of_discard("_foo", span)
+	defer diagnostics.diag_destroy(&d)
+	testing.expect(t, d.category == .Error)
+	testing.expect(t, d.title == "USE OF DISCARDED VALUE")
+	testing.expect(t, d.code == "C0210")
+	testing.expect(t, len(d.hints) == 1)
+	testing.expect(t, d.span == span)
+}
+

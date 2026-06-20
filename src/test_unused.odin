@@ -243,3 +243,83 @@ test_unused_mixed_used_and_unused :: proc(t: ^testing.T) {
 	)
 }
 
+// has_diag checks whether any diagnostic with the given code exists.
+has_diag :: proc(collector: ^diagnostics.Diagnostic_Collector, code: string) -> bool {
+	for diag in collector.diagnostics {
+		if diag.code == code do return true
+	}
+	return false
+}
+
+// count_diag returns the number of diagnostics with the given code.
+count_diag :: proc(collector: ^diagnostics.Diagnostic_Collector, code: string) -> int {
+	count := 0
+	for diag in collector.diagnostics {
+		if diag.code == code do count += 1
+	}
+	return count
+}
+
+@(test)
+test_underscore_multi_bind_no_shadow :: proc(t: ^testing.T) {
+	// Multiple `_` and `_foo` bindings in the same scope should NOT shadow.
+	ctx: build.Compilation_Context
+	store, tfile, cfile := setup_for_unused(
+		&ctx,
+		"f = || { _ = 1\n_ = 2\n_count = 3\n_count = 4\n42 }",
+	)
+	defer build.context_destroy(&ctx)
+	defer semantics.type_store_destroy(store)
+
+	testing.expectf(
+		t,
+		!has_diag(&ctx.collector, "C0201"),
+		"Expected no shadowing (C0201) errors when rebinding underscore-prefixed names",
+	)
+}
+
+@(test)
+test_underscore_named_bind_still_shadows :: proc(t: ^testing.T) {
+	// Non-underscore names should still produce shadowing errors.
+	ctx: build.Compilation_Context
+	store, tfile, cfile := setup_for_unused(&ctx, "f = || { x = 1\nx = 2\n42 }")
+	defer build.context_destroy(&ctx)
+	defer semantics.type_store_destroy(store)
+
+	testing.expectf(
+		t,
+		has_diag(&ctx.collector, "C0201"),
+		"Expected shadowing (C0201) error when rebinding non-underscore name 'x'",
+	)
+}
+
+@(test)
+test_underscore_read_error :: proc(t: ^testing.T) {
+	// Reading `_` should produce C0210 (use of discarded value).
+	ctx: build.Compilation_Context
+	store, tfile, cfile := setup_for_unused(&ctx, "f = || { _ = 1\n_\n42 }")
+	defer build.context_destroy(&ctx)
+	defer semantics.type_store_destroy(store)
+
+	testing.expectf(
+		t,
+		has_diag(&ctx.collector, "C0210"),
+		"Expected USE OF DISCARDED VALUE (C0210) when reading `_`",
+	)
+}
+
+@(test)
+test_underscore_named_read_error :: proc(t: ^testing.T) {
+	// Reading `_count` should produce C0210 (use of discarded value).
+	ctx: build.Compilation_Context
+	store, tfile, cfile := setup_for_unused(&ctx, "f = || { _count = 1\n_count\n42 }")
+	defer build.context_destroy(&ctx)
+	defer semantics.type_store_destroy(store)
+
+	testing.expectf(
+		t,
+		has_diag(&ctx.collector, "C0210"),
+		"Expected USE OF DISCARDED VALUE (C0210) when reading `_count`",
+	)
+}
+

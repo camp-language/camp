@@ -49,8 +49,11 @@ check_shadow :: proc(
 	store: ^Type_Store,
 	span: base.Source_Span,
 ) {
+	name_str := base.intern_get(store.interner, name)
+	if strings.has_prefix(name_str, "_") {
+		return
+	}
 	if _, exists := env_lookup(env, name); exists {
-		name_str := base.intern_get(store.interner, name)
 		diagnostics.collector_add_diag(
 			store.collector,
 			diagnostics.diag_shadow(name, name_str, span),
@@ -336,6 +339,28 @@ typecheck_synth :: proc(expr: CExpr, env: ^Type_Env, store: ^Type_Store) -> Synt
 		return Synth_Result{var_id = var_id, effects = eff, texpr = TExpr(t)}
 
 	case ^CExpr_Name:
+		{
+			check_name_str := base.intern_get(store.interner, e.name.name)
+			if strings.has_prefix(check_name_str, "_") &&
+			   !strings.has_prefix(check_name_str, "_$") &&
+			   !strings.has_prefix(check_name_str, "__") {
+				diagnostics.collector_add_diag(
+					store.collector,
+					diagnostics.diag_use_of_discard(check_name_str, e.span),
+				)
+				var_id := fresh_value_var(store, e.span)
+				eff := fresh_effect_row(store, e.span)
+				t := new(TExpr_Name)
+				type_ir, eff_ir := type_eff_pair(store, var_id, eff)
+				t^ = TExpr_Name {
+					name  = e.name,
+					type_ = type_ir,
+					eff_  = eff_ir,
+					span  = e.span,
+				}
+				return Synth_Result{var_id = var_id, effects = eff, texpr = TExpr(t)}
+			}
+		}
 		if existing, ok := env_lookup(env, e.name.name); ok {
 			inst := instantiate(store, existing)
 			eff := fresh_effect_row(store, e.span)

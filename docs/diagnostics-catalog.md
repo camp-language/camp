@@ -303,6 +303,12 @@ Each diagnostic should have a unique `C####` code for searchability and `camp --
 
 **Rationale:** Raw identifiers (`r#name`) are only needed for keywords. Using them for non-keywords is unnecessary noise. Rust warns about this.
 
+### 3.11 USE OF DISCARDED VALUE (C0210) — Error ✅ Implemented
+
+> `{name}` begins with `_` and is treated as a discarded value — it cannot be read.
+
+**Rationale:** `_`-prefixed bindings (`_`, `_foo`, `_count`) are discards — they can be bound multiple times but never read as values. This error catches accidental reads.
+
 ---
 
 ## 4. Type System Errors
@@ -1081,7 +1087,7 @@ Camp uses Perceus reference counting for deterministic memory management. These 
 |----------|-------|-------|----------|
 | Lexer | 4 | C0003–C0006 | Medium |
 | Parser | 12 | C0110–C0121 | Medium |
-| Name Resolution | 7 | C0203–C0209 | High |
+| Name Resolution | 8 | C0203–C0210 | High |
 | Type System | 13 | C0307–C0320 | High |
 | Effect System | 10 | C0402–C0411 | **Critical** |
 | Pattern Matching | 7 | C0502, C0504–C0509 | High |

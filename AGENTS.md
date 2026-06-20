@@ -90,8 +90,12 @@ Use **beans** (`.beans/`) for tracking all tasks — not TODO comments in docs, 
 
 ### Workflow
 1. Create bean with `beans create "<title>" [--priority <level>]`
-2. Work the bean; close it when done
-3. No need to keep docs in sync for closed beans
+2. Work the bean; delete it when done (`.beans/<slug>.md`)
+3. Every feature or bugfix must include tests:
+   - **E2E tests** in `tests/e2e/` for compiler diagnostics and runtime behavior
+   - **Unit tests** in `src/test_*.odin` for programmatic verification
+   - **Camp-native tests** in `stdlib/` for stdlib features
+4. No need to keep docs in sync for deleted beans
 
 ## Stdlib Testing
 
