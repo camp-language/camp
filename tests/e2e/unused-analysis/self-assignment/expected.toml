@@ -1,10 +1,11 @@
 stdout = """
 canonicalized /tmp/camp-e2e/unused-analysis/self-assignment/src/Main.camp: 1 declaration(s), 0 import(s)
--- C0200: UNDEFINED NAME --- /tmp/camp-e2e/unused-analysis/self-assignment/src/Main.camp
+typecheck passed for /tmp/camp-e2e/unused-analysis/self-assignment/src/Main.camp
+-- C1001: NO-OP ASSIGNMENT --- /tmp/camp-e2e/unused-analysis/self-assignment/src/Main.camp
 
-I cannot find `$x`.
-   2 |   $x = $x
-              ^
+`$x` is assigned to itself — this has no effect.
+   3 |   $x = $x
+         ^
 compilation failed with 1 error(s)
 """
 stderr = ""

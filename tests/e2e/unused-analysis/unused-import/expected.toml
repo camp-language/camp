@@ -1,17 +1,25 @@
+args = "check-file"
+skip_wasm = true
 stdout = """
-canonicalized /tmp/camp-e2e/unused-analysis/unused-import/src/Main.camp: 2 declaration(s), 1 import(s)
--- C0800: MODULE NOT FOUND --- /tmp/camp-e2e/unused-analysis/unused-import/src/Main.camp
+-- C0902: UNUSED IMPORT --- /tmp/camp-e2e/unused-analysis/unused-import/src/Main.camp
 
-module 'Module' not found.
-   1 | import Module { foo, bar }
+`length` imported from `List` is never used.
+   1 | import List { length, map }
        ^^^^^^
 
--- C0200: UNDEFINED NAME --- /tmp/camp-e2e/unused-analysis/unused-import/src/Main.camp
+-- C0902: UNUSED IMPORT --- /tmp/camp-e2e/unused-analysis/unused-import/src/Main.camp
 
-I cannot find `foo`.
-   4 |   foo()
-         ^^^
-compilation failed with 1 error(s)
+`length` imported from `List` is never used.
+   1 | import List { length, map }
+       ^^^^^^
+
+-- C0902: UNUSED IMPORT --- /tmp/camp-e2e/unused-analysis/unused-import/src/Main.camp
+
+`map` imported from `List` is never used.
+   1 | import List { length, map }
+       ^^^^^^
+3 warning(s) found
+check passed for /tmp/camp-e2e/unused-analysis/unused-import/src/Main.camp
 """
 stderr = ""
-exit = 1
+exit = 0

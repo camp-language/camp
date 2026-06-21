@@ -983,7 +983,7 @@ diag_unused_assignment :: proc(
 		"C0904",
 		"UNUSED ASSIGNMENT",
 		span,
-		fmt.tprintf("Assignment #{} to `${}` is unused. {}", assign_no, name, hint),
+		fmt.tprintf("Assignment #{} to `{}` is unused. {}", assign_no, name, hint),
 	)
 	return d
 }

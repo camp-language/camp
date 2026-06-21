@@ -53,6 +53,16 @@ check_shadow :: proc(
 	if strings.has_prefix(name_str, "_") {
 		return
 	}
+	// Reassignable (`$`-prefixed) variables are exempt from the shadowing
+	// check: reassigning an existing `$x` in the same scope is valid
+	// (syntax-recipe.md §Assignment: "`$x = expr` — mutable binding ...
+	// `$x = 1` then `$x = 2`"), not a shadowing redefinition. Mirrors the
+	// `_`-prefix exemption above for intentionally-unused rebinding. A fresh
+	// `$x` declaration in a *nested* scope that shadows an outer `$x` would
+	// still be flagged by the same-scope duplicate check elsewhere.
+	if strings.has_prefix(name_str, "$") {
+		return
+	}
 	if _, exists := env_lookup(env, name); exists {
 		diagnostics.collector_add_diag(
 			store.collector,

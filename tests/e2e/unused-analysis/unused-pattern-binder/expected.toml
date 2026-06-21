@@ -1,19 +1,14 @@
+args = "check-file"
+skip_wasm = true
 stdout = """
-canonicalized /tmp/camp-e2e/unused-analysis/unused-pattern-binder/src/Main.camp: 1 declaration(s), 0 import(s)
--- C0200: UNDEFINED NAME --- /tmp/camp-e2e/unused-analysis/unused-pattern-binder/src/Main.camp
+-- C0900: UNUSED BINDING --- /tmp/camp-e2e/unused-analysis/unused-pattern-binder/src/Main.camp
 
-I cannot find `expr`.
-   2 |   match expr {
-               ^^^^
-
--- C0300: TYPE MISMATCH --- /tmp/camp-e2e/unused-analysis/unused-pattern-binder/src/Main.camp
-
-`tag union` does not match `I64`.
-   3 |     Some(x) => Ok(0)
-                      ^^
-   1 | main! = || -> I64 {
-                     ~~~ this has type `I64`
-compilation failed with 2 error(s)
+Binding `x` is never used. 
+   3 |     Ok(x) => 0
+              ^
+  Prefix with `_` to mark as intentionally unused: `_x`
+1 warning(s) found
+check passed for /tmp/camp-e2e/unused-analysis/unused-pattern-binder/src/Main.camp
 """
 stderr = ""
-exit = 1
+exit = 0

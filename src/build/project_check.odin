@@ -166,6 +166,17 @@ run_check_project :: proc(thread_count: int = 1) -> Build_Result {
 		return Build_Result(Build_Error{message = "analysis errors", code = 1})
 	}
 
+	// Render warnings (C09xx unused-analysis codes are warnings; without this
+	// they would be silently dropped by project-mode `check`). Mirrors the
+	// single-file `run_check` warning-rendering in build.odin. Hard errors
+	// were already rendered and returned above.
+	has_warnings := ctx.collector.warning_count > 0
+	if diagnostics.is_json_mode() {
+		diagnostics.render_all(&ctx.collector, "", "")
+	} else if has_warnings {
+		diagnostics.render_all(&ctx.collector, "", "")
+	}
+
 	fmt.printfln("check passed for all modules")
 	return Build_Result(Build_Output{wasm_path = "", has_errors = false})
 }

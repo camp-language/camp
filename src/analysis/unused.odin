@@ -500,6 +500,18 @@ collect_uses_assign :: proc(analysis: ^Unused_Analysis, assign: ^semantics.CExpr
 				record_use(analysis, name, .Discard, assign.span)
 			} else if _, exists := analysis.bindings[name]; !exists {
 				register_binding(analysis, name, t.span, is_top_level = false, is_pub = false)
+				// Register record-literal fields for C0901 UNUSED RECORD FIELD
+				// tracking. Each field starts unaccessed; mark_field_accessed
+				// (via record_field_access) flips it when `r.field` is read.
+				// Only record literals bound to a name are tracked — anonymous
+				// record expressions have no binding to attribute unused fields
+				// to, and escaped records (passed to fns/returned) are skipped
+				// by check_unused_record_fields.
+				if rec, is_rec := value.(^semantics.CExpr_Record); is_rec {
+					for &field in rec.fields {
+						register_record_field(analysis, name, field.name, rec.span, field.span)
+					}
+				}
 			}
 		}
 	case ^semantics.CExpr_Int,

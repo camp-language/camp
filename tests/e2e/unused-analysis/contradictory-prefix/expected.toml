@@ -1,11 +1,13 @@
 stdout = """
 canonicalized /tmp/camp-e2e/unused-analysis/contradictory-prefix/src/Main.camp: 1 declaration(s), 0 import(s)
--- C0210: USE OF DISCARDED VALUE --- /tmp/camp-e2e/unused-analysis/contradictory-prefix/src/Main.camp
+typecheck passed for /tmp/camp-e2e/unused-analysis/contradictory-prefix/src/Main.camp
+-- C1000: CONTRADICTORY PREFIX --- /tmp/camp-e2e/unused-analysis/contradictory-prefix/src/Main.camp
 
-`_` begins with `_` and is treated as a discarded value — it cannot be read.
+`_$x` combines `_` (ignore) and `$` (each value matters) — these are
+contradictory.
    2 |   _$x = 5
          ^
-  Bind this value to a named binding instead, or use `_` directly to discard.
+  Reassignable variables cannot be marked as unused. Remove the `_` prefix.
 compilation failed with 1 error(s)
 """
 stderr = ""

@@ -676,6 +676,29 @@ run_special_command :: proc(
 			cwd = tmp_base,
 		)
 
+	// Single-file `check <file>`: runs the unused-analysis pass on the test's
+	// Main.camp and RENDERS C09xx warnings (unlike `build`, which swallows
+	// warnings on the success path). Also resolves stdlib imports via the
+	// single-file transitive-registration path (unlike project-mode `check`,
+	// which currently cannot parse the stale embedded stdlib sources). Use
+	// this for e2e tests that assert a C09xx unused-analysis warning fires.
+	case "check-file":
+		camp_env := os.get_env("CAMP_BIN", context.allocator)
+		camp_bin: string
+		if len(camp_env) > 0 {
+			camp_bin = camp_env
+		} else {
+			camp_bin = "./camp"
+		}
+		tmp_main, tm_err := filepath.join({tmp_base, "src", "Main.camp"}, context.allocator)
+		if tm_err != nil {
+			return "", fmt.tprintf("failed to build Main.camp path: {}", tm_err), 1
+		}
+		return run_command_prefixed(
+			{camp_bin, "check", tmp_main},
+			fmt.tprintf("{}-checkfile", unique_prefix),
+		)
+
 	}
 
 	return "", fmt.tprintf("unknown special args: {}", args), 1
@@ -742,3 +765,4 @@ write_update_file :: proc(
 	content := strings.to_string(buf)
 	_ = os.write_entire_file_from_string(path, content)
 }
+
