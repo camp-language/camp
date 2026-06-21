@@ -83,11 +83,23 @@ ir_expr_is_heap :: proc(expr: IR_Expr) -> bool {
 		return false
 	case ^IR_Literal_String:
 		return true
-	case ^IR_Construct_Tag,
-	     ^IR_Construct_Record,
-	     ^IR_Construct_Tuple,
-	     ^IR_Closure,
-	     ^IR_Expr_Nominal_Construct:
+	case ^IR_Construct_Tag:
+		// camp-9xi6: a no-payload closed tag union is immediate (is_heap=false
+		// via lower_type), so its construction does NOT produce a heap pointer.
+		// Consult the node's IR_Type rather than hardcoding true — a record/tuple
+		// cell with an Order field would otherwise mark that field as a heap
+		// pointer in its scalar_mask, and camp_drop would dereference the
+		// immediate ordinal as a pointer (trap).
+		return e.type.is_heap
+	case ^IR_Construct_Record:
+		return e.type.is_heap
+	case ^IR_Construct_Tuple:
+		return e.type.is_heap
+	case ^IR_Closure:
+		return e.type.is_heap
+	case ^IR_Expr_Nominal_Construct:
+		// Pre-lowering residual; always wraps a heap cell (rewritten to
+		// IR_Construct_Tag/Record before codegen). No IR_Type field to consult.
 		return true
 	case ^IR_Var:
 		return e.type.is_heap

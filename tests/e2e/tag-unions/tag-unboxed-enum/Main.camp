@@ -1,0 +1,17 @@
+// Unboxed enum (camp-9xi6): closed no-payload tag unions are immediate i32 values.
+// This test verifies construction and matching without heap allocation.
+@Color : pub [Red | Green | Blue]
+
+rank = |c: Color| -> I64 {
+  match c {
+    Red => 0
+    Green => 1
+    Blue => 2
+  }
+}
+
+main! = || -> I64 {
+  r = rank(Green)
+  b = rank(Blue)
+  r + b
+}

@@ -807,3 +807,187 @@ tpattern_destroy :: proc(p: TPattern) {
 	}
 }
 
+// resnapshot_decl_types walks a file's typed decls and re-derives every
+// contained TExpr's type_ via resnapshot_texpr_types (camp-9xi6). Called once
+// at the end of typecheck_file, after all unification has settled, so the
+// propagated `closed` flag (and any other late type refinement) is reflected
+// in the IR_Type snapshots that IR lowering copies into IR nodes.
+resnapshot_decl_types :: proc(decls: []TDecl, store: ^Type_Store) {
+	for d in decls {
+		#partial switch v in d {
+		case ^TDecl_Const:
+			resnapshot_texpr_types(v.body, store)
+			v.type_ = resnapshot_is_heap(store, v.type_)
+		case ^TDecl_Test:
+			resnapshot_texpr_types(v.body, store)
+		case ^TDecl_Expect:
+			resnapshot_texpr_types(v.condition, store)
+		case ^TDecl_Is_Impl:
+			for &m in v.methods {
+				resnapshot_texpr_types(m.body, store)
+				m.type_ = resnapshot_is_heap(store, m.type_)
+			}
+		case ^TDecl_Effect,
+		     ^TDecl_Trait,
+		     ^TDecl_Alias,
+		     ^TDecl_Newtype,
+		     ^TDecl_Import,
+		     ^TDecl_Effect_Alias:
+		// no TExpr body to resnapshot
+		}
+	}
+}
+
+// resnapshot_texpr_types walks a typed AST and updates ONLY the is_heap field
+// of every TExpr's type_ when the underlying type is a tag union whose
+// closedness was refined by late unification (camp-9xi6). Preserves wasm_type
+// and type_id — changing those would alter wasm function signatures and break
+// call_indirect dispatch (the parallel-map handler regression). Only tag-union
+// rows are checked; all other inferred types have stable is_heap. Mirrors
+// texpr_destroy's shape so every TExpr variant is covered.
+// resnapshot_is_heap updates ONLY the is_heap field of an IR_Type snapshot by
+// re-deriving it from the resolved type. This is the targeted version of the
+// resnapshot: it only flips is_heap (the only field that can become stale due
+// to late unification of tag-union closedness) and deliberately preserves the
+// original wasm_type and type_id. Changing wasm_type (e.g. I64→Funcref for a
+// now-resolved continuation type) would alter wasm function signatures and
+// break call_indirect dispatch (the parallel-map regression). camp-9xi6.
+resnapshot_is_heap :: proc(store: ^Type_Store, old: base.IR_Type) -> base.IR_Type {
+	if old.type_id == base.Type_Var_ID(0) do return old
+	resolved := resolve_var(store, old.type_id)
+	v := &store.vars[int(resolved)]
+	if inf, is_inf := v.link.(Inferred_Type); is_inf {
+		if _, ok := inf.(Inferred_Tag_Union_Row); ok {
+			new_is_heap := !tag_union_is_immediate(store, resolved)
+			if old.is_heap != new_is_heap {
+				return base.IR_Type {
+					wasm_type = old.wasm_type,
+					type_id = old.type_id,
+					is_heap = new_is_heap,
+				}
+			}
+		}
+	}
+	return old
+}
+
+resnapshot_texpr_types :: proc(expr: TExpr, store: ^Type_Store) {
+	if expr == nil do return
+	switch v in expr {
+	case ^TExpr_Int:
+		v.type_ = resnapshot_is_heap(store, v.type_)
+	case ^TExpr_Float:
+		v.type_ = resnapshot_is_heap(store, v.type_)
+	case ^TExpr_String:
+		v.type_ = resnapshot_is_heap(store, v.type_)
+	case ^TExpr_Bool:
+		v.type_ = resnapshot_is_heap(store, v.type_)
+	case ^TExpr_Char:
+		v.type_ = resnapshot_is_heap(store, v.type_)
+	case ^TExpr_Todo:
+		resnapshot_texpr_types(v.message, store)
+		v.type_ = resnapshot_is_heap(store, v.type_)
+	case ^TExpr_Tag:
+		for arg in v.payload do resnapshot_texpr_types(arg, store)
+		v.type_ = resnapshot_is_heap(store, v.type_)
+	case ^TExpr_Nominal_Construct:
+		for arg in v.payload do resnapshot_texpr_types(arg, store)
+	// resolved_type is a Type_ID (Type_Var_ID), not an IR_Type — no snapshot to refresh
+	case ^TExpr_Record:
+		for field in v.fields do resnapshot_texpr_types(field.value, store)
+		resnapshot_texpr_types(v.rest, store)
+		v.type_ = resnapshot_is_heap(store, v.type_)
+	case ^TExpr_Tuple:
+		for el in v.elements do resnapshot_texpr_types(el, store)
+		v.type_ = resnapshot_is_heap(store, v.type_)
+	case ^TExpr_List:
+		for el in v.elements do resnapshot_texpr_types(el, store)
+		resnapshot_texpr_types(v.rest, store)
+		v.type_ = resnapshot_is_heap(store, v.type_)
+	case ^TExpr_Name:
+		v.type_ = resnapshot_is_heap(store, v.type_)
+	case ^TExpr_Call:
+		resnapshot_texpr_types(v.callee, store)
+		for arg in v.args do resnapshot_texpr_types(arg, store)
+		v.type_ = resnapshot_is_heap(store, v.type_)
+	case ^TExpr_Method_Call:
+		resnapshot_texpr_types(v.receiver, store)
+		for arg in v.args do resnapshot_texpr_types(arg, store)
+		v.type_ = resnapshot_is_heap(store, v.type_)
+	case ^TExpr_Lambda:
+		// params carry annotated types; body resnapshotted below.
+		resnapshot_texpr_types(v.body, store)
+		v.type_ = resnapshot_is_heap(store, v.type_)
+	case ^TExpr_Block:
+		for stmt in v.statements do resnapshot_texpr_types(stmt, store)
+		v.type_ = resnapshot_is_heap(store, v.type_)
+	case ^TExpr_If:
+		resnapshot_texpr_types(v.condition, store)
+		resnapshot_texpr_types(v.then_branch, store)
+		resnapshot_texpr_types(v.else_branch, store)
+		v.type_ = resnapshot_is_heap(store, v.type_)
+	case ^TExpr_Match:
+		resnapshot_texpr_types(v.scrutinee, store)
+		for arm in v.arms {
+			resnapshot_texpr_types(arm.guard, store)
+			resnapshot_texpr_types(arm.body, store)
+		}
+		v.type_ = resnapshot_is_heap(store, v.type_)
+	case ^TExpr_BinOp:
+		resnapshot_texpr_types(v.left, store)
+		resnapshot_texpr_types(v.right, store)
+		v.type_ = resnapshot_is_heap(store, v.type_)
+	case ^TExpr_PrefixOp:
+		resnapshot_texpr_types(v.operand, store)
+		v.type_ = resnapshot_is_heap(store, v.type_)
+	case ^TExpr_Field_Access:
+		resnapshot_texpr_types(v.record, store)
+		v.type_ = resnapshot_is_heap(store, v.type_)
+	case ^TExpr_Field_Index:
+		resnapshot_texpr_types(v.record, store)
+		v.type_ = resnapshot_is_heap(store, v.type_)
+	case ^TExpr_Record_Update:
+		resnapshot_texpr_types(v.rest, store)
+		for update in v.updates do resnapshot_texpr_types(update.value, store)
+		v.type_ = resnapshot_is_heap(store, v.type_)
+	case ^TExpr_Assign:
+		resnapshot_texpr_types(v.target, store)
+		resnapshot_texpr_types(v.value, store)
+		v.type_ = resnapshot_is_heap(store, v.type_)
+	case ^TExpr_Return:
+		resnapshot_texpr_types(v.value, store)
+		v.type_ = resnapshot_is_heap(store, v.type_)
+	case ^TExpr_Crash:
+		resnapshot_texpr_types(v.message, store)
+		v.type_ = resnapshot_is_heap(store, v.type_)
+	case ^TExpr_Interpolated_String:
+		for part in v.parts {
+			switch p in part {
+			case ^TExpr_String_Literal:
+				p.type_ = resnapshot_is_heap(store, p.type_)
+			case ^TExpr_String_Expr:
+				resnapshot_texpr_types(p.expr, store)
+			case TPattern:
+			// patterns carry no IR_Type
+			}
+		}
+		v.type_ = resnapshot_is_heap(store, v.type_)
+	case ^TExpr_Handle:
+		resnapshot_texpr_types(v.body, store)
+		for arm in v.arms do resnapshot_texpr_types(arm.body, store)
+		v.type_ = resnapshot_is_heap(store, v.type_)
+	case ^TExpr_Perform:
+		for arg in v.args do resnapshot_texpr_types(arg, store)
+		v.type_ = resnapshot_is_heap(store, v.type_)
+	case ^TExpr_For:
+		resnapshot_texpr_types(v.iterable, store)
+		resnapshot_texpr_types(v.body, store)
+		v.type_ = resnapshot_is_heap(store, v.type_)
+	case ^TExpr_Par:
+		for expr in v.expressions do resnapshot_texpr_types(expr, store)
+		resnapshot_texpr_types(v.for_iter, store)
+		resnapshot_texpr_types(v.for_body, store)
+		v.type_ = resnapshot_is_heap(store, v.type_)
+	}
+}
+

@@ -1771,6 +1771,11 @@ emit_expr :: proc(expr: ir.IR_Expr, buf: ^[dynamic]u8, env: ^Codegen_Env, runtim
 
 		switch match_kind {
 		case .Tag_Union:
+			// camp-9xi6: a no-payload closed tag union scrutinee is an immediate
+			// i32 (the variant ordinal), so dispatch reads the scalar directly
+			// instead of load8u at the tag offset. ir_expr_is_heap consults the
+			// node's type.is_heap, which lower_type sets false for immediates.
+			scrutinee_immediate: bool = !ir.ir_expr_is_heap(e.scrutinee)
 			if has_guard {
 				// Sequential if-else: guards can fail and fall through,
 				// so br_table dispatch is not usable.
@@ -1789,7 +1794,12 @@ emit_expr :: proc(expr: ir.IR_Expr, buf: ^[dynamic]u8, env: ^Codegen_Env, runtim
 						#partial switch p in arm.pattern {
 						case ^ir.IR_Pat_Tag:
 							emit_instruction(Wasm_Local_Get{index = scrutinee_local}, buf)
-							emit_instruction(Wasm_I32_Load8U{offset = CAMP_TAG_TAG_OFFSET}, buf)
+							if !scrutinee_immediate {
+								emit_instruction(
+									Wasm_I32_Load8U{offset = CAMP_TAG_TAG_OFFSET},
+									buf,
+								)
+							}
 							emit_instruction(Wasm_I32_Const{value = i32(p.tag_index)}, buf)
 							emit_instruction(Wasm_I32_Eq{}, buf)
 						case ^ir.IR_Pat_Wildcard, ^ir.IR_Pat_Var:
@@ -1930,7 +1940,9 @@ emit_expr :: proc(expr: ir.IR_Expr, buf: ^[dynamic]u8, env: ^Codegen_Env, runtim
 				emit_expr(e.scrutinee, buf, env, runtime_indices)
 				emit_instruction(Wasm_Local_Set{index = scrutinee_local}, buf)
 				emit_instruction(Wasm_Local_Get{index = scrutinee_local}, buf)
-				emit_instruction(Wasm_I32_Load8U{offset = CAMP_TAG_TAG_OFFSET}, buf)
+				if !scrutinee_immediate {
+					emit_instruction(Wasm_I32_Load8U{offset = CAMP_TAG_TAG_OFFSET}, buf)
+				}
 				emit_instruction(Wasm_BrTable{targets = targets, default_idx = default_label}, buf)
 
 				// For each arm (innermost first = arm 0), close its block and emit its body.
@@ -2268,6 +2280,16 @@ emit_expr :: proc(expr: ir.IR_Expr, buf: ^[dynamic]u8, env: ^Codegen_Env, runtim
 
 	case ^ir.IR_Construct_Tag:
 		num_fields := len(e.payload)
+		// camp-9xi6: a no-payload closed tag union lowers to an immediate
+		// i32 variant ordinal (is_heap=false, set by lower_type via the
+		// row's `closed` flag + all-empty-payloads check). Construction is
+		// just `i32.const tag_index` — no alloc, no header stores, no RC.
+		// Newtype-wrapped enums (@Order) reach here with e.type.is_heap=false
+		// too, since lower_type delegates through Inferred_Newtype.
+		if !e.type.is_heap {
+			emit_instruction(Wasm_I32_Const{value = i32(e.tag_index)}, buf)
+			return
+		}
 		// scan_size is the total field count (used for dealloc size and the drop
 		// loop bound); scalar_mask marks which fields drop must NOT recurse into.
 		// A field is a heap pointer only if it is an i32 that is_heap — i64/f64

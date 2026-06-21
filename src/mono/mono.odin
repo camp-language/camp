@@ -923,15 +923,14 @@ substitute_ir_type :: proc(
 		}
 		tp_resolved := semantics.resolve_var(env.store, tp_binding)
 		if tp_resolved == resolved {
-			concrete_resolved := semantics.resolve_var(env.store, concrete_var_id)
-			cv := &env.store.vars[int(concrete_resolved)]
-			wasm_type := ir_type.wasm_type
-			if cit, cit_ok := cv.link.(semantics.Inferred_Type); cit_ok {
-				if cinf, cis_inf := cit.(semantics.Inferred_Newtype); cis_inf {
-					wasm_type = semantics.lower_type(env.store, cinf.inner_id).wasm_type
-				}
-			}
-			return base.IR_Type{wasm_type = wasm_type, type_id = concrete_resolved}
+			// camp-9xi6/zmni: use lower_type to derive the full IR_Type
+			// (wasm_type + is_heap) for ANY concrete type a generic param
+			// monomorphizes to — tag unions, records, newtypes, etc.
+			// Previously only Inferred_Newtype was handled; tag unions and
+			// other types got the stale wasm_type from the IR_Type of the
+			// original generic param, causing is_heap=false for heap types
+			// and wrong wasm_type for immediate tag unions.
+			return semantics.lower_type(env.store, concrete_var_id)
 		}
 	}
 

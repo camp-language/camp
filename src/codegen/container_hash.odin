@@ -17,39 +17,38 @@ package codegen
 // intrinsic; its `I64_Trampoline` adapter now wraps that result into an Order
 // cell so every container element compare callback uniformly yields Order.
 
+// camp-9xi6: Order is now an immediate i32 (variant ordinal 0=Less, 1=Equal,
+// 2=Greater), so the callback result on the stack IS the ordinal. No cell to
+// load or drop. The trinary = ordinal - 1 = -1/0/1, matching the original
+// Design B branch logic that the container compare loops still use.
+//
 // consume_order_to_trinary is the canonical "read Order callback result and
-// free it" sequence. On entry the Order cell pointer is on top of the stack.
+// free it" sequence. On entry the Order value is on top of the stack.
 // On exit the trinary (-1/0/1 = Less/Equal/Greater) is stored in
-// `cmp_result_local`, the Order cell has been dropped via camp_drop
-// (depth 0), and the stack is empty. `order_ptr_local` is scratch to hold
-// the cell pointer across the tag load + drop.
+// `cmp_result_local` and the stack is empty. `order_ptr_local` is now unused
+// (kept in the signature for call-site stability / minimal churn) — the
+// immediate needs no scratch slot to hold a cell pointer across a load.
 consume_order_to_trinary :: proc(
 	cmp_result_local: int,
 	order_ptr_local: int,
 	drop_func_idx: int,
 	buf: ^[dynamic]u8,
 ) {
-	// save the Order ptr
-	emit_instruction(Wasm_Local_Set{index = u32(order_ptr_local)}, buf)
+	_ = order_ptr_local // immediate Order: no cell pointer to retain
+	_ = drop_func_idx // immediate Order: no cell to drop
 
-	// trinary = (load8u tag) - 1  (tag 0=Less->-1, 1=Equal->0, 2=Greater->1)
-	emit_instruction(Wasm_Local_Get{index = u32(order_ptr_local)}, buf)
-	emit_instruction(Wasm_I32_Load8U{align = 0, offset = u32(CAMP_TAG_TAG_OFFSET)}, buf)
+	// trinary = ordinal - 1  (0=Less->-1, 1=Equal->0, 2=Greater->1)
 	emit_instruction(Wasm_I32_Const{value = 1}, buf)
 	emit_instruction(Wasm_I32_Sub{}, buf)
 	emit_instruction(Wasm_Local_Set{index = u32(cmp_result_local)}, buf)
-
-	// camp_drop(order_ptr, depth=0)
-	emit_instruction(Wasm_Local_Get{index = u32(order_ptr_local)}, buf)
-	emit_instruction(Wasm_I32_Const{value = 0}, buf)
-	emit_instruction(Wasm_Call{index = u32(drop_func_idx)}, buf)
 }
 
-// emit_order_cell_from_trinary constructs an Order heap cell from the trinary
-// integer on top of the stack (in {-1,0,1}) and leaves the cell pointer on
-// the stack. Trinary -1 -> Less (0), 0 -> Equal (1), 1 -> Greater (2).
-// Locals `trinary_local`, `ptr_local`, and `tag_local` are scratch declared
-// by the caller.
+// emit_order_cell_from_trinary maps a trinary integer on top of the stack
+// (in {-1,0,1}) to an immediate Order value (camp-9xi6) and leaves it on the
+// stack. Trinary -1 -> Less (0), 0 -> Equal (1), 1 -> Greater (2): the
+// mapping is just `trinary + 1`. No heap allocation, no RC.
+// Locals `trinary_local`, `ptr_local`, `tag_local` are now unused (kept in
+// the signature for call-site stability / minimal churn).
 emit_order_cell_from_trinary :: proc(
 	trinary_local: int,
 	ptr_local: int,
@@ -57,56 +56,14 @@ emit_order_cell_from_trinary :: proc(
 	alloc_func_idx: int,
 	buf: ^[dynamic]u8,
 ) {
-	// stash trinary
-	emit_instruction(Wasm_Local_Set{index = u32(trinary_local)}, buf)
+	_ = trinary_local // immediate Order: tag computed inline
+	_ = ptr_local // immediate Order: no cell pointer
+	_ = tag_local // immediate Order: no tag byte to store
+	_ = alloc_func_idx // immediate Order: no allocation
 
-	// tag = trinary < 0 ? 0 (Less) : (trinary > 0 ? 2 (Greater) : 1 (Equal))
-	emit_instruction(Wasm_Local_Get{index = u32(trinary_local)}, buf)
-	emit_instruction(Wasm_I32_Const{value = 0}, buf)
-	emit_instruction(Wasm_I32_Lt_S{}, buf)
-	emit_instruction(Wasm_If{block_type = .Void}, buf)
-	emit_instruction(Wasm_I32_Const{value = 0}, buf) // Less
-	emit_instruction(Wasm_Local_Set{index = u32(tag_local)}, buf)
-	emit_instruction(Wasm_Else{}, buf)
-	emit_instruction(Wasm_Local_Get{index = u32(trinary_local)}, buf)
-	emit_instruction(Wasm_I32_Const{value = 0}, buf)
-	emit_instruction(Wasm_I32_Gt_S{}, buf)
-	emit_instruction(Wasm_If{block_type = .Void}, buf)
-	emit_instruction(Wasm_I32_Const{value = 2}, buf) // Greater
-	emit_instruction(Wasm_Local_Set{index = u32(tag_local)}, buf)
-	emit_instruction(Wasm_Else{}, buf)
-	emit_instruction(Wasm_I32_Const{value = 1}, buf) // Equal
-	emit_instruction(Wasm_Local_Set{index = u32(tag_local)}, buf)
-	emit_instruction(Wasm_End{}, buf)
-	emit_instruction(Wasm_End{}, buf)
-
-	// ptr = camp_alloc(CAMP_TAG_HEADER_SIZE)
-	emit_instruction(Wasm_I32_Const{value = i32(CAMP_TAG_HEADER_SIZE)}, buf)
-	emit_instruction(Wasm_Call{index = u32(alloc_func_idx)}, buf)
-	emit_instruction(Wasm_Local_Set{index = u32(ptr_local)}, buf)
-
-	// refcount = 1
-	emit_instruction(Wasm_Local_Get{index = u32(ptr_local)}, buf)
+	// return trinary + 1  (-1->0 Less, 0->1 Equal, 1->2 Greater)
 	emit_instruction(Wasm_I32_Const{value = 1}, buf)
-	emit_instruction(Wasm_I32_Store{align = 2, offset = CAMP_TAG_REFCOUNT_OFFSET}, buf)
-
-	// tag byte
-	emit_instruction(Wasm_Local_Get{index = u32(ptr_local)}, buf)
-	emit_instruction(Wasm_Local_Get{index = u32(tag_local)}, buf)
-	emit_instruction(Wasm_I32_Store8{align = 0, offset = CAMP_TAG_TAG_OFFSET}, buf)
-
-	// scan_size = 0
-	emit_instruction(Wasm_Local_Get{index = u32(ptr_local)}, buf)
-	emit_instruction(Wasm_I32_Const{value = 0}, buf)
-	emit_instruction(Wasm_I32_Store8{align = 0, offset = CAMP_TAG_SCAN_SIZE_OFFSET}, buf)
-
-	// scalar_mask = 0
-	emit_instruction(Wasm_Local_Get{index = u32(ptr_local)}, buf)
-	emit_instruction(Wasm_I32_Const{value = 0}, buf)
-	emit_instruction(Wasm_I32_Store8{align = 0, offset = CAMP_TAG_SCALAR_MASK_OFFSET}, buf)
-
-	// return ptr (left on stack)
-	emit_instruction(Wasm_Local_Get{index = u32(ptr_local)}, buf)
+	emit_instruction(Wasm_I32_Add{}, buf)
 }
 
 

@@ -114,7 +114,11 @@ typecheck_pattern :: proc(
 			tag_var,
 			Inferred_Tag_Union_Row {
 				tag_entries = tag_entries,
-				tag_rest = resolve_var(store, rest_var),
+				tag_rest    = resolve_var(store, rest_var),
+				// Match tag patterns are open rows — they unify with the
+				// scrutinee's (possibly closed) row but are not themselves
+				// closed declarations.
+				closed      = false,
 			},
 		)
 		unify(store, scrutinee_var, tag_var)
