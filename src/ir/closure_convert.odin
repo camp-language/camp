@@ -1205,3 +1205,4 @@ rewrite_free_var_access :: proc(expr: IR_Expr, env_map: ^map[base.Intern_ID]IR_E
 	}
 	return expr
 }
+

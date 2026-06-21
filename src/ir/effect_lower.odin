@@ -1790,3 +1790,4 @@ el_lower_expr :: proc(expr: IR_Expr, env: ^Effect_Lower_Env) -> IR_Expr {
 
 	return expr
 }
+
