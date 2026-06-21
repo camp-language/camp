@@ -9,16 +9,10 @@ stdout = """
 
 -- C0902: UNUSED IMPORT --- /tmp/camp-e2e/unused-analysis/unused-import/src/Main.camp
 
-`length` imported from `List` is never used.
-   1 | import List { length, map }
-       ^^^^^^
-
--- C0902: UNUSED IMPORT --- /tmp/camp-e2e/unused-analysis/unused-import/src/Main.camp
-
 `map` imported from `List` is never used.
    1 | import List { length, map }
        ^^^^^^
-3 warning(s) found
+2 warning(s) found
 check passed for /tmp/camp-e2e/unused-analysis/unused-import/src/Main.camp
 """
 stderr = ""

@@ -1120,9 +1120,9 @@ expand_named_tag_union :: proc(
 				Inferred_Tag_Union_Row {
 					tag_entries = tag_entries,
 					tag_rest    = fresh_tag_row(store, span),
-					// Prelude tag unions (List/Result/Ordering) list all
+					// Prelude tag unions (List/Result/Order) list all
 					// variants as written — CLOSED declarations. Only
-					// Ordering (no payload across all variants) qualifies
+					// Order (no payload across all variants) qualifies
 					// for the unboxed-immediate representation; List/Result
 					// have payloads and stay heap-allocated despite closed.
 					closed      = true,
@@ -2011,4 +2011,3 @@ is_same_module :: proc(env: ^Type_Env, defining_module: base.Intern_ID) -> bool 
 	}
 	return false
 }
-

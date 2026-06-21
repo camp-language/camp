@@ -429,6 +429,67 @@ parse_stdlib_module :: proc(mi: ^Module_Info, ctx: ^Compilation_Context) -> bool
 	return true
 }
 
+// register_stdlib_transitive performs a BFS over stdlib modules reachable
+// from `seed_imports` plus `always_compile` (primitive trait-impl modules
+// the container runtime needs as real WASM functions — empty for check
+// mode which has no codegen). Parses each with tolerance (demote + drop on
+// parse failure — stale embedded sources must not abort a project build)
+// and registers the survivors into `project`. Mirrors the single-file path
+// (build.odin:130-189). Called by run_build_project and run_check_project
+// after user modules have been parsed (so their imports are known).
+register_stdlib_transitive :: proc(
+	project: ^Project_Discovery,
+	seed_imports: []base.Deferred_Import,
+	ctx: ^Compilation_Context,
+	always_compile: []string = {"Char"},
+) {
+	worklist: [dynamic]base.Intern_ID
+	defer delete(worklist)
+	for imp in seed_imports {
+		append(&worklist, imp.module)
+	}
+	for mod_name in always_compile {
+		append(&worklist, base.intern(&ctx.interner, mod_name))
+	}
+
+	for len(worklist) > 0 {
+		mod_id := worklist[len(worklist) - 1]
+		pop(&worklist)
+		if _, exists := project.modules[mod_id]; exists {continue}
+		mod_name := base.intern_get(&ctx.interner, mod_id)
+		mod, ok := stdlib_lookup(mod_name)
+		if !ok {continue} 	// non-stdlib import → reported later as module-not-found
+		stdlib_mi := Module_Info {
+			name         = mod_id,
+			path         = mod.path,
+			content_hash = simple_hash(mod.source),
+			source       = mod.source,
+			imports      = make([dynamic]base.Deferred_Import, 0, 8),
+			exports      = make([dynamic]Export_Info, 0, 16),
+		}
+		project.modules[mod_id] = stdlib_mi
+		append(&project.module_names, mod_id)
+		errs_before := ctx.collector.error_count
+		ok_parse := parse_stdlib_module(&project.modules[mod_id], ctx)
+		if !ok_parse {
+			// Stale embedded stdlib (camp-24mj tracks sync). Demote and drop
+			// so names fall through to codegen runtime intercepts.
+			demote_recent_errors(ctx, errs_before)
+			delete_key(&project.modules, mod_id)
+			for i in 0 ..< len(project.module_names) {
+				if project.module_names[i] == mod_id {
+					ordered_remove(&project.module_names, i)
+					break
+				}
+			}
+		} else {
+			for imp in project.modules[mod_id].imports {
+				append(&worklist, imp.module)
+			}
+		}
+	}
+}
+
 run_check :: proc(args: []string) -> Build_Result {
 	file_path: string
 	if len(args) > 0 {

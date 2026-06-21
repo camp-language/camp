@@ -322,4 +322,28 @@ test_underscore_named_read_error :: proc(t: ^testing.T) {
 		"Expected USE OF DISCARDED VALUE (C0210) when reading `_count`",
 	)
 }
+@(test)
+test_self_ref_reassignment_fires_c0904 :: proc(t: ^testing.T) {
+	// $count = $count + 1 where $count is never consumed should fire C0904.
+	// This was a bug: the self-reference was counted as a .Read use,
+	// preventing the unused assignment warnings.
+	ctx: build.Compilation_Context
+	store, tfile, cfile := setup_for_unused(
+		&ctx,
+		"main! = || -> I64 {\n  $count = 0\n  $count = $count + 1\n  42\n}",
+	)
+	defer build.context_destroy(&ctx)
+	defer semantics.type_store_destroy(store)
+
+	analysis.run_unused_analysis(cfile, &ctx.interner, &ctx.collector)
+
+	// Should have 2 C0904 warnings: one for overwrite before read, one for final value unused
+	count := count_diag(&ctx.collector, "C0904")
+	testing.expectf(
+		t,
+		count == 2,
+		"Expected 2 C0904 warnings for self-ref reassignment, got %d",
+		count,
+	)
+}
 

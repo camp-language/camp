@@ -36,7 +36,7 @@ run_test_project :: proc(filter: string = "", verbose: bool = false) -> Build_Re
 
 	fmt.printfln("discovered {} module(s)", len(project.modules))
 
-	// Phase 1: parse+canonicalize all modules
+	// Phase 1: parse+canonicalize user modules (stdlib registered transitively below)
 	for name, &mi in project.modules {
 		result := parse_and_canonicalize(&mi, &ctx)
 		switch _ in result {
@@ -45,6 +45,19 @@ run_test_project :: proc(filter: string = "", verbose: bool = false) -> Build_Re
 		case Build_Output:
 		}
 	}
+
+	// BFS-register transitively-imported stdlib modules with tolerance.
+	// No always-compile — test mode has no codegen.
+	seed_imports: [dynamic]base.Deferred_Import
+	defer delete(seed_imports)
+	for mod_id in project.module_names {
+		mi, ok := project.modules[mod_id]
+		if !ok do continue
+		for imp in mi.imports {
+			append(&seed_imports, imp)
+		}
+	}
+	register_stdlib_transitive(&project, seed_imports[:], &ctx, always_compile = {})
 
 	// Phase 2: build module graph, typecheck in dependency order
 	graph := build_module_graph(&project, &ctx.interner, &ctx.collector)
@@ -257,3 +270,4 @@ run_test_project :: proc(filter: string = "", verbose: bool = false) -> Build_Re
 
 	return Build_Output{wasm_path = "", has_errors = false}
 }
+
