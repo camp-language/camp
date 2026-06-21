@@ -1,11 +1,15 @@
+args = "check-file"
+skip_wasm = true
 stdout = """
-canonicalized /tmp/camp-e2e/unused-analysis/record-unused-field/src/Main.camp: 1 declaration(s), 0 import(s)
--- C0200: UNDEFINED NAME --- /tmp/camp-e2e/unused-analysis/record-unused-field/src/Main.camp
+-- C0901: UNUSED RECORD FIELD --- /tmp/camp-e2e/unused-analysis/record-unused-field/src/Main.camp
 
-I cannot find `expensive`.
-   2 |   r = { x: 1, y: expensive() }
-                        ^^^^^^^^^
-compilation failed with 1 error(s)
+Record field `y` is never accessed locally.
+   2 |   r = { x: 1, y: 2 }
+                     ^
+   2 |   r = { x: 1, y: 2 }
+             ~ this record literal
+1 warning(s) found
+check passed for /tmp/camp-e2e/unused-analysis/record-unused-field/src/Main.camp
 """
 stderr = ""
-exit = 1
+exit = 0

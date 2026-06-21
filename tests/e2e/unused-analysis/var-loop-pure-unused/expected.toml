@@ -1,24 +1,26 @@
+args = "check-file"
+skip_wasm = true
 stdout = """
-canonicalized /tmp/camp-e2e/unused-analysis/var-loop-pure-unused/src/Main.camp: 1 declaration(s), 0 import(s)
--- C0200: UNDEFINED NAME --- /tmp/camp-e2e/unused-analysis/var-loop-pure-unused/src/Main.camp
+-- C0904: UNUSED ASSIGNMENT --- /tmp/camp-e2e/unused-analysis/var-loop-pure-unused/src/Main.camp
 
-I cannot find `items`.
-   3 |   for item in items.iter() {
-                     ^^^^^
+Assignment #1 to `$count` is unused. Value is overwritten before read.
+   2 |   $count = 0
+         ^
 
--- C0200: UNDEFINED NAME --- /tmp/camp-e2e/unused-analysis/var-loop-pure-unused/src/Main.camp
+-- C0904: UNUSED ASSIGNMENT --- /tmp/camp-e2e/unused-analysis/var-loop-pure-unused/src/Main.camp
 
-I cannot find `matches`.
-   4 |     if matches(item) {
-              ^^^^^^^
+Assignment #2 to `$count` is unused. Final value is never consumed.
+   4 |     $count = 99
+           ^
 
--- C0201: SHADOWING --- /tmp/camp-e2e/unused-analysis/var-loop-pure-unused/src/Main.camp
+-- C0900: UNUSED BINDING --- /tmp/camp-e2e/unused-analysis/var-loop-pure-unused/src/Main.camp
 
-`$count` shadows a binding from an enclosing scope. All shadowing is forbidden.
-   5 |       $count = $count + 1
-             ^
-  Use a different name for this binding.
-compilation failed with 3 error(s)
+Binding `item` is never used. 
+   3 |   for item in [1, 2, 3] {
+         ^^^
+  Prefix with `_` to mark as intentionally unused: `_item`
+3 warning(s) found
+check passed for /tmp/camp-e2e/unused-analysis/var-loop-pure-unused/src/Main.camp
 """
 stderr = ""
-exit = 1
+exit = 0

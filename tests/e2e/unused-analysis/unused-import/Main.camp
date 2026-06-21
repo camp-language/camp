@@ -1,6 +1,5 @@
-import Module { foo, bar }
+import List { length, map }
 
 main! = || -> I64 {
-  foo()
   42
 }

@@ -1,6 +1,6 @@
-main! = || -> I64 {
+pub main! = || -[Console! | Throw!([..])]-> I64 {
   $count = 0
-  for item in items.iter() {
+  for item in [1, 2, 3] {
     $count = $count + 1
     Console.println!($count)
   }

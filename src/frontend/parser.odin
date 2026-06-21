@@ -1634,6 +1634,28 @@ parser_parse_expr_or_decl :: proc(p: ^Parser) -> Expr {
 
 	expr := parser_parse_expr(p)
 
+	// Merge `_$name` (underscore wildcard immediately followed by a `$`-ident)
+	// into a single contradictory-name dollar-identifier so the later
+	// assignment target is `_$name` (not a bare `_` plus a separate `$name`
+	// decl). Without this, `_$x = 5` parses as two statements — a wildcard
+	// read (`_`) then a `$x` declaration — and C1000 CONTRADICTORY PREFIX never
+	// fires (catalog §11.1). Only the exact `_` prefix (not `_foo`) combines
+	// with `$` into a contradictory name per `classify_name`.
+	if id_expr, ok := expr.(^Expr_Identifier); ok && p.current.kind == .Dollar {
+		if base.intern_get(p.intern, id_expr.name) == "_" {
+			under_span := id_expr.span
+			parser_advance(p) // consume $
+			name_tok := parser_expect(p, .Identifier)
+			merged_name := base.intern(p.intern, fmt.tprintf("_${}", name_tok.text))
+			dollar_id := new(Expr_Dollar_Identifier)
+			dollar_id^ = Expr_Dollar_Identifier {
+				name = merged_name,
+				span = under_span,
+			}
+			expr = dollar_id
+		}
+	}
+
 	// Handle inline type annotation: name: Type = value
 	if id_expr, ok := expr.(^Expr_Identifier); ok && p.current.kind == .Colon {
 		parser_advance(p) // consume :

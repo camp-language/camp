@@ -1,17 +1,7 @@
+args = "check-file"
+skip_wasm = true
 stdout = """
-canonicalized /tmp/camp-e2e/unused-analysis/record-escape/src/Main.camp: 1 declaration(s), 0 import(s)
--- C0200: UNDEFINED NAME --- /tmp/camp-e2e/unused-analysis/record-escape/src/Main.camp
-
-I cannot find `expensive`.
-   2 |   r = { x: 1, y: expensive() }
-                        ^^^^^^^^^
-
--- C0200: UNDEFINED NAME --- /tmp/camp-e2e/unused-analysis/record-escape/src/Main.camp
-
-I cannot find `process`.
-   3 |   process(r)
-         ^^^^^^^
-compilation failed with 2 error(s)
+check passed for /tmp/camp-e2e/unused-analysis/record-escape/src/Main.camp
 """
 stderr = ""
-exit = 1
+exit = 0

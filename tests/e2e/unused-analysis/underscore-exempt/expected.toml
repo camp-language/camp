@@ -1,11 +1,7 @@
+args = "check-file"
+skip_wasm = true
 stdout = """
-canonicalized /tmp/camp-e2e/unused-analysis/underscore-exempt/src/Main.camp: 1 declaration(s), 0 import(s)
--- C0200: UNDEFINED NAME --- /tmp/camp-e2e/unused-analysis/underscore-exempt/src/Main.camp
-
-I cannot find `items`.
-   2 |   _count = items.length
-                  ^^^^^
-compilation failed with 1 error(s)
+check passed for /tmp/camp-e2e/unused-analysis/underscore-exempt/src/Main.camp
 """
 stderr = ""
-exit = 1
+exit = 0
