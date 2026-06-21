@@ -375,6 +375,49 @@ el_replace_resume :: proc(
 		return IR_Expr(new_let)
 
 	case ^IR_Closure_Call:
+		// `resume(args)` is lowered as an IR_Closure_Call whose callee is an
+		// IR_Var naming the resume arm-binding (resume is a local name, not a
+		// module decl, so lower_tcall routes it through the closure path). Treat
+		// that exactly like the IR_Call form and rewrite it to IR_Resume.
+		if cv, cv_ok := e.callee.(^IR_Var); cv_ok && cv.name == resume_id {
+			resume_val: IR_Expr
+			if len(e.args) > 0 {
+				resume_val = el_replace_resume(e.args[0], resume_id, resume_param, ev_param, env)
+			} else {
+				lit := new(IR_Literal_Int)
+				lit^ = IR_Literal_Int {
+					value = 0,
+					type = base.IR_Type{wasm_type = .Void, type_id = base.Type_Var_ID(0)},
+					span = e.span,
+				}
+				resume_val = IR_Expr(lit)
+			}
+
+			ev_expr: IR_Expr = nil
+			if ev_param != base.NO_NAME {
+				ev_var := new(IR_Var)
+				ev_var^ = IR_Var {
+					name = ev_param,
+					type = base.IR_Type {
+						wasm_type = .I32,
+						type_id = base.Type_Var_ID(0),
+						is_heap = true,
+					},
+					span = e.span,
+				}
+				ev_expr = IR_Expr(ev_var)
+			}
+
+			resume := new(IR_Resume)
+			resume^ = IR_Resume {
+				resume_id = resume_param,
+				value     = resume_val,
+				ev        = ev_expr,
+				type      = e.type,
+				span      = e.span,
+			}
+			return IR_Expr(resume)
+		}
 		new_args := make([dynamic]IR_Expr, 0, len(e.args))
 		for arg in e.args {
 			append(&new_args, el_replace_resume(arg, resume_id, resume_param, ev_param, env))
