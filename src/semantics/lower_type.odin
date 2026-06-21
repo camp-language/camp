@@ -80,7 +80,7 @@ lower_effect_type :: proc(store: ^Type_Store, eff_var: base.Type_Var_ID) -> base
 // tag_union_is_immediate reports whether a closed, all-no-payload tag union
 // should lower to an immediate i32 (camp-9xi6). Conditions:
 //   1. The row itself is closed (set by convert_type_to_var_val for syntactic
-//      `[A | B | ...]` declarations and by prelude synthesis for Ordering).
+//      `[A | B | ...]` declarations and by prelude synthesis for Order).
 //   2. Every entry in tag_entries has an empty payload slice.
 //   3. The tag_rest, if it resolves to another Inferred_Tag_Union_Row, also
 //      satisfies (1) and (2) — i.e. a closed row that unified with another
@@ -118,4 +118,3 @@ tag_union_is_immediate :: proc(store: ^Type_Store, type_var: base.Type_Var_ID) -
 	// Unresolved fresh row var: closed declaration with no additional variants.
 	return true
 }
-

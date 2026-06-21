@@ -237,7 +237,7 @@ logic_demo = || -> I64 {
 // ============================================================
 
 // Eq : { eq: |Self, Self| -> Bool }
-// Ord : { compare: |Self, Self| -> Ordering }
+// Ord : { compare: |Self, Self| -> Order }
 // Hash : { hash: |Self| -> U64 }
 //
 // Self in trait definitions refers to the implementing type
