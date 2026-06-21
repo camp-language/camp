@@ -375,6 +375,49 @@ el_replace_resume :: proc(
 		return IR_Expr(new_let)
 
 	case ^IR_Closure_Call:
+		// `resume(args)` is lowered as an IR_Closure_Call whose callee is an
+		// IR_Var naming the resume arm-binding (resume is a local name, not a
+		// module decl, so lower_tcall routes it through the closure path). Treat
+		// that exactly like the IR_Call form and rewrite it to IR_Resume.
+		if cv, cv_ok := e.callee.(^IR_Var); cv_ok && cv.name == resume_id {
+			resume_val: IR_Expr
+			if len(e.args) > 0 {
+				resume_val = el_replace_resume(e.args[0], resume_id, resume_param, ev_param, env)
+			} else {
+				lit := new(IR_Literal_Int)
+				lit^ = IR_Literal_Int {
+					value = 0,
+					type = base.IR_Type{wasm_type = .Void, type_id = base.Type_Var_ID(0)},
+					span = e.span,
+				}
+				resume_val = IR_Expr(lit)
+			}
+
+			ev_expr: IR_Expr = nil
+			if ev_param != base.NO_NAME {
+				ev_var := new(IR_Var)
+				ev_var^ = IR_Var {
+					name = ev_param,
+					type = base.IR_Type {
+						wasm_type = .I32,
+						type_id = base.Type_Var_ID(0),
+						is_heap = true,
+					},
+					span = e.span,
+				}
+				ev_expr = IR_Expr(ev_var)
+			}
+
+			resume := new(IR_Resume)
+			resume^ = IR_Resume {
+				resume_id = resume_param,
+				value     = resume_val,
+				ev        = ev_expr,
+				type      = e.type,
+				span      = e.span,
+			}
+			return IR_Expr(resume)
+		}
 		new_args := make([dynamic]IR_Expr, 0, len(e.args))
 		for arg in e.args {
 			append(&new_args, el_replace_resume(arg, resume_id, resume_param, ev_param, env))
@@ -801,8 +844,12 @@ el_lower_let_perform :: proc(
 	ev_var := el_find_evidence(perform.effect, env)
 
 	if ev_var == base.NO_NAME {
-		// Scheduler-mediated effects (File!, Console!, Time!, Async!, Parallel!, Spawn!)
-		// are handled directly by the codegen rather than via CPS evidence passing.
+		// No enclosing handle. Scheduler-mediated effects
+		// (Console!, File!, Time!, Async!, Parallel!, Spawn!) without an
+		// explicit user handle fall through to the codegen default-handler
+		// path (e.g. the auto-installed WASI Console! handler in main!).
+		// Scheduler effects WITH a user handle have evidence on the stack
+		// and flow through the CPS path below.
 		if is_scheduler_effect(perform.effect, env) {
 			return IR_Expr(perform) // pass through IR_Perform to codegen
 		}
@@ -905,29 +952,16 @@ el_lower_let_perform :: proc(
 el_lower_expr :: proc(expr: IR_Expr, env: ^Effect_Lower_Env) -> IR_Expr {
 	#partial switch e in expr {
 	case ^IR_Handle:
-		// Scheduler-mediated effects are handled directly by the codegen
-		// (they call camp_sched_* runtime functions, not CPS evidence passing)
-		// Check if any effect is a scheduler effect
-		all_scheduler := len(e.effects) > 0
-		for eff in e.effects {
-			if !is_scheduler_effect(eff, env) {
-				all_scheduler = false
-				break
-			}
-		}
-		if all_scheduler {
-			new_handle := new(IR_Handle)
-			new_handle^ = IR_Handle {
-				effects = e.effects,
-				body    = el_lower_expr(e.body, env),
-				arms    = e.arms, // arms kept for scope_id tracking but not transformed
-				type    = e.type,
-				span    = e.span,
-			}
-			return IR_Expr(new_handle)
-		}
-
+		// Scheduler effects (Async!, Spawn!, Parallel!, File!, Console!, Time!)
+		// use the same CPS evidence path as user-defined effects, per
+		// docs/syntax-recipe.md §Handle: scheduler effects share the
+		// handler/resume model including `resume`. The handler arms are
+		// lowered into handler fns, stored in evidence records, and
+		// dispatched by Perform → closure-call chains. The codegen
+		// is_sched branch still handles structured-concurrency scope
+		// cleanup for handles whose body uses spawn!/join! directly.
 		ev_var := base.fresh_id(&env.fresh_state, "_ev")
+
 
 		// effect_ops removed - search across effects per arm instead
 		resume_param := base.fresh_id(&env.fresh_state, "_resume")
@@ -1311,7 +1345,10 @@ el_lower_expr :: proc(expr: IR_Expr, env: ^Effect_Lower_Env) -> IR_Expr {
 		ev_var := el_find_evidence(e.effect, env)
 
 		if ev_var == base.NO_NAME {
-			// Scheduler-mediated effects are handled directly by the codegen
+			// No enclosing handle. Bare scheduler-mediated effects without
+			// a user handle fall through to the codegen default-handler
+			// path; scheduler effects WITH a user handle have evidence on
+			// the stack and flow through the CPS path below.
 			if is_scheduler_effect(e.effect, env) {
 				return expr // pass through to codegen
 			}
@@ -1764,4 +1801,3 @@ el_lower_expr :: proc(expr: IR_Expr, env: ^Effect_Lower_Env) -> IR_Expr {
 
 	return expr
 }
-

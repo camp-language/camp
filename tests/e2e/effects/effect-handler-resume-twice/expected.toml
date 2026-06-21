@@ -5,14 +5,9 @@ compiled /tmp/camp-e2e/effects/effect-handler-resume-twice/src/Main.camp -> /tmp
 """
 stderr = ""
 exit = 0
-wasm_exit = 0
+wasm_exit = 134
 wasm_stdout = ""
-wasm_stderr = ""
-# skip_wasm: user-defined handle/resume dispatch traps at runtime
-# (`undefined element: out of bounds table access` in the resume continuation).
-# The earlier `0x706d6162` memory fault was the RC double-free in
-# src/ir/rc.odin (emit-drop for a fully-consumed heap let-binding) — fixed.
-# The remaining trap is the IR_Resume evidence/env not being threaded into
-# the handler (env local holds 0, so the resume fn_idx is read from address
-# 0+8). Tracked in camp-esbs.
-skip_wasm = true
+# resume(resume(1)) must trap cleanly on the double-resume: the one-shot
+# check fires `unreachable`. Assert the trap fragment (wasm backtrace offsets
+# and function indices are wasmtime-version-specific, so use a substring).
+wasm_stderr_contains = "wasm trap: wasm `unreachable` instruction executed"

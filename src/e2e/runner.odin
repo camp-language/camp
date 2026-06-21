@@ -354,7 +354,28 @@ run_test :: proc(test: E2E_Test, update: bool) -> Test_Report {
 				expected_wasm_stderr = s
 			}
 		}
-		if wasm_stderr != expected_wasm_stderr {
+		// `wasm_stderr_contains` asserts a substring (e.g. a trap message
+		// fragment) without coupling to wasmtime-version-specific backtrace
+		// formatting (function indices, offsets) that exact `wasm_stderr`
+		// would pin. Used for tests that assert a clean runtime trap.
+		expected_wasm_stderr_contains := ""
+		if v, ok := toml_get(&expected_dict, "wasm_stderr_contains"); ok {
+			#partial switch s in v {
+			case string:
+				expected_wasm_stderr_contains = s
+			}
+		}
+		if expected_wasm_stderr_contains != "" {
+			if !strings.contains(wasm_stderr, expected_wasm_stderr_contains) {
+				passed = false
+				fmt.sbprintf(
+					&diff_builder,
+					"  wasm_stderr: expected to contain {:q}, got:\n{}\n",
+					expected_wasm_stderr_contains,
+					wasm_stderr,
+				)
+			}
+		} else if wasm_stderr != expected_wasm_stderr {
 			passed = false
 			write_string_diff(&diff_builder, "wasm_stderr", expected_wasm_stderr, wasm_stderr)
 		}
@@ -721,4 +742,3 @@ write_update_file :: proc(
 	content := strings.to_string(buf)
 	_ = os.write_entire_file_from_string(path, content)
 }
-
