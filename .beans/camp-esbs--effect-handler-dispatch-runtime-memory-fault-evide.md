@@ -5,7 +5,7 @@ status: in_progress
 type: bug
 priority: high
 created_at: 2026-06-19T23:41:34Z
-updated_at: 2026-06-20T00:00:00Z
+updated_at: 2026-06-21T00:30:00Z
 ---
 
 ## Symptom
@@ -43,27 +43,76 @@ This matches Perceus semantics: the last reference to a value (not preceded by a
 inserted `IR_Dup`) is a consume/move; the binding no longer owns a reference, so no
 drop is owed.
 
-### REMAINING — IR_Resume evidence/env not threaded (`src/codegen/emit_expr.odin:3035`)
+### PARTIALLY FIXED — resume-call rewrite missed IR_Closure_Call form (`src/ir/effect_lower.odin:377`)
 
-After the RC fix, the trap changes to `undefined element: out of bounds table access`
-in the resume continuation (`func 91` of effect-declare-and-handle/Main.wasm, at the
-`call_indirect` ~offset 0x28bf).
+The prior diagnosis above (`local 5 = 0`, OOB table access in func 91) was a SYMPTOM.
+Root cause confirmed via instrumented codegen (`emit_expr` IR_Resume debug prints):
+the IR_Resume landing in the handler fn had `e.value = IR_Closure_Call{callee=IR_Var{name=5}}`
+where name=5 is the source identifier for `resume` (the handler arm binding), NOT the
+resume_param (134). `e.value` should have been `IR_Literal_Int{42}`.
 
-Trace of func 91 (handler arm `.read!(resume) => resume(42)`):
-- `resume_local` ← param (resume closure ptr) — OK
-- `fn_idx_local` ← `resume_local[+8]` (tee'd) — OK; one-shot check passes; fn_idx zeroed
-- `resume_local[+16]` loaded as the env ptr — pushed onto the stack
-- THEN a `local.set 5 = i32.const 0` and subsequent `local.get 5; i32.load {8,16}`
-  load from **address 0+8 / 0+16** (low linear memory, garbage), and THAT garbage
-  value is used as the `call_indirect` table index → out of bounds.
+Why: `el_replace_resume` (`src/ir/effect_lower.odin:301`) only matched `^IR_Call` for
+`resume(args)` calls (`e.callee.name == resume_id`). But the lowerer routes a call to a
+LOCAL name (resume is an arm-binding, not a module decl) through the closure path
+(`src/ir/lower.odin:849` `if callee_name.is_local && !env.module_decl_names[...]`), producing
+`IR_Closure_Call{callee=IR_Var{name=resume_id}, args=[...]}`. `el_replace_resume` had no
+`^IR_Closure_Call` arm that recognized the resume callee, so it recursed and left the call
+intact. Then the implicit-resume wrap (`effect_lower.odin:1044`) saw the body was not an
+IR_Resume and wrapped the whole (un-rewritten) Closure_Call as `IR_Resume.value`.
 
-The `local 5 = 0` is `e.ev` (the evidence) mapped via `env.local_map[e.resume_id]` /
-the resume param, but the evidence pointer is never actually threaded into the handler
-function — the local is uninitialized (holds 0). The `emit_expr(^ir.IR_Resume)`
-(`src/codegen/emit_expr.odin:3035-3094`) reads `e.ev` and emits it as a continuation
-argument, but the handler fn (`IR_Decl_Fn` built in `src/ir/effect_lower.odin:951-1032`,
-params `env_param, op_params..., resume_param, ev_param`) is invoked via the evidence
-dispatch whose `ev_param` isn't wired to the caller's evidence.
+FIX (committed fe7b185): added a `^IR_Closure_Call` arm in `el_replace_resume` that detects
+`callee = ^IR_Var{name == resume_id}` and rewrites it to IR_Resume, mirroring the IR_Call
+arm. After this fix the IR_Resume is well-formed: `resume_id=134 in_map=true`,
+`value=Literal_Int 42`, `ev=Var name=135 in_map=true`. The 468/468 unit-test baseline is
+preserved; `git diff --stat` shows only `src/ir/effect_lower.odin | 43 +++`.
+
+### REMAINING — null-env drop fault in closure-converted continuation (`src/ir/closure_convert.odin`)
+
+After the resume-rewrite fix, the trap moved to `memory fault at wasm address 0x706d6162`
+(byte pattern "bamp" LE = low-linear-memory garbage, the same RC-bug signature). Traced via
+`wasm2wat` disassembly of effect-declare-and-handle/Main.wasm:
+
+  func 95 (_start) -> func 94 (main, the effect_lower Handle lowering) builds:
+    - evidence record (`ev_var`) + handler closure {fn_idx=91, env=0} stored into evidence[0]
+    - perform dispatch: Closure_Call loads handler closure from evidence[0], calls func 91
+      with (env=0, resume=cont_closure, ev=evidence_record)
+  func 91 (handler `.read!(resume) => resume(42)`): one-shot check OK, loads cont_closure
+    env from `resume_local[+16]` (=0), pushes i64.const 42, pushes evidence, calls
+    `call_indirect (type 22)` → func 93 with (env=0, value=42, ev=evidence).
+  func 93 (the cont `_kc` continuation): `local.get 0; i32.const 0; call 11` — i.e. it
+    calls `camp_drop(env=0, 0)`. `camp_drop` does `i32.load` at address 0 → reads the
+    data-segment bytes "camp..." (0x706d6163-ish) as a refcount → underflows / faults.
+
+Root cause: the continuation closure built in `el_lower_let_perform` (`effect_lower.odin:886`)
+has `body = cont_fn_body` (non-nil) with NO captured free vars (the handle body is just the
+perform). `closure_convert` (`src/ir/closure_convert.odin:378`, body!=nil path) therefore
+creates a NEW `closed_fn` with an injected `_cenv` env param prepended, and — because free
+is empty (line 628-636) — sets the closure's env field to `IR_Literal_Int{0}` (null). The
+`closed_fn` receives env=0 as param0. `rc_insert` (`src/ir/rc.odin:299 emit_param_drops`)
+sees the `_cenv` param is heap-typed and never used in the body, so it emits an `IR_Drop`
+for it at function end. Dropping address 0 → `camp_drop(0)` → load from addr 0 → fault.
+
+This is NOT effect-specific: a minimal `main! = || -> I64 { f = || -> I64 { 42 }; f() }`
+(a no-capture lambda) reproduces the SAME `0x706d6162` fault. ANY closure-converted
+function with zero free vars has env=0 and unconditionally drops it.
+
+The handler-fn path avoids this because effect_lower declares the handler fn directly
+(`IR_Decl_Fn` with params `env_param, resume_param, ev_param`, all `is_heap=false`) so
+`emit_param_drops` skips them. The cont path goes through closure_convert's `closed_fn`
+which marks `_cenv` as `is_heap=true`.
+
+Candidate fixes (not yet implemented — needs a design decision on which is correct):
+  (a) `camp_drop` (runtime, `src/codegen` emit for IR_Drop, or the drop builtin func 11)
+      should treat ptr==0 as a no-op (null is not a heap object). Cheapest, fixes ALL
+      no-capture closures, but the task framing says "fix at source, not symptom suppression".
+  (b) `closure_convert` should NOT mark `_cenv` as `is_heap` when `free` is empty (no
+      captured vars → env is a null literal, not a heap object), so `emit_param_drops` skips
+      it. Targeted to the actual root (the env is a literal 0, not a heap allocation).
+  (c) `closure_convert` should allocate a real (empty) heap env record instead of a null
+      literal when free is empty, so the drop is a valid heap-object drop.
+Recommended: (b) — the env is genuinely a null literal when there are no captures, so
+treating it as non-heap is semantically correct and matches how the handler-fn path already
+works (its env param is `is_heap=false`).
 
 ## Key files
 
@@ -76,9 +125,12 @@ dispatch whose `ev_param` isn't wired to the caller's evidence.
 
 ## Remaining work
 
-Verify how the `ev_param` of the handler function is meant to receive the caller's
-evidence pointer, and wire the codegen so `e.ev` resolves to the live evidence record
-(rather than local 0). Likely the handler closure's env field (offset `CAMP_TAG_FIELDS_OFFSET+8`)
-should carry the evidence ptr, OR the dispatch should pass evidence as an explicit
-argument that `local_map` resolves correctly. Requires care to not regress the
-non-scheduler effect path (only the `Ask!`-style CPS path is exercised here).
+Resume-rewrite fix is committed (fe7b185). The 3 effect tests STILL trap at runtime —
+now on a DIFFERENT, more general bug: `closure_convert`'s `closed_fn` drops its null
+(`is_heap=true`) `_cenv` env param when the closure has zero captured free vars.
+See the "REMAINING — null-env drop fault" section above for the full wasm trace and
+candidate fixes (a/b/c). Recommended: (b) mark `_cenv` non-heap when `free` is empty,
+matching the handler-fn path. Reproduces with a plain no-capture lambda
+(`f = || -> I64 { 42 }; f()`), so this fix unblocks lambdas too — but it is out of the
+camp-esbs effect-handler scope and should be tracked separately if scoped narrowly.
+Do NOT delete this bean until all 3 effect e2e tests pass with `skip_wasm=false`.
