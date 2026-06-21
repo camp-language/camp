@@ -844,9 +844,15 @@ el_lower_let_perform :: proc(
 	ev_var := el_find_evidence(perform.effect, env)
 
 	if ev_var == base.NO_NAME {
-		// No handler evidence on the stack. This is a compiler-internal
-		// error for well-typed programs (every perform must be within a
-		// handle); scheduler effects now also flow through the CPS path.
+		// No enclosing handle. Scheduler-mediated effects
+		// (Console!, File!, Time!, Async!, Parallel!, Spawn!) without an
+		// explicit user handle fall through to the codegen default-handler
+		// path (e.g. the auto-installed WASI Console! handler in main!).
+		// Scheduler effects WITH a user handle have evidence on the stack
+		// and flow through the CPS path below.
+		if is_scheduler_effect(perform.effect, env) {
+			return IR_Expr(perform) // pass through IR_Perform to codegen
+		}
 		diagnostics.collector_add_diag(
 			env.collector,
 			diagnostics.diag_internal("perform without handler evidence", perform.span),
@@ -1339,8 +1345,13 @@ el_lower_expr :: proc(expr: IR_Expr, env: ^Effect_Lower_Env) -> IR_Expr {
 		ev_var := el_find_evidence(e.effect, env)
 
 		if ev_var == base.NO_NAME {
-			// No handler evidence. Compiler-internal error for well-typed
-			// programs; scheduler effects now flow through the CPS path too.
+			// No enclosing handle. Bare scheduler-mediated effects without
+			// a user handle fall through to the codegen default-handler
+			// path; scheduler effects WITH a user handle have evidence on
+			// the stack and flow through the CPS path below.
+			if is_scheduler_effect(e.effect, env) {
+				return expr // pass through to codegen
+			}
 			diagnostics.collector_add_diag(
 				env.collector,
 				diagnostics.diag_internal("perform without handler evidence", e.span),
@@ -1790,4 +1801,3 @@ el_lower_expr :: proc(expr: IR_Expr, env: ^Effect_Lower_Env) -> IR_Expr {
 
 	return expr
 }
-
