@@ -1,5 +1,11 @@
 stdout = """
 canonicalized /tmp/camp-e2e/unused-analysis/unused-import/src/Main.camp: 2 declaration(s), 1 import(s)
+-- C0800: MODULE NOT FOUND --- /tmp/camp-e2e/unused-analysis/unused-import/src/Main.camp
+
+module 'Module' not found.
+   1 | import Module { foo, bar }
+       ^^^^^^
+
 -- C0200: UNDEFINED NAME --- /tmp/camp-e2e/unused-analysis/unused-import/src/Main.camp
 
 I cannot find `foo`.
