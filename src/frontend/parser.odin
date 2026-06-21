@@ -3099,7 +3099,7 @@ parser_parse_import_decl :: proc(p: ^Parser, is_pub: bool) -> Decl {
 	module_name := module_tok.text
 
 	names := make([dynamic]Import_Item, 0, 8)
-	alias: base.Intern_ID = 0
+	alias: base.Intern_ID = base.NO_NAME
 
 	if p.current.kind == .Kw_As {
 		parser_advance(p)
