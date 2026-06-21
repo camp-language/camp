@@ -7,14 +7,7 @@ stderr = ""
 exit = 0
 wasm_exit = 134
 wasm_stdout = ""
-wasm_stderr = """
-Error: failed to run main module `/tmp/camp-e2e/effects/effect-handler-resume-twice/src/Main.wasm`
-
-Caused by:
-    0: failed to invoke command default
-    1: error while executing at wasm backtrace:
-    0:   0x28b9 - <unknown>!<wasm function 91>
-    1:   0x2995 - <unknown>!<wasm function 94>
-    2:   0x299d - <unknown>!<wasm function 95>
-    2: wasm trap: wasm `unreachable` instruction executed
-"""
+# resume(resume(1)) must trap cleanly on the double-resume: the one-shot
+# check fires `unreachable`. Assert the trap fragment (wasm backtrace offsets
+# and function indices are wasmtime-version-specific, so use a substring).
+wasm_stderr_contains = "wasm trap: wasm `unreachable` instruction executed"
