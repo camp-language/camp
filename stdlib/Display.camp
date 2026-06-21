@@ -1,0 +1,4 @@
+// Display trait — render a value as a string.
+Display : {
+  to_str: (Self) -> Str,
+}

@@ -17,6 +17,10 @@ typecheck_lambda :: proc(e: ^CExpr_Lambda, env: ^Type_Env, store: ^Type_Store) -
 	child_env.handled_effects = make([dynamic]base.Intern_ID, 0, 8)
 	child_env.current_module = env.current_module
 	child_env.spawned_handles = make([dynamic]base.Source_Span, 0, 8)
+	// A lambda body inherits any active impl Self var via the parent chain
+	// (NO_SELF_VAR here → CType_Self walks to parent). It must NOT carry the
+	// enclosing impl's Self into a nested standalone function's annotations.
+	child_env.impl_self_var = NO_SELF_VAR
 	defer delete(child_env.bindings)
 	defer delete(child_env.handled_effects)
 	defer delete(child_env.spawned_handles)

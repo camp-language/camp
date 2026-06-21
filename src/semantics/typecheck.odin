@@ -13,7 +13,17 @@ Type_Env :: struct {
 	handled_effects: [dynamic]base.Intern_ID,
 	current_module:  base.Intern_ID,
 	spawned_handles: [dynamic]base.Source_Span,
+	// When typechecking the body of a `Type is Trait { method = |a: Self, …| }`
+	// impl, this is set to the owner type's var so `Self` annotations resolve
+	// to the implementing type. `NO_SELF_VAR` (== Type_Var_ID(-1)) outside an
+	// impl context (→ fresh var). Type var IDs start at 0, so 0 is NOT a sentinel.
+	// Initialized to NO_SELF_VAR at every Type_Env construction site.
+	impl_self_var:   base.Type_Var_ID,
 }
+
+// Sentinel for "no active impl Self var". Type var IDs begin at 0, so 0 is a
+// valid var ID and cannot serve as the unset sentinel.
+NO_SELF_VAR :: base.Type_Var_ID(-1)
 
 Type_Result :: struct {
 	var_id:  base.Type_Var_ID,
@@ -182,6 +192,7 @@ typecheck_file :: proc(
 	env.handled_effects = make([dynamic]base.Intern_ID, 0, 8)
 	env.current_module = current_module
 	env.spawned_handles = make([dynamic]base.Source_Span, 0, 8)
+	env.impl_self_var = NO_SELF_VAR
 	defer delete(env.bindings)
 	defer delete(env.handled_effects)
 	defer delete(env.spawned_handles)
@@ -260,6 +271,37 @@ inject_prelude :: proc(store: ^Type_Store) {
 		store.bindings[name_id] = var_id
 	}
 
+	// Register Order as the tag union [Less | Equal | Greater] so that bare
+	// tags and the `Order` type annotation unify (Decision C). Order is NOT in
+	// PRELUDE_CONSTRUCTOR_TYPES — it's a closed tag union, not a parameterized
+	// constructor.
+	{
+		order_name := base.intern(store.interner, "Order")
+		order_tags := store_alloc(store, Type_Tag_Entry, 3)
+		order_tags[0] = Type_Tag_Entry {
+			name    = base.intern(store.interner, "Less"),
+			payload = nil,
+		}
+		order_tags[1] = Type_Tag_Entry {
+			name    = base.intern(store.interner, "Equal"),
+			payload = nil,
+		}
+		order_tags[2] = Type_Tag_Entry {
+			name    = base.intern(store.interner, "Greater"),
+			payload = nil,
+		}
+		order_var := fresh_value_var(store, base.Source_Span_ZERO)
+		link_var(
+			store,
+			order_var,
+			Inferred_Tag_Union_Row {
+				tag_entries = order_tags,
+				tag_rest = fresh_tag_row(store, base.Source_Span_ZERO),
+			},
+		)
+		store.bindings[order_name] = order_var
+	}
+
 	inject_prelude_effects_typecheck(store)
 }
 
@@ -331,8 +373,8 @@ typecheck_synth :: proc(expr: CExpr, env: ^Type_Env, store: ^Type_Store) -> Synt
 		return Synth_Result{var_id = var_id, effects = eff, texpr = TExpr(t)}
 
 	case ^CExpr_Char:
-		i64_name := base.intern(store.interner, "I64")
-		var_id := make_primitive_type(store, i64_name, e.span)
+		char_name := base.intern(store.interner, "Char")
+		var_id := make_primitive_type(store, char_name, e.span)
 		eff := fresh_effect_row(store, e.span)
 		t := new(TExpr_Char)
 		type_ir, eff_ir := type_eff_pair(store, var_id, eff)
@@ -707,6 +749,7 @@ typecheck_synth :: proc(expr: CExpr, env: ^Type_Env, store: ^Type_Store) -> Synt
 			arm_env.parent = env
 			arm_env.handled_effects = make([dynamic]base.Intern_ID, 0, 8)
 			arm_env.current_module = env.current_module
+			arm_env.impl_self_var = NO_SELF_VAR
 
 			arm_body_result: Synth_Result
 
@@ -1045,7 +1088,7 @@ expand_named_tag_union :: proc(
 	base.Type_Var_ID,
 	bool,
 ) {
-	// Prelude tag-union builtins (`List`, `Result`, `Ordering`) are registered as bare
+	// Prelude tag-union builtins (`List`, `Result`, `Order`) are registered as bare
 	// constructors with no decl body; synthesize their rows from PRELUDE_TAG_UNIONS.
 	name_str := base.intern_get(store.interner, name)
 	for def in PRELUDE_TAG_UNIONS {
@@ -1193,6 +1236,17 @@ convert_type_to_var_val :: proc(
 		return fresh_value_var(store, ty.span)
 
 	case ^CType_Self:
+		// Inside a `Type is Trait { method = |a: Self| … }` impl, `Self` resolves
+		// to the owner type. Walk the env chain for a set impl_self_var (sentinel
+		// NO_SELF_VAR == -1 means unset, since var IDs start at 0); if none, fall
+		// back to a fresh var.
+		e := env
+		for e != nil {
+			if e.impl_self_var != NO_SELF_VAR {
+				return e.impl_self_var
+			}
+			e = e.parent
+		}
 		return fresh_value_var(store, ty.span)
 
 	case ^CType_Function:

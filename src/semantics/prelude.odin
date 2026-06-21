@@ -20,7 +20,16 @@ Prelude_Tag_Decl :: struct {
 }
 
 PRELUDE_BUILTIN_TYPES :: []Prelude_Builtin_Type {
-	{"Bool", true},
+	// Bool is a primitive (lowered as an immediate i32, is_heap=false) that
+	// owns the `True`/`False` tag constructors. It is NOT a constructor type
+	// — its prelude binding must be Inferred_Primitive to match
+	// `make_primitive_type("Bool")` used pervasively by CExpr_Bool synthesis,
+	// `==`/`<` operators, `CPattern_Bool`, etc. A prior `is_constructor=true`
+	// produced an Inferred_Constructor binding that did NOT unify with the
+	// Inferred_Primitive Bool those produce (same formatted name, different
+	// Inferred_Type variant → false C0300 "Bool does not match Bool"). See
+	// bean camp-24mj.
+	{"Bool", false},
 	{"I64", false},
 	{"I32", false},
 	{"U64", false},
@@ -44,7 +53,9 @@ PRELUDE_CONSTRUCTOR_TYPES :: []Prelude_Constructor_Type {
 	{"Map", 2},
 	{"Set", 1},
 	{"Handle", 1},
-	{"Ordering", 0},
+	// Order is NOT here — it's a tag union [Less | Equal | Greater], not a
+	// constructor. It's registered as a Tag_Union_Row binding in inject_prelude
+	// so bare tags (Less/Equal/Greater) unify with the `Order` type annotation.
 	{"Result", 2},
 }
 
@@ -81,11 +92,7 @@ Prelude_Tag_Union :: struct {
 PRELUDE_TAG_UNIONS :: []Prelude_Tag_Union {
 	{"List", 1, []Prelude_Tag_Spec{{"Nil", []int{}}, {"Cons", []int{0, -1}}}},
 	{"Result", 2, []Prelude_Tag_Spec{{"Ok", []int{0}}, {"Err", []int{1}}}},
-	{
-		"Ordering",
-		0,
-		[]Prelude_Tag_Spec{{"Less", []int{}}, {"Equal", []int{}}, {"Greater", []int{}}},
-	},
+	{"Order", 0, []Prelude_Tag_Spec{{"Less", []int{}}, {"Equal", []int{}}, {"Greater", []int{}}}},
 }
 
 PRELUDE_EFFECT_FULL :: []string{"Console", "Throw", "Parallel", "Spawn", "Async"}
@@ -636,5 +643,64 @@ inject_prelude_effects_typecheck :: proc(store: ^Type_Store) {
 			},
 		)
 	}
+
+	// Register the remaining core trait DECLARATIONS (Eq, Default, From, TryFrom,
+	// IntoIter, FromIter) so stdlib modules can implement them without importing
+	// their declaring module. Mirrors Ord/Hash/Debug/Display above. Self is the
+	// first parameter where the trait method takes a receiver; zero-parameter
+	// methods (e.g. Default.default) carry no Self pin (see verify_trait_conformance).
+	register_core_trait_decl :: proc(
+		store: ^Type_Store,
+		trait_str: string,
+		method_str: string,
+		param_count: int,
+		return_ref: string,
+	) {
+		name_id := base.intern(store.interner, trait_str)
+		if is_trait_declared(store, name_id) {
+			return
+		}
+		g: map[int]base.Type_Var_ID
+		g = make(map[int]base.Type_Var_ID, 4, store.allocator)
+		methods := make([dynamic]Trait_Method_Info, 0, 4, store.allocator)
+		params := make([]base.Type_Var_ID, param_count, store.allocator)
+		// First param is Self (the implementing type) when there is one.
+		if param_count > 0 {
+			params[0] = fresh_value_var(store, base.Source_Span_ZERO)
+			for i in 1 ..< param_count {
+				params[i] = fresh_value_var(store, base.Source_Span_ZERO)
+			}
+		}
+		return_type := prelude_resolve_type_ref(store, return_ref, 0, &g)
+		append(
+			&methods,
+			Trait_Method_Info {
+				name = base.intern(store.interner, method_str),
+				param_types = params,
+				return_type = return_type,
+			},
+		)
+		store.trait_registry[name_id] = Trait_Info {
+			name    = name_id,
+			module  = base.NO_NAME,
+			parent  = base.NO_NAME,
+			methods = methods[:],
+		}
+		delete(g)
+	}
+
+	// Eq(a) : { eq : (a, a) -> Bool }  — param[0] is Self.
+	register_core_trait_decl(store, "Eq", "eq", 2, "Bool")
+	// Default(a) : { default : () -> a }  — no Self parameter (zero-arg method).
+	register_core_trait_decl(store, "Default", "default", 0, "generic")
+	// NOTE: From/TryFrom/IntoIter/FromIter are NOT injected here. They are
+	// multi-param traits (From(source, target), TryFrom(source, target, e),
+	// IntoIter/FromIter with applied Iter(a)) whose conformance model does not
+	// fit the "param[0] is Self" pin in verify_trait_conformance, and whose
+	// stdlib impls (e.g. `Bool is From { from = |val: Bool| -> I8 }`) are
+	// written as `Source is From` rather than `Target is From`. Properly
+	// supporting them needs a multi-param trait dispatch design — tracked as a
+	// follow-up (see bean camp-24mj). Their stdlib impls are disabled in the
+	// meantime so always-compiling the primitive modules does not C9000/C0300.
 }
 

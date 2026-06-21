@@ -1,6 +1,6 @@
 ---
 # camp-g6h9
-title: `$count = $count + 1` (self-referential reassignment) where $count is otherwise unused does NOT fire C0904 — gap in overwrite-before-read detection
+title: '`$count = $count + 1` (self-referential reassignment) where $count is otherwise unused does NOT fire C0904'
 status: todo
 type: bug
 priority: normal

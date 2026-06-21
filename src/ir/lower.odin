@@ -51,16 +51,21 @@ lower_string_content :: proc(raw: string) -> string {
 	return strings.to_string(b)
 }
 
-lower_tfile :: proc(tfile: semantics.TFile, store: ^semantics.Type_Store) -> IR_Module {
+lower_tfile :: proc(
+	tfile: semantics.TFile,
+	store: ^semantics.Type_Store,
+	initial_fresh_counter: int = 0,
+) -> IR_Module {
 	mod: IR_Module
 	mod.decls = make([dynamic]IR_Decl, 0, len(tfile.decls))
 	mod.effect_defs = make([dynamic]IR_Effect_Def, 0, 8)
 	mod.string_table = make([dynamic]String_Table_Entry, 0, 16)
 
 	env: Lower_Env = {
-		module   = &mod,
-		store    = store,
-		interner = store.interner,
+		module        = &mod,
+		store         = store,
+		interner      = store.interner,
+		fresh_counter = initial_fresh_counter,
 	}
 	env.pending_decls = make([dynamic]IR_Decl, 0, 8)
 	env.module_decl_names = make(map[base.Intern_ID]bool, len(tfile.decls))
@@ -142,6 +147,7 @@ lower_tfile :: proc(tfile: semantics.TFile, store: ^semantics.Type_Store) -> IR_
 	delete(env.pending_decls)
 	delete(env.module_decl_names)
 
+	mod.next_fresh_counter = env.fresh_counter
 	return mod
 }
 
@@ -307,12 +313,7 @@ lower_texpr :: proc(expr: semantics.TExpr, env: ^Lower_Env) -> IR_Expr {
 		return make_ir_lit_bool(e.value, semantics.lower_type(env.store, type_var), e.span)
 
 	case ^semantics.TExpr_Char:
-		type_var := semantics.make_primitive_type(
-			env.store,
-			base.intern(env.interner, "I64"),
-			e.span,
-		)
-		return make_ir_lit_int(i64(e.value), semantics.lower_type(env.store, type_var), e.span)
+		return make_ir_lit_int(i64(e.value), e.type_, e.span)
 
 	case ^semantics.TExpr_Todo:
 		msg: IR_Expr

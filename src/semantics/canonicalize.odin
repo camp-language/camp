@@ -584,9 +584,9 @@ canonicalize_expr :: proc(
 		return c
 
 	case ^frontend.Expr_Char:
-		c := new(CExpr_Int)
-		c^ = CExpr_Int {
-			value = i64(e.value),
+		c := new(CExpr_Char)
+		c^ = CExpr_Char {
+			value = e.value,
 			span  = e.span,
 		}
 		return c
@@ -1299,9 +1299,9 @@ canonicalize_pattern :: proc(
 		return c
 
 	case ^frontend.Pattern_Char:
-		c := new(CPattern_Int)
-		c^ = CPattern_Int {
-			value = i64(p.value),
+		c := new(CPattern_Char)
+		c^ = CPattern_Char {
+			value = p.value,
 			span  = p.span,
 		}
 		return c

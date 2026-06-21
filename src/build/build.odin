@@ -135,6 +135,17 @@ run_build_single :: proc(
 	for imp in canon.imports {
 		append(&worklist, imp.module)
 	}
+
+	// Always compile primitive trait-impl modules (Decision A, camp-24mj).
+	// These contain `is` impls (Ord, Hash, Debug, Eq, etc.) that the container
+	// runtime dispatch (List.compare, Result.eq, etc.) needs as real WASM
+	// functions. They must be compiled regardless of user imports.
+	// NOTE: Str and Bytes are excluded for now — their trait impls generate
+	// wasm-invalid code (type mismatch in block). Tracked as a follow-up.
+	ALWAYS_COMPILE :: []string{"Char"}
+	for mod_name in ALWAYS_COMPILE {
+		append(&worklist, base.intern(&ctx.interner, mod_name))
+	}
 	for len(worklist) > 0 {
 		mod_id := worklist[len(worklist) - 1]
 		pop(&worklist)
@@ -226,7 +237,23 @@ run_build_single :: proc(
 			}
 		}
 
+		errs_before_tc := ctx.collector.error_count
 		semantics.typecheck_file(mi_ptr.cfile^, &store, mod_id)
+		// Always-compiled stdlib modules (not explicitly imported) may have
+		// pre-existing semantic errors (e.g. ParseError not in scope, From/
+		// TryFrom not registered). Demote their errors to warnings so the
+		// user's build isn't blocked by stdlib internals. Successfully-
+		// typechecked impls still register in trait_impls for dispatch.
+		is_user_import := false
+		for imp in canon.imports {
+			if imp.module == mod_id {
+				is_user_import = true
+				break
+			}
+		}
+		if !is_user_import && mod_id != main_id {
+			demote_recent_errors(&ctx, errs_before_tc)
+		}
 		if diagnostics.diag_collector_has_errors(&ctx.collector) {
 			diagnostics.render_all(&ctx.collector, mi_ptr.path, mi_ptr.source)
 			return Build_Error {
