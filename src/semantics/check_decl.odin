@@ -273,6 +273,19 @@ typecheck_decl :: proc(decl: CDecl, env: ^Type_Env, store: ^Type_Store) -> TDecl
 
 	case ^CDecl_Is_Impl:
 		methods := make([dynamic]TIs_Method, len(d.methods))
+		type_str := base.intern_get(store.interner, d.type_name.name)
+		// Resolve `Self` annotations in the impl method bodies to the owner
+		// type's var (e.g. `Bool` for `Bool is Ord`), so `|a: Self, b: Self|`
+		// typechecks the params against the implementing type rather than fresh
+		// unbound vars. Restore the previous value so nested/newtype decls are
+		// unaffected (Type var IDs start at 0, so NO_SELF_VAR == -1 is the
+		// unset sentinel).
+		owner_var, owner_ok := store.bindings[d.type_name.name]
+		prev_self := env.impl_self_var
+		if owner_ok {
+			env.impl_self_var = owner_var
+		}
+		defer env.impl_self_var = prev_self
 		for m, i in d.methods {
 			body_result := typecheck_synth(m.body, env, store)
 			methods[i] = TIs_Method {
@@ -284,6 +297,16 @@ typecheck_decl :: proc(decl: CDecl, env: ^Type_Env, store: ^Type_Store) -> TDecl
 				is_pub = false,
 				span   = m.span,
 			}
+			// Register the method body under its canonical `<Type>_<method>`
+			// name (e.g. `Bool_eq`, `Char_compare`) in both env and store
+			// bindings. verify_trait_conformance searches bindings for exactly
+			// this name to confirm the method exists; lower_tdecl_is_impl and
+			// codegen func_map use the same name for dispatch. Without this,
+			// source `is` impls always C0603 (missing trait method).
+			fn_name_str := fmt.tprintf("{}_{}", type_str, base.intern_get(store.interner, m.name))
+			fn_name_id := base.intern(store.interner, fn_name_str)
+			env.bindings[fn_name_id] = body_result.var_id
+			store.bindings[fn_name_id] = body_result.var_id
 		}
 		td := new(TDecl_Is_Impl)
 		td^ = TDecl_Is_Impl {
@@ -441,18 +464,20 @@ verify_trait_conformance :: proc(
 ) -> bool {
 	trait_info, ok := store.trait_registry[trait_name]
 	if !ok {
-		trait_str := base.intern_get(store.interner, trait_name)
-		diagnostics.collector_add_diag(
-			store.collector,
-			diagnostics.diag_internal(
-				fmt.tprintf("trait `{}` not found in registry", trait_str),
-				span,
-			),
-		)
+		// Trait not in registry (e.g. From/TryFrom/IntoIter/FromIter which are
+		// not yet injected by the prelude). Skip conformance silently — the
+		// impl body is still typechecked above, just not registered for dispatch.
 		return false
 	}
 
-	if type_module != trait_info.module && type_module != base.NO_NAME {
+	// Orphan rule: an `is` impl must live in the same module as either the type
+	// or the trait. This prevents foreign modules from injecting impls that
+	// could conflict. Prelude-registered traits (trait_info.module == NO_NAME)
+	// are compiler-owned/global, so any module may implement them for its own
+	// type — the orphan check is skipped for them (bean camp-24mj, decision B).
+	if trait_info.module != base.NO_NAME &&
+	   type_module != trait_info.module &&
+	   type_module != base.NO_NAME {
 		type_str := base.intern_get(store.interner, type_name)
 		trait_str := base.intern_get(store.interner, trait_name)
 		diagnostics.collector_add_diag(
@@ -462,8 +487,24 @@ verify_trait_conformance :: proc(
 		return false
 	}
 
-	for impl in store.trait_impls {
+	for impl, idx in store.trait_impls {
 		if impl.trait_name == trait_name && impl.type_name == type_name {
+			// Same-module duplicate: the entry module is typechecked multiple
+			// times (main loop, effect safety, combine_module_irs). A second
+			// registration from the same module is a re-typecheck, not a true
+			// conflict. Skip silently.
+			if impl.type_module == type_module {
+				return true
+			}
+			// Prelude override: prelude-registered impls (type_module == NO_NAME)
+			// can be superseded by a real stdlib module's impl. The stdlib body
+			// will be lowered by lower_tdecl_is_impl, replacing the hand-written
+			// intrinsic the prelude stood in for. Remove the prelude entry so
+			// the new stdlib entry is appended cleanly at the end.
+			if impl.type_module == base.NO_NAME && type_module != base.NO_NAME {
+				ordered_remove(&store.trait_impls, idx)
+				break
+			}
 			type_str := base.intern_get(store.interner, type_name)
 			trait_str := base.intern_get(store.interner, trait_name)
 			diagnostics.collector_add_diag(
@@ -535,7 +576,14 @@ verify_trait_conformance :: proc(
 			}
 
 			type_var := store.bindings[type_name]
-			unify(store, expected_params[0], type_var)
+			if len(method.param_types) > 0 {
+				// Convention: the trait method's first parameter is `Self`
+				// (the implementing type). Pin it to the owner so an impl like
+				// `eq = |a: Self, b: Self| -> Bool` is checked against the owner.
+				// Zero-parameter methods (e.g. Default's `default : || -> Self`)
+				// have no Self parameter to pin.
+				unify(store, expected_params[0], type_var)
+			}
 
 			expected_return := deep_clone_type(store, method.return_type, span, &clone_subst)
 			expected_effect := fresh_effect_row(store, span)
@@ -553,7 +601,6 @@ verify_trait_conformance :: proc(
 
 			expected_sig := format_type_var(store, expected_fn_var)
 			actual_sig := format_type_var(store, impl_fn_var)
-
 			diag_count_before := len(store.collector.diagnostics)
 			unify_ok := unify(store, impl_fn_var, expected_fn_var)
 

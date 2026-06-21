@@ -167,7 +167,8 @@ test_prelude_inject_twice_idempotent :: proc(t: ^testing.T) {
 	expected_total :=
 		len(semantics.PRELUDE_BUILTIN_TYPES) +
 		len(semantics.PRELUDE_CONSTRUCTOR_TYPES) +
-		len(semantics.PRELUDE_TAG_DECLS)
+		len(semantics.PRELUDE_TAG_DECLS) +
+		1 // Order tag-union binding (registered explicitly, not via PRELUDE_CONSTRUCTOR_TYPES)
 	testing.expectf(
 		t,
 		second_count == expected_total,

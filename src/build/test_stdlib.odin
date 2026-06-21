@@ -2,7 +2,7 @@ package build
 
 import "core:testing"
 
-EXPECTED_STDLIB_MODULE_COUNT :: 44
+EXPECTED_STDLIB_MODULE_COUNT :: 45
 
 ALL_MODULE_NAMES :: []string {
 	"Result",
@@ -13,6 +13,7 @@ ALL_MODULE_NAMES :: []string {
 	"Map",
 	"Set",
 	"Display",
+	"Char",
 	"Num.I64",
 	"Num.I32",
 	"Num.I16",
@@ -179,8 +180,8 @@ test_stdlib_lookup_random_source :: proc(t: ^testing.T) {
 	testing.expect(t, ok)
 	testing.expectf(
 		t,
-		_contains(mod.source, "effect Random!"),
-		"Random source should contain \"effect Random!\"",
+		_contains(mod.source, "Random! :"),
+		"Random source should declare the effect as `Random! :`",
 	)
 }
 

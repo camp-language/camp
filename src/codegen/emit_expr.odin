@@ -2066,7 +2066,11 @@ emit_expr :: proc(expr: ir.IR_Expr, buf: ^[dynamic]u8, env: ^Codegen_Env, runtim
 
 			emit_expr(e.scrutinee, buf, env, runtime_indices)
 			scrutinee_local := env.next_local
-			append(&env.locals, Wasm_Local_Decl{count = 1, type = .I64})
+			scrutinee_wasm := ir.ir_expr_wasm_type(e.scrutinee)
+			append(
+				&env.locals,
+				Wasm_Local_Decl{count = 1, type = ir_wasm_type_to_value_type(scrutinee_wasm)},
+			)
 			env.next_local += 1
 			emit_instruction(Wasm_Local_Set{index = scrutinee_local}, buf)
 
@@ -2089,8 +2093,13 @@ emit_expr :: proc(expr: ir.IR_Expr, buf: ^[dynamic]u8, env: ^Codegen_Env, runtim
 					#partial switch p in arm.pattern {
 					case ^ir.IR_Pat_Int:
 						emit_instruction(Wasm_Local_Get{index = scrutinee_local}, buf)
-						emit_instruction(Wasm_I64_Const{value = p.value}, buf)
-						emit_instruction(Wasm_I64_Eq{}, buf)
+						if scrutinee_wasm == .I32 {
+							emit_instruction(Wasm_I32_Const{value = i32(p.value)}, buf)
+							emit_instruction(Wasm_I32_Eq{}, buf)
+						} else {
+							emit_instruction(Wasm_I64_Const{value = p.value}, buf)
+							emit_instruction(Wasm_I64_Eq{}, buf)
+						}
 					case ^ir.IR_Pat_Tag,
 					     ^ir.IR_Pat_Record,
 					     ^ir.IR_Pat_Tuple,

@@ -298,6 +298,9 @@ combine_module_irs :: proc(
 	combined.decls = make([dynamic]ir.IR_Decl, 0, 64)
 	combined.effect_defs = make([dynamic]ir.IR_Effect_Def, 0, 16)
 	combined.string_table = make([dynamic]ir.String_Table_Entry, 0, 32)
+	// Shared counter for IR name generation. Each module's lower_tfile gets a
+	// distinct starting counter so _ir_N IDs don't collide across modules.
+	fresh_counter: int
 
 	for mod_id in sorted {
 		mi := project.modules[mod_id]
@@ -306,9 +309,33 @@ combine_module_irs :: proc(
 		store, ok := ctx.module_stores[mod_id]
 		if !ok do continue
 
+		errs_before := ctx.collector.error_count
+		diag_count_before := len(ctx.collector.diagnostics)
 		tfile := semantics.typecheck_file(mi.cfile^, &store)
+		// Suppress all diagnostics from non-entry-point modules in this
+		// re-typecheck pass. The first pass already reported real issues;
+		// re-typechecking may re-emit the same warnings/errors (e.g. C0601
+		// from always-compiled stdlib modules). Drop them so they don't
+		// pollute the user's output.
+		if mod_id != project.entry_point {
+			for len(ctx.collector.diagnostics) > diag_count_before {
+				d := &ctx.collector.diagnostics[len(ctx.collector.diagnostics) - 1]
+				switch d.category {
+				case .Warning:
+					ctx.collector.warning_count -= 1
+				case .Error:
+					ctx.collector.error_count -= 1
+				case .Internal:
+					ctx.collector.internal_count -= 1
+				}
+				delete(d.labels)
+				delete(d.hints)
+				pop(&ctx.collector.diagnostics)
+			}
+		}
 		mono_tfile := mono.mono(tfile, &store, &ctx.interner)
-		ir_mod := ir.lower_tfile(mono_tfile, &store)
+		ir_mod := ir.lower_tfile(mono_tfile, &store, fresh_counter)
+		fresh_counter = ir_mod.next_fresh_counter
 
 		for &decl in ir_mod.decls {
 			#partial switch d in decl {

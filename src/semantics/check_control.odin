@@ -67,15 +67,15 @@ typecheck_pattern :: proc(
 		return Pat_Result{var_id = str_var, effects = eff, tpat = TPattern(tp)}
 
 	case ^CPattern_Char:
-		i64_name := base.intern(store.interner, "I64")
-		i64_var := make_primitive_type(store, i64_name, p.span)
-		unify(store, scrutinee_var, i64_var)
+		char_name := base.intern(store.interner, "Char")
+		char_var := make_primitive_type(store, char_name, p.span)
+		unify(store, scrutinee_var, char_var)
 		tp := new(TPattern_Char)
 		tp^ = TPattern_Char {
 			value = p.value,
 			span  = p.span,
 		}
-		return Pat_Result{var_id = i64_var, effects = eff, tpat = TPattern(tp)}
+		return Pat_Result{var_id = char_var, effects = eff, tpat = TPattern(tp)}
 
 	case ^CPattern_Tag:
 		nt_name, owned := newtype_owning_tag(store, p.name.name)
