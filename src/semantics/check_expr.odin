@@ -441,6 +441,10 @@ typecheck_tag :: proc(e: ^CExpr_Tag, env: ^Type_Env, store: ^Type_Store) -> Synt
 	inf := Inferred_Tag_Union_Row {
 		tag_entries = tag_entries,
 		tag_rest    = resolve_var(store, rest_var),
+		// Bare tag construction yields an OPEN row (variants may still grow
+		// via unification); only syntactic `[A | B | ...]` declarations
+		// and prelude builtins are closed.
+		closed      = false,
 	}
 	link_var(store, tag_var, inf)
 
@@ -717,7 +721,11 @@ typecheck_list :: proc(e: ^CExpr_List, env: ^Type_Env, store: ^Type_Store) -> Sy
 	link_var(
 		store,
 		var_id,
-		Inferred_Tag_Union_Row{tag_entries = tag_entries, tag_rest = resolve_var(store, tag_rest)},
+		Inferred_Tag_Union_Row {
+			tag_entries = tag_entries,
+			tag_rest = resolve_var(store, tag_rest),
+			closed = false,
+		},
 	)
 	// The Cons tail is left as an open var; it re-unifies with the concrete list
 	// type at use sites (matching, recursion). Tying it back to var_id directly

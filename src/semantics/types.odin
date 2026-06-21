@@ -95,6 +95,13 @@ Inferred_Record_Row :: struct {
 Inferred_Tag_Union_Row :: struct {
 	tag_entries: []Type_Tag_Entry,
 	tag_rest:    base.Type_Var_ID,
+	// closed=true means the row's variant set is complete as written
+	// (a syntactic `[A | B | C]` declaration or a prelude builtin like
+	// `Ordering`). Only CLOSED no-payload tag unions qualify for the
+	// unboxed-immediate representation in lower_type; open rows
+	// (the fresh `tag_rest` produced for bare tag construction, list
+	// literals, match patterns, and generic instantiation) stay boxed.
+	closed:      bool,
 }
 
 Inferred_Effect_Row :: struct {

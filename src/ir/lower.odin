@@ -1491,6 +1491,11 @@ expand_nested_tag_pattern :: proc(
 				)
 
 				// Build IR_Match: match inner_value { inner_pat => inner_body }
+				// camp-9xi6: the inner scrutinee's IR_Var.type must carry the
+				// real is_heap of the payload field (e.g. Result(I64,Str) is
+				// heap). The IR_Var default {is_heap=false} would make the match
+				// dispatch read the immediate path (skip load8u) on a heap cell
+				// and trap. Derive from the resolved payload type var.
 				inner_arms := make([dynamic]IR_Match_Arm, 1)
 				inner_arms[0] = IR_Match_Arm {
 					pattern = inner_pat,
@@ -1504,6 +1509,10 @@ expand_nested_tag_pattern :: proc(
 					span = base.Source_Span_ZERO,
 				}
 				(inner_match.scrutinee.(^IR_Var)).name = inner_name
+				(inner_match.scrutinee.(^IR_Var)).type = semantics.lower_type(
+					env.store,
+					inner_scrutinee_type_id,
+				)
 
 				current_body = IR_Expr(inner_match)
 
@@ -2848,13 +2857,22 @@ lower_ttag :: proc(e: ^semantics.TExpr_Tag, env: ^Lower_Env) -> IR_Expr {
 		append(&payload, lower_texpr(p, env))
 	}
 	tag_index := resolve_tag_index(env.store, e.type_.type_id, e.name.name)
+	// camp-9xi6: re-derive the IR_Type at IR-lowering time rather than copying
+	// e.type_ verbatim. The typecheck-time snapshot was taken on an OPEN row
+	// (bare tag construction sees closed=false), but by lowering time the var
+	// has been unified with its destination type — and unify_tag_union_rows
+	// propagates closedness from a closed all-no-payload superset (e.g. `Blue`
+	// unifying with `Color`). Re-deriving here picks up that propagated flag so
+	// the construct node's is_heap matches the match dispatch's is_heap. Without
+	// this, construction emits a heap cell while match reads immediate (trap).
+	resolved_type := semantics.lower_type(env.store, e.type_.type_id)
 	result := new(IR_Construct_Tag)
 	result^ = IR_Construct_Tag {
 		tag_name   = e.name.name,
 		tag_index  = tag_index,
 		payload    = payload,
 		reuse_addr = NO_REUSE_ADDR,
-		type       = e.type_,
+		type       = resolved_type,
 		span       = e.span,
 	}
 	return IR_Expr(result)
@@ -3983,3 +4001,4 @@ resolve_val_debug_func :: proc(
 
 	return func_name
 }
+

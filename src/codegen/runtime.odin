@@ -3827,77 +3827,26 @@ emit_map_new_body :: proc(alloc_func_idx: int) -> Wasm_Code {
 
 // emit_i64_trampoline_body: (ptr_a: i32, ptr_b: i32) -> i32
 // Loads i64 from each boxed cell (offset 4) and calls I64_Compare, which
-// returns a raw -1/0/1 (the internal intrinsic, unchanged). Under Design B,
-// container compare callbacks must yield an Order heap cell, so this
-// trampoline converts the raw result into an Order cell (Less/Equal/Greater)
-// and returns the cell pointer. Locals: 0=ptr_a, 1=ptr_b, 2=raw_result,
-// 3=ptr, 4=tag
+// returns a raw -1/0/1 (the internal intrinsic, unchanged). The trampoline
+// maps that to an immediate Order ordinal (camp-9xi6): raw + 1 gives
+// 0=Less / 1=Equal / 2=Greater, matching @Order's variant ordinals, returned
+// directly as an i32. No heap allocation, no RC. Locals: 0=ptr_a, 1=ptr_b.
 emit_i64_trampoline_body :: proc(i64_compare_func_idx: int, alloc_func_idx: int) -> Wasm_Code {
+	_ = alloc_func_idx // immediate Order: no cell allocation
 	buf: [dynamic]u8
 	buf = make([dynamic]u8, 0, CODE_BUF_MODERATE)
 
-	// raw = I64_Compare(*a, *b)  (in [-1, 0, 1])
+	// return I64_Compare(*a, *b) + 1  (in {0,1,2} = {Less,Equal,Greater})
 	emit_instruction(Wasm_Local_Get{index = 0}, &buf)
 	emit_instruction(Wasm_I64_Load{align = 2, offset = 4}, &buf)
 	emit_instruction(Wasm_Local_Get{index = 1}, &buf)
 	emit_instruction(Wasm_I64_Load{align = 2, offset = 4}, &buf)
 	emit_instruction(Wasm_Call{index = u32(i64_compare_func_idx)}, &buf)
-	emit_instruction(Wasm_Local_Set{index = 2}, &buf)
-
-	// Map raw -> tag: raw < 0 -> 0 (Less); raw > 0 -> 2 (Greater); else 1 (Equal)
-	emit_instruction(Wasm_Local_Get{index = 2}, &buf)
-	emit_instruction(Wasm_I32_Const{value = 0}, &buf)
-	emit_instruction(Wasm_I32_Lt_S{}, &buf)
-	emit_instruction(Wasm_If{block_type = .Void}, &buf)
-	emit_instruction(Wasm_I32_Const{value = 0}, &buf) // Less
-	emit_instruction(Wasm_Local_Set{index = 4}, &buf)
-	emit_instruction(Wasm_Else{}, &buf)
-	emit_instruction(Wasm_Local_Get{index = 2}, &buf)
-	emit_instruction(Wasm_I32_Const{value = 0}, &buf)
-	emit_instruction(Wasm_I32_Gt_S{}, &buf)
-	emit_instruction(Wasm_If{block_type = .Void}, &buf)
-	emit_instruction(Wasm_I32_Const{value = 2}, &buf) // Greater
-	emit_instruction(Wasm_Local_Set{index = 4}, &buf)
-	emit_instruction(Wasm_Else{}, &buf)
-	emit_instruction(Wasm_I32_Const{value = 1}, &buf) // Equal
-	emit_instruction(Wasm_Local_Set{index = 4}, &buf)
-	emit_instruction(Wasm_End{}, &buf)
-	emit_instruction(Wasm_End{}, &buf)
-
-	// ptr = camp_alloc(CAMP_TAG_HEADER_SIZE)
-	emit_instruction(Wasm_I32_Const{value = i32(CAMP_TAG_HEADER_SIZE)}, &buf)
-	emit_instruction(Wasm_Call{index = u32(alloc_func_idx)}, &buf)
-	emit_instruction(Wasm_Local_Set{index = 3}, &buf)
-
-	// refcount = 1
-	emit_instruction(Wasm_Local_Get{index = 3}, &buf)
 	emit_instruction(Wasm_I32_Const{value = 1}, &buf)
-	emit_instruction(Wasm_I32_Store{align = 2, offset = CAMP_TAG_REFCOUNT_OFFSET}, &buf)
-
-	// tag byte
-	emit_instruction(Wasm_Local_Get{index = 3}, &buf)
-	emit_instruction(Wasm_Local_Get{index = 4}, &buf)
-	emit_instruction(Wasm_I32_Store8{align = 0, offset = CAMP_TAG_TAG_OFFSET}, &buf)
-
-	// scan_size = 0
-	emit_instruction(Wasm_Local_Get{index = 3}, &buf)
-	emit_instruction(Wasm_I32_Const{value = 0}, &buf)
-	emit_instruction(Wasm_I32_Store8{align = 0, offset = CAMP_TAG_SCAN_SIZE_OFFSET}, &buf)
-
-	// scalar_mask = 0
-	emit_instruction(Wasm_Local_Get{index = 3}, &buf)
-	emit_instruction(Wasm_I32_Const{value = 0}, &buf)
-	emit_instruction(Wasm_I32_Store8{align = 0, offset = CAMP_TAG_SCALAR_MASK_OFFSET}, &buf)
-
-	// return ptr
-	emit_instruction(Wasm_Local_Get{index = 3}, &buf)
+	emit_instruction(Wasm_I32_Add{}, &buf)
 	emit_instruction(Wasm_End{}, &buf)
 
-	locals := make([]Wasm_Local_Decl, 1)
-	locals[0] = Wasm_Local_Decl {
-		count = 3,
-		type  = .I32,
-	} // locals 2-4: raw_result, ptr, tag
+	locals := make([]Wasm_Local_Decl, 0)
 	body := make([]u8, len(buf))
 	for b, i in buf {body[i] = b}
 	delete(buf)

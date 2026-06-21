@@ -260,6 +260,19 @@ Encode is format-agnostic (produces intermediate `Encoding` tree). Decode is for
 
 Flat modules except `Num` and `Crypto`. `Json.encode`/`Json.decode` are functions in the `Json` module. Encoding modules stay separate. **Future decision point:** consider Zig-style nested type/module naming where `Foo.Bar` can be either a submodule or a type within the namespace.
 
+### D31: Unboxed enum representation (camp-9xi6)
+
+Closed tag unions whose every variant has no payload (e.g. `[Less | Equal | Greater]`, `@Color : [Red | Green | Blue]`) are represented as **immediate i32 variant ordinals** rather than heap-allocated cells. This eliminates per-value allocation and reference-counting overhead for these types.
+
+**Rule:** A tag union is immediate (`is_heap = false`) when ALL of the following hold:
+1. The row is **closed** (syntactic `[A | B | ...]` or prelude-synthesized)
+2. Every variant has an **empty payload**
+3. All sub-rows (if the row was unified with another row) also satisfy (1) and (2)
+
+Open rows (bare tags before unification, list literals, match patterns, generic instantiation) and any union with at least one payloaded variant remain **boxed** (heap-allocated cells with tag byte + payload).
+
+**Ordinals:** Variant ordinals are derived from declaration order (0-indexed). `Bool` remains special-cased (`True` = 1, `False` = 0) via `IR_Literal_Bool`/`IR_Pat_Bool`/`Match_Kind.Bool`; closed no-payload tag unions use a parallel codegen path (`IR_Construct_Tag` with `is_heap=false` emitting `i32.const <ordinal>`, match dispatch reading the immediate directly).
+
 ---
 
 ## 2. Open Questions (All Resolved)

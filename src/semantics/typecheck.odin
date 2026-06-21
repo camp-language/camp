@@ -204,6 +204,13 @@ typecheck_file :: proc(
 		store.bindings[name_id] = var_id
 	}
 
+	// camp-9xi6: re-snapshot every TExpr's type_ AFTER all unification for
+	// the file has settled. Snapshots taken mid-typecheck are stale for any
+	// type refined by later unification (e.g. a bare `Less` tag snapshotted
+	// as an open boxed row before the call site unifies it with the closed
+	// immediate `Order` type). Without this, IR nodes carry is_heap=true
+	// while their match scrutinees read immediate (trap). Idempotent.
+	resnapshot_decl_types(tdecls[:], store) // camp-9xi6: re-snapshot after unification
 
 	return TFile{path = file.path, decls = tdecls, imports = imports, span = file.span}
 }
@@ -242,7 +249,14 @@ inject_prelude :: proc(store: ^Type_Store) {
 			payload = payload,
 		}
 		rest := fresh_tag_row(store, base.Source_Span_ZERO)
-		link_var(store, var_id, Inferred_Tag_Union_Row{tag_entries = tag_entries, tag_rest = rest})
+		// Individual tag bindings (True, False, Ok, Err, Less, ...) are
+		// OPEN one-entry rows — a bare `Less` may unify into any closed
+		// union that has a Less variant. closed=false.
+		link_var(
+			store,
+			var_id,
+			Inferred_Tag_Union_Row{tag_entries = tag_entries, tag_rest = rest, closed = false},
+		)
 		store.bindings[name_id] = var_id
 	}
 
@@ -1062,7 +1076,13 @@ expand_named_tag_union :: proc(
 				vid,
 				Inferred_Tag_Union_Row {
 					tag_entries = tag_entries,
-					tag_rest = fresh_tag_row(store, span),
+					tag_rest    = fresh_tag_row(store, span),
+					// Prelude tag unions (List/Result/Ordering) list all
+					// variants as written — CLOSED declarations. Only
+					// Ordering (no payload across all variants) qualifies
+					// for the unboxed-immediate representation; List/Result
+					// have payloads and stay heap-allocated despite closed.
+					closed      = true,
 				},
 			)
 			return vid, true
@@ -1273,7 +1293,11 @@ convert_type_to_var_val :: proc(
 		link_var(
 			store,
 			vid,
-			Inferred_Tag_Union_Row{tag_entries = tag_entries, tag_rest = tag_rest},
+			// User `[A | B | C]` declaration lists all variants as written —
+			// CLOSED. lower_type additionally requires no-payload-across-all
+			// variants to pick the unboxed-immediate representation; a closed
+			// union with payloads stays heap-allocated.
+			Inferred_Tag_Union_Row{tag_entries = tag_entries, tag_rest = tag_rest, closed = true},
 		)
 		return vid
 
@@ -1434,7 +1458,11 @@ instantiate_rec :: proc(
 		link_var(
 			store,
 			vid,
-			Inferred_Tag_Union_Row{tag_entries = tag_entries, tag_rest = tag_rest},
+			Inferred_Tag_Union_Row {
+				tag_entries = tag_entries,
+				tag_rest = tag_rest,
+				closed = f.closed,
+			},
 		)
 
 	case Inferred_Handle:
@@ -1587,7 +1615,11 @@ deep_clone_type :: proc(
 		link_var(
 			store,
 			fresh,
-			Inferred_Tag_Union_Row{tag_entries = tag_entries, tag_rest = tag_rest},
+			Inferred_Tag_Union_Row {
+				tag_entries = tag_entries,
+				tag_rest = tag_rest,
+				closed = f.closed,
+			},
 		)
 		subst[resolved] = fresh
 		return fresh
