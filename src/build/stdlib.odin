@@ -229,75 +229,53 @@ pub to_f64 = |s| crash "intrinsic: Str.to_f64"
 pub to_iter : Str -> Iter(Str)
 pub to_iter = |s| crash "intrinsic: Str.to_iter"`
 
-LIST_CAMP :: `-- @List(a): pub [Cons(a, List(a)) | Nil]  -- declared by compiler
+LIST_CAMP :: `// @List(a): pub [Cons(a, List(a)) | Nil]  // declared by compiler
 
--- Construction
+// Construction
 
-pub empty : List(a)
 pub empty = Nil
 
-pub singleton : a -> List(a)
 pub singleton = |x| Cons(x, Nil)
 
-pub append : List(a), List(a) -> List(a)
 pub append = |xs, ys|
   match xs {
     Nil => ys
     Cons(h, t) => Cons(h, append(t, ys))
   }
 
--- Structural queries
+// Structural queries
 
-pub length : List(a) -> I64
 pub length = |xs|
   match xs {
     Nil => 0
     Cons(_, t) => 1 + length(t)
   }
 
-pub is_empty : List(a) -> Bool
 pub is_empty = |xs|
-  match xs { Nil => True | Cons(_, _) => False }
+  match xs {
+    Nil => True
+    Cons(_, _) => False
+  }
 
--- Head/tail access (Result per D3)
+pub map = |xs, f|
+  match xs {
+    Nil => Nil
+    Cons(h, t) => Cons(f(h), map(t, f))
+  }
 
-pub first : List(a) -> Result(a, [ListWasEmpty])
+// Head/tail access (Result per D3)
+
 pub first = |xs|
   match xs {
-    Cons(h, _) => Ok(h)
+    Cons(h, _tail) => Ok(h)
     Nil => Err(ListWasEmpty)
   }
 
-pub last : List(a) -> Result(a, [ListWasEmpty])
-pub last = |xs|
-  match xs {
-    Nil => Err(ListWasEmpty)
-    Cons(h, Nil) => Ok(h)
-    Cons(_, t) => last(t)
-  }
-
-pub rest : List(a) -> Result(List(a), [ListWasEmpty])
 pub rest = |xs|
   match xs {
-    Cons(_, t) => Ok(t)
+    Cons(_head, t) => Ok(t)
     Nil => Err(ListWasEmpty)
-  }
-
--- Sorting (intrinsic — needs Ord dispatch + merge sort)
-
-pub sort : List(a) -> List(a)
-pub sort = |xs| crash "intrinsic: List.sort"
-
-pub sort_by : List(a), (a, a) -> Order -> List(a)
-pub sort_by = |xs, cmp| crash "intrinsic: List.sort_by"
-
--- Conversion (gateway to/from Iter)
-
-pub to_iter : List(a) -> Iter(a)
-pub to_iter = |xs| crash "intrinsic: List.to_iter"
-
-pub from_iter : Iter(a) -> List(a)
-pub from_iter = |iter| crash "intrinsic: List.from_iter"`
+  }`
 
 ITER_CAMP :: `-- Iter.camp
 
