@@ -10,9 +10,22 @@ tags:
     - ir
 created_at: 2026-06-20T03:02:41Z
 updated_at: 2026-06-20T07:45:00Z
-blocked_by:
-    - camp-stdlib-compile-single
 ---
+
+## Update (2026-06-21): camp-stdlib-compile-single resolved (PR #118)
+
+`run_build_single` now routes through `combine_module_irs` with a synthesized
+`Project_Discovery` (user file + transitively-imported stdlib). Single-file
+builds compile stdlib dependencies. The remaining work for THIS bean is now
+items 1 + 2 below: sync the stale embedded `STDLIB_MODULES` for non-List
+modules (they still use `--` comments the lexer rejects; single-file builds
+demote their parse errors to warnings and fall back to runtime intercepts), and
+fix the on-disk stdlib semantic errors (`Bool is Hash` overlaps prelude →
+C0601, etc.). List.length now resolves to the pure-Camp stdlib impl; the
+trait-impl lowering path (`lower_tdecl_is_impl`) is reachable once the
+embedded sources sync and the C0601 overlaps are resolved. The `filter`
+WASM codegen i32/i64 mismatch (if-in-match-arm) is a separate codegen bug
+surfaced by enabling List compilation.
 
 ## Progress (2026-06-20): ABI blocker resolved (Design B); stdlib-compile-single remains
 
