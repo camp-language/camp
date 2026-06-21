@@ -8,13 +8,3 @@ exit = 0
 wasm_exit = 0
 wasm_stdout = ""
 wasm_stderr = ""
-# skip_wasm: scheduler-effect user-resume dispatch is unimplemented.
-# The codegen `is_sched` branch (src/codegen/emit_expr.odin) emits the handle
-# body + structured-concurrency cleanup but never emits the user's
-# `.yield!(resume) => resume(0)` arm, so the scheduler yields with no resume
-# to make progress and the worker loop never returns -> runtime hang.
-# A separate sub-bug is fixed: Async!.yield!/cancel! performs now type as
-# Unit (was an unbound fresh var defaulting to I64, which made IR_Block emit
-# a stray `drop` after the void Sched_Yield call and produced invalid wasm).
-# Tracked in camp-iokq.
-skip_wasm = true

@@ -844,11 +844,9 @@ el_lower_let_perform :: proc(
 	ev_var := el_find_evidence(perform.effect, env)
 
 	if ev_var == base.NO_NAME {
-		// Scheduler-mediated effects (File!, Console!, Time!, Async!, Parallel!, Spawn!)
-		// are handled directly by the codegen rather than via CPS evidence passing.
-		if is_scheduler_effect(perform.effect, env) {
-			return IR_Expr(perform) // pass through IR_Perform to codegen
-		}
+		// No handler evidence on the stack. This is a compiler-internal
+		// error for well-typed programs (every perform must be within a
+		// handle); scheduler effects now also flow through the CPS path.
 		diagnostics.collector_add_diag(
 			env.collector,
 			diagnostics.diag_internal("perform without handler evidence", perform.span),
@@ -948,29 +946,16 @@ el_lower_let_perform :: proc(
 el_lower_expr :: proc(expr: IR_Expr, env: ^Effect_Lower_Env) -> IR_Expr {
 	#partial switch e in expr {
 	case ^IR_Handle:
-		// Scheduler-mediated effects are handled directly by the codegen
-		// (they call camp_sched_* runtime functions, not CPS evidence passing)
-		// Check if any effect is a scheduler effect
-		all_scheduler := len(e.effects) > 0
-		for eff in e.effects {
-			if !is_scheduler_effect(eff, env) {
-				all_scheduler = false
-				break
-			}
-		}
-		if all_scheduler {
-			new_handle := new(IR_Handle)
-			new_handle^ = IR_Handle {
-				effects = e.effects,
-				body    = el_lower_expr(e.body, env),
-				arms    = e.arms, // arms kept for scope_id tracking but not transformed
-				type    = e.type,
-				span    = e.span,
-			}
-			return IR_Expr(new_handle)
-		}
-
+		// Scheduler effects (Async!, Spawn!, Parallel!, File!, Console!, Time!)
+		// use the same CPS evidence path as user-defined effects, per
+		// docs/syntax-recipe.md §Handle: scheduler effects share the
+		// handler/resume model including `resume`. The handler arms are
+		// lowered into handler fns, stored in evidence records, and
+		// dispatched by Perform → closure-call chains. The codegen
+		// is_sched branch still handles structured-concurrency scope
+		// cleanup for handles whose body uses spawn!/join! directly.
 		ev_var := base.fresh_id(&env.fresh_state, "_ev")
+
 
 		// effect_ops removed - search across effects per arm instead
 		resume_param := base.fresh_id(&env.fresh_state, "_resume")
@@ -1354,10 +1339,8 @@ el_lower_expr :: proc(expr: IR_Expr, env: ^Effect_Lower_Env) -> IR_Expr {
 		ev_var := el_find_evidence(e.effect, env)
 
 		if ev_var == base.NO_NAME {
-			// Scheduler-mediated effects are handled directly by the codegen
-			if is_scheduler_effect(e.effect, env) {
-				return expr // pass through to codegen
-			}
+			// No handler evidence. Compiler-internal error for well-typed
+			// programs; scheduler effects now flow through the CPS path too.
 			diagnostics.collector_add_diag(
 				env.collector,
 				diagnostics.diag_internal("perform without handler evidence", e.span),
@@ -1807,4 +1790,3 @@ el_lower_expr :: proc(expr: IR_Expr, env: ^Effect_Lower_Env) -> IR_Expr {
 
 	return expr
 }
-
