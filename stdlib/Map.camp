@@ -109,3 +109,17 @@ Map is Hash {
 Map is Eq {
     eq = |a: Self, b: Self| -> Bool { crash "intrinsic: Map_eq" }
 }
+
+Map is IntoIter {
+  to_iter = |m| { to_iter(m) }
+}
+
+Map is FromIter {
+  from_iter = |iter| {
+    Iter.fold(iter, new, |m, entry|
+      match entry {
+        (k, v) => insert(k, v, m)
+      }
+    )
+  }
+}

@@ -118,3 +118,4 @@ tag_union_is_immediate :: proc(store: ^Type_Store, type_var: base.Type_Var_ID) -
 	// Unresolved fresh row var: closed declaration with no additional variants.
 	return true
 }
+

@@ -54,10 +54,13 @@ pub rest = |xs| {
   }
 }
 
-// NOTE: `last`, `sort`, `sort_by`, `to_iter`, `from_iter`, `filter`, and the
-// trait impls (List is Debug/Ord/Hash/Eq) are intentionally omitted here for
-// now. The redundancy analyzer (C0503) false-positives on `last`'s nested
-// Cons/Nil pattern; `filter` triggers a WASM codegen i32/i64 type mismatch
-// (if-in-match-arm with recursive List-returning branches); trait-impl
-// lowering is tracked separately (camp-24mj). They will be restored once those
-// blockers are resolved.
+// NOTE: `last`, `sort`, `sort_by`, `filter`, and the trait impls (List is
+// Debug/Ord/Hash/Eq) are intentionally omitted here for now. The redundancy
+// analyzer (C0503) false-positives on `last`'s nested Cons/Nil pattern;
+// `filter` triggers a WASM codegen i32/i64 type mismatch (if-in-match-arm
+// with recursive List-returning branches); trait-impl lowering is tracked
+// separately (camp-24mj). They will be restored once those blockers are
+// resolved.
+//
+// List is IntoIter / FromIter are also omitted: Iter.from_list and Iter.fold
+// with recursive List operations trigger the same WASM codegen i32/i64 mismatch.

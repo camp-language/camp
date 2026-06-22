@@ -12,17 +12,20 @@ Trait_Method_Info :: struct {
 }
 
 Trait_Info :: struct {
-	name:    base.Intern_ID,
-	module:  base.Intern_ID,
-	parent:  base.Intern_ID,
-	methods: []Trait_Method_Info,
+	name:           base.Intern_ID,
+	module:         base.Intern_ID,
+	parent:         base.Intern_ID,
+	methods:        []Trait_Method_Info,
+	self_in_return: bool, // true = Self is the return type (e.g. FromIter), false = Self is params[0]
+	is_multi_param: bool, // true = same type can have multiple impls (e.g. From, TryFrom)
 }
 
 Trait_Impl :: struct {
-	trait_name:  base.Intern_ID,
-	type_name:   base.Intern_ID,
-	type_module: base.Intern_ID,
-	methods:     map[base.Intern_ID]base.Canonical_Name,
+	trait_name:       base.Intern_ID,
+	type_name:        base.Intern_ID,
+	type_module:      base.Intern_ID,
+	target_type_name: base.Intern_ID, // for multi-param traits: the target type (e.g. I8 in Bool is From -> I8)
+	methods:          map[base.Intern_ID]base.Canonical_Name,
 }
 
 Type_Var_Kind :: enum {
@@ -568,12 +571,16 @@ find_trait_impl :: proc(
 	store: ^Type_Store,
 	trait_name: base.Intern_ID,
 	type_name: base.Intern_ID,
+	target_type_name: base.Intern_ID = base.NO_NAME,
 ) -> (
 	Trait_Impl,
 	bool,
 ) {
 	for impl in store.trait_impls {
 		if impl.trait_name == trait_name && impl.type_name == type_name {
+			if target_type_name != base.NO_NAME && impl.target_type_name != target_type_name {
+				continue
+			}
 			return impl, true
 		}
 	}
@@ -590,12 +597,16 @@ find_trait_impl_by_method :: proc(
 	store: ^Type_Store,
 	type_name: base.Intern_ID,
 	method_name: base.Intern_ID,
+	target_type_name: base.Intern_ID = base.NO_NAME,
 ) -> (
 	Trait_Impl,
 	bool,
 ) {
 	for impl in store.trait_impls {
 		if impl.type_name == type_name {
+			if target_type_name != base.NO_NAME && impl.target_type_name != target_type_name {
+				continue
+			}
 			if _, has := impl.methods[method_name]; has {
 				return impl, true
 			}
@@ -627,3 +638,4 @@ collect_all_traits :: proc(
 	delete(worklist)
 	return result
 }
+

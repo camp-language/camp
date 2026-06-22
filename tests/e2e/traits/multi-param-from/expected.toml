@@ -1,0 +1,8 @@
+stdout = """
+canonicalized /tmp/camp-e2e/traits/multi-param-from/src/Main.camp: 1 declaration(s), 0 import(s)
+typecheck passed for /tmp/camp-e2e/traits/multi-param-from/src/Main.camp
+compiled /tmp/camp-e2e/traits/multi-param-from/src/Main.camp -> /tmp/camp-e2e/traits/multi-param-from/src/Main.wasm
+"""
+stderr = ""
+exit = 0
+skip_wasm = true

@@ -1,7 +1,9 @@
 // TryFrom trait — fallible type conversion
-// Self = target type, source = unbound type variable, e = error type chosen by impl
+// Self = source type (params[0]). Return is Result(target, error).
+// Multi-param: same source can have TryFrom impls for many targets.
+// Injected by the prelude; this file is documentation only.
 
 TryFrom : {
-  try_from : |source| -> Result(Self, e),
+  try_from : |Self| -> Result(target, error),
 }
 
