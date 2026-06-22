@@ -1,7 +1,9 @@
 // From trait — infallible type conversion
-// Self = target type, source = unbound type variable resolved at impl site
+// Self = source type (params[0]). target is a fresh type var resolved per impl.
+// Multi-param: same source can have From impls for many targets.
+// Injected by the prelude; this file is documentation only.
 
 From : {
-  from : |source| -> Self,
+  from : |Self| -> target,
 }
 

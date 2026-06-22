@@ -464,9 +464,8 @@ verify_trait_conformance :: proc(
 ) -> bool {
 	trait_info, ok := store.trait_registry[trait_name]
 	if !ok {
-		// Trait not in registry (e.g. From/TryFrom/IntoIter/FromIter which are
-		// not yet injected by the prelude). Skip conformance silently — the
-		// impl body is still typechecked above, just not registered for dispatch.
+		// Trait not in registry. Skip conformance silently — the impl body is
+		// still typechecked above, just not registered for dispatch.
 		return false
 	}
 
@@ -487,31 +486,36 @@ verify_trait_conformance :: proc(
 		return false
 	}
 
-	for impl, idx in store.trait_impls {
-		if impl.trait_name == trait_name && impl.type_name == type_name {
-			// Same-module duplicate: the entry module is typechecked multiple
-			// times (main loop, effect safety, combine_module_irs). A second
-			// registration from the same module is a re-typecheck, not a true
-			// conflict. Skip silently.
-			if impl.type_module == type_module {
-				return true
+	// Multi-param traits (From, TryFrom) allow the same source type to have
+	// multiple impls with different targets. Skip the overlap check entirely —
+	// each impl is independently typechecked and registered.
+	if !trait_info.is_multi_param {
+		for impl, idx in store.trait_impls {
+			if impl.trait_name == trait_name && impl.type_name == type_name {
+				// Same-module duplicate: the entry module is typechecked multiple
+				// times (main loop, effect safety, combine_module_irs). A second
+				// registration from the same module is a re-typecheck, not a true
+				// conflict. Skip silently.
+				if impl.type_module == type_module {
+					return true
+				}
+				// Prelude override: prelude-registered impls (type_module == NO_NAME)
+				// can be superseded by a real stdlib module's impl. The stdlib body
+				// will be lowered by lower_tdecl_is_impl, replacing the hand-written
+				// intrinsic the prelude stood in for. Remove the prelude entry so
+				// the new stdlib entry is appended cleanly at the end.
+				if impl.type_module == base.NO_NAME && type_module != base.NO_NAME {
+					ordered_remove(&store.trait_impls, idx)
+					break
+				}
+				type_str := base.intern_get(store.interner, type_name)
+				trait_str := base.intern_get(store.interner, trait_name)
+				diagnostics.collector_add_diag(
+					store.collector,
+					diagnostics.diag_overlapping_instance(type_str, trait_str, span),
+				)
+				return false
 			}
-			// Prelude override: prelude-registered impls (type_module == NO_NAME)
-			// can be superseded by a real stdlib module's impl. The stdlib body
-			// will be lowered by lower_tdecl_is_impl, replacing the hand-written
-			// intrinsic the prelude stood in for. Remove the prelude entry so
-			// the new stdlib entry is appended cleanly at the end.
-			if impl.type_module == base.NO_NAME && type_module != base.NO_NAME {
-				ordered_remove(&store.trait_impls, idx)
-				break
-			}
-			type_str := base.intern_get(store.interner, type_name)
-			trait_str := base.intern_get(store.interner, trait_name)
-			diagnostics.collector_add_diag(
-				store.collector,
-				diagnostics.diag_overlapping_instance(type_str, trait_str, span),
-			)
-			return false
 		}
 	}
 
@@ -528,24 +532,7 @@ verify_trait_conformance :: proc(
 			)
 			impl_fn_id := base.intern(store.interner, impl_fn_name)
 
-			impl_fn_var: base.Type_Var_ID
-			found := false
-			for name_id, var_id in store.bindings {
-				if name_id == impl_fn_id {
-					found = true
-					impl_fn_var = var_id
-					break
-				}
-			}
-			if !found {
-				for name_id, var_id in env.bindings {
-					if name_id == impl_fn_id {
-						found = true
-						impl_fn_var = var_id
-						break
-					}
-				}
-			}
+			impl_fn_var, found := lookup_binding(store, env, impl_fn_id)
 			if !found {
 				type_str := base.intern_get(store.interner, type_name)
 				req_trait_str := base.intern_get(store.interner, req_trait_name)
@@ -576,7 +563,13 @@ verify_trait_conformance :: proc(
 			}
 
 			type_var := store.bindings[type_name]
-			if len(method.param_types) > 0 {
+
+			expected_return := deep_clone_type(store, method.return_type, span, &clone_subst)
+			if trait_info.self_in_return {
+				// For traits like FromIter where Self is the return type
+				// (from_iter : (Iter(a)) -> Self), pin the return to Self.
+				unify(store, expected_return, type_var)
+			} else if len(method.param_types) > 0 {
 				// Convention: the trait method's first parameter is `Self`
 				// (the implementing type). Pin it to the owner so an impl like
 				// `eq = |a: Self, b: Self| -> Bool` is checked against the owner.
@@ -584,8 +577,6 @@ verify_trait_conformance :: proc(
 				// have no Self parameter to pin.
 				unify(store, expected_params[0], type_var)
 			}
-
-			expected_return := deep_clone_type(store, method.return_type, span, &clone_subst)
 			expected_effect := fresh_effect_row(store, span)
 
 			expected_fn_var := fresh_value_var(store, span)
@@ -640,12 +631,43 @@ verify_trait_conformance :: proc(
 	}
 
 	methods := make(map[base.Intern_ID]base.Canonical_Name, len(trait_info.methods))
+	resolved_target_name: base.Intern_ID
+
 	for method in trait_info.methods {
-		impl_fn_name := fmt.tprintf(
+		base_fn_name := fmt.tprintf(
 			"{}_{}",
 			base.intern_get(store.interner, type_name),
 			base.intern_get(store.interner, method.name),
 		)
+		impl_fn_name := base_fn_name
+
+		// For multi-param traits (From, TryFrom), disambiguate the canonical
+		// name by target type so multiple impls of the same trait on the same
+		// type don't collide (e.g. Bool_from_I8 vs Bool_from_I16).
+		if trait_info.is_multi_param {
+			base_fn_id := base.intern(store.interner, base_fn_name)
+			impl_body_var, found := lookup_binding(store, env, base_fn_id)
+			if found {
+				resolved_fn := resolve_var(store, impl_body_var)
+				if fn_link, is_type := store.vars[int(resolved_fn)].link.(Inferred_Type); is_type {
+					if fn, is_func := fn_link.(Inferred_Function); is_func {
+						target := extract_multi_param_target(store, fn.return_id)
+						if target != base.NO_NAME {
+							target_str := base.intern_get(store.interner, target)
+							impl_fn_name = fmt.tprintf("{}_{}", base_fn_name, target_str)
+							resolved_target_name = target
+
+							// Register the disambiguated name so codegen can
+							// find the function by its unique canonical name.
+							disambiguated_id := base.intern(store.interner, impl_fn_name)
+							env.bindings[disambiguated_id] = impl_body_var
+							store.bindings[disambiguated_id] = impl_body_var
+						}
+					}
+				}
+			}
+		}
+
 		impl_fn_id := base.intern(store.interner, impl_fn_name)
 		methods[method.name] = base.Canonical_Name {
 			module   = type_module,
@@ -655,14 +677,73 @@ verify_trait_conformance :: proc(
 	}
 
 	impl := Trait_Impl {
-		trait_name  = trait_name,
-		type_name   = type_name,
-		type_module = type_module,
-		methods     = methods,
+		trait_name       = trait_name,
+		type_name        = type_name,
+		type_module      = type_module,
+		target_type_name = resolved_target_name,
+		methods          = methods,
 	}
 	append(&store.trait_impls, impl)
 
 	return true
+}
+
+// lookup_binding searches store.bindings then env.bindings for a name.
+lookup_binding :: proc(
+	store: ^Type_Store,
+	env: ^Type_Env,
+	name_id: base.Intern_ID,
+) -> (
+	base.Type_Var_ID,
+	bool,
+) {
+	for n, v in store.bindings {
+		if n == name_id {
+			return v, true
+		}
+	}
+	for n, v in env.bindings {
+		if n == name_id {
+			return v, true
+		}
+	}
+	return 0, false
+}
+
+// extract_multi_param_target extracts the target type name from a function's
+// return type var. For From, the return IS the target (Inferred_Primitive).
+// For TryFrom, the return is Result(target, error) — dig into the Ok payload.
+extract_multi_param_target :: proc(
+	store: ^Type_Store,
+	return_id: base.Type_Var_ID,
+) -> base.Intern_ID {
+	resolved := resolve_var(store, return_id)
+	link, ok := store.vars[int(resolved)].link.(Inferred_Type)
+	if !ok {
+		return base.NO_NAME
+	}
+
+	// Direct primitive return (From pattern)
+	if prim, is_prim := link.(Inferred_Primitive); is_prim {
+		return prim.primitive_name
+	}
+
+	// Tag union return with Ok payload (TryFrom pattern)
+	if tu, is_tu := link.(Inferred_Tag_Union_Row); is_tu {
+		ok_name := base.intern(store.interner, "Ok")
+		for tag in tu.tag_entries {
+			if tag.name == ok_name && len(tag.payload) == 1 {
+				ok_resolved := resolve_var(store, tag.payload[0])
+				if ok_link, ok2 := store.vars[int(ok_resolved)].link.(Inferred_Type); ok2 {
+					if prim, ok3 := ok_link.(Inferred_Primitive); ok3 {
+						return prim.primitive_name
+					}
+				}
+			}
+		}
+	}
+
+	return base.NO_NAME
 }
 
 ctype_contains_self :: proc(t: CType) -> bool {

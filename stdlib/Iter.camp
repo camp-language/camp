@@ -57,3 +57,7 @@ pub enumerate = |iter| { crash "intrinsic: Iter.enumerate" }
 Iter is Debug {
     debug = |a: Self| -> Str { crash "intrinsic: Iter_debug" }
 }
+
+Iter is IntoIter {
+  to_iter = |iter| { iter }
+}

@@ -607,7 +607,13 @@ substitute_types_in_expr :: proc(
 
 		receiver_type_name := resolve_mono_type(sub_receiver, type_args, env)
 		if receiver_type_name != base.NO_NAME {
-			impl_name, found := find_method_impl(receiver_type_name, e.method.name, env.store)
+			target_type := resolve_type_name(sub_type, env.store)
+			impl_name, found := find_method_impl(
+				receiver_type_name,
+				e.method.name,
+				env.store,
+				target_type,
+			)
 			if found {
 				callee := new(semantics.TExpr_Name)
 				callee^ = semantics.TExpr_Name {
@@ -1036,15 +1042,44 @@ resolve_mono_type :: proc(
 	return base.NO_NAME
 }
 
+// resolve_type_name resolves an IR_Type's type_id to a type name.
+// Used to extract the expected return type for multi-param trait dispatch.
+resolve_type_name :: proc(ir_type: base.IR_Type, store: ^semantics.Type_Store) -> base.Intern_ID {
+	resolved := semantics.resolve_var(store, ir_type.type_id)
+	v := &store.vars[int(resolved)]
+
+	inf, is_inf := v.link.(semantics.Inferred_Type)
+	if !is_inf {
+		return base.NO_NAME
+	}
+
+	#partial switch vi in inf {
+	case semantics.Inferred_Primitive:
+		return vi.primitive_name
+	case semantics.Inferred_Newtype:
+		return vi.primitive_name
+	case semantics.Inferred_Constructor:
+		return vi.primitive_name
+	}
+
+	return base.NO_NAME
+}
+
 find_method_impl :: proc(
 	type_name: base.Intern_ID,
 	method_name: base.Intern_ID,
 	store: ^semantics.Type_Store,
+	target_type_name: base.Intern_ID = base.NO_NAME,
 ) -> (
 	base.Canonical_Name,
 	bool,
 ) {
-	impl, found := semantics.find_trait_impl_by_method(store, type_name, method_name)
+	impl, found := semantics.find_trait_impl_by_method(
+		store,
+		type_name,
+		method_name,
+		target_type_name,
+	)
 	if !found {
 		return base.Canonical_Name{}, false
 	}
@@ -1342,7 +1377,13 @@ rewrite_calls_in_expr :: proc(
 		no_type_args := map[base.Intern_ID]base.Type_Var_ID{}
 		receiver_type_name := resolve_mono_type(e.receiver, no_type_args, env)
 		if receiver_type_name != base.NO_NAME {
-			impl_name, found := find_method_impl(receiver_type_name, e.method.name, env.store)
+			target_type := resolve_type_name(e.type_, env.store)
+			impl_name, found := find_method_impl(
+				receiver_type_name,
+				e.method.name,
+				env.store,
+				target_type,
+			)
 			if found {
 				callee := new(semantics.TExpr_Name)
 				callee^ = semantics.TExpr_Name {

@@ -1,4 +1,6 @@
 // FromIter trait — construct a collection from an iterator
+// Self is the RETURN type (self_in_return=true). params[0] = Iter(a).
+// Injected by the prelude; this file is documentation only.
 
 FromIter : {
   from_iter : |Iter(a)| -> Self,
