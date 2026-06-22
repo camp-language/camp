@@ -1317,7 +1317,7 @@ emit_camp_parallel_for_each_body :: proc(runtime_indices: [RUNTIME_FUNC_COUNT]in
 	return Wasm_Code{locals = locals, body = body}
 }
 
-emit_camp_sched_init_body :: proc(shared: bool) -> Wasm_Code {
+emit_camp_sched_init_body :: proc(shared: bool, clock_time_get_idx: int) -> Wasm_Code {
 	buf: [dynamic]u8
 	buf = make([dynamic]u8, 0, CODE_BUF_SECTION)
 
@@ -1367,7 +1367,7 @@ emit_camp_sched_init_body :: proc(shared: bool) -> Wasm_Code {
 	emit_instruction(Wasm_I32_Const{value = 1}, &buf) // CLOCK_MONOTONIC
 	emit_instruction(Wasm_I64_Const{value = 0}, &buf) // precision
 	emit_instruction(Wasm_I32_Const{value = i32(timer_wheel_base)}, &buf) // out_ptr
-	emit_instruction(Wasm_Call{index = u32(WASI_IMPORT_CLOCK_TIME_GET)}, &buf)
+	emit_instruction(Wasm_Call{index = u32(clock_time_get_idx)}, &buf)
 	emit_instruction(Wasm_Drop{}, &buf) // drop errno
 
 	emit_instruction(Wasm_End{}, &buf) // end if worker_id==0
@@ -2354,11 +2354,11 @@ emit_camp_sched_notify_body :: proc(shared: bool) -> Wasm_Code {
 	return Wasm_Code{locals = locals, body = body}
 }
 
-emit_camp_sched_park_body :: proc(shared: bool) -> Wasm_Code {
+emit_camp_sched_park_body :: proc(shared: bool, sched_yield_idx: int) -> Wasm_Code {
 	buf: [dynamic]u8
 	buf = make([dynamic]u8, 0, CODE_BUF_DEFAULT)
 	notification_base := SCHED_BASE + SCHED_WORKER_COUNT_SIZE + SCHED_SPINNING_SIZE
-	emit_instruction(Wasm_Call{index = u32(WASI_IMPORT_SCHED_YIELD)}, &buf)
+	emit_instruction(Wasm_Call{index = u32(sched_yield_idx)}, &buf)
 	emit_instruction(Wasm_Drop{}, &buf)
 	emit_instruction(Wasm_End{}, &buf)
 	locals := make([]Wasm_Local_Decl, 0)
@@ -2368,7 +2368,7 @@ emit_camp_sched_park_body :: proc(shared: bool) -> Wasm_Code {
 	return Wasm_Code{locals = locals, body = body}
 }
 
-emit_camp_sched_worker_loop_body :: proc(shared: bool) -> Wasm_Code {
+emit_camp_sched_worker_loop_body :: proc(shared: bool, sched_yield_idx: int) -> Wasm_Code {
 	buf: [dynamic]u8
 	buf = make([dynamic]u8, 0, CODE_BUF_XL)
 	handle_table_base :=
@@ -2416,7 +2416,7 @@ emit_camp_sched_worker_loop_body :: proc(shared: bool) -> Wasm_Code {
 		emit_instruction(Wasm_Atomic_Mem{op = .Wait32, width = .I32, align = 2, offset = 0}, &buf)
 		emit_instruction(Wasm_Drop{}, &buf)
 	} else {
-		emit_instruction(Wasm_Call{index = u32(WASI_IMPORT_SCHED_YIELD)}, &buf)
+		emit_instruction(Wasm_Call{index = u32(sched_yield_idx)}, &buf)
 		emit_instruction(Wasm_Drop{}, &buf)
 	}
 	emit_instruction(Wasm_Else{}, &buf)
@@ -2429,7 +2429,7 @@ emit_camp_sched_worker_loop_body :: proc(shared: bool) -> Wasm_Code {
 		emit_instruction(Wasm_Atomic_Mem{op = .Wait32, width = .I32, align = 2, offset = 0}, &buf)
 		emit_instruction(Wasm_Drop{}, &buf)
 	} else {
-		emit_instruction(Wasm_Call{index = u32(WASI_IMPORT_SCHED_YIELD)}, &buf)
+		emit_instruction(Wasm_Call{index = u32(sched_yield_idx)}, &buf)
 		emit_instruction(Wasm_Drop{}, &buf)
 	}
 	emit_instruction(Wasm_End{}, &buf)
@@ -2619,7 +2619,11 @@ emit_camp_sched_current_task_body :: proc(shared: bool) -> Wasm_Code {
 	return Wasm_Code{locals = locals, body = body}
 }
 
-emit_camp_sched_run_single_body :: proc(shared: bool) -> Wasm_Code {
+emit_camp_sched_run_single_body :: proc(
+	shared: bool,
+	sched_yield_idx: int,
+	clock_time_get_idx: int,
+) -> Wasm_Code {
 	buf: [dynamic]u8
 	buf = make([dynamic]u8, 0, CODE_BUF_XL)
 
@@ -2731,7 +2735,7 @@ emit_camp_sched_run_single_body :: proc(shared: bool) -> Wasm_Code {
 	emit_instruction(Wasm_I32_Const{value = 1}, &buf) // CLOCK_MONOTONIC
 	emit_instruction(Wasm_I64_Const{value = 0}, &buf) // precision
 	emit_instruction(Wasm_I32_Const{value = i32(timer_wheel_base)}, &buf) // out_ptr
-	emit_instruction(Wasm_Call{index = u32(WASI_IMPORT_CLOCK_TIME_GET)}, &buf)
+	emit_instruction(Wasm_Call{index = u32(clock_time_get_idx)}, &buf)
 	emit_instruction(Wasm_Drop{}, &buf)
 
 	// Process level-0 timer slots: walk linked lists for expired entries
@@ -2949,7 +2953,7 @@ emit_camp_sched_run_single_body :: proc(shared: bool) -> Wasm_Code {
 	emit_instruction(Wasm_If{block_type = .Void}, &buf)
 
 	// Yield to WASI runtime to allow I/O processing
-	emit_instruction(Wasm_Call{index = u32(WASI_IMPORT_SCHED_YIELD)}, &buf)
+	emit_instruction(Wasm_Call{index = u32(sched_yield_idx)}, &buf)
 	emit_instruction(Wasm_Drop{}, &buf)
 
 	// After yielding, loop back to check for work
@@ -2974,7 +2978,7 @@ emit_camp_sched_run_single_body :: proc(shared: bool) -> Wasm_Code {
 	emit_instruction(Wasm_Br_If{label = 1}, &buf) // break to exit
 
 	// ---- 5. Fallback: yield to WASI and loop ----
-	emit_instruction(Wasm_Call{index = u32(WASI_IMPORT_SCHED_YIELD)}, &buf)
+	emit_instruction(Wasm_Call{index = u32(sched_yield_idx)}, &buf)
 	emit_instruction(Wasm_Drop{}, &buf)
 
 	emit_instruction(Wasm_Br{label = 0}, &buf) // back to loop
@@ -2998,7 +3002,7 @@ emit_camp_sched_run_single_body :: proc(shared: bool) -> Wasm_Code {
 }
 
 
-emit_camp_sched_poll_and_dispatch_body :: proc(shared: bool) -> Wasm_Code {
+emit_camp_sched_poll_and_dispatch_body :: proc(shared: bool, poll_oneoff_idx: int) -> Wasm_Code {
 	buf: [dynamic]u8
 	buf = make([dynamic]u8, 0, CODE_BUF_XL)
 
@@ -3090,7 +3094,7 @@ emit_camp_sched_poll_and_dispatch_body :: proc(shared: bool) -> Wasm_Code {
 	emit_instruction(Wasm_I32_Const{value = i32(scratch_base + 2048)}, &buf)
 	emit_instruction(Wasm_Local_Get{index = 0}, &buf) // nsubs
 	emit_instruction(Wasm_Local_Get{index = 0}, &buf) // nevents (same as nsubs)
-	emit_instruction(Wasm_Call{index = u32(WASI_IMPORT_POLL_ONEOFF)}, &buf)
+	emit_instruction(Wasm_Call{index = u32(poll_oneoff_idx)}, &buf)
 	emit_instruction(Wasm_Drop{}, &buf) // drop errno
 
 	// Process results: for each event, check if fd is ready and enqueue task
@@ -3231,7 +3235,7 @@ emit_camp_sched_poll_and_dispatch_body :: proc(shared: bool) -> Wasm_Code {
 	delete(buf)
 	return Wasm_Code{locals = locals, body = body}
 }
-emit_camp_sched_timer_tick_body :: proc(shared: bool) -> Wasm_Code {
+emit_camp_sched_timer_tick_body :: proc(shared: bool, clock_time_get_idx: int) -> Wasm_Code {
 	buf: [dynamic]u8
 	buf = make([dynamic]u8, 0, CODE_BUF_XL)
 
@@ -3250,7 +3254,7 @@ emit_camp_sched_timer_tick_body :: proc(shared: bool) -> Wasm_Code {
 	emit_instruction(Wasm_I32_Const{value = 1}, &buf) // CLOCK_MONOTONIC
 	emit_instruction(Wasm_I64_Const{value = 0}, &buf) // precision
 	emit_instruction(Wasm_I32_Const{value = i32(timer_wheel_base)}, &buf) // out_ptr
-	emit_instruction(Wasm_Call{index = u32(WASI_IMPORT_CLOCK_TIME_GET)}, &buf)
+	emit_instruction(Wasm_Call{index = u32(clock_time_get_idx)}, &buf)
 	emit_instruction(Wasm_Drop{}, &buf)
 
 	// 2. Process level 0 expired timers

@@ -331,6 +331,7 @@ run_build_single :: proc(
 	combined_ir = ir.cps_transform(&combined_ir, &ctx.interner)
 	ir.rc_insert(&combined_ir, &ctx.interner)
 	ir.reuse_analyze(&combined_ir)
+	ir.tree_shake_module(&combined_ir, &ctx.interner)
 
 	wasm_mod := codegen.codegen(combined_ir, &ctx.interner, ctx.thread_count, release)
 	wasm_bytes := codegen.wasm_serialize(wasm_mod)

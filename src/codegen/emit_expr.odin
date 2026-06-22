@@ -3759,7 +3759,7 @@ emit_console_readln_handler_fn :: proc(
 	emit_instruction(Wasm_I32_Const{value = 4096}, &buf) // iovs
 	emit_instruction(Wasm_I32_Const{value = 1}, &buf) // iovs_len
 	emit_instruction(Wasm_I32_Const{value = 4108}, &buf) // nread ptr
-	emit_instruction(Wasm_Call{index = WASI_IMPORT_FD_READ}, &buf)
+	emit_instruction(Wasm_Call{index = u32(env.wasi_fd_read)}, &buf)
 	emit_instruction(Wasm_Drop{}, &buf) // ignore errno
 
 	// Allocate Camp string: alloc(nread + 4)

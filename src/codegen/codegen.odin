@@ -112,6 +112,11 @@ Codegen_Env :: struct {
 	release_mode:            bool,
 	i64_trampoline_cache:    map[int]int,
 	debug_str_offsets:       map[string]u32,
+	// WASI import indices (set by emit_wasi_imports, used by runtime bodies)
+	wasi_poll_oneoff:        int,
+	wasi_fd_read:            int,
+	wasi_clock_time_get:     int,
+	wasi_sched_yield:        int,
 }
 
 hash_func_type :: proc(params: []Wasm_Value_Type, results: []Wasm_Value_Type) -> int {
@@ -176,7 +181,9 @@ add_function :: proc(env: ^Codegen_Env, type_idx: int) -> int {
 	return idx
 }
 
-emit_wasi_imports :: proc(env: ^Codegen_Env) {
+emit_wasi_imports :: proc(env: ^Codegen_Env, has_effects: bool) {
+	// Always needed: proc_exit (used by _start, camp_exit) and fd_write
+	// (used by Print_Str, Print_Err, console println handler).
 	proc_exit_type := get_or_create_type(env, []Wasm_Value_Type{.I32}, []Wasm_Value_Type{})
 	add_import(env, WASI_MODULE, "proc_exit", .Func, proc_exit_type)
 
@@ -187,28 +194,19 @@ emit_wasi_imports :: proc(env: ^Codegen_Env) {
 	)
 	add_import(env, WASI_MODULE, "fd_write", .Func, fd_write_type)
 
-	args_get_type := get_or_create_type(
-		env,
-		[]Wasm_Value_Type{.I32, .I32},
-		[]Wasm_Value_Type{.I32},
-	)
-	add_import(env, WASI_MODULE, "args_get", .Func, args_get_type)
+	if !has_effects {
+		return
+	}
 
-	args_sizes_get_type := get_or_create_type(
-		env,
-		[]Wasm_Value_Type{.I32, .I32},
-		[]Wasm_Value_Type{.I32},
-	)
-	add_import(env, WASI_MODULE, "args_sizes_get", .Func, args_sizes_get_type)
+	// Scheduler/IO imports: only needed for effectful programs.
 
-	// WASI I/O imports for scheduler (Preview 1 style)
 	// poll_oneoff(in, out, nsubs, nevents) -> errno
 	poll_oneoff_type := get_or_create_type(
 		env,
 		[]Wasm_Value_Type{.I32, .I32, .I32, .I32},
 		[]Wasm_Value_Type{.I32},
 	)
-	add_import(env, WASI_MODULE, "poll_oneoff", .Func, poll_oneoff_type)
+	env.wasi_poll_oneoff = add_import(env, WASI_MODULE, "poll_oneoff", .Func, poll_oneoff_type)
 
 	// fd_read(fd, iovs, iovs_len, nread) -> errno
 	fd_read_type := get_or_create_type(
@@ -216,11 +214,7 @@ emit_wasi_imports :: proc(env: ^Codegen_Env) {
 		[]Wasm_Value_Type{.I32, .I32, .I32, .I32},
 		[]Wasm_Value_Type{.I32},
 	)
-	add_import(env, WASI_MODULE, "fd_read", .Func, fd_read_type)
-
-	// fd_close(fd) -> errno
-	fd_close_type := get_or_create_type(env, []Wasm_Value_Type{.I32}, []Wasm_Value_Type{.I32})
-	add_import(env, WASI_MODULE, "fd_close", .Func, fd_close_type)
+	env.wasi_fd_read = add_import(env, WASI_MODULE, "fd_read", .Func, fd_read_type)
 
 	// clock_time_get(clock_id, precision, time_ptr) -> errno
 	clock_time_get_type := get_or_create_type(
@@ -228,19 +222,18 @@ emit_wasi_imports :: proc(env: ^Codegen_Env) {
 		[]Wasm_Value_Type{.I32, .I64, .I32},
 		[]Wasm_Value_Type{.I32},
 	)
-	add_import(env, WASI_MODULE, "clock_time_get", .Func, clock_time_get_type)
+	env.wasi_clock_time_get = add_import(
+		env,
+		WASI_MODULE,
+		"clock_time_get",
+		.Func,
+		clock_time_get_type,
+	)
 
 	// sched_yield() -> errno
 	sched_yield_type := get_or_create_type(env, []Wasm_Value_Type{}, []Wasm_Value_Type{.I32})
-	add_import(env, WASI_MODULE, "sched_yield", .Func, sched_yield_type)
+	env.wasi_sched_yield = add_import(env, WASI_MODULE, "sched_yield", .Func, sched_yield_type)
 }
-
-// WASI import function indices (offset from import_count base)
-WASI_IMPORT_POLL_ONEOFF :: 4
-WASI_IMPORT_FD_READ :: 5
-WASI_IMPORT_FD_CLOSE :: 6
-WASI_IMPORT_CLOCK_TIME_GET :: 7
-WASI_IMPORT_SCHED_YIELD :: 8
 
 emit_runtime_types :: proc(env: ^Codegen_Env) {
 	get_or_create_type(env, []Wasm_Value_Type{.I32}, []Wasm_Value_Type{.I32})
@@ -294,7 +287,19 @@ codegen :: proc(
 	env.time_id = base.intern(interner, "Time!")
 	env.release_mode = release_mode
 
-	emit_wasi_imports(&env)
+	// Pre-scan IR to determine if the program uses effects.
+	// This controls which WASI imports are emitted.
+	has_effects := false
+	for decl in ir_mod.decls {
+		#partial switch d in decl {
+		case ^ir.IR_Decl_Fn:
+			if d.is_effectful && len(d.effects) > 0 {
+				has_effects = true
+			}
+		}
+	}
+
+	emit_wasi_imports(&env, has_effects)
 	emit_runtime_types(&env)
 
 	// Memory: shared when multi-threaded — runtime uses atomic instructions for Perceus RC
@@ -909,7 +914,7 @@ codegen :: proc(
 
 	// Scheduler runtime function bodies
 	shared := thread_count > 1
-	append(&mod.codes, emit_camp_sched_init_body(shared))
+	append(&mod.codes, emit_camp_sched_init_body(shared, env.wasi_clock_time_get))
 	append(&mod.codes, emit_camp_sched_spawn_body(shared))
 	append(&mod.codes, emit_camp_sched_join_body(shared))
 	append(&mod.codes, emit_camp_sched_cancel_body(shared))
@@ -919,12 +924,15 @@ codegen :: proc(
 	append(&mod.codes, emit_camp_sched_timer_insert_body(shared))
 	append(&mod.codes, emit_camp_sched_timer_cancel_body(shared))
 	append(&mod.codes, emit_camp_sched_notify_body(shared))
-	append(&mod.codes, emit_camp_sched_park_body(shared))
-	append(&mod.codes, emit_camp_sched_worker_loop_body(shared))
+	append(&mod.codes, emit_camp_sched_park_body(shared, env.wasi_sched_yield))
+	append(&mod.codes, emit_camp_sched_worker_loop_body(shared, env.wasi_sched_yield))
 	append(&mod.codes, emit_camp_sched_current_task_body(shared))
-	append(&mod.codes, emit_camp_sched_run_single_body(shared))
-	append(&mod.codes, emit_camp_sched_poll_and_dispatch_body(shared))
-	append(&mod.codes, emit_camp_sched_timer_tick_body(shared))
+	append(
+		&mod.codes,
+		emit_camp_sched_run_single_body(shared, env.wasi_sched_yield, env.wasi_clock_time_get),
+	)
+	append(&mod.codes, emit_camp_sched_poll_and_dispatch_body(shared, env.wasi_poll_oneoff))
+	append(&mod.codes, emit_camp_sched_timer_tick_body(shared, env.wasi_clock_time_get))
 	append(&mod.codes, emit_camp_sched_timer_process_expired_body(shared))
 
 	// Parallel! runtime function bodies
@@ -1424,6 +1432,11 @@ codegen :: proc(
 		append(&mod.codes, code)
 	}
 	delete(deferred_handler_codes)
+
+	// Prune unused runtime function bodies. After all code is emitted,
+	// scan for direct `call` targets in the runtime function range.
+	// Unused functions get 2-byte stubs (unreachable + end).
+	prune_unused_runtime_funcs(&mod, env.import_count)
 
 	// Build the funcref table AFTER all functions (including deferred effect
 	// handlers allocated inside emit_start_function) have been assigned indices,
