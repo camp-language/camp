@@ -142,7 +142,7 @@ run_build_single :: proc(
 	// functions. They must be compiled regardless of user imports.
 	// NOTE: Str and Bytes are excluded for now — their trait impls generate
 	// wasm-invalid code (type mismatch in block). Tracked as a follow-up.
-	ALWAYS_COMPILE :: []string{"Char"}
+	ALWAYS_COMPILE :: []string{"Char", "Bool"}
 	for mod_name in ALWAYS_COMPILE {
 		append(&worklist, base.intern(&ctx.interner, mod_name))
 	}
