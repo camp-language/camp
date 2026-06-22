@@ -7,4 +7,15 @@ stderr = ""
 exit = 0
 wasm_exit = 134
 wasm_stdout = ""
-wasm_stderr_contains = "wasm trap: wasm `unreachable` instruction executed"
+wasm_stderr = """
+Error: failed to run main module `/tmp/camp-e2e/effects/effect-handler-resume-twice/src/Main.wasm`
+
+Caused by:
+    0: failed to invoke command default
+    1: error while executing at wasm backtrace:
+    0:    0xa9e - <unknown>!<wasm function 84>
+    1:    0xb6d - <unknown>!<wasm function 86>
+    2:    0xb75 - <unknown>!<wasm function 87>
+    2: wasm trap: wasm `unreachable` instruction executed
+
+"""

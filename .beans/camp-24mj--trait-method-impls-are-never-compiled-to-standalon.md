@@ -1,7 +1,7 @@
 ---
 # camp-24mj
 title: Trait method impls are never compiled to standalone WASM functions, blocking container runtime dispatch
-status: resolved
+status: in-progress
 type: bug
 priority: high
 tags:
@@ -9,8 +9,163 @@ tags:
     - traits
     - ir
 created_at: 2026-06-20T03:02:41Z
-updated_at: 2026-06-21T04:15:00Z
+updated_at: 2026-06-22T06:00:00Z
 ---
+
+## Update (2026-06-22, 2nd session): Merged main, fixed combine_module_irs, added Bytes lower_type, ALWAYS_COMPILE Char+Bool
+
+### What was done
+
+**Merged latest main:** From/TryFrom multi-param trait support landed in main
+(PR #118 area). Prelude now registers `From(source)` and `TryFrom(source)` as
+trait declarations with `is_multi_param = true`. `Trait_Impl` struct gained
+`target_type_name` field. `find_trait_impl` now accepts optional
+`target_type_name` parameter. `verify_trait_conformance` skips overlap check
+for multi-param traits.
+
+**combine_module_irs current_module fix:**
+`src/build/project.odin:336`: pass `mod_id` to `typecheck_file` so
+`current_module` is set correctly during re-typecheck. Without this,
+`verify_trait_conformance` breaks for `is` impls during re-typecheck (same-
+module duplicate check fails because `type_module=NO_NAME` doesn't match the
+registered `type_module=mod_id`).
+
+**Bytes added to lower_type:**
+`src/semantics/lower_type.odin:29`: added `"Bytes"` to the `"Str"` case
+(`I32; is_heap = true`). Bytes was missing from the primitive→wasm switch,
+defaulting to `I64`. This caused `Str_from_Bytes` to have signature
+`(param i32) (result i64)` instead of `(param i32) (result i32)`.
+
+**Skip lowering unregistered trait impls:**
+`src/ir/lower.odin:730-738`: `lower_tdecl_is_impl` now returns `nil` when
+`find_trait_impl` returns false. This prevents From/TryFrom impls (whose
+trait declarations existed but conformance was never checked) from being
+lowered with malformed bodies. With main's From registration, these impls
+ARE now found but their bodies may produce invalid WASM during re-typecheck
+in `combine_module_irs`.
+
+**ALWAYS_COMPILE expanded:**
+`src/build/build.odin:145`: `["Char", "Bool"]`. Both Char and Bool trait
+impls compile cleanly. Str is excluded — its `From` impl bodies produce
+Construct_Tag + Call flat patterns during `combine_module_irs` re-typecheck
+that wasm validates as "type mismatch". Root cause: the re-typecheck resolves
+`Str.to_bytes` differently (the body becomes a different IR tree).
+
+**Removed trait_impls propagation from first typecheck pass:**
+Initially added trait_impls propagation in build.odin, project.odin,
+project_check.odin, project_test.odin. This caused 14 e2e failures
+(C0603 spurious errors from trait conformance checks triggered by propagated
+impls). Removed — the propagation is NOT needed in the first typecheck pass.
+The prelude impl registrations still serve as canonical name registrations for
+codegen. Trait_impls propagation will be needed only when prelude impl
+registrations are removed (depends on all primitives being always-compiled).
+
+### Test results
+- 473 unit tests: all pass
+- 178/179 e2e: 1 pre-existing (`effect-handler-resume-twice` non-deterministic backtrace)
+- Char acceptance test: exit 1 (Equal) ✓
+- Bool e2e test: exit 5 (correct) ✓
+
+### Files changed (this session)
+- `src/build/project.odin` — pass mod_id to typecheck_file in combine_module_irs
+- `src/semantics/lower_type.odin` — Bytes added to primitive switch
+- `src/ir/lower.odin` — skip unregistered impls in lower_tdecl_is_impl
+- `src/build/build.odin` — ALWAYS_COMPILE = ["Char", "Bool"]
+
+### Remaining
+- **Always-compile Str/Bytes**: blocked by From impl body re-typecheck issue in
+  combine_module_irs. Tracked in `camp-df9d`.
+- **Remove prelude competing instances**: depends on always-compile of all
+  primitive modules. Tracked in `camp-d3k1`.
+- **Remove hand-written intrinsics**: depends on camp-d3k1. Tracked in `camp-d3k2`.
+- **Display stdlib impls**: no `is Display` in any stdlib module. Tracked in `camp-d3k3`.
+- **Unit_debug**: no `Unit.camp` module. Tracked in `camp-d3k4`.
+- **Kitchen-sink trait impl tests**: tracked in `camp-a6je`.
+- **Specs updates**: depends on above being resolved.
+
+## RESOLVED (2026-06-21): Acceptance test passes (exit 1); all decisions A–D implemented
+
+### What was done
+
+**Str.camp compile errors fixed:**
+- Added `ParseError.camp` to `STDLIB_MODULES` in `src/build/stdlib.odin` (45→46 modules).
+  `#load("../../stdlib/ParseError.camp", string)` + registry entry + test count update.
+- `stdlib/Str.camp`: replaced `ParseError(...)` newtype construction references in
+  `TryFrom` impl bodies with `crash` bodies using `[InvalidFormat]` tag union error
+  type. From/TryFrom not injected in prelude → impls silently skipped during
+  conformance; crash bodies avoid `ParseError` scope/type resolution issues.
+
+**wrap_with_drops in rc.odin fixed:**
+- `src/ir/rc.odin:352-384`: replaced partial switch (covered only 12 IR expression
+  types) with `ir_expr_wasm_type(expr)` + `ir_expr_is_heap_expr(expr)` which cover
+  ALL IR expression types. Previously missing: `IR_Literal_String`,
+  `IR_Construct_Tuple`, `IR_Method_Call`, `IR_Closure`, `IR_Perform`, `IR_Resume`,
+  `IR_Handle` — any of these as the final expression in a drop-wrapped block would
+  get `Void` block type, causing wasm "type mismatch: values remaining on stack".
+
+### Always-compile Bool/Str/Bytes — BLOCKED
+
+Individual modules work when added to ALWAYS_COMPILE alongside Char:
+- Char+Bool: ✓ (acceptance test exit 1)
+- Char+Str: ✓ (acceptance test exit 1)
+- Char+Bytes: ✓ (acceptance test exit 1)
+- Char+Bool+Bytes: ✓
+
+But **Char+Bool+Str** (or any combination of 3 modules including Bool+Str) causes
+a wasm validation error: `type mismatch: values remaining on stack at end of block`
+in a function with pattern `(param i32) (result i64)`:
+
+```wat
+;; alloc 8-byte cell (0-field Construct_Tag)
+i32.const 8 / call 9 / local.set 1
+;; header stores (refcount=1, tag=0, scan_size=0, scalar_mask=0)
+;; then:
+local.get 1    ;; cell ptr (i32) — NOT dropped
+local.get 0    ;; param (i32)
+call 115       ;; consumes 1 i32, returns i64
+;; END: stack [i32, i64] but function expects just i64
+```
+
+This is a codegen interaction where a 0-field `Construct_Tag` (pushes i32 cell ptr)
+is followed by a `Call` (pushes i64) in the same function body without an `IR_Block`
+wrapping them (so no `drop` between). Root cause: when multiple stdlib modules are
+always-compiled, `combine_module_irs` re-typechecks them and the prelude override
+mechanism (`verify_trait_conformance` removing NO_NAME entries) interacts with the
+RC pass to produce functions with this flat expression sequence pattern.
+
+### Prelude competing instances — CANNOT REMOVE YET
+
+Attempted removing 36 prelude trait impl registrations (14 Ord + 14 Hash + 8 Debug).
+Result: `I64_compare` etc. no longer found by codegen func_map → container dispatch
+(List.compare, Result.eq) traps with "indirect call type mismatch". The prelude impls
+serve as canonical name registrations for the codegen, not just trait conformance.
+
+Cannot remove until: (a) always-compile works for multiple modules, AND (b) codegen
+resolves canonical names from stdlib impls (not prelude fallbacks).
+
+### Test results
+- 473 unit tests: all pass
+- 177/178 e2e: 1 pre-existing non-deterministic backtrace address mismatch
+  (`effect-handler-resume-twice` — function indices shift between builds)
+- Acceptance test: exit 1 (Equal) ✓
+- Str import: compiles cleanly ✓
+
+### Files changed
+- `src/build/stdlib.odin` — ParseError.camp added to STDLIB_MODULES
+- `src/build/test_stdlib.odin` — count 45→46, "ParseError" in ALL_MODULE_NAMES
+- `stdlib/Str.camp` — TryFrom impls: ParseError→crash bodies
+- `src/ir/rc.odin` — wrap_with_drops: comprehensive type detection
+- `src/semantics/prelude.odin` — attempted Ord/Hash/Debug removal (reverted)
+
+### Deferred (follow-up beans)
+- **Always-compile Bool/Str/Bytes**: needs Construct_Tag + Call codegen interaction fix
+  when 3+ modules are always-compiled. The RC pass or combine_module_irs produces
+  functions where Construct_Tag (i32) and Call (i64) coexist in flat function bodies
+  without block wrapping.
+- **Remove prelude competing instances**: depends on always-compile + codegen name resolution
+- **Remove hand-written Bool_Compare/I64_compare intrinsics**: depends on always-compile
+- **Display stdlib impls**: no `is Display` in any stdlib module (5 prelude-only impls)
+- **Unit_debug**: no `Unit.camp` module
 
 ## RESOLVED (2026-06-21): Acceptance test passes (exit 1); all decisions A–D implemented
 

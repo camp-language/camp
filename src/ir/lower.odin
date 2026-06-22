@@ -729,6 +729,14 @@ lower_tdecl_is_impl :: proc(d: ^semantics.TDecl_Is_Impl, env: ^Lower_Env) -> []I
 	// method (matches resolve_trait_method's returned name).
 	impl, impl_ok := semantics.find_trait_impl(env.store, d.trait_name.name, d.type_name.name)
 
+	// If the trait impl was not registered (e.g. From/TryFrom not in prelude),
+	// skip lowering entirely — the conformance check already silently skipped
+	// the impl, and lowering a body that references unresolved names produces
+	// malformed WASM (values remaining on stack).
+	if !impl_ok {
+		return nil
+	}
+
 	decls := make([dynamic]IR_Decl, 0, len(d.methods))
 	for m in d.methods {
 		fn_name: base.Canonical_Name

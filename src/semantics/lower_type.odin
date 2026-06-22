@@ -25,7 +25,7 @@ lower_type :: proc(store: ^Type_Store, type_var: base.Type_Var_ID) -> base.IR_Ty
 				wasm_type = .F32
 			case "Bool", "Char":
 				wasm_type = .I32
-			case "Str":
+			case "Str", "Bytes":
 				wasm_type = .I32; is_heap = true
 			case "Unit":
 				wasm_type = .Void

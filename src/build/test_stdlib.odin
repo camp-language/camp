@@ -2,10 +2,11 @@ package build
 
 import "core:testing"
 
-EXPECTED_STDLIB_MODULE_COUNT :: 45
+EXPECTED_STDLIB_MODULE_COUNT :: 46
 
 ALL_MODULE_NAMES :: []string {
 	"Result",
+	"ParseError",
 	"Bool",
 	"Str",
 	"List",

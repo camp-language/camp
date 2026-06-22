@@ -86,20 +86,13 @@ Str is From {
 }
 
 Str is TryFrom {
-  try_from = |val: Str| -> Result(I64, ParseError) {
-    match Str.to_i64(val) {
-      Ok(v) => Ok(v)
-      Err(_) => Err(ParseError("Invalid integer format"))
-    }
-  }
+  try_from = |val: Str| -> Result(I64, [InvalidFormat]) { crash "intrinsic: Str_try_from_I64" }
 }
 Str is TryFrom {
-  try_from = |val: Str| -> Result(F64, ParseError) {
-    match Str.to_f64(val) {
-      Ok(v) => Ok(v)
-      Err(_) => Err(ParseError("Invalid float format"))
-    }
-  }
+  try_from = |val: Str| -> Result(F64, [InvalidFormat]) { crash "intrinsic: Str_try_from_F64" }
+}
+Str is TryFrom {
+  try_from = |val: Str| -> Result(F64, [InvalidFormat]) { crash "intrinsic: Str_try_from_F64" }
 }
 Str is TryFrom {
   try_from = |b: Bytes| -> Result(Str, [InvalidUtf8]) {

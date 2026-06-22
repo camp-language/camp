@@ -328,7 +328,7 @@ combine_module_irs :: proc(
 
 		errs_before := ctx.collector.error_count
 		diag_count_before := len(ctx.collector.diagnostics)
-		tfile := semantics.typecheck_file(mi.cfile^, &store)
+		tfile := semantics.typecheck_file(mi.cfile^, &store, mod_id)
 		// Suppress all diagnostics from non-entry-point modules in this
 		// re-typecheck pass. The first pass already reported real issues;
 		// re-typechecking may re-emit the same warnings/errors (e.g. C0601

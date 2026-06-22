@@ -17,6 +17,8 @@ Stdlib_Module :: struct {
 
 RESULT_CAMP :: #load("../../stdlib/Result.camp", string)
 
+PARSE_ERROR_CAMP :: #load("../../stdlib/ParseError.camp", string)
+
 BOOL_CAMP :: #load("../../stdlib/Bool.camp", string)
 
 STR_CAMP :: #load("../../stdlib/Str.camp", string)
@@ -106,6 +108,7 @@ REGEX_CAMP :: #load("../../stdlib/Regex.camp", string)
 
 STDLIB_MODULES: []Stdlib_Module = []Stdlib_Module {
 	{"Result", RESULT_CAMP, "stdlib/Result.camp"},
+	{"ParseError", PARSE_ERROR_CAMP, "stdlib/ParseError.camp"},
 	{"Bool", BOOL_CAMP, "stdlib/Bool.camp"},
 	{"Str", STR_CAMP, "stdlib/Str.camp"},
 	{"List", LIST_CAMP, "stdlib/List.camp"},
