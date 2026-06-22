@@ -115,5 +115,11 @@ Map is IntoIter {
 }
 
 Map is FromIter {
-  from_iter = |iter| { Iter.fold(iter, new, |m, (k, v)| insert(k, v, m)) }
+  from_iter = |iter| {
+    Iter.fold(iter, new, |m, entry|
+      match entry {
+        (k, v) => insert(k, v, m)
+      }
+    )
+  }
 }
