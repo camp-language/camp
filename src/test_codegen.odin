@@ -6,6 +6,7 @@ import "camp:codegen"
 import "camp:frontend"
 import "camp:ir"
 import "camp:semantics"
+import "core:fmt"
 import "core:testing"
 
 compile_source :: proc(ctx: ^build.Compilation_Context, source: string) -> [dynamic]u8 {
@@ -484,5 +485,68 @@ test_sched_cancel_has_two_unreachable :: proc(t: ^testing.T) {
 		}
 	}
 	testing.expect(t, unreachable_count >= 2)
+}
+
+// Size regression tests: verify tree shaking + runtime pruning produce
+// small WASM binaries. Thresholds are generous to avoid flaky tests
+// while catching regressions that double binary size.
+
+@(test)
+test_size_pure_minimal :: proc(t: ^testing.T) {
+	ctx: build.Compilation_Context
+	wasm_bytes := compile_source(&ctx, "main = || -> I64 { 42 }")
+	defer delete(wasm_bytes)
+	defer teardown_codegen(&ctx)
+
+	testing.expect(
+		t,
+		len(wasm_bytes) < 5120,
+		fmt.tprintf("pure minimal: got %d bytes, expected < 5120", len(wasm_bytes)),
+	)
+}
+
+@(test)
+test_size_import_pruning_pure :: proc(t: ^testing.T) {
+	ctx: build.Compilation_Context
+	wasm_bytes := compile_source(&ctx, "main = || -> I64 { 42 }")
+	defer delete(wasm_bytes)
+	defer teardown_codegen(&ctx)
+
+	// Count WASM imports by parsing binary: section 2 = import section.
+	import_count := 0
+	i := 8 // skip magic + version
+	for i < len(wasm_bytes) {
+		section_id := wasm_bytes[i]
+		i += 1
+		section_size := 0
+		shift := 0
+		for i < len(wasm_bytes) {
+			b := wasm_bytes[i]
+			i += 1
+			section_size |= int(b & 0x7F) << u32(shift)
+			if b & 0x80 == 0 {break}
+			shift += 7
+		}
+		if section_id == 2 {
+			shift = 0
+			for i < len(wasm_bytes) {
+				b := wasm_bytes[i]
+				i += 1
+				import_count |= int(b & 0x7F) << u32(shift)
+				if b & 0x80 == 0 {break}
+				shift += 7
+			}
+			break
+		}
+		i += section_size
+	}
+
+	// Pure program should only need proc_exit + fd_write (2 WASI imports).
+	// Previously emitted 9 imports unconditionally.
+	testing.expect(
+		t,
+		import_count == 2,
+		fmt.tprintf("pure program imports: got %d, expected 2", import_count),
+	)
 }
 

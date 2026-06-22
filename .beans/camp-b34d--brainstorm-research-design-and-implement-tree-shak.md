@@ -1,11 +1,11 @@
 ---
 # camp-b34d
 title: Brainstorm, research, design, and implement tree shaking for WASM compilation
-status: todo
+status: in-progress
 type: feature
 priority: normal
 created_at: 2026-06-08T04:15:52Z
-updated_at: 2026-06-08T04:15:52Z
+updated_at: 2026-06-22T01:45:00Z
 ---
 
 ## Summary
@@ -14,90 +14,96 @@ Tree shaking (dead code elimination at the module/function level) removes unreac
 
 ## Current State
 
-The pipeline is:
+The pipeline is now:
 ```
-Parse → Canonicalize → Typecheck → UnusedAnalysis → Mono → IR Lower → Effect Lower → Closure Convert → CPS → RC Insert → Reuse → Codegen → WASM
+Parse → Canonicalize → Typecheck → UnusedAnalysis → Mono → IR Lower → Effect Lower → Closure Convert → CPS → RC Insert → Reuse → **Tree Shake** → Codegen → WASM
 ```
 
-The existing `src/analysis/unused.odin` pass is a **lint-only diagnostic pass** — it emits warnings (C0900–C1099) about dead bindings, but does not influence codegen. All IR decls flow through to WASM regardless of reachability.
+## Implementation Status
 
-## Brainstorm: What Tree Shaking Means for Camp
+### Completed: Phases 1-3 (IR-level tree shaking)
 
-### Entry Points
-- `main!` is the obvious root
-- Test entry points (`test "..." { }`) are additional roots in test mode
-- Preclude: effects construct handler stacks that may reference functions implicitly
+**New files:**
+- `src/ir/call_graph.odin` — Call graph builder + `Decl_Key` type + edge walker
+- `src/ir/tree_shake.odin` — Reachability (BFS), pruning, `tree_shake_module` entry point
+- `src/test_tree_shake.odin` — 7 unit tests covering call graph, reachability, pruning, self-recursion, no-root skip
 
-### What Can Be Shaken
-- **Functions** — private fns never called from any reachable fn
-- **Constants** — never referenced by reachable code
-- **Types** — indirectly: if no reachable fn uses a type, its runtime metadata (vtables, RC drop fns, tag info) can be stripped
-- **Effect definitions** — if no reachable fn mentions the effect, its handler dispatch tables can be stripped
-- **Imports (WASM)** — WASI imports unused by reachable code
+**Modified files:**
+- `src/build/build.odin` — `ir.tree_shake_module(&combined_ir, &ctx.interner)` after `reuse_analyze`
+- `src/build/project.odin` — same
+- `tests/e2e/effects/effect-handler-resume-twice/expected.toml` — stack trace addresses shifted
 
-### Challenges Unique to Camp
-1. **Effects create implicit call edges**: `perform Console.Println!(...)` invokes whichever handler is in scope — the compiler must track effect instantiations, not just direct calls
-2. **Trait impls / generics**: monomorphization creates concrete instantiations; only reachable instantiations should be kept
-3. **Closure conversion**: closures become anonymous functions; the call graph must include them
-4. **Perceus RC**: drop functions and copy functions are generated per-type; only needed ones should survive
-5. **Structural types**: records/tags generate runtime helpers (hash, eq, ord, debug, clone, drop, scan); unused per-type helpers should be stripped
+### Design Decisions Made
 
-### Where in the Pipeline
-Two candidate insertion points:
+1. **Pipeline insertion**: After `reuse_analyze`, before `codegen`. All IR passes run first so the call graph sees the complete program.
+2. **Granularity**: Function-level. Basic-block-level is future work.
+3. **Always-on**: No flag — tree shaking runs on every build. Library mode (no main!) gracefully skips.
+4. **Root set**: `main!` / `main` by default. `tree_shake_module_with_tests` variant accepts test function names.
+5. **pub visibility**: Not tracked in IR — not used for reachability. Only transitively reachable functions from `main!` survive.
+6. **Conservative edges**: Collects IR_Call, IR_Tail_Call, IR_Closure, IR_Perform, IR_Handle, IR_Var (for closure fn_idx), and trait dispatch callback fields (ord_compare_func, eq_func, etc.).
 
-**Option A: Post-CPS IR pass (recommended)**
-After CPS transform, all functions are first-order (no closures remaining), all calls are direct. This is the cleanest point to build a call graph and mark reachable decls.
-- Pro: complete call graph, all syntactic sugar resolved
-- Con: must understand CPS calling convention; effect handlers are already lowered
+### Key Design: `Decl_Key`
 
-**Option B: During codegen**
-Check reachability on-the-fly when emitting WASM functions.
-- Pro: simpler to implement incrementally
-- Con: harder to get global picture; may emit dead runtime helpers
+`Canonical_Name` includes `is_local` which causes spurious mismatches between `IR_Call.callee` (set during lowering) and `IR_Decl_Fn.name` (set during `combine_module_irs`). `Decl_Key` strips `is_local` for stable identity comparison.
 
-## Research Tasks
+`resolve_callee` handles `module == NO_NAME` (local calls before module assignment) by falling back to bare-name lookup.
 
-1. **Study CPS IR structure** — understand `IR_Decl_Fn`, `IR_Decl_Const`, `IR_Decl_Effect` shapes post-CPS and how they reference each other
-2. **Identify all implicit edges** — RC drop/copy fns, effect handler dispatch, trait vtables, closure conversion wrappers
-3. **Survey WASM tree-shaking approaches** — Binaryen `wasm-opt`, Rust/wasm-bindgen, Emscripten — what do they do that we could learn from?
-4. **Measure potential savings** — build kitchen-sink and measure: total WASM size vs size of just `main!` reachable subset
-5. **Runtime function table** — Camp uses `call_indirect` for some patterns; understand which functions MUST stay in the table
+### Completed: Phase 4 (WASM-level runtime pruning)
 
-## Design Decisions Needed
+**New files:**
+- `src/codegen/wasm_scan.odin` — WASM bytecode scanner: walks instruction stream to find `call` (0x10) opcodes and extract function indices. Handles all standard WASM opcodes including LEB128 immediates, memory ops, block types, br_table, ref.null/func, and 0xFC/0xFD prefixes.
+- `src/codegen/prune_runtime.odin` — Runtime pruning: dependency graph (`Runtime_Dep_Graph`), transitive closure, always-keep set (core RC/I/O + call_indirect targets), `prune_unused_runtime_funcs` entry point.
+- `src/test_wasm_scan.odin` — 10 unit tests for bytecode scanner: empty body, single call, large index, mixed instructions, false positive prevention (i32.const 16 != call 16), multiple calls, memory ops, f32 const, call_indirect.
 
-1. **Granularity**: function-level? Basic-block-level within functions? (Start with function-level.)
-2. **Opt-in or always-on?** Release mode only, or a `--tree-shake` flag?
-3. **Conservative vs aggressive**: conservative = keep anything potentially reachable; aggressive = remove anything provably unreachable (harder with effects/reflection)
-4. **Interaction with `pub` visibility**: keep all `pub` fns? Only `pub` fns in exported modules? What about library mode?
-5. **WASM `export` section**: which functions need to remain exported (start fn, memory, table)?
+**Modified files:**
+- `src/codegen/codegen.odin` — calls `prune_unused_runtime_funcs(&mod, env.import_count)` after all code emission, before function table construction.
+- All e2e snapshots updated (stack trace addresses shifted due to smaller WASM binaries).
 
-## Implementation Plan (rough phases)
+**Approach:**
+- After ALL WASM code is emitted (runtime bodies, IR bodies, _start, deferred handlers), scan every `mod.codes` entry for `call` opcodes targeting runtime function indices.
+- Transitively close the dependency graph (e.g., Drop→Dealloc, List_Push→List_Grow→Alloc→Dealloc).
+- Replace unused runtime function bodies with 2-byte stubs (`unreachable` + `end`).
+- Functions called via `call_indirect` (compare/trampoline/debug callbacks) are conservatively kept in the always-keep set.
 
-### Phase 1: Call Graph Builder
-- Walk CPS IR, build directed graph of `IR_Decl_Fn` → `IR_Decl_Fn` edges
-- Include: direct calls, effect perform→handler edges, closure invocations
-- Include: RC edges (drop/copy fns referenced from type metadata)
+**Test results:** 492 unit tests pass, 178 e2e tests pass.
 
-### Phase 2: Reachability Marking
-- Seed with entry points (`main!`, test fns)
-- BFS/DFS from seeds to mark reachable decls
-- Conservatively mark: all `pub` fns (or configurable), effect defs with any reachable use
+### Completed: WASI import pruning
 
-### Phase 3: IR Pruning
-- Filter `IR_Module.decls` to reachable subset
-- Update indices/references
-- Validate IR integrity after pruning
+**Removed dead imports:** `args_get`, `args_sizes_get`, `fd_close` — imported but never referenced by any runtime body or emit code.
 
-### Phase 4: WASM-Level Pruning
-- After codegen, prune unreferenced WASM types, imports, function table entries
-- Optionally integrate `wasm-opt` as post-pass
+**Conditional imports:** Scheduler/IO imports (`poll_oneoff`, `fd_read`, `clock_time_get`, `sched_yield`) are only emitted for effectful programs. Pure programs get 2 WASI imports (proc_exit, fd_write). Effectful programs get 6.
 
-### Phase 5: Testing
-- E2E tests: verify programs still work after tree shaking
-- Size regression tests: assert tree-shaken output ≤ non-shaken output
-- Edge cases: recursive fns, mutually recursive fns, effect handler chains
+**Implementation:**
+- Added `wasi_{poll_oneoff, fd_read, clock_time_get, sched_yield}` fields to `Codegen_Env`
+- `emit_wasi_imports` takes `has_effects: bool` parameter
+- Pre-scan of IR declarations determines `has_effects`
+- Updated 6 runtime.odin scheduler function signatures to accept WASI import indices
+- Updated `emit_console_readln_handler_fn` in emit_expr.odin to use `env.wasi_fd_read`
+
+### Completed: Size regression tests
+
+Added `test_size_pure_minimal` (binary < 5KB) and `test_size_import_pruning_pure` (2 WASI imports for pure programs) to `src/test_codegen.odin`.
+
+### Not done: Function table filtering
+
+The function table uses identity mapping (table[i] = i) with call_indirect targets stored as function indices in closures/evidence records.
+
+After thorough analysis, conditional table population is not feasible without architectural changes:
+
+1. The "always keep" callback functions (I64_Trampoline, Bool_Compare, I64_Debug_Trampoline) contain `call_indirect` in their bodies — they are closure callbacks that dispatch through the function table.
+2. The container dispatch functions (List_Compare, Map_Eq, etc.) also contain `call_indirect` — they invoke compare/debug/hash callbacks stored in container headers.
+3. Both groups must be emitted for correctness, which means `call_indirect` always exists in the emitted code, making conditional table population impossible.
+
+A compact table (only including actual call_indirect targets with re-indexed table positions) would require changing every place that stores function indices for indirect calls (closures, evidence records, container headers, trampoline cache) to use table indices instead — ~20+ changes across emit_expr.odin, emit_start.odin, and container dispatch code. The savings would be ~300 bytes for the element section. Not worth the risk and complexity.
+
+## Edge Cases Found During Implementation
+
+1. **module=NO_NAME in IR_Call.callee**: Local calls have `module = NO_NAME` in the callee, but `combine_module_irs` sets `module` on declarations. `resolve_callee` handles this by falling back to bare-name lookup.
+2. **Zero-valued Canonical_Name fields**: Trait dispatch fields (ord_compare_func etc.) are zero-initialized when unused. `is_no_key` checks both `NO_KEY` and zero-value.
+3. **Top-level constants referenced via IR_Var**: `name_to_decl` includes both functions AND constants to catch edges like `x + y` where `x` and `y` are top-level constants.
+4. **IR_Decl_Expect**: Always kept (no name, hard to attribute to a scope).
 
 ## Related Work
-- `src/analysis/unused.odin` — existing unused-binding lint (may share call-graph infra)
-- `src/ir/reuse.odin` — already walks IR for optimization purposes
-- `src/ir/walk.odin` — IR walker infrastructure
+- `src/analysis/unused.odin` — existing unused-binding lint (operates on single CFile, no inter-module call graph)
+- `src/ir/reuse.odin` — IR optimization pass pattern
+- `src/ir/walk.odin` — IR walker (not used by call graph — the call graph needs edge extraction, not just child visitation)
