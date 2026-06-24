@@ -1,0 +1,6 @@
+r#value = 42
+
+pub main! = || -[Console! | Throw!([..])]-> I64 {
+  Console.println!("{}", value)
+  0
+}

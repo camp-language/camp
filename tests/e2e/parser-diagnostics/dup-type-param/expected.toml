@@ -1,0 +1,10 @@
+stdout = """
+-- C0317: DUPLICATE TYPE PARAMETER --- /tmp/camp-e2e/parser-diagnostics/dup-type-param/src/Main.camp
+
+Type parameter `a` appears more than once in this type's parameter list.
+   1 | @Result(a, a) : pub [Ok(a) | Err(a)]
+                  ^
+compilation failed with 1 error(s)
+"""
+stderr = ""
+exit = 1

@@ -1,0 +1,10 @@
+stdout = """
+-- C0110: DUPLICATE FIELD IN RECORD LITERAL --- /tmp/camp-e2e/parser-diagnostics/dup-field-literal/src/Main.camp
+
+Field `x` appears more than once in this record literal.
+   2 |   r = { x: 1, x: 2 }
+                     ^
+compilation failed with 1 error(s)
+"""
+stderr = ""
+exit = 1
