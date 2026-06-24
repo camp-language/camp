@@ -333,7 +333,17 @@ run_build_single :: proc(
 	ir.reuse_analyze(&combined_ir)
 	ir.tree_shake_module(&combined_ir, &ctx.interner)
 
-	wasm_mod := codegen.codegen(combined_ir, &ctx.interner, ctx.thread_count, release)
+	wasm_mod := codegen.codegen(
+		combined_ir,
+		&ctx.interner,
+		ctx.thread_count,
+		&ctx.collector,
+		release,
+	)
+	if diagnostics.diag_collector_has_errors(&ctx.collector) {
+		diagnostics.render_all(&ctx.collector, file_path, source)
+		return Build_Error{message = "codegen errors", code = 1}
+	}
 	wasm_bytes := codegen.wasm_serialize(wasm_mod)
 	defer delete(wasm_bytes)
 	local_output := output_path
@@ -1107,7 +1117,7 @@ compile_test_canon :: proc(
 	ir.reuse_analyze(&ir_mod)
 
 	// Codegen + serialize
-	wasm_mod := codegen.codegen(ir_mod, interner, 1)
+	wasm_mod := codegen.codegen(ir_mod, interner, 1, &collector)
 	wasm_bytes := codegen.wasm_serialize(wasm_mod)
 	defer delete(wasm_bytes)
 
@@ -1316,7 +1326,7 @@ compile_doc_test_canon :: proc(
 	ir.rc_insert(&ir_mod, interner)
 	ir.reuse_analyze(&ir_mod)
 
-	wasm_mod := codegen.codegen(ir_mod, interner, 1)
+	wasm_mod := codegen.codegen(ir_mod, interner, 1, &collector)
 	wasm_bytes := codegen.wasm_serialize(wasm_mod)
 	defer delete(wasm_bytes)
 
