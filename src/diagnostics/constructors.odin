@@ -1066,7 +1066,7 @@ diag_invalid_escape :: proc(escape: string, span: base.Source_Span) -> Diagnosti
 		span,
 		fmt.tprintf("\\{} is not a valid escape sequence.", escape),
 	)
-	append(&d.hints, "Valid escape sequences are: \\n, \\t, \\r, \\\\, \\\", \\0.")
+	append(&d.hints, "Valid escape sequences are: \\n, \\t, \\r, \\\\, \\\", \\$, \\0.")
 	return d
 }
 
@@ -1076,7 +1076,7 @@ diag_unterminated_per_line_string :: proc(span: base.Source_Span) -> Diagnostic 
 		"C0004",
 		"UNTERMINATED PER-LINE STRING",
 		span,
-		"This per-line string (starting with `\\`) is never closed. The closing `\\` must appear alone on its own line.",
+		"This per-line string (starting with `\\`) ran to the end of the file without a final line break. Add a newline after the last `\\`-prefixed line to close it.",
 	)
 	return d
 }

@@ -2,6 +2,7 @@ package camp
 
 import "camp:base"
 import "camp:build"
+import "camp:diagnostics"
 import "camp:frontend"
 import "core:testing"
 
@@ -784,5 +785,134 @@ test_simd_token_stream_equivalence :: proc(t: ^testing.T) {
 	// Last non-EOF token should be the closing brace
 	testing.expect(t, len(tokens) >= 2)
 	testing.expect(t, tokens[len(tokens) - 2].kind == .RBrace)
+}
+
+// --- C0003: INVALID ESCAPE SEQUENCE ---
+
+@(test)
+test_lexer_invalid_escape :: proc(t: ^testing.T) {
+	ctx: build.Compilation_Context
+	build.context_init(&ctx)
+	defer build.context_destroy(&ctx)
+
+	tokens := lex_all("\"bad \\q escape\"", &ctx)
+	defer delete(tokens)
+
+	testing.expect(t, ctx.collector.error_count == 1)
+	testing.expect(t, len(ctx.collector.diagnostics) == 1)
+	testing.expect(t, ctx.collector.diagnostics[0].code == "C0003")
+}
+
+@(test)
+test_lexer_valid_escapes :: proc(t: ^testing.T) {
+	ctx: build.Compilation_Context
+	build.context_init(&ctx)
+	defer build.context_destroy(&ctx)
+
+	// All documented escapes: \n \t \r \\ \" \$ \0
+	tokens := lex_all("\"\\n\\t\\r\\\\\\\"\\$\\0\"", &ctx)
+	defer delete(tokens)
+
+	testing.expect(t, ctx.collector.error_count == 0)
+	testing.expect(t, len(tokens) == 2)
+	testing.expect(t, tokens[0].kind == .String_Literal)
+}
+
+@(test)
+test_lexer_invalid_escape_long :: proc(t: ^testing.T) {
+	ctx: build.Compilation_Context
+	build.context_init(&ctx)
+	defer build.context_destroy(&ctx)
+
+	// Long enough to exercise the SIMD scan path (>= 16 bytes of body)
+	tokens := lex_all("\"aaaaaaaaaaaaaaa\\q\"", &ctx)
+	defer delete(tokens)
+
+	testing.expect(t, ctx.collector.error_count == 1)
+	testing.expect(t, ctx.collector.diagnostics[0].code == "C0003")
+}
+
+// --- C0004: UNTERMINATED PER-LINE STRING ---
+
+@(test)
+test_lexer_unterminated_perline_string :: proc(t: ^testing.T) {
+	ctx: build.Compilation_Context
+	build.context_init(&ctx)
+	defer build.context_destroy(&ctx)
+
+	// Per-line string starts at column 0 and runs to EOF with no newline.
+	tokens := lex_all("\\ hello world", &ctx)
+	defer delete(tokens)
+
+	testing.expect(t, ctx.collector.error_count == 1)
+	testing.expect(t, len(ctx.collector.diagnostics) == 1)
+	testing.expect(t, ctx.collector.diagnostics[0].code == "C0004")
+}
+
+@(test)
+test_lexer_terminated_perline_string :: proc(t: ^testing.T) {
+	ctx: build.Compilation_Context
+	build.context_init(&ctx)
+	defer build.context_destroy(&ctx)
+
+	tokens := lex_all("\\ hello world\n", &ctx)
+	defer delete(tokens)
+
+	testing.expect(t, ctx.collector.error_count == 0)
+}
+
+// --- C0005: INVALID NUMERIC LITERAL ---
+
+@(test)
+test_lexer_invalid_binary_literal :: proc(t: ^testing.T) {
+	ctx: build.Compilation_Context
+	build.context_init(&ctx)
+	defer build.context_destroy(&ctx)
+
+	tokens := lex_all("0b102", &ctx)
+	defer delete(tokens)
+
+	testing.expect(t, ctx.collector.error_count == 1)
+	testing.expect(t, len(ctx.collector.diagnostics) == 1)
+	testing.expect(t, ctx.collector.diagnostics[0].code == "C0005")
+}
+
+@(test)
+test_lexer_invalid_hex_literal :: proc(t: ^testing.T) {
+	ctx: build.Compilation_Context
+	build.context_init(&ctx)
+	defer build.context_destroy(&ctx)
+
+	tokens := lex_all("0xGH", &ctx)
+	defer delete(tokens)
+
+	testing.expect(t, ctx.collector.error_count == 1)
+	testing.expect(t, ctx.collector.diagnostics[0].code == "C0005")
+}
+
+@(test)
+test_lexer_invalid_octal_literal :: proc(t: ^testing.T) {
+	ctx: build.Compilation_Context
+	build.context_init(&ctx)
+	defer build.context_destroy(&ctx)
+
+	tokens := lex_all("0o78", &ctx)
+	defer delete(tokens)
+
+	testing.expect(t, ctx.collector.error_count == 1)
+	testing.expect(t, ctx.collector.diagnostics[0].code == "C0005")
+}
+
+@(test)
+test_lexer_valid_base_literals :: proc(t: ^testing.T) {
+	ctx: build.Compilation_Context
+	build.context_init(&ctx)
+	defer build.context_destroy(&ctx)
+
+	tokens := lex_all("0b1010 0xFF 0o77", &ctx)
+	defer delete(tokens)
+
+	testing.expect(t, ctx.collector.error_count == 0)
+	testing.expect(t, len(tokens) == 4) // 3 literals + Eof
 }
 

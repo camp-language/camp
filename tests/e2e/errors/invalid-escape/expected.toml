@@ -1,0 +1,11 @@
+stdout = """
+-- C0003: INVALID ESCAPE SEQUENCE --- /tmp/camp-e2e/errors/invalid-escape/src/Main.camp
+
+\q is not a valid escape sequence.
+   2 |   _s = "bad \q escape"
+                    ^
+  Valid escape sequences are: \n, \t, \r, \\, \", \$, \0.
+compilation failed with 1 error(s)
+"""
+stderr = ""
+exit = 1

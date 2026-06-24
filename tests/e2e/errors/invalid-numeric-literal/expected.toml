@@ -1,0 +1,11 @@
+stdout = """
+-- C0005: INVALID NUMERIC LITERAL --- /tmp/camp-e2e/errors/invalid-numeric-literal/src/Main.camp
+
+Invalid numeric literal `0b102`.
+   2 |   _x = 0b102
+              ^^^^^
+  Binary literals only allow digits 0 and 1.
+compilation failed with 1 error(s)
+"""
+stderr = ""
+exit = 1

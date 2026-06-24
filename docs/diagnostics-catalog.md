@@ -53,33 +53,37 @@ Each diagnostic should have a unique `C####` code for searchability and `camp --
 
 **Rationale:** A string literal was opened but never closed before EOF or a newline (for non-per-line strings).
 
-### 1.3 INVALID ESCAPE SEQUENCE (C0003) — Error 🆕 New
+### 1.3 INVALID ESCAPE SEQUENCE (C0003) — Error ✅ Implemented
 
 > `\{escape}` is not a valid escape sequence.
 
-**Hint:** Valid escape sequences are: `\n`, `\t`, `\r`, `\\`, `\"`, `\0`.
+**Hint:** Valid escape sequences are: `\n`, `\t`, `\r`, `\\`, `\"`, `\$`, `\0`.
 
 **Rationale:** Other languages (Rust, Go, Swift) report invalid escape sequences explicitly. Without this, an invalid escape like `\x` silently becomes `x` or causes confusing downstream errors.
 
-### 1.4 UNTERMINATED PER-LINE STRING (C0004) — Error 🆕 New
+**Implemented in:** `src/frontend/lexer.odin` — `lexer_validate_string_escape` (called from both scalar and SIMD string scan paths).
 
-> This per-line string (starting with `\`) is never closed. The closing `\` must appear alone on its own line.
+### 1.4 UNTERMINATED PER-LINE STRING (C0004) — Error ✅ Implemented
 
-**Rationale:** Per-line strings (Camp's `\` syntax) need a closing `\` on its own line. A distinct error from C0002 because the fix is different.
+> This per-line string (starting with `\`) ran to the end of the file without a final line break. Add a newline after the last `\`-prefixed line to close it.
 
-### 1.5 INVALID NUMERIC LITERAL (C0005) — Error 🆕 New
+**Rationale:** Per-line strings (Camp's `\` syntax) are built from consecutive `\`-prefixed lines. If the source ends while still inside one (the last `\`-line has no trailing newline), the string is unterminated. A distinct error from C0002 because the fix is different.
+
+### 1.5 INVALID NUMERIC LITERAL (C0005) — Error ✅ Implemented
 
 > Invalid numeric literal `{text}`.
 
-**Hint:** (context-dependent — e.g., "Integer literals cannot contain decimal points. Write `3.14` as a Float literal.")
+**Hint:** Context-dependent per base — e.g., "Binary literals only allow digits 0 and 1.", "Hexadecimal literals only allow digits 0-9 and A-F (or a-f).", "Octal literals only allow digits 0 through 7."
 
 **Rationale:** Rust, Go, and Swift all report malformed numeric literals (e.g., `0b102`, `0xGH`). Camp should catch these at lexing rather than letting them become confusing parse errors.
 
-### 1.6 UNTERMINATED BLOCK COMMENT (C0006) — Error 🆕 New
+**Implemented in:** `src/frontend/lexer.odin` — `lexer_report_invalid_numeric` (called from `lexer_lex_hex_number`, `lexer_lex_octal_number`, `lexer_lex_binary_number`). Also fixes a pre-existing infinite loop where an out-of-base trailing digit (e.g. the `2` in `0b102`) caused `break` to exit the `switch` but not the surrounding `for` loop.
+
+### 1.6 UNTERMINATED BLOCK COMMENT (C0006) — Not Applicable
 
 > This block comment was never closed. Add a closing `*/`.
 
-**Rationale:** If Camp supports block comments (`/* ... */`), an unclosed one silently swallows code. Rust reports this explicitly.
+**Rationale:** Camp does **not** support block comments (`/* ... */`). Per `docs/syntax-recipe.md` §1 Comments: "`//` line comments (no block comments, no nesting)". This diagnostic is retained in the catalog for reference but is not wired and has no constructor emission site. The constructor `diag_unterminated_block_comment` remains defined-but-unused for now.
 
 ---
 
@@ -1062,11 +1066,11 @@ Camp uses Perceus reference counting for deterministic memory management. These 
 
 ## Summary: Implementation Status
 
-### Currently Implemented (81 total)
+### Currently Implemented (84 total)
 
 | Category | Count | Codes |
 |----------|-------|-------|
-| Lexer | 2 | C0001, C0002 |
+| Lexer | 5 | C0001–C0005 |
 | Parser | 22 | C0100–C0121 |
 | Name Resolution | 4 | C0200–C0202, C0209 |
 | Type System | 9 | C0300–C0306, C0317, C0318 |
@@ -1080,7 +1084,7 @@ Camp uses Perceus reference counting for deterministic memory management. These 
 | CLI/Build | 4 | C1200–C1203 |
 | Internal | 1 | C9000 |
 
-### Defined but Unused (4)
+### Defined but Unused (5)
 
 | Constructor | Proposed Code | Action |
 |-------------|---------------|--------|
@@ -1088,12 +1092,12 @@ Camp uses Perceus reference counting for deterministic memory management. These 
 | `diag_ambiguous_type` | C0306 | Wire into type inference |
 | `diag_unjoined_spawn` | C0905 | Wire into parallelism checker |
 | `diag_pointless_evaluation` | C0903 | Wire into unused analysis (TODO in `analysis/unused.odin:667`) |
+| `diag_unterminated_block_comment` | C0006 | Not applicable — Camp has no block comments (syntax-recipe §1). Retained for reference only. |
 
-### Proposed New Diagnostics (43)
+### Proposed New Diagnostics (39)
 
 | Category | Count | Codes | Priority |
 |----------|-------|-------|----------|
-| Lexer | 4 | C0003–C0006 | Medium |
 | Parser | 0 | — | Medium |
 | Name Resolution | 7 | C0203–C0208, C0210 | High |
 | Type System | 11 | C0307–C0316, C0319, C0320 | High |
@@ -1106,7 +1110,7 @@ Camp uses Perceus reference counting for deterministic memory management. These 
 | Perceus/RC | 3 | C1100–C1102 | Medium |
 | CLI/Build | 4 | C1204–C1207 | Low |
 
-### Total Proposed Catalog: 127 diagnostics (81 existing + 46 new)
+### Total Catalog: 128 diagnostics (84 implemented + 5 defined-but-unused + 39 proposed new)
 
 ---
 
