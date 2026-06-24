@@ -1,0 +1,10 @@
+stdout = """
+-- C0111: DUPLICATE FIELD IN RECORD PATTERN --- /tmp/camp-e2e/parser-diagnostics/dup-field-pattern/src/Main.camp
+
+Field `x` appears more than once in this record pattern.
+   4 |     { x: a, x: b } => a
+                   ^
+compilation failed with 1 error(s)
+"""
+stderr = ""
+exit = 1

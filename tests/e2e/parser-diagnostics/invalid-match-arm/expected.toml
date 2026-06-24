@@ -1,0 +1,10 @@
+stdout = """
+-- C0114: INVALID MATCH ARM --- /tmp/camp-e2e/parser-diagnostics/invalid-match-arm/src/Main.camp
+
+This match arm is missing a `=>` and a body.
+   3 |   | 2
+           ^
+compilation failed with 1 error(s)
+"""
+stderr = ""
+exit = 1

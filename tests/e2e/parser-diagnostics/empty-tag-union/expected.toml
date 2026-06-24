@@ -1,0 +1,10 @@
+stdout = """
+-- C0318: EMPTY TAG UNION --- /tmp/camp-e2e/parser-diagnostics/empty-tag-union/src/Main.camp
+
+Tag union `` has no variants. A tag union must have at least one variant.
+   1 | @Empty : pub []
+                    ^
+compilation failed with 1 error(s)
+"""
+stderr = ""
+exit = 1
