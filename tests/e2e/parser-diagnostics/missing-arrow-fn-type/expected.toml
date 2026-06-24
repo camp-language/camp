@@ -1,0 +1,29 @@
+stdout = """
+-- C0115: MISSING ARROW IN FUNCTION TYPE --- /tmp/camp-e2e/parser-diagnostics/missing-arrow-fn-type/src/Main.camp
+
+This function type is missing an arrow. Use `->` for pure functions or
+`-[effects]->` for effectful ones.
+   2 |   f: |I64| I64 = x => x + 1
+            ^
+
+-- C0100: SYNTAX ERROR --- /tmp/camp-e2e/parser-diagnostics/missing-arrow-fn-type/src/Main.camp
+
+I expected `=` here, but I got `I64` instead.
+   2 |   f: |I64| I64 = x => x + 1
+                  ^^^
+
+-- C0101: SYNTAX ERROR --- /tmp/camp-e2e/parser-diagnostics/missing-arrow-fn-type/src/Main.camp
+
+I was not expecting `=` here.
+   2 |   f: |I64| I64 = x => x + 1
+                      ^
+
+-- C0101: SYNTAX ERROR --- /tmp/camp-e2e/parser-diagnostics/missing-arrow-fn-type/src/Main.camp
+
+I was not expecting `=>` here.
+   2 |   f: |I64| I64 = x => x + 1
+                          ^^
+compilation failed with 4 error(s)
+"""
+stderr = ""
+exit = 1

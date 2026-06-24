@@ -1,0 +1,13 @@
+args = "check-file"
+skip_wasm = true
+stdout = """
+-- C0209: RAW IDENTIFIER NOT NEEDED --- /tmp/camp-e2e/parser-diagnostics/raw-id-not-needed/src/Main.camp
+
+`r#value` is not a keyword — you can write `value` without the `r#` prefix.
+   1 | r#value = 42
+       ^
+1 warning(s) found
+check passed for /tmp/camp-e2e/parser-diagnostics/raw-id-not-needed/src/Main.camp
+"""
+stderr = ""
+exit = 0

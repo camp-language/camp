@@ -1,0 +1,5 @@
+@Color : pub [Red | Green | Red]
+
+pub main! = || -[Console! | Throw!([..])]-> I64 {
+  0
+}

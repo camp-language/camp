@@ -1,0 +1,10 @@
+stdout = """
+-- C0116: INVALID VISIBILITY MODIFIER --- /tmp/camp-e2e/parser-diagnostics/invalid-visibility/src/Main.camp
+
+`pub` can only be applied to top-level declarations.
+   1 | pub test "should not be public" {
+           ^^^^
+compilation failed with 1 error(s)
+"""
+stderr = ""
+exit = 1
