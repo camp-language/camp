@@ -39,7 +39,7 @@ You are an AI assistant helping develop the Camp programming language - a strict
 ### Maintenance
 - If a syntax decision changes (through discussion with the project owner), update the recipe **first**, then propagate to specs, parser, and tests in the same commit
 - Never add syntax to the compiler or specs without recording the decision in the recipe
-- Section 13 of the recipe tracks the remaining parser/compiler implementation actions — these are the known gaps between current implementation and the decided syntax
+- Section 15 of the recipe tracks the remaining compiler gaps — these are the known gaps between current implementation and the decided syntax
 - Section 14 tracks open TBD items — these need design decisions before implementation
 
 ### Key Decisions (quick reference)
@@ -79,7 +79,7 @@ You are an AI assistant helping develop the Camp programming language - a strict
 Use **beans** (`.beans/`) for tracking all tasks — not TODO comments in docs, never GitHub Issues.
 
 ### When to create a bean
-- Parser/compiler implementation gaps (syntax-recipe.md §13)
+- Parser/compiler implementation gaps (syntax-recipe.md §15)
 - Open design items needing decisions (syntax-recipe.md §14)
 - Known bugs or diagnostics to wire
 - Any non-trivial multi-step task
@@ -96,6 +96,14 @@ Use **beans** (`.beans/`) for tracking all tasks — not TODO comments in docs, 
    - **Unit tests** in `src/test_*.odin` for programmatic verification
    - **Camp-native tests** in `stdlib/` for stdlib features
 4. No need to keep docs in sync for deleted beans
+
+For the full PR workflow — claiming a bean, re-anchoring on the design, the
+`just check` gate, honest-failure handling, self-directed backlog work, and
+guardrails — see `docs/process-backlog.md`.
+
+### Discovering Gaps
+When asked to find impl gaps and make new beans ("find gaps", "sweep for
+missing work"), follow `docs/discovering-gaps.md`.
 
 ## Stdlib Testing
 
