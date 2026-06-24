@@ -1,10 +1,10 @@
 stdout = """
-canonicalized /tmp/camp-e2e/strings/interpolation-raw/src/Main.camp: 1 declaration(s), 0 import(s)
--- C0200: UNDEFINED NAME --- /tmp/camp-e2e/strings/interpolation-raw/src/Main.camp
+-- C0003: INVALID ESCAPE SEQUENCE --- /tmp/camp-e2e/strings/interpolation-raw/src/Main.camp
 
-I cannot find `r`.
+\f is not a valid escape sequence.
    3 |     _path = r"C:\${dir}\file"
-                   ^
+                               ^
+  Valid escape sequences are: \n, \t, \r, \\, \", \$, \0.
 compilation failed with 1 error(s)
 """
 stderr = ""

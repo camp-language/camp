@@ -1,0 +1,17 @@
+stdout = """
+-- C0004: UNTERMINATED PER-LINE STRING --- /tmp/camp-e2e/errors/unterminated-perline-string/src/Main.camp
+
+This per-line string (starting with `\`) ran to the end of the file without a
+final line break. Add a newline after the last `\`-prefixed line to close it.
+   3 | \unterminated per-line string
+       ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+-- C0100: SYNTAX ERROR --- /tmp/camp-e2e/errors/unterminated-perline-string/src/Main.camp
+
+I expected `}` here, but I got `` instead.
+   3 | \unterminated per-line string
+                                    ^
+compilation failed with 2 error(s)
+"""
+stderr = ""
+exit = 1

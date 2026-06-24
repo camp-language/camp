@@ -1,0 +1,4 @@
+main! = || -> I64 {
+  _s = "bad \q escape"
+  0
+}
