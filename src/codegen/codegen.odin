@@ -1,6 +1,7 @@
 package codegen
 
 import "camp:base"
+import "camp:diagnostics"
 import "camp:ir"
 
 WASI_MODULE :: "wasi_snapshot_preview1"
@@ -112,6 +113,7 @@ Codegen_Env :: struct {
 	release_mode:            bool,
 	i64_trampoline_cache:    map[int]int,
 	debug_str_offsets:       map[string]u32,
+	collector:               ^diagnostics.Diagnostic_Collector,
 	// WASI import indices (set by emit_wasi_imports, used by runtime bodies)
 	wasi_poll_oneoff:        int,
 	wasi_fd_read:            int,
@@ -243,10 +245,20 @@ emit_runtime_types :: proc(env: ^Codegen_Env) {
 	get_or_create_type(env, []Wasm_Value_Type{.I32, .I32}, []Wasm_Value_Type{.I32})
 }
 
+// codegen_internal_error records a C9000 internal diagnostic against the
+// collector wired into the codegen env. Use when codegen hits a path that
+// should have been rejected by an earlier compiler stage, or an unimplemented
+// feature that previously emitted a silent Wasm_Unreachable trap.
+codegen_internal_error :: proc(env: ^Codegen_Env, span: base.Source_Span, message: string) {
+	if env.collector == nil do return
+	diagnostics.collector_add_diag(env.collector, diagnostics.diag_internal(message, span))
+}
+
 codegen :: proc(
 	ir_mod: ir.IR_Module,
 	interner: ^base.Intern_Table,
 	thread_count: int,
+	collector: ^diagnostics.Diagnostic_Collector,
 	release_mode: bool = false,
 ) -> Wasm_Module {
 	mod: Wasm_Module
@@ -286,6 +298,7 @@ codegen :: proc(
 	env.console_id = base.intern(interner, "Console!")
 	env.time_id = base.intern(interner, "Time!")
 	env.release_mode = release_mode
+	env.collector = collector
 
 	// Pre-scan IR to determine if the program uses effects.
 	// This controls which WASI imports are emitted.

@@ -1,0 +1,14 @@
+stdout = """
+canonicalized /tmp/camp-e2e/errors/codegen-exp-unimplemented/src/Main.camp: 1 declaration(s), 0 import(s)
+typecheck passed for /tmp/camp-e2e/errors/codegen-exp-unimplemented/src/Main.camp
+-- C9000: INTERNAL ERROR --- /tmp/camp-e2e/errors/codegen-exp-unimplemented/src/Main.camp
+
+Something went wrong inside the compiler: bitwise XOR (`^`) is not yet
+implemented in codegen
+   2 |   2 ^ 3
+         ^^^^^
+  This is a bug in Camp. Please report it at https://github.com/smores56/camp/issues
+compilation failed with 1 error(s)
+"""
+stderr = ""
+exit = 1

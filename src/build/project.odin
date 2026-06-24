@@ -245,7 +245,11 @@ run_build_project :: proc(thread_count: int = 1, output_path: string = "") -> Bu
 	ir.reuse_analyze(&combined_ir)
 	ir.tree_shake_module(&combined_ir, &ctx.interner)
 
-	wasm_mod := codegen.codegen(combined_ir, &ctx.interner, ctx.thread_count)
+	wasm_mod := codegen.codegen(combined_ir, &ctx.interner, ctx.thread_count, &ctx.collector)
+	if diagnostics.diag_collector_has_errors(&ctx.collector) {
+		diagnostics.render_all(&ctx.collector, "", "")
+		return Build_Result(Build_Error{message = "codegen errors", code = 1})
+	}
 	wasm_bytes := codegen.wasm_serialize(wasm_mod)
 	defer delete(wasm_bytes)
 	local_output := output_path

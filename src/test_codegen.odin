@@ -40,7 +40,7 @@ compile_source :: proc(ctx: ^build.Compilation_Context, source: string) -> [dyna
 	ir.rc_insert(&ir_mod, &ctx.interner)
 	ir.reuse_analyze(&ir_mod)
 
-	wasm_mod := codegen.codegen(ir_mod, &ctx.interner, ctx.thread_count)
+	wasm_mod := codegen.codegen(ir_mod, &ctx.interner, ctx.thread_count, &ctx.collector)
 	wasm_bytes := codegen.wasm_serialize(wasm_mod)
 
 	semantics.type_store_destroy(&store)
