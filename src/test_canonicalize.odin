@@ -5,6 +5,7 @@ import "camp:build"
 import "camp:diagnostics"
 import "camp:frontend"
 import "camp:semantics"
+import "core:strings"
 import "core:testing"
 
 canon_file :: proc(source: string) -> (semantics.CFile, ^build.Compilation_Context) {
@@ -26,8 +27,9 @@ canon_file :: proc(source: string) -> (semantics.CFile, ^build.Compilation_Conte
 	parser: frontend.Parser
 	frontend.parser_init(&parser, &lexer, collector, table)
 	surface := frontend.parser_parse_file(&parser)
+	surface.path = file.path
 
-	canon := semantics.canonicalize(surface, &ctx.interner, &ctx.collector)
+	canon := semantics.canonicalize(surface, &ctx.interner, &ctx.collector, source)
 	return canon, ctx
 }
 
@@ -245,5 +247,59 @@ test_canonicalize_derive_ord :: proc(t: ^testing.T) {
 	case:
 		testing.expect(t, false)
 	}
+}
+
+@(test)
+test_canonicalize_todo_emits_warning :: proc(t: ^testing.T) {
+	file, ctx := canon_file("x = todo")
+	defer build.context_destroy(ctx)
+	defer free(ctx)
+
+	testing.expect(t, len(file.decls) == 1)
+	testing.expect(t, ctx.collector.warning_count == 1)
+	testing.expect(t, ctx.collector.error_count == 0)
+	if len(ctx.collector.diagnostics) > 0 {
+		d := ctx.collector.diagnostics[0]
+		testing.expect(t, d.category == .Warning)
+		testing.expect(t, d.code == "C0914")
+	}
+}
+
+@(test)
+test_canonicalize_expect_call_bakes_location :: proc(t: ^testing.T) {
+	// `expect(false)` in a test-block statement desugars to
+	// `if !false { crash "expectation failed at <file>:<line>" }`.
+	source := "test \"t\" { expect(false) }"
+	file, ctx := canon_file(source)
+	defer build.context_destroy(ctx)
+	defer free(ctx)
+
+	testing.expect(t, len(file.decls) == 1)
+	crash_msg := ""
+	#partial switch decl in file.decls[0] {
+	case ^semantics.CDecl_Test:
+		#partial switch body in decl.body {
+		case ^semantics.CExpr_Block:
+			for stmt in body.statements {
+				#partial switch s in stmt {
+				case ^semantics.CExpr_If:
+					#partial switch then in s.then_branch {
+					case ^semantics.CExpr_Crash:
+						#partial switch msg in then.message {
+						case ^semantics.CExpr_String:
+							crash_msg = msg.value
+						case:
+						}
+					case:
+					}
+				case:
+				}
+			}
+		case:
+		}
+	case:
+		testing.expect(t, false)
+	}
+	testing.expect(t, strings.contains(crash_msg, "expectation failed at <test>:"))
 }
 

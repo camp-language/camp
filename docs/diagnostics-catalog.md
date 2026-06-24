@@ -927,6 +927,14 @@ Camp's algebraic effect system is its most distinctive feature. These diagnostic
 
 **Rationale:** If a `$`-variable is never reassigned, the `$` prefix is misleading. Rust's `unused_mut` lint serves the same purpose.
 
+### 10.15 TODO EXPRESSION (C0914) — Warning ✅ Implemented
+
+> `todo` is a placeholder — evaluating this at runtime will trap.
+
+**Hint:** Replace this with a real implementation before shipping.
+
+**Rationale:** A `todo` expression compiles but traps at runtime. Reporting its location at compile time (as a warning, not an error) tells the developer where placeholders remain without blocking compilation. This is the Camp analog of Rust's `todo!()` / `unimplemented!!()` macros and Haskell's `error "todo"`.
+
 ---
 
 ## 11. Unused Analysis Errors (Hard Errors)
@@ -1054,7 +1062,7 @@ Camp uses Perceus reference counting for deterministic memory management. These 
 
 ## Summary: Implementation Status
 
-### Currently Implemented (65 total)
+### Currently Implemented (66 total)
 
 | Category | Count | Codes |
 |----------|-------|-------|
@@ -1067,7 +1075,7 @@ Camp uses Perceus reference counting for deterministic memory management. These 
 | Traits/Generics | 5 | C0600–C0604 |
 | Newtype/Nominal | 4 | C0700–C0703 |
 | Module/Import | 8 | C0800–C0807 |
-| Unused Warnings | 6 | C0900–C0905 |
+| Unused Warnings | 7 | C0900–C0905, C0914 |
 | Unused Errors | 2 | C1000, C1001 |
 | CLI/Build | 4 | C1200–C1203 |
 | Internal | 1 | C9000 |
@@ -1098,7 +1106,7 @@ Camp uses Perceus reference counting for deterministic memory management. These 
 | Perceus/RC | 3 | C1100–C1102 | Medium |
 | CLI/Build | 4 | C1204–C1207 | Low |
 
-### Total Proposed Catalog: 126 diagnostics (65 existing + 61 new)
+### Total Proposed Catalog: 127 diagnostics (66 existing + 61 new)
 
 ---
 
