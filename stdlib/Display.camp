@@ -1,4 +1,10 @@
 // Display trait — render a value as a string.
+// Declaration only. Per D9 this trait is NOT derivable and impls live with
+// each type. Per D28 the Fmt module houses Display/Debug; this module declares
+// the Display interface contract. Primitive Display impls (Str, Bool, I64,
+// I32, F64) are tracked by camp-d3k3 and currently live in the prelude until
+// each type's stdlib module is always-compiled (see camp-df9d, camp-d3k1).
+
 Display : {
   to_str: (Self) -> Str,
 }
