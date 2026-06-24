@@ -12,10 +12,23 @@ DOT_RECEIVER_INTERN_ID: base.Intern_ID = 0
 dot_lambda_counter: int = 0
 destructure_counter: int = 0
 
+span_to_line :: proc(source: string, offset: int) -> int {
+	if source == "" || offset < 0 || offset > len(source) do return 0
+	line := 1
+	for i in 0 ..< offset {
+		if source[i] == '\n' {
+			line += 1
+		}
+	}
+	return line
+}
+
 Canonicalize_Scope :: struct {
 	local_names:    map[base.Intern_ID]base.Canonical_Name,
 	local_kinds:    map[base.Intern_ID]Decl_Kind,
 	generated_decl: [dynamic]CDecl,
+	source:         string,
+	file_path:      string,
 }
 
 Decl_Kind :: enum {
@@ -33,6 +46,7 @@ canonicalize :: proc(
 	surface: frontend.File,
 	interner: ^base.Intern_Table,
 	collector: ^diagnostics.Diagnostic_Collector,
+	source: string = "",
 ) -> CFile {
 	DOT_RECEIVER_INTERN_ID = base.intern(interner, DOT_RECEIVER_NAME)
 
@@ -41,6 +55,8 @@ canonicalize :: proc(
 	defer delete(scope.generated_decl)
 	scope.local_names = make(map[base.Intern_ID]base.Canonical_Name, 64)
 	scope.local_kinds = make(map[base.Intern_ID]Decl_Kind, 64)
+	scope.source = source
+	scope.file_path = surface.path
 	defer delete(scope.local_names)
 	defer delete(scope.local_kinds)
 
@@ -725,11 +741,23 @@ canonicalize_expr :: proc(
 		expect_id := base.intern(interner, "expect")
 		if id, ok := e.callee.(^frontend.Expr_Identifier); ok {
 			if id.name == expect_id && len(e.args) == 1 {
-				// Build: if !arg { crash "expectation failed" }
-				// Create the crash expression first
+				// Build: if !arg { crash "expectation failed at <file>:<line>" }
+				// Include source location when available so runtime trap
+				// messages point back at the failing expect.
+				fail_msg := "expectation failed"
+				if scope.source != "" {
+					line := span_to_line(scope.source, e.span.start)
+					if line > 0 {
+						fail_msg = fmt.tprintf(
+							"expectation failed at {}:{}",
+							scope.file_path,
+							line,
+						)
+					}
+				}
 				msg := new(frontend.Expr_String)
 				msg^ = frontend.Expr_String {
-					value = "expectation failed",
+					value = fail_msg,
 					span  = e.span,
 				}
 				crash_e := new(frontend.Expr_Crash)
@@ -1047,6 +1075,7 @@ canonicalize_expr :: proc(
 		return c
 
 	case ^frontend.Expr_Todo:
+		diagnostics.collector_add_diag(collector, diagnostics.diag_todo_used(e.span))
 		cmessage: CExpr = nil
 		if e.message != nil {
 			cmessage = canonicalize_expr(e.message, scope, interner, collector)
