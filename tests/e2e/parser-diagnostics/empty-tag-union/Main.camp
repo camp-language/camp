@@ -1,0 +1,5 @@
+@Empty : pub []
+
+pub main! = || -[Console! | Throw!([..])]-> I64 {
+  0
+}

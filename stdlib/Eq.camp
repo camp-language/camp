@@ -1,4 +1,7 @@
 // Eq trait — structural equality
+// Declaration only. Per D9 this is a derivable trait; impls live with each
+// type (see Bool.camp, Str.camp, Char.camp, Result.camp, etc.). This module
+// defines the interface contract, not any implementations.
 
 Eq : {
   eq : |Self, Self| -> Bool,

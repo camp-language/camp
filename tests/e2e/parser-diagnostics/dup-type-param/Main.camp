@@ -1,0 +1,5 @@
+@Result(a, a) : pub [Ok(a) | Err(a)]
+
+pub main! = || -[Console! | Throw!([..])]-> I64 {
+  0
+}

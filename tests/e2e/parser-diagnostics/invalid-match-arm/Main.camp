@@ -1,0 +1,5 @@
+pub main! = || -[Console! | Throw!([..])]-> I64 {
+  match 1 {
+  | 2
+  }
+}

@@ -2375,3 +2375,15 @@ diag_tuple_pattern_count :: proc(
 	return d
 }
 
+diag_todo_used :: proc(span: base.Source_Span) -> Diagnostic {
+	d := diag_init(
+		.Warning,
+		"C0914",
+		"TODO EXPRESSION",
+		span,
+		"`todo` is a placeholder — evaluating this at runtime will trap.",
+	)
+	append(&d.hints, "Replace this with a real implementation before shipping.")
+	return d
+}
+

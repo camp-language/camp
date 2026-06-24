@@ -149,25 +149,25 @@ Each diagnostic should have a unique `C####` code for searchability and `camp --
 
 **Rationale:** Only one expression is allowed per interpolation hole.
 
-### 2.10 DUPLICATE FIELD IN RECORD LITERAL (C0110) — Error 🆕 New
+### 2.10 DUPLICATE FIELD IN RECORD LITERAL (C0110) — Error ✅ Implemented
 
 > Field `{name}` appears more than once in this record literal.
 
 **Rationale:** Rust (E0063), TypeScript (2353), and Swift all report duplicate struct/record fields. This is almost always a mistake.
 
-### 2.11 DUPLICATE FIELD IN RECORD PATTERN (C0111) — Error 🆕 New
+### 2.11 DUPLICATE FIELD IN RECORD PATTERN (C0111) — Error ✅ Implemented
 
 > Field `{name}` appears more than once in this record pattern.
 
 **Rationale:** Destructuring the same field twice is either a typo or confusion about which value is bound.
 
-### 2.12 DUPLICATE VARIANT IN TAG UNION (C0112) — Error 🆕 New
+### 2.12 DUPLICATE VARIANT IN TAG UNION (C0112) — Error ✅ Implemented
 
 > Variant `{name}` appears more than once in this tag union type.
 
 **Rationale:** Duplicate variants in a union type are meaningless and likely a copy-paste error.
 
-### 2.13 DUPLICATE EFFECT IN ROW (C0113) — Error 🆕 New
+### 2.13 DUPLICATE EFFECT IN ROW (C0113) — Error ✅ Implemented
 
 > Effect `{name}` appears more than once in this effect row.
 
@@ -175,31 +175,31 @@ Each diagnostic should have a unique `C####` code for searchability and `camp --
 
 **Rationale:** Duplicate effects in a row are semantically redundant and likely a mistake.
 
-### 2.14 INVALID MATCH ARM (C0114) — Error 🆕 New
+### 2.14 INVALID MATCH ARM (C0114) — Error ✅ Implemented
 
 > This match arm is missing a `=>` and a body.
 
 **Rationale:** Malformed match arms (e.g., just a pattern with no arrow) should be caught with a clear message rather than a generic "expected token" error.
 
-### 2.15 MISSING ARROW IN FUNCTION TYPE (C0115) — Error 🆕 New
+### 2.15 MISSING ARROW IN FUNCTION TYPE (C0115) — Error ✅ Implemented
 
 > This function type is missing an arrow. Use `->` for pure functions or `-[effects]->` for effectful ones.
 
 **Rationale:** A common mistake when writing function types, especially for newcomers to the effect syntax.
 
-### 2.16 INVALID VISIBILITY MODIFIER (C0116) — Error 🆕 New
+### 2.16 INVALID VISIBILITY MODIFIER (C0116) — Error ✅ Implemented
 
 > `pub` can only be applied to top-level declarations.
 
 **Rationale:** Applying `pub` to local bindings is meaningless and likely a misunderstanding of visibility rules.
 
-### 2.17 INVALID EFFECT ROW SYNTAX (C0117) — Error 🆕 New
+### 2.17 INVALID EFFECT ROW SYNTAX (C0117) — Error ✅ Implemented
 
 > Effect rows use `|` as a separator, not `,`. Write `-[A! | B!]->` instead of `-[A!, B!]->`.
 
 **Rationale:** Per the syntax recipe, effect rows use `|` as separator. A common mistake for users coming from languages with comma-separated lists.
 
-### 2.18 TUPLE SIZE (C0118) — Error 🆕 New
+### 2.18 TUPLE SIZE (C0118) — Error ✅ Implemented
 
 > Tuple must have 2 or 3 elements, got {count}.
 
@@ -207,7 +207,7 @@ Each diagnostic should have a unique `C####` code for searchability and `camp --
 
 ---
 
-### 2.19 EMPTY TUPLE (C0119) — Error 🆕 New
+### 2.19 EMPTY TUPLE (C0119) — Error ✅ Implemented
 
 > Empty tuple `()` is not valid; use `{}` for unit.
 
@@ -215,7 +215,7 @@ Each diagnostic should have a unique `C####` code for searchability and `camp --
 
 ---
 
-### 2.20 TUPLE TYPE SIZE (C0120) — Error 🆕 New
+### 2.20 TUPLE TYPE SIZE (C0120) — Error ✅ Implemented
 
 > Tuple type must have 2 or 3 elements, got {count}.
 
@@ -223,7 +223,7 @@ Each diagnostic should have a unique `C####` code for searchability and `camp --
 
 ---
 
-### 2.21 SINGLE-ELEMENT TUPLE (C0121) — Error 🆕 New
+### 2.21 SINGLE-ELEMENT TUPLE (C0121) — Error ✅ Implemented
 
 > Single-element tuple is not valid; use the type directly or add a return type for a function: `(T) -> R`
 
@@ -301,7 +301,7 @@ Each diagnostic should have a unique `C####` code for searchability and `camp --
 
 **Rationale:** Using a value-level name in a type position (or vice versa). This is distinct from "undefined type" because the name exists but is the wrong kind.
 
-### 3.10 RAW IDENTIFIER NOT NEEDED (C0209) — Warning 🆕 New
+### 3.10 RAW IDENTIFIER NOT NEEDED (C0209) — Warning ✅ Implemented
 
 > `r#{name}` is not a keyword — you can write `{name}` without the `r#` prefix.
 
@@ -449,13 +449,13 @@ Each diagnostic should have a unique `C####` code for searchability and `camp --
 
 **Rationale:** The entry point has a fixed signature. A specific error is better than a generic type mismatch.
 
-### 4.19 DUPLICATE TYPE PARAMETER (C0317) — Error 🆕 New
+### 4.19 DUPLICATE TYPE PARAMETER (C0317) — Error ✅ Implemented
 
 > Type parameter `{name}` appears more than once in this type's parameter list.
 
 **Rationale:** `type Foo(a, a)` is meaningless. Rust (E0403) reports this.
 
-### 4.20 CONSTRUCTOR NOT EXHAUSTIVE (C0318) — Error 🆕 New
+### 4.20 EMPTY TAG UNION (C0318) — Error ✅ Implemented
 
 > Tag union `{name}` has no variants. A tag union must have at least one variant.
 
@@ -931,6 +931,14 @@ Camp's algebraic effect system is its most distinctive feature. These diagnostic
 
 **Rationale:** If a `$`-variable is never reassigned, the `$` prefix is misleading. Rust's `unused_mut` lint serves the same purpose.
 
+### 10.15 TODO EXPRESSION (C0914) — Warning ✅ Implemented
+
+> `todo` is a placeholder — evaluating this at runtime will trap.
+
+**Hint:** Replace this with a real implementation before shipping.
+
+**Rationale:** A `todo` expression compiles but traps at runtime. Reporting its location at compile time (as a warning, not an error) tells the developer where placeholders remain without blocking compilation. This is the Camp analog of Rust's `todo!()` / `unimplemented!!()` macros and Haskell's `error "todo"`.
+
 ---
 
 ## 11. Unused Analysis Errors (Hard Errors)
@@ -1058,20 +1066,20 @@ Camp uses Perceus reference counting for deterministic memory management. These 
 
 ## Summary: Implementation Status
 
-### Currently Implemented (68 total)
+### Currently Implemented (84 total)
 
 | Category | Count | Codes |
 |----------|-------|-------|
 | Lexer | 5 | C0001–C0005 |
-| Parser | 10 | C0100–C0109 |
-| Name Resolution | 3 | C0200–C0202 |
-| Type System | 7 | C0300–C0306 |
+| Parser | 22 | C0100–C0121 |
+| Name Resolution | 4 | C0200–C0202, C0209 |
+| Type System | 9 | C0300–C0306, C0317, C0318 |
 | Effect System | 2 | C0400, C0401 |
 | Pattern Matching | 3 | C0500–C0503 |
 | Traits/Generics | 5 | C0600–C0604 |
 | Newtype/Nominal | 4 | C0700–C0703 |
 | Module/Import | 8 | C0800–C0807 |
-| Unused Warnings | 6 | C0900–C0905 |
+| Unused Warnings | 7 | C0900–C0905, C0914 |
 | Unused Errors | 2 | C1000, C1001 |
 | CLI/Build | 4 | C1200–C1203 |
 | Internal | 1 | C9000 |
@@ -1086,13 +1094,13 @@ Camp uses Perceus reference counting for deterministic memory management. These 
 | `diag_pointless_evaluation` | C0903 | Wire into unused analysis (TODO in `analysis/unused.odin:667`) |
 | `diag_unterminated_block_comment` | C0006 | Not applicable — Camp has no block comments (syntax-recipe §1). Retained for reference only. |
 
-### Proposed New Diagnostics (54)
+### Proposed New Diagnostics (39)
 
 | Category | Count | Codes | Priority |
 |----------|-------|-------|----------|
-| Parser | 12 | C0110–C0121 | Medium |
-| Name Resolution | 8 | C0203–C0210 | High |
-| Type System | 13 | C0307–C0320 | High |
+| Parser | 0 | — | Medium |
+| Name Resolution | 7 | C0203–C0208, C0210 | High |
+| Type System | 11 | C0307–C0316, C0319, C0320 | High |
 | Effect System | 10 | C0402–C0411 | **Critical** |
 | Pattern Matching | 7 | C0502, C0504–C0509 | High |
 | Traits/Generics | 6 | C0605–C0610 | Medium |
@@ -1102,7 +1110,7 @@ Camp uses Perceus reference counting for deterministic memory management. These 
 | Perceus/RC | 3 | C1100–C1102 | Medium |
 | CLI/Build | 4 | C1204–C1207 | Low |
 
-### Total Catalog: 127 diagnostics (68 implemented + 5 defined-but-unused + 54 proposed new)
+### Total Catalog: 128 diagnostics (84 implemented + 5 defined-but-unused + 39 proposed new)
 
 ---
 

@@ -1,0 +1,7 @@
+pub test "should not be public" {
+  1
+}
+
+pub main! = || -[Console! | Throw!([..])]-> I64 {
+  0
+}
