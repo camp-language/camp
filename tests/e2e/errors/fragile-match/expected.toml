@@ -1,0 +1,17 @@
+args = "check-file"
+stdout = """
+-- C0504: FRAGILE MATCH --- /tmp/camp-e2e/errors/fragile-match/src/Main.camp
+
+This match on `Color` is exhaustive now, but adding a new variant to `Color`
+would make it non-exhaustive.
+   5 |   match c {
+         ^^^^^
+  Add a wildcard pattern to make this match robust against future changes.
+1 warning(s) found
+check passed for /tmp/camp-e2e/errors/fragile-match/src/Main.camp
+"""
+stderr = ""
+exit = 0
+wasm_exit = 1
+wasm_stdout = ""
+wasm_stderr = ""

@@ -1,0 +1,12 @@
+stdout = """
+canonicalized /tmp/camp-e2e/errors/duplicate-binding-pattern/src/Main.camp: 1 declaration(s), 0 import(s)
+-- C0508: DUPLICATE BINDING IN PATTERN --- /tmp/camp-e2e/errors/duplicate-binding-pattern/src/Main.camp
+
+Variable `a` appears more than once in this pattern. In Camp, each variable in a
+pattern must be unique.
+   4 |     { x: a, y: a } => a
+                   ^
+compilation failed with 1 error(s)
+"""
+stderr = ""
+exit = 1

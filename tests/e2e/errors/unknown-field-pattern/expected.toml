@@ -1,0 +1,11 @@
+stdout = """
+canonicalized /tmp/camp-e2e/errors/unknown-field-pattern/src/Main.camp: 1 declaration(s), 0 import(s)
+-- C0507: UNKNOWN FIELD IN RECORD PATTERN --- /tmp/camp-e2e/errors/unknown-field-pattern/src/Main.camp
+
+Field `z` does not exist on record type `{ x, y }`.
+   4 |     { x: a, z: b } => a + b
+                   ^
+compilation failed with 1 error(s)
+"""
+stderr = ""
+exit = 1

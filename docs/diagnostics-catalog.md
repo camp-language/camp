@@ -577,13 +577,13 @@ Camp's algebraic effect system is its most distinctive feature. These diagnostic
 
 **Rationale:** Int and String have infinite constructors; a wildcard is required for exhaustiveness.
 
-### 6.3 NON-EXHAUSTIVE MATCH (TAG UNION) (C0502) — Error 🆕 New
+### 6.3 NON-EXHAUSTIVE MATCH (TAG UNION) (C0502) — Error ✅ Implemented
 
 > This match on `{type}` is non-exhaustive: missing branch for `{missing_variant}`.
 
 **Hint:** Add a branch for `{missing_variant}`, or add a wildcard pattern.
 
-**Rationale:** Tag union exhaustiveness is a core feature of strict functional languages. Rust (E0004), Elm, and Kotlin all make this a hard error for sealed/sum types. Currently Camp has an internal error fallback; this should be a proper user-facing error.
+**Rationale:** Tag union exhaustiveness is a core feature of strict functional languages. Rust (E0004), Elm, and Kotlin all make this a hard error for sealed/sum types. The previous internal-error fallback is replaced by this user-facing error.
 
 ### 6.4 REDUNDANT PATTERN (C0503) — Warning ✅ Implemented
 
@@ -593,7 +593,7 @@ Camp's algebraic effect system is its most distinctive feature. These diagnostic
 
 **Rationale:** Unreachable patterns are dead code. GHC (`-Woverlapping-patterns`), Rust, and OCaml (warning 11) all report this.
 
-### 6.5 FRAGILE MATCH (C0504) — Warning 🆕 New
+### 6.5 FRAGILE MATCH (C0504) — Warning ✅ Implemented
 
 > This match on `{type}` is exhaustive now, but adding a new variant to `{type}` would make it non-exhaustive.
 
@@ -601,7 +601,9 @@ Camp's algebraic effect system is its most distinctive feature. These diagnostic
 
 **Rationale:** OCaml's warning 4 (`fragile-match`) is brilliant — it warns when a match is technically exhaustive but would break if a new variant is added. This is especially valuable in Camp where newtypes can be extended with new variants.
 
-### 6.6 INVALID IRREFUTABLE PATTERN (C0505) — Error 🆕 New
+**Status note (camp-xuen):** Fires only for newtype-owned tag unions with more than one variant (e.g. `@Color : pub [Red | Green | Blue]`), where adding a variant is a real future change. Anonymous tag unions written inline as `[A | B]` cannot gain variants after the fact, so they do not trigger C0504.
+
+### 6.6 INVALID IRREFUTABLE PATTERN (C0505) — Error ⚠️ Not Applicable
 
 > Pattern `{pattern}` is refutable and cannot be used in a `let` binding. Only irrefutable patterns (wildcards, variables, records with all fields) are allowed here.
 
@@ -609,13 +611,15 @@ Camp's algebraic effect system is its most distinctive feature. These diagnostic
 
 **Rationale:** `let` bindings require irrefutable patterns. Using a tag pattern like `let Some(x) = expr` should be an error. Rust (E0005), Haskell, and OCaml all enforce this.
 
-### 6.7 MISSING FIELDS IN RECORD PATTERN (C0506) — Error 🆕 New
+**Status note (camp-xuen):** Camp's syntax has no `let` keyword — bindings are `name = expr` or `name : Type = expr`, both of which accept only an identifier (or `$name` mutable) on the LHS. Statement-level destructuring (`{ a, b } = record`, `[a, b, ...rest] = list`, `@UserId(n) = uid`) is desugared to field-access assignments that never produce a refutable pattern. The constructor `diag_invalid_irrefutable_pattern` exists but has no triggerable code path under the current syntax (see §Assignment and §Destructuring in `docs/syntax-recipe.md`). Re-evaluate if a `let`/refutable-binding form is ever introduced.
+
+### 6.7 MISSING FIELDS IN RECORD PATTERN (C0506) — Error ✅ Implemented
 
 > Record pattern is missing field `{field}`. Use `_` to ignore a field, or `{..}` to ignore remaining fields.
 
 **Rationale:** When destructuring a record, all fields must be accounted for (either bound or explicitly ignored). Rust (E0027) reports this.
 
-### 6.8 UNKNOWN FIELD IN RECORD PATTERN (C0507) — Error 🆕 New
+### 6.8 UNKNOWN FIELD IN RECORD PATTERN (C0507) — Error ✅ Implemented
 
 > Field `{field}` does not exist on record type `{type}`.
 
@@ -623,13 +627,13 @@ Camp's algebraic effect system is its most distinctive feature. These diagnostic
 
 **Rationale:** Destructuring a field that doesn't exist. Rust (E0026) reports this.
 
-### 6.9 DUPLICATE BINDING IN PATTERN (C0508) — Error 🆕 New
+### 6.9 DUPLICATE BINDING IN PATTERN (C0508) — Error ✅ Implemented
 
 > Variable `{name}` appears more than once in this pattern. In Camp, each variable in a pattern must be unique.
 
 **Rationale:** `match x { { a, a } => ... }` is ambiguous. Rust (E0416) and Haskell report this.
 
-### 6.10 WILDCARD AFTER CATCH-ALL (C0509) — Warning 🆕 New
+### 6.10 WILDCARD AFTER CATCH-ALL (C0509) — Warning ✅ Implemented
 
 > This wildcard pattern is unreachable — a previous wildcard or variable pattern already matches everything.
 
@@ -1062,13 +1066,13 @@ Camp uses Perceus reference counting for deterministic memory management. These 
 - "handler arm has wrong parameter count" → should become C0405
 - "operation not found in effects" → should become C0404
 - "trait not found in registry" → should become C0607
-- "non-exhaustive match" → should become C0502
+- "non-exhaustive match" → now C0502 (camp-xuen)
 
 ---
 
 ## Summary: Implementation Status
 
-### Currently Implemented (85 total)
+### Currently Implemented (91 total)
 
 | Category | Count | Codes |
 |----------|-------|-------|
@@ -1077,7 +1081,7 @@ Camp uses Perceus reference counting for deterministic memory management. These 
 | Name Resolution | 4 | C0200–C0202, C0209 |
 | Type System | 9 | C0300–C0306, C0317, C0318 |
 | Effect System | 2 | C0400, C0401 |
-| Pattern Matching | 3 | C0500–C0503 |
+| Pattern Matching | 9 | C0500–C0504, C0506–C0509 |
 | Traits/Generics | 6 | C0600–C0604, C0607 |
 | Newtype/Nominal | 4 | C0700–C0703 |
 | Module/Import | 8 | C0800–C0807 |
@@ -1096,7 +1100,7 @@ Camp uses Perceus reference counting for deterministic memory management. These 
 | `diag_pointless_evaluation` | C0903 | Wire into unused analysis (TODO in `analysis/unused.odin:667`) |
 | `diag_unterminated_block_comment` | C0006 | Not applicable — Camp has no block comments (syntax-recipe §1). Retained for reference only. |
 
-### Proposed New Diagnostics (38)
+### Proposed New Diagnostics (32)
 
 | Category | Count | Codes | Priority |
 |----------|-------|-------|----------|
@@ -1104,7 +1108,7 @@ Camp uses Perceus reference counting for deterministic memory management. These 
 | Name Resolution | 7 | C0203–C0208, C0210 | High |
 | Type System | 11 | C0307–C0316, C0319, C0320 | High |
 | Effect System | 10 | C0402–C0411 | **Critical** |
-| Pattern Matching | 7 | C0502, C0504–C0509 | High |
+| Pattern Matching | 1 | C0505 | Low (not applicable under current syntax) |
 | Traits/Generics | 5 | C0605, C0606, C0608–C0610 | Medium |
 | Newtype/Nominal | 1 | C0704 | Low |
 | Module/Import | 4 | C0808–C0811 | Medium |

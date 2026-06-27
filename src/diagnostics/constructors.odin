@@ -1852,7 +1852,7 @@ diag_missing_field_pattern :: proc(field_name: string, span: base.Source_Span) -
 		"MISSING FIELDS IN RECORD PATTERN",
 		span,
 		fmt.tprintf(
-			"Record pattern is missing field `{}`. Use `_` to ignore a field, or `{..}` to ignore remaining fields.",
+			"Record pattern is missing field `{}`. Use `_` to ignore a field, or `{{..}}` to ignore remaining fields.",
 			field_name,
 		),
 	)
