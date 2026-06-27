@@ -685,13 +685,15 @@ Camp's algebraic effect system is its most distinctive feature. These diagnostic
 
 **Rationale:** When two trait instances would overlap through coherence, the compiler should explain the conflict. Haskell and Rust both report this.
 
-### 7.8 TRAIT NOT FOUND (C0607) — Error 🆕 New
+### 7.8 TRAIT NOT FOUND (C0607) — Error ✅ Implemented
 
 > Trait `{name}` is not defined.
 
 **Hint:** "Did you mean `{similar}`?"
 
-**Rationale:** Referencing an undefined trait. Currently this would be an "undefined name" error, but traits are a distinct namespace.
+**Rationale:** Referencing an undefined trait. Emitted by `verify_trait_conformance` when an `is` impl names a trait absent from the trait registry; previously this path returned silently and `lower_tdecl_is_impl` erased the impl methods without any diagnostic.
+
+**Implemented in:** `src/semantics/check_decl.odin` — `verify_trait_conformance` (trait-not-in-registry branch).
 
 ### 7.9 SUPERTRAIT NOT SATISFIED (C0608) — Error 🆕 New
 
@@ -1066,7 +1068,7 @@ Camp uses Perceus reference counting for deterministic memory management. These 
 
 ## Summary: Implementation Status
 
-### Currently Implemented (84 total)
+### Currently Implemented (85 total)
 
 | Category | Count | Codes |
 |----------|-------|-------|
@@ -1076,7 +1078,7 @@ Camp uses Perceus reference counting for deterministic memory management. These 
 | Type System | 9 | C0300–C0306, C0317, C0318 |
 | Effect System | 2 | C0400, C0401 |
 | Pattern Matching | 3 | C0500–C0503 |
-| Traits/Generics | 5 | C0600–C0604 |
+| Traits/Generics | 6 | C0600–C0604, C0607 |
 | Newtype/Nominal | 4 | C0700–C0703 |
 | Module/Import | 8 | C0800–C0807 |
 | Unused Warnings | 7 | C0900–C0905, C0914 |
@@ -1094,7 +1096,7 @@ Camp uses Perceus reference counting for deterministic memory management. These 
 | `diag_pointless_evaluation` | C0903 | Wire into unused analysis (TODO in `analysis/unused.odin:667`) |
 | `diag_unterminated_block_comment` | C0006 | Not applicable — Camp has no block comments (syntax-recipe §1). Retained for reference only. |
 
-### Proposed New Diagnostics (39)
+### Proposed New Diagnostics (38)
 
 | Category | Count | Codes | Priority |
 |----------|-------|-------|----------|
@@ -1103,14 +1105,14 @@ Camp uses Perceus reference counting for deterministic memory management. These 
 | Type System | 11 | C0307–C0316, C0319, C0320 | High |
 | Effect System | 10 | C0402–C0411 | **Critical** |
 | Pattern Matching | 7 | C0502, C0504–C0509 | High |
-| Traits/Generics | 6 | C0605–C0610 | Medium |
+| Traits/Generics | 5 | C0605, C0606, C0608–C0610 | Medium |
 | Newtype/Nominal | 1 | C0704 | Low |
 | Module/Import | 4 | C0808–C0811 | Medium |
 | Unused Warnings | 8 | C0906–C0913 | High |
 | Perceus/RC | 3 | C1100–C1102 | Medium |
 | CLI/Build | 4 | C1204–C1207 | Low |
 
-### Total Catalog: 128 diagnostics (84 implemented + 5 defined-but-unused + 39 proposed new)
+### Total Catalog: 128 diagnostics (85 implemented + 5 defined-but-unused + 38 proposed new)
 
 ---
 

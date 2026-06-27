@@ -1,0 +1,11 @@
+stdout = """
+canonicalized /tmp/camp-e2e/traits/unregistered-impl/src/Main.camp: 2 declaration(s), 0 import(s)
+-- C0607: TRAIT NOT FOUND --- /tmp/camp-e2e/traits/unregistered-impl/src/Main.camp
+
+Trait `Bogus` is not defined.
+   2 | I64 is Bogus {
+       ^^^
+compilation failed with 1 error(s)
+"""
+stderr = ""
+exit = 1
