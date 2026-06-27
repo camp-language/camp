@@ -1,15 +1,21 @@
 stdout = """
--- C0100: SYNTAX ERROR --- /tmp/camp-e2e/pattern-matching/record-pattern-open-rest/src/Main.camp
+-- C0114: INVALID MATCH ARM --- /tmp/camp-e2e/pattern-matching/record-pattern-open-rest/src/Main.camp
 
-I expected `=>` here, but I got `{` instead.
+This match arm is missing a `=>` and a body.
    5 |     | { x, ..rest } => x
              ^
 
--- C0100: SYNTAX ERROR --- /tmp/camp-e2e/pattern-matching/record-pattern-open-rest/src/Main.camp
+-- C0114: INVALID MATCH ARM --- /tmp/camp-e2e/pattern-matching/record-pattern-open-rest/src/Main.camp
 
-I expected `=>` here, but I got `..` instead.
+This match arm is missing a `=>` and a body.
    5 |     | { x, ..rest } => x
-                  ^^
+                ^
+
+-- C0114: INVALID MATCH ARM --- /tmp/camp-e2e/pattern-matching/record-pattern-open-rest/src/Main.camp
+
+This match arm is missing a `=>` and a body.
+   5 |     | { x, ..rest } => x
+                    ^^^^
 
 -- C0101: SYNTAX ERROR --- /tmp/camp-e2e/pattern-matching/record-pattern-open-rest/src/Main.camp
 
@@ -28,7 +34,7 @@ I expected `=` here, but I got `` instead.
 I was not expecting `` here.
    7 | }
         ^
-compilation failed with 5 error(s)
+compilation failed with 6 error(s)
 """
 stderr = ""
 exit = 1

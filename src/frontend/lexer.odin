@@ -445,7 +445,8 @@ lexer_lex_number :: proc(l: ^Lexer, start: int) -> base.Token {
 lexer_lex_hex_number :: proc(l: ^Lexer, start: int) -> base.Token {
 	// Skip '0x'
 	l.pos += 2
-	for l.pos < len(l.source) {
+	digit_start := l.pos
+	hex_scan: for l.pos < len(l.source) {
 		ch := l.source[l.pos]
 		switch {
 		case (ch >= '0' && ch <= '9') || (ch >= 'a' && ch <= 'f') || (ch >= 'A' && ch <= 'F'):
@@ -453,9 +454,28 @@ lexer_lex_hex_number :: proc(l: ^Lexer, start: int) -> base.Token {
 		case ch == '_':
 			l.pos += 1
 		case:
-			break
+			break hex_scan
 		}
 	}
+
+	// A hex literal must have at least one digit after `0x`.
+	if l.pos == digit_start && l.pos < len(l.source) && is_identifier_continue(l.source[l.pos]) {
+		return lexer_report_invalid_numeric(
+			l,
+			start,
+			"Hexadecimal literals need at least one digit after `0x`.",
+		)
+	}
+
+	// Trailing alphanumerics out of base range (e.g. `0xGH`) malformed the literal.
+	if l.pos < len(l.source) && (is_identifier_continue(l.source[l.pos])) {
+		return lexer_report_invalid_numeric(
+			l,
+			start,
+			"Hexadecimal literals only allow digits 0-9 and A-F (or a-f).",
+		)
+	}
+
 	text := l.source[start:l.pos]
 	tok := lexer_make_token(l, .Int_Literal, start, text)
 	// skip '0x' prefix for parsing
@@ -468,7 +488,8 @@ lexer_lex_hex_number :: proc(l: ^Lexer, start: int) -> base.Token {
 lexer_lex_octal_number :: proc(l: ^Lexer, start: int) -> base.Token {
 	// Skip '0o'
 	l.pos += 2
-	for l.pos < len(l.source) {
+	digit_start := l.pos
+	oct_scan: for l.pos < len(l.source) {
 		ch := l.source[l.pos]
 		switch {
 		case ch >= '0' && ch <= '7':
@@ -476,9 +497,28 @@ lexer_lex_octal_number :: proc(l: ^Lexer, start: int) -> base.Token {
 		case ch == '_':
 			l.pos += 1
 		case:
-			break
+			break oct_scan
 		}
 	}
+
+	// An octal literal must have at least one digit after `0o`.
+	if l.pos == digit_start && l.pos < len(l.source) && is_identifier_continue(l.source[l.pos]) {
+		return lexer_report_invalid_numeric(
+			l,
+			start,
+			"Octal literals need at least one digit after `0o`.",
+		)
+	}
+
+	// Trailing alphanumerics out of base range (e.g. `0o78`) malformed the literal.
+	if l.pos < len(l.source) && is_identifier_continue(l.source[l.pos]) {
+		return lexer_report_invalid_numeric(
+			l,
+			start,
+			"Octal literals only allow digits 0 through 7.",
+		)
+	}
+
 	text := l.source[start:l.pos]
 	tok := lexer_make_token(l, .Int_Literal, start, text)
 	if len(text) > 2 {
@@ -490,7 +530,8 @@ lexer_lex_octal_number :: proc(l: ^Lexer, start: int) -> base.Token {
 lexer_lex_binary_number :: proc(l: ^Lexer, start: int) -> base.Token {
 	// Skip '0b'
 	l.pos += 2
-	for l.pos < len(l.source) {
+	digit_start := l.pos
+	bin_scan: for l.pos < len(l.source) {
 		ch := l.source[l.pos]
 		switch {
 		case ch == '0' || ch == '1':
@@ -498,9 +539,24 @@ lexer_lex_binary_number :: proc(l: ^Lexer, start: int) -> base.Token {
 		case ch == '_':
 			l.pos += 1
 		case:
-			break
+			break bin_scan
 		}
 	}
+
+	// A binary literal must have at least one digit after `0b`.
+	if l.pos == digit_start && l.pos < len(l.source) && is_identifier_continue(l.source[l.pos]) {
+		return lexer_report_invalid_numeric(
+			l,
+			start,
+			"Binary literals need at least one digit after `0b`.",
+		)
+	}
+
+	// Trailing alphanumerics out of base range (e.g. `0b102`) malformed the literal.
+	if l.pos < len(l.source) && is_identifier_continue(l.source[l.pos]) {
+		return lexer_report_invalid_numeric(l, start, "Binary literals only allow digits 0 and 1.")
+	}
+
 	text := l.source[start:l.pos]
 	tok := lexer_make_token(l, .Int_Literal, start, text)
 	if len(text) > 2 {
@@ -610,10 +666,15 @@ lexer_lex_string :: proc(l: ^Lexer, start: int) -> base.Token {
 		for l.pos < len(l.source) && l.source[l.pos] != '"' {
 			if l.source[l.pos] == '\\' {
 				l.pos += 1
+				if l.pos < len(l.source) {
+					lexer_validate_string_escape(l, l.pos)
+					l.pos += 1
+				}
 			} else if l.source[l.pos] == '$' &&
 			   l.pos + 1 < len(l.source) &&
 			   l.source[l.pos + 1] == '{' {
 				has_interpolation = true
+				l.pos += 1
 			}
 			l.pos += 1
 		}
@@ -665,7 +726,10 @@ when simd.HAS_HARDWARE_SIMD {
 				return
 			} else if ch == '\\' {
 				l.pos += 1 // skip escape char
-				if l.pos < source_len {l.pos += 1} 	// skip escaped char
+				if l.pos < source_len {
+					lexer_validate_string_escape(l, l.pos)
+					l.pos += 1 // skip escaped char
+				}
 				continue
 			} else if ch == '$' && l.pos + 1 < source_len && l.source[l.pos + 1] == '{' {
 				has_interpolation^ = true
@@ -775,6 +839,13 @@ lexer_lex_perline_string :: proc(l: ^Lexer, start: int) -> base.Token {
 		if l.pos < len(l.source) && l.source[l.pos] == '\n' {
 			l.pos += 1
 			l.at_line_start = true
+		} else if l.pos >= len(l.source) {
+			// Reached EOF before the closing newline of this \-line.
+			diagnostics.collector_add_diag(
+				l.collector,
+				diagnostics.diag_unterminated_per_line_string(lexer_make_span(l, start)),
+			)
+			break
 		}
 
 		// Skip whitespace at start of next line to check for another \
@@ -891,5 +962,55 @@ is_identifier_start :: proc(ch: u8) -> bool {
 
 is_identifier_continue :: proc(ch: u8) -> bool {
 	return is_identifier_start(ch) || (ch >= '0' && ch <= '9')
+}
+
+// Valid escape sequences inside `"..."` string literals.
+// Mirrors docs/syntax-recipe.md §1 (`\n \t \r \\ \" \$`) plus `\0`
+// (kept for compatibility with the C0003 constructor hint).
+is_valid_string_escape :: proc(ch: u8) -> bool {
+	switch ch {
+	case 'n', 't', 'r', '\\', '"', '$', '0':
+		return true
+	case:
+		return false
+	}
+}
+
+// Reports a malformed numeric literal (C0005). Consumes the trailing run of
+// identifier-continue characters so the malformed text is reported as one
+// token and does not cascade into spurious follow-on tokens.
+lexer_report_invalid_numeric :: proc(l: ^Lexer, start: int, hint: string) -> base.Token {
+	for l.pos < len(l.source) && is_identifier_continue(l.source[l.pos]) {
+		l.pos += 1
+	}
+	text := l.source[start:l.pos]
+	diagnostics.collector_add_diag(
+		l.collector,
+		diagnostics.diag_invalid_numeric_literal(text, hint, lexer_make_span(l, start)),
+	)
+	return lexer_make_token(l, .Int_Literal, start, text)
+}
+
+// Reports an invalid escape sequence inside a `"..."` string literal.
+// `escape_pos` is the offset of the character following the `\`.
+lexer_validate_string_escape :: proc(l: ^Lexer, escape_pos: int) {
+	if escape_pos >= len(l.source) {
+		return
+	}
+	escape_ch := l.source[escape_pos]
+	if is_valid_string_escape(escape_ch) {
+		return
+	}
+	span := base.Source_Span {
+		file_id = l.file_id,
+		start   = escape_pos,
+		end     = escape_pos + 1,
+	}
+	buf: [1]u8
+	buf[0] = escape_ch
+	diagnostics.collector_add_diag(
+		l.collector,
+		diagnostics.diag_invalid_escape(string(buf[:]), span),
+	)
 }
 

@@ -1,0 +1,12 @@
+// Test multi-param From dispatch: Bool has From impls for all numeric types.
+// The compiler selects the impl whose target matches the expected return type,
+// registering disambiguated names like Bool_from_I8, Bool_from_I16, etc.
+// Without disambiguation, only the last registered From impl (Bool_from_F64)
+// would be available, causing type errors for I8/I16/I32 targets.
+
+main! = || -> I64 {
+    b = True
+    // Resolves to Bool_from_I8 via multi-param dispatch
+    _r: I8 = b->from()
+    0
+}

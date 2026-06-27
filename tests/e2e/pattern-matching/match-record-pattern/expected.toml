@@ -1,27 +1,33 @@
 stdout = """
--- C0100: SYNTAX ERROR --- /tmp/camp-e2e/pattern-matching/match-record-pattern/src/Main.camp
+-- C0114: INVALID MATCH ARM --- /tmp/camp-e2e/pattern-matching/match-record-pattern/src/Main.camp
 
-I expected `=>` here, but I got `{` instead.
+This match arm is missing a `=>` and a body.
    3 |     | { x: a, y: b } => a + b
              ^
 
--- C0100: SYNTAX ERROR --- /tmp/camp-e2e/pattern-matching/match-record-pattern/src/Main.camp
+-- C0114: INVALID MATCH ARM --- /tmp/camp-e2e/pattern-matching/match-record-pattern/src/Main.camp
 
-I expected `=>` here, but I got `a` instead.
+This match arm is missing a `=>` and a body.
    3 |     | { x: a, y: b } => a + b
-                  ^
+                ^
 
--- C0101: SYNTAX ERROR --- /tmp/camp-e2e/pattern-matching/match-record-pattern/src/Main.camp
+-- C0114: INVALID MATCH ARM --- /tmp/camp-e2e/pattern-matching/match-record-pattern/src/Main.camp
 
-I was not expecting `,` here.
+This match arm is missing a `=>` and a body.
    3 |     | { x: a, y: b } => a + b
                    ^
 
--- C0100: SYNTAX ERROR --- /tmp/camp-e2e/pattern-matching/match-record-pattern/src/Main.camp
+-- C0114: INVALID MATCH ARM --- /tmp/camp-e2e/pattern-matching/match-record-pattern/src/Main.camp
 
-I expected `=>` here, but I got `:` instead.
+This match arm is missing a `=>` and a body.
    3 |     | { x: a, y: b } => a + b
                       ^
+
+-- C0114: INVALID MATCH ARM --- /tmp/camp-e2e/pattern-matching/match-record-pattern/src/Main.camp
+
+This match arm is missing a `=>` and a body.
+   3 |     | { x: a, y: b } => a + b
+                          ^
 
 -- C0101: SYNTAX ERROR --- /tmp/camp-e2e/pattern-matching/match-record-pattern/src/Main.camp
 
@@ -40,7 +46,7 @@ I expected `=` here, but I got `` instead.
 I was not expecting `` here.
    6 | 
        ^
-compilation failed with 7 error(s)
+compilation failed with 8 error(s)
 """
 stderr = ""
 exit = 1

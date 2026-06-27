@@ -107,3 +107,11 @@ Set is Hash {
 Set is Eq {
     eq = |a: Self, b: Self| -> Bool { crash "intrinsic: Set_eq" }
 }
+
+Set is IntoIter {
+  to_iter = |s| { to_iter(s) }
+}
+
+Set is FromIter {
+  from_iter = |iter| { Iter.fold(iter, new, |s, x| insert(x, s)) }
+}

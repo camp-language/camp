@@ -1,0 +1,6 @@
+@Pair: pub [Pair(I64, I64)]
+
+pub main! = || -[Console!]-> I64 {
+  p = @Pair(1, 2)
+  0
+}

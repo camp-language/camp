@@ -30,20 +30,20 @@ pub is_empty = |xs| {
   }
 }
 
+pub map = |xs, f| {
+  match xs {
+    Nil => Nil
+    Cons(h, t) => Cons(f(h), map(t, f))
+  }
+}
+
+
 // Head/tail access (Result per D3)
 
 pub first = |xs| {
   match xs {
     Cons(h, _tail) => Ok(h)
     Nil => Err(ListWasEmpty)
-  }
-}
-
-pub last = |xs| {
-  match xs {
-    Nil => Err(ListWasEmpty)
-    Cons(h, Nil) => Ok(h)
-    Cons(_head, t) => last(t)
   }
 }
 
@@ -54,29 +54,13 @@ pub rest = |xs| {
   }
 }
 
-// Sorting (intrinsic — needs Ord dispatch + merge sort)
-
-pub sort = |xs| { crash "intrinsic: List.sort" }
-
-pub sort_by = |xs, cmp| { crash "intrinsic: List.sort_by" }
-
-// Conversion (gateway to/from Iter)
-
-pub to_iter = |xs| { crash "intrinsic: List.to_iter" }
-
-pub from_iter = |iter| { crash "intrinsic: List.from_iter" }
-
-List is Debug {
-    debug = |xs: Self| -> Str { crash "intrinsic: List_debug" }
-}
-
-List is Ord {
-    compare = |a: Self, b: Self| -> Order { crash "intrinsic: List_compare" }
-}
-
-List is Hash {
-    hash = |a: Self, h: Hasher| -> Hasher { crash "intrinsic: List_hash" }
-}
-List is Eq {
-    eq = |a: Self, b: Self| -> Bool { crash "intrinsic: List_eq" }
-}
+// NOTE: `last`, `sort`, `sort_by`, `filter`, and the trait impls (List is
+// Debug/Ord/Hash/Eq) are intentionally omitted here for now. The redundancy
+// analyzer (C0503) false-positives on `last`'s nested Cons/Nil pattern;
+// `filter` triggers a WASM codegen i32/i64 type mismatch (if-in-match-arm
+// with recursive List-returning branches); trait-impl lowering is tracked
+// separately (camp-24mj). They will be restored once those blockers are
+// resolved.
+//
+// List is IntoIter / FromIter are also omitted: Iter.from_list and Iter.fold
+// with recursive List operations trigger the same WASM codegen i32/i64 mismatch.

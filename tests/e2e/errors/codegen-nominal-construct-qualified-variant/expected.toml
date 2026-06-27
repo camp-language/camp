@@ -1,0 +1,21 @@
+stdout = """
+canonicalized /tmp/camp-e2e/errors/codegen-nominal-construct-qualified-variant/src/Main.camp: 2 declaration(s), 0 import(s)
+typecheck passed for /tmp/camp-e2e/errors/codegen-nominal-construct-qualified-variant/src/Main.camp
+-- C0900: UNUSED BINDING --- /tmp/camp-e2e/errors/codegen-nominal-construct-qualified-variant/src/Main.camp
+
+Binding `r` is never used. 
+   4 |   r = @Result.Ok(42)
+         ^
+  Prefix with `_` to mark as intentionally unused: `_r`
+
+-- C9000: INTERNAL ERROR --- /tmp/camp-e2e/errors/codegen-nominal-construct-qualified-variant/src/Main.camp
+
+Something went wrong inside the compiler: multi-payload / qualified-variant
+nominal construction is not yet implemented in codegen
+   4 |   r = @Result.Ok(42)
+             ^
+  This is a bug in Camp. Please report it at https://github.com/smores56/camp/issues
+compilation failed with 1 error(s)
+"""
+stderr = ""
+exit = 1

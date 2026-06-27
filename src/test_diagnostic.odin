@@ -2,6 +2,7 @@ package camp
 
 import "camp:base"
 import "camp:diagnostics"
+import "core:strings"
 import "core:testing"
 
 @(test)
@@ -451,6 +452,124 @@ test_diag_non_exhaustive_bool :: proc(t: ^testing.T) {
 }
 
 @(test)
+test_diag_non_exhaustive_tag :: proc(t: ^testing.T) {
+	span := base.Source_Span {
+		file_id = 0,
+		start   = 0,
+		end     = 20,
+	}
+	d := diagnostics.diag_non_exhaustive_tag("Color", "Blue", span)
+	defer diagnostics.diag_destroy(&d)
+	testing.expect(t, d.category == .Error)
+	testing.expect(t, d.title == "NON-EXHAUSTIVE MATCH")
+	testing.expect(t, d.code == "C0502")
+	testing.expect(t, d.span == span)
+	testing.expect(t, len(d.hints) == 1)
+	testing.expect(t, strings.contains(d.hints[0], "Blue"))
+}
+
+@(test)
+test_diag_fragile_match :: proc(t: ^testing.T) {
+	span := base.Source_Span {
+		file_id = 0,
+		start   = 0,
+		end     = 20,
+	}
+	d := diagnostics.diag_fragile_match("Color", span)
+	defer diagnostics.diag_destroy(&d)
+	testing.expect(t, d.category == .Warning)
+	testing.expect(t, d.title == "FRAGILE MATCH")
+	testing.expect(t, d.code == "C0504")
+	testing.expect(t, d.span == span)
+	testing.expect(t, len(d.hints) == 1)
+	testing.expect(t, strings.contains(d.hints[0], "wildcard"))
+}
+
+@(test)
+test_diag_invalid_irrefutable_pattern :: proc(t: ^testing.T) {
+	span := base.Source_Span {
+		file_id = 0,
+		start   = 0,
+		end     = 20,
+	}
+	d := diagnostics.diag_invalid_irrefutable_pattern("Some(x)", span)
+	defer diagnostics.diag_destroy(&d)
+	testing.expect(t, d.category == .Error)
+	testing.expect(t, d.title == "INVALID IRREFUTABLE PATTERN")
+	testing.expect(t, d.code == "C0505")
+	testing.expect(t, d.span == span)
+	testing.expect(t, len(d.hints) == 1)
+}
+
+@(test)
+test_diag_missing_field_pattern :: proc(t: ^testing.T) {
+	span := base.Source_Span {
+		file_id = 0,
+		start   = 0,
+		end     = 20,
+	}
+	d := diagnostics.diag_missing_field_pattern("y", span)
+	defer diagnostics.diag_destroy(&d)
+	testing.expect(t, d.category == .Error)
+	testing.expect(t, d.title == "MISSING FIELDS IN RECORD PATTERN")
+	testing.expect(t, d.code == "C0506")
+	testing.expect(t, d.span == span)
+	// The hint text renders literal `{..}` braces, not a stray format arg.
+	testing.expect(t, strings.contains(d.message, "`y`"))
+	testing.expect(t, strings.contains(d.message, "{..}"))
+}
+
+@(test)
+test_diag_unknown_field_pattern :: proc(t: ^testing.T) {
+	span := base.Source_Span {
+		file_id = 0,
+		start   = 0,
+		end     = 20,
+	}
+	similar := make([]string, 1)
+	similar[0] = "y"
+	d := diagnostics.diag_unknown_field_pattern("z", "{ x, y }", similar, span)
+	defer diagnostics.diag_destroy(&d)
+	defer delete(similar)
+	testing.expect(t, d.category == .Error)
+	testing.expect(t, d.title == "UNKNOWN FIELD IN RECORD PATTERN")
+	testing.expect(t, d.code == "C0507")
+	testing.expect(t, d.span == span)
+	testing.expect(t, len(d.hints) == 1)
+	testing.expect(t, strings.contains(d.hints[0], "y"))
+}
+
+@(test)
+test_diag_duplicate_binding_pattern :: proc(t: ^testing.T) {
+	span := base.Source_Span {
+		file_id = 0,
+		start   = 0,
+		end     = 20,
+	}
+	d := diagnostics.diag_duplicate_binding_pattern("a", span)
+	defer diagnostics.diag_destroy(&d)
+	testing.expect(t, d.category == .Error)
+	testing.expect(t, d.title == "DUPLICATE BINDING IN PATTERN")
+	testing.expect(t, d.code == "C0508")
+	testing.expect(t, d.span == span)
+}
+
+@(test)
+test_diag_wildcard_after_catch_all :: proc(t: ^testing.T) {
+	span := base.Source_Span {
+		file_id = 0,
+		start   = 0,
+		end     = 20,
+	}
+	d := diagnostics.diag_wildcard_after_catch_all(span)
+	defer diagnostics.diag_destroy(&d)
+	testing.expect(t, d.category == .Warning)
+	testing.expect(t, d.title == "WILDCARD AFTER CATCH-ALL")
+	testing.expect(t, d.code == "C0509")
+	testing.expect(t, d.span == span)
+}
+
+@(test)
 test_diag_shadow :: proc(t: ^testing.T) {
 	span := base.Source_Span {
 		file_id = 0,
@@ -480,6 +599,22 @@ test_diag_unused_binding :: proc(t: ^testing.T) {
 	testing.expect(t, d.category == .Warning)
 	testing.expect(t, d.title == "UNUSED BINDING")
 	testing.expect(t, d.code == "C0900")
+	testing.expect(t, len(d.hints) == 1)
+	testing.expect(t, d.span == span)
+}
+
+@(test)
+test_diag_use_of_discard :: proc(t: ^testing.T) {
+	span := base.Source_Span {
+		file_id = 0,
+		start   = 0,
+		end     = 6,
+	}
+	d := diagnostics.diag_use_of_discard("_foo", span)
+	defer diagnostics.diag_destroy(&d)
+	testing.expect(t, d.category == .Error)
+	testing.expect(t, d.title == "USE OF DISCARDED VALUE")
+	testing.expect(t, d.code == "C0210")
 	testing.expect(t, len(d.hints) == 1)
 	testing.expect(t, d.span == span)
 }

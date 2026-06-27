@@ -5,9 +5,10 @@ import ba "camp:base"
 NO_REUSE_ADDR :: ba.Intern_ID(-1)
 
 IR_Module :: struct {
-	decls:        [dynamic]IR_Decl,
-	effect_defs:  [dynamic]IR_Effect_Def,
-	string_table: [dynamic]String_Table_Entry,
+	decls:              [dynamic]IR_Decl,
+	effect_defs:        [dynamic]IR_Effect_Def,
+	string_table:       [dynamic]String_Table_Entry,
+	next_fresh_counter: int,
 }
 
 String_Table_Entry :: struct {
@@ -231,6 +232,7 @@ IR_Call :: struct {
 	eq_func:          ba.Canonical_Name,
 	debug_func:       ba.Canonical_Name,
 	val_debug_func:   ba.Canonical_Name,
+	hash_func:        ba.Canonical_Name,
 }
 
 IR_Tail_Call :: struct {

@@ -57,63 +57,76 @@ discover_tests :: proc(root: string, allocator: mem.Allocator) -> [dynamic]E2E_T
 
 		cat_path, cat_err2 := filepath.join({root, category}, allocator)
 		if cat_err2 != nil {continue}
-		defer delete(cat_path, allocator)
 
-		test_dirs, td_err := os.read_all_directory_by_path(cat_path, allocator)
-		if td_err != nil {continue}
-		defer os.file_info_slice_delete(test_dirs, allocator)
+		discover_category_tests(&tests, cat_path, category, allocator)
 
-		for fi in test_dirs {
-			if fi.type != .Directory {continue}
-			test_name := fi.name
-			if test_name == "." || test_name == ".." {continue}
-
-			test_dir_path, tdpe_err := filepath.join({cat_path, test_name}, allocator)
-			if tdpe_err != nil {continue}
-			defer delete(test_dir_path, allocator)
-
-			expected_path, ep_err := filepath.join({test_dir_path, "expected.toml"}, allocator)
-			defer delete(expected_path, allocator)
-			if ep_err != nil {
-				continue
-			}
-
-			if !os.exists(expected_path) {
-				continue // deferred delete handles cleanup
-			}
-
-			main_camp_path, mc_err := filepath.join({test_dir_path, "Main.camp"}, allocator)
-			defer delete(main_camp_path, allocator)
-			if mc_err != nil {
-				continue
-			}
-
-			if !os.exists(main_camp_path) {
-				continue // deferred delete handles cleanup
-			}
-
-
-			cat_clone, _ := strings.clone(category, allocator)
-			name_clone, _ := strings.clone(test_name, allocator)
-			dir_clone, _ := strings.clone(test_dir_path, allocator)
-			exp_clone, _ := strings.clone(expected_path, allocator)
-
-			is_multi := count_camp_files(test_dir_path, allocator) > 1
-
-			append(
-				&tests,
-				E2E_Test {
-					category = cat_clone,
-					name = name_clone,
-					test_dir = dir_clone,
-					expected_path = exp_clone,
-					is_multi_module = is_multi,
-				},
-			)
-		}
+		delete(cat_path, allocator)
 	}
 
 	return tests
+}
+
+discover_category_tests :: proc(
+	tests: ^[dynamic]E2E_Test,
+	cat_path: string,
+	category: string,
+	allocator: mem.Allocator,
+) {
+	test_dirs, td_err := os.read_all_directory_by_path(cat_path, allocator)
+	if td_err != nil {
+		return
+	}
+	defer os.file_info_slice_delete(test_dirs, allocator)
+
+	for fi in test_dirs {
+		if fi.type != .Directory {continue}
+		test_name := fi.name
+		if test_name == "." || test_name == ".." {continue}
+
+		discover_one_test(tests, cat_path, category, test_name, allocator)
+	}
+}
+
+discover_one_test :: proc(
+	tests: ^[dynamic]E2E_Test,
+	cat_path: string,
+	category: string,
+	test_name: string,
+	allocator: mem.Allocator,
+) {
+	test_dir_path, tdpe_err := filepath.join({cat_path, test_name}, allocator)
+	if tdpe_err != nil {return}
+	defer delete(test_dir_path, allocator)
+
+	expected_path, ep_err := filepath.join({test_dir_path, "expected.toml"}, allocator)
+	if ep_err != nil {return}
+	defer delete(expected_path, allocator)
+
+	if !os.exists(expected_path) {return}
+
+	main_camp_path, mc_err := filepath.join({test_dir_path, "Main.camp"}, allocator)
+	if mc_err != nil {return}
+	defer delete(main_camp_path, allocator)
+
+	if !os.exists(main_camp_path) {return}
+
+	cat_clone, _ := strings.clone(category, allocator)
+	name_clone, _ := strings.clone(test_name, allocator)
+	dir_clone, _ := strings.clone(test_dir_path, allocator)
+	exp_clone, _ := strings.clone(expected_path, allocator)
+
+	is_multi := count_camp_files(test_dir_path, allocator) > 1
+
+	append(
+		tests,
+		E2E_Test {
+			category = cat_clone,
+			name = name_clone,
+			test_dir = dir_clone,
+			expected_path = exp_clone,
+			is_multi_module = is_multi,
+		},
+	)
 }
 
 copy_dir_recursive :: proc(dst: string, src: string) -> os.Error {
@@ -123,26 +136,73 @@ copy_dir_recursive :: proc(dst: string, src: string) -> os.Error {
 	}
 	defer os.file_info_slice_delete(infos, context.allocator)
 
-	os.make_directory_all(dst)
+	if mk_err := mkdir_all(dst); mk_err != nil {
+		return mk_err
+	}
 
 	for fi in infos {
 		if fi.name == "." || fi.name == ".." {continue}
 
-		src_path, sp_err := filepath.join({src, fi.name}, context.allocator)
-		if sp_err != nil {return sp_err}
-		defer delete(src_path, context.allocator)
-
-		dst_path, dp_err := filepath.join({dst, fi.name}, context.allocator)
-		if dp_err != nil {return dp_err}
-		defer delete(dst_path, context.allocator)
-
-		if fi.type == .Directory {
-			copy_err := copy_dir_recursive(dst_path, src_path)
-			if copy_err != nil {return copy_err}
-		} else if fi.type == .Regular {
-			copy_err := os.copy_file(dst_path, src_path)
-			if copy_err != nil {return copy_err}
+		if copy_err := copy_dir_entry(dst, src, fi); copy_err != nil {
+			return copy_err
 		}
+	}
+
+	return nil
+}
+
+// mkdir_all creates `path` and any missing parent directories, like
+// `mkdir -p`. It is a replacement for `os.make_directory_all`, which returns
+// `Permission_Denied` for fresh multi-component paths under some Odin
+// builds. The implementation walks path components with `os.make_directory`
+// (single-level, which works reliably) and treats `.Exist` as success.
+mkdir_all :: proc(path: string) -> os.Error {
+	if path == "" {return .Invalid_Path}
+	if os.exists(path) {return nil}
+
+	temp := context.temp_allocator
+	clean := path
+	if len(clean) > 1 && clean[len(clean) - 1] == '/' {
+		clean = clean[:len(clean) - 1]
+	}
+
+	grown: string
+	start := 0
+	if len(clean) > 0 && clean[0] == '/' {
+		grown = "/"
+		start = 1
+	}
+
+	for i in start ..= len(clean) {
+		at_sep := i == len(clean) || clean[i] == '/'
+		if at_sep && i > start {
+			comp := clean[start:i]
+			grown = strings.concatenate({grown, "/", comp}, temp) or_else grown
+			if !os.exists(grown) {
+				mk_err := os.make_directory(grown)
+				if mk_err != nil && mk_err != .Exist {
+					return mk_err
+				}
+			}
+			start = i + 1
+		}
+	}
+	return nil
+}
+
+copy_dir_entry :: proc(dst, src: string, fi: os.File_Info) -> os.Error {
+	src_path, sp_err := filepath.join({src, fi.name}, context.allocator)
+	if sp_err != nil {return sp_err}
+	defer delete(src_path, context.allocator)
+
+	dst_path, dp_err := filepath.join({dst, fi.name}, context.allocator)
+	if dp_err != nil {return dp_err}
+	defer delete(dst_path, context.allocator)
+
+	if fi.type == .Directory {
+		return copy_dir_recursive(dst_path, src_path)
+	} else if fi.type == .Regular {
+		return os.copy_file(dst_path, src_path)
 	}
 
 	return nil
@@ -177,7 +237,11 @@ run_test :: proc(test: E2E_Test, update: bool) -> Test_Report {
 		report.diff = "  setup: could not build temp path"
 		return report
 	}
-	os.make_directory_all(tmp_base)
+	if mk_err := mkdir_all(tmp_base); mk_err != nil {
+		report.result = .Fail
+		report.diff = fmt.tprintf("  setup: could not create temp base: {}", mk_err)
+		return report
+	}
 
 	tmp_src, ts_err := filepath.join({tmp_base, "src"}, context.allocator)
 	if ts_err != nil {
@@ -318,21 +382,24 @@ run_test :: proc(test: E2E_Test, update: bool) -> Test_Report {
 	}
 
 	if has_wasm && wasm_available {
-		expected_we_int := 0
+		// Only enforce wasm_exit when the snapshot pins it. Trap tests use
+		// `wasm_stderr_contains` and don't pin an exit code, since trap
+		// exit codes are runtime-specific (wasmtime 134, wasmer 45, etc.).
 		if v, ok := toml_get(&expected_dict, "wasm_exit"); ok {
+			expected_we_int := 0
 			#partial switch e in v {
 			case int:
 				expected_we_int = e
 			}
-		}
-		if wasm_exit != expected_we_int {
-			passed = false
-			fmt.sbprintf(
-				&diff_builder,
-				"  wasm_exit: expected {}, got {}\n",
-				expected_we_int,
-				wasm_exit,
-			)
+			if wasm_exit != expected_we_int {
+				passed = false
+				fmt.sbprintf(
+					&diff_builder,
+					"  wasm_exit: expected {}, got {}\n",
+					expected_we_int,
+					wasm_exit,
+				)
+			}
 		}
 
 		expected_wasm_stdout := ""
@@ -354,7 +421,28 @@ run_test :: proc(test: E2E_Test, update: bool) -> Test_Report {
 				expected_wasm_stderr = s
 			}
 		}
-		if wasm_stderr != expected_wasm_stderr {
+		// `wasm_stderr_contains` asserts a substring (e.g. a trap message
+		// fragment) without coupling to wasmtime-version-specific backtrace
+		// formatting (function indices, offsets) that exact `wasm_stderr`
+		// would pin. Used for tests that assert a clean runtime trap.
+		expected_wasm_stderr_contains := ""
+		if v, ok := toml_get(&expected_dict, "wasm_stderr_contains"); ok {
+			#partial switch s in v {
+			case string:
+				expected_wasm_stderr_contains = s
+			}
+		}
+		if expected_wasm_stderr_contains != "" {
+			if !strings.contains(wasm_stderr, expected_wasm_stderr_contains) {
+				passed = false
+				fmt.sbprintf(
+					&diff_builder,
+					"  wasm_stderr: expected to contain {:q}, got:\n{}\n",
+					expected_wasm_stderr_contains,
+					wasm_stderr,
+				)
+			}
+		} else if wasm_stderr != expected_wasm_stderr {
 			passed = false
 			write_string_diff(&diff_builder, "wasm_stderr", expected_wasm_stderr, wasm_stderr)
 		}
@@ -650,6 +738,29 @@ run_special_command :: proc(
 			{camp_bin, "check"},
 			fmt.tprintf("{}-check", unique_prefix),
 			cwd = tmp_base,
+		)
+
+	// Single-file `check <file>`: runs the unused-analysis pass on the test's
+	// Main.camp and RENDERS C09xx warnings (unlike `build`, which swallows
+	// warnings on the success path). Also resolves stdlib imports via the
+	// single-file transitive-registration path (unlike project-mode `check`,
+	// which currently cannot parse the stale embedded stdlib sources). Use
+	// this for e2e tests that assert a C09xx unused-analysis warning fires.
+	case "check-file":
+		camp_env := os.get_env("CAMP_BIN", context.allocator)
+		camp_bin: string
+		if len(camp_env) > 0 {
+			camp_bin = camp_env
+		} else {
+			camp_bin = "./camp"
+		}
+		tmp_main, tm_err := filepath.join({tmp_base, "src", "Main.camp"}, context.allocator)
+		if tm_err != nil {
+			return "", fmt.tprintf("failed to build Main.camp path: {}", tm_err), 1
+		}
+		return run_command_prefixed(
+			{camp_bin, "check", tmp_main},
+			fmt.tprintf("{}-checkfile", unique_prefix),
 		)
 
 	}

@@ -1,0 +1,10 @@
+stdout = """
+-- C0112: DUPLICATE VARIANT IN TAG UNION --- /tmp/camp-e2e/parser-diagnostics/dup-variant/src/Main.camp
+
+Variant `Red` appears more than once in this tag union type.
+   1 | @Color : pub [Red | Green | Red]
+                                   ^^^
+compilation failed with 1 error(s)
+"""
+stderr = ""
+exit = 1

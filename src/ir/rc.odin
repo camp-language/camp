@@ -349,38 +349,13 @@ wrap_with_drops :: proc(expr: IR_Expr, drops: [dynamic]IR_Expr) -> IR_Expr {
 	append(&stmts, expr)
 	delete(drops)
 
-	// Determine the type from the expression
+	// Determine the type from the expression using the comprehensive helpers
+	// instead of a partial switch — covers all IR expression types (including
+	// IR_Literal_String, IR_Construct_Tuple, IR_Method_Call, IR_Closure, etc.)
+	// that were previously missing and caused wasm validation errors.
 	block_type := base.IR_Type {
-		wasm_type = .Void,
-	}
-	#partial switch e in expr {
-	case ^IR_Literal_Int:
-		block_type = e.type
-	case ^IR_Literal_Bool:
-		block_type = e.type
-	case ^IR_Literal_Float:
-		block_type = e.type
-	case ^IR_Var:
-		block_type = e.type
-	case ^IR_BinOp:
-		block_type = e.type
-	case ^IR_Call:
-		block_type = e.type
-	case ^IR_Closure_Call:
-		block_type = e.type
-	case ^IR_Field_Access:
-		block_type = e.type
-	case ^IR_Construct_Tag:
-		block_type = e.type
-	case ^IR_Construct_Record:
-		block_type = e.type
-	case ^IR_If:
-		block_type = e.type
-	case ^IR_Match:
-		block_type = e.type
-	case ^IR_Block:
-		block_type = e.type
-	case:
+		wasm_type = ir_expr_wasm_type(expr),
+		is_heap   = ir_expr_is_heap(expr),
 	}
 
 	block := new(IR_Block)
@@ -535,9 +510,17 @@ rc_insert_expr_inner :: proc(
 		if binding_used && binding_count == -1 {
 			// Binding was already dropped by branches (e.g., in IR_If/IR_Match)
 			// Don't emit another drop
-		} else if !binding_used || binding_count <= 0 {
-			// Binding was never used or all uses were consumed —
-			// if is_heap, we need to drop the original ownership
+		} else if !binding_used {
+			// Binding was never referenced at all (absent from the use map).
+			// If is_heap, we need to drop the original ownership.
+			//
+			// NOTE: `binding_count == 0` WITH `binding_used == true` means every use
+			// was visited by rc_insert_expr_inner (the last one without an inserted
+			// Dup — i.e. a move/consume). Under Perceus semantics the ownership has
+			// already been transferred to that last use's destination (e.g. a stored
+			// pointer, a moved argument), so emitting another Drop here would be a
+			// double-free / use-after-free. Only the genuinely-never-referenced case
+			// (`!binding_used`) needs an explicit drop. See camp-esbs.
 			if e.type.is_heap {
 				drop := new(IR_Drop)
 				drop^ = IR_Drop {

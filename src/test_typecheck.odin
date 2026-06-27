@@ -904,6 +904,32 @@ test_trait_missing_method :: proc(t: ^testing.T) {
 	testing.expect(t, diagnostics.diag_collector_has_errors(&ctx.collector))
 }
 
+// An `is` impl referencing a trait that was never registered must emit
+// C0607 (trait not found) rather than being silently erased at lowering
+// (bean camp-j3u9). Previously verify_trait_conformance returned false
+// without a diagnostic, and lower_tdecl_is_impl returned nil — the impl
+// methods simply vanished.
+@(test)
+test_trait_impl_unknown_trait_emits_c0607 :: proc(t: ^testing.T) {
+	ctx: build.Compilation_Context
+	store, _ := setup_for_typecheck(
+		&ctx,
+		"I64 is Bogus {\n  frob = |_x: Self| -> I64 { 0 }\n}",
+		{with_prelude = true},
+	)
+	defer build.context_destroy(&ctx)
+	defer semantics.type_store_destroy(store)
+
+	testing.expect(t, diagnostics.diag_collector_has_errors(&ctx.collector))
+	found_c0607 := false
+	for d in ctx.collector.diagnostics {
+		if d.code == "C0607" {
+			found_c0607 = true
+		}
+	}
+	testing.expect(t, found_c0607, "expected C0607 for is-impl of unknown trait")
+}
+
 mono_source :: proc(
 	ctx: ^build.Compilation_Context,
 	source: string,

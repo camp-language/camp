@@ -3,6 +3,8 @@ package codegen
 import "camp:base"
 import "camp:ir"
 
+import "core:fmt"
+
 coerce_arg_to :: proc(
 	buf: ^[dynamic]u8,
 	src: base.IR_Wasm_Type,
@@ -288,9 +290,18 @@ Runtime_Func :: enum {
 	Set_Debug,
 	Result_Debug,
 	Result_Debug_I64,
+	Result_Eq,
+	Result_Compare,
+	Result_Hash,
+	List_Compare,
+	List_Hash,
 	I64_Compare,
 	I64_Trampoline,
 	I64_Debug_Trampoline,
+	// Bool_Compare: (a: i32, b: i32) -> i32 — interim element compare for
+	// Bool (i32 0/1). Returns an Order heap cell (tag 0/1/2 = Less/Equal/
+	// Greater), per Design B (callbacks yield Order cells, not raw -1/0/1).
+	Bool_Compare,
 	Process_Spawn,
 	Process_Wait,
 	Process_Read,
@@ -410,7 +421,11 @@ emit_expr :: proc(expr: ir.IR_Expr, buf: ^[dynamic]u8, env: ^Codegen_Env, runtim
 			emit_instruction(Wasm_I64_Const{value = e.value}, buf)
 		}
 	case ^ir.IR_Literal_Float:
-		emit_instruction(Wasm_F64_Const{value = e.value}, buf)
+		if e.type.wasm_type == .F32 {
+			emit_instruction(Wasm_F32_Const{value = f32(e.value)}, buf)
+		} else {
+			emit_instruction(Wasm_F64_Const{value = e.value}, buf)
+		}
 	case ^ir.IR_Literal_Bool:
 		if e.value {
 			emit_instruction(Wasm_I32_Const{value = 1}, buf)
@@ -576,6 +591,62 @@ emit_expr :: proc(expr: ir.IR_Expr, buf: ^[dynamic]u8, env: ^Codegen_Env, runtim
 					)
 					if ir.ir_expr_wasm_type(e) ==
 					   .I64 {emit_instruction(Wasm_I64_Extend_I32_S{}, buf)}
+					break
+				}
+
+				// List.compare: (a: List(t), b: List(t)) -> Order
+				// Uses ord_compare_func for element's Ord.compare
+				if name_str == "compare" && len(e.args) == 2 {
+					cmp_fn_idx := 0
+					if e.ord_compare_func.module != base.NO_NAME && e.ord_compare_func.name != 0 {
+						mangled := base.mangle_name(
+							e.ord_compare_func.module,
+							e.ord_compare_func.name,
+							env.interner,
+						)
+						if idx, ok := env.func_map[base.hash_string(mangled)]; ok {
+							cmp_fn_idx = idx
+						}
+					} else if e.ord_compare_func.name != 0 {
+						if idx, ok := env.func_map[u64(e.ord_compare_func.name)]; ok {
+							cmp_fn_idx = idx
+						}
+					}
+					emit_instruction(Wasm_I32_Const{value = i32(cmp_fn_idx)}, buf)
+					emit_expr(e.args[0], buf, env, runtime_indices)
+					emit_expr(e.args[1], buf, env, runtime_indices)
+					emit_instruction(
+						Wasm_Call{index = u32(runtime_indices[Runtime_Func.List_Compare])},
+						buf,
+					)
+					break
+				}
+
+				// List.hash: (list: List(t), hasher: Hasher) -> Hasher
+				// Uses hash_func for element's Hash.hash
+				if name_str == "hash" && len(e.args) == 2 {
+					hash_fn_idx := 0
+					if e.hash_func.module != base.NO_NAME && e.hash_func.name != 0 {
+						mangled := base.mangle_name(
+							e.hash_func.module,
+							e.hash_func.name,
+							env.interner,
+						)
+						if idx, ok := env.func_map[base.hash_string(mangled)]; ok {
+							hash_fn_idx = idx
+						}
+					} else if e.hash_func.name != 0 {
+						if idx, ok := env.func_map[u64(e.hash_func.name)]; ok {
+							hash_fn_idx = idx
+						}
+					}
+					emit_instruction(Wasm_I32_Const{value = i32(hash_fn_idx)}, buf)
+					emit_expr(e.args[0], buf, env, runtime_indices)
+					emit_expr(e.args[1], buf, env, runtime_indices)
+					emit_instruction(
+						Wasm_Call{index = u32(runtime_indices[Runtime_Func.List_Hash])},
+						buf,
+					)
 					break
 				}
 			}
@@ -1162,6 +1233,138 @@ emit_expr :: proc(expr: ir.IR_Expr, buf: ^[dynamic]u8, env: ^Codegen_Env, runtim
 					   .I64 {emit_instruction(Wasm_I64_Extend_I32_S{}, buf)}
 					break
 				}
+
+				// Result.eq: (a: Result(ok, err), b: Result(ok, err)) -> Bool
+				// Uses debug_func for Ok's Eq.eq, val_debug_func for Err's Eq.eq
+				if name_str == "eq" && len(e.args) == 2 {
+					ok_eq_fn_idx := 0
+					if e.debug_func.module != base.NO_NAME && e.debug_func.name != 0 {
+						mangled := base.mangle_name(
+							e.debug_func.module,
+							e.debug_func.name,
+							env.interner,
+						)
+						if idx, ok := env.func_map[base.hash_string(mangled)]; ok {
+							ok_eq_fn_idx = idx
+						}
+					} else if e.debug_func.name != 0 {
+						if idx, ok := env.func_map[u64(e.debug_func.name)]; ok {
+							ok_eq_fn_idx = idx
+						}
+					}
+					err_eq_fn_idx := 0
+					if e.val_debug_func.module != base.NO_NAME && e.val_debug_func.name != 0 {
+						mangled := base.mangle_name(
+							e.val_debug_func.module,
+							e.val_debug_func.name,
+							env.interner,
+						)
+						if idx, ok := env.func_map[base.hash_string(mangled)]; ok {
+							err_eq_fn_idx = idx
+						}
+					} else if e.val_debug_func.name != 0 {
+						if idx, ok := env.func_map[u64(e.val_debug_func.name)]; ok {
+							err_eq_fn_idx = idx
+						}
+					}
+					emit_instruction(Wasm_I32_Const{value = i32(ok_eq_fn_idx)}, buf)
+					emit_instruction(Wasm_I32_Const{value = i32(err_eq_fn_idx)}, buf)
+					emit_expr(e.args[0], buf, env, runtime_indices)
+					emit_expr(e.args[1], buf, env, runtime_indices)
+					emit_instruction(
+						Wasm_Call{index = u32(runtime_indices[Runtime_Func.Result_Eq])},
+						buf,
+					)
+					break
+				}
+
+				// Result.compare: (a: Result(ok, err), b: Result(ok, err)) -> Order
+				// Uses debug_func for Ok's Ord.compare, val_debug_func for Err's Ord.compare
+				if name_str == "compare" && len(e.args) == 2 {
+					ok_cmp_fn_idx := 0
+					if e.debug_func.module != base.NO_NAME && e.debug_func.name != 0 {
+						mangled := base.mangle_name(
+							e.debug_func.module,
+							e.debug_func.name,
+							env.interner,
+						)
+						if idx, ok := env.func_map[base.hash_string(mangled)]; ok {
+							ok_cmp_fn_idx = idx
+						}
+					} else if e.debug_func.name != 0 {
+						if idx, ok := env.func_map[u64(e.debug_func.name)]; ok {
+							ok_cmp_fn_idx = idx
+						}
+					}
+					err_cmp_fn_idx := 0
+					if e.val_debug_func.module != base.NO_NAME && e.val_debug_func.name != 0 {
+						mangled := base.mangle_name(
+							e.val_debug_func.module,
+							e.val_debug_func.name,
+							env.interner,
+						)
+						if idx, ok := env.func_map[base.hash_string(mangled)]; ok {
+							err_cmp_fn_idx = idx
+						}
+					} else if e.val_debug_func.name != 0 {
+						if idx, ok := env.func_map[u64(e.val_debug_func.name)]; ok {
+							err_cmp_fn_idx = idx
+						}
+					}
+					emit_instruction(Wasm_I32_Const{value = i32(ok_cmp_fn_idx)}, buf)
+					emit_instruction(Wasm_I32_Const{value = i32(err_cmp_fn_idx)}, buf)
+					emit_expr(e.args[0], buf, env, runtime_indices)
+					emit_expr(e.args[1], buf, env, runtime_indices)
+					emit_instruction(
+						Wasm_Call{index = u32(runtime_indices[Runtime_Func.Result_Compare])},
+						buf,
+					)
+					break
+				}
+
+				// Result.hash: (result: Result(ok, err), hasher: Hasher) -> Hasher
+				// Uses debug_func for Ok's Hash.hash, val_debug_func for Err's Hash.hash
+				if name_str == "hash" && len(e.args) == 2 {
+					ok_hash_fn_idx := 0
+					if e.debug_func.module != base.NO_NAME && e.debug_func.name != 0 {
+						mangled := base.mangle_name(
+							e.debug_func.module,
+							e.debug_func.name,
+							env.interner,
+						)
+						if idx, ok := env.func_map[base.hash_string(mangled)]; ok {
+							ok_hash_fn_idx = idx
+						}
+					} else if e.debug_func.name != 0 {
+						if idx, ok := env.func_map[u64(e.debug_func.name)]; ok {
+							ok_hash_fn_idx = idx
+						}
+					}
+					err_hash_fn_idx := 0
+					if e.val_debug_func.module != base.NO_NAME && e.val_debug_func.name != 0 {
+						mangled := base.mangle_name(
+							e.val_debug_func.module,
+							e.val_debug_func.name,
+							env.interner,
+						)
+						if idx, ok := env.func_map[base.hash_string(mangled)]; ok {
+							err_hash_fn_idx = idx
+						}
+					} else if e.val_debug_func.name != 0 {
+						if idx, ok := env.func_map[u64(e.val_debug_func.name)]; ok {
+							err_hash_fn_idx = idx
+						}
+					}
+					emit_instruction(Wasm_I32_Const{value = i32(ok_hash_fn_idx)}, buf)
+					emit_instruction(Wasm_I32_Const{value = i32(err_hash_fn_idx)}, buf)
+					emit_expr(e.args[0], buf, env, runtime_indices)
+					emit_expr(e.args[1], buf, env, runtime_indices)
+					emit_instruction(
+						Wasm_Call{index = u32(runtime_indices[Runtime_Func.Result_Hash])},
+						buf,
+					)
+					break
+				}
 			}
 
 			// Hash trait method: hash(val, _ignored_hasher) -> hasher
@@ -1545,7 +1748,7 @@ emit_expr :: proc(expr: ir.IR_Expr, buf: ^[dynamic]u8, env: ^Codegen_Env, runtim
 		emit_expr(e.left, buf, env, runtime_indices)
 		emit_expr(e.right, buf, env, runtime_indices)
 		operand_type := ir_operand_wasm_type(e.left)
-		emit_binop(e.op, operand_type, buf)
+		emit_binop(e.op, operand_type, buf, env, e.span)
 	case ^ir.IR_Dup:
 		if idx, ok := env.local_map[e.value]; ok {
 			emit_instruction(Wasm_Local_Get{index = idx}, buf)
@@ -1590,6 +1793,11 @@ emit_expr :: proc(expr: ir.IR_Expr, buf: ^[dynamic]u8, env: ^Codegen_Env, runtim
 
 		switch match_kind {
 		case .Tag_Union:
+			// camp-9xi6: a no-payload closed tag union scrutinee is an immediate
+			// i32 (the variant ordinal), so dispatch reads the scalar directly
+			// instead of load8u at the tag offset. ir_expr_is_heap consults the
+			// node's type.is_heap, which lower_type sets false for immediates.
+			scrutinee_immediate: bool = !ir.ir_expr_is_heap(e.scrutinee)
 			if has_guard {
 				// Sequential if-else: guards can fail and fall through,
 				// so br_table dispatch is not usable.
@@ -1608,7 +1816,12 @@ emit_expr :: proc(expr: ir.IR_Expr, buf: ^[dynamic]u8, env: ^Codegen_Env, runtim
 						#partial switch p in arm.pattern {
 						case ^ir.IR_Pat_Tag:
 							emit_instruction(Wasm_Local_Get{index = scrutinee_local}, buf)
-							emit_instruction(Wasm_I32_Load8U{offset = CAMP_TAG_TAG_OFFSET}, buf)
+							if !scrutinee_immediate {
+								emit_instruction(
+									Wasm_I32_Load8U{offset = CAMP_TAG_TAG_OFFSET},
+									buf,
+								)
+							}
 							emit_instruction(Wasm_I32_Const{value = i32(p.tag_index)}, buf)
 							emit_instruction(Wasm_I32_Eq{}, buf)
 						case ^ir.IR_Pat_Wildcard, ^ir.IR_Pat_Var:
@@ -1749,7 +1962,9 @@ emit_expr :: proc(expr: ir.IR_Expr, buf: ^[dynamic]u8, env: ^Codegen_Env, runtim
 				emit_expr(e.scrutinee, buf, env, runtime_indices)
 				emit_instruction(Wasm_Local_Set{index = scrutinee_local}, buf)
 				emit_instruction(Wasm_Local_Get{index = scrutinee_local}, buf)
-				emit_instruction(Wasm_I32_Load8U{offset = CAMP_TAG_TAG_OFFSET}, buf)
+				if !scrutinee_immediate {
+					emit_instruction(Wasm_I32_Load8U{offset = CAMP_TAG_TAG_OFFSET}, buf)
+				}
 				emit_instruction(Wasm_BrTable{targets = targets, default_idx = default_label}, buf)
 
 				// For each arm (innermost first = arm 0), close its block and emit its body.
@@ -1873,7 +2088,11 @@ emit_expr :: proc(expr: ir.IR_Expr, buf: ^[dynamic]u8, env: ^Codegen_Env, runtim
 
 			emit_expr(e.scrutinee, buf, env, runtime_indices)
 			scrutinee_local := env.next_local
-			append(&env.locals, Wasm_Local_Decl{count = 1, type = .I64})
+			scrutinee_wasm := ir.ir_expr_wasm_type(e.scrutinee)
+			append(
+				&env.locals,
+				Wasm_Local_Decl{count = 1, type = ir_wasm_type_to_value_type(scrutinee_wasm)},
+			)
 			env.next_local += 1
 			emit_instruction(Wasm_Local_Set{index = scrutinee_local}, buf)
 
@@ -1896,8 +2115,13 @@ emit_expr :: proc(expr: ir.IR_Expr, buf: ^[dynamic]u8, env: ^Codegen_Env, runtim
 					#partial switch p in arm.pattern {
 					case ^ir.IR_Pat_Int:
 						emit_instruction(Wasm_Local_Get{index = scrutinee_local}, buf)
-						emit_instruction(Wasm_I64_Const{value = p.value}, buf)
-						emit_instruction(Wasm_I64_Eq{}, buf)
+						if scrutinee_wasm == .I32 {
+							emit_instruction(Wasm_I32_Const{value = i32(p.value)}, buf)
+							emit_instruction(Wasm_I32_Eq{}, buf)
+						} else {
+							emit_instruction(Wasm_I64_Const{value = p.value}, buf)
+							emit_instruction(Wasm_I64_Eq{}, buf)
+						}
 					case ^ir.IR_Pat_Tag,
 					     ^ir.IR_Pat_Record,
 					     ^ir.IR_Pat_Tuple,
@@ -2087,6 +2311,16 @@ emit_expr :: proc(expr: ir.IR_Expr, buf: ^[dynamic]u8, env: ^Codegen_Env, runtim
 
 	case ^ir.IR_Construct_Tag:
 		num_fields := len(e.payload)
+		// camp-9xi6: a no-payload closed tag union lowers to an immediate
+		// i32 variant ordinal (is_heap=false, set by lower_type via the
+		// row's `closed` flag + all-empty-payloads check). Construction is
+		// just `i32.const tag_index` — no alloc, no header stores, no RC.
+		// Newtype-wrapped enums (@Order) reach here with e.type.is_heap=false
+		// too, since lower_type delegates through Inferred_Newtype.
+		if !e.type.is_heap {
+			emit_instruction(Wasm_I32_Const{value = i32(e.tag_index)}, buf)
+			return
+		}
 		// scan_size is the total field count (used for dealloc size and the drop
 		// loop bound); scalar_mask marks which fields drop must NOT recurse into.
 		// A field is a heap pointer only if it is an i32 that is_heap — i64/f64
@@ -2337,11 +2571,15 @@ emit_expr :: proc(expr: ir.IR_Expr, buf: ^[dynamic]u8, env: ^Codegen_Env, runtim
 		emit_instruction(Wasm_I32_Add{}, buf)
 		emit_load_for_type(e.type.wasm_type, buf)
 	case ^ir.IR_Method_Call:
-		// Method calls should be resolved by monomorphization.
-		// If one reaches codegen, it's a compiler bug — emit a runtime error.
-		emit_instruction(Wasm_I32_Const{value = 1}, buf)
-		emit_instruction(Wasm_Call{index = u32(runtime_indices[Runtime_Func.Exit])}, buf)
-		emit_instruction(Wasm_Unreachable{}, buf)
+		// Method calls should be resolved by monomorphization. If one reaches
+		// codegen, it's a compiler bug. Previously this emitted a silent
+		// camp_exit(1); report a C9000 internal diagnostic with the call span
+		// so the failure is attributable instead of a bare runtime exit.
+		codegen_internal_error(
+			env,
+			e.span,
+			"unresolved method call reached codegen (monomorphization should have resolved it)",
+		)
 	case ^ir.IR_Handle:
 		is_sched := false
 		for eff in e.effects {
@@ -2557,7 +2795,7 @@ emit_expr :: proc(expr: ir.IR_Expr, buf: ^[dynamic]u8, env: ^Codegen_Env, runtim
 					emit_instruction(Wasm_I32_Const{value = 1}, buf) // clock_id = 1 (monotonic)
 					emit_instruction(Wasm_I64_Const{value = 0}, buf) // precision = 0
 					emit_instruction(Wasm_I32_Const{value = 4096}, buf) // time_ptr at scratch
-					emit_instruction(Wasm_Call{index = u32(7)}, buf) // clock_time_get import
+					emit_instruction(Wasm_Call{index = u32(env.wasi_clock_time_get)}, buf) // clock_time_get import
 					emit_instruction(Wasm_Drop{}, buf) // drop errno
 					// Load the i64 time from scratch and return it
 					emit_instruction(Wasm_I32_Const{value = 4096}, buf)
@@ -2667,7 +2905,14 @@ emit_expr :: proc(expr: ir.IR_Expr, buf: ^[dynamic]u8, env: ^Codegen_Env, runtim
 					emit_instruction(Wasm_Call{index = u32(1)}, buf) // fd_write import
 					emit_instruction(Wasm_Drop{}, buf)
 				} else {
-					emit_instruction(Wasm_Unreachable{}, buf)
+					// Unknown Console!/File! operation. The effect was classified
+					// as a scheduler effect but the op is not one codegen handles.
+					// Previously a silent Wasm_Unreachable trap; report it.
+					codegen_internal_error(
+						env,
+						e.span,
+						fmt.tprintf("unsupported effect operation `{}!` in codegen", op_str),
+					)
 				}
 			} else if effect_str == "Process!" || effect_str == "Process" {
 				// Process! operations route to WASIX-backed runtime functions
@@ -3014,10 +3259,23 @@ emit_expr :: proc(expr: ir.IR_Expr, buf: ^[dynamic]u8, env: ^Codegen_Env, runtim
 						buf,
 					)
 				} else {
-					emit_instruction(Wasm_Unreachable{}, buf)
+					// Unknown Parallel! operation. Previously a silent
+					// Wasm_Unreachable trap; report it with the perform span.
+					codegen_internal_error(
+						env,
+						e.span,
+						fmt.tprintf("unsupported Parallel! operation `{}!` in codegen", op_str),
+					)
 				}
 			} else {
-				emit_instruction(Wasm_Unreachable{}, buf)
+				// A scheduler effect reached codegen with an operation codegen
+				// does not handle. Previously a silent Wasm_Unreachable trap;
+				// report it as an internal error.
+				codegen_internal_error(
+					env,
+					e.span,
+					fmt.tprintf("unsupported scheduler effect operation `{}!` in codegen", op_str),
+				)
 			}
 		} else {
 			// User-defined effect perform: defensive fallback.
@@ -3177,8 +3435,34 @@ emit_expr :: proc(expr: ir.IR_Expr, buf: ^[dynamic]u8, env: ^Codegen_Env, runtim
 		)
 
 	case ^ir.IR_Crash:
-		emit_expr(e.message, buf, env, runtime_indices)
-		emit_instruction(Wasm_Drop{}, buf)
+		// The crash message should reach the runtime so users see WHY the
+		// program crashed. Previously the message was computed then dropped
+		// (Wasm_Drop) before a bare camp_exit(1), discarding the reason.
+		//
+		// When the message is a Str value (a single i32 pointer to a
+		// length-prefixed string [len:4][data...]), print it to stderr via
+		// Print_Err before exiting. Other message shapes (e.g. bare `todo`,
+		// whose placeholder lowers to an i64 bottom value) cannot be safely
+		// interpreted as a Str pointer, so for those we fall back to the
+		// prior behavior of exiting without a message.
+		msg_wasm_type := ir_operand_wasm_type(e.message)
+		if msg_wasm_type == .I32 {
+			// Stack after emit_expr(e.message): [str_ptr]
+			// Print_Err expects (data_ptr, len) where data_ptr = str_ptr+4,
+			// len = i32 load at [str_ptr].
+			msg_local := env.tmp_local_base + env.tmp_count; env.tmp_count += 1
+			emit_expr(e.message, buf, env, runtime_indices)
+			emit_instruction(Wasm_Local_Set{index = msg_local}, buf)
+			emit_instruction(Wasm_Local_Get{index = msg_local}, buf)
+			emit_instruction(Wasm_I32_Const{value = 4}, buf)
+			emit_instruction(Wasm_I32_Add{}, buf) // data_ptr = str_ptr + 4
+			emit_instruction(Wasm_Local_Get{index = msg_local}, buf)
+			emit_instruction(Wasm_I32_Load{align = 2, offset = 0}, buf) // len = [str_ptr]
+			emit_instruction(Wasm_Call{index = u32(runtime_indices[Runtime_Func.Print_Err])}, buf)
+		} else if e.message != nil {
+			emit_expr(e.message, buf, env, runtime_indices)
+			emit_instruction(Wasm_Drop{}, buf)
+		}
 		emit_instruction(Wasm_I32_Const{value = 1}, buf)
 		emit_instruction(Wasm_Call{index = u32(runtime_indices[Runtime_Func.Exit])}, buf)
 		// camp_exit never returns; mark the stack as polymorphic so the
@@ -3233,22 +3517,37 @@ emit_expr :: proc(expr: ir.IR_Expr, buf: ^[dynamic]u8, env: ^Codegen_Env, runtim
 	case ^ir.IR_Expr_Nominal_Construct:
 		// Newtypes are erased at runtime — emit the payload value directly.
 		// Simple wrap (variant == 0, single payload): just emit the payload.
-		// Qualified variant or multi-payload: emit unreachable (not yet implemented).
 		if e.variant == 0 && len(e.payload) == 1 {
 			emit_expr(e.payload[0], buf, env, runtime_indices)
 			return
 		}
-		emit_instruction(Wasm_Unreachable{}, buf)
+		// Qualified variant or multi-payload nominal construction is not yet
+		// implemented in codegen. Previously this emitted a silent
+		// Wasm_Unreachable trap; report a C9000 internal diagnostic so the
+		// user sees a clear message instead of a runtime trap.
+		codegen_internal_error(
+			env,
+			e.span,
+			"multi-payload / qualified-variant nominal construction is not yet implemented in codegen",
+		)
 	}
 }
 
-emit_binop :: proc(op: ir.IR_BinOp_Kind, operand_type: base.IR_Wasm_Type, buf: ^[dynamic]u8) {
+emit_binop :: proc(
+	op: ir.IR_BinOp_Kind,
+	operand_type: base.IR_Wasm_Type,
+	buf: ^[dynamic]u8,
+	env: ^Codegen_Env,
+	span: base.Source_Span,
+) {
 	#partial switch op {
 	case .Add:
 		if operand_type == .I32 {
 			emit_instruction(Wasm_I32_Add{}, buf)
 		} else if operand_type == .F64 {
 			emit_instruction(Wasm_F64_Add{}, buf)
+		} else if operand_type == .F32 {
+			emit_instruction(Wasm_F32_Add{}, buf)
 		} else {
 			emit_instruction(Wasm_I64_Add{}, buf)
 		}
@@ -3257,6 +3556,8 @@ emit_binop :: proc(op: ir.IR_BinOp_Kind, operand_type: base.IR_Wasm_Type, buf: ^
 			emit_instruction(Wasm_I32_Sub{}, buf)
 		} else if operand_type == .F64 {
 			emit_instruction(Wasm_F64_Sub{}, buf)
+		} else if operand_type == .F32 {
+			emit_instruction(Wasm_F32_Sub{}, buf)
 		} else {
 			emit_instruction(Wasm_I64_Sub{}, buf)
 		}
@@ -3265,6 +3566,8 @@ emit_binop :: proc(op: ir.IR_BinOp_Kind, operand_type: base.IR_Wasm_Type, buf: ^
 			emit_instruction(Wasm_I32_Mul{}, buf)
 		} else if operand_type == .F64 {
 			emit_instruction(Wasm_F64_Mul{}, buf)
+		} else if operand_type == .F32 {
+			emit_instruction(Wasm_F32_Mul{}, buf)
 		} else {
 			emit_instruction(Wasm_I64_Mul{}, buf)
 		}
@@ -3273,6 +3576,8 @@ emit_binop :: proc(op: ir.IR_BinOp_Kind, operand_type: base.IR_Wasm_Type, buf: ^
 			emit_instruction(Wasm_I32_Div_S{}, buf)
 		} else if operand_type == .F64 {
 			emit_instruction(Wasm_F64_Div{}, buf)
+		} else if operand_type == .F32 {
+			emit_instruction(Wasm_F32_Div{}, buf)
 		} else {
 			emit_instruction(Wasm_I64_Div_S{}, buf)
 		}
@@ -3283,12 +3588,18 @@ emit_binop :: proc(op: ir.IR_BinOp_Kind, operand_type: base.IR_Wasm_Type, buf: ^
 			emit_instruction(Wasm_I64_Rem_S{}, buf)
 		}
 	case .Exp:
-		emit_instruction(Wasm_Unreachable{}, buf)
+		// The `^` operator is bitwise XOR in Camp, but lowering currently
+		// maps it to .Exp and codegen has no XOR/Exp emission. Previously this
+		// emitted a silent Wasm_Unreachable trap; report a C9000 internal
+		// diagnostic pointing at the operator span so the failure is visible.
+		codegen_internal_error(env, span, "bitwise XOR (`^`) is not yet implemented in codegen")
 	case .Eq:
 		if operand_type == .I64 {
 			emit_instruction(Wasm_I64_Eq{}, buf)
 		} else if operand_type == .F64 {
 			emit_instruction(Wasm_F64_Eq{}, buf)
+		} else if operand_type == .F32 {
+			emit_instruction(Wasm_F32_Eq{}, buf)
 		} else {
 			emit_instruction(Wasm_I32_Eq{}, buf)
 		}
@@ -3297,6 +3608,8 @@ emit_binop :: proc(op: ir.IR_BinOp_Kind, operand_type: base.IR_Wasm_Type, buf: ^
 			emit_instruction(Wasm_I64_Ne{}, buf)
 		} else if operand_type == .F64 {
 			emit_instruction(Wasm_F64_Ne{}, buf)
+		} else if operand_type == .F32 {
+			emit_instruction(Wasm_F32_Ne{}, buf)
 		} else {
 			emit_instruction(Wasm_I32_Ne{}, buf)
 		}
@@ -3305,6 +3618,8 @@ emit_binop :: proc(op: ir.IR_BinOp_Kind, operand_type: base.IR_Wasm_Type, buf: ^
 			emit_instruction(Wasm_I64_Lt_S{}, buf)
 		} else if operand_type == .F64 {
 			emit_instruction(Wasm_F64_Lt{}, buf)
+		} else if operand_type == .F32 {
+			emit_instruction(Wasm_F32_Lt{}, buf)
 		} else {
 			emit_instruction(Wasm_I32_Lt_S{}, buf)
 		}
@@ -3313,6 +3628,8 @@ emit_binop :: proc(op: ir.IR_BinOp_Kind, operand_type: base.IR_Wasm_Type, buf: ^
 			emit_instruction(Wasm_I64_Gt_S{}, buf)
 		} else if operand_type == .F64 {
 			emit_instruction(Wasm_F64_Gt{}, buf)
+		} else if operand_type == .F32 {
+			emit_instruction(Wasm_F32_Gt{}, buf)
 		} else {
 			emit_instruction(Wasm_I32_Gt_S{}, buf)
 		}
@@ -3321,6 +3638,8 @@ emit_binop :: proc(op: ir.IR_BinOp_Kind, operand_type: base.IR_Wasm_Type, buf: ^
 			emit_instruction(Wasm_I64_Le_S{}, buf)
 		} else if operand_type == .F64 {
 			emit_instruction(Wasm_F64_Le{}, buf)
+		} else if operand_type == .F32 {
+			emit_instruction(Wasm_F32_Le{}, buf)
 		} else {
 			emit_instruction(Wasm_I32_Le_S{}, buf)
 		}
@@ -3329,6 +3648,8 @@ emit_binop :: proc(op: ir.IR_BinOp_Kind, operand_type: base.IR_Wasm_Type, buf: ^
 			emit_instruction(Wasm_I64_Ge_S{}, buf)
 		} else if operand_type == .F64 {
 			emit_instruction(Wasm_F64_Ge{}, buf)
+		} else if operand_type == .F32 {
+			emit_instruction(Wasm_F32_Ge{}, buf)
 		} else {
 			emit_instruction(Wasm_I32_Ge_S{}, buf)
 		}
@@ -3702,7 +4023,7 @@ emit_console_readln_handler_fn :: proc(
 	emit_instruction(Wasm_I32_Const{value = 4096}, &buf) // iovs
 	emit_instruction(Wasm_I32_Const{value = 1}, &buf) // iovs_len
 	emit_instruction(Wasm_I32_Const{value = 4108}, &buf) // nread ptr
-	emit_instruction(Wasm_Call{index = WASI_IMPORT_FD_READ}, &buf)
+	emit_instruction(Wasm_Call{index = u32(env.wasi_fd_read)}, &buf)
 	emit_instruction(Wasm_Drop{}, &buf) // ignore errno
 
 	// Allocate Camp string: alloc(nread + 4)

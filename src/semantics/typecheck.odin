@@ -13,7 +13,17 @@ Type_Env :: struct {
 	handled_effects: [dynamic]base.Intern_ID,
 	current_module:  base.Intern_ID,
 	spawned_handles: [dynamic]base.Source_Span,
+	// When typechecking the body of a `Type is Trait { method = |a: Self, …| }`
+	// impl, this is set to the owner type's var so `Self` annotations resolve
+	// to the implementing type. `NO_SELF_VAR` (== Type_Var_ID(-1)) outside an
+	// impl context (→ fresh var). Type var IDs start at 0, so 0 is NOT a sentinel.
+	// Initialized to NO_SELF_VAR at every Type_Env construction site.
+	impl_self_var:   base.Type_Var_ID,
 }
+
+// Sentinel for "no active impl Self var". Type var IDs begin at 0, so 0 is a
+// valid var ID and cannot serve as the unset sentinel.
+NO_SELF_VAR :: base.Type_Var_ID(-1)
 
 Type_Result :: struct {
 	var_id:  base.Type_Var_ID,
@@ -49,8 +59,21 @@ check_shadow :: proc(
 	store: ^Type_Store,
 	span: base.Source_Span,
 ) {
+	name_str := base.intern_get(store.interner, name)
+	if strings.has_prefix(name_str, "_") {
+		return
+	}
+	// Reassignable (`$`-prefixed) variables are exempt from the shadowing
+	// check: reassigning an existing `$x` in the same scope is valid
+	// (syntax-recipe.md §Assignment: "`$x = expr` — mutable binding ...
+	// `$x = 1` then `$x = 2`"), not a shadowing redefinition. Mirrors the
+	// `_`-prefix exemption above for intentionally-unused rebinding. A fresh
+	// `$x` declaration in a *nested* scope that shadows an outer `$x` would
+	// still be flagged by the same-scope duplicate check elsewhere.
+	if strings.has_prefix(name_str, "$") {
+		return
+	}
 	if _, exists := env_lookup(env, name); exists {
-		name_str := base.intern_get(store.interner, name)
 		diagnostics.collector_add_diag(
 			store.collector,
 			diagnostics.diag_shadow(name, name_str, span),
@@ -169,6 +192,7 @@ typecheck_file :: proc(
 	env.handled_effects = make([dynamic]base.Intern_ID, 0, 8)
 	env.current_module = current_module
 	env.spawned_handles = make([dynamic]base.Source_Span, 0, 8)
+	env.impl_self_var = NO_SELF_VAR
 	defer delete(env.bindings)
 	defer delete(env.handled_effects)
 	defer delete(env.spawned_handles)
@@ -191,6 +215,13 @@ typecheck_file :: proc(
 		store.bindings[name_id] = var_id
 	}
 
+	// camp-9xi6: re-snapshot every TExpr's type_ AFTER all unification for
+	// the file has settled. Snapshots taken mid-typecheck are stale for any
+	// type refined by later unification (e.g. a bare `Less` tag snapshotted
+	// as an open boxed row before the call site unifies it with the closed
+	// immediate `Order` type). Without this, IR nodes carry is_heap=true
+	// while their match scrutinees read immediate (trap). Idempotent.
+	resnapshot_decl_types(tdecls[:], store) // camp-9xi6: re-snapshot after unification
 
 	return TFile{path = file.path, decls = tdecls, imports = imports, span = file.span}
 }
@@ -229,8 +260,46 @@ inject_prelude :: proc(store: ^Type_Store) {
 			payload = payload,
 		}
 		rest := fresh_tag_row(store, base.Source_Span_ZERO)
-		link_var(store, var_id, Inferred_Tag_Union_Row{tag_entries = tag_entries, tag_rest = rest})
+		// Individual tag bindings (True, False, Ok, Err, Less, ...) are
+		// OPEN one-entry rows — a bare `Less` may unify into any closed
+		// union that has a Less variant. closed=false.
+		link_var(
+			store,
+			var_id,
+			Inferred_Tag_Union_Row{tag_entries = tag_entries, tag_rest = rest, closed = false},
+		)
 		store.bindings[name_id] = var_id
+	}
+
+	// Register Order as the tag union [Less | Equal | Greater] so that bare
+	// tags and the `Order` type annotation unify (Decision C). Order is NOT in
+	// PRELUDE_CONSTRUCTOR_TYPES — it's a closed tag union, not a parameterized
+	// constructor.
+	{
+		order_name := base.intern(store.interner, "Order")
+		order_tags := store_alloc(store, Type_Tag_Entry, 3)
+		order_tags[0] = Type_Tag_Entry {
+			name    = base.intern(store.interner, "Less"),
+			payload = nil,
+		}
+		order_tags[1] = Type_Tag_Entry {
+			name    = base.intern(store.interner, "Equal"),
+			payload = nil,
+		}
+		order_tags[2] = Type_Tag_Entry {
+			name    = base.intern(store.interner, "Greater"),
+			payload = nil,
+		}
+		order_var := fresh_value_var(store, base.Source_Span_ZERO)
+		link_var(
+			store,
+			order_var,
+			Inferred_Tag_Union_Row {
+				tag_entries = order_tags,
+				tag_rest = fresh_tag_row(store, base.Source_Span_ZERO),
+			},
+		)
+		store.bindings[order_name] = order_var
 	}
 
 	inject_prelude_effects_typecheck(store)
@@ -304,8 +373,8 @@ typecheck_synth :: proc(expr: CExpr, env: ^Type_Env, store: ^Type_Store) -> Synt
 		return Synth_Result{var_id = var_id, effects = eff, texpr = TExpr(t)}
 
 	case ^CExpr_Char:
-		i64_name := base.intern(store.interner, "I64")
-		var_id := make_primitive_type(store, i64_name, e.span)
+		char_name := base.intern(store.interner, "Char")
+		var_id := make_primitive_type(store, char_name, e.span)
 		eff := fresh_effect_row(store, e.span)
 		t := new(TExpr_Char)
 		type_ir, eff_ir := type_eff_pair(store, var_id, eff)
@@ -336,6 +405,28 @@ typecheck_synth :: proc(expr: CExpr, env: ^Type_Env, store: ^Type_Store) -> Synt
 		return Synth_Result{var_id = var_id, effects = eff, texpr = TExpr(t)}
 
 	case ^CExpr_Name:
+		{
+			check_name_str := base.intern_get(store.interner, e.name.name)
+			if strings.has_prefix(check_name_str, "_") &&
+			   !strings.has_prefix(check_name_str, "_$") &&
+			   !strings.has_prefix(check_name_str, "__") {
+				diagnostics.collector_add_diag(
+					store.collector,
+					diagnostics.diag_use_of_discard(check_name_str, e.span),
+				)
+				var_id := fresh_value_var(store, e.span)
+				eff := fresh_effect_row(store, e.span)
+				t := new(TExpr_Name)
+				type_ir, eff_ir := type_eff_pair(store, var_id, eff)
+				t^ = TExpr_Name {
+					name  = e.name,
+					type_ = type_ir,
+					eff_  = eff_ir,
+					span  = e.span,
+				}
+				return Synth_Result{var_id = var_id, effects = eff, texpr = TExpr(t)}
+			}
+		}
 		if existing, ok := env_lookup(env, e.name.name); ok {
 			inst := instantiate(store, existing)
 			eff := fresh_effect_row(store, e.span)
@@ -658,6 +749,7 @@ typecheck_synth :: proc(expr: CExpr, env: ^Type_Env, store: ^Type_Store) -> Synt
 			arm_env.parent = env
 			arm_env.handled_effects = make([dynamic]base.Intern_ID, 0, 8)
 			arm_env.current_module = env.current_module
+			arm_env.impl_self_var = NO_SELF_VAR
 
 			arm_body_result: Synth_Result
 
@@ -996,7 +1088,7 @@ expand_named_tag_union :: proc(
 	base.Type_Var_ID,
 	bool,
 ) {
-	// Prelude tag-union builtins (`List`, `Result`, `Ordering`) are registered as bare
+	// Prelude tag-union builtins (`List`, `Result`, `Order`) are registered as bare
 	// constructors with no decl body; synthesize their rows from PRELUDE_TAG_UNIONS.
 	name_str := base.intern_get(store.interner, name)
 	for def in PRELUDE_TAG_UNIONS {
@@ -1027,7 +1119,13 @@ expand_named_tag_union :: proc(
 				vid,
 				Inferred_Tag_Union_Row {
 					tag_entries = tag_entries,
-					tag_rest = fresh_tag_row(store, span),
+					tag_rest    = fresh_tag_row(store, span),
+					// Prelude tag unions (List/Result/Order) list all
+					// variants as written — CLOSED declarations. Only
+					// Order (no payload across all variants) qualifies
+					// for the unboxed-immediate representation; List/Result
+					// have payloads and stay heap-allocated despite closed.
+					closed      = true,
 				},
 			)
 			return vid, true
@@ -1138,6 +1236,17 @@ convert_type_to_var_val :: proc(
 		return fresh_value_var(store, ty.span)
 
 	case ^CType_Self:
+		// Inside a `Type is Trait { method = |a: Self| … }` impl, `Self` resolves
+		// to the owner type. Walk the env chain for a set impl_self_var (sentinel
+		// NO_SELF_VAR == -1 means unset, since var IDs start at 0); if none, fall
+		// back to a fresh var.
+		e := env
+		for e != nil {
+			if e.impl_self_var != NO_SELF_VAR {
+				return e.impl_self_var
+			}
+			e = e.parent
+		}
 		return fresh_value_var(store, ty.span)
 
 	case ^CType_Function:
@@ -1238,7 +1347,11 @@ convert_type_to_var_val :: proc(
 		link_var(
 			store,
 			vid,
-			Inferred_Tag_Union_Row{tag_entries = tag_entries, tag_rest = tag_rest},
+			// User `[A | B | C]` declaration lists all variants as written —
+			// CLOSED. lower_type additionally requires no-payload-across-all
+			// variants to pick the unboxed-immediate representation; a closed
+			// union with payloads stays heap-allocated.
+			Inferred_Tag_Union_Row{tag_entries = tag_entries, tag_rest = tag_rest, closed = true},
 		)
 		return vid
 
@@ -1399,7 +1512,11 @@ instantiate_rec :: proc(
 		link_var(
 			store,
 			vid,
-			Inferred_Tag_Union_Row{tag_entries = tag_entries, tag_rest = tag_rest},
+			Inferred_Tag_Union_Row {
+				tag_entries = tag_entries,
+				tag_rest = tag_rest,
+				closed = f.closed,
+			},
 		)
 
 	case Inferred_Handle:
@@ -1552,7 +1669,11 @@ deep_clone_type :: proc(
 		link_var(
 			store,
 			fresh,
-			Inferred_Tag_Union_Row{tag_entries = tag_entries, tag_rest = tag_rest},
+			Inferred_Tag_Union_Row {
+				tag_entries = tag_entries,
+				tag_rest = tag_rest,
+				closed = f.closed,
+			},
 		)
 		subst[resolved] = fresh
 		return fresh
@@ -1870,6 +1991,102 @@ newtype_owning_tag :: proc(
 		}
 	}
 	return base.NO_NAME, false
+}
+
+// newtype_owning_tags resolves the newtype that owns the variants matched
+// in a `match` expression. It scans the covered tag set and returns the
+// first newtype whose `owned_tags` contain at least one covered tag. Used
+// by exhaustiveness checking (C0502/C0504) to recover the closed variant
+// set, since the scrutinee's resolved row only carries the matched
+// variants (the row is open after unification with pattern rows).
+newtype_owning_tags :: proc(
+	store: ^Type_Store,
+	covered: map[base.Intern_ID]bool,
+) -> (
+	base.Intern_ID,
+	bool,
+) {
+	for nt_name, info in store.newtype_decls {
+		if len(info.owned_tags) == 0 do continue
+		for owned in info.owned_tags {
+			if covered[owned] {
+				return nt_name, true
+			}
+		}
+	}
+	return base.NO_NAME, false
+}
+
+// tag_union_type_name renders the type name to surface in C0502/C0504
+// diagnostics. For newtype-owned unions, it is the newtype's name. For
+// anonymous closed tag unions written inline as `[A | B | C]`, it renders
+// the declaration syntax so the user can locate the type.
+tag_union_type_name :: proc(
+	store: ^Type_Store,
+	nt_name: base.Intern_ID,
+	has_owned: bool,
+	variants: []base.Intern_ID,
+) -> string {
+	if has_owned {
+		return base.intern_get(store.interner, nt_name)
+	}
+	if len(variants) == 0 do return "tag union"
+	parts: [dynamic]string
+	defer delete(parts)
+	for v in variants {
+		append(&parts, base.intern_get(store.interner, v))
+	}
+	return fmt.tprintf("[{}]", strings.join(parts[:], " | "))
+}
+
+
+// nodes starting at `start_id`, collecting every `tag_entries` name into
+// `out` and returning whether the chain is CLOSED (a syntactic
+// `[A | B | C]` declaration——the `tag_rest` of the final row resolves to
+// `Type_Unlinked`/empty and at least one row in the chain is marked closed).
+// Returns false (open) if the chain ends in a fresh/unlinked rest that was
+// never closed by a declaration. Used by match exhaustiveness (C0502/C0504)
+// — the scrutinee's resolved var often points at the pattern's open row
+// (one entry), so the full variant set must be recovered by walking the
+// rest chain that unification stitched to the annotation's closed row.
+snapshot_tag_union_variants :: proc(
+	store: ^Type_Store,
+	start_id: base.Type_Var_ID,
+) -> []base.Intern_ID {
+	variants := make([dynamic]base.Intern_ID, 0, 4)
+	collect_tag_row_variants(store, start_id, &variants)
+	return variants[:]
+}
+
+collect_tag_row_variants :: proc(
+	store: ^Type_Store,
+	start_id: base.Type_Var_ID,
+	out: ^[dynamic]base.Intern_ID,
+) -> bool {
+	visited: map[base.Type_Var_ID]bool
+	defer delete(visited)
+	cur_id := resolve_var(store, start_id)
+	any_closed := false
+	max_steps := len(store.vars) + 1
+	for steps := 0; steps < max_steps; steps += 1 {
+		if visited[cur_id] do break
+		visited[cur_id] = true
+		link := store.vars[int(cur_id)].link
+		#partial switch inf in link {
+		case Inferred_Type:
+			#partial switch v in inf {
+			case Inferred_Tag_Union_Row:
+				if v.closed do any_closed = true
+				for te in v.tag_entries do append(out, te.name)
+				cur_id = resolve_var(store, v.tag_rest)
+			case:
+				break
+			}
+		case:
+			break
+		}
+	}
+	return any_closed
 }
 
 is_same_module :: proc(env: ^Type_Env, defining_module: base.Intern_ID) -> bool {

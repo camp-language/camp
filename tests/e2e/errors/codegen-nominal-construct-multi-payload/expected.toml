@@ -1,0 +1,21 @@
+stdout = """
+canonicalized /tmp/camp-e2e/errors/codegen-nominal-construct-multi-payload/src/Main.camp: 2 declaration(s), 0 import(s)
+typecheck passed for /tmp/camp-e2e/errors/codegen-nominal-construct-multi-payload/src/Main.camp
+-- C0900: UNUSED BINDING --- /tmp/camp-e2e/errors/codegen-nominal-construct-multi-payload/src/Main.camp
+
+Binding `p` is never used. 
+   4 |   p = @Pair(1, 2)
+         ^
+  Prefix with `_` to mark as intentionally unused: `_p`
+
+-- C9000: INTERNAL ERROR --- /tmp/camp-e2e/errors/codegen-nominal-construct-multi-payload/src/Main.camp
+
+Something went wrong inside the compiler: multi-payload / qualified-variant
+nominal construction is not yet implemented in codegen
+   4 |   p = @Pair(1, 2)
+             ^
+  This is a bug in Camp. Please report it at https://github.com/smores56/camp/issues
+compilation failed with 1 error(s)
+"""
+stderr = ""
+exit = 1

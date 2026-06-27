@@ -40,7 +40,7 @@ run_check_project :: proc(thread_count: int = 1) -> Build_Result {
 
 	fmt.printfln("discovered {} module(s)", len(project.modules))
 
-	for name, &mi in project.modules {
+	for mod_id, &mi in project.modules {
 		result := parse_and_canonicalize(&mi, &ctx)
 		switch _ in result {
 		case Build_Error:
@@ -49,8 +49,23 @@ run_check_project :: proc(thread_count: int = 1) -> Build_Result {
 		}
 	}
 
+	// BFS-register transitively-imported stdlib modules with parse-failure
+	// tolerance (mirrors single-file path and run_build_project). Seed from
+	// every parsed user module's imports.
+	seed_imports: [dynamic]base.Deferred_Import
+	defer delete(seed_imports)
+	for mod_id in project.module_names {
+		mi, ok := project.modules[mod_id]
+		if !ok do continue
+		for imp in mi.imports {
+			append(&seed_imports, imp)
+		}
+	}
+	register_stdlib_transitive(&project, seed_imports[:], &ctx, always_compile = {})
+
 	graph := build_module_graph(&project, &ctx.interner, &ctx.collector)
 	defer module_graph_destroy(&graph)
+	demote_unresolved_import_errors(&ctx)
 
 	if diagnostics.diag_collector_has_errors(&ctx.collector) {
 		diagnostics.render_all(&ctx.collector, "", "")
@@ -67,6 +82,8 @@ run_check_project :: proc(thread_count: int = 1) -> Build_Result {
 		mi_ptr, mi_ok := &project.modules[mod_id]
 		if !mi_ok do continue
 		if mi_ptr.cfile == nil {
+			// Stdlib modules already parsed by register_stdlib_transitive;
+			// only non-stdlib (e.g. user modules not yet parsed) reach here.
 			result := parse_and_canonicalize(mi_ptr, &ctx)
 			switch _ in result {
 			case Build_Error:
@@ -164,6 +181,17 @@ run_check_project :: proc(thread_count: int = 1) -> Build_Result {
 	if diagnostics.diag_collector_has_errors(&ctx.collector) {
 		diagnostics.render_all(&ctx.collector, "", "")
 		return Build_Result(Build_Error{message = "analysis errors", code = 1})
+	}
+
+	// Render warnings (C09xx unused-analysis codes are warnings; without this
+	// they would be silently dropped by project-mode `check`). Mirrors the
+	// single-file `run_check` warning-rendering in build.odin. Hard errors
+	// were already rendered and returned above.
+	has_warnings := ctx.collector.warning_count > 0
+	if diagnostics.is_json_mode() {
+		diagnostics.render_all(&ctx.collector, "", "")
+	} else if has_warnings {
+		diagnostics.render_all(&ctx.collector, "", "")
 	}
 
 	fmt.printfln("check passed for all modules")

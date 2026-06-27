@@ -83,8 +83,8 @@ Unused_Analysis :: struct {
 	collector:      ^diagnostics.Diagnostic_Collector,
 	in_loop:        bool,
 	in_unreachable: bool,
+	skip_read_name: base.Intern_ID, // Skip recording .Read for this name (self-assign case)
 }
-
 unused_analysis_init :: proc(
 	analysis: ^Unused_Analysis,
 	interner: ^base.Intern_Table,
@@ -98,6 +98,7 @@ unused_analysis_init :: proc(
 	analysis.collector = collector
 	analysis.in_loop = false
 	analysis.in_unreachable = false
+	analysis.skip_read_name = base.NO_NAME
 }
 
 unused_analysis_destroy :: proc(analysis: ^Unused_Analysis) {
@@ -313,7 +314,10 @@ collect_uses_expr :: proc(analysis: ^Unused_Analysis, expr: semantics.CExpr) {
 	case ^semantics.CExpr_Name:
 		name := e.name.name
 		if classify_name(name, analysis.interner) == .Wildcard do return
-		record_use(analysis, name, .Read, e.span)
+		// Skip recording .Read for self-assignment target in its own RHS
+		if name != analysis.skip_read_name {
+			record_use(analysis, name, .Read, e.span)
+		}
 		mark_import_used(analysis, name)
 	case ^semantics.CExpr_Call:
 		collect_uses_expr(analysis, e.callee)
@@ -468,8 +472,6 @@ collect_uses_assign :: proc(analysis: ^Unused_Analysis, assign: ^semantics.CExpr
 	target := assign.target
 	value := assign.value
 
-	collect_uses_expr(analysis, value)
-
 	#partial switch t in target {
 	case ^semantics.CExpr_Name:
 		name := t.name.name
@@ -485,6 +487,11 @@ collect_uses_assign :: proc(analysis: ^Unused_Analysis, assign: ^semantics.CExpr
 						diagnostics.diag_noop_assignment(name_str, assign.span),
 					)
 				}
+				// Skip recording .Read for the target name when walking the RHS
+				old_skip := analysis.skip_read_name
+				analysis.skip_read_name = name
+				collect_uses_expr(analysis, value)
+				analysis.skip_read_name = old_skip
 				record_assignment(analysis, name, assign.span, value)
 				// The RHS read of $x is a Self_Assign_Rhs use
 				record_use(analysis, name, .Self_Assign_Rhs, assign.span)
@@ -492,6 +499,7 @@ collect_uses_assign :: proc(analysis: ^Unused_Analysis, assign: ^semantics.CExpr
 				// First assignment = declaration of $-var
 				register_binding(analysis, name, t.span, is_top_level = false, is_pub = false)
 				record_assignment(analysis, name, assign.span, value)
+				collect_uses_expr(analysis, value)
 			}
 		} else {
 			// Immutable binding: x = expr
@@ -500,7 +508,20 @@ collect_uses_assign :: proc(analysis: ^Unused_Analysis, assign: ^semantics.CExpr
 				record_use(analysis, name, .Discard, assign.span)
 			} else if _, exists := analysis.bindings[name]; !exists {
 				register_binding(analysis, name, t.span, is_top_level = false, is_pub = false)
+				// Register record-literal fields for C0901 UNUSED RECORD FIELD
+				// tracking. Each field starts unaccessed; mark_field_accessed
+				// (via record_field_access) flips it when `r.field` is read.
+				// Only record literals bound to a name are tracked — anonymous
+				// record expressions have no binding to attribute unused fields
+				// to, and escaped records (passed to fns/returned) are skipped
+				// by check_unused_record_fields.
+				if rec, is_rec := value.(^semantics.CExpr_Record); is_rec {
+					for &field in rec.fields {
+						register_record_field(analysis, name, field.name, rec.span, field.span)
+					}
+				}
 			}
+			collect_uses_expr(analysis, value)
 		}
 	case ^semantics.CExpr_Int,
 	     ^semantics.CExpr_Float,

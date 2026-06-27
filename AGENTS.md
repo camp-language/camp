@@ -7,7 +7,9 @@ You are an AI assistant helping develop the Camp programming language - a strict
 ## Critical Constraints
 
 ### DO
-- Read relevant specs in `docs/<domain>-spec.md` before implementing
+- Read `docs/syntax-recipe.md` before implementing — it is the authoritative syntax reference
+- Read `docs/diagnostics-catalog.md` for error codes and messages
+- Read `docs/stdlib-design-notes.md` for stdlib design rationale
 - Read the code to understand current implementation — code is the source of truth
 - Follow existing type system design (Level inference + row unification)
 - Respect effect tracking in type signatures
@@ -37,7 +39,7 @@ You are an AI assistant helping develop the Camp programming language - a strict
 ### Maintenance
 - If a syntax decision changes (through discussion with the project owner), update the recipe **first**, then propagate to specs, parser, and tests in the same commit
 - Never add syntax to the compiler or specs without recording the decision in the recipe
-- Section 13 of the recipe tracks the remaining parser/compiler implementation actions — these are the known gaps between current implementation and the decided syntax
+- Section 15 of the recipe tracks the remaining compiler gaps — these are the known gaps between current implementation and the decided syntax
 - Section 14 tracks open TBD items — these need design decisions before implementation
 
 ### Key Decisions (quick reference)
@@ -77,7 +79,7 @@ You are an AI assistant helping develop the Camp programming language - a strict
 Use **beans** (`.beans/`) for tracking all tasks — not TODO comments in docs, never GitHub Issues.
 
 ### When to create a bean
-- Parser/compiler implementation gaps (syntax-recipe.md §13)
+- Parser/compiler implementation gaps (syntax-recipe.md §15)
 - Open design items needing decisions (syntax-recipe.md §14)
 - Known bugs or diagnostics to wire
 - Any non-trivial multi-step task
@@ -88,8 +90,20 @@ Use **beans** (`.beans/`) for tracking all tasks — not TODO comments in docs, 
 
 ### Workflow
 1. Create bean with `beans create "<title>" [--priority <level>]`
-2. Work the bean; close it when done
-3. No need to keep docs in sync for closed beans
+2. Work the bean; delete it when done (`.beans/<slug>.md`)
+3. Every feature or bugfix must include tests:
+   - **E2E tests** in `tests/e2e/` for compiler diagnostics and runtime behavior
+   - **Unit tests** in `src/test_*.odin` for programmatic verification
+   - **Camp-native tests** in `stdlib/` for stdlib features
+4. No need to keep docs in sync for deleted beans
+
+For the full PR workflow — claiming a bean, re-anchoring on the design, the
+`just check` gate, honest-failure handling, self-directed backlog work, and
+guardrails — see `docs/process-backlog.md`.
+
+### Discovering Gaps
+When asked to find impl gaps and make new beans ("find gaps", "sweep for
+missing work"), follow `docs/discovering-gaps.md`.
 
 ## Stdlib Testing
 

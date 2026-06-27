@@ -1,7 +1,6 @@
 package camp
 
 import "camp:build"
-import "core:os"
 
 CLI_Command :: enum {
 	Build,
@@ -40,29 +39,6 @@ parse_command :: proc(cmd: string) -> (CLI_Command, bool) {
 		return .Run, true
 	case:
 		return .Build, false
-	}
-}
-
-run_build :: proc(args: []string) {
-	if len(args) > 0 {
-		result := build.run_build_single(args[0])
-		if failed, is_failed := result.(build.Build_Error); is_failed {
-			os.exit(failed.code)
-		}
-	}
-}
-
-run_test :: proc(args: []string) {
-	result := build.run_test(args)
-	if failed, is_failed := result.(build.Build_Error); is_failed {
-		os.exit(failed.code)
-	}
-}
-
-run_doc :: proc(args: []string) {
-	result := build.run_doc(args)
-	if failed, is_failed := result.(build.Build_Error); is_failed {
-		os.exit(failed.code)
 	}
 }
 

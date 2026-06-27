@@ -753,7 +753,39 @@ unify_tag_union_rows :: proc(
 	}
 
 	if len(a_only) == 0 && len(b_only) == 0 {
+		// Both rows have identical entry sets. Propagate closedness: if
+		// either side is closed, both become closed (the union is at least
+		// as closed as the most-closed side). This also handles the rest
+		// unification below.
+		if a.closed != b.closed {
+			mark_tag_row_closed(store, a_id, a.closed || b.closed)
+			mark_tag_row_closed(store, b_id, a.closed || b.closed)
+		}
 		return unify(store, a.tag_rest, b.tag_rest)
+	}
+
+	// camp-9xi6: propagate closedness from a closed all-no-payload superset
+	// to an open subset. The common case is a bare tag `Blue` (open, one
+	// entry, no payload) unifying with the closed `Color` declaration
+	// `[Red | Green | Blue]`. After this, `Blue`'s tag_var resolves to a
+	// closed row, so lower_type (re-derived at IR lowering in lower_ttag)
+	// sees is_heap=false and the construction emits i32.const — matching
+	// the closed-union match dispatch. Without this, construction stays
+	// boxed while the scrutinee reads immediate (trap).
+	//
+	// Rule: side X is closed AND all its entries have no payload AND the
+	// OTHER side adds no entries the closed side doesn't have (other's
+	// a_only/b_only is empty) => the other side becomes closed. This is
+	// conservative: only a closed all-no-payload superset absorbs an open
+	// subset. A payloaded closed union (List/Result) never absorbs, so its
+	// open tag pattern stays open (and stays boxed, correct).
+	a_all_no_payload := row_all_entries_no_payload(a)
+	b_all_no_payload := row_all_entries_no_payload(b)
+	if !a.closed && b.closed && b_all_no_payload && len(a_only) == 0 {
+		mark_tag_row_closed(store, a_id, true)
+	}
+	if !b.closed && a.closed && a_all_no_payload && len(b_only) == 0 {
+		mark_tag_row_closed(store, b_id, true)
 	}
 
 	shared_rest := fresh_tag_row(store, base.Source_Span_ZERO)
@@ -766,6 +798,10 @@ unify_tag_union_rows :: proc(
 		rem_type := Inferred_Tag_Union_Row {
 			tag_entries = entries,
 			tag_rest    = shared_rest,
+			// Remainder rows built during unification are OPEN (they
+			// represent the variants unique to one side and unify with
+			// the other side's open rest). Never a closed declaration.
+			closed      = false,
 		}
 		rem_var := fresh_tag_row(store, base.Source_Span_ZERO)
 		link_var(store, rem_var, rem_type)
@@ -786,6 +822,10 @@ unify_tag_union_rows :: proc(
 		rem_type := Inferred_Tag_Union_Row {
 			tag_entries = entries,
 			tag_rest    = shared_rest,
+			// Remainder rows built during unification are OPEN (they
+			// represent the variants unique to one side and unify with
+			// the other side's open rest). Never a closed declaration.
+			closed      = false,
 		}
 		rem_var := fresh_tag_row(store, base.Source_Span_ZERO)
 		link_var(store, rem_var, rem_type)
@@ -799,6 +839,36 @@ unify_tag_union_rows :: proc(
 	}
 
 	return true
+}
+
+// row_all_entries_no_payload returns true iff every entry in the row has an
+// empty payload slice. Used by unify closedness propagation (camp-9xi6): only
+// a closed all-no-payload superset absorbs an open subset into the immediate
+// representation. A payloaded closed union (List/Result) returns false and does
+// not absorb, keeping its tag patterns boxed.
+row_all_entries_no_payload :: proc(row: Inferred_Tag_Union_Row) -> bool {
+	for te in row.tag_entries {
+		if len(te.payload) > 0 do return false
+	}
+	return true
+}
+
+// mark_tag_row_closed mutates the Inferred_Tag_Union_Row linked to type_var to
+// set its `closed` field. Used by unify_tag_union_rows to propagate closedness
+// from a closed all-no-payload superset to an open subset (e.g. bare `Blue`
+// unifying with `Color`). Resolves the var, re-reads the link, rebuilds the
+// row with closed overridden, and re-links. No-op if the var isn't linked to a
+// tag-union row.
+mark_tag_row_closed :: proc(store: ^Type_Store, type_var: base.Type_Var_ID, closed: bool) {
+	resolved := resolve_var(store, type_var)
+	v := &store.vars[int(resolved)]
+	inf, is_inf := v.link.(Inferred_Type)
+	if !is_inf do return
+	row, ok := inf.(Inferred_Tag_Union_Row)
+	if !ok do return
+	if row.closed == closed do return
+	row.closed = closed
+	v.link = Inferred_Type(row)
 }
 
 occurs_check :: proc(

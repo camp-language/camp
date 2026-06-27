@@ -196,3 +196,168 @@ test_lower_type_newtype_str_wrapper :: proc(t: ^testing.T) {
 	testing.expect(t, ir.is_heap, "newtype Str inner should propagate is_heap true")
 }
 
+@(test)
+test_lower_type_closed_no_payload_tag_union_is_immediate :: proc(t: ^testing.T) {
+	store, collector := setup_type_store()
+	defer teardown_type_store(&store, collector)
+
+	less_name := base.intern(store.interner, "Less")
+	equal_name := base.intern(store.interner, "Equal")
+	greater_name := base.intern(store.interner, "Greater")
+
+	entries := semantics.store_alloc(&store, semantics.Type_Tag_Entry, 3)
+	entries[0] = semantics.Type_Tag_Entry {
+		name    = less_name,
+		payload = {},
+	}
+	entries[1] = semantics.Type_Tag_Entry {
+		name    = equal_name,
+		payload = {},
+	}
+	entries[2] = semantics.Type_Tag_Entry {
+		name    = greater_name,
+		payload = {},
+	}
+
+	rest := semantics.fresh_tag_row(&store, base.Source_Span_ZERO)
+	ordering_var := semantics.fresh_value_var(&store, base.Source_Span_ZERO)
+	semantics.link_var(
+		&store,
+		ordering_var,
+		semantics.Inferred_Tag_Union_Row{tag_entries = entries, tag_rest = rest, closed = true},
+	)
+
+	ir := semantics.lower_type(&store, ordering_var)
+	testing.expect(t, ir.wasm_type == .I32, "closed no-payload tag union should be .I32")
+	testing.expect(
+		t,
+		!ir.is_heap,
+		"closed no-payload tag union should be immediate (is_heap=false)",
+	)
+}
+
+@(test)
+test_lower_type_open_tag_union_is_boxed :: proc(t: ^testing.T) {
+	store, collector := setup_type_store()
+	defer teardown_type_store(&store, collector)
+
+	tag_name := base.intern(store.interner, "SomeTag")
+
+	entries := semantics.store_alloc(&store, semantics.Type_Tag_Entry, 1)
+	entries[0] = semantics.Type_Tag_Entry {
+		name    = tag_name,
+		payload = {},
+	}
+
+	rest := semantics.fresh_tag_row(&store, base.Source_Span_ZERO)
+	open_var := semantics.fresh_value_var(&store, base.Source_Span_ZERO)
+	semantics.link_var(
+		&store,
+		open_var,
+		semantics.Inferred_Tag_Union_Row{tag_entries = entries, tag_rest = rest, closed = false},
+	)
+
+	ir := semantics.lower_type(&store, open_var)
+	testing.expect(t, ir.wasm_type == .I32, "open tag union should be .I32")
+	testing.expect(t, ir.is_heap, "open tag union should be boxed (is_heap=true)")
+}
+
+@(test)
+test_lower_type_closed_payloaded_tag_union_is_boxed :: proc(t: ^testing.T) {
+	store, collector := setup_type_store()
+	defer teardown_type_store(&store, collector)
+
+	ok_name := base.intern(store.interner, "Ok")
+	err_name := base.intern(store.interner, "Err")
+
+	i64_name := base.intern(store.interner, "I64")
+	i64_var := semantics.make_primitive_type(&store, i64_name, base.Source_Span_ZERO)
+
+	payload := semantics.store_alloc(&store, base.Type_Var_ID, 1)
+	payload[0] = i64_var
+
+	entries := semantics.store_alloc(&store, semantics.Type_Tag_Entry, 2)
+	entries[0] = semantics.Type_Tag_Entry {
+		name    = ok_name,
+		payload = payload,
+	}
+	entries[1] = semantics.Type_Tag_Entry {
+		name    = err_name,
+		payload = {},
+	}
+
+	rest := semantics.fresh_tag_row(&store, base.Source_Span_ZERO)
+	result_var := semantics.fresh_value_var(&store, base.Source_Span_ZERO)
+	semantics.link_var(
+		&store,
+		result_var,
+		semantics.Inferred_Tag_Union_Row{tag_entries = entries, tag_rest = rest, closed = true},
+	)
+
+	ir := semantics.lower_type(&store, result_var)
+	testing.expect(t, ir.wasm_type == .I32, "closed payloaded tag union should be .I32")
+	testing.expect(t, ir.is_heap, "closed tag union with payload should be boxed (is_heap=true)")
+}
+
+@(test)
+test_lower_type_closed_empty_payload_rest_is_immediate :: proc(t: ^testing.T) {
+	store, collector := setup_type_store()
+	defer teardown_type_store(&store, collector)
+
+	red_name := base.intern(store.interner, "Red")
+	green_name := base.intern(store.interner, "Green")
+	blue_name := base.intern(store.interner, "Blue")
+
+	// Inner rest row: closed, 1 entry, no payload
+	blue_entries := semantics.store_alloc(&store, semantics.Type_Tag_Entry, 1)
+	blue_entries[0] = semantics.Type_Tag_Entry {
+		name    = blue_name,
+		payload = {},
+	}
+	blue_rest := semantics.fresh_tag_row(&store, base.Source_Span_ZERO)
+	blue_var := semantics.fresh_value_var(&store, base.Source_Span_ZERO)
+	semantics.link_var(
+		&store,
+		blue_var,
+		semantics.Inferred_Tag_Union_Row {
+			tag_entries = blue_entries,
+			tag_rest = blue_rest,
+			closed = true,
+		},
+	)
+
+	// Outer row: closed, 2 entries, no payload, rest linked to blue_var
+	entries := semantics.store_alloc(&store, semantics.Type_Tag_Entry, 2)
+	entries[0] = semantics.Type_Tag_Entry {
+		name    = red_name,
+		payload = {},
+	}
+	entries[1] = semantics.Type_Tag_Entry {
+		name    = green_name,
+		payload = {},
+	}
+
+	color_var := semantics.fresh_value_var(&store, base.Source_Span_ZERO)
+	semantics.link_var(
+		&store,
+		color_var,
+		semantics.Inferred_Tag_Union_Row {
+			tag_entries = entries,
+			tag_rest = blue_var,
+			closed = true,
+		},
+	)
+
+	ir := semantics.lower_type(&store, color_var)
+	testing.expect(
+		t,
+		ir.wasm_type == .I32,
+		"closed no-payload union with closed no-payload rest should be .I32",
+	)
+	testing.expect(
+		t,
+		!ir.is_heap,
+		"closed no-payload union with closed no-payload rest should be immediate (is_heap=false)",
+	)
+}
+

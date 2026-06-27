@@ -3,9 +3,11 @@ package camp
 import "camp:base"
 import "camp:build"
 import "camp:codegen"
+import "camp:diagnostics"
 import "camp:frontend"
 import "camp:ir"
 import "camp:semantics"
+import "core:fmt"
 import "core:testing"
 
 compile_source :: proc(ctx: ^build.Compilation_Context, source: string) -> [dynamic]u8 {
@@ -39,7 +41,7 @@ compile_source :: proc(ctx: ^build.Compilation_Context, source: string) -> [dyna
 	ir.rc_insert(&ir_mod, &ctx.interner)
 	ir.reuse_analyze(&ir_mod)
 
-	wasm_mod := codegen.codegen(ir_mod, &ctx.interner, ctx.thread_count)
+	wasm_mod := codegen.codegen(ir_mod, &ctx.interner, ctx.thread_count, &ctx.collector)
 	wasm_bytes := codegen.wasm_serialize(wasm_mod)
 
 	semantics.type_store_destroy(&store)
@@ -484,5 +486,117 @@ test_sched_cancel_has_two_unreachable :: proc(t: ^testing.T) {
 		}
 	}
 	testing.expect(t, unreachable_count >= 2)
+}
+
+// Size regression tests: verify tree shaking + runtime pruning produce
+// small WASM binaries. Thresholds are generous to avoid flaky tests
+// while catching regressions that double binary size.
+
+@(test)
+test_size_pure_minimal :: proc(t: ^testing.T) {
+	ctx: build.Compilation_Context
+	wasm_bytes := compile_source(&ctx, "main = || -> I64 { 42 }")
+	defer delete(wasm_bytes)
+	defer teardown_codegen(&ctx)
+
+	testing.expect(
+		t,
+		len(wasm_bytes) < 5120,
+		fmt.tprintf("pure minimal: got %d bytes, expected < 5120", len(wasm_bytes)),
+	)
+}
+
+@(test)
+test_size_import_pruning_pure :: proc(t: ^testing.T) {
+	ctx: build.Compilation_Context
+	wasm_bytes := compile_source(&ctx, "main = || -> I64 { 42 }")
+	defer delete(wasm_bytes)
+	defer teardown_codegen(&ctx)
+
+	// Count WASM imports by parsing binary: section 2 = import section.
+	import_count := 0
+	i := 8 // skip magic + version
+	for i < len(wasm_bytes) {
+		section_id := wasm_bytes[i]
+		i += 1
+		section_size := 0
+		shift := 0
+		for i < len(wasm_bytes) {
+			b := wasm_bytes[i]
+			i += 1
+			section_size |= int(b & 0x7F) << u32(shift)
+			if b & 0x80 == 0 {break}
+			shift += 7
+		}
+		if section_id == 2 {
+			shift = 0
+			for i < len(wasm_bytes) {
+				b := wasm_bytes[i]
+				i += 1
+				import_count |= int(b & 0x7F) << u32(shift)
+				if b & 0x80 == 0 {break}
+				shift += 7
+			}
+			break
+		}
+		i += section_size
+	}
+
+	// Pure program should only need proc_exit + fd_write (2 WASI imports).
+	// Previously emitted 9 imports unconditionally.
+	testing.expect(
+		t,
+		import_count == 2,
+		fmt.tprintf("pure program imports: got %d, expected 2", import_count),
+	)
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// codegen_internal_error (C9000) helper coverage
+// ═══════════════════════════════════════════════════════════════════════════════
+// Several codegen paths are defensive: they can only be reached through a
+// compiler bug in an earlier stage (e.g. an unresolved IR_Method_Call that
+// monomorphization should have eliminated, or an unknown scheduler-effect
+// operation). These are not triggerable from valid Camp source, so the e2e
+// suite cannot exercise them. This test covers the helper contract that all
+// such defensive paths rely on: a C9000 internal diagnostic lands in the
+// collector and is visible to the post-codegen error check in build.odin.
+
+@(test)
+test_codegen_internal_error_records_c9000 :: proc(t: ^testing.T) {
+	collector: diagnostics.Diagnostic_Collector
+	diagnostics.diag_collector_init(&collector)
+	defer diagnostics.diag_collector_destroy(&collector)
+
+	env: codegen.Codegen_Env
+	env.collector = &collector
+
+	span := base.Source_Span {
+		file_id = 0,
+		start   = 42,
+		end     = 47,
+	}
+	codegen.codegen_internal_error(&env, span, "unresolved method call reached codegen")
+
+	testing.expect(t, collector.internal_count == 1)
+	testing.expect(t, collector.error_count == 0)
+	testing.expect(t, diagnostics.diag_collector_has_errors(&collector))
+	testing.expect(t, len(collector.diagnostics) == 1)
+	testing.expect(t, collector.diagnostics[0].code == "C9000")
+	testing.expect(t, collector.diagnostics[0].category == .Internal)
+	testing.expect(t, collector.diagnostics[0].span.start == 42)
+	testing.expect(t, collector.diagnostics[0].span.end == 47)
+}
+
+@(test)
+test_codegen_internal_error_nil_collector_is_noop :: proc(t: ^testing.T) {
+	// A Codegen_Env with no collector wired in must not crash. This guards
+	// the standalone codegen entry points used by unit tests.
+	env: codegen.Codegen_Env
+	env.collector = nil
+
+	codegen.codegen_internal_error(&env, base.Source_Span_ZERO, "anything")
+
+	testing.expect(t, true) // reaching here is the assertion
 }
 

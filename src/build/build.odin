@@ -70,26 +70,24 @@ run_build_single :: proc(
 	}
 	source := string(data)
 
+	// Parse + canonicalize the user file up front so we can read its imports
+	// (to register only the transitively-imported stdlib modules) and emit the
+	// same "canonicalized" progress line the single-file path always printed.
 	file_rec := base.Source_File {
 		path     = file_path,
 		contents = source,
 		id       = 0,
 	}
-
 	lexer: frontend.Lexer
 	frontend.lexer_init(&lexer, file_rec, &ctx.collector, &ctx.interner)
-
 	parser: frontend.Parser
 	frontend.parser_init(&parser, &lexer, &ctx.collector, &ctx.interner)
 	ast_file := frontend.parser_parse_file(&parser)
-
 	if diagnostics.diag_collector_has_errors(&ctx.collector) {
 		diagnostics.render_all(&ctx.collector, file_path, source)
 		return Build_Error{message = "parse errors", code = 1}
 	}
-
 	canon := semantics.canonicalize(ast_file, &ctx.interner, &ctx.collector)
-
 	if !diagnostics.is_json_mode() {
 		fmt.printfln(
 			"canonicalized {}: {} declaration(s), {} import(s)",
@@ -99,13 +97,210 @@ run_build_single :: proc(
 		)
 	}
 
-	store: semantics.Type_Store
-	semantics.type_store_init(&store, &ctx.interner, &ctx.collector)
-	defer semantics.type_store_destroy(&store)
-	semantics.inject_prelude(&store)
-	tfile := semantics.typecheck_file(canon, &store)
-	semantics.check_effect_safety(tfile, &store)
+	// Synthesize a Project_Discovery: the user file is the entry-point "Main"
+	// module, plus only the stdlib modules it transitively imports. This routes
+	// single-file builds through the same dependency-compiling pipeline as
+	// `run_build_project` so module-qualified calls (List.length, etc.) resolve
+	// to the pure-Camp stdlib implementations.
+	main_id := base.intern(&ctx.interner, "Main")
+	project: Project_Discovery
+	project.modules = make(map[base.Intern_ID]Module_Info, 32)
+	project.module_names = make([dynamic]base.Intern_ID, 0, 32)
+	project.dependencies = make([dynamic]Dependency_Info, 0, 8)
+	project.dev_deps = make([dynamic]Dependency_Info, 0, 4)
+	project.entry_point = main_id
 
+	main_cfile := new(semantics.CFile)
+	main_cfile^ = canon
+	main_mi := Module_Info {
+		name         = main_id,
+		path         = file_path,
+		content_hash = simple_hash(source),
+		source       = source,
+		cfile        = main_cfile,
+		imports      = make([dynamic]base.Deferred_Import, 0, len(canon.imports)),
+		exports      = make([dynamic]Export_Info, 0, 16),
+	}
+	for imp in canon.imports {
+		append(&main_mi.imports, imp)
+	}
+	project.modules[main_id] = main_mi
+	append(&project.module_names, main_id)
+
+	// Register transitively-imported stdlib modules. The worklist starts with
+	// the user's imports; each newly-registered stdlib module's own imports
+	// are appended so the full transitive closure is compiled.
+	worklist: [dynamic]base.Intern_ID
+	defer delete(worklist)
+	for imp in canon.imports {
+		append(&worklist, imp.module)
+	}
+
+	// Always compile primitive trait-impl modules (Decision A, camp-24mj).
+	// These contain `is` impls (Ord, Hash, Debug, Eq, etc.) that the container
+	// runtime dispatch (List.compare, Result.eq, etc.) needs as real WASM
+	// functions. They must be compiled regardless of user imports.
+	// NOTE: Str and Bytes are excluded for now — their trait impls generate
+	// wasm-invalid code (type mismatch in block). Tracked as a follow-up.
+	ALWAYS_COMPILE :: []string{"Char", "Bool"}
+	for mod_name in ALWAYS_COMPILE {
+		append(&worklist, base.intern(&ctx.interner, mod_name))
+	}
+	for len(worklist) > 0 {
+		mod_id := worklist[len(worklist) - 1]
+		pop(&worklist)
+		if _, exists := project.modules[mod_id]; exists {continue}
+		mod_name := base.intern_get(&ctx.interner, mod_id)
+		mod, ok := stdlib_lookup(mod_name)
+		if !ok {continue} 	// non-stdlib import → reported later as module-not-found
+		stdlib_mi := Module_Info {
+			name         = mod_id,
+			path         = mod.path,
+			content_hash = simple_hash(mod.source),
+			source       = mod.source,
+			imports      = make([dynamic]base.Deferred_Import, 0, 8),
+			exports      = make([dynamic]Export_Info, 0, 16),
+		}
+		project.modules[mod_id] = stdlib_mi
+		append(&project.module_names, mod_id)
+		errs_before := ctx.collector.error_count
+		ok_parse := parse_stdlib_module(&project.modules[mod_id], &ctx)
+		if !ok_parse {
+			// The embedded stdlib sources are stale (camp-24mj tracks the
+			// full sync). A stdlib module that fails to parse/canonicalize
+			// must not abort the user's build, and its (often voluminous)
+			// diagnostics should not be rendered as errors mid-build. Demote
+			// them to warnings and drop the module so its names fall through
+			// to codegen runtime intercepts — matching the historical
+			// single-file path, which ignored imports entirely.
+			demote_recent_errors(&ctx, errs_before)
+			delete_key(&project.modules, mod_id)
+			for i in 0 ..< len(project.module_names) {
+				if project.module_names[i] == mod_id {
+					ordered_remove(&project.module_names, i)
+					break
+				}
+			}
+		} else {
+			for imp in project.modules[mod_id].imports {
+				append(&worklist, imp.module)
+			}
+		}
+	}
+	ctx.project = project
+
+	graph := build_module_graph(&project, &ctx.interner, &ctx.collector)
+	defer module_graph_destroy(&graph)
+	demote_unresolved_import_errors(&ctx)
+	if diagnostics.diag_collector_has_errors(&ctx.collector) {
+		diagnostics.render_all(&ctx.collector, file_path, source)
+		return Build_Error{message = "module graph errors", code = 1}
+	}
+
+	sorted, ok := topological_sort(&graph, &ctx.interner, &ctx.collector)
+	defer delete(sorted)
+	if !ok {
+		diagnostics.render_all(&ctx.collector, file_path, source)
+		return Build_Error{message = "circular dependency detected", code = 1}
+	}
+
+	// Typecheck each module with dependency injection (pub bindings from
+	// earlier modules in topo order). Mirrors run_build_project.
+	for mod_id in sorted {
+		mi_ptr, mi_ok := &project.modules[mod_id]
+		if !mi_ok do continue
+		if mi_ptr.cfile == nil {
+			result := parse_and_canonicalize(mi_ptr, &ctx)
+			switch _ in result {
+			case Build_Error:
+				return result
+			case Build_Output:
+			}
+		}
+		if mi_ptr.cfile == nil do continue
+
+		store: semantics.Type_Store
+		semantics.type_store_init(&store, &ctx.interner, &ctx.collector)
+		semantics.inject_prelude(&store)
+
+		for dep_id in sorted {
+			if dep_id == mod_id do break
+			dep_store, dep_ok := ctx.module_stores[dep_id]
+			if !dep_ok do continue
+			dep_et, dep_et_ok := ctx.export_tables[dep_id]
+			if !dep_et_ok do continue
+			for name_id, type_var in dep_store.bindings {
+				ei, ei_ok := export_lookup(&dep_et, name_id)
+				if ei_ok && ei.is_pub {
+					store.bindings[name_id] = type_var
+				}
+			}
+		}
+
+		errs_before_tc := ctx.collector.error_count
+		semantics.typecheck_file(mi_ptr.cfile^, &store, mod_id)
+		// Always-compiled stdlib modules (not explicitly imported) may have
+		// pre-existing semantic errors (e.g. ParseError not in scope, From/
+		// TryFrom not registered). Demote their errors to warnings so the
+		// user's build isn't blocked by stdlib internals. Successfully-
+		// typechecked impls still register in trait_impls for dispatch.
+		is_user_import := false
+		for imp in canon.imports {
+			if imp.module == mod_id {
+				is_user_import = true
+				break
+			}
+		}
+		if !is_user_import && mod_id != main_id {
+			demote_recent_errors(&ctx, errs_before_tc)
+		}
+		if diagnostics.diag_collector_has_errors(&ctx.collector) {
+			diagnostics.render_all(&ctx.collector, mi_ptr.path, mi_ptr.source)
+			return Build_Error {
+				message = fmt.tprintf("typecheck errors in module {}", mod_id),
+				code = 1,
+			}
+		}
+		ctx.module_stores[mod_id] = store
+		et := collect_exports(mi_ptr.cfile^, &store)
+		ctx.export_tables[mod_id] = et
+	}
+
+	for mod_id in sorted {
+		mi_ptr, mi_ok := &project.modules[mod_id]
+		if !mi_ok do continue
+		if mi_ptr.cfile == nil do continue
+		scope := resolve_imports(
+			mod_id,
+			mi_ptr.cfile,
+			&ctx.export_tables,
+			&project,
+			&ctx.interner,
+			&ctx.collector,
+		)
+		apply_import_resolution(
+			mi_ptr.cfile,
+			&scope,
+			&ctx.export_tables,
+			&ctx.interner,
+			&ctx.collector,
+		)
+		import_scope_destroy(&scope)
+	}
+
+	demote_unresolved_import_errors(&ctx)
+	if diagnostics.diag_collector_has_errors(&ctx.collector) {
+		diagnostics.render_all(&ctx.collector, file_path, source)
+		return Build_Error{message = "import resolution errors", code = 1}
+	}
+
+	// Entry-point effect safety: single-file builds, unlike project builds, gate
+	// on `check_effect_safety` so unhandled effects in `main!` are reported
+	// (project builds rely on each module's own typecheck). main! is NOT required
+	// here — single-file builds accept library-style files with no entry point.
+	entry_store := ctx.module_stores[project.entry_point]
+	entry_tfile := semantics.typecheck_file(canon, &entry_store, project.entry_point)
+	semantics.check_effect_safety(entry_tfile, &entry_store)
 	if diagnostics.diag_collector_has_errors(&ctx.collector) {
 		diagnostics.render_all(&ctx.collector, file_path, source)
 		return Build_Error{message = "typecheck errors", code = 1}
@@ -115,31 +310,40 @@ run_build_single :: proc(
 		fmt.printfln("typecheck passed for {}", file_path)
 	}
 
-	// Run unused binding analysis after typecheck, before lowering
+	// Unused analysis runs on the entry module only: stdlib modules are trusted
+	// (their standalone diagnostics are tracked separately and would distract
+	// from the user's program).
 	analysis.run_unused_analysis(canon, &ctx.interner, &ctx.collector)
-
 	if diagnostics.diag_collector_has_errors(&ctx.collector) {
 		diagnostics.render_all(&ctx.collector, file_path, source)
 		return Build_Error{message = "analysis errors", code = 1}
 	}
 
-	mono_tfile := mono.mono(tfile, &store, &ctx.interner)
-
-	ctx.type_store = &store
-	ir_mod := ir.lower_tfile(mono_tfile, &store)
-	ir_mod = ir.effect_lower(&ir_mod, &ctx.interner, &ctx.collector, &store)
+	ctx.type_store = &ctx.module_stores[project.entry_point]
+	combined_ir := combine_module_irs(sorted[:], &project, &ctx)
+	combined_ir = ir.effect_lower(&combined_ir, &ctx.interner, &ctx.collector, ctx.type_store)
 	errors_before_cc := ctx.collector.error_count
-	ir_mod = ir.closure_convert(&ir_mod, &ctx.interner, &ctx.collector)
-
+	combined_ir = ir.closure_convert(&combined_ir, &ctx.interner, &ctx.collector)
 	if ctx.collector.error_count > errors_before_cc {
 		diagnostics.render_all(&ctx.collector, file_path, source)
 		return Build_Error{message = "closure conversion errors", code = 1}
 	}
+	combined_ir = ir.cps_transform(&combined_ir, &ctx.interner)
+	ir.rc_insert(&combined_ir, &ctx.interner)
+	ir.reuse_analyze(&combined_ir)
+	ir.tree_shake_module(&combined_ir, &ctx.interner)
 
-	ir_mod = ir.cps_transform(&ir_mod, &ctx.interner)
-	ir.rc_insert(&ir_mod, &ctx.interner)
-	ir.reuse_analyze(&ir_mod)
-	wasm_mod := codegen.codegen(ir_mod, &ctx.interner, ctx.thread_count, release)
+	wasm_mod := codegen.codegen(
+		combined_ir,
+		&ctx.interner,
+		ctx.thread_count,
+		&ctx.collector,
+		release,
+	)
+	if diagnostics.diag_collector_has_errors(&ctx.collector) {
+		diagnostics.render_all(&ctx.collector, file_path, source)
+		return Build_Error{message = "codegen errors", code = 1}
+	}
 	wasm_bytes := codegen.wasm_serialize(wasm_mod)
 	defer delete(wasm_bytes)
 	local_output := output_path
@@ -161,6 +365,140 @@ run_build_single :: proc(
 		fmt.printfln("compiled {} -> {}", file_path, local_output)
 	}
 	return Build_Output{wasm_path = local_output, has_errors = false}
+}
+
+// demote_unresolved_import_errors converts module-not-found ("C0800") and
+// import-not-exported ("C0802") errors to warnings. Single-file builds
+// register only the stdlib modules the user transitively imports; a name not
+// exported from such a module may still be provided by a codegen runtime
+// intercept (e.g. List.compare → List_Compare intrinsic), and a module not
+// found may be a non-stdlib import the historical single-file path silently
+// ignored. Demotion lets those resolve (or report at use-site) instead of
+// aborting the build.
+demote_unresolved_import_errors :: proc(ctx: ^Compilation_Context) {
+	for &d in ctx.collector.diagnostics {
+		if d.code == "C0800" || d.code == "C0802" {
+			if d.category == .Error {
+				d.category = .Warning
+				ctx.collector.error_count -= 1
+				ctx.collector.warning_count += 1
+			}
+		}
+	}
+}
+
+// demote_recent_errors demotes all Error-category diagnostics added to the
+// collector since the given error_count snapshot, downgrading them to
+// warnings. Used to tolerate parse/canonicalize failures in stale embedded
+// stdlib modules so they don't abort a single-file build.
+demote_recent_errors :: proc(ctx: ^Compilation_Context, _errs_before: int) {
+	diags := ctx.collector.diagnostics
+	remaining := ctx.collector.error_count - _errs_before
+	if remaining <= 0 do return
+	for i := len(diags) - 1; i >= 0 && remaining > 0; i -= 1 {
+		if diags[i].category == .Error {
+			diags[i].category = .Warning
+			ctx.collector.error_count -= 1
+			ctx.collector.warning_count += 1
+			remaining -= 1
+		}
+	}
+}
+
+// parse_stdlib_module parses and canonicalizes an embedded stdlib module
+// WITHOUT rendering diagnostics on failure (unlike parse_and_canonicalize).
+// Returns false on parse/canonicalize error; the caller demotes the
+// diagnostics and drops the module so its names fall through to runtime
+// intercepts. This keeps stale embedded stdlib (camp-24mj sync) from
+// aborting single-file builds.
+parse_stdlib_module :: proc(mi: ^Module_Info, ctx: ^Compilation_Context) -> bool {
+	old_allocator := context.allocator
+	context.allocator = ctx.allocator
+	defer context.allocator = old_allocator
+
+	source_file := base.Source_File {
+		path     = mi.path,
+		contents = mi.source,
+		id       = 0,
+	}
+	lexer: frontend.Lexer
+	frontend.lexer_init(&lexer, source_file, &ctx.collector, &ctx.interner)
+	parser: frontend.Parser
+	frontend.parser_init(&parser, &lexer, &ctx.collector, &ctx.interner)
+	ast_file := frontend.parser_parse_file(&parser)
+	if diagnostics.diag_collector_has_errors(&ctx.collector) {
+		return false
+	}
+	canon := semantics.canonicalize(ast_file, &ctx.interner, &ctx.collector)
+	if diagnostics.diag_collector_has_errors(&ctx.collector) {
+		return false
+	}
+	cfile_ptr := new(semantics.CFile)
+	cfile_ptr^ = canon
+	mi.cfile = cfile_ptr
+	mi.imports = canon.imports
+	return true
+}
+
+// register_stdlib_transitive performs a BFS over stdlib modules reachable
+// from `seed_imports` plus `always_compile` (primitive trait-impl modules
+// the container runtime needs as real WASM functions — empty for check
+// mode which has no codegen). Parses each with tolerance (demote + drop on
+// parse failure — stale embedded sources must not abort a project build)
+// and registers the survivors into `project`. Mirrors the single-file path
+// (build.odin:130-189). Called by run_build_project and run_check_project
+// after user modules have been parsed (so their imports are known).
+register_stdlib_transitive :: proc(
+	project: ^Project_Discovery,
+	seed_imports: []base.Deferred_Import,
+	ctx: ^Compilation_Context,
+	always_compile: []string = {"Char"},
+) {
+	worklist: [dynamic]base.Intern_ID
+	defer delete(worklist)
+	for imp in seed_imports {
+		append(&worklist, imp.module)
+	}
+	for mod_name in always_compile {
+		append(&worklist, base.intern(&ctx.interner, mod_name))
+	}
+
+	for len(worklist) > 0 {
+		mod_id := worklist[len(worklist) - 1]
+		pop(&worklist)
+		if _, exists := project.modules[mod_id]; exists {continue}
+		mod_name := base.intern_get(&ctx.interner, mod_id)
+		mod, ok := stdlib_lookup(mod_name)
+		if !ok {continue} 	// non-stdlib import → reported later as module-not-found
+		stdlib_mi := Module_Info {
+			name         = mod_id,
+			path         = mod.path,
+			content_hash = simple_hash(mod.source),
+			source       = mod.source,
+			imports      = make([dynamic]base.Deferred_Import, 0, 8),
+			exports      = make([dynamic]Export_Info, 0, 16),
+		}
+		project.modules[mod_id] = stdlib_mi
+		append(&project.module_names, mod_id)
+		errs_before := ctx.collector.error_count
+		ok_parse := parse_stdlib_module(&project.modules[mod_id], ctx)
+		if !ok_parse {
+			// Stale embedded stdlib (camp-24mj tracks sync). Demote and drop
+			// so names fall through to codegen runtime intercepts.
+			demote_recent_errors(ctx, errs_before)
+			delete_key(&project.modules, mod_id)
+			for i in 0 ..< len(project.module_names) {
+				if project.module_names[i] == mod_id {
+					ordered_remove(&project.module_names, i)
+					break
+				}
+			}
+		} else {
+			for imp in project.modules[mod_id].imports {
+				append(&worklist, imp.module)
+			}
+		}
+	}
 }
 
 run_check :: proc(args: []string) -> Build_Result {
@@ -779,7 +1117,7 @@ compile_test_canon :: proc(
 	ir.reuse_analyze(&ir_mod)
 
 	// Codegen + serialize
-	wasm_mod := codegen.codegen(ir_mod, interner, 1)
+	wasm_mod := codegen.codegen(ir_mod, interner, 1, &collector)
 	wasm_bytes := codegen.wasm_serialize(wasm_mod)
 	defer delete(wasm_bytes)
 
@@ -988,7 +1326,7 @@ compile_doc_test_canon :: proc(
 	ir.rc_insert(&ir_mod, interner)
 	ir.reuse_analyze(&ir_mod)
 
-	wasm_mod := codegen.codegen(ir_mod, interner, 1)
+	wasm_mod := codegen.codegen(ir_mod, interner, 1, &collector)
 	wasm_bytes := codegen.wasm_serialize(wasm_mod)
 	defer delete(wasm_bytes)
 

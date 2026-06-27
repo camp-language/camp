@@ -1,0 +1,16 @@
+args = "check-file"
+stdout = """
+-- C0509: WILDCARD AFTER CATCH-ALL --- /tmp/camp-e2e/errors/wildcard-after-catch-all/src/Main.camp
+
+This wildcard pattern is unreachable — a previous wildcard or variable pattern
+already matches everything.
+   4 |     _ => 2
+           ^
+1 warning(s) found
+check passed for /tmp/camp-e2e/errors/wildcard-after-catch-all/src/Main.camp
+"""
+stderr = ""
+exit = 0
+wasm_exit = 1
+wasm_stdout = ""
+wasm_stderr = ""

@@ -225,7 +225,7 @@ Color is Eq {
 - `derives` on type definition auto-generates `is` blocks for built-in traits only
 
 ### Built-in Derivable Traits
-`Eq`, `Ord`, `Hash`, `Debug`
+`Eq`, `Ord`, `Hash`, `Debug`, `Default`
 
 - `derives` generates compiler-internal implementations (not visible as `is` blocks in source)
 - User-defined traits require manual `is` blocks
@@ -458,7 +458,7 @@ handle Console!, Throw! in body with {
 ```
 match input {
   "Hello, ${name}!" => name
-  "${greeting}, ${target}!" => greeting ++ " to " ++ target
+  "${greeting}, ${target}!" => Str.concat(greeting, " to ", target)
   _ => "unknown"
 }
 ```
@@ -502,6 +502,13 @@ match input {
 - Multiple effects per handle block: `handle E!, F! in body with { ... }`
 - Single effect per handle block also valid: `handle E! in body with { ... }`
 
+### Non-Prelude Runtime-Backed Effects (Process!)
+Runtime-backed effects that are not prelude effects SHALL be defined in the stdlib as regular effect declarations. Users SHALL import them explicitly. The codegen SHALL provide built-in handlers that bridge effect operations to host syscalls. `Process!` (backed by WASIX `proc_spawn`/`wait` via wasmer) is the canonical example.
+
+- `Process!.spawn!(cmd)` requires `import Process { Process!, Command, ProcessHandle, ... }`; `main!`'s effect row SHALL include `Process!`
+- When `Process!.spawn!` is performed, the runtime handler SHALL marshal the `Command` into WASIX `proc_spawn` arguments and return a `ProcessHandle` with optional pipe handles
+- When a `Command` has `stdout: Capture` and is spawned via `Process!.spawn!`, `ProcessHandle.stdout` SHALL be `Some(handle)` and `Process!.read!(handle)` SHALL return bytes from the child's stdout pipe
+
 ---
 
 ## 8. Entry Point
@@ -530,22 +537,17 @@ Termination : {
 ## 9. Prelude
 
 Rich prelude (like Rust), compiler-injected. Includes:
-- Types: `Bool`, `I8`–`I64`, `U8`–`U64`, `F32`, `F64`, `Char`, `Str`, `List`, `Map`, `Set`, `Option`, `Result`, `{}`
-- Tag variants: `True`, `False`, `Some`, `None`, `Ok`, `Err`
+- Types: `Bool`, `I8`–`I64`, `U8`–`U64`, `F32`, `F64`, `Char`, `Str`, `List`, `Map`, `Set`, `Result`, `Bytes`, `Iter`, `{}`
+- Tag variants: `True`, `False`, `Ok`, `Err`
+- Effects: `Console!`, `Throw!`, `Parallel!`, `Spawn!`, `Async!`, `File!`, `Env!`, `Time!`, `Random!`, `Log!`, `Crypto.Random!`
 - Common functions: `map`, `filter`, `foldl`, `println!`, etc.
-- Common traits: `Eq`, `Ord`, `Hash`, `Debug`, `Display`
+- Common traits: `Eq`, `Ord`, `Hash`, `Debug`, `Display`, `Default`
 - No re-exports — prelude is compiler-injected
 - `Bool` is a nominal type in the prelude: `@Bool: pub [True | False]`
 
 ---
 
 ## 10. Standard Library Types
-
-### Option
-```
-@Option(a): pub [Some(a) | None]
-```
-- Library type, imported in prelude with `[Some, None]`
 
 ### Result
 ```

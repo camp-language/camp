@@ -191,6 +191,21 @@ diag_undefined_name :: proc(
 	return d
 }
 
+diag_use_of_discard :: proc(name: string, span: base.Source_Span) -> Diagnostic {
+	d := diag_init(
+		.Error,
+		"C0210",
+		"USE OF DISCARDED VALUE",
+		span,
+		fmt.tprintf(
+			"`{}` begins with `_` and is treated as a discarded value — it cannot be read.",
+			name,
+		),
+	)
+	append(&d.hints, "Bind this value to a named binding instead, or use `_` directly to discard.")
+	return d
+}
+
 diag_unhandled_effect :: proc(effect_name: string, span: base.Source_Span) -> Diagnostic {
 	d := diag_init(
 		.Error,
@@ -968,7 +983,7 @@ diag_unused_assignment :: proc(
 		"C0904",
 		"UNUSED ASSIGNMENT",
 		span,
-		fmt.tprintf("Assignment #{} to `${}` is unused. {}", assign_no, name, hint),
+		fmt.tprintf("Assignment #{} to `{}` is unused. {}", assign_no, name, hint),
 	)
 	return d
 }
@@ -1051,7 +1066,7 @@ diag_invalid_escape :: proc(escape: string, span: base.Source_Span) -> Diagnosti
 		span,
 		fmt.tprintf("\\{} is not a valid escape sequence.", escape),
 	)
-	append(&d.hints, "Valid escape sequences are: \\n, \\t, \\r, \\\\, \\\", \\0.")
+	append(&d.hints, "Valid escape sequences are: \\n, \\t, \\r, \\\\, \\\", \\$, \\0.")
 	return d
 }
 
@@ -1061,7 +1076,7 @@ diag_unterminated_per_line_string :: proc(span: base.Source_Span) -> Diagnostic 
 		"C0004",
 		"UNTERMINATED PER-LINE STRING",
 		span,
-		"This per-line string (starting with `\\`) is never closed. The closing `\\` must appear alone on its own line.",
+		"This per-line string (starting with `\\`) ran to the end of the file without a final line break. Add a newline after the last `\\`-prefixed line to close it.",
 	)
 	return d
 }
@@ -1837,7 +1852,7 @@ diag_missing_field_pattern :: proc(field_name: string, span: base.Source_Span) -
 		"MISSING FIELDS IN RECORD PATTERN",
 		span,
 		fmt.tprintf(
-			"Record pattern is missing field `{}`. Use `_` to ignore a field, or `{..}` to ignore remaining fields.",
+			"Record pattern is missing field `{}`. Use `_` to ignore a field, or `{{..}}` to ignore remaining fields.",
 			field_name,
 		),
 	)
@@ -2357,6 +2372,18 @@ diag_tuple_pattern_count :: proc(
 		span,
 		fmt.tprintf("Tuple pattern has {} elements but expected {}", actual, expected),
 	)
+	return d
+}
+
+diag_todo_used :: proc(span: base.Source_Span) -> Diagnostic {
+	d := diag_init(
+		.Warning,
+		"C0914",
+		"TODO EXPRESSION",
+		span,
+		"`todo` is a placeholder — evaluating this at runtime will trap.",
+	)
+	append(&d.hints, "Replace this with a real implementation before shipping.")
 	return d
 }
 

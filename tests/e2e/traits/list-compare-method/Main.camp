@@ -1,0 +1,38 @@
+import List { compare }
+
+// Exercises the List.compare METHOD-CALL path (not the `==`/`<` operator path),
+// which dispatches through the runtime List_Compare intrinsic with an element
+// Ord.compare callback obtained via call_indirect. This is the camp-24mj
+// acceptance scenario: previously trapped ("indirect call type mismatch"
+// because the resolved Bool_compare had no compiled function body / the
+// runtime returned a raw i32 where an Order tag was expected).
+main! = || -> I64 {
+  a = match List.compare([True, False], [True, False]) {
+    Less => 0
+    Equal => 1
+    Greater => 2
+  }
+  b = match List.compare([True], [True, False]) {
+    Less => 0
+    Equal => 1
+    Greater => 2
+  }
+  c = match List.compare([True, False], [True]) {
+    Less => 0
+    Equal => 1
+    Greater => 2
+  }
+  d = match List.compare([True], [False]) {
+    Less => 0
+    Equal => 1
+    Greater => 2
+  }
+  e = match List.compare([False], [True]) {
+    Less => 0
+    Equal => 1
+    Greater => 2
+  }
+  // a=Equal(1), b=Less(0) [shorter], c=Greater(2) [longer],
+  // d=Greater(2) [True>False], e=Less(0) [False<True]
+  a + b + c + d + e
+}

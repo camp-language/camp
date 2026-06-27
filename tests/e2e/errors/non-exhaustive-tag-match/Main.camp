@@ -1,0 +1,9 @@
+@Color : pub [Red | Green | Blue]
+
+pub main! = || -> I64 {
+  c : Color = Red
+  match c {
+    Red => 1
+    Green => 2
+  }
+}

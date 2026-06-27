@@ -1,0 +1,6 @@
+pub main! = || -> I64 {
+  p = { x: 1, y: 2 }
+  match p {
+    { x: a, z: b } => a + b
+  }
+}

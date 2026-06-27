@@ -96,3 +96,16 @@ F32 is Ord {
 F32 is Hash {
     hash = |a: Self, h: Hasher| -> Hasher { crash "intrinsic: F32_hash" }
 }
+
+test "F32 traits" {
+  f32_zero: F32 = 0.0
+  f32_one: F32 = 1.0
+  expect f32_one == 1.0
+  expect f32_zero == 0.0
+  expect not (f32_one == f32_zero)
+  expect f32_one < 2.0
+  expect 2.0 > f32_one
+  expect f32_one <= f32_one
+  expect f32_one >= f32_one
+}
+

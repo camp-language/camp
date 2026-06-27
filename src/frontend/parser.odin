@@ -321,8 +321,20 @@ parser_parse_decl :: proc(p: ^Parser) -> Decl {
 	case .Kw_Import:
 		return parser_parse_import_decl(p, is_pub)
 	case .Kw_Test:
+		if is_pub {
+			diagnostics.collector_add_diag(
+				p.collector,
+				diagnostics.diag_invalid_visibility(p.current.span),
+			)
+		}
 		return parser_parse_test_decl(p)
 	case .Kw_Expect:
+		if is_pub {
+			diagnostics.collector_add_diag(
+				p.collector,
+				diagnostics.diag_invalid_visibility(p.current.span),
+			)
+		}
 		return parser_parse_expect_decl(p)
 	case .At:
 		return parser_parse_newtype_decl(p, is_pub)
@@ -407,6 +419,25 @@ parser_parse_const_decl :: proc(p: ^Parser, is_pub: bool) -> Decl {
 
 	name := parser_advance(p)
 	name_text := name.text
+
+	// Detect raw identifier syntax `r#name` (lexer emits Identifier("r") + Hash + Identifier).
+	// `r#` is only meaningful for keywords; warn when used on a non-keyword.
+	if name.kind == .Identifier &&
+	   name_text == "r" &&
+	   p.current.kind == .Hash &&
+	   name.span.end == p.current.span.start {
+		parser_advance(p) // consume `#`
+		if p.current.kind == .Identifier || p.current.kind == .Upper_Id {
+			real_tok := parser_advance(p)
+			diagnostics.collector_add_diag(
+				p.collector,
+				diagnostics.diag_raw_id_not_needed(real_tok.text, name.span),
+			)
+			name = real_tok
+			name_text = real_tok.text
+		}
+	}
+
 	is_upper := name.kind == .Upper_Id
 
 	is_effectful := strings.has_suffix(name_text, "!")
@@ -432,6 +463,15 @@ parser_parse_const_decl :: proc(p: ^Parser, is_pub: bool) -> Decl {
 			tp := Type_Param {
 				name      = base.intern(p.intern, tp_tok.text),
 				is_effect = true,
+			}
+			// Check for duplicate type parameter
+			for prev in type_params {
+				if prev.name == tp.name {
+					diagnostics.collector_add_diag(
+						p.collector,
+						diagnostics.diag_duplicate_type_param(tp_tok.text, tp_tok.span),
+					)
+				}
 			}
 			append(&type_params, tp)
 			if p.current.kind == .Comma {
@@ -1079,14 +1119,14 @@ parser_parse_identifier_expr :: proc(p: ^Parser) -> Expr {
 		}
 		parser_expect(p, .RParen)
 
-		if p.current.kind == .Dot {
+		if p.current.kind == .Dot || p.current.kind == .Arrow {
 			return parser_parse_method_chain(p, call)
 		}
 
 		return call
 	}
 
-	if p.current.kind == .Dot {
+	if p.current.kind == .Dot || p.current.kind == .Arrow {
 		id_expr := new(Expr_Identifier)
 		id_expr^ = Expr_Identifier {
 			name = name_id,
@@ -1634,6 +1674,28 @@ parser_parse_expr_or_decl :: proc(p: ^Parser) -> Expr {
 
 	expr := parser_parse_expr(p)
 
+	// Merge `_$name` (underscore wildcard immediately followed by a `$`-ident)
+	// into a single contradictory-name dollar-identifier so the later
+	// assignment target is `_$name` (not a bare `_` plus a separate `$name`
+	// decl). Without this, `_$x = 5` parses as two statements — a wildcard
+	// read (`_`) then a `$x` declaration — and C1000 CONTRADICTORY PREFIX never
+	// fires (catalog §11.1). Only the exact `_` prefix (not `_foo`) combines
+	// with `$` into a contradictory name per `classify_name`.
+	if id_expr, ok := expr.(^Expr_Identifier); ok && p.current.kind == .Dollar {
+		if base.intern_get(p.intern, id_expr.name) == "_" {
+			under_span := id_expr.span
+			parser_advance(p) // consume $
+			name_tok := parser_expect(p, .Identifier)
+			merged_name := base.intern(p.intern, fmt.tprintf("_${}", name_tok.text))
+			dollar_id := new(Expr_Dollar_Identifier)
+			dollar_id^ = Expr_Dollar_Identifier {
+				name = merged_name,
+				span = under_span,
+			}
+			expr = dollar_id
+		}
+	}
+
 	// Handle inline type annotation: name: Type = value
 	if id_expr, ok := expr.(^Expr_Identifier); ok && p.current.kind == .Colon {
 		parser_advance(p) // consume :
@@ -1706,6 +1768,16 @@ parser_parse_record_expr :: proc(p: ^Parser, start: base.Source_Span) -> Expr {
 				span = name_tok.span,
 			}
 			value = id_expr
+		}
+
+		// Check for duplicate field name before appending
+		for prev in fields {
+			if prev.name == name_id {
+				diagnostics.collector_add_diag(
+					p.collector,
+					diagnostics.diag_duplicate_field_literal(name_tok.text, name_tok.span),
+				)
+			}
 		}
 
 		append(&fields, Record_Field{name = name_id, value = value, span = name_tok.span})
@@ -1841,7 +1913,21 @@ parser_parse_match :: proc(p: ^Parser) -> Expr {
 			guard = parser_parse_expr(p)
 		}
 
-		parser_expect(p, .Fat_Arrow)
+		// Detect malformed match arm (missing `=>`) and emit a specific diagnostic
+		// instead of the generic "expected token" error.
+		if p.current.kind != .Fat_Arrow {
+			diagnostics.collector_add_diag(
+				p.collector,
+				diagnostics.diag_invalid_match_arm(p.current.span),
+			)
+			// Recovery: skip the unexpected token and continue collecting arms.
+			if p.current.kind != .RBrace && p.current.kind != .Eof {
+				parser_advance(p)
+			}
+			continue
+		}
+
+		parser_advance(p) // consume `=>`
 		body := parser_parse_expr(p)
 		append(
 			&arms,
@@ -2321,6 +2407,16 @@ parser_parse_record_pattern :: proc(p: ^Parser) -> Pattern {
 			binding = base.intern(p.intern, binding_tok.text)
 		}
 
+		// Check for duplicate field name before appending
+		for prev in fields {
+			if prev.name == name_id {
+				diagnostics.collector_add_diag(
+					p.collector,
+					diagnostics.diag_duplicate_field_pattern(name_tok.text, name_tok.span),
+				)
+			}
+		}
+
 		append(&fields, Pattern_Field{name = name_id, binding = binding, span = name_tok.span})
 
 		if p.current.kind == .Comma {
@@ -2655,6 +2751,8 @@ parser_parse_function_type :: proc(p: ^Parser) -> Type {
 		return ft
 	}
 
+	// Neither `->` nor `-[` present: missing arrow in function type
+	diagnostics.collector_add_diag(p.collector, diagnostics.diag_missing_arrow_fn_type(start))
 	return nil
 }
 parser_parse_function_type_with_params :: proc(
@@ -2681,6 +2779,9 @@ parser_parse_function_type_with_params :: proc(
 		effects = parser_parse_effect_row_type(p)
 		parser_expect(p, .RBrack)
 		parser_expect(p, .Arrow)
+	} else {
+		// Neither `->` nor `-[` present: missing arrow in function type
+		diagnostics.collector_add_diag(p.collector, diagnostics.diag_missing_arrow_fn_type(start))
 	}
 
 	return_type := parser_parse_type(p)
@@ -2785,6 +2886,16 @@ parser_parse_tag_union_type :: proc(p: ^Parser) -> Type {
 			parser_expect(p, .RParen)
 		}
 
+		// Check for duplicate variant name before appending
+		for prev in tags {
+			if prev.name == name_id {
+				diagnostics.collector_add_diag(
+					p.collector,
+					diagnostics.diag_duplicate_variant(name_tok.text, name_tok.span),
+				)
+			}
+		}
+
 		append(&tags, Type_Tag{name = name_id, payload = payload, span = name_tok.span})
 
 		if p.current.kind == .Pipe {
@@ -2792,6 +2903,11 @@ parser_parse_tag_union_type :: proc(p: ^Parser) -> Type {
 		}
 	}
 	parser_expect(p, .RBrack)
+
+	// Empty tag union: no variants and not an open union
+	if len(tags) == 0 && !is_open {
+		diagnostics.collector_add_diag(p.collector, diagnostics.diag_empty_tag_union("", start))
+	}
 
 	tag_union := new(Type_Tag_Union)
 	tag_union^ = Type_Tag_Union {
@@ -2845,12 +2961,30 @@ parser_parse_effect_row_type_inner :: proc(p: ^Parser, terminator: base.Token_Ki
 			parser_expect(p, .RParen)
 		}
 
+		// Check for duplicate effect name before appending
+		for prev in effects {
+			if prev.name == name_id {
+				diagnostics.collector_add_diag(
+					p.collector,
+					diagnostics.diag_duplicate_effect_row(name_tok.text, name_tok.span),
+				)
+			}
+		}
+
 		append(
 			&effects,
 			Type_Effect_Entry{name = name_id, type_args = type_args, span = name_tok.span},
 		)
 
 		if p.current.kind == .Pipe {
+			parser_advance(p)
+			parser_skip_backslashes(p)
+		} else if p.current.kind == .Comma && p.current.kind != terminator {
+			// Comma used as separator inside an effect row — should be `|`
+			diagnostics.collector_add_diag(
+				p.collector,
+				diagnostics.diag_invalid_effect_row_syntax(p.current.span),
+			)
 			parser_advance(p)
 			parser_skip_backslashes(p)
 		}
@@ -3025,7 +3159,17 @@ parser_parse_newtype_decl :: proc(p: ^Parser, is_pub: bool) -> Decl {
 		parser_advance(p)
 		for p.current.kind != .RParen && p.current.kind != .Eof {
 			param_tok := parser_expect(p, .Identifier)
-			append(&type_params, base.intern(p.intern, param_tok.text))
+			param_id := base.intern(p.intern, param_tok.text)
+			// Check for duplicate type parameter
+			for prev in type_params {
+				if prev == param_id {
+					diagnostics.collector_add_diag(
+						p.collector,
+						diagnostics.diag_duplicate_type_param(param_tok.text, param_tok.span),
+					)
+				}
+			}
+			append(&type_params, param_id)
 			if p.current.kind == .Comma {
 				parser_advance(p)
 			}
@@ -3077,7 +3221,7 @@ parser_parse_import_decl :: proc(p: ^Parser, is_pub: bool) -> Decl {
 	module_name := module_tok.text
 
 	names := make([dynamic]Import_Item, 0, 8)
-	alias: base.Intern_ID = 0
+	alias: base.Intern_ID = base.NO_NAME
 
 	if p.current.kind == .Kw_As {
 		parser_advance(p)

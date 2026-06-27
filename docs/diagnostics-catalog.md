@@ -53,33 +53,37 @@ Each diagnostic should have a unique `C####` code for searchability and `camp --
 
 **Rationale:** A string literal was opened but never closed before EOF or a newline (for non-per-line strings).
 
-### 1.3 INVALID ESCAPE SEQUENCE (C0003) — Error 🆕 New
+### 1.3 INVALID ESCAPE SEQUENCE (C0003) — Error ✅ Implemented
 
 > `\{escape}` is not a valid escape sequence.
 
-**Hint:** Valid escape sequences are: `\n`, `\t`, `\r`, `\\`, `\"`, `\0`.
+**Hint:** Valid escape sequences are: `\n`, `\t`, `\r`, `\\`, `\"`, `\$`, `\0`.
 
 **Rationale:** Other languages (Rust, Go, Swift) report invalid escape sequences explicitly. Without this, an invalid escape like `\x` silently becomes `x` or causes confusing downstream errors.
 
-### 1.4 UNTERMINATED PER-LINE STRING (C0004) — Error 🆕 New
+**Implemented in:** `src/frontend/lexer.odin` — `lexer_validate_string_escape` (called from both scalar and SIMD string scan paths).
 
-> This per-line string (starting with `\`) is never closed. The closing `\` must appear alone on its own line.
+### 1.4 UNTERMINATED PER-LINE STRING (C0004) — Error ✅ Implemented
 
-**Rationale:** Per-line strings (Camp's `\` syntax) need a closing `\` on its own line. A distinct error from C0002 because the fix is different.
+> This per-line string (starting with `\`) ran to the end of the file without a final line break. Add a newline after the last `\`-prefixed line to close it.
 
-### 1.5 INVALID NUMERIC LITERAL (C0005) — Error 🆕 New
+**Rationale:** Per-line strings (Camp's `\` syntax) are built from consecutive `\`-prefixed lines. If the source ends while still inside one (the last `\`-line has no trailing newline), the string is unterminated. A distinct error from C0002 because the fix is different.
+
+### 1.5 INVALID NUMERIC LITERAL (C0005) — Error ✅ Implemented
 
 > Invalid numeric literal `{text}`.
 
-**Hint:** (context-dependent — e.g., "Integer literals cannot contain decimal points. Write `3.14` as a Float literal.")
+**Hint:** Context-dependent per base — e.g., "Binary literals only allow digits 0 and 1.", "Hexadecimal literals only allow digits 0-9 and A-F (or a-f).", "Octal literals only allow digits 0 through 7."
 
 **Rationale:** Rust, Go, and Swift all report malformed numeric literals (e.g., `0b102`, `0xGH`). Camp should catch these at lexing rather than letting them become confusing parse errors.
 
-### 1.6 UNTERMINATED BLOCK COMMENT (C0006) — Error 🆕 New
+**Implemented in:** `src/frontend/lexer.odin` — `lexer_report_invalid_numeric` (called from `lexer_lex_hex_number`, `lexer_lex_octal_number`, `lexer_lex_binary_number`). Also fixes a pre-existing infinite loop where an out-of-base trailing digit (e.g. the `2` in `0b102`) caused `break` to exit the `switch` but not the surrounding `for` loop.
+
+### 1.6 UNTERMINATED BLOCK COMMENT (C0006) — Not Applicable
 
 > This block comment was never closed. Add a closing `*/`.
 
-**Rationale:** If Camp supports block comments (`/* ... */`), an unclosed one silently swallows code. Rust reports this explicitly.
+**Rationale:** Camp does **not** support block comments (`/* ... */`). Per `docs/syntax-recipe.md` §1 Comments: "`//` line comments (no block comments, no nesting)". This diagnostic is retained in the catalog for reference but is not wired and has no constructor emission site. The constructor `diag_unterminated_block_comment` remains defined-but-unused for now.
 
 ---
 
@@ -145,25 +149,25 @@ Each diagnostic should have a unique `C####` code for searchability and `camp --
 
 **Rationale:** Only one expression is allowed per interpolation hole.
 
-### 2.10 DUPLICATE FIELD IN RECORD LITERAL (C0110) — Error 🆕 New
+### 2.10 DUPLICATE FIELD IN RECORD LITERAL (C0110) — Error ✅ Implemented
 
 > Field `{name}` appears more than once in this record literal.
 
 **Rationale:** Rust (E0063), TypeScript (2353), and Swift all report duplicate struct/record fields. This is almost always a mistake.
 
-### 2.11 DUPLICATE FIELD IN RECORD PATTERN (C0111) — Error 🆕 New
+### 2.11 DUPLICATE FIELD IN RECORD PATTERN (C0111) — Error ✅ Implemented
 
 > Field `{name}` appears more than once in this record pattern.
 
 **Rationale:** Destructuring the same field twice is either a typo or confusion about which value is bound.
 
-### 2.12 DUPLICATE VARIANT IN TAG UNION (C0112) — Error 🆕 New
+### 2.12 DUPLICATE VARIANT IN TAG UNION (C0112) — Error ✅ Implemented
 
 > Variant `{name}` appears more than once in this tag union type.
 
 **Rationale:** Duplicate variants in a union type are meaningless and likely a copy-paste error.
 
-### 2.13 DUPLICATE EFFECT IN ROW (C0113) — Error 🆕 New
+### 2.13 DUPLICATE EFFECT IN ROW (C0113) — Error ✅ Implemented
 
 > Effect `{name}` appears more than once in this effect row.
 
@@ -171,31 +175,31 @@ Each diagnostic should have a unique `C####` code for searchability and `camp --
 
 **Rationale:** Duplicate effects in a row are semantically redundant and likely a mistake.
 
-### 2.14 INVALID MATCH ARM (C0114) — Error 🆕 New
+### 2.14 INVALID MATCH ARM (C0114) — Error ✅ Implemented
 
 > This match arm is missing a `=>` and a body.
 
 **Rationale:** Malformed match arms (e.g., just a pattern with no arrow) should be caught with a clear message rather than a generic "expected token" error.
 
-### 2.15 MISSING ARROW IN FUNCTION TYPE (C0115) — Error 🆕 New
+### 2.15 MISSING ARROW IN FUNCTION TYPE (C0115) — Error ✅ Implemented
 
 > This function type is missing an arrow. Use `->` for pure functions or `-[effects]->` for effectful ones.
 
 **Rationale:** A common mistake when writing function types, especially for newcomers to the effect syntax.
 
-### 2.16 INVALID VISIBILITY MODIFIER (C0116) — Error 🆕 New
+### 2.16 INVALID VISIBILITY MODIFIER (C0116) — Error ✅ Implemented
 
 > `pub` can only be applied to top-level declarations.
 
 **Rationale:** Applying `pub` to local bindings is meaningless and likely a misunderstanding of visibility rules.
 
-### 2.17 INVALID EFFECT ROW SYNTAX (C0117) — Error 🆕 New
+### 2.17 INVALID EFFECT ROW SYNTAX (C0117) — Error ✅ Implemented
 
 > Effect rows use `|` as a separator, not `,`. Write `-[A! | B!]->` instead of `-[A!, B!]->`.
 
 **Rationale:** Per the syntax recipe, effect rows use `|` as separator. A common mistake for users coming from languages with comma-separated lists.
 
-### 2.18 TUPLE SIZE (C0118) — Error 🆕 New
+### 2.18 TUPLE SIZE (C0118) — Error ✅ Implemented
 
 > Tuple must have 2 or 3 elements, got {count}.
 
@@ -203,7 +207,7 @@ Each diagnostic should have a unique `C####` code for searchability and `camp --
 
 ---
 
-### 2.19 EMPTY TUPLE (C0119) — Error 🆕 New
+### 2.19 EMPTY TUPLE (C0119) — Error ✅ Implemented
 
 > Empty tuple `()` is not valid; use `{}` for unit.
 
@@ -211,7 +215,7 @@ Each diagnostic should have a unique `C####` code for searchability and `camp --
 
 ---
 
-### 2.20 TUPLE TYPE SIZE (C0120) — Error 🆕 New
+### 2.20 TUPLE TYPE SIZE (C0120) — Error ✅ Implemented
 
 > Tuple type must have 2 or 3 elements, got {count}.
 
@@ -219,7 +223,7 @@ Each diagnostic should have a unique `C####` code for searchability and `camp --
 
 ---
 
-### 2.21 SINGLE-ELEMENT TUPLE (C0121) — Error 🆕 New
+### 2.21 SINGLE-ELEMENT TUPLE (C0121) — Error ✅ Implemented
 
 > Single-element tuple is not valid; use the type directly or add a return type for a function: `(T) -> R`
 
@@ -297,11 +301,17 @@ Each diagnostic should have a unique `C####` code for searchability and `camp --
 
 **Rationale:** Using a value-level name in a type position (or vice versa). This is distinct from "undefined type" because the name exists but is the wrong kind.
 
-### 3.10 RAW IDENTIFIER NOT NEEDED (C0209) — Warning 🆕 New
+### 3.10 RAW IDENTIFIER NOT NEEDED (C0209) — Warning ✅ Implemented
 
 > `r#{name}` is not a keyword — you can write `{name}` without the `r#` prefix.
 
 **Rationale:** Raw identifiers (`r#name`) are only needed for keywords. Using them for non-keywords is unnecessary noise. Rust warns about this.
+
+### 3.11 USE OF DISCARDED VALUE (C0210) — Error ✅ Implemented
+
+> `{name}` begins with `_` and is treated as a discarded value — it cannot be read.
+
+**Rationale:** `_`-prefixed bindings (`_`, `_foo`, `_count`) are discards — they can be bound multiple times but never read as values. This error catches accidental reads.
 
 ---
 
@@ -439,13 +449,13 @@ Each diagnostic should have a unique `C####` code for searchability and `camp --
 
 **Rationale:** The entry point has a fixed signature. A specific error is better than a generic type mismatch.
 
-### 4.19 DUPLICATE TYPE PARAMETER (C0317) — Error 🆕 New
+### 4.19 DUPLICATE TYPE PARAMETER (C0317) — Error ✅ Implemented
 
 > Type parameter `{name}` appears more than once in this type's parameter list.
 
 **Rationale:** `type Foo(a, a)` is meaningless. Rust (E0403) reports this.
 
-### 4.20 CONSTRUCTOR NOT EXHAUSTIVE (C0318) — Error 🆕 New
+### 4.20 EMPTY TAG UNION (C0318) — Error ✅ Implemented
 
 > Tag union `{name}` has no variants. A tag union must have at least one variant.
 
@@ -567,13 +577,13 @@ Camp's algebraic effect system is its most distinctive feature. These diagnostic
 
 **Rationale:** Int and String have infinite constructors; a wildcard is required for exhaustiveness.
 
-### 6.3 NON-EXHAUSTIVE MATCH (TAG UNION) (C0502) — Error 🆕 New
+### 6.3 NON-EXHAUSTIVE MATCH (TAG UNION) (C0502) — Error ✅ Implemented
 
 > This match on `{type}` is non-exhaustive: missing branch for `{missing_variant}`.
 
 **Hint:** Add a branch for `{missing_variant}`, or add a wildcard pattern.
 
-**Rationale:** Tag union exhaustiveness is a core feature of strict functional languages. Rust (E0004), Elm, and Kotlin all make this a hard error for sealed/sum types. Currently Camp has an internal error fallback; this should be a proper user-facing error.
+**Rationale:** Tag union exhaustiveness is a core feature of strict functional languages. Rust (E0004), Elm, and Kotlin all make this a hard error for sealed/sum types. The previous internal-error fallback is replaced by this user-facing error.
 
 ### 6.4 REDUNDANT PATTERN (C0503) — Warning ✅ Implemented
 
@@ -583,7 +593,7 @@ Camp's algebraic effect system is its most distinctive feature. These diagnostic
 
 **Rationale:** Unreachable patterns are dead code. GHC (`-Woverlapping-patterns`), Rust, and OCaml (warning 11) all report this.
 
-### 6.5 FRAGILE MATCH (C0504) — Warning 🆕 New
+### 6.5 FRAGILE MATCH (C0504) — Warning ✅ Implemented
 
 > This match on `{type}` is exhaustive now, but adding a new variant to `{type}` would make it non-exhaustive.
 
@@ -591,7 +601,9 @@ Camp's algebraic effect system is its most distinctive feature. These diagnostic
 
 **Rationale:** OCaml's warning 4 (`fragile-match`) is brilliant — it warns when a match is technically exhaustive but would break if a new variant is added. This is especially valuable in Camp where newtypes can be extended with new variants.
 
-### 6.6 INVALID IRREFUTABLE PATTERN (C0505) — Error 🆕 New
+**Status note (camp-xuen):** Fires only for newtype-owned tag unions with more than one variant (e.g. `@Color : pub [Red | Green | Blue]`), where adding a variant is a real future change. Anonymous tag unions written inline as `[A | B]` cannot gain variants after the fact, so they do not trigger C0504.
+
+### 6.6 INVALID IRREFUTABLE PATTERN (C0505) — Error ⚠️ Not Applicable
 
 > Pattern `{pattern}` is refutable and cannot be used in a `let` binding. Only irrefutable patterns (wildcards, variables, records with all fields) are allowed here.
 
@@ -599,13 +611,15 @@ Camp's algebraic effect system is its most distinctive feature. These diagnostic
 
 **Rationale:** `let` bindings require irrefutable patterns. Using a tag pattern like `let Some(x) = expr` should be an error. Rust (E0005), Haskell, and OCaml all enforce this.
 
-### 6.7 MISSING FIELDS IN RECORD PATTERN (C0506) — Error 🆕 New
+**Status note (camp-xuen):** Camp's syntax has no `let` keyword — bindings are `name = expr` or `name : Type = expr`, both of which accept only an identifier (or `$name` mutable) on the LHS. Statement-level destructuring (`{ a, b } = record`, `[a, b, ...rest] = list`, `@UserId(n) = uid`) is desugared to field-access assignments that never produce a refutable pattern. The constructor `diag_invalid_irrefutable_pattern` exists but has no triggerable code path under the current syntax (see §Assignment and §Destructuring in `docs/syntax-recipe.md`). Re-evaluate if a `let`/refutable-binding form is ever introduced.
+
+### 6.7 MISSING FIELDS IN RECORD PATTERN (C0506) — Error ✅ Implemented
 
 > Record pattern is missing field `{field}`. Use `_` to ignore a field, or `{..}` to ignore remaining fields.
 
 **Rationale:** When destructuring a record, all fields must be accounted for (either bound or explicitly ignored). Rust (E0027) reports this.
 
-### 6.8 UNKNOWN FIELD IN RECORD PATTERN (C0507) — Error 🆕 New
+### 6.8 UNKNOWN FIELD IN RECORD PATTERN (C0507) — Error ✅ Implemented
 
 > Field `{field}` does not exist on record type `{type}`.
 
@@ -613,13 +627,13 @@ Camp's algebraic effect system is its most distinctive feature. These diagnostic
 
 **Rationale:** Destructuring a field that doesn't exist. Rust (E0026) reports this.
 
-### 6.9 DUPLICATE BINDING IN PATTERN (C0508) — Error 🆕 New
+### 6.9 DUPLICATE BINDING IN PATTERN (C0508) — Error ✅ Implemented
 
 > Variable `{name}` appears more than once in this pattern. In Camp, each variable in a pattern must be unique.
 
 **Rationale:** `match x { { a, a } => ... }` is ambiguous. Rust (E0416) and Haskell report this.
 
-### 6.10 WILDCARD AFTER CATCH-ALL (C0509) — Warning 🆕 New
+### 6.10 WILDCARD AFTER CATCH-ALL (C0509) — Warning ✅ Implemented
 
 > This wildcard pattern is unreachable — a previous wildcard or variable pattern already matches everything.
 
@@ -675,13 +689,15 @@ Camp's algebraic effect system is its most distinctive feature. These diagnostic
 
 **Rationale:** When two trait instances would overlap through coherence, the compiler should explain the conflict. Haskell and Rust both report this.
 
-### 7.8 TRAIT NOT FOUND (C0607) — Error 🆕 New
+### 7.8 TRAIT NOT FOUND (C0607) — Error ✅ Implemented
 
 > Trait `{name}` is not defined.
 
 **Hint:** "Did you mean `{similar}`?"
 
-**Rationale:** Referencing an undefined trait. Currently this would be an "undefined name" error, but traits are a distinct namespace.
+**Rationale:** Referencing an undefined trait. Emitted by `verify_trait_conformance` when an `is` impl names a trait absent from the trait registry; previously this path returned silently and `lower_tdecl_is_impl` erased the impl methods without any diagnostic.
+
+**Implemented in:** `src/semantics/check_decl.odin` — `verify_trait_conformance` (trait-not-in-registry branch).
 
 ### 7.9 SUPERTRAIT NOT SATISFIED (C0608) — Error 🆕 New
 
@@ -921,6 +937,14 @@ Camp's algebraic effect system is its most distinctive feature. These diagnostic
 
 **Rationale:** If a `$`-variable is never reassigned, the `$` prefix is misleading. Rust's `unused_mut` lint serves the same purpose.
 
+### 10.15 TODO EXPRESSION (C0914) — Warning ✅ Implemented
+
+> `todo` is a placeholder — evaluating this at runtime will trap.
+
+**Hint:** Replace this with a real implementation before shipping.
+
+**Rationale:** A `todo` expression compiles but traps at runtime. Reporting its location at compile time (as a warning, not an error) tells the developer where placeholders remain without blocking compilation. This is the Camp analog of Rust's `todo!()` / `unimplemented!!()` macros and Haskell's `error "todo"`.
+
 ---
 
 ## 11. Unused Analysis Errors (Hard Errors)
@@ -1042,31 +1066,31 @@ Camp uses Perceus reference counting for deterministic memory management. These 
 - "handler arm has wrong parameter count" → should become C0405
 - "operation not found in effects" → should become C0404
 - "trait not found in registry" → should become C0607
-- "non-exhaustive match" → should become C0502
+- "non-exhaustive match" → now C0502 (camp-xuen)
 
 ---
 
 ## Summary: Implementation Status
 
-### Currently Implemented (65 total)
+### Currently Implemented (91 total)
 
 | Category | Count | Codes |
 |----------|-------|-------|
-| Lexer | 2 | C0001, C0002 |
-| Parser | 10 | C0100–C0109 |
-| Name Resolution | 3 | C0200–C0202 |
-| Type System | 7 | C0300–C0306 |
+| Lexer | 5 | C0001–C0005 |
+| Parser | 22 | C0100–C0121 |
+| Name Resolution | 4 | C0200–C0202, C0209 |
+| Type System | 9 | C0300–C0306, C0317, C0318 |
 | Effect System | 2 | C0400, C0401 |
-| Pattern Matching | 3 | C0500–C0503 |
-| Traits/Generics | 5 | C0600–C0604 |
+| Pattern Matching | 9 | C0500–C0504, C0506–C0509 |
+| Traits/Generics | 6 | C0600–C0604, C0607 |
 | Newtype/Nominal | 4 | C0700–C0703 |
 | Module/Import | 8 | C0800–C0807 |
-| Unused Warnings | 6 | C0900–C0905 |
+| Unused Warnings | 7 | C0900–C0905, C0914 |
 | Unused Errors | 2 | C1000, C1001 |
 | CLI/Build | 4 | C1200–C1203 |
 | Internal | 1 | C9000 |
 
-### Defined but Unused (4)
+### Defined but Unused (5)
 
 | Constructor | Proposed Code | Action |
 |-------------|---------------|--------|
@@ -1074,25 +1098,25 @@ Camp uses Perceus reference counting for deterministic memory management. These 
 | `diag_ambiguous_type` | C0306 | Wire into type inference |
 | `diag_unjoined_spawn` | C0905 | Wire into parallelism checker |
 | `diag_pointless_evaluation` | C0903 | Wire into unused analysis (TODO in `analysis/unused.odin:667`) |
+| `diag_unterminated_block_comment` | C0006 | Not applicable — Camp has no block comments (syntax-recipe §1). Retained for reference only. |
 
-### Proposed New Diagnostics (58)
+### Proposed New Diagnostics (32)
 
 | Category | Count | Codes | Priority |
 |----------|-------|-------|----------|
-| Lexer | 4 | C0003–C0006 | Medium |
-| Parser | 12 | C0110–C0121 | Medium |
-| Name Resolution | 7 | C0203–C0209 | High |
-| Type System | 13 | C0307–C0320 | High |
+| Parser | 0 | — | Medium |
+| Name Resolution | 7 | C0203–C0208, C0210 | High |
+| Type System | 11 | C0307–C0316, C0319, C0320 | High |
 | Effect System | 10 | C0402–C0411 | **Critical** |
-| Pattern Matching | 7 | C0502, C0504–C0509 | High |
-| Traits/Generics | 6 | C0605–C0610 | Medium |
+| Pattern Matching | 1 | C0505 | Low (not applicable under current syntax) |
+| Traits/Generics | 5 | C0605, C0606, C0608–C0610 | Medium |
 | Newtype/Nominal | 1 | C0704 | Low |
 | Module/Import | 4 | C0808–C0811 | Medium |
 | Unused Warnings | 8 | C0906–C0913 | High |
 | Perceus/RC | 3 | C1100–C1102 | Medium |
 | CLI/Build | 4 | C1204–C1207 | Low |
 
-### Total Proposed Catalog: 126 diagnostics (65 existing + 61 new)
+### Total Catalog: 128 diagnostics (85 implemented + 5 defined-but-unused + 38 proposed new)
 
 ---
 

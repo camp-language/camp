@@ -1,4 +1,6 @@
 // IntoIter trait — convert a collection into an iterator
+// Self = collection type (params[0]). Return is Iter(a).
+// Injected by the prelude; this file is documentation only.
 
 IntoIter : {
   to_iter : |Self| -> Iter(a),

@@ -20,7 +20,16 @@ Prelude_Tag_Decl :: struct {
 }
 
 PRELUDE_BUILTIN_TYPES :: []Prelude_Builtin_Type {
-	{"Bool", true},
+	// Bool is a primitive (lowered as an immediate i32, is_heap=false) that
+	// owns the `True`/`False` tag constructors. It is NOT a constructor type
+	// — its prelude binding must be Inferred_Primitive to match
+	// `make_primitive_type("Bool")` used pervasively by CExpr_Bool synthesis,
+	// `==`/`<` operators, `CPattern_Bool`, etc. A prior `is_constructor=true`
+	// produced an Inferred_Constructor binding that did NOT unify with the
+	// Inferred_Primitive Bool those produce (same formatted name, different
+	// Inferred_Type variant → false C0300 "Bool does not match Bool"). See
+	// bean camp-24mj.
+	{"Bool", false},
 	{"I64", false},
 	{"I32", false},
 	{"U64", false},
@@ -44,7 +53,9 @@ PRELUDE_CONSTRUCTOR_TYPES :: []Prelude_Constructor_Type {
 	{"Map", 2},
 	{"Set", 1},
 	{"Handle", 1},
-	{"Ordering", 0},
+	// Order is NOT here — it's a tag union [Less | Equal | Greater], not a
+	// constructor. It's registered as a Tag_Union_Row binding in inject_prelude
+	// so bare tags (Less/Equal/Greater) unify with the `Order` type annotation.
 	{"Result", 2},
 }
 
@@ -81,11 +92,7 @@ Prelude_Tag_Union :: struct {
 PRELUDE_TAG_UNIONS :: []Prelude_Tag_Union {
 	{"List", 1, []Prelude_Tag_Spec{{"Nil", []int{}}, {"Cons", []int{0, -1}}}},
 	{"Result", 2, []Prelude_Tag_Spec{{"Ok", []int{0}}, {"Err", []int{1}}}},
-	{
-		"Ordering",
-		0,
-		[]Prelude_Tag_Spec{{"Less", []int{}}, {"Equal", []int{}}, {"Greater", []int{}}},
-	},
+	{"Order", 0, []Prelude_Tag_Spec{{"Less", []int{}}, {"Equal", []int{}}, {"Greater", []int{}}}},
 }
 
 PRELUDE_EFFECT_FULL :: []string{"Console", "Throw", "Parallel", "Spawn", "Async"}
@@ -635,6 +642,214 @@ inject_prelude_effects_typecheck :: proc(store: ^Type_Store) {
 				methods = method_map,
 			},
 		)
+	}
+
+	// Register the remaining core trait DECLARATIONS (Eq, Default, From, TryFrom,
+	// IntoIter, FromIter) so stdlib modules can implement them without importing
+	// their declaring module. Mirrors Ord/Hash/Debug/Display above. Self is the
+	// first parameter where the trait method takes a receiver; zero-parameter
+	// methods (e.g. Default.default) carry no Self pin (see verify_trait_conformance).
+	register_core_trait_decl :: proc(
+		store: ^Type_Store,
+		trait_str: string,
+		method_str: string,
+		param_count: int,
+		return_ref: string,
+	) {
+		name_id := base.intern(store.interner, trait_str)
+		if is_trait_declared(store, name_id) {
+			return
+		}
+		g: map[int]base.Type_Var_ID
+		g = make(map[int]base.Type_Var_ID, 4, store.allocator)
+		methods := make([dynamic]Trait_Method_Info, 0, 4, store.allocator)
+		params := make([]base.Type_Var_ID, param_count, store.allocator)
+		// First param is Self (the implementing type) when there is one.
+		if param_count > 0 {
+			params[0] = fresh_value_var(store, base.Source_Span_ZERO)
+			for i in 1 ..< param_count {
+				params[i] = fresh_value_var(store, base.Source_Span_ZERO)
+			}
+		}
+		return_type := prelude_resolve_type_ref(store, return_ref, 0, &g)
+		append(
+			&methods,
+			Trait_Method_Info {
+				name = base.intern(store.interner, method_str),
+				param_types = params,
+				return_type = return_type,
+			},
+		)
+		store.trait_registry[name_id] = Trait_Info {
+			name    = name_id,
+			module  = base.NO_NAME,
+			parent  = base.NO_NAME,
+			methods = methods[:],
+		}
+		delete(g)
+	}
+
+	// Eq(a) : { eq : (a, a) -> Bool }  — param[0] is Self.
+	register_core_trait_decl(store, "Eq", "eq", 2, "Bool")
+	// Default(a) : { default : () -> a }  — no Self parameter (zero-arg method).
+	register_core_trait_decl(store, "Default", "default", 0, "generic")
+	// From(source) : { from : (source) -> target }
+	// Self = source = params[0]. target is a fresh var resolved per impl.
+	// Multi-param: same source type can have From impls for many targets.
+	{
+		from_name := base.intern(store.interner, "From")
+		if !is_trait_declared(store, from_name) {
+			from_methods := make([dynamic]Trait_Method_Info, 0, 4, store.allocator)
+			from_params := make([]base.Type_Var_ID, 1, store.allocator)
+			from_params[0] = fresh_value_var(store, base.Source_Span_ZERO)
+			from_return := fresh_value_var(store, base.Source_Span_ZERO)
+			append(
+				&from_methods,
+				Trait_Method_Info {
+					name = base.intern(store.interner, "from"),
+					param_types = from_params,
+					return_type = from_return,
+				},
+			)
+			store.trait_registry[from_name] = Trait_Info {
+				name           = from_name,
+				module         = base.NO_NAME,
+				parent         = base.NO_NAME,
+				methods        = from_methods[:],
+				is_multi_param = true,
+			}
+		}
+	}
+
+	// TryFrom(source) : { try_from : (source) -> Result(target, error) }
+	// Self = source = params[0]. Return is a Result tag-union row.
+	{
+		try_from_name := base.intern(store.interner, "TryFrom")
+		if !is_trait_declared(store, try_from_name) {
+			try_from_methods := make([dynamic]Trait_Method_Info, 0, 4, store.allocator)
+			try_from_params := make([]base.Type_Var_ID, 1, store.allocator)
+			try_from_params[0] = fresh_value_var(store, base.Source_Span_ZERO)
+
+			target_var := fresh_value_var(store, base.Source_Span_ZERO)
+			error_var := fresh_value_var(store, base.Source_Span_ZERO)
+
+			ok_payload := store_alloc(store, base.Type_Var_ID, 1)
+			ok_payload[0] = target_var
+			err_payload := store_alloc(store, base.Type_Var_ID, 1)
+			err_payload[0] = error_var
+
+			result_tags := store_alloc(store, Type_Tag_Entry, 2)
+			result_tags[0] = Type_Tag_Entry {
+				name    = base.intern(store.interner, "Ok"),
+				payload = ok_payload,
+			}
+			result_tags[1] = Type_Tag_Entry {
+				name    = base.intern(store.interner, "Err"),
+				payload = err_payload,
+			}
+
+			try_from_return := fresh_value_var(store, base.Source_Span_ZERO)
+			link_var(
+				store,
+				try_from_return,
+				Inferred_Tag_Union_Row {
+					tag_entries = result_tags,
+					tag_rest = fresh_tag_row(store, base.Source_Span_ZERO),
+					closed = true,
+				},
+			)
+
+			append(
+				&try_from_methods,
+				Trait_Method_Info {
+					name = base.intern(store.interner, "try_from"),
+					param_types = try_from_params,
+					return_type = try_from_return,
+				},
+			)
+			store.trait_registry[try_from_name] = Trait_Info {
+				name           = try_from_name,
+				module         = base.NO_NAME,
+				parent         = base.NO_NAME,
+				methods        = try_from_methods[:],
+				is_multi_param = true,
+			}
+		}
+	}
+
+	// IntoIter(a) : { to_iter : (Self) -> Iter(a) }
+	// Self = params[0]. Return is an Iter constructor.
+	{
+		into_iter_name := base.intern(store.interner, "IntoIter")
+		if !is_trait_declared(store, into_iter_name) {
+			into_iter_methods := make([dynamic]Trait_Method_Info, 0, 4, store.allocator)
+			into_iter_params := make([]base.Type_Var_ID, 1, store.allocator)
+			into_iter_params[0] = fresh_value_var(store, base.Source_Span_ZERO)
+
+			iter_constructor := fresh_value_var(store, base.Source_Span_ZERO)
+			link_var(
+				store,
+				iter_constructor,
+				Inferred_Constructor {
+					primitive_name = base.intern(store.interner, "Iter"),
+					arity = 1,
+				},
+			)
+
+			append(
+				&into_iter_methods,
+				Trait_Method_Info {
+					name = base.intern(store.interner, "to_iter"),
+					param_types = into_iter_params,
+					return_type = iter_constructor,
+				},
+			)
+			store.trait_registry[into_iter_name] = Trait_Info {
+				name    = into_iter_name,
+				module  = base.NO_NAME,
+				parent  = base.NO_NAME,
+				methods = into_iter_methods[:],
+			}
+		}
+	}
+
+	// FromIter(c) : { from_iter : (Iter(a)) -> Self }
+	// Self is the RETURN type (self_in_return=true). params[0] = Iter constructor.
+	{
+		from_iter_name := base.intern(store.interner, "FromIter")
+		if !is_trait_declared(store, from_iter_name) {
+			from_iter_methods := make([dynamic]Trait_Method_Info, 0, 4, store.allocator)
+			from_iter_params := make([]base.Type_Var_ID, 1, store.allocator)
+
+			iter_constructor := fresh_value_var(store, base.Source_Span_ZERO)
+			link_var(
+				store,
+				iter_constructor,
+				Inferred_Constructor {
+					primitive_name = base.intern(store.interner, "Iter"),
+					arity = 1,
+				},
+			)
+			from_iter_params[0] = iter_constructor
+
+			from_iter_return := fresh_value_var(store, base.Source_Span_ZERO)
+
+			append(
+				&from_iter_methods,
+				Trait_Method_Info {
+					name = base.intern(store.interner, "from_iter"),
+					param_types = from_iter_params,
+					return_type = from_iter_return,
+				},
+			)
+			store.trait_registry[from_iter_name] = Trait_Info {
+				name           = from_iter_name,
+				module         = base.NO_NAME,
+				parent         = base.NO_NAME,
+				methods        = from_iter_methods[:],
+				self_in_return = true,
+			}
+		}
 	}
 }
 

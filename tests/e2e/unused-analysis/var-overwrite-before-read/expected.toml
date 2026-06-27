@@ -1,12 +1,19 @@
+args = "check-file"
+skip_wasm = true
 stdout = """
-canonicalized /tmp/camp-e2e/unused-analysis/var-overwrite-before-read/src/Main.camp: 1 declaration(s), 0 import(s)
--- C0201: SHADOWING --- /tmp/camp-e2e/unused-analysis/var-overwrite-before-read/src/Main.camp
+-- C0904: UNUSED ASSIGNMENT --- /tmp/camp-e2e/unused-analysis/var-overwrite-before-read/src/Main.camp
 
-`$x` shadows a binding from an enclosing scope. All shadowing is forbidden.
+Assignment #1 to `$x` is unused. Value is overwritten before read.
+   2 |   $x = 1
+         ^
+
+-- C0904: UNUSED ASSIGNMENT --- /tmp/camp-e2e/unused-analysis/var-overwrite-before-read/src/Main.camp
+
+Assignment #2 to `$x` is unused. Final value is never consumed.
    3 |   $x = 2
          ^
-  Use a different name for this binding.
-compilation failed with 1 error(s)
+2 warning(s) found
+check passed for /tmp/camp-e2e/unused-analysis/var-overwrite-before-read/src/Main.camp
 """
 stderr = ""
-exit = 1
+exit = 0

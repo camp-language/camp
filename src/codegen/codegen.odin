@@ -1,6 +1,7 @@
 package codegen
 
 import "camp:base"
+import "camp:diagnostics"
 import "camp:ir"
 
 WASI_MODULE :: "wasi_snapshot_preview1"
@@ -118,6 +119,12 @@ Codegen_Env :: struct {
 	release_mode:            bool,
 	i64_trampoline_cache:    map[int]int,
 	debug_str_offsets:       map[string]u32,
+	collector:               ^diagnostics.Diagnostic_Collector,
+	// WASI import indices (set by emit_wasi_imports, used by runtime bodies)
+	wasi_poll_oneoff:        int,
+	wasi_fd_read:            int,
+	wasi_clock_time_get:     int,
+	wasi_sched_yield:        int,
 }
 
 hash_func_type :: proc(params: []Wasm_Value_Type, results: []Wasm_Value_Type) -> int {
@@ -182,7 +189,9 @@ add_function :: proc(env: ^Codegen_Env, type_idx: int) -> int {
 	return idx
 }
 
-emit_wasi_imports :: proc(env: ^Codegen_Env) {
+emit_wasi_imports :: proc(env: ^Codegen_Env, has_effects: bool) {
+	// Always needed: proc_exit (used by _start, camp_exit) and fd_write
+	// (used by Print_Str, Print_Err, console println handler).
 	proc_exit_type := get_or_create_type(env, []Wasm_Value_Type{.I32}, []Wasm_Value_Type{})
 	add_import(env, WASI_MODULE, "proc_exit", .Func, proc_exit_type)
 
@@ -193,28 +202,19 @@ emit_wasi_imports :: proc(env: ^Codegen_Env) {
 	)
 	add_import(env, WASI_MODULE, "fd_write", .Func, fd_write_type)
 
-	args_get_type := get_or_create_type(
-		env,
-		[]Wasm_Value_Type{.I32, .I32},
-		[]Wasm_Value_Type{.I32},
-	)
-	add_import(env, WASI_MODULE, "args_get", .Func, args_get_type)
+	if !has_effects {
+		return
+	}
 
-	args_sizes_get_type := get_or_create_type(
-		env,
-		[]Wasm_Value_Type{.I32, .I32},
-		[]Wasm_Value_Type{.I32},
-	)
-	add_import(env, WASI_MODULE, "args_sizes_get", .Func, args_sizes_get_type)
+	// Scheduler/IO imports: only needed for effectful programs.
 
-	// WASI I/O imports for scheduler (Preview 1 style)
 	// poll_oneoff(in, out, nsubs, nevents) -> errno
 	poll_oneoff_type := get_or_create_type(
 		env,
 		[]Wasm_Value_Type{.I32, .I32, .I32, .I32},
 		[]Wasm_Value_Type{.I32},
 	)
-	add_import(env, WASI_MODULE, "poll_oneoff", .Func, poll_oneoff_type)
+	env.wasi_poll_oneoff = add_import(env, WASI_MODULE, "poll_oneoff", .Func, poll_oneoff_type)
 
 	// fd_read(fd, iovs, iovs_len, nread) -> errno
 	fd_read_type := get_or_create_type(
@@ -222,11 +222,7 @@ emit_wasi_imports :: proc(env: ^Codegen_Env) {
 		[]Wasm_Value_Type{.I32, .I32, .I32, .I32},
 		[]Wasm_Value_Type{.I32},
 	)
-	add_import(env, WASI_MODULE, "fd_read", .Func, fd_read_type)
-
-	// fd_close(fd) -> errno
-	fd_close_type := get_or_create_type(env, []Wasm_Value_Type{.I32}, []Wasm_Value_Type{.I32})
-	add_import(env, WASI_MODULE, "fd_close", .Func, fd_close_type)
+	env.wasi_fd_read = add_import(env, WASI_MODULE, "fd_read", .Func, fd_read_type)
 
 	// clock_time_get(clock_id, precision, time_ptr) -> errno
 	clock_time_get_type := get_or_create_type(
@@ -234,11 +230,17 @@ emit_wasi_imports :: proc(env: ^Codegen_Env) {
 		[]Wasm_Value_Type{.I32, .I64, .I32},
 		[]Wasm_Value_Type{.I32},
 	)
-	add_import(env, WASI_MODULE, "clock_time_get", .Func, clock_time_get_type)
+	env.wasi_clock_time_get = add_import(
+		env,
+		WASI_MODULE,
+		"clock_time_get",
+		.Func,
+		clock_time_get_type,
+	)
 
 	// sched_yield() -> errno
 	sched_yield_type := get_or_create_type(env, []Wasm_Value_Type{}, []Wasm_Value_Type{.I32})
-	add_import(env, WASI_MODULE, "sched_yield", .Func, sched_yield_type)
+	env.wasi_sched_yield = add_import(env, WASI_MODULE, "sched_yield", .Func, sched_yield_type)
 
 	// random_get(buf: i32, buf_len: i32) -> errno
 	random_get_type := get_or_create_type(
@@ -377,33 +379,6 @@ emit_wasix_imports :: proc(env: ^Codegen_Env) {
 	add_import(env, WASIX_MODULE, "pid_get", .Func, pid_get_type)
 }
 
-// WASI import function indices (offset from import_count base)
-WASI_IMPORT_FD_WRITE :: 1
-WASI_IMPORT_ARGS_GET :: 2
-WASI_IMPORT_ARGS_SIZES_GET :: 3
-WASI_IMPORT_POLL_ONEOFF :: 4
-WASI_IMPORT_FD_READ :: 5
-WASI_IMPORT_FD_CLOSE :: 6
-WASI_IMPORT_CLOCK_TIME_GET :: 7
-WASI_IMPORT_SCHED_YIELD :: 8
-WASI_IMPORT_RANDOM_GET :: 9
-WASI_IMPORT_ENVIRON_SIZES_GET :: 10
-WASI_IMPORT_ENVIRON_GET :: 11
-WASI_IMPORT_PATH_OPEN :: 12
-WASI_IMPORT_PATH_CREATE_DIR :: 13
-WASI_IMPORT_PATH_REMOVE_DIR :: 14
-WASI_IMPORT_PATH_UNLINK_FILE :: 15
-WASI_IMPORT_FD_READDIR :: 16
-WASI_IMPORT_FD_FILESTAT_GET :: 17
-WASI_IMPORT_FD_SEEK :: 18
-
-// WASIX import function indices (offset from import_count base, after WASI imports)
-WASIX_IMPORT_PROC_SPAWN :: 19
-WASIX_IMPORT_PROC_EXEC :: 20
-WASIX_IMPORT_PROC_FORK :: 21
-WASIX_IMPORT_WAIT :: 22
-WASIX_IMPORT_PID_GET :: 23
-
 emit_runtime_types :: proc(env: ^Codegen_Env) {
 	get_or_create_type(env, []Wasm_Value_Type{.I32}, []Wasm_Value_Type{.I32})
 	get_or_create_type(env, []Wasm_Value_Type{.I32}, []Wasm_Value_Type{})
@@ -412,10 +387,20 @@ emit_runtime_types :: proc(env: ^Codegen_Env) {
 	get_or_create_type(env, []Wasm_Value_Type{.I32, .I32}, []Wasm_Value_Type{.I32})
 }
 
+// codegen_internal_error records a C9000 internal diagnostic against the
+// collector wired into the codegen env. Use when codegen hits a path that
+// should have been rejected by an earlier compiler stage, or an unimplemented
+// feature that previously emitted a silent Wasm_Unreachable trap.
+codegen_internal_error :: proc(env: ^Codegen_Env, span: base.Source_Span, message: string) {
+	if env.collector == nil do return
+	diagnostics.collector_add_diag(env.collector, diagnostics.diag_internal(message, span))
+}
+
 codegen :: proc(
 	ir_mod: ir.IR_Module,
 	interner: ^base.Intern_Table,
 	thread_count: int,
+	collector: ^diagnostics.Diagnostic_Collector,
 	release_mode: bool = false,
 ) -> Wasm_Module {
 	mod: Wasm_Module
@@ -460,8 +445,21 @@ codegen :: proc(
 	env.log_id = base.intern(interner, "Log!")
 	env.ambient_id = base.intern(interner, "Ambient!")
 	env.release_mode = release_mode
+	env.collector = collector
 
-	emit_wasi_imports(&env)
+	// Pre-scan IR to determine if the program uses effects.
+	// This controls which WASI imports are emitted.
+	has_effects := false
+	for decl in ir_mod.decls {
+		#partial switch d in decl {
+		case ^ir.IR_Decl_Fn:
+			if d.is_effectful && len(d.effects) > 0 {
+				has_effects = true
+			}
+		}
+	}
+
+	emit_wasi_imports(&env, has_effects)
 	emit_runtime_types(&env)
 
 	// Conditionally emit WASIX imports based on Process! effect usage
@@ -949,6 +947,13 @@ codegen :: proc(
 	i64_debug_trampoline_func_idx := add_function(&env, i64_debug_trampoline_type_idx)
 	runtime_func_indices[Runtime_Func.I64_Debug_Trampoline] = i64_debug_trampoline_func_idx
 
+	// Bool_Compare: (a: i32, b: i32) -> i32 — interim element compare for
+	// Bool (i32 0/1). Returns an Order heap cell (Less/Equal/Greater) per
+	// Design B. Reuses the (i32, i32) -> i32 compare type shared by all
+	// container element compare callbacks.
+	bool_compare_func_idx := add_function(&env, compare_type_idx)
+	runtime_func_indices[Runtime_Func.Bool_Compare] = bool_compare_func_idx
+
 	// Container debug function types
 	// List_Debug: (elem_debug_fn: i32, list: i32) -> i32
 	list_debug_type_idx := get_or_create_type(
@@ -958,6 +963,20 @@ codegen :: proc(
 	)
 	list_debug_func_idx := add_function(&env, list_debug_type_idx)
 	runtime_func_indices[Runtime_Func.List_Debug] = list_debug_func_idx
+	// List_Compare: (cmp_fn: i32, a: i32, b: i32) -> i32
+	// (i32, i32, i32) -> i32 type
+	list_3param_type_idx := get_or_create_type(
+		&env,
+		[]Wasm_Value_Type{.I32, .I32, .I32},
+		[]Wasm_Value_Type{.I32},
+	)
+	list_compare_type_idx := list_3param_type_idx
+	list_compare_func_idx := add_function(&env, list_compare_type_idx)
+	runtime_func_indices[Runtime_Func.List_Compare] = list_compare_func_idx
+	// List_Hash: (hash_fn: i32, list: i32, hasher: i32) -> i32
+	list_hash_type_idx := list_3param_type_idx
+	list_hash_func_idx := add_function(&env, list_hash_type_idx)
+	runtime_func_indices[Runtime_Func.List_Hash] = list_hash_func_idx
 	// Map_Debug: (key_debug_fn: i32, val_debug_fn: i32, map: i32) -> i32
 	map_debug_type_idx := get_or_create_type(
 		&env,
@@ -979,6 +998,24 @@ codegen :: proc(
 	result_debug_i64_type_idx := i64_debug_trampoline_type_idx // (i32) -> i32
 	result_debug_i64_func_idx := add_function(&env, result_debug_i64_type_idx)
 	runtime_func_indices[Runtime_Func.Result_Debug_I64] = result_debug_i64_func_idx
+	// Result_Eq: (ok_eq_fn: i32, err_eq_fn: i32, a: i32, b: i32) -> i32
+	// (i32, i32, i32, i32) -> i32 type
+	result_4param_type_idx := get_or_create_type(
+		&env,
+		[]Wasm_Value_Type{.I32, .I32, .I32, .I32},
+		[]Wasm_Value_Type{.I32},
+	)
+	result_eq_type_idx := result_4param_type_idx
+	result_eq_func_idx := add_function(&env, result_eq_type_idx)
+	runtime_func_indices[Runtime_Func.Result_Eq] = result_eq_func_idx
+	// Result_Compare: (ok_cmp_fn: i32, err_cmp_fn: i32, a: i32, b: i32) -> i32
+	result_compare_type_idx := result_4param_type_idx
+	result_compare_func_idx := add_function(&env, result_compare_type_idx)
+	runtime_func_indices[Runtime_Func.Result_Compare] = result_compare_func_idx
+	// Result_Hash: (ok_hash_fn: i32, err_hash_fn: i32, result: i32, hasher: i32) -> i32
+	result_hash_type_idx := result_4param_type_idx
+	result_hash_func_idx := add_function(&env, result_hash_type_idx)
+	runtime_func_indices[Runtime_Func.Result_Hash] = result_hash_func_idx
 
 	// Process! runtime function types
 	// Process_Spawn: (cmd_ptr: I32) -> I32 (handle)
@@ -1193,7 +1230,7 @@ codegen :: proc(
 
 	// Scheduler runtime function bodies
 	shared := thread_count > 1
-	append(&mod.codes, emit_camp_sched_init_body(shared))
+	append(&mod.codes, emit_camp_sched_init_body(shared, env.wasi_clock_time_get))
 	append(&mod.codes, emit_camp_sched_spawn_body(shared))
 	append(&mod.codes, emit_camp_sched_join_body(shared))
 	append(&mod.codes, emit_camp_sched_cancel_body(shared))
@@ -1203,12 +1240,15 @@ codegen :: proc(
 	append(&mod.codes, emit_camp_sched_timer_insert_body(shared))
 	append(&mod.codes, emit_camp_sched_timer_cancel_body(shared))
 	append(&mod.codes, emit_camp_sched_notify_body(shared))
-	append(&mod.codes, emit_camp_sched_park_body(shared))
-	append(&mod.codes, emit_camp_sched_worker_loop_body(shared))
+	append(&mod.codes, emit_camp_sched_park_body(shared, env.wasi_sched_yield))
+	append(&mod.codes, emit_camp_sched_worker_loop_body(shared, env.wasi_sched_yield))
 	append(&mod.codes, emit_camp_sched_current_task_body(shared))
-	append(&mod.codes, emit_camp_sched_run_single_body(shared))
-	append(&mod.codes, emit_camp_sched_poll_and_dispatch_body(shared))
-	append(&mod.codes, emit_camp_sched_timer_tick_body(shared))
+	append(
+		&mod.codes,
+		emit_camp_sched_run_single_body(shared, env.wasi_sched_yield, env.wasi_clock_time_get),
+	)
+	append(&mod.codes, emit_camp_sched_poll_and_dispatch_body(shared, env.wasi_poll_oneoff))
+	append(&mod.codes, emit_camp_sched_timer_tick_body(shared, env.wasi_clock_time_get))
 	append(&mod.codes, emit_camp_sched_timer_process_expired_body(shared))
 
 	// Parallel! runtime function bodies
@@ -1221,10 +1261,16 @@ codegen :: proc(
 
 	// Map runtime function bodies
 	append(&mod.codes, emit_map_new_body(alloc_func_idx))
-	append(&mod.codes, emit_map_insert_body(alloc_func_idx, compare_type_idx, env.table_idx))
-	append(&mod.codes, emit_map_get_body(alloc_func_idx, compare_type_idx, env.table_idx))
-	append(&mod.codes, emit_map_contains_body(compare_type_idx, env.table_idx))
-	append(&mod.codes, emit_map_remove_body(compare_type_idx, env.table_idx))
+	append(
+		&mod.codes,
+		emit_map_insert_body(alloc_func_idx, compare_type_idx, env.table_idx, drop_func_idx),
+	)
+	append(
+		&mod.codes,
+		emit_map_get_body(alloc_func_idx, compare_type_idx, env.table_idx, drop_func_idx),
+	)
+	append(&mod.codes, emit_map_contains_body(compare_type_idx, env.table_idx, drop_func_idx))
+	append(&mod.codes, emit_map_remove_body(compare_type_idx, env.table_idx, drop_func_idx))
 	append(&mod.codes, emit_map_size_body())
 	append(&mod.codes, emit_map_singleton_body(alloc_func_idx, compare_type_idx, env.table_idx))
 	append(&mod.codes, emit_map_keys_body(alloc_func_idx, list_alloc_func_idx, list_push_func_idx))
@@ -1254,8 +1300,9 @@ codegen :: proc(
 
 	// I64 compare function body
 	append(&mod.codes, emit_i64_compare_body())
-	// I64 trampoline function body (unboxes two I64 keys, calls I64_Compare)
-	append(&mod.codes, emit_i64_trampoline_body(i64_compare_func_idx))
+	// I64 trampoline function body (unboxes two I64 keys, calls I64_Compare,
+	// then wraps the raw -1/0/1 result into an Order heap cell per Design B).
+	append(&mod.codes, emit_i64_trampoline_body(i64_compare_func_idx, alloc_func_idx))
 	// Register I64_compare in func_map so emit_expr can find it
 	i64_compare_name := base.intern(interner, "I64_compare")
 	env.func_map[u64(i64_compare_name)] = i64_compare_func_idx
@@ -1270,6 +1317,17 @@ codegen :: proc(
 	// if resolve_debug_func returns the raw I64_debug name, the lookup succeeds
 	i64_debug_name := base.intern(interner, "I64_debug")
 	env.func_map[u64(i64_debug_name)] = i64_debug_trampoline_func_idx
+
+	// Bool_Compare function body. Returns an Order heap cell so it matches
+	// the Design B container compare ABI.
+	append(&mod.codes, emit_bool_compare_body(alloc_func_idx))
+	// Register Bool_compare in func_map under the canonical name the prelude
+	// records for `Bool is Ord` (semantics/prelude.odin registers the impl
+	// method name as "Bool_compare" with module NO_NAME; resolve_trait_method
+	// returns that, and emit_expr looks it up by bare intern-ID). This gives
+	// container compares (List/Result/Map) a real element compare callback.
+	bool_compare_name := base.intern(interner, "Bool_compare")
+	env.func_map[u64(bool_compare_name)] = bool_compare_func_idx
 
 	// Debug callback type: (i32) -> i32 (takes value, returns Str pointer)
 	debug_cb_type_idx := get_or_create_type(&env, []Wasm_Value_Type{.I32}, []Wasm_Value_Type{.I32})
@@ -1286,6 +1344,12 @@ codegen :: proc(
 			env.debug_str_offsets[", "],
 		),
 	)
+	// List_Compare, List_Hash bodies (must follow List_Debug in registration order)
+	append(
+		&mod.codes,
+		emit_list_compare_body(compare_type_idx, env.table_idx, alloc_func_idx, drop_func_idx),
+	)
+	append(&mod.codes, emit_list_hash_body(compare_type_idx, env.table_idx))
 	// Map.debug and Set.debug bodies
 	append(
 		&mod.codes,
@@ -1332,6 +1396,13 @@ codegen :: proc(
 			env.debug_str_offsets[")"],
 		),
 	)
+	// Result_Eq, Result_Compare, Result_Hash bodies
+	append(&mod.codes, emit_result_eq_body(compare_type_idx, env.table_idx))
+	append(
+		&mod.codes,
+		emit_result_compare_body(compare_type_idx, env.table_idx, alloc_func_idx, drop_func_idx),
+	)
+	append(&mod.codes, emit_result_hash_body(compare_type_idx, env.table_idx))
 
 	// Process! runtime function bodies
 	append(&mod.codes, emit_camp_process_spawn_body(alloc_func_idx))
@@ -1393,8 +1464,13 @@ codegen :: proc(
 			emit_instruction(Wasm_I32_Const{value = v.value ? 1 : 0}, &init_buf)
 			valtype = .I32
 		case ^ir.IR_Literal_Float:
-			emit_instruction(Wasm_F64_Const{value = v.value}, &init_buf)
-			valtype = .F64
+			if v.type.wasm_type == .F32 {
+				emit_instruction(Wasm_F32_Const{value = f32(v.value)}, &init_buf)
+				valtype = .F32
+			} else {
+				emit_instruction(Wasm_F64_Const{value = v.value}, &init_buf)
+				valtype = .F64
+			}
 		case:
 			// Non-literal const: emit as mutable global with zero initializer.
 			// Actual value will be computed at _start time (future work).
@@ -1702,6 +1778,11 @@ codegen :: proc(
 		append(&mod.codes, code)
 	}
 	delete(deferred_handler_codes)
+
+	// Prune unused runtime function bodies. After all code is emitted,
+	// scan for direct `call` targets in the runtime function range.
+	// Unused functions get 2-byte stubs (unreachable + end).
+	prune_unused_runtime_funcs(&mod, env.import_count)
 
 	// Build the funcref table AFTER all functions (including deferred effect
 	// handlers allocated inside emit_start_function) have been assigned indices,

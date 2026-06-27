@@ -1,7 +1,7 @@
 // Ord trait — total ordering
-// Per D16: Order is structural tag union [Less | Equal | Greater]
-
-@Order : pub [Less | Equal | Greater]
+// Per D16: Order is a structural tag union [Less | Equal | Greater], declared
+// in the prelude (not a nominal newtype). `Less`/`Equal`/`Greater` are the
+// Order constructors.
 
 Ord : { compare : |Self, Self| -> Order }
 Order is Debug {
@@ -13,3 +13,4 @@ Order is Debug {
         }
     }
 }
+

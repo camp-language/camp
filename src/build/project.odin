@@ -23,7 +23,6 @@ run_build_project :: proc(thread_count: int = 1, output_path: string = "") -> Bu
 	cwd := os.getwd(context.allocator) or_else "."
 
 	project := discover_project(cwd, &ctx.interner, &ctx.collector, ctx.allocator)
-	register_stdlib_modules(&project, &ctx.interner)
 	ctx.project = project
 
 	if diagnostics.diag_collector_has_errors(&ctx.collector) {
@@ -47,7 +46,7 @@ run_build_project :: proc(thread_count: int = 1, output_path: string = "") -> Bu
 
 	cached_count := 0
 
-	for name, &mi in project.modules {
+	for mod_id, &mi in project.modules {
 		manifest, cache_ok := cache_read_manifest(mi.content_hash, ctx.allocator)
 		if cache_ok && len(manifest.imports) > 0 {
 			cached_count += 1
@@ -84,6 +83,8 @@ run_build_project :: proc(thread_count: int = 1, output_path: string = "") -> Bu
 			manifest_destroy(&manifest)
 		}
 
+		// User modules hard-fail on parse error; stdlib modules are
+		// registered transitively below via register_stdlib_transitive.
 		result := parse_and_canonicalize(&mi, &ctx)
 		switch _ in result {
 		case Build_Error:
@@ -92,12 +93,25 @@ run_build_project :: proc(thread_count: int = 1, output_path: string = "") -> Bu
 		}
 	}
 
-	if cached_count > 0 {
-		fmt.printfln("loaded {} module(s) from cache", cached_count)
+	// BFS-register transitively-imported stdlib modules with parse-failure
+	// tolerance (mirrors single-file path at build.odin:130-189). Seed from
+	// every parsed user module's imports so the full transitive closure is
+	// compiled; unparseable modules are demoted and dropped so their names
+	// fall through to codegen runtime intercepts.
+	seed_imports: [dynamic]base.Deferred_Import
+	defer delete(seed_imports)
+	for mod_id in project.module_names {
+		mi, ok := project.modules[mod_id]
+		if !ok do continue
+		for imp in mi.imports {
+			append(&seed_imports, imp)
+		}
 	}
+	register_stdlib_transitive(&project, seed_imports[:], &ctx)
 
 	graph := build_module_graph(&project, &ctx.interner, &ctx.collector)
 	defer module_graph_destroy(&graph)
+	demote_unresolved_import_errors(&ctx)
 
 	if diagnostics.diag_collector_has_errors(&ctx.collector) {
 		diagnostics.render_all(&ctx.collector, "", "")
@@ -114,6 +128,9 @@ run_build_project :: proc(thread_count: int = 1, output_path: string = "") -> Bu
 		mi_ptr, mi_ok := &project.modules[mod_id]
 		if !mi_ok do continue
 		if mi_ptr.cfile == nil {
+			// Stdlib modules already parsed by register_stdlib_transitive;
+			// only non-stdlib (e.g. user modules not yet parsed, cache miss)
+			// reach here. Hard-fail on parse error.
 			result := parse_and_canonicalize(mi_ptr, &ctx)
 			switch _ in result {
 			case Build_Error:
@@ -121,7 +138,6 @@ run_build_project :: proc(thread_count: int = 1, output_path: string = "") -> Bu
 			case Build_Output:
 			}
 		}
-		if mi_ptr.cfile == nil do continue
 
 		mi := mi_ptr^
 		store: semantics.Type_Store
@@ -227,8 +243,13 @@ run_build_project :: proc(thread_count: int = 1, output_path: string = "") -> Bu
 	combined_ir = ir.cps_transform(&combined_ir, &ctx.interner)
 	ir.rc_insert(&combined_ir, &ctx.interner)
 	ir.reuse_analyze(&combined_ir)
+	ir.tree_shake_module(&combined_ir, &ctx.interner)
 
-	wasm_mod := codegen.codegen(combined_ir, &ctx.interner, ctx.thread_count)
+	wasm_mod := codegen.codegen(combined_ir, &ctx.interner, ctx.thread_count, &ctx.collector)
+	if diagnostics.diag_collector_has_errors(&ctx.collector) {
+		diagnostics.render_all(&ctx.collector, "", "")
+		return Build_Result(Build_Error{message = "codegen errors", code = 1})
+	}
 	wasm_bytes := codegen.wasm_serialize(wasm_mod)
 	defer delete(wasm_bytes)
 	local_output := output_path
@@ -298,6 +319,9 @@ combine_module_irs :: proc(
 	combined.decls = make([dynamic]ir.IR_Decl, 0, 64)
 	combined.effect_defs = make([dynamic]ir.IR_Effect_Def, 0, 16)
 	combined.string_table = make([dynamic]ir.String_Table_Entry, 0, 32)
+	// Shared counter for IR name generation. Each module's lower_tfile gets a
+	// distinct starting counter so _ir_N IDs don't collide across modules.
+	fresh_counter: int
 
 	for mod_id in sorted {
 		mi := project.modules[mod_id]
@@ -306,9 +330,33 @@ combine_module_irs :: proc(
 		store, ok := ctx.module_stores[mod_id]
 		if !ok do continue
 
-		tfile := semantics.typecheck_file(mi.cfile^, &store)
+		errs_before := ctx.collector.error_count
+		diag_count_before := len(ctx.collector.diagnostics)
+		tfile := semantics.typecheck_file(mi.cfile^, &store, mod_id)
+		// Suppress all diagnostics from non-entry-point modules in this
+		// re-typecheck pass. The first pass already reported real issues;
+		// re-typechecking may re-emit the same warnings/errors (e.g. C0601
+		// from always-compiled stdlib modules). Drop them so they don't
+		// pollute the user's output.
+		if mod_id != project.entry_point {
+			for len(ctx.collector.diagnostics) > diag_count_before {
+				d := &ctx.collector.diagnostics[len(ctx.collector.diagnostics) - 1]
+				switch d.category {
+				case .Warning:
+					ctx.collector.warning_count -= 1
+				case .Error:
+					ctx.collector.error_count -= 1
+				case .Internal:
+					ctx.collector.internal_count -= 1
+				}
+				delete(d.labels)
+				delete(d.hints)
+				pop(&ctx.collector.diagnostics)
+			}
+		}
 		mono_tfile := mono.mono(tfile, &store, &ctx.interner)
-		ir_mod := ir.lower_tfile(mono_tfile, &store)
+		ir_mod := ir.lower_tfile(mono_tfile, &store, fresh_counter)
+		fresh_counter = ir_mod.next_fresh_counter
 
 		for &decl in ir_mod.decls {
 			#partial switch d in decl {

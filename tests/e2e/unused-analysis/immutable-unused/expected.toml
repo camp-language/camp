@@ -1,11 +1,14 @@
+args = "check-file"
+skip_wasm = true
 stdout = """
-canonicalized /tmp/camp-e2e/unused-analysis/immutable-unused/src/Main.camp: 1 declaration(s), 0 import(s)
--- C0200: UNDEFINED NAME --- /tmp/camp-e2e/unused-analysis/immutable-unused/src/Main.camp
+-- C0900: UNUSED BINDING --- /tmp/camp-e2e/unused-analysis/immutable-unused/src/Main.camp
 
-I cannot find `items`.
-   2 |   count = items.length
-                 ^^^^^
-compilation failed with 1 error(s)
+Binding `count` is never used. 
+   2 |   count = 1 + 2
+         ^^^^^
+  Prefix with `_` to mark as intentionally unused: `_count`
+1 warning(s) found
+check passed for /tmp/camp-e2e/unused-analysis/immutable-unused/src/Main.camp
 """
 stderr = ""
-exit = 1
+exit = 0

@@ -1,0 +1,11 @@
+stdout = """
+-- C0113: DUPLICATE EFFECT IN ROW --- /tmp/camp-e2e/parser-diagnostics/dup-effect-row/src/Main.camp
+
+Effect `Console!` appears more than once in this effect row.
+   1 | pub main! = || -[Console! | Throw!([..]) | Console!]-> I64 {
+                                                  ^^^^^^^^
+  Each effect should appear at most once in an effect row.
+compilation failed with 1 error(s)
+"""
+stderr = ""
+exit = 1

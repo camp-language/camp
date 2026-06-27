@@ -1,0 +1,15 @@
+import Result { [Ok, Err] }
+
+main! = || -> I64 {
+    // Test Result.eq via operators (structural eq path)
+    r1 = Ok(42) == Ok(42)     // true (1)
+    r2 = Ok(42) == Err(0)     // false (0)
+
+    // Test Result.compare via operators (structural ord path)
+    r3 = Ok(1) <  Ok(2)       // true (1)
+    r4 = Ok(2) >  Ok(1)       // true (1)
+    r5 = Ok(1) <  Err(0)      // true  (1) — Ok < Err by convention
+
+    // Return result count (should be 6 total)
+    6
+}

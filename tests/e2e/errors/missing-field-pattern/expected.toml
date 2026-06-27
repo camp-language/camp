@@ -1,0 +1,12 @@
+stdout = """
+canonicalized /tmp/camp-e2e/errors/missing-field-pattern/src/Main.camp: 1 declaration(s), 0 import(s)
+-- C0506: MISSING FIELDS IN RECORD PATTERN --- /tmp/camp-e2e/errors/missing-field-pattern/src/Main.camp
+
+Record pattern is missing field `y`. Use `_` to ignore a field, or `{..}` to
+ignore remaining fields.
+   4 |     { x: a } => a
+           ^
+compilation failed with 1 error(s)
+"""
+stderr = ""
+exit = 1

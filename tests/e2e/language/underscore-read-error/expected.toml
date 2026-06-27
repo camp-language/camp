@@ -1,0 +1,12 @@
+stdout = """
+canonicalized /tmp/camp-e2e/language/underscore-read-error/src/Main.camp: 1 declaration(s), 0 import(s)
+-- C0210: USE OF DISCARDED VALUE --- /tmp/camp-e2e/language/underscore-read-error/src/Main.camp
+
+`_` begins with `_` and is treated as a discarded value — it cannot be read.
+   4 |   _
+         ^
+  Bind this value to a named binding instead, or use `_` directly to discard.
+compilation failed with 1 error(s)
+"""
+stderr = ""
+exit = 1

@@ -1,5 +1,10 @@
 // Hash trait — hashing for map/set keys
-// Per D29: Hasher is opaque (SipHash-1-3 internally)
+// Declaration only. Per D9 this is a derivable trait; impls live with each
+// type (see Bool.camp, Str.camp, Char.camp, Result.camp, etc.). This module
+// defines the interface contract, not any implementations.
+//
+// Per D29: Hasher is opaque (SipHash-1-3 internally). Per D29 `Hash(a)` stays
+// single-parameter. Hasher construction and finalization are runtime concerns.
 
 @Hasher : {}
 

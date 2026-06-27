@@ -504,6 +504,14 @@ cc_convert_expr :: proc(expr: IR_Expr, env: ^Closure_Convert_Env) -> IR_Expr {
 		defer delete(free_types)
 		cc_collect_var_types(e.body, &free_types)
 
+		// The _cenv parameter receives the closure's env record when the closure
+		// captures free vars (a real heap object), or the closure pointer itself
+		// when self-referential. When there are no free vars and the closure is
+		// not self-referential, _cenv is a null literal (0) — NOT a heap object.
+		// Marking it is_heap=true in that case makes rc_insert emit an IR_Drop for
+		// address 0, which faults (camp_drop(0) reads garbage as refcount). Only
+		// mark _cenv heap-typed when it actually holds a heap pointer.
+		cenv_is_heap := len(free) > 0 || is_self_referential
 		params := make([dynamic]IR_Param, 0, len(e.params) + 1)
 		append(
 			&params,
@@ -512,7 +520,7 @@ cc_convert_expr :: proc(expr: IR_Expr, env: ^Closure_Convert_Env) -> IR_Expr {
 				type = base.IR_Type {
 					wasm_type = .I32,
 					type_id = base.Type_Var_ID(0),
-					is_heap = true,
+					is_heap = cenv_is_heap,
 				},
 			},
 		)

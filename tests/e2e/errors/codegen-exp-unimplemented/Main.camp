@@ -1,0 +1,3 @@
+pub main! = || -[Console!]-> I64 {
+  2 ^ 3
+}

@@ -1,0 +1,3 @@
+pub main! = || -> I64 {
+  _s =
+\unterminated per-line string

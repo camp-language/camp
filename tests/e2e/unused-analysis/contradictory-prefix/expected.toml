@@ -1,10 +1,13 @@
 stdout = """
 canonicalized /tmp/camp-e2e/unused-analysis/contradictory-prefix/src/Main.camp: 1 declaration(s), 0 import(s)
--- C0200: UNDEFINED NAME --- /tmp/camp-e2e/unused-analysis/contradictory-prefix/src/Main.camp
+typecheck passed for /tmp/camp-e2e/unused-analysis/contradictory-prefix/src/Main.camp
+-- C1000: CONTRADICTORY PREFIX --- /tmp/camp-e2e/unused-analysis/contradictory-prefix/src/Main.camp
 
-I cannot find `_`.
+`_$x` combines `_` (ignore) and `$` (each value matters) — these are
+contradictory.
    2 |   _$x = 5
          ^
+  Reassignable variables cannot be marked as unused. Remove the `_` prefix.
 compilation failed with 1 error(s)
 """
 stderr = ""
