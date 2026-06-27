@@ -1,0 +1,17 @@
+// Two self-recursive top-level decls where one consumes the other's result.
+// Regression for camp-mntv: `n(append(...))` previously caused an infinite
+// unify recursion (structurally cyclic type graphs between the two recursive
+// self-vars) and a segfault during typecheck.
+append = |xs: List(I64), ys: List(I64)| -> List(I64) {
+  match xs {
+    Nil => ys
+    Cons(h, t) => Cons(h, append(t, ys))
+  }
+}
+n = |xs: List(I64)| -> I64 {
+  match xs {
+    Nil => 0
+    Cons(h, t) => 1 + n(t)
+  }
+}
+pub main! = || -> I64 { n(append([1, 2], [3])) }
