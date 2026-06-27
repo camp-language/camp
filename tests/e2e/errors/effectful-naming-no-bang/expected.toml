@@ -1,5 +1,13 @@
 stdout = """
 canonicalized /tmp/camp-e2e/errors/effectful-naming-no-bang/src/Main.camp: 2 declaration(s), 0 import(s)
+-- C0403: UNNECESSARY EFFECT IN SIGNATURE --- /tmp/camp-e2e/errors/effectful-naming-no-bang/src/Main.camp
+
+Effect `IO` is listed in this function's effect row, but the function never
+performs it.
+   2 | _main = || -> -[IO]-> I64 { 0 }
+                       ^^
+  Remove `IO` from the effect row, or the function may need to perform this effect.
+
 -- C0400: EFFECTFUL FUNCTION NAMING --- /tmp/camp-e2e/errors/effectful-naming-no-bang/src/Main.camp
 
 This function performs effect [IO], so its name needs to end with `!`.

@@ -78,6 +78,42 @@ typecheck_lambda :: proc(e: ^CExpr_Lambda, env: ^Type_Env, store: ^Type_Store) -
 	effect_id := fresh_effect_row(store, e.span)
 	unify(store, effect_id, body_result.effects)
 	if e.effects != nil {
+		// C0403: warn when a declared effect is never performed by the body.
+		// Snapshot which declared effects the body actually performed BEFORE
+		// unifying the annotation in (the annotation unify merges the
+		// declared set into the body's row, so checking after would always
+		// find them present). The body's performed row at this point is
+		// `body_result.effects`: either a concrete Inferred_Effect_Row (body
+		// performed some effect) or an uninstantiated free var (body
+		// performed no concrete effects) — either way, a declared effect not
+		// in the performed set is unnecessary. Skip open rows (`..rest`) and
+		// prelude effects: the documented `main!` boilerplate
+		// `-[Console! | Throw!([..])]->` declares the program's effect budget
+		// provisionally, and prelude effects on entry points are conventional
+		// rather than refactoring leftovers. User-defined effects
+		// declared-but-unused remain valuable to flag.
+		#partial switch teff in e.effects^ {
+		case ^CType_Effect_Row:
+			if !teff.is_open {
+				for entry in teff.effects {
+					if is_prelude_effect_by_entry(entry.name, store.interner) {
+						continue
+					}
+					if !effect_row_contains(store, body_result.effects, entry.name) {
+						effect_str := base.intern_get(store.interner, entry.name)
+						diagnostics.collector_add_diag(
+							store.collector,
+							diagnostics.diag_unnecessary_effect_in_signature(
+								effect_str,
+								entry.span,
+							),
+						)
+					}
+				}
+			}
+		case:
+		}
+
 		ann_effects := convert_type_to_var(e.effects, store, &child_env)
 		unify(store, effect_id, ann_effects)
 	}

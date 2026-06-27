@@ -1,0 +1,14 @@
+args = "check-file"
+stdout = """
+-- C0403: UNNECESSARY EFFECT IN SIGNATURE --- /tmp/camp-e2e/effects/effect-unnecessary-effect-in-signature/src/Main.camp
+
+Effect `Ask!` is listed in this function's effect row, but the function never
+performs it.
+   2 | _greet! = || -[Ask!]-> I64 { 0 }
+                      ^^^^
+  Remove `Ask!` from the effect row, or the function may need to perform this effect.
+1 warning(s) found
+check passed for /tmp/camp-e2e/effects/effect-unnecessary-effect-in-signature/src/Main.camp
+"""
+stderr = ""
+exit = 0

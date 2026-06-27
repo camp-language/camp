@@ -1,0 +1,11 @@
+stdout = """
+canonicalized /tmp/camp-e2e/effects/effect-resume-outside-handler/src/Main.camp: 1 declaration(s), 0 import(s)
+-- C0408: INVALID RESUME OUTSIDE HANDLER --- /tmp/camp-e2e/effects/effect-resume-outside-handler/src/Main.camp
+
+`resume` can only be used inside a `handle` block.
+   2 |   resume(0)
+         ^^^^^^
+compilation failed with 1 error(s)
+"""
+stderr = ""
+exit = 1

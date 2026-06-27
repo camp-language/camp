@@ -1,0 +1,12 @@
+stdout = """
+canonicalized /tmp/camp-e2e/effects/effect-handler-arity-mismatch/src/Main.camp: 2 declaration(s), 0 import(s)
+-- C0405: HANDLER SIGNATURE MISMATCH --- /tmp/camp-e2e/effects/effect-handler-arity-mismatch/src/Main.camp
+
+Handler arm for `Ask!` was written with 0 parameters, but the operation declares
+1.
+   4 |     .read!(resume) => resume(42)
+            ^^^^^
+compilation failed with 1 error(s)
+"""
+stderr = ""
+exit = 1
