@@ -858,6 +858,22 @@ inject_prelude_effect_defs :: proc(mod: ^IR_Module, store: ^semantics.Type_Store
 	inject_prelude_effects_lower(mod, store)
 }
 
+// rederive_call_type re-resolves a call's IR_Type from its type_id at IR
+// lowering time. The type_ snapshot taken during inference can be stale for
+// recursive and self-referential bindings — the snapshot captures the return
+// var before late unification resolves it to a concrete type, so it defaults
+// to I64 while the actual return (e.g. a heap-allocated List / tag union) is
+// I32. A stale I64 reaches codegen's coerce_ret_to, which then sign-extends
+// the i32 call result to i64 and breaks downstream stack typing (if-blocks,
+// match arms, stores consuming the value). Mirrors the TExpr_Name re-resolve
+// at the `case ^semantics.TExpr_Name` branch. Scoped to plain/method calls;
+// resume/handle continuation types are NOT re-derived here (re-snapshotting
+// those changed resume's Funcref and broke call_indirect dispatch — camp-9xi6).
+rederive_call_type :: proc(env: ^Lower_Env, old: base.IR_Type) -> base.IR_Type {
+	if old.type_id == base.Type_Var_ID(0) do return old
+	return semantics.lower_type(env.store, old.type_id)
+}
+
 lower_tcall :: proc(e: ^semantics.TExpr_Call, env: ^Lower_Env) -> IR_Expr {
 	#partial switch c in e.callee {
 	case ^semantics.TExpr_Name:
@@ -891,7 +907,7 @@ lower_tcall :: proc(e: ^semantics.TExpr_Call, env: ^Lower_Env) -> IR_Expr {
 		call^ = IR_Call {
 			callee           = callee_name,
 			args             = ir_args,
-			type             = e.type_,
+			type             = rederive_call_type(env, e.type_),
 			span             = e.span,
 			ord_compare_func = resolve_ord_compare(callee_name, e.args, env),
 			eq_func          = resolve_eq_func(callee_name, e.args, env),
@@ -1041,7 +1057,7 @@ lower_tmethod_call :: proc(e: ^semantics.TExpr_Method_Call, env: ^Lower_Env) -> 
 						call^ = IR_Call {
 							callee = base.Canonical_Name{module = str_name, name = len_name},
 							args = args,
-							type = e.type_,
+							type = rederive_call_type(env, e.type_),
 							span = e.span,
 							ord_compare_func = base.Canonical_Name{},
 							eq_func = base.Canonical_Name{},
@@ -1079,7 +1095,7 @@ lower_tmethod_call :: proc(e: ^semantics.TExpr_Method_Call, env: ^Lower_Env) -> 
 							call^ = IR_Call {
 								callee           = resolved_fn_name,
 								args             = call_args,
-								type             = e.type_,
+								type             = rederive_call_type(env, e.type_),
 								span             = e.span,
 								ord_compare_func = resolve_ord_compare(
 									resolved_fn_name,
@@ -1152,7 +1168,7 @@ lower_tmethod_call :: proc(e: ^semantics.TExpr_Method_Call, env: ^Lower_Env) -> 
 		meth_call^ = IR_Call {
 			callee           = resolved_name,
 			args             = call_args,
-			type             = e.type_,
+			type             = rederive_call_type(env, e.type_),
 			span             = e.span,
 			ord_compare_func = resolve_ord_compare(resolved_name, e.args, env),
 			eq_func          = resolve_eq_func(resolved_name, e.args, env),
@@ -1861,7 +1877,7 @@ lower_tbinop :: proc(e: ^semantics.TExpr_BinOp, env: ^Lower_Env) -> IR_Expr {
 					call^ = IR_Call {
 						callee = base.Canonical_Name{module = str_name, name = concat_name},
 						args = args,
-						type = e.type_,
+						type = rederive_call_type(env, e.type_),
 						span = e.span,
 						ord_compare_func = base.Canonical_Name{},
 						eq_func = base.Canonical_Name{},
@@ -3045,7 +3061,7 @@ lower_tinterpolated_string :: proc(
 		call^ = IR_Call {
 			callee = base.Canonical_Name{module = str_name_id, name = concat_name},
 			args = args,
-			type = e.type_,
+			type = rederive_call_type(env, e.type_),
 			span = e.span,
 			ord_compare_func = base.Canonical_Name{},
 			eq_func = base.Canonical_Name{},
@@ -3415,7 +3431,7 @@ lower_container_eq :: proc(
 	call^ = IR_Call {
 		callee = base.Canonical_Name{module = mod_name, name = eq_name},
 		args = args,
-		type = e.type_,
+		type = rederive_call_type(env, e.type_),
 		span = e.span,
 		ord_compare_func = eq_method,
 		eq_func = base.Canonical_Name{},
