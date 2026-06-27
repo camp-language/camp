@@ -1,7 +1,7 @@
 ---
 # camp-jqvd
 title: WASM codegen i32/i64 mismatch for recursive list operations
-status: in-progress
+status: completed
 type: bug
 priority: high
 tags:
@@ -9,7 +9,7 @@ tags:
     - wasm
     - list
 created_at: 2026-06-22T02:24:34Z
-updated_at: 2026-06-27T04:27:59Z
+updated_at: 2026-06-27T04:29:43Z
 ---
 
 ## Problem
