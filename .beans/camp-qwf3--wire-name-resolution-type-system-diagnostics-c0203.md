@@ -3,12 +3,12 @@
 title: Wire name-resolution + type-system diagnostics C0203-C0320 (undefined type/effect, private access, not-a-function/type, record field errors, row unification, recursive alias, invalid main, etc.)
 status: todo
 type: task
-priority: normal
+priority: high
 tags:
     - diagnostics
     - typecheck
 created_at: 2026-06-24T04:26:31Z
-updated_at: 2026-06-24T04:26:31Z
+updated_at: 2026-06-27T23:21:00Z
 ---
 
 Source: docs/diagnostics-catalog.md §3.4-3.9 and §4.8-4.21. Constructors exist in src/diagnostics/constructors.odin but never emitted from src/semantics/{check_expr,check_decl,typecheck,canonicalize,unify}.odin:

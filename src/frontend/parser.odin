@@ -2035,7 +2035,7 @@ parser_parse_par :: proc(p: ^Parser) -> Expr {
 		parser_expect(p, .RBrace)
 	} else {
 		// par { name: expr, name2: expr2, ... }
-		// Per syntax recipe, par entries must be named.
+		// Per language spec, par entries must be named.
 		parser_expect(p, .LBrace)
 		e.expressions = make([dynamic]Expr, 0, 4)
 		e.names = make([dynamic]base.Intern_ID, 0, 4)
@@ -2052,7 +2052,7 @@ parser_parse_par :: proc(p: ^Parser) -> Expr {
 					append(&e.names, base.intern(p.intern, name_tok.text))
 					append(&e.expressions, expr)
 				} else {
-					// Unnamed entry — error per syntax recipe
+					// Unnamed entry — error per language spec
 					diagnostics.collector_add_diag(
 						p.collector,
 						diagnostics.diag_par_entry_must_be_named(name_tok.span),

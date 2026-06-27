@@ -20,12 +20,12 @@ marked "🆕 New":
 - Title it like: `Wire C0003-C0005 lexical diagnostics (invalid escape,
   unterminated string, bad numeric literal)`.
 
-### 2. Recipe §15 (`docs/syntax-recipe.md` §15 "Remaining Compiler Gaps")
+### 2. Bean backlog (`.beans/`)
 
-Each `###` sub-section under §15 is a named, fix-located gap already.
-Cross-reference against `.beans/` by searching slug keywords; only create a
-bean if no existing bean covers it. Title from the §15 heading; reference the
-heading + the file:line it points at in the body.
+Known compiler gaps and open design items live as beans (`.beans/`).
+Cross-reference the existing backlog by searching slug keywords; only create a
+bean if no existing bean covers it. Title from the gap; reference the target
+`file:line` it points at in the body.
 
 ### 3. Stdlib coverage (`stdlib/*.camp`)
 
@@ -43,12 +43,13 @@ Two failure modes here:
 ### 4. Error paths in `src/`
 
 Search for `unreachable`, `not.*(implemented|handled|supported)`, runtime
-intrinsics that `panic`, and `#partial switch` fallthroughs (§15 calls these
-out explicitly). Each silent error path that should emit a diagnostic is a
-candidate bean. Only file one if the diagnostic exists in the catalog but isn't
-wired, or if no diagnostic covers it (then also flag for the catalog).
+intrinsics that `panic`, and `#partial switch` fallthroughs (see bean
+`camp-epa1` for the canonical list). Each silent error path that should emit a
+diagnostic is a candidate bean. Only file one if the diagnostic exists in the
+catalog but isn't wired, or if no diagnostic covers it (then also flag for the
+catalog).
 
-### 5. Recipe drift (§13 "Key Syntax Changes")
+### 5. Spec drift (§13 "Key Syntax Changes")
 
 §13 is the historical record of decided changes (all marked "Done").
 Spot-check 3-5 rows at random: does the parser/code actually reflect the

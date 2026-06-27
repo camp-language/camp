@@ -83,7 +83,7 @@ check_shadow :: proc(
 	}
 	// Reassignable (`$`-prefixed) variables are exempt from the shadowing
 	// check: reassigning an existing `$x` in the same scope is valid
-	// (syntax-recipe.md §Assignment: "`$x = expr` — mutable binding ...
+	// (language-spec.md §Assignment: "`$x = expr` — mutable binding ...
 	// `$x = 1` then `$x = 2`"), not a shadowing redefinition. Mirrors the
 	// `_`-prefix exemption above for intentionally-unused rebinding. A fresh
 	// `$x` declaration in a *nested* scope that shadows an outer `$x` would
@@ -487,7 +487,7 @@ typecheck_synth :: proc(expr: CExpr, env: ^Type_Env, store: ^Type_Store) -> Synt
 		// `resume` is only a legal identifier inside a `handle` arm body
 		// (where it is bound as the arm's first param). A bare `resume`
 		// reference that didn't resolve is C0408, not a generic undefined
-		// name. per docs/syntax-recipe.md §Handle:382-383 and catalog §5.9.
+		// name. per docs/language-spec.md §Handle:382-383 and catalog §5.9.
 		if name_str == "resume" && !in_handler_arm_scope(env) {
 			diagnostics.collector_add_diag(
 				store.collector,

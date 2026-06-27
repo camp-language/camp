@@ -3,9 +3,9 @@
 title: Brainstorm, research, design, and implement tree shaking for WASM compilation
 status: in-progress
 type: feature
-priority: normal
+priority: high
 created_at: 2026-06-08T04:15:52Z
-updated_at: 2026-06-22T01:45:00Z
+updated_at: 2026-06-27T23:21:00Z
 ---
 
 ## Summary

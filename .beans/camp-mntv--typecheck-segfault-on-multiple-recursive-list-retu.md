@@ -1,11 +1,11 @@
 ---
 # camp-mntv
 title: Typecheck segfault on multiple recursive List-returning top-level decls
-status: completed
+status: in-progress
 type: task
 priority: high
 created_at: 2026-06-27T04:27:34Z
-updated_at: 2026-06-27T17:14:58Z
+updated_at: 2026-06-27T16:54:29Z
 ---
 
 

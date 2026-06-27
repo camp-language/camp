@@ -64,7 +64,7 @@ justfile              Build and test commands
 
 | Doc | Purpose |
 |-----|---------|
-| [syntax-recipe.md](docs/syntax-recipe.md) | Authoritative syntax reference |
+| [language-spec.md](docs/language-spec.md) | Authoritative syntax reference |
 | [diagnostics-catalog.md](docs/diagnostics-catalog.md) | Compiler error codes and messages |
 | [stdlib-design-notes.md](docs/stdlib-design-notes.md) | Stdlib API design rationale |
 

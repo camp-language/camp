@@ -1029,7 +1029,7 @@ el_lower_expr :: proc(expr: IR_Expr, env: ^Effect_Lower_Env) -> IR_Expr {
 	case ^IR_Handle:
 		// Scheduler effects (Async!, Spawn!, Parallel!, File!, Console!, Time!)
 		// use the same CPS evidence path as user-defined effects, per
-		// docs/syntax-recipe.md §Handle: scheduler effects share the
+		// docs/language-spec.md §Handle: scheduler effects share the
 		// handler/resume model including `resume`. The handler arms are
 		// lowered into handler fns, stored in evidence records, and
 		// dispatched by Perform → closure-call chains. The codegen
@@ -1150,7 +1150,7 @@ el_lower_expr :: proc(expr: IR_Expr, env: ^Effect_Lower_Env) -> IR_Expr {
 			)
 
 			// C0407: one-shot resume — each arm may call `resume` at most once.
-			// docs/syntax-recipe.md §Handle:383: "Resume: one-shot (0 or 1
+			// docs/language-spec.md §Handle:383: "Resume: one-shot (0 or 1
 			// times) ... Compile-time detection where possible." Count
 			// explicit resume calls in the (already-rewritten) arm body,
 			// before the implicit-resume wrap below adds its own.

@@ -3,11 +3,11 @@
 title: Container eq/compare/hash runtime funcs do i32.load on unboxed I64 payloads (read half)
 status: todo
 type: bug
-priority: normal
+priority: high
 tags:
     - codegen
 created_at: 2026-06-20T03:02:58Z
-updated_at: 2026-06-20T03:03:10Z
+updated_at: 2026-06-27T23:21:00Z
 blocked_by:
     - camp-24mj
 ---

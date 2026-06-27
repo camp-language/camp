@@ -206,7 +206,7 @@ main! = || -> I64 {
 
 Note: the version in `camp-24mj` and `camp-yxts` uses `;` arm separators
 (`{ Equal => 1; _ => 0 }`), which the parser rejects (`;` is not a match arm
-separator per `docs/syntax-recipe.md:326-334`). Use newlines.
+separator per `docs/language-spec.md:326-334`). Use newlines.
 
 ## Related
 

@@ -3,11 +3,11 @@
 title: todo keyword and expect desugar produce runtime traps with no compile-time location context
 status: todo
 type: task
-priority: normal
+priority: low
 tags:
     - codegen
 created_at: 2026-06-24T04:27:22Z
-updated_at: 2026-06-24T04:27:22Z
+updated_at: 2026-06-27T23:21:00Z
 ---
 
 Source: error-path sweep.

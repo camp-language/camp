@@ -83,7 +83,7 @@ Each diagnostic should have a unique `C####` code for searchability and `camp --
 
 > This block comment was never closed. Add a closing `*/`.
 
-**Rationale:** Camp does **not** support block comments (`/* ... */`). Per `docs/syntax-recipe.md` §1 Comments: "`//` line comments (no block comments, no nesting)". This diagnostic is retained in the catalog for reference but is not wired and has no constructor emission site. The constructor `diag_unterminated_block_comment` remains defined-but-unused for now.
+**Rationale:** Camp does **not** support block comments (`/* ... */`). Per `docs/language-spec.md` §1 Comments: "`//` line comments (no block comments, no nesting)". This diagnostic is retained in the catalog for reference but is not wired and has no constructor emission site. The constructor `diag_unterminated_block_comment` remains defined-but-unused for now.
 
 ---
 
@@ -121,7 +121,7 @@ Each diagnostic should have a unique `C####` code for searchability and `camp --
 
 > Tag `{name}` has no payload — write `{name}` without parentheses.
 
-**Rationale:** Tags without payloads should not use parentheses, per the syntax recipe.
+**Rationale:** Tags without payloads should not use parentheses, per the language spec.
 
 ### 2.6 EMPTY EFFECT ROW (C0106) — Error ✅ Implemented
 
@@ -197,13 +197,13 @@ Each diagnostic should have a unique `C####` code for searchability and `camp --
 
 > Effect rows use `|` as a separator, not `,`. Write `-[A! | B!]->` instead of `-[A!, B!]->`.
 
-**Rationale:** Per the syntax recipe, effect rows use `|` as separator. A common mistake for users coming from languages with comma-separated lists.
+**Rationale:** Per the language spec, effect rows use `|` as separator. A common mistake for users coming from languages with comma-separated lists.
 
 ### 2.18 TUPLE SIZE (C0118) — Error ✅ Implemented
 
 > Tuple must have 2 or 3 elements, got {count}.
 
-**Rationale:** Per the syntax recipe, tuples are capped at 3 elements. Users who need more fields should use records instead.
+**Rationale:** Per the language spec, tuples are capped at 3 elements. Users who need more fields should use records instead.
 
 ---
 
@@ -537,7 +537,7 @@ Camp's algebraic effect system is its most distinctive feature. These diagnostic
 
 **Rationale:** Forgetting to call `resume` in a handler arm is a common mistake that silently discards the continuation. This is analogous to Kotlin's `missing_return` diagnostic.
 
-**Status note (camp-1zmy):** Not wired — conflicts with `docs/syntax-recipe.md` §Handle:383 ("Resume: one-shot (0 or 1 times). 0 = abort (don't call resume)"), which makes a zero-resume arm a *valid* abort form. Per AGENTS.md, the recipe wins over the catalog when they conflict. The `effect_lower.odin` implicit-resume wrap (which auto-inserts a `resume` for arms that don't call one) implements the abort-by-default semantics the recipe mandates. Leaving this constructor defined-but-unused for reference; a future recipe change could re-enable it.
+**Status note (camp-1zmy):** Not wired — conflicts with `docs/language-spec.md` §Handle:383 ("Resume: one-shot (0 or 1 times). 0 = abort (don't call resume)"), which makes a zero-resume arm a *valid* abort form. Per AGENTS.md, the recipe wins over the catalog when they conflict. The `effect_lower.odin` implicit-resume wrap (which auto-inserts a `resume` for arms that don't call one) implements the abort-by-default semantics the recipe mandates. Leaving this constructor defined-but-unused for reference; a future recipe change could re-enable it.
 
 ### 5.8 DOUBLE RESUME IN HANDLER (C0407) — Error ✅ Implemented
 
@@ -545,7 +545,7 @@ Camp's algebraic effect system is its most distinctive feature. These diagnostic
 
 **Rationale:** Double-resuming is a well-known pitfall in algebraic effect handlers. Koka and Eff explicitly check for this.
 
-**Status note (camp-1zmy):** Emitted from `src/ir/effect_lower.odin` — the `^IR_Handle` arm of `el_lower_expr`, after `el_replace_resume` rewrites explicit resume calls into `IR_Resume` nodes and before the implicit-resume wrap. `el_count_resume_calls` walks the post-replacement body (including resumes nested in a resume argument, e.g. `resume(resume(1))`) and fires C0407 when more than one explicit resume is present. This is the compile-time detection mandated by `docs/syntax-recipe.md` §Handle:383 ("Compile-time detection where possible").
+**Status note (camp-1zmy):** Emitted from `src/ir/effect_lower.odin` — the `^IR_Handle` arm of `el_lower_expr`, after `el_replace_resume` rewrites explicit resume calls into `IR_Resume` nodes and before the implicit-resume wrap. `el_count_resume_calls` walks the post-replacement body (including resumes nested in a resume argument, e.g. `resume(resume(1))`) and fires C0407 when more than one explicit resume is present. This is the compile-time detection mandated by `docs/language-spec.md` §Handle:383 ("Compile-time detection where possible").
 
 ### 5.9 INVALID RESUME OUTSIDE HANDLER (C0408) — Error ✅ Implemented
 
@@ -625,7 +625,7 @@ Camp's algebraic effect system is its most distinctive feature. These diagnostic
 
 **Rationale:** `let` bindings require irrefutable patterns. Using a tag pattern like `let Some(x) = expr` should be an error. Rust (E0005), Haskell, and OCaml all enforce this.
 
-**Status note (camp-xuen):** Camp's syntax has no `let` keyword — bindings are `name = expr` or `name : Type = expr`, both of which accept only an identifier (or `$name` mutable) on the LHS. Statement-level destructuring (`{ a, b } = record`, `[a, b, ...rest] = list`, `@UserId(n) = uid`) is desugared to field-access assignments that never produce a refutable pattern. The constructor `diag_invalid_irrefutable_pattern` exists but has no triggerable code path under the current syntax (see §Assignment and §Destructuring in `docs/syntax-recipe.md`). Re-evaluate if a `let`/refutable-binding form is ever introduced.
+**Status note (camp-xuen):** Camp's syntax has no `let` keyword — bindings are `name = expr` or `name : Type = expr`, both of which accept only an identifier (or `$name` mutable) on the LHS. Statement-level destructuring (`{ a, b } = record`, `[a, b, ...rest] = list`, `@UserId(n) = uid`) is desugared to field-access assignments that never produce a refutable pattern. The constructor `diag_invalid_irrefutable_pattern` exists but has no triggerable code path under the current syntax (see §Assignment and §Destructuring in `docs/language-spec.md`). Re-evaluate if a `let`/refutable-binding form is ever introduced.
 
 ### 6.7 MISSING FIELDS IN RECORD PATTERN (C0506) — Error ✅ Implemented
 
@@ -1112,7 +1112,7 @@ Camp uses Perceus reference counting for deterministic memory management. These 
 | `diag_ambiguous_type` | C0306 | Wire into type inference |
 | `diag_unjoined_spawn` | C0905 | Wire into parallelism checker |
 | `diag_pointless_evaluation` | C0903 | Wire into unused analysis (TODO in `analysis/unused.odin:667`) |
-| `diag_unterminated_block_comment` | C0006 | Not applicable — Camp has no block comments (syntax-recipe §1). Retained for reference only. |
+| `diag_unterminated_block_comment` | C0006 | Not applicable — Camp has no block comments (language-spec §1). Retained for reference only. |
 
 ### Proposed New Diagnostics (25)
 
