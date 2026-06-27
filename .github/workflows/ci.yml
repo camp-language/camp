@@ -35,4 +35,6 @@ jobs:
         run: curl https://get.wasmer.io -sSfL | sh
 
       - name: Run checks
+        env:
+          PATH: /home/runner/.wasmer/bin:${{ env.PATH }}
         run: just check
