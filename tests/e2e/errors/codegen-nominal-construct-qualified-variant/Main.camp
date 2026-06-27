@@ -1,0 +1,6 @@
+@Result(a, e): pub [Ok(a) | Err(e)]
+
+pub main! = || -[Console!]-> I64 {
+  r = @Result.Ok(42)
+  0
+}
