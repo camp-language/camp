@@ -1,9 +1,13 @@
 stdout = """
 canonicalized /tmp/camp-e2e/effects/effect-handler-resume-twice/src/Main.camp: 2 declaration(s), 0 import(s)
 typecheck passed for /tmp/camp-e2e/effects/effect-handler-resume-twice/src/Main.camp
-compiled /tmp/camp-e2e/effects/effect-handler-resume-twice/src/Main.camp -> /tmp/camp-e2e/effects/effect-handler-resume-twice/src/Main.wasm
+-- C0407: DOUBLE RESUME IN HANDLER --- /tmp/camp-e2e/effects/effect-handler-resume-twice/src/Main.camp
+
+`resume` was called more than once in this handler arm for `read!`. Each handler
+arm may call `resume` at most once.
+   3 |   handle Ask! in Ask!.read!() with {
+         ^^^^^^
+compilation failed with 1 error(s)
 """
 stderr = ""
-exit = 0
-wasm_stdout = ""
-wasm_stderr_contains = "unreachable"
+exit = 1

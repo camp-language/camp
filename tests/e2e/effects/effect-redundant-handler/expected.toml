@@ -1,0 +1,14 @@
+args = "check-file"
+stdout = """
+-- C0409: REDUNDANT HANDLER --- /tmp/camp-e2e/effects/effect-redundant-handler/src/Main.camp
+
+This `handle` block handles `Ask!`, but that effect is never performed in the
+handled computation.
+   3 |   handle Ask! in 0 with {
+         ^^^^^^
+  Remove the handler arm for `Ask!`, or the computation may need to perform this effect.
+1 warning(s) found
+check passed for /tmp/camp-e2e/effects/effect-redundant-handler/src/Main.camp
+"""
+stderr = ""
+exit = 0

@@ -13,6 +13,11 @@ Type_Env :: struct {
 	handled_effects: [dynamic]base.Intern_ID,
 	current_module:  base.Intern_ID,
 	spawned_handles: [dynamic]base.Source_Span,
+	// True only for the lexical scope of a `handle` arm body (where
+	// `resume` is a legal identifier). Walked via in_handler_arm_scope to
+	// gate C0408 (invalid resume outside handler). The outer `handle` body
+	// scope itself is NOT an arm scope — `resume` is only bound in arms.
+	in_handler_arm:  bool,
 	// When typechecking the body of a `Type is Trait { method = |a: Self, …| }`
 	// impl, this is set to the owner type's var so `Self` annotations resolve
 	// to the implementing type. `NO_SELF_VAR` (== Type_Var_ID(-1)) outside an
@@ -51,6 +56,19 @@ env_lookup :: proc(env: ^Type_Env, name: base.Intern_ID) -> (base.Type_Var_ID, b
 		current = current.parent
 	}
 	return base.Type_Var_ID(-1), false
+}
+
+// in_handler_arm_scope reports whether `env` is (lexically) within a `handle`
+// arm body, where `resume` is a legal identifier. Used to gate C0408.
+in_handler_arm_scope :: proc(env: ^Type_Env) -> bool {
+	current := env
+	for current != nil {
+		if current.in_handler_arm {
+			return true
+		}
+		current = current.parent
+	}
+	return false
 }
 
 check_shadow :: proc(
@@ -179,6 +197,30 @@ format_effect_row :: proc(store: ^Type_Store, effects: base.Type_Var_ID) -> stri
 		return result
 	}
 	return "[]"
+}
+
+// effect_row_contains reports whether `effect_name` (compared modulo a
+// trailing `!` per canonical_effect_name) is present in the resolved effect
+// row `effects`. Returns false if the var is not yet a concrete row.
+effect_row_contains :: proc(
+	store: ^Type_Store,
+	effects: base.Type_Var_ID,
+	effect_name: base.Intern_ID,
+) -> bool {
+	rid := resolve_var(store, effects)
+	rv := store.vars[int(rid)]
+	it, is_inferred := rv.link.(Inferred_Type)
+	it_effect, is_effect := it.(Inferred_Effect_Row)
+	if !is_inferred || !is_effect {
+		return false
+	}
+	canonical_target := canonical_effect_name(store, effect_name)
+	for entry in it_effect.effects {
+		if canonical_effect_name(store, entry.name) == canonical_target {
+			return true
+		}
+	}
+	return false
 }
 
 typecheck_file :: proc(
@@ -442,6 +484,26 @@ typecheck_synth :: proc(expr: CExpr, env: ^Type_Env, store: ^Type_Store) -> Synt
 		}
 		var_id := fresh_value_var(store, e.span)
 		name_str := base.intern_get(store.interner, e.name.name)
+		// `resume` is only a legal identifier inside a `handle` arm body
+		// (where it is bound as the arm's first param). A bare `resume`
+		// reference that didn't resolve is C0408, not a generic undefined
+		// name. per docs/syntax-recipe.md §Handle:382-383 and catalog §5.9.
+		if name_str == "resume" && !in_handler_arm_scope(env) {
+			diagnostics.collector_add_diag(
+				store.collector,
+				diagnostics.diag_invalid_resume(e.span),
+			)
+			eff := fresh_effect_row(store, e.span)
+			t := new(TExpr_Name)
+			type_ir, eff_ir := type_eff_pair(store, var_id, eff)
+			t^ = TExpr_Name {
+				name  = e.name,
+				type_ = type_ir,
+				eff_  = eff_ir,
+				span  = e.span,
+			}
+			return Synth_Result{var_id = var_id, effects = eff, texpr = TExpr(t)}
+		}
 		similar := find_similar_names(name_str, env, store.interner)
 		defer delete(similar)
 		diagnostics.collector_add_diag(
@@ -741,6 +803,20 @@ typecheck_synth :: proc(expr: CExpr, env: ^Type_Env, store: ^Type_Store) -> Synt
 			_ = pop(&env.handled_effects)
 		}
 
+		// C0409: a `handle` block that lists an effect the body never
+		// performs has a redundant handler arm. Warn per catalog §5.10. Only
+		// fire when the body's effect row is concrete (after inference) so we
+		// don't false-positive during early unification.
+		for eff in e.effects {
+			if !effect_row_contains(store, body_result.effects, eff.name) {
+				effect_str := base.intern_get(store.interner, eff.name)
+				diagnostics.collector_add_diag(
+					store.collector,
+					diagnostics.diag_redundant_handler(effect_str, e.span),
+				)
+			}
+		}
+
 		arms_t := make([dynamic]THandler_Arm, len(e.arms))
 
 		for arm, arm_idx in e.arms {
@@ -750,11 +826,13 @@ typecheck_synth :: proc(expr: CExpr, env: ^Type_Env, store: ^Type_Store) -> Synt
 			arm_env.handled_effects = make([dynamic]base.Intern_ID, 0, 8)
 			arm_env.current_module = env.current_module
 			arm_env.impl_self_var = NO_SELF_VAR
+			arm_env.in_handler_arm = true
 
 			arm_body_result: Synth_Result
 
 			found_sig: Effect_Op_Sig
 			sig_found := false
+			owner_effect_name: base.Intern_ID = base.NO_NAME
 			for eff in e.effects {
 				// Effect decls are keyed by the suffix-less name; handle
 				// expressions may write `handle Ask!` or `handle Ask` (and
@@ -765,6 +843,7 @@ typecheck_synth :: proc(expr: CExpr, env: ^Type_Env, store: ^Type_Store) -> Synt
 						if sig.name == arm.op {
 							found_sig = sig
 							sig_found = true
+							owner_effect_name = eff.name
 							break
 						}
 					}
@@ -794,43 +873,37 @@ typecheck_synth :: proc(expr: CExpr, env: ^Type_Env, store: ^Type_Store) -> Synt
 				actual_param_count := len(arm.params) - 1
 				expected_param_count := sig.param_count
 				if actual_param_count != expected_param_count {
+					eff_str := base.intern_get(store.interner, owner_effect_name)
 					diagnostics.collector_add_diag(
 						store.collector,
-						diagnostics.diag_internal(
-							fmt.tprintf(
-								"handler arm `{}` has {} parameters, expected {}",
-								base.intern_get(store.interner, arm.op),
-								actual_param_count,
-								expected_param_count,
-							),
+						diagnostics.diag_handler_signature_mismatch(
+							eff_str,
+							expected_param_count,
+							actual_param_count,
 							arm.span,
 						),
 					)
 				}
 			} else {
-				effect_str := "unknown"
-				for eff, ei in e.effects {
-					if ei == 0 {
-						effect_str = base.intern_get(store.interner, eff.name)
-					} else {
-						effect_str = fmt.tprintf(
-							"{}, {}",
-							effect_str,
-							base.intern_get(store.interner, eff.name),
-						)
+				op_str := base.intern_get(store.interner, arm.op)
+				// Collect operation names declared by the block's effects to
+				// suggest a "Did you mean?" hint when the arm op is unknown.
+				similar_ops: [dynamic]string
+				defer delete(similar_ops)
+				for eff in e.effects {
+					key := canonical_effect_name(store, eff.name)
+					if op_sigs, has_sigs := store.effect_ops[key]; has_sigs {
+						for sig in op_sigs {
+							candidate := base.intern_get(store.interner, sig.name)
+							if levenshtein_distance(op_str, candidate) <= 2 {
+								append(&similar_ops, candidate)
+							}
+						}
 					}
 				}
-				op_str := base.intern_get(store.interner, arm.op)
 				diagnostics.collector_add_diag(
 					store.collector,
-					diagnostics.diag_internal(
-						fmt.tprintf(
-							"operation `{}` not found in effects `{}`",
-							op_str,
-							effect_str,
-						),
-						arm.span,
-					),
+					diagnostics.diag_effect_not_in_scope(op_str, similar_ops[:], arm.span),
 				)
 				for p in arm.params {
 					check_shadow(&arm_env, p, store, arm.span)
