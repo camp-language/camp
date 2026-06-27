@@ -1,6 +1,7 @@
 package ir
 
 import "camp:base"
+import "camp:diagnostics"
 import "camp:semantics"
 import "core:fmt"
 import "core:strings"
@@ -729,11 +730,26 @@ lower_tdecl_is_impl :: proc(d: ^semantics.TDecl_Is_Impl, env: ^Lower_Env) -> []I
 	// method (matches resolve_trait_method's returned name).
 	impl, impl_ok := semantics.find_trait_impl(env.store, d.trait_name.name, d.type_name.name)
 
-	// If the trait impl was not registered (e.g. From/TryFrom not in prelude),
-	// skip lowering entirely — the conformance check already silently skipped
-	// the impl, and lowering a body that references unresolved names produces
-	// malformed WASM (values remaining on stack).
+	// If the trait impl was not registered, conformance should already have
+	// emitted a diagnostic (C0607 trait not found, C0600 orphan, C0601
+	// overlapping, C0603 missing method, or C0604 signature mismatch). Emit an
+	// internal error rather than silently returning nil, so a future regression
+	// that skips conformance without a diagnostic is surfaced instead of
+	// erasing the impl methods (bean camp-j3u9).
 	if !impl_ok {
+		type_str := base.intern_get(env.interner, d.type_name.name)
+		trait_str := base.intern_get(env.interner, d.trait_name.name)
+		diagnostics.collector_add_diag(
+			env.store.collector,
+			diagnostics.diag_internal(
+				fmt.tprintf(
+					"trait impl `{}` for `{}` was not registered before lowering",
+					trait_str,
+					type_str,
+				),
+				d.span,
+			),
+		)
 		return nil
 	}
 

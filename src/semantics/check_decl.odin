@@ -454,6 +454,20 @@ typecheck_trait_decl :: proc(d: ^CDecl_Trait, env: ^Type_Env, store: ^Type_Store
 	store.bindings[d.name.name] = trait_var
 }
 
+// find_similar_traits returns trait names within Levenshtein distance 2 of
+// `name`, drawn from the trait registry. Used for "did you mean" hints when an
+// `is` impl references an unknown trait.
+find_similar_traits :: proc(name: string, store: ^Type_Store) -> [dynamic]string {
+	similar: [dynamic]string
+	for k, _ in store.trait_registry {
+		k_str := base.intern_get(store.interner, k)
+		if levenshtein_distance(name, k_str) <= 2 {
+			append(&similar, k_str)
+		}
+	}
+	return similar
+}
+
 verify_trait_conformance :: proc(
 	type_name: base.Intern_ID,
 	type_module: base.Intern_ID,
@@ -464,8 +478,17 @@ verify_trait_conformance :: proc(
 ) -> bool {
 	trait_info, ok := store.trait_registry[trait_name]
 	if !ok {
-		// Trait not in registry. Skip conformance silently — the impl body is
-		// still typechecked above, just not registered for dispatch.
+		// Trait not in registry. Previously this returned silently, which
+		// caused `lower_tdecl_is_impl` to erase the impl methods without any
+		// diagnostic (bean camp-j3u9). Emit C0607 so the user sees that the
+		// trait they are implementing does not exist.
+		trait_str := base.intern_get(store.interner, trait_name)
+		similar := find_similar_traits(trait_str, store)
+		defer delete(similar)
+		diagnostics.collector_add_diag(
+			store.collector,
+			diagnostics.diag_trait_not_found(trait_str, similar[:], span),
+		)
 		return false
 	}
 

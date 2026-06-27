@@ -1,0 +1,9 @@
+// An `is` impl of an undefined trait must error (C0607), not vanish (camp-j3u9).
+I64 is Bogus {
+  frob = |_x: Self| -> I64 { 0 }
+}
+
+pub main! = || -[Console!]-> I64 {
+  Console.println!("ok")
+  0
+}
