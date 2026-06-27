@@ -47,7 +47,7 @@ The `args = "check"` e2e special command invokes **project-mode** `check` (`run_
 ### C-FIX-1: `check_shadow` false C0201 on `$`-reassignment — FIXED
 - **File:** `src/semantics/typecheck.odin:46-72` (was `:46-62`)
 - **Root cause:** `check_shadow` exempted only `_`-prefixed names from the shadowing check (line 53). `$`-prefixed (reassignable) names were NOT exempted, so every `$x = …` reassignment to an existing in-scope `$x` emitted a false **C0201 SHADOWING**. Fired at `typecheck.odin:494` (the `^CExpr_Name` assignment case, which `^CExpr_Dollar_Identifier` canonicalizes into).
-- **Contradicts:** `docs/syntax-recipe.md:394` "`$x = expr` — mutable binding … `$x = 1` then `$x = 2`".
+- **Contradicts:** `docs/language-spec.md:394` "`$x = expr` — mutable binding … `$x = 1` then `$x = 2`".
 - **Fix:** added a `$`-prefix early-return in `check_shadow`, mirroring the existing `_`-prefix exemption.
 - **Verification:** `$x = 1; $x = 2; $x` now compiles clean (was C0201). `$x = 1; $x = $x` now cleanly reaches **C1001** (was C0201+C1001 via check, C0201-only via build). `just test-unit` → 468/468 pass (leaks are pre-existing, present on baseline too).
 - **Affects tests:** self-assignment, var-loop-exempt, var-loop-pure-unused, var-overwrite-before-read.

@@ -3,12 +3,12 @@
 title: Implement real stdlib trait bodies for Debug, Display, Eq, Hash (currently type-only stubs)
 status: todo
 type: task
-priority: low
+priority: normal
 tags:
     - stdlib
     - traits
 created_at: 2026-06-24T04:27:11Z
-updated_at: 2026-06-24T04:27:11Z
+updated_at: 2026-06-27T23:21:00Z
 ---
 
 Source: stdlib coverage sweep. These modules are 4-7 line type declarations with no impl bodies:

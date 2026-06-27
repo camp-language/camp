@@ -965,7 +965,7 @@ is_identifier_continue :: proc(ch: u8) -> bool {
 }
 
 // Valid escape sequences inside `"..."` string literals.
-// Mirrors docs/syntax-recipe.md §1 (`\n \t \r \\ \" \$`) plus `\0`
+// Mirrors docs/language-spec.md §1 (`\n \t \r \\ \" \$`) plus `\0`
 // (kept for compatibility with the C0003 constructor hint).
 is_valid_string_escape :: proc(ch: u8) -> bool {
 	switch ch {

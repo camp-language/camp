@@ -7,7 +7,7 @@ You are an AI assistant helping develop the Camp programming language - a strict
 ## Critical Constraints
 
 ### DO
-- Read `docs/syntax-recipe.md` before implementing — it is the authoritative syntax reference
+- Read `docs/language-spec.md` before implementing — it is the authoritative syntax reference
 - Read `docs/diagnostics-catalog.md` for error codes and messages
 - Read `docs/stdlib-design-notes.md` for stdlib design rationale
 - Read the code to understand current implementation — code is the source of truth
@@ -29,7 +29,7 @@ You are an AI assistant helping develop the Camp programming language - a strict
 
 ## Syntax Recipe — Authoritative Reference
 
-`docs/syntax-recipe.md` is the **single source of truth** for all Camp syntax decisions. It was produced from a comprehensive grilling session and represents the settled consensus on every syntax question.
+`docs/language-spec.md` is the **single source of truth** for all Camp syntax decisions. It was produced from a comprehensive grilling session and represents the settled consensus on every syntax question.
 
 ### Authority
 - When the recipe and a spec conflict, **the recipe wins** — update the spec to match
@@ -39,8 +39,7 @@ You are an AI assistant helping develop the Camp programming language - a strict
 ### Maintenance
 - If a syntax decision changes (through discussion with the project owner), update the recipe **first**, then propagate to specs, parser, and tests in the same commit
 - Never add syntax to the compiler or specs without recording the decision in the recipe
-- Section 15 of the recipe tracks the remaining compiler gaps — these are the known gaps between current implementation and the decided syntax
-- Section 14 tracks open TBD items — these need design decisions before implementation
+- Compiler implementation gaps and open design items are tracked as beans in `.beans/` (never in the recipe)
 
 ### Key Decisions (quick reference)
 - Effect rows: `|` separator. Pure: `->`, effectful: `-[e]->`
@@ -58,7 +57,7 @@ You are an AI assistant helping develop the Camp programming language - a strict
 ## Working Process
 
 1. **Understand the task** - Read the request carefully
-2. **Check specs** - Search `docs/<domain>-spec.md` for relevant requirements; if in doubt, check `docs/syntax-recipe.md` first
+2. **Check specs** - Search `docs/<domain>-spec.md` for relevant requirements; if in doubt, check `docs/language-spec.md` first
 3. **Read the code** - Understand current implementation; code is truth over docs
 4. **Propose approach** - Outline your implementation plan
 5. **Implement** - Write code following existing patterns
@@ -79,8 +78,8 @@ You are an AI assistant helping develop the Camp programming language - a strict
 Use **beans** (`.beans/`) for tracking all tasks — not TODO comments in docs, never GitHub Issues.
 
 ### When to create a bean
-- Parser/compiler implementation gaps (syntax-recipe.md §15)
-- Open design items needing decisions (syntax-recipe.md §14)
+- Parser/compiler implementation gaps
+- Open design items needing decisions
 - Known bugs or diagnostics to wire
 - Any non-trivial multi-step task
 - **All** issues — never GitHub Issues

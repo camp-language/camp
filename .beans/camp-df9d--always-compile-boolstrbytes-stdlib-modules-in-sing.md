@@ -3,13 +3,13 @@
 title: Always-compile Bool/Str/Bytes stdlib modules in single-file builds
 status: in-progress
 type: task
-priority: normal
+priority: high
 tags:
     - codegen
     - traits
     - stdlib
 created_at: 2026-06-21T05:09:00Z
-updated_at: 2026-06-22T06:30:00Z
+updated_at: 2026-06-27T23:21:00Z
 ---
 
 Decision A (camp-24mj). Expand ALWAYS_COMPILE in build.odin to include all

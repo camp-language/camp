@@ -3,9 +3,9 @@
 title: e2e harness fails to create /tmp/camp-e2e test dirs in sandboxed environments (os.make_directory_all Permission_Denied)
 status: todo
 type: bug
-priority: low
+priority: high
 created_at: 2026-06-21T03:00:00Z
-updated_at: 2026-06-21T03:00:00Z
+updated_at: 2026-06-27T23:21:00Z
 ---
 
 ## Symptom

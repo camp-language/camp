@@ -645,7 +645,7 @@ point = { map2_option <- x: Map.get(data, "x"), y: Map.get(data, "y") }
 - [ ] Add `Expr_Record_Builder` AST node in `src/frontend/ast.odin`
 - [ ] Modify `parser_parse_record_expr` in `src/frontend/parser.odin` to detect `<-`
 - [ ] Add builder desugaring in `src/semantics/canonicalize.odin`
-- [ ] Add syntax recipe section for record builders
+- [ ] Add language spec section for record builders
 - [ ] Add language spec section for record builders
 - [ ] Add e2e tests: 1, 2, 3, 4+ field builders
 - [ ] Add e2e tests: punning, dot-qualified combinator, error cases
@@ -657,7 +657,7 @@ point = { map2_option <- x: Map.get(data, "x"), y: Map.get(data, "y") }
 - [ ] Create `stdlib/Validate.camp` with effect definition
 - [ ] Implement `accumulate` bridge function
 - [ ] Add stdlib tests for `Validate!`
-- [ ] Add syntax recipe reference
+- [ ] Add language spec reference
 - [ ] Add e2e tests: accumulation, composition with other effects
 - [ ] Update kitchen-sink test
 

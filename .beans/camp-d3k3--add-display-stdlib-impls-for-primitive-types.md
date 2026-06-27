@@ -3,12 +3,12 @@
 title: Add Display stdlib impls for primitive types
 status: todo
 type: task
-priority: low
+priority: normal
 tags:
     - stdlib
     - traits
 created_at: 2026-06-22T06:30:00Z
-updated_at: 2026-06-22T06:30:00Z
+updated_at: 2026-06-27T23:21:00Z
 blocked_by:
     - camp-df9d
 ---
