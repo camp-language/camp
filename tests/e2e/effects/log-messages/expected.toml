@@ -1,0 +1,12 @@
+stdout = """
+canonicalized /tmp/camp-e2e/effects/log-messages/src/Main.camp: 1 declaration(s), 0 import(s)
+typecheck passed for /tmp/camp-e2e/effects/log-messages/src/Main.camp
+compiled /tmp/camp-e2e/effects/log-messages/src/Main.camp -> /tmp/camp-e2e/effects/log-messages/src/Main.wasm
+"""
+stderr = ""
+exit = 0
+wasm_exit = 0
+wasm_stdout = """
+done logging
+"""
+wasm_stderr = ""

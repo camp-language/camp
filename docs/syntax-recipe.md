@@ -502,6 +502,13 @@ match input {
 - Multiple effects per handle block: `handle E!, F! in body with { ... }`
 - Single effect per handle block also valid: `handle E! in body with { ... }`
 
+### Non-Prelude Runtime-Backed Effects (Process!)
+Runtime-backed effects that are not prelude effects SHALL be defined in the stdlib as regular effect declarations. Users SHALL import them explicitly. The codegen SHALL provide built-in handlers that bridge effect operations to host syscalls. `Process!` (backed by WASIX `proc_spawn`/`wait` via wasmer) is the canonical example.
+
+- `Process!.spawn!(cmd)` requires `import Process { Process!, Command, ProcessHandle, ... }`; `main!`'s effect row SHALL include `Process!`
+- When `Process!.spawn!` is performed, the runtime handler SHALL marshal the `Command` into WASIX `proc_spawn` arguments and return a `ProcessHandle` with optional pipe handles
+- When a `Command` has `stdout: Capture` and is spawned via `Process!.spawn!`, `ProcessHandle.stdout` SHALL be `Some(handle)` and `Process!.read!(handle)` SHALL return bytes from the child's stdout pipe
+
 ---
 
 ## 8. Entry Point
@@ -633,6 +640,7 @@ Both mechanisms:
 | Shebang dependency syntax | Decided: `deps` block | `deps { alias: "uri" }` before imports; script-only; see openspec/specs/packages |
 | `camp.toml` format | Decided: TOML | `[package]`, `[dependencies]`, `[dev-dependencies]`; bare URI deps; see openspec/specs/packages |
 | `camp build` / `camp test` CLI | TBD | Build system and test runner interface |
+| Process! effect runtime handler | In progress | WASIX proc_spawn/wait codegen wiring; see stdlib/Process.camp for effect definition |
 
 ---
 

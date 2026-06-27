@@ -24,6 +24,10 @@ Effect_Lower_Env :: struct {
 	file_id:         base.Intern_ID,
 	console_id:      base.Intern_ID,
 	time_id:         base.Intern_ID,
+	process_id:      base.Intern_ID,
+	env_id:          base.Intern_ID,
+	random_id:       base.Intern_ID,
+	log_id:          base.Intern_ID,
 	fn_effects:      map[base.Canonical_Name][dynamic]base.Canonical_Name,
 	camp_alloc_id:   base.Intern_ID,
 	camp_dealloc_id: base.Intern_ID,
@@ -31,10 +35,30 @@ Effect_Lower_Env :: struct {
 
 is_scheduler_effect_by_ids :: proc(
 	effect_name: base.Intern_ID,
-	async_id, spawn_id, parallel_id, file_id, console_id, time_id: base.Intern_ID,
+	async_id,
+	spawn_id,
+	parallel_id,
+	file_id,
+	console_id,
+	time_id,
+	process_id,
+	env_id,
+	random_id,
+	log_id: base.Intern_ID,
 	interner: ^base.Intern_Table,
 ) -> bool {
-	ids := []base.Intern_ID{async_id, spawn_id, parallel_id, file_id, console_id, time_id}
+	ids := []base.Intern_ID {
+		async_id,
+		spawn_id,
+		parallel_id,
+		file_id,
+		console_id,
+		time_id,
+		process_id,
+		env_id,
+		random_id,
+		log_id,
+	}
 	for id in ids {
 		if effect_name == id {
 			return true
@@ -68,6 +92,10 @@ is_scheduler_effect :: proc(effect: base.Canonical_Name, env: ^Effect_Lower_Env)
 		env.file_id,
 		env.console_id,
 		env.time_id,
+		env.process_id,
+		env.env_id,
+		env.random_id,
+		env.log_id,
 		env.interner,
 	)
 }
@@ -117,6 +145,10 @@ effect_lower :: proc(
 	env.file_id = base.intern(interner, "File!")
 	env.console_id = base.intern(interner, "Console!")
 	env.time_id = base.intern(interner, "Time!")
+	env.process_id = base.intern(interner, "Process!")
+	env.env_id = base.intern(interner, "Env!")
+	env.random_id = base.intern(interner, "Random!")
+	env.log_id = base.intern(interner, "Log!")
 	env.fn_effects = make(map[base.Canonical_Name][dynamic]base.Canonical_Name, 16)
 	env.camp_alloc_id = base.intern(interner, "camp_alloc")
 	env.camp_dealloc_id = base.intern(interner, "camp_dealloc")

@@ -5018,3 +5018,383 @@ emit_set_max_body :: proc(alloc_func_idx: int) -> Wasm_Code {
 	return Wasm_Code{locals = locals, body = body}
 }
 
+// ============================================================
+// Process! runtime functions (stubs)
+// ============================================================
+
+emit_camp_process_spawn_body :: proc(alloc_func_idx: int) -> Wasm_Code {
+	// STUB: (cmd_ptr: i32) -> i32
+	// Allocates a ProcessHandle record (16 bytes: pid + stdin + stdout + stderr),
+	// initializes all fields to 0, returns pointer.
+	// Locals: 0=result_ptr
+	buf: [dynamic]u8
+	buf = make([dynamic]u8, 0, CODE_BUF_DEFAULT)
+
+	// Allocate 16 bytes for ProcessHandle
+	emit_instruction(Wasm_I32_Const{value = 16}, &buf)
+	emit_instruction(Wasm_Call{index = u32(alloc_func_idx)}, &buf)
+	emit_instruction(Wasm_Local_Tee{index = 0}, &buf)
+
+	// Initialize pid = 0
+	emit_instruction(Wasm_Local_Get{index = 0}, &buf)
+	emit_instruction(Wasm_I32_Const{value = 0}, &buf)
+	emit_instruction(Wasm_I32_Store{align = 2, offset = 0}, &buf)
+
+	// Initialize stdin handle = 0
+	emit_instruction(Wasm_Local_Get{index = 0}, &buf)
+	emit_instruction(Wasm_I32_Const{value = 0}, &buf)
+	emit_instruction(Wasm_I32_Store{align = 2, offset = 4}, &buf)
+
+	// Initialize stdout handle = 0
+	emit_instruction(Wasm_Local_Get{index = 0}, &buf)
+	emit_instruction(Wasm_I32_Const{value = 0}, &buf)
+	emit_instruction(Wasm_I32_Store{align = 2, offset = 8}, &buf)
+
+	// Initialize stderr handle = 0
+	emit_instruction(Wasm_Local_Get{index = 0}, &buf)
+	emit_instruction(Wasm_I32_Const{value = 0}, &buf)
+	emit_instruction(Wasm_I32_Store{align = 2, offset = 12}, &buf)
+
+	// Return ProcessHandle pointer (still on stack from local.tee above)
+	emit_instruction(Wasm_End{}, &buf)
+
+	locals := make([]Wasm_Local_Decl, 1)
+	locals[0] = Wasm_Local_Decl {
+		count = 1,
+		type  = .I32,
+	}
+
+	body := make([]u8, len(buf))
+	for b, i in buf {body[i] = b}
+	delete(buf)
+	return Wasm_Code{locals = locals, body = body}
+}
+
+emit_camp_process_wait_body :: proc() -> Wasm_Code {
+	// STUB: (handle_ptr: i32) -> i32
+	// Returns exit code 0.
+	buf: [dynamic]u8
+	buf = make([dynamic]u8, 0, CODE_BUF_TINY)
+
+	// Return 0 (success exit code)
+	emit_instruction(Wasm_I32_Const{value = 0}, &buf)
+	emit_instruction(Wasm_End{}, &buf)
+
+	locals := make([]Wasm_Local_Decl, 0)
+
+	body := make([]u8, len(buf))
+	for b, i in buf {body[i] = b}
+	delete(buf)
+	return Wasm_Code{locals = locals, body = body}
+}
+
+emit_camp_process_read_body :: proc() -> Wasm_Code {
+	// STUB: (handle_ptr: i32) -> i32
+	// Returns null pointer as placeholder for empty Bytes.
+	buf: [dynamic]u8
+	buf = make([dynamic]u8, 0, CODE_BUF_TINY)
+
+	// Return null (0) as stub for empty Bytes pointer
+	emit_instruction(Wasm_I32_Const{value = 0}, &buf)
+	emit_instruction(Wasm_End{}, &buf)
+
+	locals := make([]Wasm_Local_Decl, 0)
+
+	body := make([]u8, len(buf))
+	for b, i in buf {body[i] = b}
+	delete(buf)
+	return Wasm_Code{locals = locals, body = body}
+}
+
+emit_camp_process_write_body :: proc() -> Wasm_Code {
+	// STUB: (handle_ptr: i32, bytes_ptr: i32) -> ()
+	// No-op.
+	buf: [dynamic]u8
+	buf = make([dynamic]u8, 0, CODE_BUF_TINY)
+
+	emit_instruction(Wasm_End{}, &buf)
+
+	locals := make([]Wasm_Local_Decl, 0)
+
+	body := make([]u8, len(buf))
+	for b, i in buf {body[i] = b}
+	delete(buf)
+	return Wasm_Code{locals = locals, body = body}
+}
+
+emit_camp_process_close_body :: proc() -> Wasm_Code {
+	// STUB: (handle_ptr: i32) -> ()
+	// No-op.
+	buf: [dynamic]u8
+	buf = make([dynamic]u8, 0, CODE_BUF_TINY)
+
+	emit_instruction(Wasm_End{}, &buf)
+
+	locals := make([]Wasm_Local_Decl, 0)
+
+	body := make([]u8, len(buf))
+	for b, i in buf {body[i] = b}
+	delete(buf)
+	return Wasm_Code{locals = locals, body = body}
+}
+
+emit_camp_process_run_body :: proc(alloc_func_idx: int) -> Wasm_Code {
+	// STUB: (cmd_ptr: i32) -> i32
+	// Allocates a ProcessResult record with exit_code=0, empty stdout/stderr.
+	// ProcessResult layout: [exit_code:4][stdout_ptr:4][stderr_ptr:4] = 12 bytes
+	// Locals: 0=result_ptr, 1=empty_bytes_ptr
+	buf: [dynamic]u8
+	buf = make([dynamic]u8, 0, CODE_BUF_DEFAULT)
+
+	// Allocate 8 bytes for empty Bytes: [len:4][cap:4]
+	emit_instruction(Wasm_I32_Const{value = 8}, &buf)
+	emit_instruction(Wasm_Call{index = u32(alloc_func_idx)}, &buf)
+	emit_instruction(Wasm_Local_Set{index = 1}, &buf) // store to local 1, remove from stack
+
+	// Set len = 0
+	emit_instruction(Wasm_Local_Get{index = 1}, &buf)
+	emit_instruction(Wasm_I32_Const{value = 0}, &buf)
+	emit_instruction(Wasm_I32_Store{align = 2, offset = 0}, &buf)
+
+	// Set cap = 0
+	emit_instruction(Wasm_Local_Get{index = 1}, &buf)
+	emit_instruction(Wasm_I32_Const{value = 0}, &buf)
+	emit_instruction(Wasm_I32_Store{align = 2, offset = 4}, &buf)
+
+	// Allocate 12 bytes for ProcessResult
+	emit_instruction(Wasm_I32_Const{value = 12}, &buf)
+	emit_instruction(Wasm_Call{index = u32(alloc_func_idx)}, &buf)
+	emit_instruction(Wasm_Local_Tee{index = 0}, &buf) // leave on stack for return
+
+	// Set exit_code = 0
+	emit_instruction(Wasm_Local_Get{index = 0}, &buf)
+	emit_instruction(Wasm_I32_Const{value = 0}, &buf)
+	emit_instruction(Wasm_I32_Store{align = 2, offset = 0}, &buf)
+
+	// Set stdout = empty_bytes_ptr
+	emit_instruction(Wasm_Local_Get{index = 0}, &buf)
+	emit_instruction(Wasm_Local_Get{index = 1}, &buf)
+	emit_instruction(Wasm_I32_Store{align = 2, offset = 4}, &buf)
+
+	// Set stderr = empty_bytes_ptr
+	emit_instruction(Wasm_Local_Get{index = 0}, &buf)
+	emit_instruction(Wasm_Local_Get{index = 1}, &buf)
+	emit_instruction(Wasm_I32_Store{align = 2, offset = 8}, &buf)
+
+	// Return ProcessResult pointer (still on stack from local.tee above)
+	emit_instruction(Wasm_End{}, &buf)
+
+	locals := make([]Wasm_Local_Decl, 2)
+	locals[0] = Wasm_Local_Decl {
+		count = 1,
+		type  = .I32,
+	}
+	locals[1] = Wasm_Local_Decl {
+		count = 1,
+		type  = .I32,
+	}
+
+	body := make([]u8, len(buf))
+	for b, i in buf {body[i] = b}
+	delete(buf)
+	return Wasm_Code{locals = locals, body = body}
+}
+
+// === Env! runtime function stubs ===
+
+emit_env_args_body :: proc(alloc_func_idx: int) -> Wasm_Code {
+	buf: [dynamic]u8
+	buf = make([dynamic]u8, 0, CODE_BUF_TINY)
+	emit_instruction(Wasm_I32_Const{value = 0}, &buf)
+	emit_instruction(Wasm_End{}, &buf)
+	locals := make([]Wasm_Local_Decl, 0)
+	body := make([]u8, len(buf))
+	for b, i in buf {body[i] = b}
+	delete(buf)
+	return Wasm_Code{locals = locals, body = body}
+}
+
+emit_env_vars_body :: proc(alloc_func_idx: int) -> Wasm_Code {
+	buf: [dynamic]u8
+	buf = make([dynamic]u8, 0, CODE_BUF_TINY)
+	emit_instruction(Wasm_I32_Const{value = 0}, &buf)
+	emit_instruction(Wasm_End{}, &buf)
+	locals := make([]Wasm_Local_Decl, 0)
+	body := make([]u8, len(buf))
+	for b, i in buf {body[i] = b}
+	delete(buf)
+	return Wasm_Code{locals = locals, body = body}
+}
+
+emit_env_get_body :: proc(alloc_func_idx: int) -> Wasm_Code {
+	buf: [dynamic]u8
+	buf = make([dynamic]u8, 0, CODE_BUF_TINY)
+	emit_instruction(Wasm_I32_Const{value = 0}, &buf)
+	emit_instruction(Wasm_End{}, &buf)
+	locals := make([]Wasm_Local_Decl, 0)
+	body := make([]u8, len(buf))
+	for b, i in buf {body[i] = b}
+	delete(buf)
+	return Wasm_Code{locals = locals, body = body}
+}
+
+// === Random! runtime function stubs ===
+
+emit_random_bytes_body :: proc(alloc_func_idx: int) -> Wasm_Code {
+	buf: [dynamic]u8
+	buf = make([dynamic]u8, 0, CODE_BUF_TINY)
+	emit_instruction(Wasm_I32_Const{value = 0}, &buf)
+	emit_instruction(Wasm_End{}, &buf)
+	locals := make([]Wasm_Local_Decl, 0)
+	body := make([]u8, len(buf))
+	for b, i in buf {body[i] = b}
+	delete(buf)
+	return Wasm_Code{locals = locals, body = body}
+}
+
+// === File! runtime function stubs ===
+
+emit_file_read_all_body :: proc(alloc_func_idx: int) -> Wasm_Code {
+	buf: [dynamic]u8
+	buf = make([dynamic]u8, 0, CODE_BUF_TINY)
+	emit_instruction(Wasm_I32_Const{value = 0}, &buf)
+	emit_instruction(Wasm_End{}, &buf)
+	locals := make([]Wasm_Local_Decl, 0)
+	body := make([]u8, len(buf))
+	for b, i in buf {body[i] = b}
+	delete(buf)
+	return Wasm_Code{locals = locals, body = body}
+}
+
+emit_file_write_all_body :: proc(alloc_func_idx: int) -> Wasm_Code {
+	buf: [dynamic]u8
+	buf = make([dynamic]u8, 0, CODE_BUF_TINY)
+	emit_instruction(Wasm_End{}, &buf)
+	locals := make([]Wasm_Local_Decl, 0)
+	body := make([]u8, len(buf))
+	for b, i in buf {body[i] = b}
+	delete(buf)
+	return Wasm_Code{locals = locals, body = body}
+}
+
+emit_file_read_dir_body :: proc(alloc_func_idx: int) -> Wasm_Code {
+	buf: [dynamic]u8
+	buf = make([dynamic]u8, 0, CODE_BUF_TINY)
+	emit_instruction(Wasm_I32_Const{value = 0}, &buf)
+	emit_instruction(Wasm_End{}, &buf)
+	locals := make([]Wasm_Local_Decl, 0)
+	body := make([]u8, len(buf))
+	for b, i in buf {body[i] = b}
+	delete(buf)
+	return Wasm_Code{locals = locals, body = body}
+}
+
+emit_file_create_dir_body :: proc(alloc_func_idx: int) -> Wasm_Code {
+	buf: [dynamic]u8
+	buf = make([dynamic]u8, 0, CODE_BUF_TINY)
+	emit_instruction(Wasm_End{}, &buf)
+	locals := make([]Wasm_Local_Decl, 0)
+	body := make([]u8, len(buf))
+	for b, i in buf {body[i] = b}
+	delete(buf)
+	return Wasm_Code{locals = locals, body = body}
+}
+
+emit_file_remove_dir_body :: proc(alloc_func_idx: int) -> Wasm_Code {
+	buf: [dynamic]u8
+	buf = make([dynamic]u8, 0, CODE_BUF_TINY)
+	emit_instruction(Wasm_End{}, &buf)
+	locals := make([]Wasm_Local_Decl, 0)
+	body := make([]u8, len(buf))
+	for b, i in buf {body[i] = b}
+	delete(buf)
+	return Wasm_Code{locals = locals, body = body}
+}
+
+emit_file_exists_body :: proc(alloc_func_idx: int) -> Wasm_Code {
+	buf: [dynamic]u8
+	buf = make([dynamic]u8, 0, CODE_BUF_TINY)
+	emit_instruction(Wasm_I32_Const{value = 0}, &buf)
+	emit_instruction(Wasm_End{}, &buf)
+	locals := make([]Wasm_Local_Decl, 0)
+	body := make([]u8, len(buf))
+	for b, i in buf {body[i] = b}
+	delete(buf)
+	return Wasm_Code{locals = locals, body = body}
+}
+
+emit_file_is_dir_body :: proc() -> Wasm_Code {
+	buf: [dynamic]u8
+	buf = make([dynamic]u8, 0, CODE_BUF_TINY)
+	emit_instruction(Wasm_I32_Const{value = 0}, &buf)
+	emit_instruction(Wasm_End{}, &buf)
+	locals := make([]Wasm_Local_Decl, 0)
+	body := make([]u8, len(buf))
+	for b, i in buf {body[i] = b}
+	delete(buf)
+	return Wasm_Code{locals = locals, body = body}
+}
+
+emit_file_is_file_body :: proc() -> Wasm_Code {
+	buf: [dynamic]u8
+	buf = make([dynamic]u8, 0, CODE_BUF_TINY)
+	emit_instruction(Wasm_I32_Const{value = 0}, &buf)
+	emit_instruction(Wasm_End{}, &buf)
+	locals := make([]Wasm_Local_Decl, 0)
+	body := make([]u8, len(buf))
+	for b, i in buf {body[i] = b}
+	delete(buf)
+	return Wasm_Code{locals = locals, body = body}
+}
+
+// === Log! runtime function stubs ===
+
+emit_log_write_body :: proc(alloc_func_idx: int) -> Wasm_Code {
+	buf: [dynamic]u8
+	buf = make([dynamic]u8, 0, CODE_BUF_TINY)
+	emit_instruction(Wasm_End{}, &buf)
+	locals := make([]Wasm_Local_Decl, 0)
+	body := make([]u8, len(buf))
+	for b, i in buf {body[i] = b}
+	delete(buf)
+	return Wasm_Code{locals = locals, body = body}
+}
+
+emit_log_flush_body :: proc(alloc_func_idx: int) -> Wasm_Code {
+	buf: [dynamic]u8
+	buf = make([dynamic]u8, 0, CODE_BUF_TINY)
+	emit_instruction(Wasm_End{}, &buf)
+	locals := make([]Wasm_Local_Decl, 0)
+	body := make([]u8, len(buf))
+	for b, i in buf {body[i] = b}
+	delete(buf)
+	return Wasm_Code{locals = locals, body = body}
+}
+
+// === Identity handler function for prelude effects ===
+
+emit_identity_handler_fn :: proc(env: ^Codegen_Env, cont_func_idx: int) -> (int, Wasm_Code) {
+	func_type_idx := get_or_create_type(
+		env,
+		[]Wasm_Value_Type{.I32, .I64, .I32},
+		[]Wasm_Value_Type{.I64},
+	)
+	fn_idx := add_function(env, func_type_idx)
+
+	buf: [dynamic]u8
+	buf = make([dynamic]u8, 0, CODE_BUF_MINOR)
+
+	emit_instruction(Wasm_Local_Get{index = 1}, &buf)
+	emit_instruction(Wasm_End{}, &buf)
+
+	locals := make([]Wasm_Local_Decl, 0)
+	body := make([]u8, len(buf))
+	for b, i in buf {body[i] = b}
+	delete(buf)
+	code := Wasm_Code {
+		locals = locals,
+		body   = body,
+	}
+	return fn_idx, code
+}
+

@@ -846,8 +846,8 @@ run_test :: proc(args: []string) -> Build_Result {
 			continue
 		}
 
-		// Run with wasmtime
-		wasm_stdout, wasm_stderr, exit_code := run_wasmtime_proc(tmp_wasm_path)
+		// Run with wasmer
+		wasm_stdout, wasm_stderr, exit_code := run_wasmer_proc(tmp_wasm_path)
 
 		os.remove_all(tmp_dir)
 
@@ -916,7 +916,7 @@ run_test :: proc(args: []string) -> Build_Result {
 			continue
 		}
 
-		wasm_stdout, wasm_stderr, exit_code := run_wasmtime_proc(tmp_wasm_path)
+		wasm_stdout, wasm_stderr, exit_code := run_wasmer_proc(tmp_wasm_path)
 
 		if exit_code == 0 {
 			pass_count += 1
@@ -991,7 +991,7 @@ run_run :: proc(args: []string) -> Build_Result {
 	}
 
 	fmt.printfln("running {}", output.wasm_path)
-	wasm_stdout, wasm_stderr, exit_code := run_wasmtime_proc(output.wasm_path)
+	wasm_stdout, wasm_stderr, exit_code := run_wasmer_proc(output.wasm_path)
 
 	if len(wasm_stdout) > 0 {
 		fmt.print(wasm_stdout)
@@ -1126,13 +1126,13 @@ compile_test_canon :: proc(
 	return err == nil
 }
 
-run_wasmtime_proc :: proc(wasm_path: string) -> (stdout: string, stderr: string, exit_code: int) {
-	wasmtime_bin := "wasmtime"
-	env_val := os.get_env("WASMTIME", context.allocator)
+run_wasmer_proc :: proc(wasm_path: string) -> (stdout: string, stderr: string, exit_code: int) {
+	wasmer_bin := "wasmer"
+	env_val := os.get_env("WASMER", context.allocator)
 	if len(env_val) > 0 {
-		wasmtime_bin = env_val
+		wasmer_bin = env_val
 	}
-	return run_command({wasmtime_bin, "run", wasm_path})
+	return run_command({wasmer_bin, "run", wasm_path})
 }
 
 run_command :: proc(command: []string) -> (stdout: string, stderr: string, exit_code: int) {

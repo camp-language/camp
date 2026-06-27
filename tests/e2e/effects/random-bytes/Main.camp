@@ -1,0 +1,5 @@
+pub main! = || -[Random! | Console! | Throw!([..])]-> I64 {
+  bytes = Random.bytes!(4)
+  Console.println!("got random bytes")
+  0
+}

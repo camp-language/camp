@@ -1,0 +1,5 @@
+pub main! = || -[Time! | Console! | Throw!([..])]-> I64 {
+  now = Time.monotonic!()
+  Console.println!("got duration")
+  0
+}

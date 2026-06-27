@@ -1,0 +1,12 @@
+stdout = """
+canonicalized /tmp/camp-e2e/effects/time-monotonic/src/Main.camp: 1 declaration(s), 0 import(s)
+typecheck passed for /tmp/camp-e2e/effects/time-monotonic/src/Main.camp
+compiled /tmp/camp-e2e/effects/time-monotonic/src/Main.camp -> /tmp/camp-e2e/effects/time-monotonic/src/Main.wasm
+"""
+stderr = ""
+exit = 0
+wasm_exit = 0
+wasm_stdout = """
+got duration
+"""
+wasm_stderr = ""

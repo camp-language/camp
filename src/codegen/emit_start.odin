@@ -210,6 +210,35 @@ emit_start_function :: proc(
 							break
 						}
 					}
+				} else if eff_name == "Time" ||
+				   eff_name == "Process" ||
+				   eff_name == "Env" ||
+				   eff_name == "Random" ||
+				   eff_name == "File" ||
+				   eff_name == "Log" {
+					// Identity handler: resume with original value for scheduler-handled effects
+					slot_offset := 0
+					for eff_def in ir_mod.effect_defs {
+						if eff_def.name == eff {
+							for op_idx in 0 ..< len(eff_def.operations) {
+								handler_idx, handler_code := emit_identity_handler_fn(
+									env,
+									cont_func_idx,
+								)
+								append(deferred_handler_codes, handler_code)
+								emit_handler_into_evidence(
+									&code_buf,
+									env,
+									ev_local_idx,
+									slot_offset,
+									handler_idx,
+									runtime_func_indices[:],
+								)
+								slot_offset += 4
+							}
+							break
+						}
+					}
 				} else {
 					// Generic unhandled effect handler: exit(1) for any operation
 					slot_offset := 0
