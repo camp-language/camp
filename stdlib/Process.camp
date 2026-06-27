@@ -4,6 +4,8 @@
 //   Low-level: spawn! → read!/write!/close! → wait!
 //   Simple: run! (spawn + wait + capture in one call)
 
+import List { append }
+
 // --- Types ---
 
 @Command : pub {
@@ -17,7 +19,7 @@
   stderr: StdioMode,
 }
 
-StdioMode : pub [Inherit | Capture | Null]
+@StdioMode : pub [Inherit | Capture | Null]
 
 @Handle : {}  // opaque file descriptor wrapper
 
@@ -36,7 +38,7 @@ StdioMode : pub [Inherit | Capture | Null]
   stderr: Bytes,
 }
 
-ProcessError : pub [SpawnFailed(Str) | TimedOut | IoError(Str)]
+@ProcessError : pub [SpawnFailed(Str) | TimedOut | IoError(Str)]
 
 // --- Effect operations ---
 
@@ -79,7 +81,7 @@ pub to_str = |r: ProcessResult| -> { exit_code: I32, stdout: Str, stderr: Str } 
 // --- Pure builder helpers ---
 
 pub from = |program: Str| -> Command {
-  {
+  @Command({
     program: program,
     args: [],
     env: [],
@@ -88,24 +90,24 @@ pub from = |program: Str| -> Command {
     stdin: Inherit,
     stdout: Inherit,
     stderr: Inherit,
-  }
+  })
 }
 
 pub arg = |cmd: Command, a: Str| -> Command {
-  {
+  @Command({
     program: cmd.program,
-    args: append(cmd.args, [a]),
+    args: List.append(cmd.args, [a]),
     env: cmd.env,
     clear_env: cmd.clear_env,
     working_dir: cmd.working_dir,
     stdin: cmd.stdin,
     stdout: cmd.stdout,
     stderr: cmd.stderr,
-  }
+  })
 }
 
 pub args = |cmd: Command, new_args: List(Str)| -> Command {
-  {
+  @Command({
     program: cmd.program,
     args: new_args,
     env: cmd.env,
@@ -114,11 +116,11 @@ pub args = |cmd: Command, new_args: List(Str)| -> Command {
     stdin: cmd.stdin,
     stdout: cmd.stdout,
     stderr: cmd.stderr,
-  }
+  })
 }
 
 pub env = |cmd: Command, key: Str, val: Str| -> Command {
-  {
+  @Command({
     program: cmd.program,
     args: cmd.args,
     env: Cons((key, val), cmd.env),
@@ -127,11 +129,11 @@ pub env = |cmd: Command, key: Str, val: Str| -> Command {
     stdin: cmd.stdin,
     stdout: cmd.stdout,
     stderr: cmd.stderr,
-  }
+  })
 }
 
 pub cwd = |cmd: Command, dir: Str| -> Command {
-  {
+  @Command({
     program: cmd.program,
     args: cmd.args,
     env: cmd.env,
@@ -140,11 +142,11 @@ pub cwd = |cmd: Command, dir: Str| -> Command {
     stdin: cmd.stdin,
     stdout: cmd.stdout,
     stderr: cmd.stderr,
-  }
+  })
 }
 
 pub capture_stdout = |cmd: Command| -> Command {
-  {
+  @Command({
     program: cmd.program,
     args: cmd.args,
     env: cmd.env,
@@ -153,11 +155,11 @@ pub capture_stdout = |cmd: Command| -> Command {
     stdin: cmd.stdin,
     stdout: Capture,
     stderr: cmd.stderr,
-  }
+  })
 }
 
 pub capture_stderr = |cmd: Command| -> Command {
-  {
+  @Command({
     program: cmd.program,
     args: cmd.args,
     env: cmd.env,
@@ -166,11 +168,11 @@ pub capture_stderr = |cmd: Command| -> Command {
     stdin: cmd.stdin,
     stdout: cmd.stdout,
     stderr: Capture,
-  }
+  })
 }
 
 pub capture_all = |cmd: Command| -> Command {
-  {
+  @Command({
     program: cmd.program,
     args: cmd.args,
     env: cmd.env,
@@ -179,11 +181,11 @@ pub capture_all = |cmd: Command| -> Command {
     stdin: cmd.stdin,
     stdout: Capture,
     stderr: Capture,
-  }
+  })
 }
 
 pub null_stdin = |cmd: Command| -> Command {
-  {
+  @Command({
     program: cmd.program,
     args: cmd.args,
     env: cmd.env,
@@ -192,5 +194,5 @@ pub null_stdin = |cmd: Command| -> Command {
     stdin: Null,
     stdout: cmd.stdout,
     stderr: cmd.stderr,
-  }
+  })
 }
