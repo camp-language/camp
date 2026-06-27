@@ -34,7 +34,8 @@ jobs:
       - name: Install wasmer
         run: curl https://get.wasmer.io -sSfL | sh
 
+      - name: Add wasmer to PATH
+        run: echo "/home/runner/.wasmer/bin" >> $GITHUB_PATH
+
       - name: Run checks
-        env:
-          PATH: /home/runner/.wasmer/bin:${{ env.PATH }}
         run: just check
