@@ -592,10 +592,7 @@ run_wasmer :: proc(
 	available: bool,
 ) {
 	wasmer_bin := resolve_wasmer()
-	stdout, stderr, exit_code = run_command_prefixed(
-		{wasmer_bin, "run", wasm_path},
-		unique_prefix,
-	)
+	stdout, stderr, exit_code = run_command_prefixed({wasmer_bin, "run", wasm_path}, unique_prefix)
 	if exit_code == -1 && stderr == "process timed out after 10s" {
 		return "", "", 0, false
 	}

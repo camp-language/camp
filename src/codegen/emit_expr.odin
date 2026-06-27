@@ -297,6 +297,20 @@ Runtime_Func :: enum {
 	Process_Write,
 	Process_Close,
 	Process_Run,
+	Env_Get,
+	Env_Vars,
+	Env_Args,
+	Random_Bytes,
+	File_Read_All,
+	File_Write_All,
+	File_List_Dir,
+	File_Create_Dir,
+	File_Remove,
+	File_Exists,
+	File_Is_Dir,
+	File_Is_File,
+	Log_Write,
+	Log_Flush,
 }
 
 RUNTIME_FUNC_COUNT :: int(len(Runtime_Func))
@@ -2339,6 +2353,10 @@ emit_expr :: proc(expr: ir.IR_Expr, buf: ^[dynamic]u8, env: ^Codegen_Env, runtim
 				env.file_id,
 				env.console_id,
 				env.time_id,
+				env.process_id,
+				env.env_id,
+				env.random_id,
+				env.log_id,
 				env.interner,
 			) {
 				is_sched = true
@@ -2430,10 +2448,15 @@ emit_expr :: proc(expr: ir.IR_Expr, buf: ^[dynamic]u8, env: ^Codegen_Env, runtim
 			env.file_id,
 			env.console_id,
 			env.time_id,
+			env.process_id,
+			env.env_id,
+			env.random_id,
+			env.log_id,
 			env.interner,
 		) {
 			effect_str := base.intern_get(env.interner, e.effect.name)
 			op_str := base.intern_get(env.interner, e.op)
+
 
 			if effect_str == "Async!" || effect_str == "Spawn!" {
 				// Async!/Spawn! operations map to scheduler runtime functions
@@ -2492,6 +2515,8 @@ emit_expr :: proc(expr: ir.IR_Expr, buf: ^[dynamic]u8, env: ^Codegen_Env, runtim
 						Wasm_Call{index = u32(runtime_indices[Runtime_Func.Sched_Yield])},
 						buf,
 					)
+					// Push Unit return value
+					emit_instruction(Wasm_I32_Const{value = 0}, buf)
 				} else if op_str == "cancel!" {
 					// camp_sched_cancel(handle_id) -> void
 					if len(e.args) >= 1 {
@@ -2503,13 +2528,14 @@ emit_expr :: proc(expr: ir.IR_Expr, buf: ^[dynamic]u8, env: ^Codegen_Env, runtim
 						Wasm_Call{index = u32(runtime_indices[Runtime_Func.Sched_Cancel])},
 						buf,
 					)
+					// Push Unit return value
+					emit_instruction(Wasm_I32_Const{value = 0}, buf)
 				} else {
 					emit_instruction(Wasm_Unreachable{}, buf)
 				}
-			} else if effect_str == "Time!" {
+			} else if effect_str == "Time!" || effect_str == "Time" {
 				if op_str == "sleep!" {
 					// camp_sched_timer_insert(ms, task_ptr) -> void
-					// For now, simplified: just call timer_insert with the duration
 					if len(e.args) >= 1 {
 						emit_expr(e.args[0], buf, env, runtime_indices)
 					} else {
@@ -2523,6 +2549,19 @@ emit_expr :: proc(expr: ir.IR_Expr, buf: ^[dynamic]u8, env: ^Codegen_Env, runtim
 						Wasm_Call{index = u32(runtime_indices[Runtime_Func.Sched_Timer_Insert])},
 						buf,
 					)
+					// Push Unit return value
+					emit_instruction(Wasm_I32_Const{value = 0}, buf)
+				} else if op_str == "monotonic!" {
+					// clock_time_get(clock_id=1=monotonic, precision=0, time_ptr) -> errno
+					// Allocate 8 bytes for the result time on the scratch area
+					emit_instruction(Wasm_I32_Const{value = 1}, buf) // clock_id = 1 (monotonic)
+					emit_instruction(Wasm_I64_Const{value = 0}, buf) // precision = 0
+					emit_instruction(Wasm_I32_Const{value = 4096}, buf) // time_ptr at scratch
+					emit_instruction(Wasm_Call{index = u32(7)}, buf) // clock_time_get import
+					emit_instruction(Wasm_Drop{}, buf) // drop errno
+					// Load the i64 time from scratch and return it
+					emit_instruction(Wasm_I32_Const{value = 4096}, buf)
+					emit_instruction(Wasm_I64_Load{align = 3, offset = 0}, buf)
 				} else {
 					emit_instruction(Wasm_Unreachable{}, buf)
 				}
@@ -2630,8 +2669,7 @@ emit_expr :: proc(expr: ir.IR_Expr, buf: ^[dynamic]u8, env: ^Codegen_Env, runtim
 				} else {
 					emit_instruction(Wasm_Unreachable{}, buf)
 				}
-			} else if effect_str == "Process!" ||
-			   effect_str == "Process" {
+			} else if effect_str == "Process!" || effect_str == "Process" {
 				// Process! operations route to WASIX-backed runtime functions
 				if op_str == "spawn!" {
 					// spawn!(cmd) -> ProcessHandle
@@ -2704,6 +2742,79 @@ emit_expr :: proc(expr: ir.IR_Expr, buf: ^[dynamic]u8, env: ^Codegen_Env, runtim
 				} else {
 					emit_instruction(Wasm_Unreachable{}, buf)
 				}
+			} else if effect_str == "Env!" || effect_str == "Env" {
+				// Env! operations
+				if op_str == "get!" {
+					if len(e.args) >= 1 {
+						emit_expr(e.args[0], buf, env, runtime_indices)
+						emit_instruction(Wasm_I32_Wrap_I64{}, buf)
+					} else {
+						emit_instruction(Wasm_I32_Const{value = 0}, buf)
+					}
+					emit_instruction(
+						Wasm_Call{index = u32(runtime_indices[Runtime_Func.Env_Get])},
+						buf,
+					)
+					emit_instruction(Wasm_I64_Extend_I32_S{}, buf)
+				} else if op_str == "vars!" {
+					emit_instruction(
+						Wasm_Call{index = u32(runtime_indices[Runtime_Func.Env_Vars])},
+						buf,
+					)
+					emit_instruction(Wasm_I64_Extend_I32_S{}, buf)
+				} else if op_str == "args!" {
+					emit_instruction(
+						Wasm_Call{index = u32(runtime_indices[Runtime_Func.Env_Args])},
+						buf,
+					)
+					emit_instruction(Wasm_I64_Extend_I32_S{}, buf)
+				} else {
+					emit_instruction(Wasm_Unreachable{}, buf)
+				}
+			} else if effect_str == "Random!" || effect_str == "Random" {
+				// Random! operations
+				if op_str == "bytes!" {
+					if len(e.args) >= 1 {
+						emit_expr(e.args[0], buf, env, runtime_indices)
+						emit_instruction(Wasm_I32_Wrap_I64{}, buf)
+					} else {
+						emit_instruction(Wasm_I32_Const{value = 0}, buf)
+					}
+					emit_instruction(
+						Wasm_Call{index = u32(runtime_indices[Runtime_Func.Random_Bytes])},
+						buf,
+					)
+					emit_instruction(Wasm_I64_Extend_I32_S{}, buf)
+				} else {
+					emit_instruction(Wasm_Unreachable{}, buf)
+				}
+			} else if effect_str == "Log!" || effect_str == "Log" {
+				// Log! operations — all map to Log_Write
+				if op_str == "info!" ||
+				   op_str == "warn!" ||
+				   op_str == "error!" ||
+				   op_str == "write!" {
+					if len(e.args) >= 1 {
+						emit_expr(e.args[0], buf, env, runtime_indices)
+					} else {
+						emit_instruction(Wasm_I32_Const{value = 0}, buf)
+					}
+					emit_instruction(
+						Wasm_Call{index = u32(runtime_indices[Runtime_Func.Log_Write])},
+						buf,
+					)
+					// Push Unit return value
+					emit_instruction(Wasm_I32_Const{value = 0}, buf)
+				} else if op_str == "flush!" {
+					emit_instruction(
+						Wasm_Call{index = u32(runtime_indices[Runtime_Func.Log_Flush])},
+						buf,
+					)
+					// Push Unit return value
+					emit_instruction(Wasm_I32_Const{value = 0}, buf)
+				} else {
+					emit_instruction(Wasm_Unreachable{}, buf)
+				}
 			} else if effect_str == "Parallel!" {
 				if op_str == "map!" && len(e.args) >= 2 {
 					// map!(fn, items) -> camp_parallel_map(fn_idx, fn_env, items_ptr, items_len, chunk_size)
@@ -2738,6 +2849,10 @@ emit_expr :: proc(expr: ir.IR_Expr, buf: ^[dynamic]u8, env: ^Codegen_Env, runtim
 						Wasm_Call{index = u32(runtime_indices[Runtime_Func.Parallel_Map])},
 						buf,
 					)
+					// Parallel operations return i32, but the perform type may be i64
+					if e.type.wasm_type == .I64 {
+						emit_instruction(Wasm_I64_Extend_I32_S{}, buf)
+					}
 				} else if op_str == "reduce!" && len(e.args) >= 3 {
 					fn_local := env.tmp_local_base + env.tmp_count; env.tmp_count += 1
 					emit_expr(e.args[0], buf, env, runtime_indices)

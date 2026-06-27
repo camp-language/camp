@@ -1,0 +1,7 @@
+pub main! = || -[Log! | Console! | Throw!([..])]-> I64 {
+  Log.info!("this is an info message")
+  Log.warn!("this is a warning")
+  Log.error!("this is an error")
+  Console.println!("done logging")
+  0
+}

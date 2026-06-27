@@ -1,0 +1,5 @@
+pub main! = || -[Env! | Console! | Throw!([..])]-> I64 {
+  args = Env.args!()
+  Console.println!("got args")
+  0
+}

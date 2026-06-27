@@ -104,6 +104,11 @@ Codegen_Env :: struct {
 	file_id:                 base.Intern_ID,
 	console_id:              base.Intern_ID,
 	time_id:                 base.Intern_ID,
+	process_id:              base.Intern_ID,
+	env_id:                  base.Intern_ID,
+	random_id:               base.Intern_ID,
+	log_id:                  base.Intern_ID,
+	ambient_id:              base.Intern_ID,
 	decl_to_wasm_fn_idx:     map[int]int,
 	const_globals:           map[base.Intern_ID]Const_Global_Info,
 	string_offsets:          map[base.Intern_ID]u32,
@@ -234,6 +239,86 @@ emit_wasi_imports :: proc(env: ^Codegen_Env) {
 	// sched_yield() -> errno
 	sched_yield_type := get_or_create_type(env, []Wasm_Value_Type{}, []Wasm_Value_Type{.I32})
 	add_import(env, WASI_MODULE, "sched_yield", .Func, sched_yield_type)
+
+	// random_get(buf: i32, buf_len: i32) -> errno
+	random_get_type := get_or_create_type(
+		env,
+		[]Wasm_Value_Type{.I32, .I32},
+		[]Wasm_Value_Type{.I32},
+	)
+	add_import(env, WASI_MODULE, "random_get", .Func, random_get_type)
+
+	// environ_sizes_get(count_ptr: i32, buf_size_ptr: i32) -> errno
+	environ_sizes_get_type := get_or_create_type(
+		env,
+		[]Wasm_Value_Type{.I32, .I32},
+		[]Wasm_Value_Type{.I32},
+	)
+	add_import(env, WASI_MODULE, "environ_sizes_get", .Func, environ_sizes_get_type)
+
+	// environ_get(environ_ptr: i32, environ_buf: i32) -> errno
+	environ_get_type := get_or_create_type(
+		env,
+		[]Wasm_Value_Type{.I32, .I32},
+		[]Wasm_Value_Type{.I32},
+	)
+	add_import(env, WASI_MODULE, "environ_get", .Func, environ_get_type)
+
+	// path_open(fd, dirflags, path, path_len, oflags, fs_rights_base, fs_rights_inheriting, fdflags, result_fd) -> errno
+	path_open_type := get_or_create_type(
+		env,
+		[]Wasm_Value_Type{.I32, .I32, .I32, .I32, .I32, .I64, .I64, .I32, .I32},
+		[]Wasm_Value_Type{.I32},
+	)
+	add_import(env, WASI_MODULE, "path_open", .Func, path_open_type)
+
+	// path_create_directory(fd, path, path_len) -> errno
+	path_create_directory_type := get_or_create_type(
+		env,
+		[]Wasm_Value_Type{.I32, .I32, .I32},
+		[]Wasm_Value_Type{.I32},
+	)
+	add_import(env, WASI_MODULE, "path_create_directory", .Func, path_create_directory_type)
+
+	// path_remove_directory(fd, path, path_len) -> errno
+	path_remove_directory_type := get_or_create_type(
+		env,
+		[]Wasm_Value_Type{.I32, .I32, .I32},
+		[]Wasm_Value_Type{.I32},
+	)
+	add_import(env, WASI_MODULE, "path_remove_directory", .Func, path_remove_directory_type)
+
+	// path_unlink_file(fd, path, path_len) -> errno
+	path_unlink_file_type := get_or_create_type(
+		env,
+		[]Wasm_Value_Type{.I32, .I32, .I32},
+		[]Wasm_Value_Type{.I32},
+	)
+	add_import(env, WASI_MODULE, "path_unlink_file", .Func, path_unlink_file_type)
+
+	// fd_readdir(fd, buf, buf_len, cookie, bufused) -> errno
+	fd_readdir_type := get_or_create_type(
+		env,
+		[]Wasm_Value_Type{.I32, .I32, .I32, .I64, .I32},
+		[]Wasm_Value_Type{.I32},
+	)
+	add_import(env, WASI_MODULE, "fd_readdir", .Func, fd_readdir_type)
+
+	// fd_filestat_get(fd, buf) -> errno
+	fd_filestat_get_type := get_or_create_type(
+		env,
+		[]Wasm_Value_Type{.I32, .I32},
+		[]Wasm_Value_Type{.I32},
+	)
+	add_import(env, WASI_MODULE, "fd_filestat_get", .Func, fd_filestat_get_type)
+
+	// fd_seek(fd, offset, whence, newoffset) -> errno
+	fd_seek_type := get_or_create_type(
+		env,
+		[]Wasm_Value_Type{.I32, .I64, .I32, .I32},
+		[]Wasm_Value_Type{.I32},
+	)
+	add_import(env, WASI_MODULE, "fd_seek", .Func, fd_seek_type)
 }
 
 // emit_wasix_imports adds WASIX process-spawning imports.
@@ -247,7 +332,22 @@ emit_wasix_imports :: proc(env: ^Codegen_Env) {
 	//            working_dir_ptr, working_dir_len, ret_handles_ptr) -> errno
 	proc_spawn_type := get_or_create_type(
 		env,
-		[]Wasm_Value_Type{.I32, .I32, .I32, .I32, .I32, .I32, .I32, .I32, .I32, .I32, .I32, .I32, .I32, .I32},
+		[]Wasm_Value_Type {
+			.I32,
+			.I32,
+			.I32,
+			.I32,
+			.I32,
+			.I32,
+			.I32,
+			.I32,
+			.I32,
+			.I32,
+			.I32,
+			.I32,
+			.I32,
+			.I32,
+		},
 		[]Wasm_Value_Type{.I32},
 	)
 	add_import(env, WASIX_MODULE, "proc_spawn", .Func, proc_spawn_type)
@@ -261,11 +361,7 @@ emit_wasix_imports :: proc(env: ^Codegen_Env) {
 	add_import(env, WASIX_MODULE, "proc_exec", .Func, proc_exec_type)
 
 	// proc_fork(ret_pid_ptr) -> errno
-	proc_fork_type := get_or_create_type(
-		env,
-		[]Wasm_Value_Type{.I32},
-		[]Wasm_Value_Type{.I32},
-	)
+	proc_fork_type := get_or_create_type(env, []Wasm_Value_Type{.I32}, []Wasm_Value_Type{.I32})
 	add_import(env, WASIX_MODULE, "proc_fork", .Func, proc_fork_type)
 
 	// wait(tid_ptr, options, ret_status_ptr, ret_exit_code_ptr) -> errno
@@ -277,27 +373,36 @@ emit_wasix_imports :: proc(env: ^Codegen_Env) {
 	add_import(env, WASIX_MODULE, "wait", .Func, wait_type)
 
 	// pid_get() -> errno (returns pid via pointer in the real spec, simplified here)
-	pid_get_type := get_or_create_type(
-		env,
-		[]Wasm_Value_Type{.I32},
-		[]Wasm_Value_Type{.I32},
-	)
+	pid_get_type := get_or_create_type(env, []Wasm_Value_Type{.I32}, []Wasm_Value_Type{.I32})
 	add_import(env, WASIX_MODULE, "pid_get", .Func, pid_get_type)
 }
 
 // WASI import function indices (offset from import_count base)
+WASI_IMPORT_FD_WRITE :: 1
+WASI_IMPORT_ARGS_GET :: 2
+WASI_IMPORT_ARGS_SIZES_GET :: 3
 WASI_IMPORT_POLL_ONEOFF :: 4
 WASI_IMPORT_FD_READ :: 5
 WASI_IMPORT_FD_CLOSE :: 6
 WASI_IMPORT_CLOCK_TIME_GET :: 7
 WASI_IMPORT_SCHED_YIELD :: 8
+WASI_IMPORT_RANDOM_GET :: 9
+WASI_IMPORT_ENVIRON_SIZES_GET :: 10
+WASI_IMPORT_ENVIRON_GET :: 11
+WASI_IMPORT_PATH_OPEN :: 12
+WASI_IMPORT_PATH_CREATE_DIR :: 13
+WASI_IMPORT_PATH_REMOVE_DIR :: 14
+WASI_IMPORT_PATH_UNLINK_FILE :: 15
+WASI_IMPORT_FD_READDIR :: 16
+WASI_IMPORT_FD_FILESTAT_GET :: 17
+WASI_IMPORT_FD_SEEK :: 18
 
 // WASIX import function indices (offset from import_count base, after WASI imports)
-WASIX_IMPORT_PROC_SPAWN :: 9
-WASIX_IMPORT_PROC_EXEC :: 10
-WASIX_IMPORT_PROC_FORK :: 11
-WASIX_IMPORT_WAIT :: 12
-WASIX_IMPORT_PID_GET :: 13
+WASIX_IMPORT_PROC_SPAWN :: 19
+WASIX_IMPORT_PROC_EXEC :: 20
+WASIX_IMPORT_PROC_FORK :: 21
+WASIX_IMPORT_WAIT :: 22
+WASIX_IMPORT_PID_GET :: 23
 
 emit_runtime_types :: proc(env: ^Codegen_Env) {
 	get_or_create_type(env, []Wasm_Value_Type{.I32}, []Wasm_Value_Type{.I32})
@@ -349,10 +454,25 @@ codegen :: proc(
 	env.file_id = base.intern(interner, "File!")
 	env.console_id = base.intern(interner, "Console!")
 	env.time_id = base.intern(interner, "Time!")
+	env.process_id = base.intern(interner, "Process!")
+	env.env_id = base.intern(interner, "Env!")
+	env.random_id = base.intern(interner, "Random!")
+	env.log_id = base.intern(interner, "Log!")
+	env.ambient_id = base.intern(interner, "Ambient!")
 	env.release_mode = release_mode
 
 	emit_wasi_imports(&env)
 	emit_runtime_types(&env)
+
+	// Conditionally emit WASIX imports based on Process! effect usage
+	has_process := false
+	for eff_def in ir_mod.effect_defs {
+		name := base.intern_get(interner, eff_def.name.name)
+		if name == "Process!" {has_process = true}
+	}
+	if has_process {
+		emit_wasix_imports(&env)
+	}
 
 	// Memory: shared when multi-threaded — runtime uses atomic instructions for Perceus RC
 	append(
@@ -862,29 +982,149 @@ codegen :: proc(
 
 	// Process! runtime function types
 	// Process_Spawn: (cmd_ptr: I32) -> I32 (handle)
-	process_spawn_type_idx := get_or_create_type(&env, []Wasm_Value_Type{.I32}, []Wasm_Value_Type{.I32})
+	process_spawn_type_idx := get_or_create_type(
+		&env,
+		[]Wasm_Value_Type{.I32},
+		[]Wasm_Value_Type{.I32},
+	)
 	process_spawn_func_idx := add_function(&env, process_spawn_type_idx)
 	runtime_func_indices[Runtime_Func.Process_Spawn] = process_spawn_func_idx
 	// Process_Wait: (handle: I32) -> I32 (exit code)
-	process_wait_type_idx := get_or_create_type(&env, []Wasm_Value_Type{.I32}, []Wasm_Value_Type{.I32})
+	process_wait_type_idx := get_or_create_type(
+		&env,
+		[]Wasm_Value_Type{.I32},
+		[]Wasm_Value_Type{.I32},
+	)
 	process_wait_func_idx := add_function(&env, process_wait_type_idx)
 	runtime_func_indices[Runtime_Func.Process_Wait] = process_wait_func_idx
 	// Process_Read: (handle: I32) -> I32 (bytes ptr)
-	process_read_type_idx := get_or_create_type(&env, []Wasm_Value_Type{.I32}, []Wasm_Value_Type{.I32})
+	process_read_type_idx := get_or_create_type(
+		&env,
+		[]Wasm_Value_Type{.I32},
+		[]Wasm_Value_Type{.I32},
+	)
 	process_read_func_idx := add_function(&env, process_read_type_idx)
 	runtime_func_indices[Runtime_Func.Process_Read] = process_read_func_idx
 	// Process_Write: (handle: I32, bytes_ptr: I32) -> Void
-	process_write_type_idx := get_or_create_type(&env, []Wasm_Value_Type{.I32, .I32}, []Wasm_Value_Type{})
+	process_write_type_idx := get_or_create_type(
+		&env,
+		[]Wasm_Value_Type{.I32, .I32},
+		[]Wasm_Value_Type{},
+	)
 	process_write_func_idx := add_function(&env, process_write_type_idx)
 	runtime_func_indices[Runtime_Func.Process_Write] = process_write_func_idx
 	// Process_Close: (handle: I32) -> Void
-	process_close_type_idx := get_or_create_type(&env, []Wasm_Value_Type{.I32}, []Wasm_Value_Type{})
+	process_close_type_idx := get_or_create_type(
+		&env,
+		[]Wasm_Value_Type{.I32},
+		[]Wasm_Value_Type{},
+	)
 	process_close_func_idx := add_function(&env, process_close_type_idx)
 	runtime_func_indices[Runtime_Func.Process_Close] = process_close_func_idx
 	// Process_Run: (cmd_ptr: I32) -> I32 (result ptr)
-	process_run_type_idx := get_or_create_type(&env, []Wasm_Value_Type{.I32}, []Wasm_Value_Type{.I32})
+	process_run_type_idx := get_or_create_type(
+		&env,
+		[]Wasm_Value_Type{.I32},
+		[]Wasm_Value_Type{.I32},
+	)
 	process_run_func_idx := add_function(&env, process_run_type_idx)
 	runtime_func_indices[Runtime_Func.Process_Run] = process_run_func_idx
+
+	// Env! runtime function types
+	// Env_Get: (key_ptr: I32) -> I32 (value_str_or_null)
+	env_get_type_idx := get_or_create_type(&env, []Wasm_Value_Type{.I32}, []Wasm_Value_Type{.I32})
+	env_get_func_idx := add_function(&env, env_get_type_idx)
+	runtime_func_indices[Runtime_Func.Env_Get] = env_get_func_idx
+	// Env_Vars: () -> I32 (list_ptr)
+	env_vars_type_idx := get_or_create_type(&env, []Wasm_Value_Type{}, []Wasm_Value_Type{.I32})
+	env_vars_func_idx := add_function(&env, env_vars_type_idx)
+	runtime_func_indices[Runtime_Func.Env_Vars] = env_vars_func_idx
+	// Env_Args: () -> I32 (list_ptr)
+	env_args_type_idx := get_or_create_type(&env, []Wasm_Value_Type{}, []Wasm_Value_Type{.I32})
+	env_args_func_idx := add_function(&env, env_args_type_idx)
+	runtime_func_indices[Runtime_Func.Env_Args] = env_args_func_idx
+
+	// Random! runtime function types
+	// Random_Bytes: (len: I32) -> I32 (bytes_ptr)
+	random_bytes_type_idx := get_or_create_type(
+		&env,
+		[]Wasm_Value_Type{.I32},
+		[]Wasm_Value_Type{.I32},
+	)
+	random_bytes_func_idx := add_function(&env, random_bytes_type_idx)
+	runtime_func_indices[Runtime_Func.Random_Bytes] = random_bytes_func_idx
+
+	// File! runtime function types
+	// File_Read_All: (path_ptr: I32) -> I32 (bytes_ptr)
+	file_read_all_type_idx := get_or_create_type(
+		&env,
+		[]Wasm_Value_Type{.I32},
+		[]Wasm_Value_Type{.I32},
+	)
+	file_read_all_func_idx := add_function(&env, file_read_all_type_idx)
+	runtime_func_indices[Runtime_Func.File_Read_All] = file_read_all_func_idx
+	// File_Write_All: (path_ptr: I32, bytes_ptr: I32) -> Void
+	file_write_all_type_idx := get_or_create_type(
+		&env,
+		[]Wasm_Value_Type{.I32, .I32},
+		[]Wasm_Value_Type{},
+	)
+	file_write_all_func_idx := add_function(&env, file_write_all_type_idx)
+	runtime_func_indices[Runtime_Func.File_Write_All] = file_write_all_func_idx
+	// File_List_Dir: (path_ptr: I32) -> I32 (list_ptr)
+	file_list_dir_type_idx := get_or_create_type(
+		&env,
+		[]Wasm_Value_Type{.I32},
+		[]Wasm_Value_Type{.I32},
+	)
+	file_list_dir_func_idx := add_function(&env, file_list_dir_type_idx)
+	runtime_func_indices[Runtime_Func.File_List_Dir] = file_list_dir_func_idx
+	// File_Create_Dir: (path_ptr: I32) -> Void
+	file_create_dir_type_idx := get_or_create_type(
+		&env,
+		[]Wasm_Value_Type{.I32},
+		[]Wasm_Value_Type{},
+	)
+	file_create_dir_func_idx := add_function(&env, file_create_dir_type_idx)
+	runtime_func_indices[Runtime_Func.File_Create_Dir] = file_create_dir_func_idx
+	// File_Remove: (path_ptr: I32) -> Void
+	file_remove_type_idx := get_or_create_type(&env, []Wasm_Value_Type{.I32}, []Wasm_Value_Type{})
+	file_remove_func_idx := add_function(&env, file_remove_type_idx)
+	runtime_func_indices[Runtime_Func.File_Remove] = file_remove_func_idx
+	// File_Exists: (path_ptr: I32) -> I32 (bool)
+	file_exists_type_idx := get_or_create_type(
+		&env,
+		[]Wasm_Value_Type{.I32},
+		[]Wasm_Value_Type{.I32},
+	)
+	file_exists_func_idx := add_function(&env, file_exists_type_idx)
+	runtime_func_indices[Runtime_Func.File_Exists] = file_exists_func_idx
+	// File_Is_Dir: (path_ptr: I32) -> I32 (bool)
+	file_is_dir_type_idx := get_or_create_type(
+		&env,
+		[]Wasm_Value_Type{.I32},
+		[]Wasm_Value_Type{.I32},
+	)
+	file_is_dir_func_idx := add_function(&env, file_is_dir_type_idx)
+	runtime_func_indices[Runtime_Func.File_Is_Dir] = file_is_dir_func_idx
+	// File_Is_File: (path_ptr: I32) -> I32 (bool)
+	file_is_file_type_idx := get_or_create_type(
+		&env,
+		[]Wasm_Value_Type{.I32},
+		[]Wasm_Value_Type{.I32},
+	)
+	file_is_file_func_idx := add_function(&env, file_is_file_type_idx)
+	runtime_func_indices[Runtime_Func.File_Is_File] = file_is_file_func_idx
+
+	// Log! runtime function types
+	// Log_Write: (msg_ptr: I32) -> Void
+	log_write_type_idx := get_or_create_type(&env, []Wasm_Value_Type{.I32}, []Wasm_Value_Type{})
+	log_write_func_idx := add_function(&env, log_write_type_idx)
+	runtime_func_indices[Runtime_Func.Log_Write] = log_write_func_idx
+	// Log_Flush: () -> Void
+	log_flush_type_idx := get_or_create_type(&env, []Wasm_Value_Type{}, []Wasm_Value_Type{})
+	log_flush_func_idx := add_function(&env, log_flush_type_idx)
+	runtime_func_indices[Runtime_Func.Log_Flush] = log_flush_func_idx
 
 	camp_alloc_code := emit_camp_alloc_body(heap_ptr_global_idx)
 	append(&mod.codes, camp_alloc_code)
@@ -1100,6 +1340,28 @@ codegen :: proc(
 	append(&mod.codes, emit_camp_process_write_body())
 	append(&mod.codes, emit_camp_process_close_body())
 	append(&mod.codes, emit_camp_process_run_body(alloc_func_idx))
+
+	// Env! runtime function bodies
+	append(&mod.codes, emit_env_get_body(alloc_func_idx))
+	append(&mod.codes, emit_env_vars_body(alloc_func_idx))
+	append(&mod.codes, emit_env_args_body(alloc_func_idx))
+
+	// Random! runtime function bodies
+	append(&mod.codes, emit_random_bytes_body(alloc_func_idx))
+
+	// File! runtime function bodies
+	append(&mod.codes, emit_file_read_all_body(alloc_func_idx))
+	append(&mod.codes, emit_file_write_all_body(alloc_func_idx))
+	append(&mod.codes, emit_file_read_dir_body(alloc_func_idx))
+	append(&mod.codes, emit_file_create_dir_body(alloc_func_idx))
+	append(&mod.codes, emit_file_remove_dir_body(alloc_func_idx))
+	append(&mod.codes, emit_file_exists_body(alloc_func_idx))
+	append(&mod.codes, emit_file_is_dir_body())
+	append(&mod.codes, emit_file_is_file_body())
+
+	// Log! runtime function bodies
+	append(&mod.codes, emit_log_write_body(alloc_func_idx))
+	append(&mod.codes, emit_log_flush_body(alloc_func_idx))
 
 	camp_alloc_name := base.intern(interner, "camp_alloc")
 	env.func_map[u64(camp_alloc_name)] = alloc_func_idx
