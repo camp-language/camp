@@ -3113,3 +3113,98 @@ test_rc_then_reuse_analyze_heap_drop_removed :: proc(t: ^testing.T) {
 	testing.expect(t, drops_after < drops_before)
 }
 
+// find_ir_call_by_callee walks an IR expression tree and returns the first
+// IR_Call whose callee matches `name` (plain intern ID lookup, ignoring
+// module qualifier). Used by recursive-call-type tests.
+find_ir_call_by_callee :: proc(expr: ir.IR_Expr, name: base.Intern_ID) -> ^ir.IR_Call {
+	if expr == nil do return nil
+	#partial switch e in expr {
+	case ^ir.IR_Call:
+		if e.callee.name == name do return e
+		for arg in e.args {
+			if found := find_ir_call_by_callee(arg, name); found != nil do return found
+		}
+	case ^ir.IR_Closure_Call:
+		for arg in e.args {
+			if found := find_ir_call_by_callee(arg, name); found != nil do return found
+		}
+	case ^ir.IR_If:
+		if found := find_ir_call_by_callee(e.condition, name); found != nil do return found
+		if found := find_ir_call_by_callee(e.then_branch, name); found != nil do return found
+		if found := find_ir_call_by_callee(e.else_branch, name); found != nil do return found
+	case ^ir.IR_Match:
+		if found := find_ir_call_by_callee(e.scrutinee, name); found != nil do return found
+		for arm in e.arms {
+			if found := find_ir_call_by_callee(arm.guard, name); found != nil do return found
+			if found := find_ir_call_by_callee(arm.body, name); found != nil do return found
+		}
+	case ^ir.IR_BinOp:
+		if found := find_ir_call_by_callee(e.left, name); found != nil do return found
+		if found := find_ir_call_by_callee(e.right, name); found != nil do return found
+	case ^ir.IR_Let:
+		if found := find_ir_call_by_callee(e.value, name); found != nil do return found
+		if found := find_ir_call_by_callee(e.body, name); found != nil do return found
+	case ^ir.IR_Construct_Tag:
+		for p in e.payload {
+			if found := find_ir_call_by_callee(p, name); found != nil do return found
+		}
+	case ^ir.IR_Block:
+		for stmt in e.statements {
+			if found := find_ir_call_by_callee(stmt, name); found != nil do return found
+		}
+	case ^ir.IR_Return:
+		if found := find_ir_call_by_callee(e.value, name); found != nil do return found
+	case:
+	}
+	return nil
+}
+
+// camp-jqvd: a recursive function returning a heap-backed tag union (List)
+// must lower its self-call's IR_Type with wasm_type=I32, not the stale I64
+// default captured mid-typecheck before unification resolves the return var.
+// A stale I64 reaches codegen's coerce_ret_to, which sign-extends the i32 call
+// result to i64 and breaks downstream stack typing (if/match arms consuming
+// the value). The rederive_call_type helper in lower.odin re-resolves the
+// call's type at IR-lowering time, mirroring the TExpr_Name re-resolve.
+@(test)
+test_lower_recursive_list_call_type_not_stale :: proc(t: ^testing.T) {
+	ctx: build.Compilation_Context
+	// `append` recurses, returning List(I64) (a payloaded tag union → i32 heap
+	// pointer). main! consumes the result via a match so the call node reaches
+	// a position where its wasm_type feeds coerce_ret_to.
+	source :=
+		"append = |xs: List(I64), ys: List(I64)| -> List(I64) {\n" +
+		"\tmatch xs {\n" +
+		"\t\tNil => ys\n" +
+		"\t\tCons(h, t) => Cons(h, append(t, ys))\n" +
+		"\t}\n}\n" +
+		"pub main! = || -> I64 {\n" +
+		"\tmatch append([1, 2], [3]) {\n" +
+		"\t\tNil => 0\n" +
+		"\t\tCons(h, _t) => h\n" +
+		"\t}\n}\n"
+	mod, store := lower_source(&ctx, source)
+	defer teardown_lower(&ctx, &store)
+
+	append_name := base.intern(&ctx.interner, "append")
+
+	// Search the main! body (and any nested decl body) for the recursive call.
+	found := false
+	for decl in mod.decls {
+		#partial switch d in decl {
+		case ^ir.IR_Decl_Fn:
+			if call := find_ir_call_by_callee(d.body, append_name); call != nil {
+				found = true
+				testing.expect(
+					t,
+					call.type.wasm_type == .I32,
+					"recursive List-returning call must be i32 heap pointer, not stale i64",
+				)
+				testing.expect(t, call.type.is_heap, "List call result must be heap-typed")
+			}
+		case:
+		}
+	}
+	testing.expect(t, found, "expected to find an append(self) recursive call in the lowered IR")
+}
+

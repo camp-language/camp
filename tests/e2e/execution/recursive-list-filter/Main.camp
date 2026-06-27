@@ -1,0 +1,24 @@
+// Recursive filter: an `if` inside a `match` arm returns a List (heap-backed
+// tag union). The recursive self-call produces an i32 pointer; codegen must NOT
+// sign-extend it to i64 (camp-jqvd: stale call-node type snapshot fooled
+// coerce_ret_to into i64.extend_i32_s, breaking the `if (result i32)` block).
+// The single recursive function + a non-recursive main consumer isolates the
+// codegen fix without tripping the separate multi-recursive-decl typecheck
+// crash (tracked independently).
+filter = |xs: List(I64)| -> List(I64) {
+  match xs {
+    Nil => Nil
+    Cons(h, t) => if h < 3 {
+      Cons(h, filter(t))
+    } else {
+      filter(t)
+    }
+  }
+}
+
+pub main! = || -> I64 {
+  match filter([1, 2, 3, 4, 5]) {
+    Nil => 0
+    Cons(h, _t) => h
+  }
+}
