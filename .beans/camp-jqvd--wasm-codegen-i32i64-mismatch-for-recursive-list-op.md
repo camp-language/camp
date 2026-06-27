@@ -1,7 +1,7 @@
 ---
 # camp-jqvd
 title: WASM codegen i32/i64 mismatch for recursive list operations
-status: todo
+status: in-progress
 type: bug
 priority: high
 tags:
@@ -9,7 +9,7 @@ tags:
     - wasm
     - list
 created_at: 2026-06-22T02:24:34Z
-updated_at: 2026-06-22T02:24:34Z
+updated_at: 2026-06-27T04:27:59Z
 ---
 
 ## Problem
@@ -45,3 +45,57 @@ The WASM codegen lowerer doesn't correctly handle the stack type for recursive f
 ## Impact
 
 Blocks: List.filter, List.sort, List.last, List is IntoIter, List is FromIter, and any stdlib code using recursive-list-in-match-arm patterns.
+
+
+## Resolution (2026-06-27)
+
+### Codegen fix — DONE
+
+Root cause confirmed: the `IR_Call` node's `type_.wasm_type` was a stale
+snapshot taken mid-typecheck (`src/semantics/check_expr.odin:148
+type_ = lower_type(store, return_var)`), before late unification resolved
+the recursive call's return var to a concrete heap-backed tag union (List →
+I32). Codegen's `coerce_ret_to` (`src/codegen/emit_expr.odin:1625`) then
+treated the stale I64 as `expected` and emitted `i64.extend_i32_s` after the
+i32 call result, breaking downstream `if (result i32)` / match-arm / store
+typing (`type mismatch: expected i32, found i64`).
+
+This is the same class of staleness already fixed for `TExpr_Name`
+(`src/ir/lower.odin:339-354`, "Re-resolve the wasm type from the final type
+var"). Applied the identical pattern to call lowering via a new
+`rederive_call_type` helper (`src/ir/lower.odin`) wired into every IR_Call
+construction site that previously copied the stale `e.type_` snapshot. Scoped
+to plain/method calls only — NOT resume/handle continuation types, since
+re-snapshotting those changed `resume`'s Funcref and broke call_indirect
+dispatch (the camp-9xi6 parallel-map regression documented at
+`src/semantics/typed.odin:841-872`). Function signatures (func_type results)
+are unaffected (computed from `d.return_type` at `src/codegen/codegen.odin:1219`).
+
+### Verification
+- Filter pattern now compiles, validates, and runs correctly:
+  `filter([1,2,3,4,5], |x| x < 3)` → head 1, exit code 1.
+- New E2E: `tests/e2e/execution/recursive-list-filter/` (single recursive
+  filter + non-recursive main consumer). All 205 e2e + 523 unit tests green.
+- New unit test `test_lower_recursive_list_call_type_not_stale`
+  (`src/test_ir.odin`) verifies the recursive call's `type.wasm_type == .I32`
+  and fails (stale I64) without the fix.
+
+### NOT done — blocked by separate pre-existing bug (camp-mntv)
+
+Re-enabling `List.filter` in `stdlib/List.camp` is blocked by a pre-existing
+typecheck segfault (signal 11) that triggers when two recursive top-level
+functions interact via a call (`n(append(...))`). Adding `filter` (an 8th
+recursive stdlib decl) tips List's import into the segfault, breaking
+`list-length-stdlib`, `list-compare-method`, `language/import-new-syntax`.
+Confirmed on `main` independent of this bean's fix. Tracked in camp-mntv.
+`List is IntoIter` / `FromIter` are likewise blocked on camp-mntv.
+
+### `just check` gate
+
+The gate is red on `main` BEFORE and AFTER this change due to an unrelated
+environment issue: `os.make_directory_all` returns `Permission_Denied` for
+`/tmp/camp-test-*` paths on this host (bash `mkdir` works; Odin runtime does
+not), so `camp test` cannot write its temp wasm and every stdlib doc-test
+fails with "compilation failed" (`src/build/build.odin:825` ignores the
+`make_directory_all` error). Unit + e2e suites (which use a different tmp
+path) are fully green.
