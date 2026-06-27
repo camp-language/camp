@@ -164,6 +164,7 @@ Type_Store :: struct {
 	trait_impls:          [dynamic]Trait_Impl,
 	type_constraints:     map[base.Type_Var_ID][]base.Intern_ID,
 	rec_vars:             map[base.Type_Var_ID]bool,
+	unify_visited:        [dynamic][2]base.Type_Var_ID,
 	effect_ops:           map[base.Intern_ID][]Effect_Op_Sig,
 	literal_int_values:   map[base.Type_Var_ID]i128,
 	literal_float_values: map[base.Type_Var_ID]f64,
@@ -188,6 +189,7 @@ type_store_init :: proc(
 	store.trait_impls = make([dynamic]Trait_Impl, 0, 16, allocator)
 	store.type_constraints = make(map[base.Type_Var_ID][]base.Intern_ID, 32, allocator)
 	store.rec_vars = make(map[base.Type_Var_ID]bool, 4, allocator)
+	store.unify_visited = make([dynamic][2]base.Type_Var_ID, 0, 16, allocator)
 	store.effect_ops = make(map[base.Intern_ID][]Effect_Op_Sig, 16, allocator)
 	store.literal_int_values = make(map[base.Type_Var_ID]i128, 16, allocator)
 	store.literal_float_values = make(map[base.Type_Var_ID]f64, 16, allocator)
@@ -253,6 +255,7 @@ type_store_destroy :: proc(store: ^Type_Store) {
 	delete(store.trait_impls)
 	delete(store.type_constraints)
 	delete(store.rec_vars)
+	delete(store.unify_visited)
 	delete(store.effect_ops)
 	delete(store.literal_int_values)
 	delete(store.literal_float_values)

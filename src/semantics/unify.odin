@@ -15,6 +15,31 @@ unify :: proc(store: ^Type_Store, a: base.Type_Var_ID, b: base.Type_Var_ID) -> b
 		return true
 	}
 
+	// Co-inductive guard (bean camp-mntv): when two recursive top-level
+	// decls reference each other (e.g. `n(append(...))` where both `n` and
+	// `append` are self-recursive), `unify` descends into structurally
+	// cyclic type graphs — each side's function structure references the
+	// other's self-var and `unify_inferred` bounces between the same
+	// resolved pair forever, exhausting the stack → SIGSEGV.
+	//
+	// `unify_visited` on the store tracks resolved var-pairs currently on
+	// the recursion stack. Re-entering with a pair already assumed
+	// successful returns true (the co-inductive hypothesis), letting outer
+	// frames complete the structural links and break the cycle. The
+	// top-level caller clears the stack so the set never leaks.
+	lo, hi := ra, rb
+	if int(lo) > int(hi) {
+		lo, hi = hi, lo
+	}
+	is_top_level := len(store.unify_visited) == 0
+	for pair in store.unify_visited {
+		if pair[0] == lo && pair[1] == hi {
+			return true
+		}
+	}
+	append(&store.unify_visited, [2]base.Type_Var_ID{lo, hi})
+	defer if is_top_level do clear(&store.unify_visited)
+
 	va := store.vars[int(ra)]
 	vb := store.vars[int(rb)]
 

@@ -163,3 +163,37 @@ test_check_decl_recursive_fn :: proc(t: ^testing.T) {
 	)
 }
 
+// camp-mntv: two self-recursive top-level decls where one consumes the other's
+// result (`n(append(...))`) previously caused an infinite unify recursion
+// (structurally cyclic type graphs between the two recursive self-vars) and a
+// segfault during typecheck. The unify co-inductive visit guard breaks the
+// cycle. This verifies the typecheck completes without crashing or errors.
+@(test)
+test_check_decl_two_recursive_decls_consume :: proc(t: ^testing.T) {
+	ctx: build.Compilation_Context
+	source :=
+		"append = |xs: List(I64), ys: List(I64)| -> List(I64) {\n" +
+		"  match xs {\n" +
+		"    Nil => ys\n" +
+		"    Cons(h, t) => Cons(h, append(t, ys))\n" +
+		"  }\n" +
+		"}\n" +
+		"n = |xs: List(I64)| -> I64 {\n" +
+		"  match xs {\n" +
+		"    Nil => 0\n" +
+		"    Cons(h, t) => 1 + n(t)\n" +
+		"  }\n" +
+		"}\n" +
+		"pub main! = || -> I64 { n(append([1, 2], [3])) }\n"
+	store, tfile := setup_for_typecheck(&ctx, source, {with_prelude = true})
+	defer build.context_destroy(&ctx)
+	defer semantics.type_store_destroy(store)
+
+	testing.expect(
+		t,
+		!diagnostics.diag_collector_has_errors(&ctx.collector),
+		"two recursive decls where one consumes the other must typecheck",
+	)
+	testing.expect(t, len(tfile.decls) == 3, "expected 3 decls")
+}
+
