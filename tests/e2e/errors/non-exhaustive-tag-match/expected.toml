@@ -1,0 +1,12 @@
+stdout = """
+canonicalized /tmp/camp-e2e/errors/non-exhaustive-tag-match/src/Main.camp: 2 declaration(s), 0 import(s)
+-- C0502: NON-EXHAUSTIVE MATCH --- /tmp/camp-e2e/errors/non-exhaustive-tag-match/src/Main.camp
+
+This match on `Color` is non-exhaustive: missing branch for `Blue`.
+   5 |   match c {
+         ^^^^^
+  Add a branch for `Blue`, or add a wildcard pattern.
+compilation failed with 1 error(s)
+"""
+stderr = ""
+exit = 1

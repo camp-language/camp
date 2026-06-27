@@ -1993,6 +1993,102 @@ newtype_owning_tag :: proc(
 	return base.NO_NAME, false
 }
 
+// newtype_owning_tags resolves the newtype that owns the variants matched
+// in a `match` expression. It scans the covered tag set and returns the
+// first newtype whose `owned_tags` contain at least one covered tag. Used
+// by exhaustiveness checking (C0502/C0504) to recover the closed variant
+// set, since the scrutinee's resolved row only carries the matched
+// variants (the row is open after unification with pattern rows).
+newtype_owning_tags :: proc(
+	store: ^Type_Store,
+	covered: map[base.Intern_ID]bool,
+) -> (
+	base.Intern_ID,
+	bool,
+) {
+	for nt_name, info in store.newtype_decls {
+		if len(info.owned_tags) == 0 do continue
+		for owned in info.owned_tags {
+			if covered[owned] {
+				return nt_name, true
+			}
+		}
+	}
+	return base.NO_NAME, false
+}
+
+// tag_union_type_name renders the type name to surface in C0502/C0504
+// diagnostics. For newtype-owned unions, it is the newtype's name. For
+// anonymous closed tag unions written inline as `[A | B | C]`, it renders
+// the declaration syntax so the user can locate the type.
+tag_union_type_name :: proc(
+	store: ^Type_Store,
+	nt_name: base.Intern_ID,
+	has_owned: bool,
+	variants: []base.Intern_ID,
+) -> string {
+	if has_owned {
+		return base.intern_get(store.interner, nt_name)
+	}
+	if len(variants) == 0 do return "tag union"
+	parts: [dynamic]string
+	defer delete(parts)
+	for v in variants {
+		append(&parts, base.intern_get(store.interner, v))
+	}
+	return fmt.tprintf("[{}]", strings.join(parts[:], " | "))
+}
+
+
+// nodes starting at `start_id`, collecting every `tag_entries` name into
+// `out` and returning whether the chain is CLOSED (a syntactic
+// `[A | B | C]` declaration——the `tag_rest` of the final row resolves to
+// `Type_Unlinked`/empty and at least one row in the chain is marked closed).
+// Returns false (open) if the chain ends in a fresh/unlinked rest that was
+// never closed by a declaration. Used by match exhaustiveness (C0502/C0504)
+// — the scrutinee's resolved var often points at the pattern's open row
+// (one entry), so the full variant set must be recovered by walking the
+// rest chain that unification stitched to the annotation's closed row.
+snapshot_tag_union_variants :: proc(
+	store: ^Type_Store,
+	start_id: base.Type_Var_ID,
+) -> []base.Intern_ID {
+	variants := make([dynamic]base.Intern_ID, 0, 4)
+	collect_tag_row_variants(store, start_id, &variants)
+	return variants[:]
+}
+
+collect_tag_row_variants :: proc(
+	store: ^Type_Store,
+	start_id: base.Type_Var_ID,
+	out: ^[dynamic]base.Intern_ID,
+) -> bool {
+	visited: map[base.Type_Var_ID]bool
+	defer delete(visited)
+	cur_id := resolve_var(store, start_id)
+	any_closed := false
+	max_steps := len(store.vars) + 1
+	for steps := 0; steps < max_steps; steps += 1 {
+		if visited[cur_id] do break
+		visited[cur_id] = true
+		link := store.vars[int(cur_id)].link
+		#partial switch inf in link {
+		case Inferred_Type:
+			#partial switch v in inf {
+			case Inferred_Tag_Union_Row:
+				if v.closed do any_closed = true
+				for te in v.tag_entries do append(out, te.name)
+				cur_id = resolve_var(store, v.tag_rest)
+			case:
+				break
+			}
+		case:
+			break
+		}
+	}
+	return any_closed
+}
+
 is_same_module :: proc(env: ^Type_Env, defining_module: base.Intern_ID) -> bool {
 	current := env
 	for current != nil {

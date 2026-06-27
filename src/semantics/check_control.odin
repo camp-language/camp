@@ -158,6 +158,16 @@ typecheck_pattern :: proc(
 			},
 		)
 		unify(store, scrutinee_var, rec_var)
+
+		// C0506 / C0507: validate the record pattern's field names against
+		// the scrutinee's resolved record type. After unification the
+		// scrutinee's row carries the actual declared fields. A pattern
+		// field absent from the record is C0507 (unknown field); a declared
+		// field absent from a non-open pattern is C0506 (missing field). Open
+		// patterns (`{ .. }` / `{ ..rest }`) explicitly ignore the rest, so
+		// they never report missing fields.
+		check_record_pattern_fields(p, scrutinee_var, store)
+
 		tp := new(TPattern_Record)
 		tp^ = TPattern_Record {
 			fields  = fields_t,
@@ -352,8 +362,206 @@ collect_pattern_coverage :: proc(pattern: CPattern, cov: ^Match_Coverage) {
 	}
 }
 
+// check_duplicate_bindings walks `pattern` and emits C0508 for any variable
+// name that appears more than once within a single (non-or) binding
+// context.
+check_duplicate_bindings :: proc(pattern: CPattern, store: ^Type_Store) {
+	seen: map[base.Intern_ID]base.Source_Span
+	defer delete(seen)
+	check_duplicate_bindings_rec(pattern, store, &seen)
+}
+
+check_duplicate_bindings_rec :: proc(
+	pattern: CPattern,
+	store: ^Type_Store,
+	seen: ^map[base.Intern_ID]base.Source_Span,
+) {
+	#partial switch p in pattern {
+	case ^CPattern_Identifier:
+		emit_dup_if_repeated(p.name, p.span, store, seen)
+	case ^CPattern_Wildcard:
+	case ^CPattern_Bool, ^CPattern_Int, ^CPattern_String, ^CPattern_Char:
+	case ^CPattern_Tag:
+		for sp in p.payload do check_duplicate_bindings_rec(sp, store, seen)
+	case ^CPattern_Record:
+		for sf in p.fields do emit_dup_if_repeated(sf.binding, sf.span, store, seen)
+		if p.rest != 0 do emit_dup_if_repeated(p.rest, p.span, store, seen)
+	case ^CPattern_Tuple:
+		for el in p.elements do check_duplicate_bindings_rec(el, store, seen)
+	case ^CPattern_List:
+		for el in p.elements do check_duplicate_bindings_rec(el, store, seen)
+		if p.rest != nil do check_duplicate_bindings_rec(p.rest, store, seen)
+	case ^CPattern_As:
+		emit_dup_if_repeated(p.name, p.span, store, seen)
+		check_duplicate_bindings_rec(p.inner, store, seen)
+	case ^CPattern_Or:
+		// Each or-branch is mutually exclusive; reset `seen` per branch so a
+		// name reused across branches is allowed (they never bind together).
+		for alt in p.alternatives {
+			branch_seen: map[base.Intern_ID]base.Source_Span
+			check_duplicate_bindings_rec(alt, store, &branch_seen)
+			delete(branch_seen)
+		}
+	case ^CPattern_Destructure:
+		check_duplicate_bindings_rec(p.inner, store, seen)
+	}
+}
+
+emit_dup_if_repeated :: proc(
+	name: base.Intern_ID,
+	span: base.Source_Span,
+	store: ^Type_Store,
+	seen: ^map[base.Intern_ID]base.Source_Span,
+) {
+	if _, ok := seen[name]; ok {
+		name_str := base.intern_get(store.interner, name)
+		diagnostics.collector_add_diag(
+			store.collector,
+			diagnostics.diag_duplicate_binding_pattern(name_str, span),
+		)
+	} else {
+		seen[name] = span
+	}
+}
+
+// pattern_span returns the source span of `pattern`'s syntactic node, or
+// `fallback` when the pattern carries no span (should not happen for
+// well-formed AST). Used so diagnostics point at the pattern token, not the
+// enclosing arm.
+pattern_span :: proc(pattern: CPattern, fallback: base.Source_Span) -> base.Source_Span {
+	#partial switch p in pattern {
+	case ^CPattern_Identifier:
+		return p.span
+	case ^CPattern_Wildcard:
+		return p.span
+	case ^CPattern_Bool:
+		return p.span
+	case ^CPattern_Int:
+		return p.span
+	case ^CPattern_String:
+		return p.span
+	case ^CPattern_Char:
+		return p.span
+	case ^CPattern_Tag:
+		return p.span
+	case ^CPattern_Record:
+		return p.span
+	case ^CPattern_Tuple:
+		return p.span
+	case ^CPattern_As:
+		return p.span
+	case ^CPattern_Or:
+		return p.span
+	case ^CPattern_Destructure:
+		return p.span
+	case ^CPattern_List:
+		return p.span
+	case:
+		return fallback
+	}
+}
+
+// check_record_pattern_fields validates a record pattern's field names
+// against the scrutinee's resolved record row (C0506 missing field, C0507
+// unknown field). Called after `scrutinee_var` unifies with the pattern's
+// fresh record row, so resolving `scrutinee_var` yields the actual declared
+// field set. `similar_fields` for the "Did you mean?" hint uses a substring
+// match against the declared names.
+check_record_pattern_fields :: proc(
+	p: ^CPattern_Record,
+	scrutinee_var: base.Type_Var_ID,
+	store: ^Type_Store,
+) {
+	resolved := resolve_var(store, scrutinee_var)
+	link := store.vars[int(resolved)].link
+	inf, is_inf := link.(Inferred_Type)
+	if !is_inf do return
+	row, is_row := inf.(Inferred_Record_Row)
+	if !is_row do return
+	if len(row.record_fields) == 0 do return
+
+	declared: map[base.Intern_ID]bool
+	defer delete(declared)
+	for f in row.record_fields do declared[f.name] = true
+
+	// C0507: pattern field not on the record type.
+	unknown_reported := false
+	for sf in p.fields {
+		if !declared[sf.name] {
+			similar := find_similar_fields(sf.name, row.record_fields, store)
+			type_name := record_row_type_name(store, row.record_fields)
+			field_str := base.intern_get(store.interner, sf.name)
+			diagnostics.collector_add_diag(
+				store.collector,
+				diagnostics.diag_unknown_field_pattern(field_str, type_name, similar, sf.span),
+			)
+			unknown_reported = true
+		}
+	}
+
+	// C0506: declared field absent from a non-open pattern. Open patterns
+	// (`{ .. }` / `{ ..rest }`) explicitly ignore remaining fields. Skip when
+	// a C0507 already fired for this pattern —— the unknown field is the
+	// primary error, and reporting missing fields against a pattern that
+	// names a non-existent field just doubles the noise.
+	if unknown_reported do return
+	if p.is_open do return
+	if p.rest != 0 do return
+	pattern_fields: map[base.Intern_ID]bool
+	defer delete(pattern_fields)
+	for sf in p.fields do pattern_fields[sf.name] = true
+	for f in row.record_fields {
+		if !pattern_fields[f.name] {
+			field_str := base.intern_get(store.interner, f.name)
+			diagnostics.collector_add_diag(
+				store.collector,
+				diagnostics.diag_missing_field_pattern(field_str, p.span),
+			)
+		}
+	}
+}
+
+// find_similar_fields returns up to one name from `declared` that resembles
+// `target` (one contains the other), for the C0507 "Did you mean `{}`?"
+// hint. Empty when no plausible match exists.
+find_similar_fields :: proc(
+	target: base.Intern_ID,
+	declared: []Type_Field_Entry,
+	store: ^Type_Store,
+) -> []string {
+	target_str := base.intern_get(store.interner, target)
+	for f in declared {
+		cand := base.intern_get(store.interner, f.name)
+		if strings.contains(target_str, cand) || strings.contains(cand, target_str) {
+			out := make([]string, 1)
+			out[0] = cand
+			return out
+		}
+	}
+	out := make([]string, 0)
+	return out
+}
+
+// record_row_type_name renders a readable name for an anonymous record row
+// by joining its field names (`{ x, y }`). Newtype-owned records would use
+// the newtype name; anonymous records are the common case here.
+record_row_type_name :: proc(store: ^Type_Store, fields: []Type_Field_Entry) -> string {
+	if len(fields) == 0 do return "record"
+	parts: [dynamic]string
+	defer delete(parts)
+	for f in fields do append(&parts, base.intern_get(store.interner, f.name))
+	return fmt.tprintf("{{ {} }}", strings.join(parts[:], ", "))
+}
+
 typecheck_match :: proc(e: ^CExpr_Match, env: ^Type_Env, store: ^Type_Store) -> Synth_Result {
 	scrutinee_result := typecheck_synth(e.scrutinee, env, store)
+	// Snapshot the scrutinee's full variant set BEFORE pattern typechecking.
+	// Pattern unification (open rows) decomposes the scrutinee's row chain
+	// into single-entry open rows, losing variants that lived in the
+	// annotation's closed row. Capturing the variant set now (by walking the
+	// rest chain) lets exhaustiveness checking (C0502/C0504) see every
+	// declared variant even after pattern rows overwrite the chain.
+	scrut_pre_variants := snapshot_tag_union_variants(store, scrutinee_result.var_id)
 
 	if len(e.arms) == 0 {
 		var_id := fresh_value_var(store, e.span)
@@ -409,6 +617,9 @@ typecheck_match :: proc(e: ^CExpr_Match, env: ^Type_Env, store: ^Type_Store) -> 
 		pat_result := typecheck_pattern(arm.pattern, scrutinee_result.var_id, env, store)
 		unify(store, effect_row, pat_result.effects)
 
+		// C0508: duplicate binding within a single pattern.
+		check_duplicate_bindings(arm.pattern, store)
+
 		// Typecheck guard if present (must be Bool)
 		guard_t: TExpr = nil
 		if arm.guard != nil {
@@ -451,10 +662,28 @@ typecheck_match :: proc(e: ^CExpr_Match, env: ^Type_Env, store: ^Type_Store) -> 
 			}
 		}
 		if is_redundant {
-			diagnostics.collector_add_diag(
-				store.collector,
-				diagnostics.diag_redundant_pattern(arm.span),
-			)
+			// C0509: a more specific case of C0503 — a wildcard or
+			// variable pattern that is unreachable because an earlier
+			// wildcard/variable already saturated coverage.
+			is_catch_all_redundant := false
+			if cov.saturated {
+				#partial switch p in arm.pattern {
+				case ^CPattern_Wildcard, ^CPattern_Identifier:
+					is_catch_all_redundant = true
+				case:
+				}
+			}
+			if is_catch_all_redundant {
+				diagnostics.collector_add_diag(
+					store.collector,
+					diagnostics.diag_wildcard_after_catch_all(pattern_span(arm.pattern, arm.span)),
+				)
+			} else {
+				diagnostics.collector_add_diag(
+					store.collector,
+					diagnostics.diag_redundant_pattern(arm.span),
+				)
+			}
 		}
 
 		collect_pattern_coverage(arm.pattern, &cov)
@@ -478,26 +707,70 @@ typecheck_match :: proc(e: ^CExpr_Match, env: ^Type_Env, store: ^Type_Store) -> 
 	case Inferred_Type:
 		#partial switch v in inf {
 		case Inferred_Tag_Union_Row:
-			if len(v.tag_entries) > 0 && !cov.saturated {
+			// C0502 / C0504: recover the full variant set for this tag union.
+			// The scrutinee's resolved var (after pattern typechecking) often
+			// points at the pattern's open row (one entry), because unification
+			// of a closed annotation row `[A | B]` with the open pattern row
+			// `[A, ...rest]` stitches the remaining variants onto the pattern's
+			// `tag_rest` rather than merging them into one row, and (for
+			// payloaded unions) does not propagate the `closed` flag. So we
+			// prefer the pre-pattern snapshot, then fall back to walking the
+			// current chain. If a newtype owns the matched tags, its
+			// `owned_tags` is the authoritative closed variant set instead.
+			nt_name, has_owned := newtype_owning_tags(store, cov.tags)
+			owned: []base.Intern_ID
+			if has_owned {
+				owned = store.newtype_decls[nt_name].owned_tags
+			} else if len(scrut_pre_variants) > 0 {
+				owned = scrut_pre_variants
+			} else {
+				owned_dyn := make([dynamic]base.Intern_ID, 0, 8)
+				collect_tag_row_variants(store, scrutinee_result.var_id, &owned_dyn)
+				owned = owned_dyn[:]
+				defer delete(owned_dyn)
+			}
+
+			// C0502: non-exhaustive tag-union match. The variant set comes
+			// from a newtype's owned_tags (closed by definition) or from
+			// walking the scrutinee's row chain (which only carries multiple
+			// variants when the scrutinee was annotated with a syntactic
+			// `[A | B | C]` declaration——a fresh inline tag construction
+			// yields a single-variant chain, so it produces no false
+			// positive). Skip when coverage is saturated (wildcard/variable
+			// arm present) —— that is always exhaustive.
+			if len(owned) > 0 && !cov.saturated {
 				missing_list: [dynamic]string
-				missing_list = make([dynamic]string, 0, len(v.tag_entries))
+				missing_list = make([dynamic]string, 0, len(owned))
 				defer delete(missing_list)
-				for te in v.tag_entries {
-					if !cov.tags[te.name] {
-						append(&missing_list, base.intern_get(store.interner, te.name))
+				for tag_id in owned {
+					if !cov.tags[tag_id] {
+						append(&missing_list, base.intern_get(store.interner, tag_id))
 					}
 				}
 				if len(missing_list) > 0 {
+					type_name := tag_union_type_name(store, nt_name, has_owned, owned)
 					missing := missing_list[0]
-					for j := 1; j < len(missing_list); j += 1 {
-						missing = fmt.tprintf("{}, {}", missing, missing_list[j])
-					}
 					diagnostics.collector_add_diag(
 						store.collector,
-						diagnostics.diag_internal(
-							fmt.tprintf("non-exhaustive match: missing branch for {}", missing),
-							e.span,
-						),
+						diagnostics.diag_non_exhaustive_tag(type_name, missing, e.span),
+					)
+				}
+			}
+			// C0504 fragile match: exhaustive without a wildcard when the
+			// union is newtype-owned with more than one variant. Adding a
+			// new variant would silently make this match non-exhaustive.
+			// Only fires for newtype-owned unions (anonymous `[A | B]`
+			// declarations can't gain variants after the fact).
+			if has_owned && len(owned) > 1 && !cov.saturated {
+				covered_all := true
+				for tag_id in owned {
+					if !cov.tags[tag_id] {covered_all = false; break}
+				}
+				if covered_all {
+					type_name := base.intern_get(store.interner, nt_name)
+					diagnostics.collector_add_diag(
+						store.collector,
+						diagnostics.diag_fragile_match(type_name, e.span),
 					)
 				}
 			}

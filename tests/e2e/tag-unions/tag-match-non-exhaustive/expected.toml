@@ -1,7 +1,12 @@
 stdout = """
 canonicalized /tmp/camp-e2e/tag-unions/tag-match-non-exhaustive/src/Main.camp: 2 declaration(s), 0 import(s)
-typecheck passed for /tmp/camp-e2e/tag-unions/tag-match-non-exhaustive/src/Main.camp
-compiled /tmp/camp-e2e/tag-unions/tag-match-non-exhaustive/src/Main.camp -> /tmp/camp-e2e/tag-unions/tag-match-non-exhaustive/src/Main.wasm
+-- C0502: NON-EXHAUSTIVE MATCH --- /tmp/camp-e2e/tag-unions/tag-match-non-exhaustive/src/Main.camp
+
+This match on `[Ok | Error]` is non-exhaustive: missing branch for `Error`.
+   2 | _y = match x { Ok(v) => v }
+            ^^^^^
+  Add a branch for `Error`, or add a wildcard pattern.
+compilation failed with 1 error(s)
 """
 stderr = ""
-exit = 0
+exit = 1
