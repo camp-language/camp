@@ -1,14 +1,14 @@
 ---
 # camp-j3u9
 title: Trait-impl lowering silently skips unregistered impls (lower.odin returns nil, produces no diagnostic)
-status: todo
+status: in-progress
 type: bug
 priority: high
 tags:
     - codegen
     - typecheck
 created_at: 2026-06-24T04:27:22Z
-updated_at: 2026-06-24T04:27:22Z
+updated_at: 2026-06-27T03:08:35Z
 ---
 
 Source: error-path sweep. src/ir/lower.odin:736-737 — trait-impl lowering returns nil silently when an impl was not registered (comment: "the conformance check already silently skipped the impl"). From/TryFrom impls not in prelude vanish without telling the user. This is a silent gap: a user writes a trait impl, it is skipped at conformance, and again at lowering, with no error — the methods simply disappear.
