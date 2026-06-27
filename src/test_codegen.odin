@@ -3,6 +3,7 @@ package camp
 import "camp:base"
 import "camp:build"
 import "camp:codegen"
+import "camp:diagnostics"
 import "camp:frontend"
 import "camp:ir"
 import "camp:semantics"
@@ -548,5 +549,54 @@ test_size_import_pruning_pure :: proc(t: ^testing.T) {
 		import_count == 2,
 		fmt.tprintf("pure program imports: got %d, expected 2", import_count),
 	)
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// codegen_internal_error (C9000) helper coverage
+// ═══════════════════════════════════════════════════════════════════════════════
+// Several codegen paths are defensive: they can only be reached through a
+// compiler bug in an earlier stage (e.g. an unresolved IR_Method_Call that
+// monomorphization should have eliminated, or an unknown scheduler-effect
+// operation). These are not triggerable from valid Camp source, so the e2e
+// suite cannot exercise them. This test covers the helper contract that all
+// such defensive paths rely on: a C9000 internal diagnostic lands in the
+// collector and is visible to the post-codegen error check in build.odin.
+
+@(test)
+test_codegen_internal_error_records_c9000 :: proc(t: ^testing.T) {
+	collector: diagnostics.Diagnostic_Collector
+	diagnostics.diag_collector_init(&collector)
+	defer diagnostics.diag_collector_destroy(&collector)
+
+	env: codegen.Codegen_Env
+	env.collector = &collector
+
+	span := base.Source_Span {
+		file_id = 0,
+		start   = 42,
+		end     = 47,
+	}
+	codegen.codegen_internal_error(&env, span, "unresolved method call reached codegen")
+
+	testing.expect(t, collector.internal_count == 1)
+	testing.expect(t, collector.error_count == 0)
+	testing.expect(t, diagnostics.diag_collector_has_errors(&collector))
+	testing.expect(t, len(collector.diagnostics) == 1)
+	testing.expect(t, collector.diagnostics[0].code == "C9000")
+	testing.expect(t, collector.diagnostics[0].category == .Internal)
+	testing.expect(t, collector.diagnostics[0].span.start == 42)
+	testing.expect(t, collector.diagnostics[0].span.end == 47)
+}
+
+@(test)
+test_codegen_internal_error_nil_collector_is_noop :: proc(t: ^testing.T) {
+	// A Codegen_Env with no collector wired in must not crash. This guards
+	// the standalone codegen entry points used by unit tests.
+	env: codegen.Codegen_Env
+	env.collector = nil
+
+	codegen.codegen_internal_error(&env, base.Source_Span_ZERO, "anything")
+
+	testing.expect(t, true) // reaching here is the assertion
 }
 
