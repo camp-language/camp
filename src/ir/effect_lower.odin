@@ -298,6 +298,49 @@ el_find_evidence :: proc(effect: base.Canonical_Name, env: ^Effect_Lower_Env) ->
 	return base.NO_NAME
 }
 
+el_count_resume_calls :: proc(expr: IR_Expr) -> int {
+	if expr == nil do return 0
+	#partial switch e in expr {
+	case ^IR_Resume:
+		// Count this resume, plus any resumes nested in its value (e.g.
+		// `resume(resume(1))` yields a nested IR_Resume → 2 calls).
+		return 1 + el_count_resume_calls(e.value)
+	case ^IR_Call:
+		count := 0
+		for arg in e.args {
+			count += el_count_resume_calls(arg)
+		}
+		return count
+	case ^IR_Closure_Call:
+		count := el_count_resume_calls(e.callee)
+		for arg in e.args {
+			count += el_count_resume_calls(arg)
+		}
+		return count
+	case ^IR_Let:
+		return el_count_resume_calls(e.value) + el_count_resume_calls(e.body)
+	case ^IR_If:
+		return(
+			el_count_resume_calls(e.condition) +
+			el_count_resume_calls(e.then_branch) +
+			el_count_resume_calls(e.else_branch) \
+		)
+	case ^IR_Block:
+		count := 0
+		for stmt in e.statements {
+			count += el_count_resume_calls(stmt)
+		}
+		return count
+	case ^IR_Return:
+		return el_count_resume_calls(e.value)
+	case ^IR_BinOp:
+		return el_count_resume_calls(e.left) + el_count_resume_calls(e.right)
+	case:
+		return 0
+	}
+	return 0
+}
+
 el_replace_resume :: proc(
 	expr: IR_Expr,
 	resume_id: base.Intern_ID,
@@ -1073,6 +1116,19 @@ el_lower_expr :: proc(expr: IR_Expr, env: ^Effect_Lower_Env) -> IR_Expr {
 				ev_param,
 				env,
 			)
+
+			// C0407: one-shot resume — each arm may call `resume` at most once.
+			// docs/syntax-recipe.md §Handle:383: "Resume: one-shot (0 or 1
+			// times) ... Compile-time detection where possible." Count
+			// explicit resume calls in the (already-rewritten) arm body,
+			// before the implicit-resume wrap below adds its own.
+			if el_count_resume_calls(transformed_body) > 1 {
+				effect_str := base.intern_get(env.interner, arm.op)
+				diagnostics.collector_add_diag(
+					env.collector,
+					diagnostics.diag_double_resume(effect_str, e.span),
+				)
+			}
 
 			// Wrap non-resume body in implicit resume call to the continuation
 			if _, is_resume := transformed_body.(^IR_Resume); !is_resume {

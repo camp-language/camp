@@ -1,0 +1,6 @@
+Ask! : { read!: |I64| -[Ask!]-> I64 }
+main! = || -> I64 {
+  handle Ask! in Ask!.read!(1) with {
+    .read!(resume) => resume(42)
+  }
+}

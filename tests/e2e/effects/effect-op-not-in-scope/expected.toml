@@ -1,0 +1,19 @@
+stdout = """
+canonicalized /tmp/camp-e2e/effects/effect-op-not-in-scope/src/Main.camp: 2 declaration(s), 0 import(s)
+-- C0409: REDUNDANT HANDLER --- /tmp/camp-e2e/effects/effect-op-not-in-scope/src/Main.camp
+
+This `handle` block handles `Ask!`, but that effect is never performed in the
+handled computation.
+   3 |   handle Ask! in 0 with {
+         ^^^^^^
+  Remove the handler arm for `Ask!`, or the computation may need to perform this effect.
+
+-- C0404: EFFECT NOT IN SCOPE --- /tmp/camp-e2e/effects/effect-op-not-in-scope/src/Main.camp
+
+Effect `write!` is not defined. Did you mean to import it?
+   4 |     .write!(resume) => resume(0)
+            ^^^^^^
+compilation failed with 1 error(s)
+"""
+stderr = ""
+exit = 1

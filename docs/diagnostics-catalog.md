@@ -501,7 +501,7 @@ Camp's algebraic effect system is its most distinctive feature. These diagnostic
 
 **Rationale:** When a function's actual effects don't match its declared effect row, the error should show both rows and identify the discrepancy. This is distinct from C0312 (cannot unify rows) because this is about a function declaration vs its body.
 
-### 5.4 UNNECESSARY EFFECT IN SIGNATURE (C0403) — Warning 🆕 New
+### 5.4 UNNECESSARY EFFECT IN SIGNATURE (C0403) — Warning ✅ Implemented
 
 > Effect `{effect}` is listed in this function's effect row, but the function never performs it.
 
@@ -509,7 +509,9 @@ Camp's algebraic effect system is its most distinctive feature. These diagnostic
 
 **Rationale:** Over-declaring effects is not an error (it's a subtype relationship), but it's likely a mistake or leftover from refactoring. Similar to Rust's `unused_mut` — the code works but the annotation is misleading.
 
-### 5.5 EFFECT NOT IN SCOPE (C0404) — Error 🆕 New
+**Status note (camp-1zmy):** Emitted from `src/semantics/check_expr.odin` — `typecheck_lambda`, after the body's inferred effect row is captured but before the declared annotation is unified in (the annotation unify would otherwise merge the declared set into the body row, hiding the discrepancy). Prelude effects (Console!, Throw!, …) are exempt: the documented `main!` boilerplate `-[Console! | Throw!([..])]->` declares the program's effect budget provisionally, and prelude effects on entry points are conventional rather than refactoring leftovers. User-defined effects declared-but-unused remain flagged. Open effect rows (`..rest`) are skipped (cannot reason about polymorphic extras).
+
+### 5.5 EFFECT NOT IN SCOPE (C0404) — Error ✅ Implemented
 
 > Effect `{name}` is not defined. Did you mean to import it?
 
@@ -517,13 +519,17 @@ Camp's algebraic effect system is its most distinctive feature. These diagnostic
 
 **Rationale:** Referencing an undefined effect in a type annotation or `perform`. Currently this would fall under "undefined name" but deserves its own error because effects are a distinct namespace.
 
-### 5.6 HANDLER SIGNATURE MISMATCH (C0405) — Error 🆕 New
+**Status note (camp-1zmy):** Emitted from `src/semantics/typecheck.odin` — the `^CExpr_Handle` arm of `typecheck_synth`, replacing the prior `diag_internal("operation … not found in effects …")` call site. The diagnostic names the unknown operation and offers a "Did you mean?" hint collected from operations declared by the block's effects (Levenshtein distance ≤ 2). This is the C9000 → C0404 conversion called out in §14.1.
 
-> Handler arm for `{effect}` expects {expected} parameter(s), but the effect operation provides {actual}.
+### 5.6 HANDLER SIGNATURE MISMATCH (C0405) — Error ✅ Implemented
 
-**Rationale:** A handler arm's parameter count must match the effect operation's signature. Currently this is an internal error; it should be a user-facing error.
+> Handler arm for `{effect}` was written with {actual} parameter(s), but the operation declares {expected}.
 
-### 5.7 MISSING RESUME IN HANDLER (C0406) — Error 🆕 New
+**Rationale:** A handler arm's parameter count must match the effect operation's signature. Previously an internal error; now a user-facing error.
+
+**Status note (camp-1zmy):** Emitted from `src/semantics/typecheck.odin` — the `^CExpr_Handle` arm of `typecheck_synth`, replacing the prior `diag_internal("handler arm … has … parameters, expected …")` call site. The owning effect name is tracked through the operation-signature lookup so the diagnostic can name it. This is the C9000 → C0405 conversion called out in §14.1.
+
+### 5.7 MISSING RESUME IN HANDLER (C0406) — Error ⚠️ Not applicable
 
 > Handler arm for `{effect}` does not call `resume`. The computation is stuck.
 
@@ -531,25 +537,33 @@ Camp's algebraic effect system is its most distinctive feature. These diagnostic
 
 **Rationale:** Forgetting to call `resume` in a handler arm is a common mistake that silently discards the continuation. This is analogous to Kotlin's `missing_return` diagnostic.
 
-### 5.8 DOUBLE RESUME IN HANDLER (C0407) — Error 🆕 New
+**Status note (camp-1zmy):** Not wired — conflicts with `docs/syntax-recipe.md` §Handle:383 ("Resume: one-shot (0 or 1 times). 0 = abort (don't call resume)"), which makes a zero-resume arm a *valid* abort form. Per AGENTS.md, the recipe wins over the catalog when they conflict. The `effect_lower.odin` implicit-resume wrap (which auto-inserts a `resume` for arms that don't call one) implements the abort-by-default semantics the recipe mandates. Leaving this constructor defined-but-unused for reference; a future recipe change could re-enable it.
 
-> `resume` was called more than once in this handler arm. Each handler arm may call `resume` at most once.
+### 5.8 DOUBLE RESUME IN HANDLER (C0407) — Error ✅ Implemented
+
+> `resume` was called more than once in this handler arm for `{effect}`. Each handler arm may call `resume` at most once.
 
 **Rationale:** Double-resuming is a well-known pitfall in algebraic effect handlers. Koka and Eff explicitly check for this.
 
-### 5.9 INVALID RESUME OUTSIDE HANDLER (C0408) — Error 🆕 New
+**Status note (camp-1zmy):** Emitted from `src/ir/effect_lower.odin` — the `^IR_Handle` arm of `el_lower_expr`, after `el_replace_resume` rewrites explicit resume calls into `IR_Resume` nodes and before the implicit-resume wrap. `el_count_resume_calls` walks the post-replacement body (including resumes nested in a resume argument, e.g. `resume(resume(1))`) and fires C0407 when more than one explicit resume is present. This is the compile-time detection mandated by `docs/syntax-recipe.md` §Handle:383 ("Compile-time detection where possible").
+
+### 5.9 INVALID RESUME OUTSIDE HANDLER (C0408) — Error ✅ Implemented
 
 > `resume` can only be used inside a `handle` block.
 
-**Rationale:** Using `resume` outside a handler is meaningless. Currently this would be an "undefined name" error, but a specific message is more helpful.
+**Rationale:** Using `resume` outside a handler is meaningless. Previously surfaced as an undefined-name error; now a dedicated message.
 
-### 5.10 REDUNDANT HANDLER (C0409) — Warning 🆕 New
+**Status note (camp-1zmy):** Emitted from `src/semantics/typecheck.odin` — the `^CExpr_Name` arm of `typecheck_synth`, when a bare `resume` identifier fails to resolve and no enclosing `handle` arm scope is active (`in_handler_arm_scope` walks the `Type_Env` parent chain, gated by the new `in_handler_arm` flag set on handler-arm environments). This is the C9000 → C0408 conversion called out in §14.1 ("perform without handler evidence" paths in `effect_lower.odin` retain their internal-error form because they indicate a typechecker evidence-stack invariant violation, not a user mistake).
+
+### 5.10 REDUNDANT HANDLER (C0409) — Warning ✅ Implemented
 
 > This `handle` block handles `{effect}`, but that effect is never performed in the handled computation.
 
 **Hint:** Remove the handler arm for `{effect}`, or the computation may need to perform this effect.
 
 **Rationale:** A handler that never intercepts any operations is dead code. Similar to unused import detection.
+
+**Status note (camp-1zmy):** Emitted from `src/semantics/typecheck.odin` — the `^CExpr_Handle` arm of `typecheck_synth`, after the body is typechecked. `effect_row_contains` checks each handled effect against the body's inferred effect row (resolved post-unification); a handled effect absent from the performed row is dead. Only fires when the body's row is a concrete `Inferred_Effect_Row` to avoid false positives during early unification.
 
 ### 5.11 EFFECT ROW SUBTYPE WARNING (C0410) — Warning 🆕 New
 
@@ -1062,9 +1076,9 @@ Camp uses Perceus reference counting for deterministic memory management. These 
 **Hint:** This is a bug in Camp. Please report it at https://github.com/smores56/camp/issues
 
 **Rationale:** Compiler bugs. Currently used for several specific cases that should become proper user-facing errors:
-- "perform without handler evidence" → should become C0408
-- "handler arm has wrong parameter count" → should become C0405
-- "operation not found in effects" → should become C0404
+- "perform without handler evidence" → should become C0408 *(camp-1zmy: the user-facing `resume`-outside-handler form is now C0408, emitted from `typecheck.odin`; the `effect_lower.odin` "perform without handler evidence" sites remain `diag_internal` because they signal a typechecker evidence-stack invariant violation, not a user mistake)*
+- "handler arm has wrong parameter count" → now C0405 (camp-1zmy)
+- "operation not found in effects" → now C0404 (camp-1zmy)
 - "trait not found in registry" → should become C0607
 - "non-exhaustive match" → now C0502 (camp-xuen)
 
@@ -1072,7 +1086,7 @@ Camp uses Perceus reference counting for deterministic memory management. These 
 
 ## Summary: Implementation Status
 
-### Currently Implemented (91 total)
+### Currently Implemented (97 total)
 
 | Category | Count | Codes |
 |----------|-------|-------|
@@ -1080,7 +1094,7 @@ Camp uses Perceus reference counting for deterministic memory management. These 
 | Parser | 22 | C0100–C0121 |
 | Name Resolution | 4 | C0200–C0202, C0209 |
 | Type System | 9 | C0300–C0306, C0317, C0318 |
-| Effect System | 2 | C0400, C0401 |
+| Effect System | 8 | C0400, C0401, C0403–C0405, C0407–C0409 |
 | Pattern Matching | 9 | C0500–C0504, C0506–C0509 |
 | Traits/Generics | 6 | C0600–C0604, C0607 |
 | Newtype/Nominal | 4 | C0700–C0703 |
@@ -1100,14 +1114,14 @@ Camp uses Perceus reference counting for deterministic memory management. These 
 | `diag_pointless_evaluation` | C0903 | Wire into unused analysis (TODO in `analysis/unused.odin:667`) |
 | `diag_unterminated_block_comment` | C0006 | Not applicable — Camp has no block comments (syntax-recipe §1). Retained for reference only. |
 
-### Proposed New Diagnostics (32)
+### Proposed New Diagnostics (25)
 
 | Category | Count | Codes | Priority |
 |----------|-------|-------|----------|
 | Parser | 0 | — | Medium |
 | Name Resolution | 7 | C0203–C0208, C0210 | High |
 | Type System | 11 | C0307–C0316, C0319, C0320 | High |
-| Effect System | 10 | C0402–C0411 | **Critical** |
+| Effect System | 3 | C0402, C0410, C0411 | **Critical** |
 | Pattern Matching | 1 | C0505 | Low (not applicable under current syntax) |
 | Traits/Generics | 5 | C0605, C0606, C0608–C0610 | Medium |
 | Newtype/Nominal | 1 | C0704 | Low |
@@ -1116,7 +1130,7 @@ Camp uses Perceus reference counting for deterministic memory management. These 
 | Perceus/RC | 3 | C1100–C1102 | Medium |
 | CLI/Build | 4 | C1204–C1207 | Low |
 
-### Total Catalog: 128 diagnostics (85 implemented + 5 defined-but-unused + 38 proposed new)
+### Total Catalog: 128 diagnostics (97 implemented + 5 defined-but-unused + 26 proposed new)
 
 ---
 

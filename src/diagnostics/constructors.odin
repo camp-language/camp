@@ -1695,11 +1695,11 @@ diag_handler_signature_mismatch :: proc(
 		"HANDLER SIGNATURE MISMATCH",
 		span,
 		fmt.tprintf(
-			"Handler arm for `{}` expects {} parameter{}, but the effect operation provides {}.",
+			"Handler arm for `{}` was written with {} parameter{}, but the operation declares {}.",
 			effect_name,
-			expected,
-			plural_s(expected),
 			actual,
+			plural_s(actual),
+			expected,
 		),
 	)
 	return d
