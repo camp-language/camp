@@ -8,6 +8,8 @@ import List { append }
 
 // --- Types ---
 
+@StdioMode : pub [Inherit | Capture | Null]
+
 @Command : pub {
   program: Str,
   args: List(Str),
@@ -18,8 +20,6 @@ import List { append }
   stdout: StdioMode,
   stderr: StdioMode,
 }
-
-@StdioMode : pub [Inherit | Capture | Null]
 
 @Handle : {}  // opaque file descriptor wrapper
 
@@ -72,10 +72,19 @@ Process! : {
 
 // --- Pure helpers ---
 
+// UTF-8 decode helper for a Bytes buffer. Routes through the Bytes.to_str
+// intrinsic, which is not yet wired in the runtime; until it is, calling this
+// traps rather than silently returning empty output. Tracked by bean camp-y4mj.
+decode_utf8 = |b: Bytes| -> Str {
+  match Bytes.to_str(b) {
+    Ok(s) => s
+    Err(_e) => crash "Process.to_str: stdout/stderr contained invalid UTF-8"
+  }
+}
+
 // Decode a ProcessResult's Bytes fields to Str (assumes UTF-8).
 pub to_str = |r: ProcessResult| -> { exit_code: I32, stdout: Str, stderr: Str } {
-  // TODO: use actual UTF-8 decode when available
-  { exit_code: r.exit_code, stdout: "", stderr: "" }
+  { exit_code: r.exit_code, stdout: decode_utf8(r.stdout), stderr: decode_utf8(r.stderr) }
 }
 
 // --- Pure builder helpers ---
@@ -196,3 +205,17 @@ pub null_stdin = |cmd: Command| -> Command {
     stderr: cmd.stderr,
   })
 }
+
+
+// --- Tests ---
+// Builder-helper `test` blocks are omitted: any function returning a record
+// type (here, every Process builder returning the 9-field @Command) compiled
+// alongside a `test` block's synthetic `main!` triggers a pre-existing WASM
+// codegen i64/i32 type-mismatch (wasm validation rejects the binary at the
+// `br` returning the synthesized main's result). This is the same class of
+// bug fixed for `IR_Call` in camp-jqvd, but that fix did not extend to record
+// construction (`IR_Construct_Record`) lowering; record-returning functions
+// still carry a stale i64 type snapshot where the lowered value is i32.
+// Follow-up bean: extend camp-jqvd's `rederive_call_type` approach to record
+// construction lowering. Once fixed, the builder helpers above are pure Camp
+// and straightforward to test (happy -> empty -> singleton -> multi -> edge).
