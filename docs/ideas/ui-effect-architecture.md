@@ -1,8 +1,9 @@
 # UI Architecture with Algebraic Effects
 
-How Camp could structure frontend UI development using algebraic effects, exploring alternatives to Elm's MVU pattern that eliminate its plumbing overhead while preserving its type safety and purity guarantees.
+How Camp could structure frontend UI development using algebraic effects, exploring alternatives to Elm's MVU pattern
+that eliminate its plumbing overhead while preserving its type safety and purity guarantees.
 
----
+______________________________________________________________________
 
 ## 1. The Elm MVU Problem
 
@@ -11,12 +12,16 @@ Elm's Model-View-Update architecture is clean and correct, but scales poorly due
 - **Msg type explosion**: Every UI event becomes a variant in a growing union type
 - **Giant update function**: A single pattern-match over all messages, growing linearly with features
 - **Cmd vs Sub distinction**: Two separate abstractions for one-shot and ongoing effects, each with their own API
-- **Nested TEA / component isolation**: Child components cannot have private state. All state lives in the parent. Adding a child component requires: a wrapper Msg variant, a child update delegation branch, `Cmd.map` for routing child commands, and manual state threading
-- **No scoped context**: Passing ambient data (theme, locale, router) requires threading through every intermediate component's `Msg` and `Model` types
+- **Nested TEA / component isolation**: Child components cannot have private state. All state lives in the parent.
+  Adding a child component requires: a wrapper Msg variant, a child update delegation branch, `Cmd.map` for routing
+  child commands, and manual state threading
+- **No scoped context**: Passing ambient data (theme, locale, router) requires threading through every intermediate
+  component's `Msg` and `Model` types
 
-The fundamental issue: Elm achieves effect decoupling by routing everything through a central `update` function with explicit message types. This is safe and predictable but creates O(n) boilerplate for n interacting concerns.
+The fundamental issue: Elm achieves effect decoupling by routing everything through a central `update` function with
+explicit message types. This is safe and predictable but creates O(n) boilerplate for n interacting concerns.
 
----
+______________________________________________________________________
 
 ## 2. Research: How Effect Languages Handle UI
 
@@ -33,9 +38,12 @@ runStore = cases
   { a } -> (store, a)
 ```
 
-Each handler instance carries its own state. Nested handlers = nested components with independent state. The handler IS the component — state, update logic, and lifecycle all co-located. Functions declare what abilities they need in their type signatures (`{Abort, Store a}`), but intermediate code doesn't thread anything.
+Each handler instance carries its own state. Nested handlers = nested components with independent state. The handler IS
+the component — state, update logic, and lifecycle all co-located. Functions declare what abilities they need in their
+type signatures (`{Abort, Store a}`), but intermediate code doesn't thread anything.
 
-The Wordle lab demonstrates a game loop using abilities for I/O, validation, and state, showing the pattern works for interactive programs.
+The Wordle lab demonstrates a game loop using abilities for I/O, validation, and state, showing the pattern works for
+interactive programs.
 
 URL: https://www.unison-lang.org/docs/fundamentals/abilities/
 
@@ -43,17 +51,27 @@ URL: https://www.unison-lang.org/docs/fundamentals/abilities/
 
 OCaml 5 added algebraic effects (2022). Key ecosystem developments:
 
-- **Eio** (effects-based I/O): Replaces Lwt/Async monadic threading with direct-style code using effect handlers for `Net`, `File`, `Clock`, `Process`. Proves effects are more ergonomic than monads for real programs. URL: https://github.com/ocaml-multicore/eio
-- **Ocsigen/Eliom**: The most mature effect-aware web framework. Multi-tier programming (client + server as one program), continuation-based web services, scoped state references (session-level, tab-level, request-level). URL: https://ocsigen.org/eliom/latest/manual/intro
-- **Leo White's talk** ("Effective Programming: Adding an Effect System to OCaml"): Demonstrates replacing monad transformer stacks with direct-style effectful code. URL: https://www.janestreet.com/tech-talks/effective-programming/
+- **Eio** (effects-based I/O): Replaces Lwt/Async monadic threading with direct-style code using effect handlers for
+  `Net`, `File`, `Clock`, `Process`. Proves effects are more ergonomic than monads for real programs. URL:
+  https://github.com/ocaml-multicore/eio
+- **Ocsigen/Eliom**: The most mature effect-aware web framework. Multi-tier programming (client + server as one
+  program), continuation-based web services, scoped state references (session-level, tab-level, request-level). URL:
+  https://ocsigen.org/eliom/latest/manual/intro
+- **Leo White's talk** ("Effective Programming: Adding an Effect System to OCaml"): Demonstrates replacing monad
+  transformer stacks with direct-style effectful code. URL: https://www.janestreet.com/tech-talks/effective-programming/
 
-The OCaml effects tutorial shows patterns directly applicable to UI: state as a handler threading through continuations, generators from iterators (analogous to incremental rendering), cooperative concurrency (analogous to React's concurrent mode). URL: https://github.com/ocamllabs/ocaml-effects-tutorial
+The OCaml effects tutorial shows patterns directly applicable to UI: state as a handler threading through continuations,
+generators from iterators (analogous to incremental rendering), cooperative concurrency (analogous to React's concurrent
+mode). URL: https://github.com/ocamllabs/ocaml-effects-tutorial
 
 ### Koka: Capability-Passing Style
 
-Koka (Daan Leijen, Microsoft Research) is the closest existing system to Camp's design — effect rows + perceus reference counting + capability-passing compilation. Effects compile to functions that receive handler references as implicit parameters. This is statically resolved, zero-overhead when inlined.
+Koka (Daan Leijen, Microsoft Research) is the closest existing system to Camp's design — effect rows + perceus reference
+counting + capability-passing compilation. Effects compile to functions that receive handler references as implicit
+parameters. This is statically resolved, zero-overhead when inlined.
 
-Effect rows are polymorphic: `fun component() : <console, dom|e> html` works with any additional effects `e`. No `map` needed. Handlers can be swapped at composition boundaries.
+Effect rows are polymorphic: `fun component() : <console, dom|e> html` works with any additional effects `e`. No `map`
+needed. Handlers can be swapped at composition boundaries.
 
 No UI framework exists for Koka yet, but its WASM target makes browser deployment viable.
 
@@ -61,25 +79,35 @@ URL: https://koka-lang.github.io/koka/doc/book.html
 
 ### Effekt: Contextual Effects
 
-Effekt has lexical effect handlers with contextual effect polymorphism. Its "naturalistic DSLs" case study shows effects modeling ambient context (analogous to Theme/Router/Locale in UI). Handlers perform non-local rewriting at the handler position — exactly the pattern for scoped context propagation. `map` just works with effectful functions without special variants. Compiles to JavaScript.
+Effekt has lexical effect handlers with contextual effect polymorphism. Its "naturalistic DSLs" case study shows effects
+modeling ambient context (analogous to Theme/Router/Locale in UI). Handlers perform non-local rewriting at the handler
+position — exactly the pattern for scoped context propagation. `map` just works with effectful functions without special
+variants. Compiles to JavaScript.
 
 URL: https://effekt-lang.org/
 
 ### The React Connection
 
-Dan Abramov confirmed React Hooks are a weak approximation of algebraic effects (URL: https://overreacted.io/algebraic-effects-for-the-rest-of-us/). `useState()` is conceptually `perform State()`, handled by React when executing your component. React Suspense uses `throw Promise` as a crude approximation of `perform Suspend`. The "Rules of Hooks" (no conditional calls) are a direct consequence of trace-based approximation rather than real delimited continuations.
+Dan Abramov confirmed React Hooks are a weak approximation of algebraic effects (URL:
+https://overreacted.io/algebraic-effects-for-the-rest-of-us/). `useState()` is conceptually `perform State()`, handled
+by React when executing your component. React Suspense uses `throw Promise` as a crude approximation of
+`perform Suspend`. The "Rules of Hooks" (no conditional calls) are a direct consequence of trace-based approximation
+rather than real delimited continuations.
 
 ### The Gap
 
-No algebraic-effect language has a mature frontend UI framework. The closest is Ocsigen/Eliom (OCaml), which predates OCaml 5 effects. The field is wide open.
+No algebraic-effect language has a mature frontend UI framework. The closest is Ocsigen/Eliom (OCaml), which predates
+OCaml 5 effects. The field is wide open.
 
----
+______________________________________________________________________
 
 ## 3. The Identity Problem
 
-React hooks rely on call-order-based identity: the Nth `useState()` call always maps to the Nth slot in an untyped array. This requires the "Rules of Hooks" — no conditional calls, no calls in loops.
+React hooks rely on call-order-based identity: the Nth `useState()` call always maps to the Nth slot in an untyped
+array. This requires the "Rules of Hooks" — no conditional calls, no calls in loops.
 
-With algebraic effects, we have lexical handler scoping: every `handle E! in ...` creates a distinct handler instance. But we still need a way for a single component to have multiple pieces of state without the system confusing them.
+With algebraic effects, we have lexical handler scoping: every `handle E! in ...` creates a distinct handler instance.
+But we still need a way for a single component to have multiple pieces of state without the system confusing them.
 
 ### Why `State!(a)` With Type-Driven Identity Solves This
 
@@ -93,15 +121,18 @@ State!(a) : {
 }
 ```
 
-`State!(CounterModel)` and `State!(TodoModel)` are **different effects** because the type argument differs. An inner handler for `State!(CounterModel)` does not shadow an outer handler for `State!(TodoModel)`. The type system disambiguates, not call order.
+`State!(CounterModel)` and `State!(TodoModel)` are **different effects** because the type argument differs. An inner
+handler for `State!(CounterModel)` does not shadow an outer handler for `State!(TodoModel)`. The type system
+disambiguates, not call order.
 
 This means:
+
 - No call-order dependency — effects are identified by type, not position
 - No Rules of Hooks — effects can be called conditionally, in loops, wherever
 - No effect-per-field explosion — one `State!(a)` effect, `a` is a record with all state fields
 - Each handler scope is its own world — inner handlers shadow outer handlers of the **same** type only
 
----
+______________________________________________________________________
 
 ## 4. Core Design: Components as Pure Functions Over Effects
 
@@ -118,7 +149,8 @@ with_state = |initial: a, body: || -[State!(a) | ..effs]-> r| -[..effs]-> r {
 }
 ```
 
-`$state` is a mutable binding inside the handler scope. The handler owns the mutation. The component body is pure — it calls `State.get!()` and `State.set!()` but never mutates directly.
+`$state` is a mutable binding inside the handler scope. The handler owns the mutation. The component body is pure — it
+calls `State.get!()` and `State.set!()` but never mutates directly.
 
 ### The Component
 
@@ -140,7 +172,8 @@ counter_view = || -[State!(CounterModel) | Dom!]-> {} {
 }
 ```
 
-No `Msg` type. No `update` function. No `Cmd`. The component is a pure function that performs `State!(CounterModel)` and `Dom!` effects. The handler is installed by the parent.
+No `Msg` type. No `update` function. No `Cmd`. The component is a pure function that performs `State!(CounterModel)` and
+`Dom!` effects. The handler is installed by the parent.
 
 ### The Composition
 
@@ -157,9 +190,11 @@ app = || -[Dom!]-> {} {
 }
 ```
 
-Each `with_state` call creates a distinct handler scope. `counter_view()` performs `State!(CounterModel)` — handled by the inner handler. `todo_view()` performs `State!(TodoModel)` — handled by the outer handler. No routing, no `Msg`, no `Cmd.map`.
+Each `with_state` call creates a distinct handler scope. `counter_view()` performs `State!(CounterModel)` — handled by
+the inner handler. `todo_view()` performs `State!(TodoModel)` — handled by the outer handler. No routing, no `Msg`, no
+`Cmd.map`.
 
----
+______________________________________________________________________
 
 ## 5. Approaches Explored
 
@@ -186,7 +221,8 @@ mount_component = |initial, view_fn| -[Dom! | ..effs]-> {} {
 
 ### Approach B: Capability Hooks (React-Style)
 
-Components receive capability records instead of performing effects directly. Like `useState()` returning `[value, setter]`, but typed and pure.
+Components receive capability records instead of performing effects directly. Like `useState()` returning
+`[value, setter]`, but typed and pure.
 
 ```camp
 CounterCapabilities : {
@@ -213,11 +249,13 @@ use_counter = |initial: I64| -[State!(CounterModel)]-> CounterCapabilities {
 }
 ```
 
-**Strengths**: Looks like React hooks. Component receives data as values, not effects. **Weakness**: Requires an extra record type per component.
+**Strengths**: Looks like React hooks. Component receives data as values, not effects. **Weakness**: Requires an extra
+record type per component.
 
 ### Approach C: Scoped Context Effects
 
-Effects like `Theme!`, `Router!`, `Locale!` propagate automatically through the component tree via effect rows. No prop-drilling.
+Effects like `Theme!`, `Router!`, `Locale!` propagate automatically through the component tree via effect rows. No
+prop-drilling.
 
 ```camp
 Theme! : {
@@ -263,11 +301,13 @@ app = || -[Dom!]-> {} {
 }
 ```
 
-**Strengths**: No prop-drilling. Adding a new ambient capability doesn't change intermediate components. Effect type signatures tell you exactly what a component needs. **Weakness**: Only for ambient context, not local state.
+**Strengths**: No prop-drilling. Adding a new ambient capability doesn't change intermediate components. Effect type
+signatures tell you exactly what a component needs. **Weakness**: Only for ambient context, not local state.
 
 ### Approach D: Resource Lifecycle Effects
 
-Component mount/unmount as effect scope boundaries. When a handler is installed, that's "mount." When the handler scope exits, that's "unmount."
+Component mount/unmount as effect scope boundaries. When a handler is installed, that's "mount." When the handler scope
+exits, that's "unmount."
 
 ```camp
 Resource! : {
@@ -298,11 +338,13 @@ websocket_feed = |url: Str| -[State!(FeedState) | Dom!]-> {} {
 }
 ```
 
-**Strengths**: No `useEffect` cleanup. No stale closures. Resource lifecycle = handler scope. **Weakness**: Needs careful handler-scope exit semantics.
+**Strengths**: No `useEffect` cleanup. No stale closures. Resource lifecycle = handler scope. **Weakness**: Needs
+careful handler-scope exit semantics.
 
 ### Approach E: Composable Gadgets
 
-Small, reusable effect-based "gadgets" that encapsulate state + behavior. Compose like React hooks but they're pure effect operations returning capability records.
+Small, reusable effect-based "gadgets" that encapsulate state + behavior. Compose like React hooks but they're pure
+effect operations returning capability records.
 
 ```camp
 Toggle : {
@@ -334,11 +376,13 @@ settings_page = || -[Dom!]-> {} {
 }
 ```
 
-**Strengths**: Small, testable, composable units. **Weakness**: Needs Approach B's capability pattern to extract handles from handler scopes.
+**Strengths**: Small, testable, composable units. **Weakness**: Needs Approach B's capability pattern to extract handles
+from handler scopes.
 
 ### Approach F: Record Builder Pattern (Inspired by Weaver)
 
-Roc's record builder syntax (`: <-`) composes applicative operations field-by-field. Each slot independently produces a value. The builder wires them into a record.
+Roc's record builder syntax (`: <-`) composes applicative operations field-by-field. Each slot independently produces a
+value. The builder wires them into a record.
 
 In Camp, the equivalent is: each "slot" is a handler that wraps the next. The nesting IS the builder.
 
@@ -406,24 +450,27 @@ app = || -[Dom!]-> {} {
 }
 ```
 
-**Strengths**: Closest to Weaver's ergonomics. Initial state composed as a record. Handlers installed once. **Weakness**: Nesting depth equals number of state types. Could be flattened with a generic multi-handler if the language supported it.
+**Strengths**: Closest to Weaver's ergonomics. Initial state composed as a record. Handlers installed once.
+**Weakness**: Nesting depth equals number of state types. Could be flattened with a generic multi-handler if the
+language supported it.
 
----
+______________________________________________________________________
 
 ## 6. The Separation of Concerns
 
 The key insight from all this exploration: **not all component state needs to be an effect.**
 
-| Concern | Mechanism | Why |
-|---------|-----------|-----|
-| Local component state | `State!(a)` with handler scoping | Identity is the type, not call order. No Rules of Hooks. |
-| Scoped context (theme, router) | Named effects (`Theme!`, `Router!`) | Needs to propagate through tree. Handler provides value at boundary. |
-| Side effects (HTTP, storage) | Named effects (`Http!`, `Storage!`) | Handler decides implementation (real, mock, SSR). |
-| Lifecycle | `Resource!` effects or handler scope exit | Handler scope = component lifetime. |
+| Concern                        | Mechanism                                 | Why                                                                  |
+| ------------------------------ | ----------------------------------------- | -------------------------------------------------------------------- |
+| Local component state          | `State!(a)` with handler scoping          | Identity is the type, not call order. No Rules of Hooks.             |
+| Scoped context (theme, router) | Named effects (`Theme!`, `Router!`)       | Needs to propagate through tree. Handler provides value at boundary. |
+| Side effects (HTTP, storage)   | Named effects (`Http!`, `Storage!`)       | Handler decides implementation (real, mock, SSR).                    |
+| Lifecycle                      | `Resource!` effects or handler scope exit | Handler scope = component lifetime.                                  |
 
-React puts everything in the "hooks" bucket. Elm puts everything in the "message" bucket. The right design uses **`State!(a)` for local concerns and named effects for non-local concerns**.
+React puts everything in the "hooks" bucket. Elm puts everything in the "message" bucket. The right design uses
+**`State!(a)` for local concerns and named effects for non-local concerns**.
 
----
+______________________________________________________________________
 
 ## 7. Comparison
 
@@ -446,31 +493,44 @@ todo_view = || -[State!(TodoModel) | Dom!]-> { ... }
 
 ### Full Comparison Matrix
 
-| Aspect | Elm MVU | React Hooks | Camp `State!(a)` |
-|--------|---------|-------------|-------------------|
-| State identity | Msg variant | Call order | Type argument |
-| State location | Parent model | Hidden array | Handler scope |
-| Component interface | Msg + Cmd | Props + hooks | Effect row |
-| Composition | Msg union + `Cmd.map` | Nesting | Handler nesting |
-| Reusability | Msg.map boilerplate | Custom hooks | Slot functions |
-| Type safety | Full (verbose) | None (JS) | Full (inferred) |
-| Conditional use | Yes (in update) | No (Rules of Hooks) | Yes |
-| Testing | Test update fn | Mock hooks | Swap handler |
-| Context/prop-drilling | Manual threading | Context.Provider | Effect row propagation |
-| Lifecycle | Subscriptions | useEffect | Handler scope / Resource! |
+| Aspect                | Elm MVU               | React Hooks         | Camp `State!(a)`          |
+| --------------------- | --------------------- | ------------------- | ------------------------- |
+| State identity        | Msg variant           | Call order          | Type argument             |
+| State location        | Parent model          | Hidden array        | Handler scope             |
+| Component interface   | Msg + Cmd             | Props + hooks       | Effect row                |
+| Composition           | Msg union + `Cmd.map` | Nesting             | Handler nesting           |
+| Reusability           | Msg.map boilerplate   | Custom hooks        | Slot functions            |
+| Type safety           | Full (verbose)        | None (JS)           | Full (inferred)           |
+| Conditional use       | Yes (in update)       | No (Rules of Hooks) | Yes                       |
+| Testing               | Test update fn        | Mock hooks          | Swap handler              |
+| Context/prop-drilling | Manual threading      | Context.Provider    | Effect row propagation    |
+| Lifecycle             | Subscriptions         | useEffect           | Handler scope / Resource! |
 
----
+______________________________________________________________________
 
 ## 8. Open Questions
 
-1. **Handler nesting depth**: With N state types, you get N levels of `with_state` nesting. Can the compiler or a macro flatten this? A multi-handler syntax like `handle State!(a), State!(b) in ...` would need the runtime to dispatch by type argument.
+1. **Handler nesting depth**: With N state types, you get N levels of `with_state` nesting. Can the compiler or a macro
+   flatten this? A multi-handler syntax like `handle State!(a), State!(b) in ...` would need the runtime to dispatch by
+   type argument.
 
-2. **View rendering model**: The examples use `Dom.element!()` effects that produce VNodes. Should the view be an effect stream (incremental rendering) or return a VNode tree (virtual DOM diffing)? The effect-based approach (Approach F in the brainstorm) gives the handler freedom to choose.
+1. **View rendering model**: The examples use `Dom.element!()` effects that produce VNodes. Should the view be an effect
+   stream (incremental rendering) or return a VNode tree (virtual DOM diffing)? The effect-based approach (Approach F in
+   the brainstorm) gives the handler freedom to choose.
 
-3. **Re-rendering**: When `State.set!()` is called, how does the framework know to re-render? The handler could call `resume({})` and then trigger a re-render of its subtree. The deep handler semantics (reinstalls after resume) support this naturally.
+1. **Re-rendering**: When `State.set!()` is called, how does the framework know to re-render? The handler could call
+   `resume({})` and then trigger a re-render of its subtree. The deep handler semantics (reinstalls after resume)
+   support this naturally.
 
-4. **Interop with existing DOM**: Camp targets WASM/WASI. The `Dom!` effect would need a handler that bridges to the browser DOM API via WASI or a custom FFI boundary. The `Dom!` effect definition is the abstraction layer — the handler bridges to the platform.
+1. **Interop with existing DOM**: Camp targets WASM/WASI. The `Dom!` effect would need a handler that bridges to the
+   browser DOM API via WASI or a custom FFI boundary. The `Dom!` effect definition is the abstraction layer — the
+   handler bridges to the platform.
 
-5. **Event handler callbacks**: The examples pass lambdas to `on_click`, `on_input`, etc. These callbacks perform effects (`State.update!`). The runtime needs to install the appropriate handlers when invoking these callbacks. This is similar to how React's event system works — events are batched and processed within the component's fiber (handler scope).
+1. **Event handler callbacks**: The examples pass lambdas to `on_click`, `on_input`, etc. These callbacks perform
+   effects (`State.update!`). The runtime needs to install the appropriate handlers when invoking these callbacks. This
+   is similar to how React's event system works — events are batched and processed within the component's fiber (handler
+   scope).
 
-6. **Type parameter matching in effect dispatch**: When multiple `State!(a)` handlers are in scope with different `a`, the compiler must route each `State.get!()` call to the handler whose `a` matches the inferred return type. This requires return-type-directed dispatch or explicit type annotations at call sites when types are ambiguous.
+1. **Type parameter matching in effect dispatch**: When multiple `State!(a)` handlers are in scope with different `a`,
+   the compiler must route each `State.get!()` call to the handler whose `a` matches the inferred return type. This
+   requires return-type-directed dispatch or explicit type annotations at call sites when types are ambiguous.

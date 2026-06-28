@@ -1,41 +1,43 @@
 # Camp Diagnostics Catalog
 
-A comprehensive catalog of all diagnostics the Camp compiler should report, organized by compiler phase and category. Each diagnostic includes its severity, title, message template, hints, and rationale.
+A comprehensive catalog of all diagnostics the Camp compiler should report, organized by compiler phase and category.
+Each diagnostic includes its severity, title, message template, hints, and rationale.
 
 ## Diagnostic Severity Levels
 
 Camp uses three severity levels:
 
-| Level | Meaning | CLI Color |
-|-------|---------|-----------|
-| **Error** | Compilation cannot succeed. Code must be fixed. | Bold red |
-| **Warning** | Code compiles but likely contains a mistake or dead code. | Bold yellow |
-| **Internal** | Compiler bug. User should report it. | Bold magenta |
+| Level        | Meaning                                                   | CLI Color    |
+| ------------ | --------------------------------------------------------- | ------------ |
+| **Error**    | Compilation cannot succeed. Code must be fixed.           | Bold red     |
+| **Warning**  | Code compiles but likely contains a mistake or dead code. | Bold yellow  |
+| **Internal** | Compiler bug. User should report it.                      | Bold magenta |
 
-Future: Consider adding **Note** (informational, attached to errors) and **Help** (actionable fix suggestion) as distinct sub-diagnostic types within the existing structure, following Rust's pattern of `note:` and `help:` lines.
+Future: Consider adding **Note** (informational, attached to errors) and **Help** (actionable fix suggestion) as
+distinct sub-diagnostic types within the existing structure, following Rust's pattern of `note:` and `help:` lines.
 
 ## Error Code System (Proposed)
 
 Each diagnostic should have a unique `C####` code for searchability and `camp --explain C0123` support.
 
-| Range | Category |
-|-------|----------|
-| C0001–C0099 | Lexer errors |
-| C0100–C0199 | Parser errors |
-| C0200–C0299 | Name resolution errors |
-| C0300–C0399 | Type system errors |
-| C0400–C0499 | Effect system errors |
-| C0500–C0599 | Pattern matching errors |
-| C0600–C0699 | Trait/generics errors |
+| Range       | Category                    |
+| ----------- | --------------------------- |
+| C0001–C0099 | Lexer errors                |
+| C0100–C0199 | Parser errors               |
+| C0200–C0299 | Name resolution errors      |
+| C0300–C0399 | Type system errors          |
+| C0400–C0499 | Effect system errors        |
+| C0500–C0599 | Pattern matching errors     |
+| C0600–C0699 | Trait/generics errors       |
 | C0700–C0799 | Newtype/nominal type errors |
-| C0800–C0899 | Module/import errors |
-| C0900–C0999 | Unused analysis warnings |
-| C1000–C1099 | Unused analysis errors |
-| C1100–C1199 | Perceus/RC errors |
-| C1200–C1299 | CLI/build errors |
-| C9000–C9099 | Internal errors |
+| C0800–C0899 | Module/import errors        |
+| C0900–C0999 | Unused analysis warnings    |
+| C1000–C1099 | Unused analysis errors      |
+| C1100–C1199 | Perceus/RC errors           |
+| C1200–C1299 | CLI/build errors            |
+| C9000–C9099 | Internal errors             |
 
----
+______________________________________________________________________
 
 ## 1. Lexer Errors
 
@@ -59,33 +61,45 @@ Each diagnostic should have a unique `C####` code for searchability and `camp --
 
 **Hint:** Valid escape sequences are: `\n`, `\t`, `\r`, `\\`, `\"`, `\$`, `\0`.
 
-**Rationale:** Other languages (Rust, Go, Swift) report invalid escape sequences explicitly. Without this, an invalid escape like `\x` silently becomes `x` or causes confusing downstream errors.
+**Rationale:** Other languages (Rust, Go, Swift) report invalid escape sequences explicitly. Without this, an invalid
+escape like `\x` silently becomes `x` or causes confusing downstream errors.
 
-**Implemented in:** `src/frontend/lexer.odin` — `lexer_validate_string_escape` (called from both scalar and SIMD string scan paths).
+**Implemented in:** `src/frontend/lexer.odin` — `lexer_validate_string_escape` (called from both scalar and SIMD string
+scan paths).
 
 ### 1.4 UNTERMINATED PER-LINE STRING (C0004) — Error ✅ Implemented
 
-> This per-line string (starting with `\`) ran to the end of the file without a final line break. Add a newline after the last `\`-prefixed line to close it.
+> This per-line string (starting with `\`) ran to the end of the file without a final line break. Add a newline after
+> the last `\`-prefixed line to close it.
 
-**Rationale:** Per-line strings (Camp's `\` syntax) are built from consecutive `\`-prefixed lines. If the source ends while still inside one (the last `\`-line has no trailing newline), the string is unterminated. A distinct error from C0002 because the fix is different.
+**Rationale:** Per-line strings (Camp's `\` syntax) are built from consecutive `\`-prefixed lines. If the source ends
+while still inside one (the last `\`-line has no trailing newline), the string is unterminated. A distinct error from
+C0002 because the fix is different.
 
 ### 1.5 INVALID NUMERIC LITERAL (C0005) — Error ✅ Implemented
 
 > Invalid numeric literal `{text}`.
 
-**Hint:** Context-dependent per base — e.g., "Binary literals only allow digits 0 and 1.", "Hexadecimal literals only allow digits 0-9 and A-F (or a-f).", "Octal literals only allow digits 0 through 7."
+**Hint:** Context-dependent per base — e.g., "Binary literals only allow digits 0 and 1.", "Hexadecimal literals only
+allow digits 0-9 and A-F (or a-f).", "Octal literals only allow digits 0 through 7."
 
-**Rationale:** Rust, Go, and Swift all report malformed numeric literals (e.g., `0b102`, `0xGH`). Camp should catch these at lexing rather than letting them become confusing parse errors.
+**Rationale:** Rust, Go, and Swift all report malformed numeric literals (e.g., `0b102`, `0xGH`). Camp should catch
+these at lexing rather than letting them become confusing parse errors.
 
-**Implemented in:** `src/frontend/lexer.odin` — `lexer_report_invalid_numeric` (called from `lexer_lex_hex_number`, `lexer_lex_octal_number`, `lexer_lex_binary_number`). Also fixes a pre-existing infinite loop where an out-of-base trailing digit (e.g. the `2` in `0b102`) caused `break` to exit the `switch` but not the surrounding `for` loop.
+**Implemented in:** `src/frontend/lexer.odin` — `lexer_report_invalid_numeric` (called from `lexer_lex_hex_number`,
+`lexer_lex_octal_number`, `lexer_lex_binary_number`). Also fixes a pre-existing infinite loop where an out-of-base
+trailing digit (e.g. the `2` in `0b102`) caused `break` to exit the `switch` but not the surrounding `for` loop.
 
 ### 1.6 UNTERMINATED BLOCK COMMENT (C0006) — Not Applicable
 
 > This block comment was never closed. Add a closing `*/`.
 
-**Rationale:** Camp does **not** support block comments (`/* ... */`). Per `docs/language-spec.md` §1 Comments: "`//` line comments (no block comments, no nesting)". This diagnostic is retained in the catalog for reference but is not wired and has no constructor emission site. The constructor `diag_unterminated_block_comment` remains defined-but-unused for now.
+**Rationale:** Camp does **not** support block comments (`/* ... */`). Per `docs/language-spec.md` §1 Comments: "`//`
+line comments (no block comments, no nesting)". This diagnostic is retained in the catalog for reference but is not
+wired and has no constructor emission site. The constructor `diag_unterminated_block_comment` remains defined-but-unused
+for now.
 
----
+______________________________________________________________________
 
 ## 2. Parser Errors
 
@@ -115,7 +129,8 @@ Each diagnostic should have a unique `C####` code for searchability and `camp --
 
 **Hint:** For chained conditions, use `else if`.
 
-**Rationale:** Camp mandates braces for all branches. This is a design choice for readability and to avoid dangling-else ambiguity.
+**Rationale:** Camp mandates braces for all branches. This is a design choice for readability and to avoid dangling-else
+ambiguity.
 
 ### 2.5 EMPTY TAG PARENS (C0105) — Error ✅ Implemented
 
@@ -153,7 +168,8 @@ Each diagnostic should have a unique `C####` code for searchability and `camp --
 
 > Field `{name}` appears more than once in this record literal.
 
-**Rationale:** Rust (E0063), TypeScript (2353), and Swift all report duplicate struct/record fields. This is almost always a mistake.
+**Rationale:** Rust (E0063), TypeScript (2353), and Swift all report duplicate struct/record fields. This is almost
+always a mistake.
 
 ### 2.11 DUPLICATE FIELD IN RECORD PATTERN (C0111) — Error ✅ Implemented
 
@@ -179,7 +195,8 @@ Each diagnostic should have a unique `C####` code for searchability and `camp --
 
 > This match arm is missing a `=>` and a body.
 
-**Rationale:** Malformed match arms (e.g., just a pattern with no arrow) should be caught with a clear message rather than a generic "expected token" error.
+**Rationale:** Malformed match arms (e.g., just a pattern with no arrow) should be caught with a clear message rather
+than a generic "expected token" error.
 
 ### 2.15 MISSING ARROW IN FUNCTION TYPE (C0115) — Error ✅ Implemented
 
@@ -197,15 +214,17 @@ Each diagnostic should have a unique `C####` code for searchability and `camp --
 
 > Effect rows use `|` as a separator, not `,`. Write `-[A! | B!]->` instead of `-[A!, B!]->`.
 
-**Rationale:** Per the language spec, effect rows use `|` as separator. A common mistake for users coming from languages with comma-separated lists.
+**Rationale:** Per the language spec, effect rows use `|` as separator. A common mistake for users coming from languages
+with comma-separated lists.
 
 ### 2.18 TUPLE SIZE (C0118) — Error ✅ Implemented
 
 > Tuple must have 2 or 3 elements, got {count}.
 
-**Rationale:** Per the language spec, tuples are capped at 3 elements. Users who need more fields should use records instead.
+**Rationale:** Per the language spec, tuples are capped at 3 elements. Users who need more fields should use records
+instead.
 
----
+______________________________________________________________________
 
 ### 2.19 EMPTY TUPLE (C0119) — Error ✅ Implemented
 
@@ -213,7 +232,7 @@ Each diagnostic should have a unique `C####` code for searchability and `camp --
 
 **Rationale:** `()` is not a valid expression or type in Camp. The unit type and value use `{}`.
 
----
+______________________________________________________________________
 
 ### 2.20 TUPLE TYPE SIZE (C0120) — Error ✅ Implemented
 
@@ -221,17 +240,18 @@ Each diagnostic should have a unique `C####` code for searchability and `camp --
 
 **Rationale:** Same size constraint as tuple expressions, applied to type annotations.
 
----
+______________________________________________________________________
 
 ### 2.21 SINGLE-ELEMENT TUPLE (C0121) — Error ✅ Implemented
 
 > Single-element tuple is not valid; use the type directly or add a return type for a function: `(T) -> R`
 
-**Rationale:** Parenthesizing a single type is valid for grouping (e.g., in function types), but `(T)` alone is not a tuple type.
+**Rationale:** Parenthesizing a single type is valid for grouping (e.g., in function types), but `(T)` alone is not a
+tuple type.
 
----
+______________________________________________________________________
 
----
+______________________________________________________________________
 
 ## 3. Name Resolution Errors
 
@@ -263,7 +283,8 @@ Each diagnostic should have a unique `C####` code for searchability and `camp --
 
 **Hint:** "Did you mean `{similar}`?" (when similar type names exist)
 
-**Rationale:** Distinguishing undefined types from undefined values gives clearer error messages. Rust (E0412), TypeScript (2304), and Kotlin all separate these.
+**Rationale:** Distinguishing undefined types from undefined values gives clearer error messages. Rust (E0412),
+TypeScript (2304), and Kotlin all separate these.
 
 ### 3.5 UNDEFINED EFFECT (C0204) — Error 🆕 New
 
@@ -271,7 +292,8 @@ Each diagnostic should have a unique `C####` code for searchability and `camp --
 
 **Hint:** "Did you mean `{similar}`?" (when similar effect names exist)
 
-**Rationale:** Effects are a first-class concept in Camp. An undefined effect should have its own error distinct from undefined names/types.
+**Rationale:** Effects are a first-class concept in Camp. An undefined effect should have its own error distinct from
+undefined names/types.
 
 ### 3.6 PRIVATE MEMBER ACCESS (C0205) — Error 🆕 New
 
@@ -279,7 +301,9 @@ Each diagnostic should have a unique `C####` code for searchability and `camp --
 
 **Hint:** Use a public member, or access `{name}` from within module `{module}`.
 
-**Rationale:** Kotlin (`INVISIBLE_REFERENCE`), Swift (`candidate_inaccessible`), and Rust (E0603) all report visibility violations explicitly. Currently Camp has `diag_import_not_exported` but no general private-access error for qualified access.
+**Rationale:** Kotlin (`INVISIBLE_REFERENCE`), Swift (`candidate_inaccessible`), and Rust (E0603) all report visibility
+violations explicitly. Currently Camp has `diag_import_not_exported` but no general private-access error for qualified
+access.
 
 ### 3.7 AMBIGUOUS REFERENCE (C0206) — Error 🆕 New
 
@@ -287,33 +311,38 @@ Each diagnostic should have a unique `C####` code for searchability and `camp --
 
 **Hint:** Use qualified access to disambiguate.
 
-**Rationale:** When the same name is available from multiple sources (imports, inheritance), the compiler should list the candidates. Currently only `diag_import_ambiguous` covers import-import conflicts; this covers the general case.
+**Rationale:** When the same name is available from multiple sources (imports, inheritance), the compiler should list
+the candidates. Currently only `diag_import_ambiguous` covers import-import conflicts; this covers the general case.
 
 ### 3.8 NOT A FUNCTION (C0207) — Error 🆕 New
 
 > `{name}` has type `{type}`, which is not a function. It cannot be called.
 
-**Rationale:** Attempting to call a non-function value. Currently this likely manifests as a type mismatch, but a dedicated error is clearer. Rust (E0618), TypeScript, and Swift all have this.
+**Rationale:** Attempting to call a non-function value. Currently this likely manifests as a type mismatch, but a
+dedicated error is clearer. Rust (E0618), TypeScript, and Swift all have this.
 
 ### 3.9 NOT A TYPE (C0208) — Error 🆕 New
 
 > `{name}` has kind `{kind}`, which is not a type. It cannot be used in a type position.
 
-**Rationale:** Using a value-level name in a type position (or vice versa). This is distinct from "undefined type" because the name exists but is the wrong kind.
+**Rationale:** Using a value-level name in a type position (or vice versa). This is distinct from "undefined type"
+because the name exists but is the wrong kind.
 
 ### 3.10 RAW IDENTIFIER NOT NEEDED (C0209) — Warning ✅ Implemented
 
 > `r#{name}` is not a keyword — you can write `{name}` without the `r#` prefix.
 
-**Rationale:** Raw identifiers (`r#name`) are only needed for keywords. Using them for non-keywords is unnecessary noise. Rust warns about this.
+**Rationale:** Raw identifiers (`r#name`) are only needed for keywords. Using them for non-keywords is unnecessary
+noise. Rust warns about this.
 
 ### 3.11 USE OF DISCARDED VALUE (C0210) — Error ✅ Implemented
 
 > `{name}` begins with `_` and is treated as a discarded value — it cannot be read.
 
-**Rationale:** `_`-prefixed bindings (`_`, `_foo`, `_count`) are discards — they can be bound multiple times but never read as values. This error catches accidental reads.
+**Rationale:** `_`-prefixed bindings (`_`, `_foo`, `_count`) are discards — they can be bound multiple times but never
+read as values. This error catches accidental reads.
 
----
+______________________________________________________________________
 
 ## 4. Type System Errors
 
@@ -341,7 +370,8 @@ Each diagnostic should have a unique `C####` code for searchability and `camp --
 
 ### 4.4 INFINITE TYPE (C0303) — Error ✅ Implemented
 
-> This creates an infinite type. `{type_expr}` is defined in terms of itself, which would make the type infinitely large.
+> This creates an infinite type. `{type_expr}` is defined in terms of itself, which would make the type infinitely
+> large.
 
 **Secondary span:** "also related to this"
 
@@ -373,7 +403,9 @@ Each diagnostic should have a unique `C####` code for searchability and `camp --
 
 > Cannot infer the return type of this function. Add a type annotation to the function or its body.
 
-**Rationale:** When a function's return type is ambiguous (e.g., an empty body, or conflicting return types in branches), a specific error is more helpful than a generic "ambiguous type". Kotlin (`CANNOT_INFER_VALUE_PARAMETER_TYPE`), Rust (E0282), and Swift all have this.
+**Rationale:** When a function's return type is ambiguous (e.g., an empty body, or conflicting return types in
+branches), a specific error is more helpful than a generic "ambiguous type". Kotlin
+(`CANNOT_INFER_VALUE_PARAMETER_TYPE`), Rust (E0282), and Swift all have this.
 
 ### 4.9 TYPE ANNOTATION MISMATCH (C0308) — Error 🆕 New
 
@@ -381,7 +413,9 @@ Each diagnostic should have a unique `C####` code for searchability and `camp --
 
 **Secondary span:** "type annotation here"
 
-**Rationale:** When the user provides a type annotation that conflicts with the inferred type, the error should specifically call out the annotation as the "expected" and the inference as the "actual". Elm and Rust both distinguish this from a generic type mismatch.
+**Rationale:** When the user provides a type annotation that conflicts with the inferred type, the error should
+specifically call out the annotation as the "expected" and the inference as the "actual". Elm and Rust both distinguish
+this from a generic type mismatch.
 
 ### 4.10 MISSING FIELDS IN RECORD (C0309) — Error 🆕 New
 
@@ -389,7 +423,8 @@ Each diagnostic should have a unique `C####` code for searchability and `camp --
 
 **Hint:** Add `{field}: {value}` to the record literal.
 
-**Rationale:** When constructing a record, all required fields must be present. Rust (E0563), TypeScript (2353), and Swift all report missing fields explicitly.
+**Rationale:** When constructing a record, all required fields must be present. Rust (E0563), TypeScript (2353), and
+Swift all report missing fields explicitly.
 
 ### 4.11 UNKNOWN FIELD IN RECORD (C0310) — Error 🆕 New
 
@@ -397,13 +432,15 @@ Each diagnostic should have a unique `C####` code for searchability and `camp --
 
 **Hint:** "Did you mean `{similar}`?" (when similar field names exist)
 
-**Rationale:** Accessing or constructing a record with a field that doesn't exist in the type. Rust (E0560), TypeScript (2322), and Swift all report this.
+**Rationale:** Accessing or constructing a record with a field that doesn't exist in the type. Rust (E0560), TypeScript
+(2322), and Swift all report this.
 
 ### 4.12 FIELD TYPE MISMATCH (C0311) — Error 🆕 New
 
 > Field `{field}` has type `{expected}`, but the provided value has type `{actual}`.
 
-**Rationale:** When constructing a record with a field of the wrong type, the error should name the field rather than just showing a generic type mismatch.
+**Rationale:** When constructing a record with a field of the wrong type, the error should name the field rather than
+just showing a generic type mismatch.
 
 ### 4.13 DISPLAY NOT IMPLEMENTED (C0319) — Error ✅ Implemented
 
@@ -411,7 +448,8 @@ Each diagnostic should have a unique `C####` code for searchability and `camp --
 
 **Hint:** Implement `Display` for `{type}`, or convert the value to `Str` before interpolation.
 
-**Rationale:** String interpolation requires `Display` implementation. This was previously unnumbered; assigned C0319 to avoid conflict with C0312.
+**Rationale:** String interpolation requires `Display` implementation. This was previously unnumbered; assigned C0319 to
+avoid conflict with C0312.
 
 ### 4.14 CANNOT UNIFY EFFECT ROWS (C0312) — Error 🆕 New
 
@@ -421,25 +459,30 @@ Each diagnostic should have a unique `C####` code for searchability and `camp --
 
 **Hint:** Add `{effect}` to the function's effect row, or handle it with a `handle` block.
 
-**Rationale:** Effect row unification failure is Camp-specific and deserves a dedicated error. Following Elm's pattern of tracing where the extraneous row label was introduced, this should show where the unexpected effect originates.
+**Rationale:** Effect row unification failure is Camp-specific and deserves a dedicated error. Following Elm's pattern
+of tracing where the extraneous row label was introduced, this should show where the unexpected effect originates.
 
 ### 4.15 ROW LABEL MISMATCH (C0313) — Error 🆕 New
 
 > Record row `{actual}` does not match expected row `{expected}`. Missing label `{label}`, extra label `{label}`.
 
-**Rationale:** When record types fail to unify due to row differences, a specific error naming the mismatched labels is more helpful than a generic type mismatch.
+**Rationale:** When record types fail to unify due to row differences, a specific error naming the mismatched labels is
+more helpful than a generic type mismatch.
 
 ### 4.16 TYPE PARAMETER KIND MISMATCH (C0314) — Error 🆕 New
 
 > Type parameter `{param}` expects a {expected_kind} type, but `{actual}` is a {actual_kind} type.
 
-**Rationale:** Applying a type parameter of the wrong kind (e.g., passing a value type where a row type is expected). Rust (E0210) has this.
+**Rationale:** Applying a type parameter of the wrong kind (e.g., passing a value type where a row type is expected).
+Rust (E0210) has this.
 
 ### 4.17 RECURSIVE TYPE ALIAS (C0315) — Error 🆕 New
 
-> Type alias `{name}` is directly recursive, which would expand infinitely. Use a tag union or newtype to introduce indirection.
+> Type alias `{name}` is directly recursive, which would expand infinitely. Use a tag union or newtype to introduce
+> indirection.
 
-**Rationale:** `type T = T` or `type T = List(T)` through an alias creates infinite expansion. TypeScript (E2456), Rust, and Haskell all report this.
+**Rationale:** `type T = T` or `type T = List(T)` through an alias creates infinite expansion. TypeScript (E2456), Rust,
+and Haskell all report this.
 
 ### 4.18 INVALID MAIN SIGNATURE (C0316) — Error 🆕 New
 
@@ -461,19 +504,21 @@ Each diagnostic should have a unique `C####` code for searchability and `camp --
 
 **Rationale:** An empty tag union is uninhabitable and almost certainly a mistake.
 
----
+______________________________________________________________________
 
 ### 4.21 TUPLE PATTERN COUNT MISMATCH (C0320) — Error 🆕 New
 
 > Tuple pattern has {actual} elements but expected {expected}.
 
-**Rationale:** Tuple patterns must match the arity of the scrutinee type. A 2-element tuple cannot be matched with a 3-element pattern and vice versa.
+**Rationale:** Tuple patterns must match the arity of the scrutinee type. A 2-element tuple cannot be matched with a
+3-element pattern and vice versa.
 
----
+______________________________________________________________________
 
 ## 5. Effect System Errors
 
-Camp's algebraic effect system is its most distinctive feature. These diagnostics are critical for the developer experience.
+Camp's algebraic effect system is its most distinctive feature. These diagnostics are critical for the developer
+experience.
 
 ### 5.1 EFFECTFUL FUNCTION NAMING (C0400) — Error ✅ Implemented
 
@@ -499,7 +544,9 @@ Camp's algebraic effect system is its most distinctive feature. These diagnostic
 
 **Hint:** Add `{missing_effect}` to the function's effect row, or handle it before this point.
 
-**Rationale:** When a function's actual effects don't match its declared effect row, the error should show both rows and identify the discrepancy. This is distinct from C0312 (cannot unify rows) because this is about a function declaration vs its body.
+**Rationale:** When a function's actual effects don't match its declared effect row, the error should show both rows and
+identify the discrepancy. This is distinct from C0312 (cannot unify rows) because this is about a function declaration
+vs its body.
 
 ### 5.4 UNNECESSARY EFFECT IN SIGNATURE (C0403) — Warning ✅ Implemented
 
@@ -507,9 +554,15 @@ Camp's algebraic effect system is its most distinctive feature. These diagnostic
 
 **Hint:** Remove `{effect}` from the effect row, or the function may need to perform this effect.
 
-**Rationale:** Over-declaring effects is not an error (it's a subtype relationship), but it's likely a mistake or leftover from refactoring. Similar to Rust's `unused_mut` — the code works but the annotation is misleading.
+**Rationale:** Over-declaring effects is not an error (it's a subtype relationship), but it's likely a mistake or
+leftover from refactoring. Similar to Rust's `unused_mut` — the code works but the annotation is misleading.
 
-**Status note (camp-1zmy):** Emitted from `src/semantics/check_expr.odin` — `typecheck_lambda`, after the body's inferred effect row is captured but before the declared annotation is unified in (the annotation unify would otherwise merge the declared set into the body row, hiding the discrepancy). Prelude effects (Console!, Throw!, …) are exempt: the documented `main!` boilerplate `-[Console! | Throw!([..])]->` declares the program's effect budget provisionally, and prelude effects on entry points are conventional rather than refactoring leftovers. User-defined effects declared-but-unused remain flagged. Open effect rows (`..rest`) are skipped (cannot reason about polymorphic extras).
+**Status note (camp-1zmy):** Emitted from `src/semantics/check_expr.odin` — `typecheck_lambda`, after the body's
+inferred effect row is captured but before the declared annotation is unified in (the annotation unify would otherwise
+merge the declared set into the body row, hiding the discrepancy). Prelude effects (Console!, Throw!, …) are exempt: the
+documented `main!` boilerplate `-[Console! | Throw!([..])]->` declares the program's effect budget provisionally, and
+prelude effects on entry points are conventional rather than refactoring leftovers. User-defined effects
+declared-but-unused remain flagged. Open effect rows (`..rest`) are skipped (cannot reason about polymorphic extras).
 
 ### 5.5 EFFECT NOT IN SCOPE (C0404) — Error ✅ Implemented
 
@@ -517,17 +570,25 @@ Camp's algebraic effect system is its most distinctive feature. These diagnostic
 
 **Hint:** "Did you mean `{similar}`?" (when similar effect names exist)
 
-**Rationale:** Referencing an undefined effect in a type annotation or `perform`. Currently this would fall under "undefined name" but deserves its own error because effects are a distinct namespace.
+**Rationale:** Referencing an undefined effect in a type annotation or `perform`. Currently this would fall under
+"undefined name" but deserves its own error because effects are a distinct namespace.
 
-**Status note (camp-1zmy):** Emitted from `src/semantics/typecheck.odin` — the `^CExpr_Handle` arm of `typecheck_synth`, replacing the prior `diag_internal("operation … not found in effects …")` call site. The diagnostic names the unknown operation and offers a "Did you mean?" hint collected from operations declared by the block's effects (Levenshtein distance ≤ 2). This is the C9000 → C0404 conversion called out in §14.1.
+**Status note (camp-1zmy):** Emitted from `src/semantics/typecheck.odin` — the `^CExpr_Handle` arm of `typecheck_synth`,
+replacing the prior `diag_internal("operation … not found in effects …")` call site. The diagnostic names the unknown
+operation and offers a "Did you mean?" hint collected from operations declared by the block's effects (Levenshtein
+distance ≤ 2). This is the C9000 → C0404 conversion called out in §14.1.
 
 ### 5.6 HANDLER SIGNATURE MISMATCH (C0405) — Error ✅ Implemented
 
 > Handler arm for `{effect}` was written with {actual} parameter(s), but the operation declares {expected}.
 
-**Rationale:** A handler arm's parameter count must match the effect operation's signature. Previously an internal error; now a user-facing error.
+**Rationale:** A handler arm's parameter count must match the effect operation's signature. Previously an internal
+error; now a user-facing error.
 
-**Status note (camp-1zmy):** Emitted from `src/semantics/typecheck.odin` — the `^CExpr_Handle` arm of `typecheck_synth`, replacing the prior `diag_internal("handler arm … has … parameters, expected …")` call site. The owning effect name is tracked through the operation-signature lookup so the diagnostic can name it. This is the C9000 → C0405 conversion called out in §14.1.
+**Status note (camp-1zmy):** Emitted from `src/semantics/typecheck.odin` — the `^CExpr_Handle` arm of `typecheck_synth`,
+replacing the prior `diag_internal("handler arm … has … parameters, expected …")` call site. The owning effect name is
+tracked through the operation-signature lookup so the diagnostic can name it. This is the C9000 → C0405 conversion
+called out in §14.1.
 
 ### 5.7 MISSING RESUME IN HANDLER (C0406) — Error ⚠️ Not applicable
 
@@ -535,25 +596,41 @@ Camp's algebraic effect system is its most distinctive feature. These diagnostic
 
 **Hint:** Call `resume(value)` to continue the computation, or `resume` with a different value to alter the result.
 
-**Rationale:** Forgetting to call `resume` in a handler arm is a common mistake that silently discards the continuation. This is analogous to Kotlin's `missing_return` diagnostic.
+**Rationale:** Forgetting to call `resume` in a handler arm is a common mistake that silently discards the continuation.
+This is analogous to Kotlin's `missing_return` diagnostic.
 
-**Status note (camp-1zmy):** Not wired — conflicts with `docs/language-spec.md` §Handle:383 ("Resume: one-shot (0 or 1 times). 0 = abort (don't call resume)"), which makes a zero-resume arm a *valid* abort form. Per AGENTS.md, the recipe wins over the catalog when they conflict. The `effect_lower.odin` implicit-resume wrap (which auto-inserts a `resume` for arms that don't call one) implements the abort-by-default semantics the recipe mandates. Leaving this constructor defined-but-unused for reference; a future recipe change could re-enable it.
+**Status note (camp-1zmy):** Not wired — conflicts with `docs/language-spec.md` §Handle:383 ("Resume: one-shot (0 or 1
+times). 0 = abort (don't call resume)"), which makes a zero-resume arm a *valid* abort form. Per AGENTS.md, the recipe
+wins over the catalog when they conflict. The `effect_lower.odin` implicit-resume wrap (which auto-inserts a `resume`
+for arms that don't call one) implements the abort-by-default semantics the recipe mandates. Leaving this constructor
+defined-but-unused for reference; a future recipe change could re-enable it.
 
 ### 5.8 DOUBLE RESUME IN HANDLER (C0407) — Error ✅ Implemented
 
-> `resume` was called more than once in this handler arm for `{effect}`. Each handler arm may call `resume` at most once.
+> `resume` was called more than once in this handler arm for `{effect}`. Each handler arm may call `resume` at most
+> once.
 
-**Rationale:** Double-resuming is a well-known pitfall in algebraic effect handlers. Koka and Eff explicitly check for this.
+**Rationale:** Double-resuming is a well-known pitfall in algebraic effect handlers. Koka and Eff explicitly check for
+this.
 
-**Status note (camp-1zmy):** Emitted from `src/ir/effect_lower.odin` — the `^IR_Handle` arm of `el_lower_expr`, after `el_replace_resume` rewrites explicit resume calls into `IR_Resume` nodes and before the implicit-resume wrap. `el_count_resume_calls` walks the post-replacement body (including resumes nested in a resume argument, e.g. `resume(resume(1))`) and fires C0407 when more than one explicit resume is present. This is the compile-time detection mandated by `docs/language-spec.md` §Handle:383 ("Compile-time detection where possible").
+**Status note (camp-1zmy):** Emitted from `src/ir/effect_lower.odin` — the `^IR_Handle` arm of `el_lower_expr`, after
+`el_replace_resume` rewrites explicit resume calls into `IR_Resume` nodes and before the implicit-resume wrap.
+`el_count_resume_calls` walks the post-replacement body (including resumes nested in a resume argument, e.g.
+`resume(resume(1))`) and fires C0407 when more than one explicit resume is present. This is the compile-time detection
+mandated by `docs/language-spec.md` §Handle:383 ("Compile-time detection where possible").
 
 ### 5.9 INVALID RESUME OUTSIDE HANDLER (C0408) — Error ✅ Implemented
 
 > `resume` can only be used inside a `handle` block.
 
-**Rationale:** Using `resume` outside a handler is meaningless. Previously surfaced as an undefined-name error; now a dedicated message.
+**Rationale:** Using `resume` outside a handler is meaningless. Previously surfaced as an undefined-name error; now a
+dedicated message.
 
-**Status note (camp-1zmy):** Emitted from `src/semantics/typecheck.odin` — the `^CExpr_Name` arm of `typecheck_synth`, when a bare `resume` identifier fails to resolve and no enclosing `handle` arm scope is active (`in_handler_arm_scope` walks the `Type_Env` parent chain, gated by the new `in_handler_arm` flag set on handler-arm environments). This is the C9000 → C0408 conversion called out in §14.1 ("perform without handler evidence" paths in `effect_lower.odin` retain their internal-error form because they indicate a typechecker evidence-stack invariant violation, not a user mistake).
+**Status note (camp-1zmy):** Emitted from `src/semantics/typecheck.odin` — the `^CExpr_Name` arm of `typecheck_synth`,
+when a bare `resume` identifier fails to resolve and no enclosing `handle` arm scope is active (`in_handler_arm_scope`
+walks the `Type_Env` parent chain, gated by the new `in_handler_arm` flag set on handler-arm environments). This is the
+C9000 → C0408 conversion called out in §14.1 ("perform without handler evidence" paths in `effect_lower.odin` retain
+their internal-error form because they indicate a typechecker evidence-stack invariant violation, not a user mistake).
 
 ### 5.10 REDUNDANT HANDLER (C0409) — Warning ✅ Implemented
 
@@ -563,17 +640,22 @@ Camp's algebraic effect system is its most distinctive feature. These diagnostic
 
 **Rationale:** A handler that never intercepts any operations is dead code. Similar to unused import detection.
 
-**Status note (camp-1zmy):** Emitted from `src/semantics/typecheck.odin` — the `^CExpr_Handle` arm of `typecheck_synth`, after the body is typechecked. `effect_row_contains` checks each handled effect against the body's inferred effect row (resolved post-unification); a handled effect absent from the performed row is dead. Only fires when the body's row is a concrete `Inferred_Effect_Row` to avoid false positives during early unification.
+**Status note (camp-1zmy):** Emitted from `src/semantics/typecheck.odin` — the `^CExpr_Handle` arm of `typecheck_synth`,
+after the body is typechecked. `effect_row_contains` checks each handled effect against the body's inferred effect row
+(resolved post-unification); a handled effect absent from the performed row is dead. Only fires when the body's row is a
+concrete `Inferred_Effect_Row` to avoid false positives during early unification.
 
 ### 5.11 EFFECT ROW SUBTYPE WARNING (C0410) — Warning 🆕 New
 
-> This function's effect row `-[{actual}]->` is a subtype of the declared `-[{declared}]->`. The extra declared effects are unnecessary.
+> This function's effect row `-[{actual}]->` is a subtype of the declared `-[{declared}]->`. The extra declared effects
+> are unnecessary.
 
 **Hint:** Consider tightening the effect row to `-[{actual}]->`.
 
-**Rationale:** When a function declares more effects than it actually uses, the signature is imprecise. Not an error (subtyping allows it), but worth warning about for API clarity.
+**Rationale:** When a function declares more effects than it actually uses, the signature is imprecise. Not an error
+(subtyping allows it), but worth warning about for API clarity.
 
----
+______________________________________________________________________
 
 ## 6. Pattern Matching Errors
 
@@ -597,7 +679,9 @@ Camp's algebraic effect system is its most distinctive feature. These diagnostic
 
 **Hint:** Add a branch for `{missing_variant}`, or add a wildcard pattern.
 
-**Rationale:** Tag union exhaustiveness is a core feature of strict functional languages. Rust (E0004), Elm, and Kotlin all make this a hard error for sealed/sum types. The previous internal-error fallback is replaced by this user-facing error.
+**Rationale:** Tag union exhaustiveness is a core feature of strict functional languages. Rust (E0004), Elm, and Kotlin
+all make this a hard error for sealed/sum types. The previous internal-error fallback is replaced by this user-facing
+error.
 
 ### 6.4 REDUNDANT PATTERN (C0503) — Warning ✅ Implemented
 
@@ -605,7 +689,8 @@ Camp's algebraic effect system is its most distinctive feature. These diagnostic
 
 **Hint:** Remove this arm or reorder patterns so this one comes first.
 
-**Rationale:** Unreachable patterns are dead code. GHC (`-Woverlapping-patterns`), Rust, and OCaml (warning 11) all report this.
+**Rationale:** Unreachable patterns are dead code. GHC (`-Woverlapping-patterns`), Rust, and OCaml (warning 11) all
+report this.
 
 ### 6.5 FRAGILE MATCH (C0504) — Warning ✅ Implemented
 
@@ -613,25 +698,37 @@ Camp's algebraic effect system is its most distinctive feature. These diagnostic
 
 **Hint:** Add a wildcard pattern to make this match robust against future changes.
 
-**Rationale:** OCaml's warning 4 (`fragile-match`) is brilliant — it warns when a match is technically exhaustive but would break if a new variant is added. This is especially valuable in Camp where newtypes can be extended with new variants.
+**Rationale:** OCaml's warning 4 (`fragile-match`) is brilliant — it warns when a match is technically exhaustive but
+would break if a new variant is added. This is especially valuable in Camp where newtypes can be extended with new
+variants.
 
-**Status note (camp-xuen):** Fires only for newtype-owned tag unions with more than one variant (e.g. `@Color : pub [Red | Green | Blue]`), where adding a variant is a real future change. Anonymous tag unions written inline as `[A | B]` cannot gain variants after the fact, so they do not trigger C0504.
+**Status note (camp-xuen):** Fires only for newtype-owned tag unions with more than one variant (e.g.
+`@Color : pub [Red | Green | Blue]`), where adding a variant is a real future change. Anonymous tag unions written
+inline as `[A | B]` cannot gain variants after the fact, so they do not trigger C0504.
 
 ### 6.6 INVALID IRREFUTABLE PATTERN (C0505) — Error ⚠️ Not Applicable
 
-> Pattern `{pattern}` is refutable and cannot be used in a `let` binding. Only irrefutable patterns (wildcards, variables, records with all fields) are allowed here.
+> Pattern `{pattern}` is refutable and cannot be used in a `let` binding. Only irrefutable patterns (wildcards,
+> variables, records with all fields) are allowed here.
 
 **Hint:** Use a `match` expression instead.
 
-**Rationale:** `let` bindings require irrefutable patterns. Using a tag pattern like `let Some(x) = expr` should be an error. Rust (E0005), Haskell, and OCaml all enforce this.
+**Rationale:** `let` bindings require irrefutable patterns. Using a tag pattern like `let Some(x) = expr` should be an
+error. Rust (E0005), Haskell, and OCaml all enforce this.
 
-**Status note (camp-xuen):** Camp's syntax has no `let` keyword — bindings are `name = expr` or `name : Type = expr`, both of which accept only an identifier (or `$name` mutable) on the LHS. Statement-level destructuring (`{ a, b } = record`, `[a, b, ...rest] = list`, `@UserId(n) = uid`) is desugared to field-access assignments that never produce a refutable pattern. The constructor `diag_invalid_irrefutable_pattern` exists but has no triggerable code path under the current syntax (see §Assignment and §Destructuring in `docs/language-spec.md`). Re-evaluate if a `let`/refutable-binding form is ever introduced.
+**Status note (camp-xuen):** Camp's syntax has no `let` keyword — bindings are `name = expr` or `name : Type = expr`,
+both of which accept only an identifier (or `$name` mutable) on the LHS. Statement-level destructuring
+(`{ a, b } = record`, `[a, b, ...rest] = list`, `@UserId(n) = uid`) is desugared to field-access assignments that never
+produce a refutable pattern. The constructor `diag_invalid_irrefutable_pattern` exists but has no triggerable code path
+under the current syntax (see §Assignment and §Destructuring in `docs/language-spec.md`). Re-evaluate if a
+`let`/refutable-binding form is ever introduced.
 
 ### 6.7 MISSING FIELDS IN RECORD PATTERN (C0506) — Error ✅ Implemented
 
 > Record pattern is missing field `{field}`. Use `_` to ignore a field, or `{..}` to ignore remaining fields.
 
-**Rationale:** When destructuring a record, all fields must be accounted for (either bound or explicitly ignored). Rust (E0027) reports this.
+**Rationale:** When destructuring a record, all fields must be accounted for (either bound or explicitly ignored). Rust
+(E0027) reports this.
 
 ### 6.8 UNKNOWN FIELD IN RECORD PATTERN (C0507) — Error ✅ Implemented
 
@@ -653,7 +750,7 @@ Camp's algebraic effect system is its most distinctive feature. These diagnostic
 
 **Rationale:** A more specific version of "redundant pattern" for the case where multiple wildcards/variables exist.
 
----
+______________________________________________________________________
 
 ## 7. Trait and Generics Errors
 
@@ -695,13 +792,15 @@ Camp's algebraic effect system is its most distinctive feature. These diagnostic
 
 **Hint:** Add `{constraint}` to the type parameter's constraint list.
 
-**Rationale:** When a generic function uses a trait method on a type parameter, the constraint must be declared. Rust (E0599) reports this.
+**Rationale:** When a generic function uses a trait method on a type parameter, the constraint must be declared. Rust
+(E0599) reports this.
 
 ### 7.7 CONFLICTING IMPLEMENTATIONS (C0606) — Error 🆕 New
 
 > Implementing `{trait}` for `{type}` would conflict with the existing implementation via `{other_trait}`.
 
-**Rationale:** When two trait instances would overlap through coherence, the compiler should explain the conflict. Haskell and Rust both report this.
+**Rationale:** When two trait instances would overlap through coherence, the compiler should explain the conflict.
+Haskell and Rust both report this.
 
 ### 7.8 TRAIT NOT FOUND (C0607) — Error ✅ Implemented
 
@@ -709,7 +808,9 @@ Camp's algebraic effect system is its most distinctive feature. These diagnostic
 
 **Hint:** "Did you mean `{similar}`?"
 
-**Rationale:** Referencing an undefined trait. Emitted by `verify_trait_conformance` when an `is` impl names a trait absent from the trait registry; previously this path returned silently and `lower_tdecl_is_impl` erased the impl methods without any diagnostic.
+**Rationale:** Referencing an undefined trait. Emitted by `verify_trait_conformance` when an `is` impl names a trait
+absent from the trait registry; previously this path returned silently and `lower_tdecl_is_impl` erased the impl methods
+without any diagnostic.
 
 **Implemented in:** `src/semantics/check_decl.odin` — `verify_trait_conformance` (trait-not-in-registry branch).
 
@@ -719,7 +820,8 @@ Camp's algebraic effect system is its most distinctive feature. These diagnostic
 
 **Hint:** Implement `{supertrait}` for `{type}` first.
 
-**Rationale:** When a trait has a supertrait requirement, the implementing type must satisfy all supertraits. Rust (E0277 with note) and Haskell report this.
+**Rationale:** When a trait has a supertrait requirement, the implementing type must satisfy all supertraits. Rust
+(E0277 with note) and Haskell report this.
 
 ### 7.10 CYCLIC TRAIT DEPENDENCY (C0609) — Error 🆕 New
 
@@ -733,7 +835,7 @@ Camp's algebraic effect system is its most distinctive feature. These diagnostic
 
 **Rationale:** When type inference can't determine which instance to use. Haskell and Rust report this.
 
----
+______________________________________________________________________
 
 ## 8. Newtype and Nominal Type Errors
 
@@ -765,11 +867,12 @@ Camp's algebraic effect system is its most distinctive feature. These diagnostic
 
 ### 8.5 NEWTYPE FIELD ACCESS (C0704) — Error 🆕 New
 
-> Cannot access field `{field}` on newtype `{type}` — newtypes are opaque. Use a method or accessor defined in the defining module.
+> Cannot access field `{field}` on newtype `{type}` — newtypes are opaque. Use a method or accessor defined in the
+> defining module.
 
 **Rationale:** Attempting to access a field on a newtype as if it were a record. Newtypes are nominal and opaque.
 
----
+______________________________________________________________________
 
 ## 9. Module and Import Errors
 
@@ -827,13 +930,15 @@ Camp's algebraic effect system is its most distinctive feature. These diagnostic
 
 > `{name}` is imported more than once from module `{module}`.
 
-**Rationale:** Importing the same name twice from the same module is redundant. TypeScript (6192) and GHC (`-Wdodgy-imports`) report this.
+**Rationale:** Importing the same name twice from the same module is redundant. TypeScript (6192) and GHC
+(`-Wdodgy-imports`) report this.
 
 ### 9.10 IMPORT SHADOWS BINDING (C0809) — Warning 🆕 New
 
 > Imported name `{name}` shadows a local binding. Use qualified access to disambiguate.
 
-**Rationale:** When an import name collides with a local binding, the import wins silently in many languages. Camp forbids shadowing, so this is already an error (C0201), but a more specific message helps.
+**Rationale:** When an import name collides with a local binding, the import wins silently in many languages. Camp
+forbids shadowing, so this is already an error (C0201), but a more specific message helps.
 
 ### 9.11 SELF IMPORT (C0810) — Error 🆕 New
 
@@ -845,9 +950,10 @@ Camp's algebraic effect system is its most distinctive feature. These diagnostic
 
 > Type `{type}` is defined in module `{module}`. Consider adding `import {module} { {type} }`.
 
-**Rationale:** When a type is referenced but not imported, suggesting the import (like Swift's `candidate_add_import`) is extremely helpful. This is a note attached to an UNDEFINED TYPE error.
+**Rationale:** When a type is referenced but not imported, suggesting the import (like Swift's `candidate_add_import`)
+is extremely helpful. This is a note attached to an UNDEFINED TYPE error.
 
----
+______________________________________________________________________
 
 ## 10. Unused Analysis Warnings
 
@@ -891,7 +997,8 @@ Camp's algebraic effect system is its most distinctive feature. These diagnostic
 
 ### 10.6 UNJOINED SPAWN (C0905) — Warning ⚠️ Defined but unused
 
-> This spawned handle is not joined on all exit paths. Unjoined handles are cancelled when the handler exits, which may silently discard results.
+> This spawned handle is not joined on all exit paths. Unjoined handles are cancelled when the handler exits, which may
+> silently discard results.
 
 **Hint:** Use `join!` to await the result, or explicitly `cancel!` to discard it.
 
@@ -903,13 +1010,16 @@ Camp's algebraic effect system is its most distinctive feature. These diagnostic
 
 **Hint:** If this is intentional, consider making it `pub` or prefixing with `_`.
 
-**Rationale:** Unused private functions are dead code. Rust (`dead_code`), GHC (`-Wunused-binds`), and OCaml (warning 32) report this. Currently Camp's unused-binding covers top-level bindings, but a specific "unused function" message is clearer.
+**Rationale:** Unused private functions are dead code. Rust (`dead_code`), GHC (`-Wunused-binds`), and OCaml (warning
+32\) report this. Currently Camp's unused-binding covers top-level bindings, but a specific "unused function" message is
+clearer.
 
 ### 10.8 UNUSED TYPE DEFINITION (C0907) — Warning 🆕 New
 
 > Type `{name}` is defined but never referenced.
 
-**Rationale:** Unused type definitions are dead code. GHC (`-Wunused-type-signatures`) and OCaml (warning 34) report this.
+**Rationale:** Unused type definitions are dead code. GHC (`-Wunused-type-signatures`) and OCaml (warning 34) report
+this.
 
 ### 10.9 UNUSED TYPE PARAMETER (C0908) — Warning 🆕 New
 
@@ -927,7 +1037,8 @@ Camp's algebraic effect system is its most distinctive feature. These diagnostic
 
 > This code is unreachable — it follows a `return`, `match` with all branches returning, or similar construct.
 
-**Rationale:** Code after a return or exhaustive match is dead. Go (`unreachable`), Rust, and GHC report this. The unused analysis spec notes that unreachable code should skip unused checking.
+**Rationale:** Code after a return or exhaustive match is dead. Go (`unreachable`), Rust, and GHC report this. The
+unused analysis spec notes that unreachable code should skip unused checking.
 
 ### 10.12 MUST_USE DISCARDED (C0911) — Warning 🆕 New
 
@@ -935,13 +1046,15 @@ Camp's algebraic effect system is its most distinctive feature. These diagnostic
 
 **Hint:** Use the result, or explicitly discard with `_ =` if intentional.
 
-**Rationale:** Rust's `#[must_use]` attribute catches bugs where important return values (like `Result`, `Option`) are silently discarded. Camp should support `@must_use` annotations on types and functions.
+**Rationale:** Rust's `#[must_use]` attribute catches bugs where important return values (like `Result`, `Option`) are
+silently discarded. Camp should support `@must_use` annotations on types and functions.
 
 ### 10.13 REDUNDANT ELSE (C0912) — Warning 🆕 New
 
 > This `else` branch is redundant — the `if` condition is always true (or the preceding `match` is exhaustive).
 
-**Rationale:** When an `if` condition is known to be always true (e.g., after a type-narrowing check), the `else` branch is unreachable. GHC and Rust report this.
+**Rationale:** When an `if` condition is known to be always true (e.g., after a type-narrowing check), the `else` branch
+is unreachable. GHC and Rust report this.
 
 ### 10.14 UNNECESSARY MUTABILITY (C0913) — Warning 🆕 New
 
@@ -949,7 +1062,8 @@ Camp's algebraic effect system is its most distinctive feature. These diagnostic
 
 **Hint:** Replace `${name}` with `{name}`.
 
-**Rationale:** If a `$`-variable is never reassigned, the `$` prefix is misleading. Rust's `unused_mut` lint serves the same purpose.
+**Rationale:** If a `$`-variable is never reassigned, the `$` prefix is misleading. Rust's `unused_mut` lint serves the
+same purpose.
 
 ### 10.15 TODO EXPRESSION (C0914) — Warning ✅ Implemented
 
@@ -957,9 +1071,11 @@ Camp's algebraic effect system is its most distinctive feature. These diagnostic
 
 **Hint:** Replace this with a real implementation before shipping.
 
-**Rationale:** A `todo` expression compiles but traps at runtime. Reporting its location at compile time (as a warning, not an error) tells the developer where placeholders remain without blocking compilation. This is the Camp analog of Rust's `todo!()` / `unimplemented!!()` macros and Haskell's `error "todo"`.
+**Rationale:** A `todo` expression compiles but traps at runtime. Reporting its location at compile time (as a warning,
+not an error) tells the developer where placeholders remain without blocking compilation. This is the Camp analog of
+Rust's `todo!()` / `unimplemented!!()` macros and Haskell's `error "todo"`.
 
----
+______________________________________________________________________
 
 ## 11. Unused Analysis Errors (Hard Errors)
 
@@ -979,7 +1095,7 @@ These are hard errors per Camp's design philosophy that unused code should be ca
 
 **Rationale:** Self-assignment (`$x = $x`) is always a mistake.
 
----
+______________________________________________________________________
 
 ## 12. Perceus / Reference Counting Errors
 
@@ -991,23 +1107,28 @@ Camp uses Perceus reference counting for deterministic memory management. These 
 
 **Hint:** Ensure the value is used, returned, or explicitly dropped.
 
-**Rationale:** In a Perceus RC system, values that are created but never consumed may leak. While the type system should prevent most leaks, this catches cases where a value is assigned but the assignment is never read (similar to unused assignment but from the RC perspective).
+**Rationale:** In a Perceus RC system, values that are created but never consumed may leak. While the type system should
+prevent most leaks, this catches cases where a value is assigned but the assignment is never read (similar to unused
+assignment but from the RC perspective).
 
 ### 12.2 UNNECESSARY COPY (C1101) — Warning 🆕 New
 
 > This value is copied when it could be moved. Use `move` or restructure to avoid the copy.
 
-**Rationale:** Perceus optimizes by reusing (consuming) references. When a copy is made where a consume would suffice, this warning suggests an optimization opportunity. This is analogous to Rust's "consider using a reference" suggestions.
+**Rationale:** Perceus optimizes by reusing (consuming) references. When a copy is made where a consume would suffice,
+this warning suggests an optimization opportunity. This is analogous to Rust's "consider using a reference" suggestions.
 
 ### 12.3 CONSUME AFTER USE (C1102) — Error 🆕 New
 
-> Value `{name}` is consumed (used after it has been moved/consumed). Each value can only be used once under Perceus semantics.
+> Value `{name}` is consumed (used after it has been moved/consumed). Each value can only be used once under Perceus
+> semantics.
 
 **Secondary span:** "value consumed here"
 
-**Rationale:** Under Perceus RC, consuming a value (using it as the last reference) means it can't be used again. This is Camp's analog of Rust's "use after move" (E0382).
+**Rationale:** Under Perceus RC, consuming a value (using it as the last reference) means it can't be used again. This
+is Camp's analog of Rust's "use after move" (E0382).
 
----
+______________________________________________________________________
 
 ## 13. CLI and Build Errors
 
@@ -1065,7 +1186,7 @@ Camp uses Perceus reference counting for deterministic memory management. These 
 
 **Rationale:** Stack overflow, iteration limit, or memory limit during compilation. Prevents the compiler from hanging.
 
----
+______________________________________________________________________
 
 ## 14. Internal Errors
 
@@ -1076,100 +1197,123 @@ Camp uses Perceus reference counting for deterministic memory management. These 
 **Hint:** This is a bug in Camp. Please report it at https://github.com/smores56/camp/issues
 
 **Rationale:** Compiler bugs. Currently used for several specific cases that should become proper user-facing errors:
-- "perform without handler evidence" → should become C0408 *(camp-1zmy: the user-facing `resume`-outside-handler form is now C0408, emitted from `typecheck.odin`; the `effect_lower.odin` "perform without handler evidence" sites remain `diag_internal` because they signal a typechecker evidence-stack invariant violation, not a user mistake)*
+
+- "perform without handler evidence" → should become C0408 *(camp-1zmy: the user-facing `resume`-outside-handler form is
+  now C0408, emitted from `typecheck.odin`; the `effect_lower.odin` "perform without handler evidence" sites remain
+  `diag_internal` because they signal a typechecker evidence-stack invariant violation, not a user mistake)*
 - "handler arm has wrong parameter count" → now C0405 (camp-1zmy)
 - "operation not found in effects" → now C0404 (camp-1zmy)
 - "trait not found in registry" → should become C0607
 - "non-exhaustive match" → now C0502 (camp-xuen)
 
----
+______________________________________________________________________
 
 ## Summary: Implementation Status
 
 ### Currently Implemented (97 total)
 
-| Category | Count | Codes |
-|----------|-------|-------|
-| Lexer | 5 | C0001–C0005 |
-| Parser | 22 | C0100–C0121 |
-| Name Resolution | 4 | C0200–C0202, C0209 |
-| Type System | 9 | C0300–C0306, C0317, C0318 |
-| Effect System | 8 | C0400, C0401, C0403–C0405, C0407–C0409 |
-| Pattern Matching | 9 | C0500–C0504, C0506–C0509 |
-| Traits/Generics | 6 | C0600–C0604, C0607 |
-| Newtype/Nominal | 4 | C0700–C0703 |
-| Module/Import | 8 | C0800–C0807 |
-| Unused Warnings | 7 | C0900–C0905, C0914 |
-| Unused Errors | 2 | C1000, C1001 |
-| CLI/Build | 4 | C1200–C1203 |
-| Internal | 1 | C9000 |
+| Category         | Count | Codes                                  |
+| ---------------- | ----- | -------------------------------------- |
+| Lexer            | 5     | C0001–C0005                            |
+| Parser           | 22    | C0100–C0121                            |
+| Name Resolution  | 4     | C0200–C0202, C0209                     |
+| Type System      | 9     | C0300–C0306, C0317, C0318              |
+| Effect System    | 8     | C0400, C0401, C0403–C0405, C0407–C0409 |
+| Pattern Matching | 9     | C0500–C0504, C0506–C0509               |
+| Traits/Generics  | 6     | C0600–C0604, C0607                     |
+| Newtype/Nominal  | 4     | C0700–C0703                            |
+| Module/Import    | 8     | C0800–C0807                            |
+| Unused Warnings  | 7     | C0900–C0905, C0914                     |
+| Unused Errors    | 2     | C1000, C1001                           |
+| CLI/Build        | 4     | C1200–C1203                            |
+| Internal         | 1     | C9000                                  |
 
 ### Defined but Unused (5)
 
-| Constructor | Proposed Code | Action |
-|-------------|---------------|--------|
-| `diag_newtype_coercion` | C0702 | Wire into type checker |
-| `diag_ambiguous_type` | C0306 | Wire into type inference |
-| `diag_unjoined_spawn` | C0905 | Wire into parallelism checker |
-| `diag_pointless_evaluation` | C0903 | Wire into unused analysis (TODO in `analysis/unused.odin:667`) |
-| `diag_unterminated_block_comment` | C0006 | Not applicable — Camp has no block comments (language-spec §1). Retained for reference only. |
+| Constructor                       | Proposed Code | Action                                                                                       |
+| --------------------------------- | ------------- | -------------------------------------------------------------------------------------------- |
+| `diag_newtype_coercion`           | C0702         | Wire into type checker                                                                       |
+| `diag_ambiguous_type`             | C0306         | Wire into type inference                                                                     |
+| `diag_unjoined_spawn`             | C0905         | Wire into parallelism checker                                                                |
+| `diag_pointless_evaluation`       | C0903         | Wire into unused analysis (TODO in `analysis/unused.odin:667`)                               |
+| `diag_unterminated_block_comment` | C0006         | Not applicable — Camp has no block comments (language-spec §1). Retained for reference only. |
 
 ### Proposed New Diagnostics (25)
 
-| Category | Count | Codes | Priority |
-|----------|-------|-------|----------|
-| Parser | 0 | — | Medium |
-| Name Resolution | 7 | C0203–C0208, C0210 | High |
-| Type System | 11 | C0307–C0316, C0319, C0320 | High |
-| Effect System | 3 | C0402, C0410, C0411 | **Critical** |
-| Pattern Matching | 1 | C0505 | Low (not applicable under current syntax) |
-| Traits/Generics | 5 | C0605, C0606, C0608–C0610 | Medium |
-| Newtype/Nominal | 1 | C0704 | Low |
-| Module/Import | 4 | C0808–C0811 | Medium |
-| Unused Warnings | 8 | C0906–C0913 | High |
-| Perceus/RC | 3 | C1100–C1102 | Medium |
-| CLI/Build | 4 | C1204–C1207 | Low |
+| Category         | Count | Codes                     | Priority                                  |
+| ---------------- | ----- | ------------------------- | ----------------------------------------- |
+| Parser           | 0     | —                         | Medium                                    |
+| Name Resolution  | 7     | C0203–C0208, C0210        | High                                      |
+| Type System      | 11    | C0307–C0316, C0319, C0320 | High                                      |
+| Effect System    | 3     | C0402, C0410, C0411       | **Critical**                              |
+| Pattern Matching | 1     | C0505                     | Low (not applicable under current syntax) |
+| Traits/Generics  | 5     | C0605, C0606, C0608–C0610 | Medium                                    |
+| Newtype/Nominal  | 1     | C0704                     | Low                                       |
+| Module/Import    | 4     | C0808–C0811               | Medium                                    |
+| Unused Warnings  | 8     | C0906–C0913               | High                                      |
+| Perceus/RC       | 3     | C1100–C1102               | Medium                                    |
+| CLI/Build        | 4     | C1204–C1207               | Low                                       |
 
 ### Total Catalog: 128 diagnostics (97 implemented + 5 defined-but-unused + 26 proposed new)
 
----
+______________________________________________________________________
 
 ## Design Principles (Learned from Other Languages)
 
 ### 1. Chain the "Why" (TypeScript/Rust pattern)
+
 When type A ≠ B, explain *why* at each structural level. Don't just say "mismatch" — drill down:
+
 ```
 Error: `Record({x: I64, y: Str})` does not match `Record({x: I64, y: I64})`
   → field `y` has type `Str`, expected `I64`
 ```
 
 ### 2. Trace Effect Origins (Elm pattern)
-For effect row mismatches, trace backwards to find where the unexpected effect was *introduced*, not just where the mismatch was detected. Show the introduction site as a secondary span.
+
+For effect row mismatches, trace backwards to find where the unexpected effect was *introduced*, not just where the
+mismatch was detected. Show the introduction site as a secondary span.
 
 ### 3. Exhaustiveness is Always an Error (Rust/Elm pattern)
-In a strict functional language, non-exhaustive matches on closed types (tag unions, Bool) should always be hard errors. For open types (Int, String), require a wildcard and warn if missing.
+
+In a strict functional language, non-exhaustive matches on closed types (tag unions, Bool) should always be hard errors.
+For open types (Int, String), require a wildcard and warn if missing.
 
 ### 4. Fragile Match Warning (OCaml pattern)
-Warn when a match is technically exhaustive but would break if a new variant is added. This is especially valuable during refactoring.
+
+Warn when a match is technically exhaustive but would break if a new variant is added. This is especially valuable
+during refactoring.
 
 ### 5. Must-Use Annotations (Rust pattern)
-Support `@must_use` on types and functions. Discarding a must-use value should be a warning. This catches bugs like ignoring `Result` return values.
+
+Support `@must_use` on types and functions. Discarding a must-use value should be a warning. This catches bugs like
+ignoring `Result` return values.
 
 ### 6. Suggest Imports (Swift pattern)
-When a name is undefined but exists in another module, suggest the import. This dramatically improves the new-user experience.
+
+When a name is undefined but exists in another module, suggest the import. This dramatically improves the new-user
+experience.
 
 ### 7. Structured Diagnostic Type (GHC pattern)
+
 Use a typed ADT for diagnostics rather than stringly-typed messages. This enables:
+
 - JSON output for IDE integration
 - `--explain C0300` for long-form descriptions
 - Machine-readable suggestions with applicability levels
 - Localization
 
 ### 8. Severity Fluidity (GHC pattern)
-Decouple diagnostic *reason* from *severity*. Allow warnings to be promoted to errors via flags (`-Werror=unused-import`) and vice versa. This lets projects enforce strictness incrementally.
+
+Decouple diagnostic *reason* from *severity*. Allow warnings to be promoted to errors via flags
+(`-Werror=unused-import`) and vice versa. This lets projects enforce strictness incrementally.
 
 ### 9. Actionable Hints (Elm pattern)
-Every error should have an actionable hint. "Type mismatch" without a suggestion is frustrating. "Did you mean `Foo.bar`?" or "Add `!` to the function name" makes errors educational.
+
+Every error should have an actionable hint. "Type mismatch" without a suggestion is frustrating. "Did you mean
+`Foo.bar`?" or "Add `!` to the function name" makes errors educational.
 
 ### 10. Internal Errors Should Become User Errors
-Every current `diag_internal` call site that represents a user mistake (wrong handler arity, missing trait, etc.) should become a proper user-facing diagnostic with a helpful message. Internal errors should only be for genuine compiler bugs.
+
+Every current `diag_internal` call site that represents a user mistake (wrong handler arity, missing trait, etc.) should
+become a proper user-facing diagnostic with a helpful message. Internal errors should only be for genuine compiler bugs.

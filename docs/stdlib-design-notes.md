@@ -1,8 +1,9 @@
 # Camp Standard Library — Design Notes
 
-> Working document capturing all design decisions, open questions, and proposed APIs from the stdlib design grilling session. This is NOT a spec — it's the research and reasoning that will inform spec updates.
+> Working document capturing all design decisions, open questions, and proposed APIs from the stdlib design grilling
+> session. This is NOT a spec — it's the research and reasoning that will inform spec updates.
 
----
+______________________________________________________________________
 
 ## 1. Decisions Made
 
@@ -11,20 +12,25 @@
 Three error/absence mechanisms (Option + Result + Throw!) is too many. Two is right.
 
 - **Can't drop Throw!** — effects are core to Camp's identity
-- **Can't drop Result** — data vs control flow distinction: Result is storable, pure, local; Throw! is propagating, effectful
-- **So Option goes** — eliminates Option↔Result impedance mismatch, one set of combinators, specific error tags replace None's ambiguity
+- **Can't drop Result** — data vs control flow distinction: Result is storable, pure, local; Throw! is propagating,
+  effectful
+- **So Option goes** — eliminates Option↔Result impedance mismatch, one set of combinators, specific error tags replace
+  None's ambiguity
 
 Non-failure optionality uses domain-specific tag unions: `[Loading, Loaded(Artist)]` instead of `Option(Artist)`.
 
-Camp differs from Roc (no error type inference, no optional record fields), but tag unions make `Result(a, [SpecificTag])` ergonomic.
+Camp differs from Roc (no error type inference, no optional record fields), but tag unions make
+`Result(a, [SpecificTag])` ergonomic.
 
 ### D2: `Iter.next` uses `[Yield(a) | Done]` (tentative)
 
-Iteration being "done" isn't an error — Result framing is semantically wrong. Domain-specific tag unions beat generic wrappers for non-failure optionality. May revisit if pattern matching ergonomics are bad.
+Iteration being "done" isn't an error — Result framing is semantically wrong. Domain-specific tag unions beat generic
+wrappers for non-failure optionality. May revisit if pattern matching ergonomics are bad.
 
 ### D3: Error tags — specific per operation (Pattern A)
 
-`Dict.get` returns `Result(v, [KeyNotFound])`, `List.first` returns `Result(a, [ListWasEmpty])`. Tags are naturally module-qualified via Camp's module system. No collision risk, composes with effect rows.
+`Dict.get` returns `Result(v, [KeyNotFound])`, `List.first` returns `Result(a, [ListWasEmpty])`. Tags are naturally
+module-qualified via Camp's module system. No collision risk, composes with effect rows.
 
 ### D4: Throw! vs Result boundary
 
@@ -81,7 +87,8 @@ Prelude includes `Ok`, `Err` via `import Result { [Ok, Err] }`.
 ### D7: Collections — types and ordering
 
 - **List** — immutable linked list (Priority 1)
-- **Map** — ordered tree map (Priority 1) — MUST be ordered for referential transparency (hash maps have non-deterministic iteration order)
+- **Map** — ordered tree map (Priority 1) — MUST be ordered for referential transparency (hash maps have
+  non-deterministic iteration order)
 - **Set** — ordered tree set (Priority 1)
 - **Iter** — lazy iterator (Priority 1)
 - **Bytes** — contiguous byte buffer (Priority 1)
@@ -91,7 +98,8 @@ Prelude includes `Ok`, `Err` via `import Result { [Ok, Err] }`.
 
 ### D8: List API — lean, Iter does the rest
 
-"One way to do things" principle. List is for construction, structural access, and conversion. Iter is for all transformation.
+"One way to do things" principle. List is for construction, structural access, and conversion. Iter is for all
+transformation.
 
 ```
 -- Construction
@@ -119,13 +127,12 @@ from_iter   : Iter(a) -> List(a)       -- via FromIter trait
 
 ### D9: Traits — final inventory
 
-**Derivable:** `Eq`, `Ord`, `Hash`, `Debug`, `Default`
-**Not derivable:** `Display`
-**Collection:** `IntoIter(a)`, `FromIter(c, a)`
-**Codec:** `Encode(a, f)`, `Decode(a, f)`
-**Conversion:** `From(source, target)`, `TryFrom(source, target, e)`
+**Derivable:** `Eq`, `Ord`, `Hash`, `Debug`, `Default` **Not derivable:** `Display` **Collection:** `IntoIter(a)`,
+`FromIter(c, a)` **Codec:** `Encode(a, f)`, `Decode(a, f)` **Conversion:** `From(source, target)`,
+`TryFrom(source, target, e)`
 
-**Eliminated:** `Clone`, `Copy` — Camp is auto-memory-managed (Perceus RC) and immutable. Values are always shared by reference; "cloning" is meaningless.
+**Eliminated:** `Clone`, `Copy` — Camp is auto-memory-managed (Perceus RC) and immutable. Values are always shared by
+reference; "cloning" is meaningless.
 
 ```
 Eq(a) : {
@@ -177,7 +184,8 @@ I8, I16, I32, I64, U8, U16, U32, U64, F32, F64 (10 types total).
 
 ### D11: Numeric literal inference — pragmatic
 
-Default I64/F64 for unannotated literals, context unification resolves when type is known. Evolve toward Roc-style polymorphic literals later.
+Default I64/F64 for unannotated literals, context unification resolves when type is known. Evolve toward Roc-style
+polymorphic literals later.
 
 ### D12: String types — Str + Bytes
 
@@ -189,7 +197,8 @@ Default I64/F64 for unannotated literals, context unification resolves when type
 
 - `Map.update` — yes, included in v1
 - `Map.keys` / `Map.values` — return `Iter`, not `List`
-- Set operations (`union`, `intersection`, `difference`, `symmetric_difference`, `is_subset`, `is_disjoint`) — on Set directly, not through Iter
+- Set operations (`union`, `intersection`, `difference`, `symmetric_difference`, `is_subset`, `is_disjoint`) — on Set
+  directly, not through Iter
 
 ### D14: Effect module naming convention
 
@@ -202,39 +211,52 @@ Default I64/F64 for unannotated literals, context unification resolves when type
 
 ### D16: Order is structural
 
-`[Less | Equal | Greater]`, not nominal. No prelude slot. Convenience functions as free functions in Ord module if needed.
+`[Less | Equal | Greater]`, not nominal. No prelude slot. Convenience functions as free functions in Ord module if
+needed.
 
 ### D17: Prelude finalized
 
-8 auto-imported modules: `List`, `Map`, `Set`, `Iter`, `Bytes`, `Result`, `Str`, `Bool`. All 10 numeric types: `I8`, `I16`, `I32`, `I64`, `U8`, `U16`, `U32`, `U64`, `F32`, `F64`. Constructors: `Ok`, `Err`, `True`, `False`. 10 traits: `Eq`, `Ord`, `Hash`, `Debug`, `Display`, `Default`, `IntoIter`, `FromIter`, `From`, `TryFrom`. Effects: `Throw!`, `Console!`. Language operators.
+8 auto-imported modules: `List`, `Map`, `Set`, `Iter`, `Bytes`, `Result`, `Str`, `Bool`. All 10 numeric types: `I8`,
+`I16`, `I32`, `I64`, `U8`, `U16`, `U32`, `U64`, `F32`, `F64`. Constructors: `Ok`, `Err`, `True`, `False`. 10 traits:
+`Eq`, `Ord`, `Hash`, `Debug`, `Display`, `Default`, `IntoIter`, `FromIter`, `From`, `TryFrom`. Effects: `Throw!`,
+`Console!`. Language operators.
 
 ### D18: Str API
 
-`Str.length` counts graphemes, `Str.slice` is grapheme-safe, `to_lower`/`to_upper` are Unicode, `split_first`/`split_last` return `Result((Str, Str), [NotFound])`.
+`Str.length` counts graphemes, `Str.slice` is grapheme-safe, `to_lower`/`to_upper` are Unicode,
+`split_first`/`split_last` return `Result((Str, Str), [NotFound])`.
 
 ### D19: Bytes API
 
-Lean module (construction, queries, access, slicing, concat). Conversions via traits: `From(Str, Bytes)` infallible, `TryFrom(Bytes, Str, [InvalidUtf8])` fallible, `List(U8) ↔ Bytes` via IntoIter/FromIter pipeline. Encoding modules (Base64, Hex, etc.) stay separate.
+Lean module (construction, queries, access, slicing, concat). Conversions via traits: `From(Str, Bytes)` infallible,
+`TryFrom(Bytes, Str, [InvalidUtf8])` fallible, `List(U8) ↔ Bytes` via IntoIter/FromIter pipeline. Encoding modules
+(Base64, Hex, etc.) stay separate.
 
 ### D20: Map API details
 
-`Map.update` callback uses `Result(v, [KeyNotFound]) -> Result(v, [KeyNotFound])` (same tag as Map.get). `Map.union` is left-biased for v1. `Map.min`/`Map.max` included (O(log n) on ordered tree), return `Result((k, v), [EmptyMap])`.
+`Map.update` callback uses `Result(v, [KeyNotFound]) -> Result(v, [KeyNotFound])` (same tag as Map.get). `Map.union` is
+left-biased for v1. `Map.min`/`Map.max` included (O(log n) on ordered tree), return `Result((k, v), [EmptyMap])`.
 
 ### D21: Set API details
 
-`Set.min`/`Set.max` included, return `Result(a, [EmptySet])`. `Set.map` requires `Ord` on output type. Set is implemented as `Map(a, ())` internally.
+`Set.min`/`Set.max` included, return `Result(a, [EmptySet])`. `Set.map` requires `Ord` on output type. Set is
+implemented as `Map(a, ())` internally.
 
 ### D22: Iter carries effect row
 
-`Iter(a, e)` with effect row parameter. No standalone `collect` — use `FromIter.from_iter` via UFCS. No `Iter.sorted` — compose through List.
+`Iter(a, e)` with effect row parameter. No standalone `collect` — use `FromIter.from_iter` via UFCS. No `Iter.sorted` —
+compose through List.
 
 ### D23: Effect module API details
 
-`FileErr` keeps `IoErr` as catch-all for v1 (can add specific tags later). Only `foo!` variants for effect modules — use `Result.catch` for Result. `Env.try_get : Str -> -[Env!]-> Result(Str, [VarNotFound])` returns Result, not Throw!.
+`FileErr` keeps `IoErr` as catch-all for v1 (can add specific tags later). Only `foo!` variants for effect modules — use
+`Result.catch` for Result. `Env.try_get : Str -> -[Env!]-> Result(Str, [VarNotFound])` returns Result, not Throw!.
 
 ### D24: Duration and DateTime
 
-Duration is Rust-style two-field struct `{ secs: I64, nanos: I64 }` (signed, ~584B yr range). DateTime is a **separate package** (not stdlib), designed following jiff crate philosophy (civil types, Zoned as primary, IANA tzdb, Span for calendar arithmetic, DST-safe).
+Duration is Rust-style two-field struct `{ secs: I64, nanos: I64 }` (signed, ~584B yr range). DateTime is a **separate
+package** (not stdlib), designed following jiff crate philosophy (civil types, Zoned as primary, IANA tzdb, Span for
+calendar arithmetic, DST-safe).
 
 ### D25: Path is opaque type
 
@@ -242,15 +264,19 @@ Duration is Rust-style two-field struct `{ secs: I64, nanos: I64 }` (signed, ~58
 
 ### D26: Encode/Decode codec (tentative)
 
-Encode is format-agnostic (produces intermediate `Encoding` tree). Decode is format-specific (separate traits per format). `derives Encode, Decode` generates impls. Rich `DecodeError` with path tracking. **Tentative** — revisit when trait system matures (no method generics means Roc-style fully format-agnostic isn't possible).
+Encode is format-agnostic (produces intermediate `Encoding` tree). Decode is format-specific (separate traits per
+format). `derives Encode, Decode` generates impls. Rich `DecodeError` with path tracking. **Tentative** — revisit when
+trait system matures (no method generics means Roc-style fully format-agnostic isn't possible).
 
 ### D27: Num module with submodules
 
-`Num` is the namespace, each numeric type is a submodule: `Num.I64.abs`, `Num.I32.max`, `Num.F64.sqrt`, etc. No standalone `Int` module.
+`Num` is the namespace, each numeric type is a submodule: `Num.I64.abs`, `Num.I32.max`, `Num.F64.sqrt`, etc. No
+standalone `Int` module.
 
 ### D28: Fmt module
 
-`Fmt` houses `Display`/`Debug` traits. Format specifiers (padding, alignment) go in interpolation syntax as a language feature (e.g., `"{x:>10}"`).
+`Fmt` houses `Display`/`Debug` traits. Format specifiers (padding, alignment) go in interpolation syntax as a language
+feature (e.g., `"{x:>10}"`).
 
 ### D29: Hasher is opaque
 
@@ -258,22 +284,31 @@ Encode is format-agnostic (produces intermediate `Encoding` tree). Decode is for
 
 ### D30: Flat module organization
 
-Flat modules except `Num` and `Crypto`. `Json.encode`/`Json.decode` are functions in the `Json` module. Encoding modules stay separate. **Future decision point:** consider Zig-style nested type/module naming where `Foo.Bar` can be either a submodule or a type within the namespace.
+Flat modules except `Num` and `Crypto`. `Json.encode`/`Json.decode` are functions in the `Json` module. Encoding modules
+stay separate. **Future decision point:** consider Zig-style nested type/module naming where `Foo.Bar` can be either a
+submodule or a type within the namespace.
 
 ### D31: Unboxed enum representation (camp-9xi6)
 
-Closed tag unions whose every variant has no payload (e.g. `[Less | Equal | Greater]`, `@Color : [Red | Green | Blue]`) are represented as **immediate i32 variant ordinals** rather than heap-allocated cells. This eliminates per-value allocation and reference-counting overhead for these types.
+Closed tag unions whose every variant has no payload (e.g. `[Less | Equal | Greater]`, `@Color : [Red | Green | Blue]`)
+are represented as **immediate i32 variant ordinals** rather than heap-allocated cells. This eliminates per-value
+allocation and reference-counting overhead for these types.
 
 **Rule:** A tag union is immediate (`is_heap = false`) when ALL of the following hold:
+
 1. The row is **closed** (syntactic `[A | B | ...]` or prelude-synthesized)
-2. Every variant has an **empty payload**
-3. All sub-rows (if the row was unified with another row) also satisfy (1) and (2)
+1. Every variant has an **empty payload**
+1. All sub-rows (if the row was unified with another row) also satisfy (1) and (2)
 
-Open rows (bare tags before unification, list literals, match patterns, generic instantiation) and any union with at least one payloaded variant remain **boxed** (heap-allocated cells with tag byte + payload).
+Open rows (bare tags before unification, list literals, match patterns, generic instantiation) and any union with at
+least one payloaded variant remain **boxed** (heap-allocated cells with tag byte + payload).
 
-**Ordinals:** Variant ordinals are derived from declaration order (0-indexed). `Bool` remains special-cased (`True` = 1, `False` = 0) via `IR_Literal_Bool`/`IR_Pat_Bool`/`Match_Kind.Bool`; closed no-payload tag unions use a parallel codegen path (`IR_Construct_Tag` with `is_heap=false` emitting `i32.const <ordinal>`, match dispatch reading the immediate directly).
+**Ordinals:** Variant ordinals are derived from declaration order (0-indexed). `Bool` remains special-cased (`True` = 1,
+`False` = 0) via `IR_Literal_Bool`/`IR_Pat_Bool`/`Match_Kind.Bool`; closed no-payload tag unions use a parallel codegen
+path (`IR_Construct_Tag` with `is_heap=false` emitting `i32.const <ordinal>`, match dispatch reading the immediate
+directly).
 
----
+______________________________________________________________________
 
 ## 2. Open Questions (All Resolved)
 
@@ -283,11 +318,13 @@ Message-only: `Log.debug!/info!/warn!/error! : Str -> -[Log!]-> ()`. Structured 
 
 ### Q2: Prelude design — **RESOLVED → D17**
 
-8 auto-imported modules (List, Map, Set, Iter, Bytes, Result, Str, Bool), all 10 numeric types, Ok/Err/True/False constructors, 10 traits, Throw! + Console! effects, language operators.
+8 auto-imported modules (List, Map, Set, Iter, Bytes, Result, Str, Bool), all 10 numeric types, Ok/Err/True/False
+constructors, 10 traits, Throw! + Console! effects, language operators.
 
 ### Q3: Str API — **RESOLVED → D18**
 
-`Str.length` counts graphemes, `Str.slice` is grapheme-safe, `to_lower`/`to_upper` are Unicode, `split_first`/`split_last` return `Result((Str, Str), [NotFound])`.
+`Str.length` counts graphemes, `Str.slice` is grapheme-safe, `to_lower`/`to_upper` are Unicode,
+`split_first`/`split_last` return `Result((Str, Str), [NotFound])`.
 
 ### Q4: Bytes API — **RESOLVED → D19**
 
@@ -329,7 +366,8 @@ Map.intersection : Map(k, v), Map(k, v) -> Map(k, v)
 Map.difference : Map(k, v), Map(k, v) -> Map(k, v)
 ```
 
-**RESOLVED:** Map.update uses `Result(v, [KeyNotFound]) -> Result(v, [KeyNotFound])` (same tag as Map.get). Map.union is left-biased for v1. Map.min/max included.
+**RESOLVED:** Map.update uses `Result(v, [KeyNotFound]) -> Result(v, [KeyNotFound])` (same tag as Map.get). Map.union is
+left-biased for v1. Map.min/max included.
 
 ### Q6: Set API — **RESOLVED → D21**
 
@@ -416,13 +454,16 @@ collect     : Iter(a, e) -> c          -- via FromIter trait
 sorted_via_list : Iter(a, e) -> Iter(a, e)   -- requires Ord
 ```
 
-**Effect tracking:** `Iter` is parameterized over both `a` (element type) and `e` (effect row). Effect rows merge via row unification when closures have different effects than the iterator's `next`.
+**Effect tracking:** `Iter` is parameterized over both `a` (element type) and `e` (effect row). Effect rows merge via
+row unification when closures have different effects than the iterator's `next`.
 
 ### Q8: Effect module APIs — **RESOLVED → D23**
 
-Only `foo!` variants (use `Result.catch` for Result). `FileErr` keeps `IoErr` catch-all. `Env.try_get` returns Result. API details preserved below for reference.
+Only `foo!` variants (use `Result.catch` for Result). `FileErr` keeps `IoErr` catch-all. `Env.try_get` returns Result.
+API details preserved below for reference.
 
 #### Console!
+
 ```
 Console.println! : Str -> -[Console!]-> ()
 Console.print!   : Str -> -[Console!]-> ()
@@ -430,6 +471,7 @@ Console.readline! : -[Console!]-> Str
 ```
 
 #### File!
+
 ```
 File.read_all!  : Path -> -[File!, Throw!([FileErr])]-> Str
 File.write_all! : Path, Str -> -[File!, Throw!([FileErr])]-> ()
@@ -448,6 +490,7 @@ File.is_file!   : Path -> -[File!]-> Bool
 ```
 
 #### Env!
+
 ```
 Env.get!       : Str -> -[Env!, Throw!([VarNotFound])]-> Str
 Env.try_get    : Str -> -[Env!]-> Result(Str, [VarNotFound])
@@ -456,12 +499,14 @@ Env.args!      : -[Env!]-> List(Str)
 ```
 
 #### Time!
+
 ```
 Time.now!        : -[Time!]-> Duration    -- Duration only; DateTime is a package
 Time.monotonic!  : -[Time!]-> Duration
 ```
 
 #### Random!
+
 ```
 Random.int!   : I64, I64 -> -[Random!]-> I64
 Random.float! : F64, F64 -> -[Random!]-> F64
@@ -470,6 +515,7 @@ Random.bool!  : -[Random!]-> Bool
 ```
 
 #### Crypto.Random!
+
 ```
 Crypto.Random.int!   : I64, I64 -> -[Crypto.Random!]-> I64
 Crypto.Random.bytes! : I64 -> -[Crypto.Random!]-> Bytes
@@ -477,6 +523,7 @@ Crypto.Random.uuid!  : -[Crypto.Random!]-> Uuid
 ```
 
 #### Log!
+
 ```
 Log.debug! : Str -> -[Log!]-> ()
 Log.info!  : Str -> -[Log!]-> ()
@@ -486,7 +533,8 @@ Log.error! : Str -> -[Log!]-> ()
 
 ### Q9: Duration and DateTime — **RESOLVED → D24**
 
-Duration is Rust-style two-field struct `{ secs: I64, nanos: I64 }` (signed). DateTime is a **separate package** (not stdlib), designed following jiff crate philosophy. Duration API preserved below for reference.
+Duration is Rust-style two-field struct `{ secs: I64, nanos: I64 }` (signed). DateTime is a **separate package** (not
+stdlib), designed following jiff crate philosophy. Duration API preserved below for reference.
 
 ```
 @Duration : -- opaque, internally { secs: I64, nanos: I64 }
@@ -553,7 +601,8 @@ Path.to_iter  : Path -> Iter(Str)   -- iterate over components
 
 ### Q11: Encode/Decode codec — **RESOLVED → D26**
 
-Encode is format-agnostic (produces intermediate `Encoding` tree). Decode is format-specific. `derives Encode, Decode` generates impls. Rich `DecodeError` with path tracking. **Tentative** — revisit when trait system matures.
+Encode is format-agnostic (produces intermediate `Encoding` tree). Decode is format-specific. `derives Encode, Decode`
+generates impls. Rich `DecodeError` with path tracking. **Tentative** — revisit when trait system matures.
 
 ```
 -- Format-agnostic encoding trait
@@ -593,6 +642,7 @@ DecoderFormatting(f) : {
 ```
 
 **Decoder combinators:**
+
 ```
 Decode.map      : Decoder(a, f), (a -> b) -> Decoder(b, f)
 Decode.then     : Decoder(a, f), (a -> Decoder(b, f)) -> Decoder(b, f)
@@ -603,7 +653,8 @@ Decode.list     : Decoder(a, f) -> Decoder(List(a), f)
 Decode.custom   : (Decoder(f)) -> Result(a, [DecodeError]) -> Decoder(a, f)
 ```
 
-**RESOLVED:** Encode format-agnostic (intermediate tree), Decode format-specific. Tentative — no method generics means Roc-style fully format-agnostic isn't possible.
+**RESOLVED:** Encode format-agnostic (intermediate tree), Decode format-specific. Tentative — no method generics means
+Roc-style fully format-agnostic isn't possible.
 
 ### Q12: Num module — **RESOLVED → D27**
 
@@ -611,7 +662,8 @@ Decode.custom   : (Decoder(f)) -> Result(a, [DecodeError]) -> Decoder(a, f)
 
 ### Q13: Fmt module — **RESOLVED → D28**
 
-`Fmt` houses `Display`/`Debug` traits. Format specifiers (padding, alignment) go in interpolation syntax as a language feature.
+`Fmt` houses `Display`/`Debug` traits. Format specifiers (padding, alignment) go in interpolation syntax as a language
+feature.
 
 ### Q14: Hasher type — **RESOLVED → D29**
 
@@ -621,112 +673,112 @@ Opaque `Hasher` (SipHash-1-3). `Hash(a)` stays single-parameter.
 
 Flat modules except `Num` and `Crypto`. Future decision point: consider Zig-style nested type/module naming.
 
----
+______________________________________________________________________
 
 ## 3. Complete Module Listing (Proposed)
 
 ### Priority 1 — Required for any non-trivial program
 
-| Module | Type | Description |
-|---|---|---|
-| `Result` | Type + functions | Error/absence handling (replaces Option) |
-| `Bool` | Type + functions | Boolean operations |
-| `Num` | Namespace + submodules | Numeric operations (Num.I64, Num.F64, etc.) |
-| `Str` | Type + functions | UTF-8 string operations |
-| `List` | Type + functions | Immutable linked list |
-| `Iter` | Type + functions | Lazy iterator |
-| `Map` | Type + functions | Ordered tree map |
-| `Set` | Type + functions | Ordered tree set |
-| `Bytes` | Type + functions | Raw byte buffer |
-| `Eq` | Trait | Equality |
-| `Ord` | Trait | Ordering (with `Order` type) |
-| `Hash` | Trait | Hashing (with `Hasher` type) |
-| `Debug` | Trait | Debug formatting |
-| `Display` | Trait | Display formatting |
-| `Default` | Trait | Default values |
-| `IntoIter` | Trait | Convert to iterator |
-| `FromIter` | Trait | Convert from iterator |
-| `From` | Trait | Infallible conversion |
-| `TryFrom` | Trait | Fallible conversion |
-| `Encode` | Trait | Format-agnostic encoding |
-| `Decode` | Trait | Format-agnostic decoding |
-| `Fmt` | Functions | Formatting utilities |
-| `Path` | Type + functions | Filesystem path |
-| `Duration` | Type + functions | Time duration (Rust-style signed struct) |
-| `Console!` | Effect | Standard I/O |
-| `Throw!` | Effect | Error propagation |
-| `File!` | Effect | Filesystem access |
-| `Env!` | Effect | Environment variables |
-| `Time!` | Effect | Time access |
-| `Random!` | Effect | Fast PRNG |
-| `Log!` | Effect | Logging |
+| Module     | Type                   | Description                                 |
+| ---------- | ---------------------- | ------------------------------------------- |
+| `Result`   | Type + functions       | Error/absence handling (replaces Option)    |
+| `Bool`     | Type + functions       | Boolean operations                          |
+| `Num`      | Namespace + submodules | Numeric operations (Num.I64, Num.F64, etc.) |
+| `Str`      | Type + functions       | UTF-8 string operations                     |
+| `List`     | Type + functions       | Immutable linked list                       |
+| `Iter`     | Type + functions       | Lazy iterator                               |
+| `Map`      | Type + functions       | Ordered tree map                            |
+| `Set`      | Type + functions       | Ordered tree set                            |
+| `Bytes`    | Type + functions       | Raw byte buffer                             |
+| `Eq`       | Trait                  | Equality                                    |
+| `Ord`      | Trait                  | Ordering (with `Order` type)                |
+| `Hash`     | Trait                  | Hashing (with `Hasher` type)                |
+| `Debug`    | Trait                  | Debug formatting                            |
+| `Display`  | Trait                  | Display formatting                          |
+| `Default`  | Trait                  | Default values                              |
+| `IntoIter` | Trait                  | Convert to iterator                         |
+| `FromIter` | Trait                  | Convert from iterator                       |
+| `From`     | Trait                  | Infallible conversion                       |
+| `TryFrom`  | Trait                  | Fallible conversion                         |
+| `Encode`   | Trait                  | Format-agnostic encoding                    |
+| `Decode`   | Trait                  | Format-agnostic decoding                    |
+| `Fmt`      | Functions              | Formatting utilities                        |
+| `Path`     | Type + functions       | Filesystem path                             |
+| `Duration` | Type + functions       | Time duration (Rust-style signed struct)    |
+| `Console!` | Effect                 | Standard I/O                                |
+| `Throw!`   | Effect                 | Error propagation                           |
+| `File!`    | Effect                 | Filesystem access                           |
+| `Env!`     | Effect                 | Environment variables                       |
+| `Time!`    | Effect                 | Time access                                 |
+| `Random!`  | Effect                 | Fast PRNG                                   |
+| `Log!`     | Effect                 | Logging                                     |
 
 ### Priority 2 — Required for most REST APIs
 
-| Module | Type | Description |
-|---|---|---|
-| `Json` | Type + functions | JSON parsing/stringify/Value |
-| `Regex` | Type + functions | Regular expressions |
-| `Uri` | Type + functions | URI/URL parsing |
-| `Crypto.Random!` | Effect | Cryptographic random |
-| `Uuid` | Type + functions | UUID v4/v7 |
-| `Base64` | Functions | Base64 encode/decode |
-| `Base64URL` | Functions | URL-safe Base64 |
-| `Base32` | Functions | Base32 encode/decode |
-| `Hex` | Functions | Hex encode/decode |
+| Module           | Type             | Description                  |
+| ---------------- | ---------------- | ---------------------------- |
+| `Json`           | Type + functions | JSON parsing/stringify/Value |
+| `Regex`          | Type + functions | Regular expressions          |
+| `Uri`            | Type + functions | URI/URL parsing              |
+| `Crypto.Random!` | Effect           | Cryptographic random         |
+| `Uuid`           | Type + functions | UUID v4/v7                   |
+| `Base64`         | Functions        | Base64 encode/decode         |
+| `Base64URL`      | Functions        | URL-safe Base64              |
+| `Base32`         | Functions        | Base32 encode/decode         |
+| `Hex`            | Functions        | Hex encode/decode            |
 
 ### Priority 3 — Important for completeness
 
-| Module | Type | Description |
-|---|---|---|
-| `Gzip` | Functions | Compression/decompression |
-| `EncoderFormatting` | Trait | Format backend for encoding |
-| `DecoderFormatting` | Trait | Format backend for decoding |
+| Module              | Type      | Description                 |
+| ------------------- | --------- | --------------------------- |
+| `Gzip`              | Functions | Compression/decompression   |
+| `EncoderFormatting` | Trait     | Format backend for encoding |
+| `DecoderFormatting` | Trait     | Format backend for decoding |
 
 ### Numeric type modules (Priority 1)
 
-| Module | Description |
-|---|---|
-| `I8`, `I16`, `I32`, `I64` | Signed integer types and operations |
+| Module                    | Description                           |
+| ------------------------- | ------------------------------------- |
+| `I8`, `I16`, `I32`, `I64` | Signed integer types and operations   |
 | `U8`, `U16`, `U32`, `U64` | Unsigned integer types and operations |
-| `F32`, `F64` | Floating-point types and operations |
+| `F32`, `F64`              | Floating-point types and operations   |
 
 ### Official Packages (NOT stdlib)
 
-| Package | Description |
-|---|---|
-| `Http` | Server!/Client! effects |
-| `Database` | query!/execute!/transaction! |
-| `Database.Postgres` | PostgreSQL driver |
-| `Database.Sqlite` | SQLite driver |
-| `Database.MySql` | MySQL driver |
-| `Database.Redis` | Redis driver |
-| `Crypto.Hash` | sha256, sha512, blake2b, etc. |
-| `DateTime` | Civil types, Zoned, Span, IANA tzdb (jiff-style design) |
+| Package             | Description                                             |
+| ------------------- | ------------------------------------------------------- |
+| `Http`              | Server!/Client! effects                                 |
+| `Database`          | query!/execute!/transaction!                            |
+| `Database.Postgres` | PostgreSQL driver                                       |
+| `Database.Sqlite`   | SQLite driver                                           |
+| `Database.MySql`    | MySQL driver                                            |
+| `Database.Redis`    | Redis driver                                            |
+| `Crypto.Hash`       | sha256, sha512, blake2b, etc.                           |
+| `DateTime`          | Civil types, Zoned, Span, IANA tzdb (jiff-style design) |
 
 ### Deferred (future design tasks)
 
-| Module | Description | Why deferred |
-|---|---|---|
-| `Array` | Fixed-length, O(1) index | Needs const generics design |
-| `StringBuilder` | Efficient string concatenation | Needs rope/buffer design |
-| `Queue` | FIFO data structure | Can use List with discipline |
-| `Stack` | LIFO data structure | Can use List with discipline |
+| Module          | Description                    | Why deferred                 |
+| --------------- | ------------------------------ | ---------------------------- |
+| `Array`         | Fixed-length, O(1) index       | Needs const generics design  |
+| `StringBuilder` | Efficient string concatenation | Needs rope/buffer design     |
+| `Queue`         | FIFO data structure            | Can use List with discipline |
+| `Stack`         | LIFO data structure            | Can use List with discipline |
 
----
+______________________________________________________________________
 
 ## 4. Key Research Findings (Condensed)
 
 ### Error handling across languages
 
-| Language | Option/Maybe | Result/Either | Effects/Exceptions | Bridge functions |
-|---|---|---|---|---|
-| Roc | ❌ None | ✅ Result only | ❌ (Task = type) | `?` operator |
-| Gleam | ✅ (but idiom: Result) | ✅ | ❌ | `try` syntax |
-| Rust | ✅ | ✅ | ❌ | `?` operator + From trait |
-| Koka | ✅ maybe | ✅ either | ✅ exn effect | error/try, untry, maybe, either |
-| Haskell | ✅ Maybe | ✅ Either | ✅ IO exceptions | try, catch, evaluate |
-| Swift | ✅ Optional | ✅ Result | ✅ throwing | try/catch |
+| Language | Option/Maybe           | Result/Either  | Effects/Exceptions | Bridge functions                |
+| -------- | ---------------------- | -------------- | ------------------ | ------------------------------- |
+| Roc      | ❌ None                | ✅ Result only | ❌ (Task = type)   | `?` operator                    |
+| Gleam    | ✅ (but idiom: Result) | ✅             | ❌                 | `try` syntax                    |
+| Rust     | ✅                     | ✅             | ❌                 | `?` operator + From trait       |
+| Koka     | ✅ maybe               | ✅ either      | ✅ exn effect      | error/try, untry, maybe, either |
+| Haskell  | ✅ Maybe               | ✅ Either      | ✅ IO exceptions   | try, catch, evaluate            |
+| Swift    | ✅ Optional            | ✅ Result      | ✅ throwing        | try/catch                       |
 
 ### Collection API patterns
 
@@ -753,7 +805,8 @@ Flat modules except `Num` and `Crypto`. Future decision point: consider Zig-styl
 ### Codec framework patterns
 
 - **Roc:** Format-agnostic `Encode`/`Decode` abilities, auto-derived, `EncoderFormatting`/`DecoderFormatting` backends
-- **Rust serde:** Format-agnostic `Serialize`/`Deserialize`, `#[derive]`, `Serializer`/`Deserializer` traits, visitor pattern
+- **Rust serde:** Format-agnostic `Serialize`/`Deserialize`, `#[derive]`, `Serializer`/`Deserializer` traits, visitor
+  pattern
 - **Gleam:** Format-specific `Decoder(a)` tied to `Dynamic`, `map`/`then`/`one_of` combinators
 - **Haskell Aeson:** JSON-specific `FromJSON`/`ToJSON`, Generic-based derivation
 
@@ -773,7 +826,7 @@ Flat modules except `Num` and `Crypto`. Future decision point: consider Zig-styl
 - **Go:** Plain `string`, pure functions, `Clean` for normalization
 - **Python:** `PurePath`/`Path` split (I/O vs no-I/O), object-oriented
 
----
+______________________________________________________________________
 
 ## 5. Changes from Current Spec
 
@@ -781,28 +834,31 @@ The current spec (openspec/specs/stdlib/spec.md) lists these modules:
 `Result, Option, Bool, Int, Str, List, Iter, Map, Set, Eq, Ord, Hash, Fmt, Path, Console!, Throw!, File!, Env!, Time!, Random!, Log!, Crypto.Random!, Bytes, Encode, Decode`
 
 **Changes needed:**
+
 1. **Remove `Option`** from module listing (D1)
-2. **Add** `Display`, `Default`, `IntoIter`, `FromIter`, `From`, `TryFrom` (D9)
-3. **Add** `Order` type (part of Ord trait module, structural tag union D16)
-4. **Add** `Hasher` type (opaque, part of Hash trait module, D29)
-5. **Add** `EncoderFormatting`, `DecoderFormatting` traits (D26, tentative)
-6. **Replace** `Int` with `Num` namespace containing per-type submodules (D27)
-7. **Add** `Duration` to Priority 1 (D24, Rust-style signed struct)
-8. **Move** `DateTime`, `Date`, `Time` to official packages (D24, jiff-style design)
-9. **Add** `Uuid` module
-10. **Add** `Base64`, `Base64URL`, `Base32`, `Hex` modules
-11. **Add** `Gzip` module
-12. **Add** `Regex`, `Uri`, `Json` modules (already in spec requirements but not in module listing)
-13. **Update** `Log!` to message-only (D15)
-14. **Update** `Map` to specify ordered (tree-based) for referential transparency (D7)
-15. **Update** `Iter.next` return type from `[Some(a) | None]` to `[Yield(a) | Done]` (D2)
-16. **Update** `Result` API to include `unwrap!`, `catch`, `unwrap_or_default`, `or`, `filter`, `flatten`, `to_list`, `from_list` (D6)
-17. **Update** prelude to include `Ok`, `Err` constructors (D17)
-18. **Remove** `Clone`/`Copy` if they were ever in the spec (D9)
-19. **Update** `File!` to only `foo!` variants, no `try_foo` (D23)
-20. **Update** `Encode`/`Decode` to format-agnostic Encode + format-specific Decode (D26, tentative)
-21. **Update** `Fmt` to house Display/Debug traits, format specifiers in interpolation (D28)
-22. **Update** module organization to flat except `Num` and `Crypto` (D30)
-15. **Update** `Result` API to include `unwrap!`, `catch`, `unwrap_or_default`, `or`, `filter`, `flatten`, `to_list`, `from_list`
-16. **Update** prelude to include `Ok`, `Err` constructors
-17. **Remove** `Clone`/`Copy` if they were ever in the spec (they're not currently listed)
+1. **Add** `Display`, `Default`, `IntoIter`, `FromIter`, `From`, `TryFrom` (D9)
+1. **Add** `Order` type (part of Ord trait module, structural tag union D16)
+1. **Add** `Hasher` type (opaque, part of Hash trait module, D29)
+1. **Add** `EncoderFormatting`, `DecoderFormatting` traits (D26, tentative)
+1. **Replace** `Int` with `Num` namespace containing per-type submodules (D27)
+1. **Add** `Duration` to Priority 1 (D24, Rust-style signed struct)
+1. **Move** `DateTime`, `Date`, `Time` to official packages (D24, jiff-style design)
+1. **Add** `Uuid` module
+1. **Add** `Base64`, `Base64URL`, `Base32`, `Hex` modules
+1. **Add** `Gzip` module
+1. **Add** `Regex`, `Uri`, `Json` modules (already in spec requirements but not in module listing)
+1. **Update** `Log!` to message-only (D15)
+1. **Update** `Map` to specify ordered (tree-based) for referential transparency (D7)
+1. **Update** `Iter.next` return type from `[Some(a) | None]` to `[Yield(a) | Done]` (D2)
+1. **Update** `Result` API to include `unwrap!`, `catch`, `unwrap_or_default`, `or`, `filter`, `flatten`, `to_list`,
+   `from_list` (D6)
+1. **Update** prelude to include `Ok`, `Err` constructors (D17)
+1. **Remove** `Clone`/`Copy` if they were ever in the spec (D9)
+1. **Update** `File!` to only `foo!` variants, no `try_foo` (D23)
+1. **Update** `Encode`/`Decode` to format-agnostic Encode + format-specific Decode (D26, tentative)
+1. **Update** `Fmt` to house Display/Debug traits, format specifiers in interpolation (D28)
+1. **Update** module organization to flat except `Num` and `Crypto` (D30)
+1. **Update** `Result` API to include `unwrap!`, `catch`, `unwrap_or_default`, `or`, `filter`, `flatten`, `to_list`,
+   `from_list`
+1. **Update** prelude to include `Ok`, `Err` constructors
+1. **Remove** `Clone`/`Copy` if they were ever in the spec (they're not currently listed)
