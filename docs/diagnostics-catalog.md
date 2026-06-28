@@ -872,6 +872,14 @@ ______________________________________________________________________
 
 **Rationale:** Attempting to access a field on a newtype as if it were a record. Newtypes are nominal and opaque.
 
+### 8.6 UNRECOGNIZED DERIVE (C0705) — Error ✅ Implemented
+
+> `@derive({name})` is not a recognized derive. Supported derives are: `Debug`, `Eq`, `Hash`, `Ord`.
+
+**Rationale:** A user typo (e.g. `@derive(Dbug)`) or a reference to a non-derivable trait (e.g. `@derive(Display)`) is a
+user error, not a compiler bug. Listing the supported set guides the user to a valid derive. `Display` derive impls are
+tracked separately (camp-335w/camp-d3k3).
+
 ______________________________________________________________________
 
 ## 9. Module and Import Errors
@@ -1225,7 +1233,7 @@ ______________________________________________________________________
 | Effect System    | 8     | C0400, C0401, C0403–C0405, C0407–C0409 |
 | Pattern Matching | 9     | C0500–C0504, C0506–C0509               |
 | Traits/Generics  | 6     | C0600–C0604, C0607                     |
-| Newtype/Nominal  | 4     | C0700–C0703                            |
+| Newtype/Nominal  | 5     | C0700–C0705                            |
 | Module/Import    | 8     | C0800–C0807                            |
 | Unused Warnings  | 9     | C0900–C0905, C0914                     |
 | Unused Errors    | 2     | C1000, C1001                           |
@@ -1256,7 +1264,7 @@ ______________________________________________________________________
 | Perceus/RC       | 3     | C1100–C1102               | Medium                                    |
 | CLI/Build        | 4     | C1204–C1207               | Low                                       |
 
-### Total Catalog: 136 diagnostics (88 implemented per row headers + 3 defined-but-unused + 44 proposed new + 1 not-applicable C0006)
+### Total Catalog: 137 diagnostics (89 implemented per row headers + 3 defined-but-unused + 44 proposed new + 1 not-applicable C0006)
 
 Note: the per-category summary counts above predate the latest row-header audit and may not sum exactly; the row-header status (✅ Implemented / 🆕 New / ⚠️ Defined but unused / ⚠️ Not Applicable) is authoritative. See `grep -E "^### [0-9]+\.[0-9]+ .* — " docs/diagnostics-catalog.md` for the current per-row status.
 

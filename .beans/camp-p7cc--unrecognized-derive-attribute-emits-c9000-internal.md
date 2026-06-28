@@ -1,7 +1,7 @@
 ---
 # camp-p7cc
 title: Unrecognized @derive attribute emits C9000 internal error instead of user-facing diagnostic
-status: todo
+status: done
 type: bug
 priority: normal
 tags:
@@ -31,3 +31,6 @@ Severity: Error.
 
 ## Done looks like
 `@derive(UnknownName)` produces a user-facing error naming the unsupported derive and listing the supported set, with an e2e snapshot. Catalog §8 gains the new row.
+
+## Resolution
+Fixed in branch `smores/fix-derive-unrecognized-diagnostic`. Added `diag_unrecognized_derive` (C0705) in `src/diagnostics/constructors.odin`, emitted from `canonicalize.odin` `generate_derive_stubs` `case:` branch. Catalog §8.6 added; e2e snapshot at `tests/e2e/language/derive-unrecognized/`. `Display` derive impls remain out of scope here — see camp-335w/camp-d3k3. The supported-derive hint intentionally lists `Debug`, `Eq`, `Hash`, `Ord` only.

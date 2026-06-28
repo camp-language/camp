@@ -1,0 +1,5 @@
+@Name derives Foo : I64
+
+pub main! = || -[Console! | Throw!([..])]-> I64 {
+  0
+}

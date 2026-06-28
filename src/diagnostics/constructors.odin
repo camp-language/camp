@@ -2041,6 +2041,20 @@ diag_newtype_field_access :: proc(
 	return d
 }
 
+diag_unrecognized_derive :: proc(derive_name: string, span: base.Source_Span) -> Diagnostic {
+	d := diag_init(
+		.Error,
+		"C0705",
+		"UNRECOGNIZED DERIVE",
+		span,
+		fmt.tprintf(
+			"`@derive({})` is not a recognized derive. Supported derives are: `Debug`, `Eq`, `Hash`, `Ord`.",
+			derive_name,
+		),
+	)
+	return d
+}
+
 // --- Module/Import ---
 
 diag_duplicate_import :: proc(
