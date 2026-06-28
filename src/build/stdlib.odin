@@ -106,6 +106,8 @@ JSON_CAMP :: #load("../../stdlib/Json.camp", string)
 
 REGEX_CAMP :: #load("../../stdlib/Regex.camp", string)
 
+UNIT_CAMP :: #load("../../stdlib/Unit.camp", string)
+
 STDLIB_MODULES: []Stdlib_Module = []Stdlib_Module {
 	{"Result", RESULT_CAMP, "stdlib/Result.camp"},
 	{"ParseError", PARSE_ERROR_CAMP, "stdlib/ParseError.camp"},
@@ -152,6 +154,7 @@ STDLIB_MODULES: []Stdlib_Module = []Stdlib_Module {
 	{"Regex", REGEX_CAMP, "stdlib/Regex.camp"},
 	{"Uri", URI_CAMP, "stdlib/Uri.camp"},
 	{"Base64", BASE64_CAMP, "stdlib/Base64.camp"},
+	{"Unit", UNIT_CAMP, "stdlib/Unit.camp"},
 }
 
 stdlib_lookup :: proc(name: string) -> (Stdlib_Module, bool) {

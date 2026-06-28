@@ -201,7 +201,7 @@ run_test_project :: proc(filter: string = "", verbose: bool = false) -> Build_Re
 	for entry in test_entries {
 		safe_name := sanitize_test_name(fmt.tprintf("{}-{}", entry.mod_name, entry.test_name))
 		tmp_dir := fmt.tprintf("/tmp/camp-test-{}-{}", pid, safe_name)
-		os.make_directory_all(tmp_dir)
+		os.make_directory(tmp_dir)
 		tmp_wasm_path := fmt.tprintf("{}/main.wasm", tmp_dir)
 
 		sub_arena: virtual.Arena
