@@ -2,18 +2,20 @@
 
 A general-purpose, strictly-typed functional programming language with algebraic effects, compiling to WASM/WASI.
 
-**Status:** Early development. Full pipeline implemented: lexing, parsing, canonicalization, type checking (Level inference + row unification), effect safety enforcement, effect lowering, closure conversion, CPS transform, Perceus RC insertion, and WASM/WASI code generation. 117 unit tests + 101 e2e snapshot tests passing.
+**Status:** Early development. Full pipeline implemented: lexing, parsing, canonicalization, type checking (Level
+inference + row unification), effect safety enforcement, effect lowering, closure conversion, CPS transform, Perceus RC
+insertion, and WASM/WASI code generation. 117 unit tests + 101 e2e snapshot tests passing.
 
 ## Design Decisions
 
-| Aspect | Decision | Rationale |
-|--------|----------|-----------|
-| Evaluation | Strict (eager) | Predictable performance, pairs well with effects |
-| Type System | Strict, principal inference | Sound and decidable |
-| Effects | Koka-style algebraic | Composable, lexically scoped handlers |
-| Memory | Perceus RC | Deterministic, no GC, path to native |
-| Target | WASM/WASI | Portable, near-native performance |
-| Implementation | Odin | Fast compilation, optimal for compilers |
+| Aspect         | Decision                    | Rationale                                        |
+| -------------- | --------------------------- | ------------------------------------------------ |
+| Evaluation     | Strict (eager)              | Predictable performance, pairs well with effects |
+| Type System    | Strict, principal inference | Sound and decidable                              |
+| Effects        | Koka-style algebraic        | Composable, lexically scoped handlers            |
+| Memory         | Perceus RC                  | Deterministic, no GC, path to native             |
+| Target         | WASM/WASI                   | Portable, near-native performance                |
+| Implementation | Odin                        | Fast compilation, optimal for compilers          |
 
 ## Building
 
@@ -62,10 +64,10 @@ justfile              Build and test commands
 
 ## Docs
 
-| Doc | Purpose |
-|-----|---------|
-| [language-spec.md](docs/language-spec.md) | Authoritative syntax reference |
+| Doc                                                   | Purpose                           |
+| ----------------------------------------------------- | --------------------------------- |
+| [language-spec.md](docs/language-spec.md)             | Authoritative syntax reference    |
 | [diagnostics-catalog.md](docs/diagnostics-catalog.md) | Compiler error codes and messages |
-| [stdlib-design-notes.md](docs/stdlib-design-notes.md) | Stdlib API design rationale |
+| [stdlib-design-notes.md](docs/stdlib-design-notes.md) | Stdlib API design rationale       |
 
 See [AGENTS.md](AGENTS.md) for AI assistant guidelines.

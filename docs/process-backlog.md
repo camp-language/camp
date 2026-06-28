@@ -7,8 +7,7 @@ self-directed.
 
 1. Create bean with `beans create "<title>" [--priority <level>]`
 1. Before implementing a bean, **re-anchor on the design**:
-   - Read `docs/language-spec.md` — find the relevant rule the bean maps to. Quote the
-     relevant rule in your plan.
+   - Read `docs/language-spec.md` — find the relevant rule the bean maps to. Quote the relevant rule in your plan.
    - Read `AGENTS.md` constraints + the relevant `src/` and `tests/` code. **Code is truth over docs** — if a doc
      contradicts the code, flag the discrepancy, don't silently follow either.
 1. Implement on an isolated worktree (never main). Conventional Commits with the bean id in the scope, e.g.

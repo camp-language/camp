@@ -1,31 +1,38 @@
 # Record Builders and Applicative Composition for Camp
 
-**Status**: Idea / brainstorm  
-**Date**: 2026-06-07  
-**Context**: Exploring how Camp could support ergonomic construction of records from effectful, optional, or validated field computations — the "applicative functor" pattern.
+**Status**: Idea / brainstorm\
+**Date**: 2026-06-07\
+**Context**: Exploring how Camp could support ergonomic construction of records from effectful, optional, or validated
+field computations — the "applicative functor" pattern.
 
----
+______________________________________________________________________
 
 ## 1. The Problem
 
-Given independent computations that each produce one field of a record — some of which may fail, be effectful, or live inside a wrapper type — how do you compose them into a single record?
+Given independent computations that each produce one field of a record — some of which may fail, be effectful, or live
+inside a wrapper type — how do you compose them into a single record?
 
 Concrete examples:
 
-- **Validation**: parse_name, parse_age, parse_email each return `Result(Str, Str)`. You want `Result({ name: Str, age: I64, email: Str }, List(Str))` — accumulating all errors, not just the first.
-- **Optional fields**: lookups in a map each return `Option(T)`. You want `Option({ x: I64, y: I64 })` — `Some` only if all fields are present.
+- **Validation**: parse_name, parse_age, parse_email each return `Result(Str, Str)`. You want
+  `Result({ name: Str, age: I64, email: Str }, List(Str))` — accumulating all errors, not just the first.
+- **Optional fields**: lookups in a map each return `Option(T)`. You want `Option({ x: I64, y: I64 })` — `Some` only if
+  all fields are present.
 - **Parser combinators**: each sub-parser produces one field. You want a parser for the whole record.
 - **State composition**: each sub-computation carries independent state. You want a combined state transformer.
 
-In Haskell/Scala/PureScript, this is solved by `Applicative` typeclasses and `<$>/<*>` or `liftA2`. Camp has no higher-kinded types (HKTs), so those mechanisms don't translate directly. This doc explores two complementary Camp-native approaches.
+In Haskell/Scala/PureScript, this is solved by `Applicative` typeclasses and `<$>/<*>` or `liftA2`. Camp has no
+higher-kinded types (HKTs), so those mechanisms don't translate directly. This doc explores two complementary
+Camp-native approaches.
 
----
+______________________________________________________________________
 
 ## 2. Cross-Language Survey
 
 ### 2.1 PureScript: `sequenceRecord` + `Record.Builder`
 
-PureScript has the most directly relevant mechanism. `sequenceRecord` turns a record of wrapped values into a wrapped record:
+PureScript has the most directly relevant mechanism. `sequenceRecord` turns a record of wrapped values into a wrapped
+record:
 
 ```purescript
 sequenceRecord { name: Just "Joe", age: Just 30 }
@@ -35,7 +42,8 @@ sequenceRecord { name: Just "Joe", age: Nothing }
 -- => Nothing
 ```
 
-This uses `Apply` (applicative) under the hood via row-type reflection (`RowToList`). It's fully generic over any `Apply` functor.
+This uses `Apply` (applicative) under the hood via row-type reflection (`RowToList`). It's fully generic over any
+`Apply` functor.
 
 `Record.Builder` provides composable incremental record construction via a `Category` instance.
 
@@ -52,9 +60,11 @@ case class Form(name: String, age: Int, email: String)
 // ValidatedNec — accumulates ALL errors, not fail-fast
 ```
 
-`.mapN` lifts a case class constructor over N validated values. `Validated` is an `Applicative` but explicitly NOT a `Monad` — this enforces error accumulation vs. fail-fast (`Either`).
+`.mapN` lifts a case class constructor over N validated values. `Validated` is an `Applicative` but explicitly NOT a
+`Monad` — this enforces error accumulation vs. fail-fast (`Either`).
 
-**Tradeoffs**: Familiar syntax, error accumulation, but `.mapN` is arity-limited and requires separate types for fail-fast vs. accumulating.
+**Tradeoffs**: Familiar syntax, error accumulation, but `.mapN` is arity-limited and requires separate types for
+fail-fast vs. accumulating.
 
 ### 2.3 Haskell: `Constructor <$> f1 <*> f2 <*> f3`
 
@@ -62,9 +72,11 @@ case class Form(name: String, age: Int, email: String)
 env = GameEnvironment <$> player <*> debug
 ```
 
-Standard applicative builder. No special syntax — just the `<*>` combinator. GHC's `OverloadedRecordDot` (9.2+) helps with access/update but not construction.
+Standard applicative builder. No special syntax — just the `<*>` combinator. GHC's `OverloadedRecordDot` (9.2+) helps
+with access/update but not construction.
 
-**Tradeoffs**: Concise for small records, but scales poorly (visually noisy for 5+ fields). No built-in accumulation strategy.
+**Tradeoffs**: Concise for small records, but scales poorly (visually noisy for 5+ fields). No built-in accumulation
+strategy.
 
 ### 2.4 F# / OCaml: Copy-and-Update
 
@@ -101,19 +113,24 @@ chain_parsers(
 )
 ```
 
-The combinator (`chain_parsers`) has type `F(a), F(b), (a, b -> c) -> F(c)` — a `map2`/`liftA2`. The syntax sugar nests these calls automatically, building up a record.
+The combinator (`chain_parsers`) has type `F(a), F(b), (a, b -> c) -> F(c)` — a `map2`/`liftA2`. The syntax sugar nests
+these calls automatically, building up a record.
 
-**Key insight**: This does NOT require HKTs. The combinator is a concrete function for a specific wrapper type. Each wrapper type (`Result`, `Option`, `Parser`, etc.) provides its own `map2`.
+**Key insight**: This does NOT require HKTs. The combinator is a concrete function for a specific wrapper type. Each
+wrapper type (`Result`, `Option`, `Parser`, etc.) provides its own `map2`.
 
-The [Weaver CLI library](https://github.com/smores56/weaver) uses this pattern to build type-safe CLI arg parsers without macros — each option/param registers itself as a field in the builder.
+The [Weaver CLI library](https://github.com/smores56/weaver) uses this pattern to build type-safe CLI arg parsers
+without macros — each option/param registers itself as a field in the builder.
 
----
+______________________________________________________________________
 
 ## 3. Approach A: `Validate!` Effect (Handler-as-Applicative)
 
 ### 3.1 Core Idea
 
-Instead of a new `Applicative` typeclass, use Camp's existing algebraic effects + deep handlers to implement error-accumulating validation. The **handler IS the applicative strategy** — it controls whether you fail-fast (use `Throw!`) or accumulate errors (use `Validate!`).
+Instead of a new `Applicative` typeclass, use Camp's existing algebraic effects + deep handlers to implement
+error-accumulating validation. The **handler IS the applicative strategy** — it controls whether you fail-fast (use
+`Throw!`) or accumulate errors (use `Validate!`).
 
 ### 3.2 Effect Definition
 
@@ -152,10 +169,11 @@ pub accumulate = |action| {
 How it works:
 
 1. `$errors` is a mutable list, initialized empty
-2. The handler arm for `.invalid!` appends the error and **resumes** — this is the critical difference from `Throw!` handlers which typically don't resume
-3. When the body finishes (no more effect calls), it reads `$errors` and wraps the result
-4. Deep handler semantics guarantee the arm is reinstalled after each `resume`, so every `invalid!` call gets collected
-5. The body's final expression sees all accumulated mutations
+1. The handler arm for `.invalid!` appends the error and **resumes** — this is the critical difference from `Throw!`
+   handlers which typically don't resume
+1. When the body finishes (no more effect calls), it reads `$errors` and wraps the result
+1. Deep handler semantics guarantee the arm is reinstalled after each `resume`, so every `invalid!` call gets collected
+1. The body's final expression sees all accumulated mutations
 
 ### 3.4 Example: Form Validation
 
@@ -194,7 +212,9 @@ result = accumulate(|| validate_form(bad_input))
 
 ### 3.5 The Placeholder Value Subtlety
 
-When `require_non_empty` calls `Validate.invalid!(err)`, it still returns `value` (which is `""`). The record gets constructed with `name: ""` even though it's invalid. This differs from Haskell's applicative where an invalid field can't produce a value at all.
+When `require_non_empty` calls `Validate.invalid!(err)`, it still returns `value` (which is `""`). The record gets
+constructed with `name: ""` even though it's invalid. This differs from Haskell's applicative where an invalid field
+can't produce a value at all.
 
 This is acceptable because:
 
@@ -224,35 +244,40 @@ create_user = |input| {
 }
 ```
 
-`accumulate` handles `Validate!` locally — it's subtracted from the row. The remaining effects (`Throw!`, `Console!`) propagate to the caller.
+`accumulate` handles `Validate!` locally — it's subtracted from the row. The remaining effects (`Throw!`, `Console!`)
+propagate to the caller.
 
 ### 3.7 Comparison: `Validate!` vs. Dedicated Syntax
 
-| Aspect | `Validate!` effect | Haskell `Validated` / Scala `.mapN` |
-|---|---|---|
-| Strategy at handler | Same code, swap `Throw!` <-> `Validate!` | Different types (`Either` vs `Validated`) |
-| No new syntax | Uses existing effect/handler machinery | Needs `<$>`, `<*>`, `.mapN`, typeclasses |
-| Row composition | `-[Validate! \| Throw! \| Console!]->` just works | Need monad transformer stacks |
-| Accumulation | Handler decides — accumulate or fail-fast | Baked into the type |
-| Discoverability | `accumulate` + `catch` are regular functions | Need to know the typeclass hierarchy |
+| Aspect              | `Validate!` effect                                | Haskell `Validated` / Scala `.mapN`       |
+| ------------------- | ------------------------------------------------- | ----------------------------------------- |
+| Strategy at handler | Same code, swap `Throw!` \<-> `Validate!`         | Different types (`Either` vs `Validated`) |
+| No new syntax       | Uses existing effect/handler machinery            | Needs `<$>`, `<*>`, `.mapN`, typeclasses  |
+| Row composition     | `-[Validate! \| Throw! \| Console!]->` just works | Need monad transformer stacks             |
+| Accumulation        | Handler decides — accumulate or fail-fast         | Baked into the type                       |
+| Discoverability     | `accumulate` + `catch` are regular functions      | Need to know the typeclass hierarchy      |
 
-The main tradeoff: Camp's approach is **handler-centric** (strategy at call site), while Haskell's is **type-centric** (strategy in the return type).
+The main tradeoff: Camp's approach is **handler-centric** (strategy at call site), while Haskell's is **type-centric**
+(strategy in the return type).
 
 ### 3.8 Stdlib, Not Prelude
 
-`Validate!` should live in `stdlib/Validate.camp`, not the prelude. Prelude effects get special compiler treatment (injected without imports, runtime-handled). `Validate!` is application-level logic:
+`Validate!` should live in `stdlib/Validate.camp`, not the prelude. Prelude effects get special compiler treatment
+(injected without imports, runtime-handled). `Validate!` is application-level logic:
 
 ```
 import Validate { [Validate!], accumulate }
 ```
 
----
+______________________________________________________________________
 
 ## 4. Approach B: Record Builder Sugar (The `map2` Pattern)
 
 ### 4.1 Motivation
 
-The `Validate!` effect handles error accumulation, but the broader problem — composing wrapped values into a record — applies to `Result`, `Option`, `List`, parsers, state transformers, and more. A syntax sugar that desugars to `map2` calls handles ALL of these uniformly, without effects.
+The `Validate!` effect handles error accumulation, but the broader problem — composing wrapped values into a record —
+applies to `Result`, `Option`, `List`, parsers, state transformers, and more. A syntax sugar that desugars to `map2`
+calls handles ALL of these uniformly, without effects.
 
 This is Roc's record builder pattern, adapted for Camp.
 
@@ -269,7 +294,8 @@ This is Roc's record builder pattern, adapted for Camp.
 
 ### 4.3 Token
 
-New `.Left_Arrow` token (`<-`). Currently unused in Camp. In the lexer (`src/frontend/lexer.odin:322`), the `<` branch handles `<=` and `<<`. Add a check for `-`:
+New `.Left_Arrow` token (`<-`). Currently unused in Camp. In the lexer (`src/frontend/lexer.odin:322`), the `<` branch
+handles `<=` and `<<`. Add a check for `-`:
 
 ```
 if ch == '<' {
@@ -353,7 +379,8 @@ Record_Field :: struct {
 
 ### 4.6 Parser Changes
 
-In `parser_parse_record_expr` (`src/frontend/parser.odin:1667`), after parsing the first identifier (line 1695-1696), check if the next token is `.Left_Arrow`:
+In `parser_parse_record_expr` (`src/frontend/parser.odin:1667`), after parsing the first identifier (line 1695-1696),
+check if the next token is `.Left_Arrow`:
 
 ```
 // After parsing name_tok:
@@ -367,7 +394,8 @@ if p.current.kind == .Left_Arrow {
 // Otherwise, continue with existing record field parsing
 ```
 
-For dot-qualified combinators (`Result.map2`), after seeing the first identifier + `.`, peek ahead: if it's `Identifier <-`, parse the dotted name as the combinator. Otherwise fall back to field access.
+For dot-qualified combinators (`Result.map2`), after seeing the first identifier + `.`, peek ahead: if it's
+`Identifier <-`, parse the dotted name as the combinator. Otherwise fall back to field access.
 
 ### 4.7 Desugar Pass
 
@@ -413,17 +441,18 @@ desugar_builder(builder) -> Expr_Call:
 
 The builder syntax `{ combinator <- field: expr, ... }` is unambiguous with all existing `{ }` constructs:
 
-| Construct | Token sequence | Conflict? |
-|---|---|---|
-| Record literal `{ x: e }` | `Identifier : Expr` | No — `:` vs `<-` |
-| Record punning `{ x }` | `Identifier` | No — no `<-` |
-| Record update `{ ..r, x: e }` | `.. Expr , ...` | No — starts with `..` |
-| Block expression `{ stmt }` | Various | No — no `Identifier <-` |
-| Unit `{}` | Empty | No braces |
-| Record pattern `{ x, y }` | Pattern context | No `<-` in patterns |
-| Record type `{ x: Str }` | Type context | No `<-` in types |
+| Construct                     | Token sequence      | Conflict?               |
+| ----------------------------- | ------------------- | ----------------------- |
+| Record literal `{ x: e }`     | `Identifier : Expr` | No — `:` vs `<-`        |
+| Record punning `{ x }`        | `Identifier`        | No — no `<-`            |
+| Record update `{ ..r, x: e }` | `.. Expr , ...`     | No — starts with `..`   |
+| Block expression `{ stmt }`   | Various             | No — no `Identifier <-` |
+| Unit `{}`                     | Empty               | No braces               |
+| Record pattern `{ x, y }`     | Pattern context     | No `<-` in patterns     |
+| Record type `{ x: Str }`      | Type context        | No `<-` in types        |
 
 The parser sees `{`, parses an identifier, and checks the next token:
+
 - `:` → record field (existing)
 - `<-` → record builder (new)
 - `,` or `}` → punned field (existing)
@@ -505,7 +534,7 @@ wrapped_name = |input| {
 // → map_result(parse_name(input), |name| { name: name })
 ```
 
----
+______________________________________________________________________
 
 ## 5. The `State!(a)` Composition Question
 
@@ -524,23 +553,28 @@ record_state({ x: use_state!(init_x), y: use_state!(init_y) })
 Three hard constraints from `docs/effects-spec.md`:
 
 **Constraint 1 — Different effects** (line 60-62):
+
 > `State!(Int)` and `State!(Str)` are different effects — unification SHALL fail
 
 They can't coexist in the same effect row. `-[State!(I64) | State!(Str)]->` is a type error.
 
 **Constraint 2 — Subtraction by name** (line 244):
+
 > For parameterized effects, subtraction removes the effect regardless of its type arguments
 
-`handle State!` catches ALL `State!` variants. You can't nest handlers to catch `State!(I64)` separately from `State!(Str)`.
+`handle State!` catches ALL `State!` variants. You can't nest handlers to catch `State!(I64)` separately from
+`State!(Str)`.
 
 **Constraint 3 — No effect-qualified handler arms**:
+
 ```
 handle E!, F! in body with {
   .op!(resume, args) => ...   // which effect's .op! is this?
 }
 ```
 
-If two effects share an operation name (both have `get!`), the handler can't distinguish them. There's no `.State!(I64).get!(resume)` syntax.
+If two effects share an operation name (both have `get!`), the handler can't distinguish them. There's no
+`.State!(I64).get!(resume)` syntax.
 
 ### 5.3 What DOES Work
 
@@ -603,22 +637,25 @@ Camp's effects and the record builder pattern are **complementary but orthogonal
 - **Effects** handle side effects (IO, state, errors) via handlers — they're about **control flow**
 - **Record builders** compose wrapped values via `map2` — they're about **data construction**
 
-For `State!` specifically, the single-record-typed approach (Approach 1) is the pragmatic Camp solution. For general applicative composition, the record builder (Approach 2) covers the broader set of use cases.
+For `State!` specifically, the single-record-typed approach (Approach 1) is the pragmatic Camp solution. For general
+applicative composition, the record builder (Approach 2) covers the broader set of use cases.
 
----
+______________________________________________________________________
 
 ## 6. How the Two Approaches Relate
 
-| Use case | Best approach | Why |
-|---|---|---|
-| Error-accumulating validation | `Validate!` effect | Natural fit — effects for side effects, handler controls strategy |
-| Error-accumulating validation | `map2_result` + builder | Alternative — no effects needed, purely functional |
-| Optional field composition | `map2_option` + builder | `Option` isn't an effect, builder is the natural fit |
-| Parser combinators | `map2_parser` + builder | Same pattern as Weaver, purely functional |
-| State composition | Single `State!` with record type | Pragmatic — effects handle state naturally |
-| State composition | `map2_state` + builder | Alternative — explicit state-passing, no effects |
+| Use case                      | Best approach                    | Why                                                               |
+| ----------------------------- | -------------------------------- | ----------------------------------------------------------------- |
+| Error-accumulating validation | `Validate!` effect               | Natural fit — effects for side effects, handler controls strategy |
+| Error-accumulating validation | `map2_result` + builder          | Alternative — no effects needed, purely functional                |
+| Optional field composition    | `map2_option` + builder          | `Option` isn't an effect, builder is the natural fit              |
+| Parser combinators            | `map2_parser` + builder          | Same pattern as Weaver, purely functional                         |
+| State composition             | Single `State!` with record type | Pragmatic — effects handle state naturally                        |
+| State composition             | `map2_state` + builder           | Alternative — explicit state-passing, no effects                  |
 
-Both approaches can coexist. The `Validate!` effect is ergonomically superior for validation use cases (the handler decides the strategy, business logic doesn't change). The record builder is more general — it works with any type that has a `map2`.
+Both approaches can coexist. The `Validate!` effect is ergonomically superior for validation use cases (the handler
+decides the strategy, business logic doesn't change). The record builder is more general — it works with any type that
+has a `map2`.
 
 A user doing form validation might use `Validate!`:
 
@@ -634,7 +671,7 @@ While a user composing optional lookups would use the record builder:
 point = { map2_option <- x: Map.get(data, "x"), y: Map.get(data, "y") }
 ```
 
----
+______________________________________________________________________
 
 ## 7. Implementation Checklist
 
@@ -661,18 +698,27 @@ point = { map2_option <- x: Map.get(data, "x"), y: Map.get(data, "y") }
 - [ ] Add e2e tests: accumulation, composition with other effects
 - [ ] Update kitchen-sink test
 
----
+______________________________________________________________________
 
 ## 8. Open Questions
 
-1. **Combinator scope**: Should the combinator be restricted to identifiers / dot-qualified names, or allow arbitrary expressions? Restricting keeps parsing simple; allowing is more general.
+1. **Combinator scope**: Should the combinator be restricted to identifiers / dot-qualified names, or allow arbitrary
+   expressions? Restricting keeps parsing simple; allowing is more general.
 
-2. **`map2` convention**: Should Camp establish a naming convention for `map2` functions? E.g., `TypeName.map2` — `Result.map2`, `Option.map2`, `Parser.map2`.
+1. **`map2` convention**: Should Camp establish a naming convention for `map2` functions? E.g., `TypeName.map2` —
+   `Result.map2`, `Option.map2`, `Parser.map2`.
 
-3. **Accumulation strategy for `map2_result`**: The example uses `List.concat(e1, e2)` to merge errors. Should this be configurable (via a `Semigroup`-like trait)? Or should `map2_result` just keep the first error?
+1. **Accumulation strategy for `map2_result`**: The example uses `List.concat(e1, e2)` to merge errors. Should this be
+   configurable (via a `Semigroup`-like trait)? Or should `map2_result` just keep the first error?
 
-4. **Error recovery in `Validate!`**: After `invalid!` is called and the handler resumes, the body continues with a placeholder value. Should there be a way to short-circuit the body (abort remaining field computations) while still collecting errors? This would require a more complex handler that tracks a "poisoned" flag.
+1. **Error recovery in `Validate!`**: After `invalid!` is called and the handler resumes, the body continues with a
+   placeholder value. Should there be a way to short-circuit the body (abort remaining field computations) while still
+   collecting errors? This would require a more complex handler that tracks a "poisoned" flag.
 
-5. **Record builder + open records**: Should `{ f <- x: e1, y: e2, .. }` (open record result) be supported? This would let builders compose partial records.
+1. **Record builder + open records**: Should `{ f <- x: e1, y: e2, .. }` (open record result) be supported? This would
+   let builders compose partial records.
 
-6. **Effect-qualified handler arms**: If Camp ever added syntax like `handle State!(I64), State!(Str) in body with { State!(I64).get!(resume) => ... }`, the state composition approach would change significantly. This is a broader design question about whether parameterized effects should be independently handleable.
+1. **Effect-qualified handler arms**: If Camp ever added syntax like
+   `handle State!(I64), State!(Str) in body with { State!(I64).get!(resume) => ... }`, the state composition approach
+   would change significantly. This is a broader design question about whether parameterized effects should be
+   independently handleable.
