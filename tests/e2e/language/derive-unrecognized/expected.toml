@@ -1,0 +1,12 @@
+stdout = """
+canonicalized /tmp/camp-e2e/language/derive-unrecognized/src/Main.camp: 2 declaration(s), 0 import(s)
+-- C0705: UNRECOGNIZED DERIVE --- /tmp/camp-e2e/language/derive-unrecognized/src/Main.camp
+
+`@derive(Foo)` is not a recognized derive. Supported derives are: `Debug`, `Eq`,
+`Hash`, `Ord`.
+   1 | @Name derives Foo : I64
+       ^
+compilation failed with 1 error(s)
+"""
+stderr = ""
+exit = 1

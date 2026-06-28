@@ -1647,10 +1647,7 @@ generate_derive_stubs :: proc(
 		case:
 			diagnostics.collector_add_diag(
 				collector,
-				diagnostics.diag_internal(
-					fmt.tprintf("unrecognized derive: `{}`", derive_name_str),
-					d.span,
-				),
+				diagnostics.diag_unrecognized_derive(derive_name_str, d.span),
 			)
 		}
 	}
