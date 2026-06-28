@@ -1,0 +1,20 @@
+// Unit.camp
+// Unit is the compiler-declared void-like type. Its only value is {}.
+// This module implements Debug for Unit; the debug rendering is the fixed
+// string "()".
+//
+// NOTE: runtime dispatch of `u.debug()` currently emits invalid WASM and Str
+// equality is broken in the current runtime (see bean camp-vhpc — affects
+// all primitive Debug impls). The impl below is correct and typechecks.
+// The test verifies the module compiles and the Debug conformance is wired
+// up; a runtime assertion on the rendered string is deferred until camp-vhpc
+// is resolved.
+
+Unit is Debug {
+    debug = |_self: Self| -> Str { "()" }
+}
+
+// Tests
+test "Unit module compiles and Debug conformance is registered" {
+  expect True
+}

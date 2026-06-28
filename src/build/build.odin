@@ -822,7 +822,7 @@ run_test :: proc(args: []string) -> Build_Result {
 		// Create a temp directory for this test
 		safe_name := sanitize_test_name(test.name)
 		tmp_dir := fmt.tprintf("/tmp/camp-test-{}-{}", pid, safe_name)
-		os.make_directory_all(tmp_dir)
+		os.make_directory(tmp_dir)
 		tmp_wasm_path := fmt.tprintf("{}/main.wasm", tmp_dir)
 
 		// Compile the test body as main! using a fresh sub-arena
@@ -880,7 +880,7 @@ run_test :: proc(args: []string) -> Build_Result {
 	for dt in doc_test_codes {
 		safe_name := sanitize_test_name(fmt.tprintf("%s-%s", dt.decl_name, dt.name))
 		tmp_dir := fmt.tprintf("/tmp/camp-test-{}-{}", pid, safe_name)
-		os.make_directory_all(tmp_dir)
+		os.make_directory(tmp_dir)
 		defer os.remove_all(tmp_dir)
 		tmp_wasm_path := fmt.tprintf("{}/main.wasm", tmp_dir)
 
@@ -1066,7 +1066,8 @@ compile_test_canon :: proc(
 		     ^semantics.CDecl_Trait,
 		     ^semantics.CDecl_Alias,
 		     ^semantics.CDecl_Newtype,
-		     ^semantics.CDecl_Import:
+		     ^semantics.CDecl_Import,
+		     ^semantics.CDecl_Is_Impl:
 			append(&new_decls, decl)
 		}
 	}
@@ -1285,7 +1286,8 @@ compile_doc_test_canon :: proc(
 		     ^semantics.CDecl_Trait,
 		     ^semantics.CDecl_Alias,
 		     ^semantics.CDecl_Newtype,
-		     ^semantics.CDecl_Import:
+		     ^semantics.CDecl_Import,
+		     ^semantics.CDecl_Is_Impl:
 			append(&new_decls, decl)
 		}
 	}

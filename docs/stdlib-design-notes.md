@@ -742,6 +742,7 @@ ______________________________________________________________________
 | `I8`, `I16`, `I32`, `I64` | Signed integer types and operations   |
 | `U8`, `U16`, `U32`, `U64` | Unsigned integer types and operations |
 | `F32`, `F64`              | Floating-point types and operations   |
+| `Unit`                   | Unit type (`{}`) — Debug impl        |
 
 ### Official Packages (NOT stdlib)
 

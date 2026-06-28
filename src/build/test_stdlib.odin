@@ -2,7 +2,7 @@ package build
 
 import "core:testing"
 
-EXPECTED_STDLIB_MODULE_COUNT :: 46
+EXPECTED_STDLIB_MODULE_COUNT :: 47
 
 ALL_MODULE_NAMES :: []string {
 	"Result",
@@ -50,6 +50,7 @@ ALL_MODULE_NAMES :: []string {
 	"Regex",
 	"Uri",
 	"Base64",
+	"Unit",
 }
 
 // substring check without importing core:strings
