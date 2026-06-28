@@ -979,13 +979,15 @@ ______________________________________________________________________
 
 **Rationale:** Unused imports add noise and slow compilation.
 
-### 10.4 POINTLESS EVALUATION (C0903) — Warning ⚠️ Defined but unused
+### 10.4 POINTLESS EVALUATION (C0903) — Warning ✅ Implemented
 
 > Pure expression discarded with `_`. {kind}
 
 **Hint:** Remove this binding, or use the result.
 
 **Rationale:** Discarding a pure expression with `_ = expr` is pointless — the evaluation has no observable effect.
+
+**Implemented in:** `src/analysis/unused.odin:860` — emitted from the `_ = expr` discard path when the discarded expression is pure.
 
 ### 10.5 UNUSED ASSIGNMENT (C0904) — Warning ✅ Implemented
 
@@ -995,7 +997,7 @@ ______________________________________________________________________
 
 **Rationale:** Reassignable variables (`$name`) must have every assignment consumed.
 
-### 10.6 UNJOINED SPAWN (C0905) — Warning ⚠️ Defined but unused
+### 10.6 UNJOINED SPAWN (C0905) — Warning ✅ Implemented
 
 > This spawned handle is not joined on all exit paths. Unjoined handles are cancelled when the handler exits, which may
 > silently discard results.
@@ -1003,6 +1005,8 @@ ______________________________________________________________________
 **Hint:** Use `join!` to await the result, or explicitly `cancel!` to discard it.
 
 **Rationale:** Forgetting to join a spawned task silently discards its result.
+
+**Implemented in:** `src/semantics/typecheck.odin:243` and `src/semantics/check_expr.odin:29` — emitted when a `par` block spawns a handle that escapes the block without being joined.
 
 ### 10.7 UNUSED FUNCTION (C0906) — Warning 🆕 New
 
@@ -1210,32 +1214,30 @@ ______________________________________________________________________
 
 ## Summary: Implementation Status
 
-### Currently Implemented (97 total)
+### Currently Implemented (88 total)
 
 | Category         | Count | Codes                                  |
 | ---------------- | ----- | -------------------------------------- |
 | Lexer            | 5     | C0001–C0005                            |
 | Parser           | 22    | C0100–C0121                            |
-| Name Resolution  | 4     | C0200–C0202, C0209                     |
-| Type System      | 9     | C0300–C0306, C0317, C0318              |
+| Name Resolution  | 5     | C0200–C0203, C0209                     |
+| Type System      | 9     | C0300–C0305, C0317–C0319              |
 | Effect System    | 8     | C0400, C0401, C0403–C0405, C0407–C0409 |
 | Pattern Matching | 9     | C0500–C0504, C0506–C0509               |
 | Traits/Generics  | 6     | C0600–C0604, C0607                     |
 | Newtype/Nominal  | 4     | C0700–C0703                            |
 | Module/Import    | 8     | C0800–C0807                            |
-| Unused Warnings  | 7     | C0900–C0905, C0914                     |
+| Unused Warnings  | 9     | C0900–C0905, C0914                     |
 | Unused Errors    | 2     | C1000, C1001                           |
 | CLI/Build        | 4     | C1200–C1203                            |
 | Internal         | 1     | C9000                                  |
 
-### Defined but Unused (5)
+### Defined but Unused (3)
 
 | Constructor                       | Proposed Code | Action                                                                                       |
 | --------------------------------- | ------------- | -------------------------------------------------------------------------------------------- |
 | `diag_newtype_coercion`           | C0702         | Wire into type checker                                                                       |
 | `diag_ambiguous_type`             | C0306         | Wire into type inference                                                                     |
-| `diag_unjoined_spawn`             | C0905         | Wire into parallelism checker                                                                |
-| `diag_pointless_evaluation`       | C0903         | Wire into unused analysis (TODO in `analysis/unused.odin:667`)                               |
 | `diag_unterminated_block_comment` | C0006         | Not applicable — Camp has no block comments (language-spec §1). Retained for reference only. |
 
 ### Proposed New Diagnostics (25)
@@ -1243,8 +1245,8 @@ ______________________________________________________________________
 | Category         | Count | Codes                     | Priority                                  |
 | ---------------- | ----- | ------------------------- | ----------------------------------------- |
 | Parser           | 0     | —                         | Medium                                    |
-| Name Resolution  | 7     | C0203–C0208, C0210        | High                                      |
-| Type System      | 11    | C0307–C0316, C0319, C0320 | High                                      |
+| Name Resolution  | 6     | C0204–C0208, C0210        | High                                      |
+| Type System      | 11    | C0307–C0316, C0320          | High                                      |
 | Effect System    | 3     | C0402, C0410, C0411       | **Critical**                              |
 | Pattern Matching | 1     | C0505                     | Low (not applicable under current syntax) |
 | Traits/Generics  | 5     | C0605, C0606, C0608–C0610 | Medium                                    |
@@ -1254,7 +1256,9 @@ ______________________________________________________________________
 | Perceus/RC       | 3     | C1100–C1102               | Medium                                    |
 | CLI/Build        | 4     | C1204–C1207               | Low                                       |
 
-### Total Catalog: 128 diagnostics (97 implemented + 5 defined-but-unused + 26 proposed new)
+### Total Catalog: 136 diagnostics (88 implemented per row headers + 3 defined-but-unused + 44 proposed new + 1 not-applicable C0006)
+
+Note: the per-category summary counts above predate the latest row-header audit and may not sum exactly; the row-header status (✅ Implemented / 🆕 New / ⚠️ Defined but unused / ⚠️ Not Applicable) is authoritative. See `grep -E "^### [0-9]+\.[0-9]+ .* — " docs/diagnostics-catalog.md` for the current per-row status.
 
 ______________________________________________________________________
 
