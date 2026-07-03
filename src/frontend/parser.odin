@@ -559,7 +559,6 @@ parser_parse_const_decl :: proc(p: ^Parser, is_pub: bool) -> Decl {
 			     ^Type_Tag_Union,
 			     ^Type_Effect_Row,
 			     ^Type_Variable,
-			     ^Type_Wildcard,
 			     ^Type_Self:
 				return_type = op_type
 			}
@@ -2514,11 +2513,16 @@ parser_parse_type :: proc(p: ^Parser) -> ^Type {
 	case .Identifier:
 		name_tok := parser_advance(p)
 		if name_tok.text == "_" {
-			w := new(Type_Wildcard)
-			w^ = Type_Wildcard {
+			diagnostics.collector_add_diag(
+				p.collector,
+				diagnostics.diag_type_wildcard(name_tok.span),
+			)
+			v := new(Type_Variable)
+			v^ = Type_Variable {
+				name = base.intern(p.intern, "_"),
 				span = name_tok.span,
 			}
-			t = w
+			t = v
 		} else {
 			name_id := base.intern(p.intern, name_tok.text)
 			v := new(Type_Variable)

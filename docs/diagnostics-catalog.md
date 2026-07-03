@@ -249,8 +249,17 @@ ______________________________________________________________________
 **Rationale:** Parenthesizing a single type is valid for grouping (e.g., in function types), but `(T)` alone is not a
 tuple type.
 
-______________________________________________________________________
+### 2.22 TYPE WILDCARD (C0122) — Error ✅ Implemented
 
+> Type wildcards (`_`) are not supported. Omit the annotation instead — Camp infers the type.
+
+**Hint:** Write `x = expr` instead of `x: _ = expr`.
+
+**Rationale:** Camp infers types when annotations are absent, so `_` in type position is dead weight. The previous
+silent half-implementation lowered to a fresh type variable with no hole-reporting (unlike Agda/Haskell); it has been
+removed. If real hole-reporting becomes a roadmap goal, it should be re-introduced with a proper diagnostic mechanism.
+
+______________________________________________________________________
 ______________________________________________________________________
 
 ## 3. Name Resolution Errors
@@ -1222,12 +1231,12 @@ ______________________________________________________________________
 
 ## Summary: Implementation Status
 
-### Currently Implemented (88 total)
+### Currently Implemented (89 total)
 
 | Category         | Count | Codes                                  |
 | ---------------- | ----- | -------------------------------------- |
 | Lexer            | 5     | C0001–C0005                            |
-| Parser           | 22    | C0100–C0121                            |
+| Parser           | 23    | C0100–C0122                            |
 | Name Resolution  | 5     | C0200–C0203, C0209                     |
 | Type System      | 9     | C0300–C0305, C0317–C0319              |
 | Effect System    | 8     | C0400, C0401, C0403–C0405, C0407–C0409 |
@@ -1264,7 +1273,7 @@ ______________________________________________________________________
 | Perceus/RC       | 3     | C1100–C1102               | Medium                                    |
 | CLI/Build        | 4     | C1204–C1207               | Low                                       |
 
-### Total Catalog: 137 diagnostics (89 implemented per row headers + 3 defined-but-unused + 44 proposed new + 1 not-applicable C0006)
+### Total Catalog: 138 diagnostics (90 implemented per row headers + 3 defined-but-unused + 44 proposed new + 1 not-applicable C0006)
 
 Note: the per-category summary counts above predate the latest row-header audit and may not sum exactly; the row-header status (✅ Implemented / 🆕 New / ⚠️ Defined but unused / ⚠️ Not Applicable) is authoritative. See `grep -E "^### [0-9]+\.[0-9]+ .* — " docs/diagnostics-catalog.md` for the current per-row status.
 

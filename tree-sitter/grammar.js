@@ -571,7 +571,6 @@ export default grammar({
       $.tag_union_type,
       $.record_type,
       $.applied_type,
-      $.wildcard_type,
       $.type_variable,
     ),
 
@@ -586,8 +585,6 @@ export default grammar({
       "[",
       $.tag_union_variant,
       repeat(seq("|", $.tag_union_variant)),
-      optional(seq("|", $.wildcard_type)),
-      optional(seq("|", "..", optional(field("rest", $.identifier)))),
       "]",
     ),
 
@@ -619,8 +616,6 @@ export default grammar({
       optional(seq($._type, repeat(seq(",", $._type)))),
       ")",
     ),
-
-    wildcard_type: ($) => "_",
 
     type_variable: ($) => alias($.identifier, "type_variable"),
 

@@ -800,7 +800,7 @@ ctype_contains_self :: proc(t: CType) -> bool {
 				return true
 			}
 		}
-	case ^CType_Primitive, ^CType_Variable, ^CType_Wildcard, ^CType_Effect_Row:
+	case ^CType_Primitive, ^CType_Variable, ^CType_Effect_Row:
 		return false
 	}
 	return false
@@ -821,8 +821,7 @@ convert_ctype_self_aware :: proc(
 	     ^CType_Record,
 	     ^CType_Tag_Union,
 	     ^CType_Effect_Row,
-	     ^CType_Variable,
-	     ^CType_Wildcard:
+	     ^CType_Variable:
 		return convert_type_to_var_val(t, store, env, closed = true)
 	}
 	return fresh_value_var(store, base.Source_Span_ZERO)
@@ -856,7 +855,6 @@ extract_trait_methods_from_ctype :: proc(
 			     ^CType_Tag_Union,
 			     ^CType_Effect_Row,
 			     ^CType_Variable,
-			     ^CType_Wildcard,
 			     ^CType_Self:
 				methods[i] = Trait_Method_Info {
 					name        = f.name,
@@ -872,7 +870,6 @@ extract_trait_methods_from_ctype :: proc(
 	     ^CType_Tag_Union,
 	     ^CType_Effect_Row,
 	     ^CType_Variable,
-	     ^CType_Wildcard,
 	     ^CType_Self:
 	}
 	return make([]Trait_Method_Info, 0)

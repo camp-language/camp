@@ -2374,6 +2374,19 @@ diag_tuple_single_element :: proc(span: base.Source_Span) -> Diagnostic {
 	return d
 }
 
+diag_type_wildcard :: proc(span: base.Source_Span) -> Diagnostic {
+	d := diag_init(
+		.Error,
+		"C0122",
+		"TYPE WILDCARD",
+		span,
+		"Type wildcards (`_`) are not supported. Omit the annotation instead — Camp infers the type.",
+	)
+	append(&d.hints, "Write `x = expr` instead of `x: _ = expr`.")
+	return d
+}
+
+
 diag_tuple_pattern_count :: proc(
 	expected: int,
 	actual: int,
