@@ -259,6 +259,7 @@ typecheck_decl :: proc(decl: CDecl, env: ^Type_Env, store: ^Type_Store) -> TDecl
 		td^ = TDecl_Expect {
 			condition   = result.texpr,
 			doc_comment = d.doc_comment,
+			source_text = d.source_text,
 			span        = d.span,
 		}
 		return TDecl(td)
