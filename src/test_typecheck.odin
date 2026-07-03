@@ -930,6 +930,33 @@ test_trait_impl_unknown_trait_emits_c0607 :: proc(t: ^testing.T) {
 	testing.expect(t, found_c0607, "expected C0607 for is-impl of unknown trait")
 }
 
+// camp-fj3x: a multi-effect `handle` block that handles two effects both
+// declaring an operation with the same name is ambiguous (the clause syntax
+// `.op(resume, args) => body` carries no effect qualifier, spec §4 "Handle").
+// Previously canonicalization dropped all but e.effects[0], masking the
+// collision; the typecheck arm used break-on-first-match and silently picked
+// one owner. Now C0412 fires.
+@(test)
+test_handle_ambiguous_shared_op_emits_c0412 :: proc(t: ^testing.T) {
+	ctx: build.Compilation_Context
+	store, _ := setup_for_typecheck(
+		&ctx,
+		"EchoA! : { ping!: || -[EchoA!]-> {} }\nEchoB! : { ping!: || -[EchoB!]-> {} }\n\nmain! = || -> I64 {\n  handle EchoA!, EchoB! in 0 with {\n    .ping!(resume) => resume(0)\n  }\n}\n",
+		{with_prelude = true},
+	)
+	defer build.context_destroy(&ctx)
+	defer semantics.type_store_destroy(store)
+
+	testing.expect(t, diagnostics.diag_collector_has_errors(&ctx.collector))
+	found_c0412 := false
+	for d in ctx.collector.diagnostics {
+		if d.code == "C0412" {
+			found_c0412 = true
+		}
+	}
+	testing.expect(t, found_c0412, "expected C0412 for shared op name across two handled effects")
+}
+
 mono_source :: proc(
 	ctx: ^build.Compilation_Context,
 	source: string,

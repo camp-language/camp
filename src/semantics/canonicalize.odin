@@ -1112,14 +1112,22 @@ canonicalize_expr :: proc(
 		return c
 
 	case ^frontend.Expr_Handle:
-		effect_id := len(e.effects) > 0 ? e.effects[0] : 0
-		effect_name := base.Canonical_Name {
-			module   = base.NO_NAME,
-			name     = effect_id,
-			is_local = true,
-		}
-		if existing, ok := scope.local_names[effect_id]; ok {
-			effect_name = existing
+		// Preserve the full handled-effect list (multi-effect `handle E!, F!
+		// in ...` is valid per spec §4 "Handle"). Previously only
+		// e.effects[0] was carried into the canonical form, silently
+		// dropping the rest — which masked the C0412 ambiguity check at
+		// typecheck (two effects sharing an op name could never collide).
+		c_effects := make([dynamic]base.Canonical_Name, 0, len(e.effects))
+		for eff_id in e.effects {
+			cn := base.Canonical_Name {
+				module   = base.NO_NAME,
+				name     = eff_id,
+				is_local = true,
+			}
+			if existing, ok := scope.local_names[eff_id]; ok {
+				cn = existing
+			}
+			append(&c_effects, cn)
 		}
 		cbody := canonicalize_expr(e.body, scope, interner, collector)
 		arms := make([dynamic]CHandler_Arm, 0, len(e.arms))
@@ -1135,8 +1143,7 @@ canonicalize_expr :: proc(
 			)
 		}
 		c := new(CExpr_Handle)
-		c.effects = make([dynamic]base.Canonical_Name, 0, 1)
-		append(&c.effects, effect_name)
+		c.effects = c_effects
 		c.body = cbody
 		c.arms = arms
 		c.span = e.span

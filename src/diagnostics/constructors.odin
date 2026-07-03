@@ -1789,6 +1789,35 @@ diag_effect_row_subtype :: proc(
 	return d
 }
 
+diag_ambiguous_handler_operation :: proc(
+	op_name: string,
+	effect_a: string,
+	effect_b: string,
+	span: base.Source_Span,
+) -> Diagnostic {
+	d := diag_init(
+		.Error,
+		"C0412",
+		"AMBIGUOUS HANDLER OPERATION",
+		span,
+		fmt.tprintf(
+			"Operation `.{}` is declared by both `{}` and `{}` in this `handle` block. The clause syntax has no effect qualifier, so a shared op name is ambiguous.",
+			op_name,
+			effect_a,
+			effect_b,
+		),
+	)
+	append(
+		&d.hints,
+		fmt.tprintf(
+			"Split into separate `handle` blocks (one for `{}` and one for `{}`), or rename the op in one effect.",
+			effect_a,
+			effect_b,
+		),
+	)
+	return d
+}
+
 // --- Pattern Matching ---
 
 diag_non_exhaustive_tag :: proc(

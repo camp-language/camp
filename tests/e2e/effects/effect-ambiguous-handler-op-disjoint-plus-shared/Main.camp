@@ -1,0 +1,10 @@
+EchoA! : { ping!: || -[EchoA!]-> {}, a!: || -[EchoA!]-> {} }
+EchoB! : { ping!: || -[EchoB!]-> {}, b!: || -[EchoB!]-> {} }
+
+main! = || -> I64 {
+  handle EchoA!, EchoB! in 0 with {
+    .ping!(resume) => resume(0),
+    .a!(resume) => resume(0),
+    .b!(resume) => resume(0)
+  }
+}

@@ -833,6 +833,13 @@ typecheck_synth :: proc(expr: CExpr, env: ^Type_Env, store: ^Type_Store) -> Synt
 			found_sig: Effect_Op_Sig
 			sig_found := false
 			owner_effect_name: base.Intern_ID = base.NO_NAME
+			// Collect ALL effects in this handle block whose op set contains
+			// arm.op. The clause carries no effect qualifier (Handler_Arm.op
+			// is the bare op name), so a shared op name across two+ handled
+			// effects is ambiguous (C0412, spec §4 "Handle"). Previously
+			// this used break-on-first-match and silently picked one owner.
+			matching_effect_names: [dynamic]base.Intern_ID
+			defer delete(matching_effect_names)
 			for eff in e.effects {
 				// Effect decls are keyed by the suffix-less name; handle
 				// expressions may write `handle Ask!` or `handle Ask` (and
@@ -841,17 +848,34 @@ typecheck_synth :: proc(expr: CExpr, env: ^Type_Env, store: ^Type_Store) -> Synt
 				if op_sigs, has_sigs := store.effect_ops[key]; has_sigs {
 					for sig in op_sigs {
 						if sig.name == arm.op {
-							found_sig = sig
-							sig_found = true
-							owner_effect_name = eff.name
+							if !sig_found {
+								found_sig = sig
+								sig_found = true
+								owner_effect_name = eff.name
+							}
+							append(&matching_effect_names, eff.name)
 							break
 						}
 					}
 				}
-				if sig_found do break
 			}
+			ambiguous_op := len(matching_effect_names) > 1
 
 			if sig_found {
+				if ambiguous_op {
+					op_str := base.intern_get(store.interner, arm.op)
+					eff_a_str := base.intern_get(store.interner, matching_effect_names[0])
+					eff_b_str := base.intern_get(store.interner, matching_effect_names[1])
+					diagnostics.collector_add_diag(
+						store.collector,
+						diagnostics.diag_ambiguous_handler_operation(
+							op_str,
+							eff_a_str,
+							eff_b_str,
+							arm.span,
+						),
+					)
+				}
 				sig := found_sig
 				for i in 0 ..< len(arm.params) {
 					pv := fresh_value_var(store, arm.span)

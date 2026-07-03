@@ -665,6 +665,16 @@ concrete `Inferred_Effect_Row` to avoid false positives during early unification
 (subtyping allows it), but worth warning about for API clarity.
 
 ______________________________________________________________________
+### 5.12 AMBIGUOUS HANDLER OPERATION (C0412) — Error ✅ Implemented
+
+> Operation `.{op}` is declared by both `{effect_a}` and `{effect_b}` in this `handle` block. The clause syntax has no effect qualifier, so a shared op name is ambiguous.
+
+**Hint:** Split into separate `handle` blocks (one per such effect), or rename the op in one effect.
+
+**Rationale:** Per `docs/language-spec.md` §4 "Handle", multi-effect handle blocks use clause syntax `.op(resume, args) => body` with no effect qualifier, so a shared op name across two+ handled effects is ambiguous. The clause cannot disambiguate which effect's operation it handles. Cross-effect op-name collision is not checked at the effect-definition level (effect_ops is keyed per-effect), only at the handle-block level. The escape hatch is splitting into separate `handle` blocks.
+
+**Implemented in:** `src/semantics/typecheck.odin` — `^CExpr_Handle` arm of `typecheck_synth` (collects all effects in `e.effects` whose `store.effect_ops` contain `arm.op`; emits C0412 when more than one matches). Also note the canonicalizer fix in `src/semantics/canonicalize.odin` that preserves the full handled-effect list (previously only `e.effects[0]` survived, masking the collision).
+
 
 ## 6. Pattern Matching Errors
 
@@ -1239,7 +1249,7 @@ ______________________________________________________________________
 | Parser           | 23    | C0100–C0122                            |
 | Name Resolution  | 5     | C0200–C0203, C0209                     |
 | Type System      | 9     | C0300–C0305, C0317–C0319              |
-| Effect System    | 8     | C0400, C0401, C0403–C0405, C0407–C0409 |
+| Effect System    | 9     | C0400, C0401, C0403–C0405, C0407–C0409, C0412 |
 | Pattern Matching | 9     | C0500–C0504, C0506–C0509               |
 | Traits/Generics  | 6     | C0600–C0604, C0607                     |
 | Newtype/Nominal  | 5     | C0700–C0705                            |
