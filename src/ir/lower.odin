@@ -819,7 +819,11 @@ lower_tdecl_expect :: proc(d: ^semantics.TDecl_Expect, env: ^Lower_Env) -> IR_De
 	cond := lower_texpr(d.condition, env)
 	msg := d.doc_comment
 	if msg == "" {
-		msg = "expectation failed"
+		if d.source_text != "" {
+			msg = fmt.tprintf("expectation failed: {}", d.source_text)
+		} else {
+			msg = "expectation failed"
+		}
 	}
 	msg_id := base.intern(env.interner, msg)
 	append(&env.module.string_table, String_Table_Entry{id = msg_id, value = msg})

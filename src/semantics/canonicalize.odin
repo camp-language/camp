@@ -22,6 +22,23 @@ span_to_line :: proc(source: string, offset: int) -> int {
 	}
 	return line
 }
+span_to_source_text :: proc(source: string, span: base.Source_Span) -> string {
+	if source == "" do return ""
+	if span.start < 0 || span.end > len(source) || span.start > span.end do return ""
+	return source[span.start:span.end]
+}
+
+// expr_full_span returns the [start, end) source span of a frontend.Expr.
+// `frontend.Expr` is a union; its variants each carry their own `span` field,
+// so there is no single `.span` accessor on the union itself. We delegate to
+// `frontend.expr_span`, which switches over every variant.
+expr_full_span :: proc(e: frontend.Expr) -> base.Source_Span {
+	return base.Source_Span {
+		file_id = 0,
+		start = frontend.expr_span(e, .Start),
+		end = frontend.expr_span(e, .End),
+	}
+}
 
 Canonicalize_Scope :: struct {
 	local_names:    map[base.Intern_ID]base.Canonical_Name,
@@ -312,13 +329,14 @@ canonicalize_decl :: proc(
 			span        = d.span,
 		}
 		return cdecl
-
 	case ^frontend.Decl_Expect:
 		ccond := canonicalize_expr(d.condition, scope, interner, collector)
+		source_text := span_to_source_text(scope.source, expr_full_span(d.condition))
 		cdecl := new(CDecl_Expect)
 		cdecl^ = CDecl_Expect {
 			condition   = ccond,
 			doc_comment = d.doc_comment,
+			source_text = source_text,
 			span        = d.span,
 		}
 		return cdecl
@@ -741,13 +759,21 @@ canonicalize_expr :: proc(
 		expect_id := base.intern(interner, "expect")
 		if id, ok := e.callee.(^frontend.Expr_Identifier); ok {
 			if id.name == expect_id && len(e.args) == 1 {
-				// Build: if !arg { crash "expectation failed at <file>:<line>" }
-				// Include source location when available so runtime trap
-				// messages point back at the failing expect.
+				// Build: if !arg { crash "expectation failed: <expr> (at <file>:<line>)" }
+				// Include source location and expr text when available so runtime trap
+				// messages point back at the failing expect with the condition source.
 				fail_msg := "expectation failed"
 				if scope.source != "" {
 					line := span_to_line(scope.source, e.span.start)
-					if line > 0 {
+					expr_text := span_to_source_text(scope.source, expr_full_span(e.args[0]))
+					if line > 0 && expr_text != "" {
+						fail_msg = fmt.tprintf(
+							"expectation failed: {} (at {}:{})",
+							expr_text,
+							scope.file_path,
+							line,
+						)
+					} else if line > 0 {
 						fail_msg = fmt.tprintf(
 							"expectation failed at {}:{}",
 							scope.file_path,
@@ -787,7 +813,6 @@ canonicalize_expr :: proc(
 				return canonicalize_expr(if_expr, scope, interner, collector)
 			}
 		}
-
 		ccallee := canonicalize_expr(e.callee, scope, interner, collector)
 		args := make([dynamic]CExpr, 0, len(e.args))
 		for a in e.args {

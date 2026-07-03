@@ -1,0 +1,14 @@
+args = "check-file"
+skip_wasm = true
+stdout = """
+-- C0914: TODO EXPRESSION --- /tmp/camp-e2e/language/todo-warning/src/Main.camp
+
+`todo` is a placeholder — evaluating this at runtime will trap.
+   2 |   todo
+         ^^^^
+  Replace this with a real implementation before shipping.
+1 warning(s) found
+check passed for /tmp/camp-e2e/language/todo-warning/src/Main.camp
+"""
+stderr = ""
+exit = 0

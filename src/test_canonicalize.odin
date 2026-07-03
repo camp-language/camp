@@ -268,7 +268,7 @@ test_canonicalize_todo_emits_warning :: proc(t: ^testing.T) {
 @(test)
 test_canonicalize_expect_call_bakes_location :: proc(t: ^testing.T) {
 	// `expect(false)` in a test-block statement desugars to
-	// `if !false { crash "expectation failed at <file>:<line>" }`.
+	// `if !false { crash "expectation failed: false (at <test>:<line>)" }`.
 	source := "test \"t\" { expect(false) }"
 	file, ctx := canon_file(source)
 	defer build.context_destroy(ctx)
@@ -300,6 +300,59 @@ test_canonicalize_expect_call_bakes_location :: proc(t: ^testing.T) {
 	case:
 		testing.expect(t, false)
 	}
-	testing.expect(t, strings.contains(crash_msg, "expectation failed at <test>:"))
+	testing.expect(t, strings.contains(crash_msg, "expectation failed: false (at <test>:"))
+}
+
+@(test)
+test_canonicalize_expect_bakes_expr_text :: proc(t: ^testing.T) {
+	// `expect 1 + 1 == 3` desugars to a crash whose message includes the
+	// condition's source text, not just file:line.
+	source := "test \"t\" { expect 1 + 1 == 3 }"
+	file, ctx := canon_file(source)
+	defer build.context_destroy(ctx)
+	defer free(ctx)
+
+	crash_msg := ""
+	#partial switch decl in file.decls[0] {
+	case ^semantics.CDecl_Test:
+		#partial switch body in decl.body {
+		case ^semantics.CExpr_Block:
+			for stmt in body.statements {
+				#partial switch s in stmt {
+				case ^semantics.CExpr_If:
+					#partial switch then in s.then_branch {
+					case ^semantics.CExpr_Crash:
+						#partial switch msg in then.message {
+						case ^semantics.CExpr_String:
+							crash_msg = msg.value
+						case:
+						}
+					case:
+					}
+				case:
+				}
+			}
+		case:
+		}
+	case:
+		testing.expect(t, false)
+	}
+	testing.expect(t, strings.contains(crash_msg, "expectation failed: 1 + 1 == 3 (at <test>:"))
+}
+
+@(test)
+test_canonicalize_expect_decl_captures_source_text :: proc(t: ^testing.T) {
+	// A top-level `expect cond` decl captures the condition's source text.
+	file, ctx := canon_file("expect 1 == 2")
+	defer build.context_destroy(ctx)
+	defer free(ctx)
+
+	testing.expect(t, len(file.decls) == 1)
+	#partial switch decl in file.decls[0] {
+	case ^semantics.CDecl_Expect:
+		testing.expect(t, decl.source_text == "1 == 2")
+	case:
+		testing.expect(t, false)
+	}
 }
 

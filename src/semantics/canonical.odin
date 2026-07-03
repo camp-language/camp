@@ -105,6 +105,7 @@ CDecl_Test :: struct {
 CDecl_Expect :: struct {
 	condition:   CExpr,
 	doc_comment: string,
+	source_text: string,
 	span:        base.Source_Span,
 }
 
