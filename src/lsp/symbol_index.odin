@@ -170,8 +170,6 @@ format_type_ann :: proc(type_ann: ^semantics.CType, store: ^semantics.Type_Store
 		return base.intern_get(store.interner, t.name)
 	case ^semantics.CType_Applied:
 		return base.intern_get(store.interner, t.name)
-	case ^semantics.CType_Wildcard:
-		return "_"
 	case ^semantics.CType_Self:
 		return "Self"
 	}

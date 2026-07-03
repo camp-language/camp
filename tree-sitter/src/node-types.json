@@ -40,10 +40,6 @@
           {
             "type": "type_variable",
             "named": true
-          },
-          {
-            "type": "wildcard_type",
-            "named": true
           }
         ]
       },
@@ -1346,10 +1342,6 @@
           {
             "type": "type_variable",
             "named": true
-          },
-          {
-            "type": "wildcard_type",
-            "named": true
           }
         ]
       }
@@ -1395,10 +1387,6 @@
           },
           {
             "type": "type_variable",
-            "named": true
-          },
-          {
-            "type": "wildcard_type",
             "named": true
           }
         ]
@@ -1767,10 +1755,6 @@
         },
         {
           "type": "type_variable",
-          "named": true
-        },
-        {
-          "type": "wildcard_type",
           "named": true
         }
       ]
@@ -2919,10 +2903,6 @@
           {
             "type": "type_variable",
             "named": true
-          },
-          {
-            "type": "wildcard_type",
-            "named": true
           }
         ]
       }
@@ -3837,10 +3817,6 @@
           {
             "type": "type_variable",
             "named": true
-          },
-          {
-            "type": "wildcard_type",
-            "named": true
           }
         ]
       },
@@ -4476,10 +4452,6 @@
           {
             "type": "type_variable",
             "named": true
-          },
-          {
-            "type": "wildcard_type",
-            "named": true
           }
         ]
       }
@@ -5036,10 +5008,6 @@
           {
             "type": "type_variable",
             "named": true
-          },
-          {
-            "type": "wildcard_type",
-            "named": true
           }
         ]
       }
@@ -5556,10 +5524,6 @@
           {
             "type": "type_variable",
             "named": true
-          },
-          {
-            "type": "wildcard_type",
-            "named": true
           }
         ]
       }
@@ -5996,28 +5960,13 @@
   {
     "type": "tag_union_type",
     "named": true,
-    "fields": {
-      "rest": {
-        "multiple": false,
-        "required": false,
-        "types": [
-          {
-            "type": "identifier",
-            "named": true
-          }
-        ]
-      }
-    },
+    "fields": {},
     "children": {
       "multiple": true,
       "required": true,
       "types": [
         {
           "type": "tag_union_variant",
-          "named": true
-        },
-        {
-          "type": "wildcard_type",
           "named": true
         }
       ]
@@ -6300,10 +6249,6 @@
           {
             "type": "type_variable",
             "named": true
-          },
-          {
-            "type": "wildcard_type",
-            "named": true
           }
         ]
       }
@@ -6340,10 +6285,6 @@
         {
           "type": "type_variable",
           "named": true
-        },
-        {
-          "type": "wildcard_type",
-          "named": true
         }
       ]
     }
@@ -6378,10 +6319,6 @@
         },
         {
           "type": "type_variable",
-          "named": true
-        },
-        {
-          "type": "wildcard_type",
           "named": true
         }
       ]
@@ -6771,16 +6708,6 @@
     }
   },
   {
-    "type": "wildcard_pattern",
-    "named": true,
-    "fields": {}
-  },
-  {
-    "type": "wildcard_type",
-    "named": true,
-    "fields": {}
-  },
-  {
     "type": "!",
     "named": false
   },
@@ -6898,10 +6825,6 @@
   },
   {
     "type": "]->",
-    "named": false
-  },
-  {
-    "type": "_",
     "named": false
   },
   {
@@ -7044,6 +6967,10 @@
   {
     "type": "where",
     "named": false
+  },
+  {
+    "type": "wildcard_pattern",
+    "named": true
   },
   {
     "type": "with",

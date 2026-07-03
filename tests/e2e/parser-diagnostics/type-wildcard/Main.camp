@@ -1,0 +1,4 @@
+pub main! = || -[Console! | Throw!([..])]-> I64 {
+  x: _ = 42
+  0
+}

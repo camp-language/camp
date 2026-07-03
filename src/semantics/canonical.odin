@@ -490,7 +490,6 @@ CType :: union {
 	^CType_Tag_Union,
 	^CType_Effect_Row,
 	^CType_Variable,
-	^CType_Wildcard,
 	^CType_Self,
 }
 
@@ -557,10 +556,6 @@ CType_Effect_Row :: struct {
 
 CType_Variable :: struct {
 	name: base.Intern_ID,
-	span: base.Source_Span,
-}
-
-CType_Wildcard :: struct {
 	span: base.Source_Span,
 }
 
@@ -885,8 +880,6 @@ ctype_destroy :: proc(t: CType) {
 	case ^CType_Primitive:
 		free(v)
 	case ^CType_Variable:
-		free(v)
-	case ^CType_Wildcard:
 		free(v)
 	case ^CType_Self:
 		free(v)

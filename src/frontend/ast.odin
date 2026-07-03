@@ -516,7 +516,6 @@ Type :: union {
 	^Type_Tag_Union,
 	^Type_Effect_Row,
 	^Type_Variable,
-	^Type_Wildcard,
 	^Type_Self,
 }
 
@@ -584,10 +583,6 @@ Type_Effect_Row :: struct {
 
 Type_Variable :: struct {
 	name: base.Intern_ID,
-	span: base.Source_Span,
-}
-
-Type_Wildcard :: struct {
 	span: base.Source_Span,
 }
 
@@ -877,8 +872,6 @@ type_destroy :: proc(t: Type) {
 	case ^Type_Primitive:
 		free(v)
 	case ^Type_Variable:
-		free(v)
-	case ^Type_Wildcard:
 		free(v)
 	case ^Type_Self:
 		free(v)
