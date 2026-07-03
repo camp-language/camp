@@ -1,0 +1,11 @@
+[tools]
+wasmer = "latest"
+just = "latest"
+odin = "latest"
+"github:DanielGavin/ols" = "latest"
+"github:hmans/beans" = "latest"
+
+[env]
+_.path = [
+  "/root/.local/share/mise/installs/github-daniel-gavin-ols/latest",
+]
