@@ -8,3 +8,8 @@
 Display : {
   to_str: (Self) -> Str,
 }
+
+// Tests
+test "Display trait interface declaration compiles" {
+  expect True
+}

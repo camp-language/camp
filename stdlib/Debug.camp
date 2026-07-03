@@ -6,3 +6,8 @@
 Debug : {
   debug : |Self| -> Str,
 }
+
+// Tests
+test "Debug trait interface declaration compiles" {
+  expect True
+}

@@ -11,3 +11,8 @@
 Hash : {
   hash : |Self, Hasher| -> Hasher,
 }
+
+// Tests
+test "Hash trait interface declaration compiles" {
+  expect True
+}
