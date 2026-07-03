@@ -6,3 +6,8 @@
 Eq : {
   eq : |Self, Self| -> Bool,
 }
+
+// Tests
+test "Eq trait interface declaration compiles" {
+  expect True
+}
