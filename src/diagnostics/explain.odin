@@ -28,8 +28,8 @@ explain_for_code :: proc(code: string) -> (string, bool) {
 	case "C0301":
 		return "An effectful function must have a '!' suffix on its name to indicate it may perform effects.",
 			true
-	case "C0900":
-		return "An internal compiler error occurred. This indicates a bug in the Camp compiler. Please report it.",
+	case "C0412":
+		return "Two or more effects handled in the same `handle` block declare an operation with the same name. The `.op(resume, args)` clause has no effect qualifier, so the compiler cannot tell which effect's operation to bind. Split into separate `handle` blocks or rename the op.",
 			true
 	}
 	return "", false
@@ -44,6 +44,7 @@ KNOWN_CODES :: [?]string {
 	"C0202",
 	"C0300",
 	"C0301",
+	"C0412",
 	"C0900",
 }
 

@@ -1,0 +1,30 @@
+stdout = """
+canonicalized /tmp/camp-e2e/effects/effect-ambiguous-handler-op-disjoint-plus-shared/src/Main.camp: 3 declaration(s), 0 import(s)
+-- C0409: REDUNDANT HANDLER --- /tmp/camp-e2e/effects/effect-ambiguous-handler-op-disjoint-plus-shared/src/Main.camp
+
+This `handle` block handles `EchoA!`, but that effect is never performed in the
+handled computation.
+   5 |   handle EchoA!, EchoB! in 0 with {
+         ^^^^^^
+  Remove the handler arm for `EchoA!`, or the computation may need to perform this effect.
+
+-- C0409: REDUNDANT HANDLER --- /tmp/camp-e2e/effects/effect-ambiguous-handler-op-disjoint-plus-shared/src/Main.camp
+
+This `handle` block handles `EchoB!`, but that effect is never performed in the
+handled computation.
+   5 |   handle EchoA!, EchoB! in 0 with {
+         ^^^^^^
+  Remove the handler arm for `EchoB!`, or the computation may need to perform this effect.
+
+-- C0412: AMBIGUOUS HANDLER OPERATION --- /tmp/camp-e2e/effects/effect-ambiguous-handler-op-disjoint-plus-shared/src/Main.camp
+
+Operation `.ping!` is declared by both `EchoA!` and `EchoB!` in this `handle`
+block. The clause syntax has no effect qualifier, so a shared op name is
+ambiguous.
+   6 |     .ping!(resume) => resume(0),
+            ^^^^^
+  Split into separate `handle` blocks (one for `EchoA!` and one for `EchoB!`), or rename the op in one effect.
+compilation failed with 1 error(s)
+"""
+stderr = ""
+exit = 1

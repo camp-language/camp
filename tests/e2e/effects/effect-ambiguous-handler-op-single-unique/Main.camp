@@ -1,0 +1,8 @@
+Solo! : { beep!: || -[Solo!]-> {} }
+
+main! = || -> I64 {
+  handle Solo! in 0 with {
+    .beep!(resume) => resume(0)
+  }
+  0
+}
