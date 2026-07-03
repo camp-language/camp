@@ -1561,13 +1561,6 @@ canonicalize_type :: proc(
 		}
 		result = CType(c)
 
-	case ^frontend.Type_Wildcard:
-		c := new(CType_Wildcard)
-		c^ = CType_Wildcard {
-			span = ty.span,
-		}
-		result = CType(c)
-
 	case ^frontend.Type_Self:
 		c := new(CType_Self)
 		c^ = CType_Self {
@@ -1863,7 +1856,6 @@ collect_type_variable_names :: proc(
 			append(names, ty.name)
 		}
 	case ^CType_Primitive:
-	case ^CType_Wildcard:
 	case ^CType_Self:
 	case ^CType_Function:
 		for p in ty.params {

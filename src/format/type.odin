@@ -29,8 +29,6 @@ format_type :: proc(
 		return format_type_effect_row(v, info, interner)
 	case ^frontend.Type_Variable:
 		return doc_text(base.intern_get(interner, v.name))
-	case ^frontend.Type_Wildcard:
-		return doc_text("_")
 	}
 	return doc_text("?")
 }

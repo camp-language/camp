@@ -1,0 +1,12 @@
+stdout = """
+-- C0122: TYPE WILDCARD --- /tmp/camp-e2e/parser-diagnostics/type-wildcard/src/Main.camp
+
+Type wildcards (`_`) are not supported. Omit the annotation instead — Camp
+infers the type.
+   2 |   x: _ = 42
+            ^
+  Write `x = expr` instead of `x: _ = expr`.
+compilation failed with 1 error(s)
+"""
+stderr = ""
+exit = 1

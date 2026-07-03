@@ -1329,9 +1329,6 @@ convert_type_to_var_val :: proc(
 		}
 		return fresh_value_var(store, ty.span)
 
-	case ^CType_Wildcard:
-		return fresh_value_var(store, ty.span)
-
 	case ^CType_Self:
 		// Inside a `Type is Trait { method = |a: Self| … }` impl, `Self` resolves
 		// to the owner type. Walk the env chain for a set impl_self_var (sentinel
